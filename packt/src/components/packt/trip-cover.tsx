@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { getTint } from "@/lib/trip-tints";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,9 @@ export function TripCover({
   style,
 }: TripCoverProps) {
   const { resolvedTheme } = useTheme();
-  const dark = resolvedTheme === "dark";
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const dark = mounted && resolvedTheme === "dark";
   const bg = getTint(name, dark);
 
   return (
