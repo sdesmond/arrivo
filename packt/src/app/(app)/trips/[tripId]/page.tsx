@@ -6,8 +6,7 @@ import { ChevronLeft, ChevronRight, Share2, Download, MoreHorizontal, Calendar, 
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
-import { MiniMapRail, DocsRail, PackingRail, CollaboratorsRail } from "@/components/packt/trip-rail";
-import { TOKYO_DAYS, TOKYO_DOCS, TOKYO_PACKING, TOKYO_COLLAB } from "@/data/tokyo";
+import { TOKYO_DAYS } from "@/data/tokyo";
 
 const TABS = [
   { id: "itin", label: "Itinerary" },
@@ -198,16 +197,6 @@ export default function TripDetailPage() {
           )}
         </div>
 
-        {/* Right rail — desktop only */}
-        <aside
-          className="hidden lg:flex flex-col overflow-y-auto shrink-0 p-4"
-          style={{ width: 280, borderLeft: "1px solid var(--line)" }}
-        >
-          <MiniMapRail />
-          <DocsRail docs={TOKYO_DOCS} />
-          <PackingRail items={TOKYO_PACKING} />
-          <CollaboratorsRail collaborators={TOKYO_COLLAB} />
-        </aside>
       </div>
     </div>
   );
