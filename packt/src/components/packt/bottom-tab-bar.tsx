@@ -18,6 +18,7 @@ export function BottomTabBar() {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50 flex lg:hidden"
+      aria-label="Mobile navigation"
       style={{
         height: 56,
         background: "var(--surface)",
@@ -36,11 +37,14 @@ export function BottomTabBar() {
             href={tab.href}
             className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-medium transition-colors"
             style={{ color: active ? "var(--accent-brand)" : "var(--fg-3)" }}
+            aria-current={active ? "page" : undefined}
+            aria-label={tab.label}
           >
             <Icon
               size={20}
               strokeWidth={1.5}
               style={{ color: active ? "var(--accent-brand)" : "var(--fg-3)" }}
+              aria-hidden
             />
             {tab.label}
           </Link>

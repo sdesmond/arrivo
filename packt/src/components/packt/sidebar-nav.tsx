@@ -79,6 +79,8 @@ export function SidebarNav() {
     <aside
       className="flex flex-col w-[240px] shrink-0 border-r scroll-thin overflow-y-auto"
       style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+      role="navigation"
+      aria-label="Main navigation"
     >
       {/* Brand row */}
       <div

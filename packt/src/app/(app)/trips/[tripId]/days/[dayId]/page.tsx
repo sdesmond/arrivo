@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronLeft, ChevronRight, Share2, Plus, MapPin, Clock, Sun,
@@ -37,13 +38,14 @@ function CatIcon({ cat, size = 12 }: { cat: string; size?: number }) {
 }
 
 // ── Timed event row ───────────────────────────────────────────────────
-function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover }: {
+function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }: {
   ev: TimedEvent;
   index: number;
   isOpen: boolean;
   onToggle: () => void;
   isHovered: boolean;
   onHover: (id: string | null) => void;
+  isPulsed?: boolean;
 }) {
   const isDone = ev.state === "done";
   const isNow = ev.state === "now";
@@ -73,6 +75,7 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover }: {
         onMouseEnter={() => onHover(ev.id)}
         onMouseLeave={() => onHover(null)}
         data-event-id={ev.id}
+        style={{ outline: isPulsed ? "2px solid var(--accent-brand)" : undefined, borderRadius: 10, transition: "outline 0.3s" }}
       >
         {/* Time column */}
         <div
@@ -551,10 +554,27 @@ function DayMap({ activeId, onHover }: { activeId: string | null; onHover: (id: 
 
 // ── Page ──────────────────────────────────────────────────────────────
 export default function DayPlannerPage() {
-  const [openId, setOpenId] = useState<string | null>("hama");
+  const searchParams = useSearchParams();
+  const focusId = searchParams.get("focus");
+  const [openId, setOpenId] = useState<string | null>(focusId ?? "hama");
   const [hovId, setHovId] = useState<string | null>(null);
+  const [pulseId, setPulseId] = useState<string | null>(focusId);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   const onToggle = (id: string) => setOpenId((prev) => (prev === id ? null : id));
+
+  useEffect(() => {
+    if (!focusId) return;
+    setOpenId(focusId);
+    setPulseId(focusId);
+    const timer = setTimeout(() => {
+      const el = timelineRef.current?.querySelector(`[data-event-id="${focusId}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    const clearPulse = setTimeout(() => setPulseId(null), 1400);
+    return () => { clearTimeout(timer); clearTimeout(clearPulse); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -686,7 +706,7 @@ export default function DayPlannerPage() {
           >
             TIMED EVENTS
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col" ref={timelineRef}>
             {TIMED.map((ev, i) => (
               <TimedRow
                 key={ev.id}
@@ -696,6 +716,7 @@ export default function DayPlannerPage() {
                 onToggle={() => onToggle(ev.id)}
                 isHovered={hovId === ev.id}
                 onHover={setHovId}
+                isPulsed={pulseId === ev.id}
               />
             ))}
           </div>
