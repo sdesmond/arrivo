@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Briefcase, Search, Map, Globe, User, Settings, MoreHorizontal,
+  Briefcase, Search, Map, Globe, User, Settings, MoreHorizontal, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRIP_TINTS } from "@/data/trips";
 import { getAvatarTint } from "@/lib/trip-tints";
 
 const NAV_ITEMS = [
-  { id: "trips",  label: "Trips",     icon: Briefcase, href: "/trips",     count: 4 },
-  { id: "search", label: "Search",    icon: Search,    href: "/search" },
-  { id: "map",    label: "Map",       icon: Map,       href: "/map" },
-  { id: "world",  label: "World map", icon: Globe,     href: "/world" },
+  { id: "trips",          label: "Trips",          icon: Briefcase, href: "/trips",           count: 4 },
+  { id: "search",         label: "Search",         icon: Search,    href: "/search" },
+  { id: "map",            label: "Map",            icon: Map,       href: "/map" },
+  { id: "world",          label: "World map",      icon: Globe,     href: "/world" },
+  { id: "travel-history", label: "Travel History", icon: Clock,     href: "/travel-history" },
 ];
 
 const ACCOUNT_ITEMS = [

@@ -12,10 +12,9 @@ import { NowCard } from "@/components/packt/now-card";
 import { DayRibbon } from "@/components/packt/day-ribbon";
 import { TripCard, NewTripCard } from "@/components/packt/trip-card";
 import { TripCover } from "@/components/packt/trip-cover";
-import { WorldMap } from "@/components/packt/world-map";
 import { ThemeToggle } from "@/components/packt/theme-toggle";
 import {
-  SAMPLE_ACTIVE_TRIP, SAMPLE_UPCOMING, SAMPLE_PAST, WORLD_PINS,
+  SAMPLE_ACTIVE_TRIP, SAMPLE_UPCOMING, SAMPLE_PAST,
 } from "@/data/trips";
 
 // ─── Mobile tab types ───────────────────────────────────────────────────────
@@ -109,65 +108,6 @@ function SectionHead({
       )}
       <span className="flex-1" />
       {children}
-    </div>
-  );
-}
-
-// ─── Travel history / WorldMini ───────────────────────────────────────────────
-function TravelHistory() {
-  return (
-    <div
-      className="flex rounded-[14px] overflow-hidden"
-      style={{ border: "1px solid var(--line)", background: "var(--bg)" }}
-    >
-      {/* Stats sidebar */}
-      <div
-        className="flex flex-col gap-3 p-5 shrink-0"
-        style={{ borderRight: "1px solid var(--line)", minWidth: 200 }}
-      >
-        <div>
-          <div
-            style={{
-              fontFamily: "var(--font-heading-family, ui-sans-serif)",
-              fontWeight: 600, fontSize: 14, letterSpacing: "-0.01em",
-              color: "var(--fg)",
-            }}
-          >
-            Travel history
-          </div>
-          <div style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 2 }}>
-            Across 9 cities and 8 countries.
-          </div>
-        </div>
-        <StatRow label="Cities" value="9" />
-        <StatRow label="Countries" value="8" />
-        <StatRow label="Days" value="42" />
-        <Button variant="outline" size="sm" className="w-full mt-1">
-          Open world map →
-        </Button>
-      </div>
-
-      {/* Map */}
-      <div className="flex-1 p-4" style={{ minHeight: 200 }}>
-        <WorldMap pins={WORLD_PINS} size="lg" />
-      </div>
-    </div>
-  );
-}
-
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{label}</span>
-      <span
-        style={{
-          fontFamily: "var(--font-heading-family, ui-sans-serif)",
-          fontSize: 15, fontWeight: 600,
-          letterSpacing: "-0.01em", color: "var(--fg)",
-        }}
-      >
-        {value}
-      </span>
     </div>
   );
 }
@@ -442,12 +382,6 @@ export default function TripsPage() {
                 ))}
                 <NewTripCard />
               </div>
-            </div>
-
-            {/* Travel history */}
-            <div>
-              <SectionHead title="Travel history" count="8 COUNTRIES · 42 DAYS LIFETIME" />
-              <TravelHistory />
             </div>
 
             {/* Past trips */}
