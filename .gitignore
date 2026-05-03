@@ -1,0 +1,1 @@
+node_modules/\n.next/\n.env*.local\n*.tsbuildinfo\nnext-env.d.ts\ndist/\n.DS_Store

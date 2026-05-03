@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Packt — Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="kitchen-sink.css" />
+<link rel="stylesheet" href="dashboard.css" />
+<link rel="stylesheet" href="trip-detail.css" />
+<link rel="stylesheet" href="day-planner.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="world-map.jsx"></script>
+<script type="text/babel" src="kitchen-sink.jsx"></script>
+<script type="text/babel" src="dashboard.jsx"></script>
+<script type="text/babel" src="trip-detail.jsx"></script>
+<script type="text/babel" src="day-planner.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "teal",
+  "dark": true
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [view, setView]   = React.useState('dashboard'); // kitchen | dashboard | trip | day
+  const [device, setDev]  = React.useState('desk');    // desk | mob
+  const [dayFocus, setDayFocus] = React.useState(null);
+  const goDay = (id) => { setDayFocus(id || null); setView('day'); };
+
+  // Apply theme + accent at root level
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', t.dark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-accent', t.accent);
+  }, [t.dark, t.accent]);
+
+  const stageBg = t.dark ? '#070809' : '#f6f6f4';
+
+  return (
+    <div className="app">
+      <header className="proto-bar">
+        <div className="brand"><span className="dot" />Packt</div>
+
+        <div className="seg" data-screen-label="view-switch">
+          <button className={view === 'kitchen' ? 'on' : ''} onClick={() => setView('kitchen')}>Kitchen sink</button>
+          <button className={view === 'dashboard' ? 'on' : ''} onClick={() => setView('dashboard')}>Dashboard</button>
+          <button className={view === 'trip' ? 'on' : ''} onClick={() => setView('trip')}>Trip detail</button>
+          <button className={view === 'day' ? 'on' : ''} onClick={() => setView('day')}>Day planner</button>
+        </div>
+        <div className="seg">
+          <button className={device === 'desk' ? 'on' : ''} onClick={() => setDev('desk')}>Desktop</button>
+          <button className={device === 'mob' ? 'on' : ''} onClick={() => setDev('mob')}>Mobile</button>
+        </div>
+
+        <div className="spacer" />
+
+        <div className="meta">
+          <span>accent · <b>{t.accent === 'coral' ? 'A coral' : 'B teal'}</b></span>
+          <span>·</span>
+          <span>{t.dark ? 'dark' : 'light'}</span>
+        </div>
+        <button className="btn ghost icon sm" onClick={() => setTweak('dark', !t.dark)} title="Toggle theme">
+          {t.dark ? <Packt_Icons.Sun size={15}/> : <Packt_Icons.Moon size={15}/>}
+        </button>
+      </header>
+
+      <div className="proto-stage" style={{ background: stageBg }}>
+        {device === 'desk' ? (
+          <div className="desk-frame" data-screen-label={`${view}-desktop`}>
+            {view === 'kitchen' && <Packt_KitchenSink accent={t.accent} setAccent={(a) => setTweak('accent', a)} />}
+            {view === 'dashboard' && <Packt_Dashboard.DesktopDashboard dark={t.dark} onOpenTrip={() => setView('trip')} onOpenDay={goDay} />}
+            {view === 'trip' && <Packt_TripDetail.DesktopTripDetail dark={t.dark} onBack={() => setView('dashboard')} onOpenDay={goDay} />}
+            {view === 'day' && <Packt_DayPlanner.DesktopDayPlanner dark={t.dark} onBack={() => setView('trip')} focusId={dayFocus} />}
+          </div>
+        ) : (
+          <div className="mob-frame" data-screen-label={`${view}-mobile`}>
+            {view === 'kitchen' && <Packt_KitchenSink accent={t.accent} setAccent={(a) => setTweak('accent', a)} />}
+            {view === 'dashboard' && <Packt_Dashboard.MobileDashboard dark={t.dark} onOpenTrip={() => setView('trip')} onOpenDay={goDay} />}
+            {view === 'trip' && <Packt_TripDetail.MobileTripDetail dark={t.dark} onBack={() => setView('dashboard')} onOpenDay={goDay} />}
+            {view === 'day' && <Packt_DayPlanner.MobileDayPlanner dark={t.dark} onBack={() => setView('trip')} focusId={dayFocus} />}
+          </div>
+        )}
+      </div>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Theme" />
+        <TweakToggle label="Dark mode" value={t.dark} onChange={(v) => setTweak('dark', v)} />
+        <TweakSection label="Accent" />
+        <TweakRadio
+          label="Variant"
+          value={t.accent}
+          options={[
+            { value: 'coral', label: 'A · Coral' },
+            { value: 'teal',  label: 'B · Teal' },
+          ]}
+          onChange={(v) => setTweak('accent', v)}
+        />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
