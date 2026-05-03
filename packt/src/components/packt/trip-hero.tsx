@@ -30,6 +30,7 @@ export function TripHero({
           name={name}
           country={`${countryCode} · DAY ${dayN} OF ${dayTotal}`}
           metaTag="ACTIVE TRIP · OFFLINE"
+          showCity={false}
           style={{ minHeight: 260 }}
         />
         {/* Gradient scrim for text legibility */}

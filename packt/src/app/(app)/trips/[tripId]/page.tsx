@@ -62,6 +62,7 @@ export default function TripDetailPage() {
           name="Tokyo"
           country="JPN · DAY 5 OF 7"
           metaTag="ACTIVE TRIP · OFFLINE"
+          showCity={false}
           style={{ minHeight: 260 }}
         />
         {/* Scrim */}
