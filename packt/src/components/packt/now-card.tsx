@@ -81,15 +81,21 @@ export function NowCard({ trip }: NowCardProps) {
             <Button variant="outline" size="icon-sm" title="Share">
               <Share2 size={13} strokeWidth={1.5} />
             </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/trips/${trip.id}`}>Open trip</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href={`/trips/${trip.id}/days/5`}>
-                <MapPin size={13} strokeWidth={1.5} />
-                Today
-              </Link>
-            </Button>
+            <Link
+              href={`/trips/${trip.id}`}
+              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem]"
+              style={{ border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }}
+            >
+              Open trip
+            </Link>
+            <Link
+              href={`/trips/${trip.id}/days/5`}
+              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem]"
+              style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+            >
+              <MapPin size={13} strokeWidth={1.5} />
+              Today
+            </Link>
           </div>
         </div>
 

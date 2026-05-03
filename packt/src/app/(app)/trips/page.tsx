@@ -333,9 +333,13 @@ function MobileActiveTab() {
         ))}
       </div>
 
-      <Button variant="outline" className="w-full" asChild>
-        <Link href={`/trips/${trip.id}`}>Open trip →</Link>
-      </Button>
+      <Link
+        href={`/trips/${trip.id}`}
+        className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium whitespace-nowrap transition-all h-7 px-2.5"
+        style={{ border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }}
+      >
+        Open trip →
+      </Link>
     </div>
   );
 }
@@ -525,9 +529,6 @@ export default function TripsPage() {
                   marginBottom: -2,
                   background: "transparent",
                   border: "none",
-                  borderBottom: mobileTab === tab
-                    ? `2px solid var(--accent-brand)`
-                    : `2px solid transparent`,
                   cursor: "pointer",
                   paddingBottom: 8,
                 }}
