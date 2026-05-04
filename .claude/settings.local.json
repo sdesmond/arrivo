@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git commit -m ' *)",
-      "Read(//c/Users/spenc/.claude/**)"
+      "Read(//c/Users/spenc/.claude/**)",
+      "Bash(xargs grep *)"
     ]
   }
 }
