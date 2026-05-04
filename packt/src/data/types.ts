@@ -93,6 +93,42 @@ export const EventCategory = {
 } as const;
 export type EventCategory = (typeof EventCategory)[keyof typeof EventCategory];
 
+export const TRANSPORT_CATEGORIES: EventCategory[] = [
+  EventCategory.Flight, EventCategory.Train, EventCategory.Bus,
+  EventCategory.Ferry, EventCategory.Taxi, EventCategory.RentalCar,
+  EventCategory.Transfer, EventCategory.RideShare,
+];
+
+export const ACCOMMODATION_CATEGORIES: EventCategory[] = [
+  EventCategory.Hotel, EventCategory.Hostel, EventCategory.Airbnb,
+  EventCategory.Resort, EventCategory.Camping,
+];
+
+export const FOOD_CATEGORIES: EventCategory[] = [
+  EventCategory.Restaurant, EventCategory.Cafe, EventCategory.Bar,
+  EventCategory.Drinks, EventCategory.StreetFood, EventCategory.Market,
+];
+
+export const CULTURE_CATEGORIES: EventCategory[] = [
+  EventCategory.Museum, EventCategory.Gallery, EventCategory.Monument,
+  EventCategory.HistoricSite, EventCategory.Show, EventCategory.Concert,
+];
+
+export const NATURE_CATEGORIES: EventCategory[] = [
+  EventCategory.Park, EventCategory.Hike, EventCategory.Beach,
+  EventCategory.Viewpoint, EventCategory.Garden,
+];
+
+export const ACTIVITY_CATEGORIES: EventCategory[] = [
+  EventCategory.Tour, EventCategory.Cruise, EventCategory.Sport,
+  EventCategory.Shopping, EventCategory.Spa,
+];
+
+export const LOGISTICS_CATEGORIES: EventCategory[] = [
+  EventCategory.Visa, EventCategory.Insurance,
+  EventCategory.Currency, EventCategory.Packing,
+];
+
 // Used only when migrating old string category values to the canonical enum.
 export const LEGACY_CATEGORY_MAP: Record<string, EventCategory> = {
   Food:      "StreetFood",
