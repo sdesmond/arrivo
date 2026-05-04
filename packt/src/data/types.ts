@@ -388,12 +388,6 @@ export interface TripTint {
   d:   string;
 }
 
-export interface AvatarTint {
-  bg:    string;
-  color: string;
-}
-
-
 export interface WorldPin {
   x:     number;
   y:     number;
