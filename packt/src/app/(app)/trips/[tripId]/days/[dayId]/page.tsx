@@ -23,9 +23,9 @@ function formatDayDate(dateStr: string): string {
 }
 
 // Compute end time string from "HH:mm" + duration in minutes.
-function calcEnd(time: string, durMin: number): string {
+function calcEnd(time: string, durationMinutes: number): string {
   const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + durMin;
+  const total = h * 60 + m + durationMinutes;
   return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
@@ -71,7 +71,7 @@ function TimedRow({ ev, index, isOpen, onToggle, isPulsed }: {
   const isDone = ev.status === "done";
   const isNow = isEventNow(ev);
   const hasDocs = (ev.docs?.length ?? 0) > 0;
-  const endTime = ev.time && ev.durMin != null ? calcEnd(ev.time, ev.durMin) : null;
+  const endTime = ev.time && ev.durationMinutes != null ? calcEnd(ev.time, ev.durationMinutes) : null;
 
   return (
     <div>
@@ -84,7 +84,7 @@ function TimedRow({ ev, index, isOpen, onToggle, isPulsed }: {
           <div style={{ width: 1, height: 16, background: "var(--line)", marginRight: 4 }} />
           <Train size={11} strokeWidth={1.5} />
           <span style={{ opacity: isDone ? 0.6 : 1 }}>
-            {ev.travelTo.mode} · {ev.travelTo.min} min
+            {ev.travelTo.mode} · {ev.travelTo.minutes} min
             {!isDone && <span style={{ color: "var(--fg-4)" }}> · {ev.travelTo.detail}</span>}
           </span>
           {isDone && <Check size={10} strokeWidth={2} style={{ color: "var(--accent-brand)" }} />}
@@ -108,7 +108,7 @@ function TimedRow({ ev, index, isOpen, onToggle, isPulsed }: {
           }}
         >
           <div style={{ fontWeight: 600 }}>{ev.time}</div>
-          {ev.durMin != null && <div style={{ fontSize: 10, opacity: 0.7 }}>{ev.durMin}m</div>}
+          {ev.durationMinutes != null && <div style={{ fontSize: 10, opacity: 0.7 }}>{ev.durationMinutes}m</div>}
           {endTime && <div style={{ fontSize: 10, opacity: 0.55 }}>→ {endTime}</div>}
         </div>
 
@@ -165,9 +165,9 @@ function TimedRow({ ev, index, isOpen, onToggle, isPulsed }: {
             <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--fg)" }} className="truncate">
               {ev.name}
             </div>
-            <span className="flex items-center gap-1 shrink-0" style={{ fontSize: 11.5, color: catTone(ev.cat) }}>
-              <CatIcon cat={ev.cat} size={11} />
-              {ev.cat}
+            <span className="flex items-center gap-1 shrink-0" style={{ fontSize: 11.5, color: catTone(ev.category) }}>
+              <CatIcon cat={ev.category} size={11} />
+              {ev.category}
             </span>
             {isNow && (
               <span
@@ -389,9 +389,9 @@ function FlexCard({ ev }: { ev: TripEvent }) {
       </div>
       <div className="flex-1 min-w-0">
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{ev.name}</div>
-        <div className="flex items-center gap-1" style={{ fontSize: 11.5, color: catTone(ev.cat) }}>
-          <CatIcon cat={ev.cat} size={11} />
-          {ev.cat}
+        <div className="flex items-center gap-1" style={{ fontSize: 11.5, color: catTone(ev.category) }}>
+          <CatIcon cat={ev.category} size={11} />
+          {ev.category}
           {ev.location?.name && (
             <span style={{ color: "var(--fg-3)" }}>· {ev.location.name}</span>
           )}
@@ -422,8 +422,8 @@ export default function DayPlannerPage() {
   const trip = SAMPLE_ACTIVE_TRIP;
   const day5 = TOKYO_DAYS.find((d) => d.dayNumber === 5)!;
   const lastTimed = TIMED[TIMED.length - 1];
-  const timeRangeEnd = lastTimed?.time && lastTimed.durMin != null
-    ? calcEnd(lastTimed.time, lastTimed.durMin)
+  const timeRangeEnd = lastTimed?.time && lastTimed.durationMinutes != null
+    ? calcEnd(lastTimed.time, lastTimed.durationMinutes)
     : lastTimed?.time ?? "";
   const timeRange = TIMED.length > 0 ? `${TIMED[0].time} – ${timeRangeEnd}` : "";
 

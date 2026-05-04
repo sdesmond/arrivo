@@ -195,8 +195,8 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
               className="flex items-center gap-1"
               style={{ fontSize: 12, color: "var(--fg-3)" }}
             >
-              {CAT_ICON[p.cat] ?? <MapPin size={12} strokeWidth={1.5} />}
-              {p.cat}
+              {CAT_ICON[p.category] ?? <MapPin size={12} strokeWidth={1.5} />}
+              {p.category}
             </span>
             {p.subtitle && (
               <span style={{ fontSize: 12, color: "var(--fg-3)" }}>· {p.subtitle}</span>

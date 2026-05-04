@@ -10,10 +10,10 @@ import { DayCard } from "@/components/packt/day-card";
 import { getTripById, TRIP_DATA } from "@/data/trips";
 
 function formatTripHeader(country: string, start: string, end: string) {
-  const M = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-  const [,sm,sd] = start.split("-").map(Number);
-  const [ey,em,ed] = end.split("-").map(Number);
-  return `${country.toUpperCase()} · ${M[sm-1]} ${sd} — ${M[em-1]} ${ed}, ${ey}`;
+  const MONTH_ABBREVIATIONS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const [, startMonth, startDay] = start.split("-").map(Number);
+  const [endYear, endMonth, endDay] = end.split("-").map(Number);
+  return `${country.toUpperCase()} · ${MONTH_ABBREVIATIONS[startMonth-1]} ${startDay} — ${MONTH_ABBREVIATIONS[endMonth-1]} ${endDay}, ${endYear}`;
 }
 
 const TABS = [
@@ -26,18 +26,18 @@ const TABS = [
 
 export default function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>();
-  const [tab, setTab] = useState("itin");
-  const [dayIdx, setDayIdx] = useState(0);
+  const [activeTab, setActiveTab] = useState("itin");
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
   const trip = getTripById(tripId);
   const { days, docs, collaborators } = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
 
   if (!trip) return <div style={{ padding: 24, color: "var(--fg-2)" }}>Trip not found.</div>;
 
-  const eventCount = days.reduce((n, d) => n + d.events.length, 0);
+  const eventCount = days.reduce((count, day) => count + day.events.length, 0);
   const dayTotal = trip.dayTotal ?? trip.days ?? 0;
   const tripCoverCountry = trip.countryCode
-    ? (trip.dayN != null ? `${trip.countryCode} · DAY ${trip.dayN} OF ${dayTotal}` : trip.countryCode)
+    ? (trip.activeDayNumber != null ? `${trip.countryCode} · DAY ${trip.activeDayNumber} OF ${dayTotal}` : trip.countryCode)
     : trip.country.toUpperCase();
   const heroDateLine = formatTripHeader(trip.country, trip.startDate, trip.endDate);
 
@@ -117,7 +117,7 @@ export default function TripDetailPage() {
             {trip.name}
           </h1>
           <div className="flex items-center gap-4 flex-wrap" style={{ color: "rgba(255,255,255,0.72)", fontSize: 12.5 }}>
-            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days{trip.dayN != null ? ` · day ${trip.dayN} today` : ""}</span>
+            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days{trip.activeDayNumber != null ? ` · day ${trip.activeDayNumber} today` : ""}</span>
             <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
             <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{docs.length} docs</span>
             <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{collaborators.length} collaborators</span>
@@ -131,22 +131,22 @@ export default function TripDetailPage() {
         style={{ borderBottom: "1px solid var(--line)", background: "var(--bg)" }}
       >
         <div className="flex items-center flex-1 gap-0 overflow-x-auto overflow-y-hidden scroll-thin">
-          {TABS.map((t) => (
+          {TABS.map((tabItem) => (
             <button
-              key={t.id}
+              key={tabItem.id}
               className="shrink-0 px-3.5 py-3 transition-colors relative"
               style={{
                 fontSize: 13,
-                fontWeight: tab === t.id ? 600 : 400,
-                color: tab === t.id ? "var(--fg)" : "var(--fg-3)",
+                fontWeight: activeTab === tabItem.id ? 600 : 400,
+                color: activeTab === tabItem.id ? "var(--fg)" : "var(--fg-3)",
                 background: "none",
                 border: "none",
-                borderBottom: tab === t.id ? "2px solid var(--accent-brand)" : "2px solid transparent",
+                borderBottom: activeTab === tabItem.id ? "2px solid var(--accent-brand)" : "2px solid transparent",
                 marginBottom: -1,
               }}
-              onClick={() => setTab(t.id)}
+              onClick={() => setActiveTab(tabItem.id)}
             >
-              {t.label}
+              {tabItem.label}
             </button>
           ))}
         </div>
@@ -162,22 +162,22 @@ export default function TripDetailPage() {
             <button
               className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
               style={{ width: 26, height: 26, color: "var(--fg-3)" }}
-              onClick={() => setDayIdx((i) => Math.max(0, i - 1))}
-              disabled={dayIdx === 0}
+              onClick={() => setSelectedDayIndex((prevIndex) => Math.max(0, prevIndex - 1))}
+              disabled={selectedDayIndex === 0}
             >
               <ChevronLeft size={13} strokeWidth={1.5} />
             </button>
             <span style={{ letterSpacing: "0.04em" }}>
-              DAY <strong style={{ color: "var(--fg)", fontWeight: 700 }}>{days[dayIdx]?.dayNumber}</strong>
+              DAY <strong style={{ color: "var(--fg)", fontWeight: 700 }}>{days[selectedDayIndex]?.dayNumber}</strong>
               {" · "}
-              {days[dayIdx]?.label.split("·")[0].trim()}
-              {days[dayIdx]?.today ? " · TODAY" : ""}
+              {days[selectedDayIndex]?.label.split("·")[0].trim()}
+              {days[selectedDayIndex]?.today ? " · TODAY" : ""}
             </span>
             <button
               className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
               style={{ width: 26, height: 26, color: "var(--fg-3)" }}
-              onClick={() => setDayIdx((i) => Math.min(days.length - 1, i + 1))}
-              disabled={dayIdx === days.length - 1}
+              onClick={() => setSelectedDayIndex((prevIndex) => Math.min(days.length - 1, prevIndex + 1))}
+              disabled={selectedDayIndex === days.length - 1}
             >
               <ChevronRight size={13} strokeWidth={1.5} />
             </button>
@@ -189,30 +189,30 @@ export default function TripDetailPage() {
       <div className="flex-1 flex min-h-0">
         {/* Itinerary — main column */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
-          {tab === "itin" && (
+          {activeTab === "itin" && (
             <div>
               {days.length > 0
-                ? days.map((d) => <DayCard key={d.dayNumber} day={d} />)
+                ? days.map((day) => <DayCard key={day.dayNumber} day={day} />)
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
               }
             </div>
           )}
-          {tab === "docs" && (
+          {activeTab === "docs" && (
             <div style={{ fontSize: 14, color: "var(--fg-2)" }}>
               Document view coming soon.
             </div>
           )}
-          {tab === "map" && (
+          {activeTab === "map" && (
             <div style={{ fontSize: 14, color: "var(--fg-2)" }}>
               Map view coming soon.
             </div>
           )}
-          {tab === "pack" && (
+          {activeTab === "pack" && (
             <div style={{ fontSize: 14, color: "var(--fg-2)" }}>
               Packing list view coming soon.
             </div>
           )}
-          {tab === "notes" && (
+          {activeTab === "notes" && (
             <div style={{ fontSize: 14, color: "var(--fg-2)" }}>
               Notes coming soon.
             </div>

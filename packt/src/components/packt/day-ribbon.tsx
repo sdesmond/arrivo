@@ -35,7 +35,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
     >
       {/* Date tile */}
       <Link
-        href={`/trips/${trip.id}/days/${trip.dayN}`}
+        href={`/trips/${trip.id}/days/${trip.activeDayNumber}`}
         className="shrink-0 rounded-[8px] flex flex-col items-center justify-center gap-0.5 transition-colors hover:opacity-80"
         style={{
           width: 72, minHeight: 72,
@@ -65,7 +65,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
             lineHeight: 1.3,
           }}
         >
-          {trip.todayMonth} · DAY {trip.dayN}
+          {trip.todayMonth} · DAY {trip.activeDayNumber}
         </div>
       </Link>
 
@@ -100,7 +100,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
 function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
   const isNow = isEventNow(ev);
   const isDone = ev.status === "done";
-  const catColor = CAT_COLORS[ev.cat] ?? CAT_COLORS.default;
+  const catColor = CAT_COLORS[ev.category] ?? CAT_COLORS.default;
 
   return (
     <Link
@@ -133,7 +133,7 @@ function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
         {ev.name}
       </div>
       <div style={{ fontSize: 11, color: catColor }}>
-        {ev.cat}
+        {ev.category}
       </div>
     </Link>
   );

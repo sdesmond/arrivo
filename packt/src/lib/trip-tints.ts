@@ -2,7 +2,7 @@ import { TRIP_TINTS, type TripTint } from "@/data/trips";
 
 export function getTint(name: string, dark: boolean): string {
   const tint: TripTint = TRIP_TINTS[name] ?? TRIP_TINTS.Default;
-  return dark ? tint.d : tint.l;
+  return dark ? tint.dark : tint.light;
 }
 
 export function getAvatarTint(initials: string): { bg: string; color: string } {

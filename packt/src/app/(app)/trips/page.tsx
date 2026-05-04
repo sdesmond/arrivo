@@ -190,7 +190,7 @@ function MobileActiveTab() {
       >
         <TripCover
           name={trip.name}
-          country={`JPN · DAY ${trip.dayN} OF ${trip.dayTotal}`}
+          country={`JPN · DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`}
           metaTag="ACTIVE"
           showCity
           style={{ minHeight: 160 }}
@@ -208,7 +208,7 @@ function MobileActiveTab() {
               className="rounded-full"
               style={{ width: 6, height: 6, background: "var(--accent-brand)", display: "inline-block" }}
             />
-            Day {trip.dayN} of {trip.dayTotal} · 14:08 JST
+            Day {trip.activeDayNumber} of {trip.dayTotal} · 14:08 JST
           </div>
           <h2
             style={{
@@ -244,7 +244,7 @@ function MobileActiveTab() {
         {trip.events?.map((ev) => (
           <Link
             key={ev.id}
-            href={`/trips/${trip.id}/days/${trip.dayN}?focus=${ev.id}`}
+            href={`/trips/${trip.id}/days/${trip.activeDayNumber}?focus=${ev.id}`}
             className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface"
             style={{
               opacity: ev.status === "done" ? 0.5 : 1,
@@ -269,7 +269,7 @@ function MobileActiveTab() {
             >
               {ev.name}
             </span>
-            <span style={{ fontSize: 11.5, color: "var(--fg-3)" }}>{ev.cat}</span>
+            <span style={{ fontSize: 11.5, color: "var(--fg-3)" }}>{ev.category}</span>
           </Link>
         ))}
       </div>

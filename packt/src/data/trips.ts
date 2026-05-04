@@ -12,16 +12,16 @@ import { TOKYO_DAYS, TOKYO_DOCS, TOKYO_COLLAB } from "./tokyo";
 import { LISBON_DAYS, LISBON_DOCS, LISBON_COLLAB } from "./lisbon";
 
 export const TRIP_TINTS: Record<string, TripTint> = {
-  Tokyo:     { hue: 8,   l: "oklch(0.94 0.04 8)",   d: "oklch(0.28 0.05 8)"   },
-  Lisbon:    { hue: 78,  l: "oklch(0.95 0.04 78)",  d: "oklch(0.30 0.04 78)"  },
-  Oaxaca:    { hue: 45,  l: "oklch(0.94 0.05 45)",  d: "oklch(0.30 0.05 45)"  },
-  Reykjavik: { hue: 220, l: "oklch(0.94 0.03 220)", d: "oklch(0.28 0.04 220)" },
-  Marrakech: { hue: 30,  l: "oklch(0.93 0.06 30)",  d: "oklch(0.30 0.06 30)"  },
-  Kyoto:     { hue: 350, l: "oklch(0.94 0.04 350)", d: "oklch(0.30 0.04 350)" },
-  Athens:    { hue: 200, l: "oklch(0.95 0.03 200)", d: "oklch(0.30 0.04 200)" },
-  Hanoi:     { hue: 150, l: "oklch(0.94 0.04 150)", d: "oklch(0.30 0.04 150)" },
-  Patagonia: { hue: 245, l: "oklch(0.94 0.03 245)", d: "oklch(0.28 0.04 245)" },
-  Default:   { hue: 60,  l: "oklch(0.94 0.02 60)",  d: "oklch(0.30 0.02 60)"  },
+  Tokyo:     { hue: 8,   light: "oklch(0.94 0.04 8)",   dark: "oklch(0.28 0.05 8)"   },
+  Lisbon:    { hue: 78,  light: "oklch(0.95 0.04 78)",  dark: "oklch(0.30 0.04 78)"  },
+  Oaxaca:    { hue: 45,  light: "oklch(0.94 0.05 45)",  dark: "oklch(0.30 0.05 45)"  },
+  Reykjavik: { hue: 220, light: "oklch(0.94 0.03 220)", dark: "oklch(0.28 0.04 220)" },
+  Marrakech: { hue: 30,  light: "oklch(0.93 0.06 30)",  dark: "oklch(0.30 0.06 30)"  },
+  Kyoto:     { hue: 350, light: "oklch(0.94 0.04 350)", dark: "oklch(0.30 0.04 350)" },
+  Athens:    { hue: 200, light: "oklch(0.95 0.03 200)", dark: "oklch(0.30 0.04 200)" },
+  Hanoi:     { hue: 150, light: "oklch(0.94 0.04 150)", dark: "oklch(0.30 0.04 150)" },
+  Patagonia: { hue: 245, light: "oklch(0.94 0.03 245)", dark: "oklch(0.28 0.04 245)" },
+  Default:   { hue: 60,  light: "oklch(0.94 0.02 60)",  dark: "oklch(0.30 0.02 60)"  },
 };
 
 export const SAMPLE_ACTIVE_TRIP: Trip = {
@@ -32,16 +32,16 @@ export const SAMPLE_ACTIVE_TRIP: Trip = {
   status: "active",
   startDate: "2026-04-24",
   endDate: "2026-05-01",
-  dayN: 5,
+  activeDayNumber: 5,
   dayTotal: 7,
   todayDate: 28,
   todayMonth: "Apr",
   events: [
-    { id: "tsukiji", time: "09:30", name: "Tsukiji Outer Market", cat: "StreetFood", status: "done" },
-    { id: "teamlab", time: "11:30", name: "teamLab Planets",      cat: "Museum",     status: "done" },
-    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens",    cat: "Park",       status: "scheduled" },
-    { id: "shibuya", time: "17:30", name: "Shibuya Sky",          cat: "Viewpoint",  status: "scheduled" },
-    { id: "saito",   time: "20:00", name: "Sushi Saito",          cat: "Restaurant", status: "scheduled" },
+    { id: "tsukiji", time: "09:30", name: "Tsukiji Outer Market", category: "StreetFood", status: "done" },
+    { id: "teamlab", time: "11:30", name: "teamLab Planets",      category: "Museum",     status: "done" },
+    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens",    category: "Park",       status: "scheduled" },
+    { id: "shibuya", time: "17:30", name: "Shibuya Sky",          category: "Viewpoint",  status: "scheduled" },
+    { id: "saito",   time: "20:00", name: "Sushi Saito",          category: "Restaurant", status: "scheduled" },
   ],
 };
 
@@ -109,7 +109,7 @@ export const AVATAR_COLORS: Record<string, { bg: string; color: string }> = {
 export const ALL_TRIPS: Trip[] = [SAMPLE_ACTIVE_TRIP, ...SAMPLE_UPCOMING, ...SAMPLE_PAST];
 
 export function getTripById(id: string): Trip | undefined {
-  return ALL_TRIPS.find((t) => t.id === id);
+  return ALL_TRIPS.find((trip) => trip.id === id);
 }
 
 export const TRIP_DATA: Record<string, { days: DayItinerary[]; docs: { name: string }[]; collaborators: Collaborator[] }> = {

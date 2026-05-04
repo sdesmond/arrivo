@@ -13,7 +13,7 @@ interface NowCardProps {
 }
 
 export function NowCard({ trip }: NowCardProps) {
-  const sub = `${trip.country?.toUpperCase()} · DAY ${trip.dayN} OF ${trip.dayTotal}`;
+  const sub = `${trip.country?.toUpperCase()} · DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`;
 
   return (
     <div
@@ -57,7 +57,7 @@ export function NowCard({ trip }: NowCardProps) {
                   display: "inline-block",
                 }}
               />
-              ACTIVE TRIP · DAY {trip.dayN} OF {trip.dayTotal}
+              ACTIVE TRIP · DAY {trip.activeDayNumber} OF {trip.dayTotal}
             </div>
             <h2
               style={{

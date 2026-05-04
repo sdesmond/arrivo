@@ -206,7 +206,7 @@ export interface Document {
 export interface TravelTo {
   mode:    TransportMode;
   detail?: string;
-  min?:    number;
+  minutes?:    number;
 }
 
 export interface GeoCoords {
@@ -243,7 +243,7 @@ export interface TripEvent {
   tripId?: string;
 
   // ── Classification ────────────────────────────────────────────────────────
-  cat:       EventCategory;
+  category:  EventCategory;
   priority?: EventPriority;
   status:    EventStatus;
 
@@ -259,7 +259,7 @@ export interface TripEvent {
   time?:    string;
   startAt?: string;
   endAt?:   string;
-  durMin?:  number;
+  durationMinutes?:  number;
 
   // Flexible/unscheduled events use bucket instead of a fixed time.
   bucket?: TimeBucket;
@@ -345,7 +345,7 @@ export interface Trip {
 
   // Prototype-era computed/display fields — derive from dates in the UI eventually.
   days?:       number;
-  dayN?:       number;
+  activeDayNumber?:       number;
   dayTotal?:   number;
   inDays?:     number;
   todayDate?:  number;
@@ -385,9 +385,9 @@ export interface PackingItem {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TripTint {
-  hue: number;
-  l:   string;
-  d:   string;
+  hue:   number;
+  light: string;
+  dark:  string;
 }
 
 export interface WorldPin {
