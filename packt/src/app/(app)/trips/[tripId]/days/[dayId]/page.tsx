@@ -195,22 +195,22 @@ function TimedRow({ ev, index, isOpen, onToggle, isPulsed }: {
                 {ev.location.name}
               </span>
             )}
-            {ev.confirmation && (
+            {ev.confirmationNumber && (
               <button
                 className="flex items-center gap-1 rounded-full px-2 py-0.5"
                 style={{
                   fontSize: 10.5, background: "var(--surface-2)",
                   border: "1px solid var(--line-strong)",
                 }}
-                onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(ev.confirmation!.code); }}
+                onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(ev.confirmationNumber!); }}
                 title="Click to copy"
               >
-                <span style={{ color: "var(--fg-3)" }}>{ev.confirmation.label}</span>
+                <span style={{ color: "var(--fg-3)" }}>Conf.</span>
                 <span style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
                   fontWeight: 600, color: "var(--fg-2)",
                 }}>
-                  {ev.confirmation.code}
+                  {ev.confirmationNumber}
                 </span>
               </button>
             )}

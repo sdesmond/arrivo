@@ -1,7 +1,6 @@
 export type {
   DocPreviewLine,
   Document,
-  Confirmation,
   TravelTo,
   TripEvent,
   DayItinerary,
@@ -28,7 +27,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         sub: "Terminal 2 · JL flight 0007",
         location: { name: "Narita Airport · Terminal 2" },
         travelTo: { mode: "Train", detail: "Narita Express", min: 60 },
-        confirmation: { label: "Booking", code: "JL-7H4K2P" },
+        confirmationNumber: "JL-7H4K2P",
         docs: [
           {
             id: "jl0007", name: "JL 0007 — Boarding pass.pdf",
@@ -56,7 +55,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         name: "Park Hyatt Tokyo", cat: "Hotel", status: "done",
         sub: "Check-in · Shinjuku", note: "Room block held until 18:00.",
         location: { name: "Shinjuku · Park Hyatt" },
-        confirmation: { label: "Reservation", code: "HZ-49281" },
+        confirmationNumber: "HZ-49281",
         docs: [
           {
             id: "hyatt-cf", name: "Park Hyatt — Confirmation.pdf",
@@ -184,7 +183,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         note: "Timed entry 11:30 confirmed in app. Bring shorts (water rooms).",
         location: { name: "Toyosu · timed entry", mapPin: { x: 0.34, y: 0.55 } },
         travelTo: { mode: "Subway", detail: "Yurakucho line", min: 12 },
-        confirmation: { label: "Order", code: "TLP-9F2K-7741" },
+        confirmationNumber: "TLP-9F2K-7741",
         docs: [
           {
             id: "tl-tix", name: "teamLab Planets — 2 tickets.pdf",
@@ -246,7 +245,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         note: "Omakase ¥30,000pp. Card ok. Quiet room — phones off. Address sent to phone.",
         location: { name: "Roppongi · ARK Hills", mapPin: { x: 0.66, y: 0.42 } },
         travelTo: { mode: "Taxi", detail: "go straight, no detour", min: 15 },
-        confirmation: { label: "Reservation", code: "SAITO-20260428-2P" },
+        confirmationNumber: "SAITO-20260428-2P",
         docs: [
           {
             id: "ss-rsv", name: "Sushi Saito — Reservation.pdf",

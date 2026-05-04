@@ -206,11 +206,6 @@ export interface Document {
 // SUPPORTING TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface Confirmation {
-  label: string;
-  code:  string;
-}
-
 export interface TravelTo {
   mode:    TransportMode;
   detail?: string;
@@ -288,7 +283,7 @@ export interface TripEvent {
   travelTo?: TravelTo;
 
   // ── Booking reference ─────────────────────────────────────────────────────
-  confirmation?: Confirmation;
+  confirmationNumber?: string;
 
   // ── Attached documents ────────────────────────────────────────────────────
   docs?: Document[];

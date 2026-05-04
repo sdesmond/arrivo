@@ -201,7 +201,7 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
             {p.sub && (
               <span style={{ fontSize: 12, color: "var(--fg-3)" }}>· {p.sub}</span>
             )}
-            {p.confirmation && (
+            {p.confirmationNumber && (
               <button
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:opacity-80"
                 style={{
@@ -211,11 +211,11 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigator.clipboard?.writeText(p.confirmation!.code);
+                  navigator.clipboard?.writeText(p.confirmationNumber!);
                 }}
                 title="Click to copy"
               >
-                <span style={{ color: "var(--fg-3)" }}>{p.confirmation.label}</span>
+                <span style={{ color: "var(--fg-3)" }}>Conf.</span>
                 <span
                   style={{
                     fontFamily: "var(--font-mono-family, ui-monospace)",
@@ -223,7 +223,7 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
                     letterSpacing: "0.04em",
                   }}
                 >
-                  {p.confirmation.code}
+                  {p.confirmationNumber}
                 </span>
               </button>
             )}
