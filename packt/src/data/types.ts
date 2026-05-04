@@ -357,10 +357,7 @@ export interface Trip {
   notes?:         string;
   budget?:        Budget;
 
-  // collaborators = full Collaborator objects (canonical)
-  // collaboratorInitials = legacy string[] avatar display (bridge field)
-  collaborators?:        Collaborator[];
-  collaboratorInitials?: string[];
+  collaborators?: Collaborator[];
 
   docs?: Document[];
 

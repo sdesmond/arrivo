@@ -32,7 +32,6 @@ export const SAMPLE_ACTIVE_TRIP: Trip = {
   endDate: "2026-05-01",
   dayN: 5,
   dayTotal: 7,
-  collaboratorInitials: ["MR", "JK"],
   todayDate: 28,
   todayMonth: "Apr",
   events: [
@@ -54,7 +53,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
     endDate: "2026-05-22",
     days: 4,
     inDays: 21,
-    collaboratorInitials: ["MR", "AC"],
   },
   {
     id: "oaxaca-2026",
@@ -65,7 +63,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
     endDate: "2026-08-06",
     days: 9,
     inDays: 92,
-    collaboratorInitials: ["MR"],
   },
   {
     id: "reykjavik-2026",
@@ -76,7 +73,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
     endDate: "2026-10-20",
     days: 8,
     inDays: 168,
-    collaboratorInitials: ["MR", "JK", "AC"],
   },
 ];
 

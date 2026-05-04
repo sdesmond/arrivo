@@ -77,14 +77,14 @@ export function TripCard({ trip }: TripCardProps) {
           </span>
           <span className="flex items-center gap-1">
             <Users size={13} strokeWidth={1.5} />
-            {trip.collaboratorInitials?.length ?? 0}
+            {trip.collaborators?.length ?? 0}
           </span>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-0.5">
-          {trip.collaboratorInitials && (
-            <AvatarStack initials={trip.collaboratorInitials} size="sm" />
+          {trip.collaborators && (
+            <AvatarStack initials={trip.collaborators.map((c) => c.initials)} size="sm" />
           )}
           <span
             style={{
