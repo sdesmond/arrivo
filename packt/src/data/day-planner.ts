@@ -1,4 +1,4 @@
-export type { EventState, TripEvent, TravelTo } from "./types";
+export type { TripEvent, TravelTo } from "./types";
 
 import type { TripEvent } from "./types";
 import { TOKYO_DAYS } from "./tokyo";

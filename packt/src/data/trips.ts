@@ -1,5 +1,4 @@
 export type {
-  EventState,
   EventCategory,
   TripStatus,
   TripEvent,

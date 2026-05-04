@@ -24,8 +24,6 @@ export const TripStatus = {
 } as const;
 export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 
-// "scheduled" replaces the ambiguous "next" — clearly means "not yet started".
-// EventState is a backward-compat alias; existing checks like === "done" still work.
 export const EventStatus = {
   Scheduled: "scheduled",
   Done:      "done",
@@ -33,7 +31,6 @@ export const EventStatus = {
   Cancelled: "cancelled",
 } as const;
 export type EventStatus = (typeof EventStatus)[keyof typeof EventStatus];
-export type EventState = EventStatus;
 
 export const EventCategory = {
   // Transport
