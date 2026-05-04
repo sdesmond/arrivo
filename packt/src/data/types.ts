@@ -161,17 +161,17 @@ export type CollaboratorRole = (typeof CollaboratorRole)[keyof typeof Collaborat
 
 // kind = the file format
 export const DocKind = {
-  PDF:         "pdf",
-  Image:       "image",
-  Doc:         "doc",
-  Link:        "link",
-  BoardingPass:"boarding-pass",
-  Voucher:     "voucher",
+  PDF:   "pdf",
+  Image: "image",
+  Doc:   "doc",
+  Link:  "link",
 } as const;
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 
 // type = what the document semantically represents
 export const DocType = {
+  BoardingPass:          "boarding-pass",
+  Voucher:               "voucher",
   FlightTicket:          "flight-ticket",
   HotelConfirmation:     "hotel-confirmation",
   RestaurantReservation: "restaurant-reservation",
