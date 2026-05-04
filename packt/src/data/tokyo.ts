@@ -17,7 +17,7 @@ import type {
 
 export const TOKYO_DAYS: DayItinerary[] = [
   {
-    tripId: "tokyo-2026", n: 1, date: "2026-04-24", label: "Mon · Apr 24", subtitle: "Arrival",
+    tripId: "tokyo-2026", dayNumber:1, date: "2026-04-24", label: "Mon · Apr 24", subtitle: "Arrival",
     events: [
       {
         id: "d1-nrt", time: "14:30", durMin: 30,
@@ -71,7 +71,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
     ],
   },
   {
-    tripId: "tokyo-2026", n: 2, date: "2026-04-25", label: "Tue · Apr 25", subtitle: "Old Tokyo",
+    tripId: "tokyo-2026", dayNumber:2, date: "2026-04-25", label: "Tue · Apr 25", subtitle: "Old Tokyo",
     events: [
       {
         id: "d2-sensoji", time: "09:00", durMin: 90,
@@ -103,7 +103,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
     ],
   },
   {
-    tripId: "tokyo-2026", n: 3, date: "2026-04-26", label: "Wed · Apr 26", subtitle: "West side",
+    tripId: "tokyo-2026", dayNumber:3, date: "2026-04-26", label: "Wed · Apr 26", subtitle: "West side",
     events: [
       {
         id: "d3-meiji", time: "10:30", durMin: 60,
@@ -135,7 +135,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
     ],
   },
   {
-    tripId: "tokyo-2026", n: 4, date: "2026-04-27", label: "Thu · Apr 27", subtitle: "Day trip",
+    tripId: "tokyo-2026", dayNumber:4, date: "2026-04-27", label: "Thu · Apr 27", subtitle: "Day trip",
     events: [
       {
         id: "d4-hakone-train", time: "08:00", durMin: 90,
@@ -165,7 +165,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
     ],
   },
   {
-    tripId: "tokyo-2026", n: 5, date: "2026-04-28", label: "Fri · Apr 28", subtitle: "Today · Tokyo Bay", today: true,
+    tripId: "tokyo-2026", dayNumber:5, date: "2026-04-28", label: "Fri · Apr 28", subtitle: "Today · Tokyo Bay", today: true,
     events: [
       {
         id: "d5-tsukiji", time: "09:30", durMin: 90,
@@ -292,7 +292,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
     ],
   },
   {
-    tripId: "tokyo-2026", n: 6, date: "2026-04-29", label: "Sat · Apr 29", subtitle: "Shopping + nightlife",
+    tripId: "tokyo-2026", dayNumber:6, date: "2026-04-29", label: "Sat · Apr 29", subtitle: "Shopping + nightlife",
     events: [
       {
         id: "d6-shimo", time: "10:00", durMin: 120,
@@ -323,7 +323,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
     ],
   },
   {
-    tripId: "tokyo-2026", n: 7, date: "2026-05-01", label: "Sun · May 1", subtitle: "Departure",
+    tripId: "tokyo-2026", dayNumber:7, date: "2026-05-01", label: "Sun · May 1", subtitle: "Departure",
     events: [
       {
         id: "d7-checkout", time: "11:00", durMin: 45,

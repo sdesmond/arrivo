@@ -35,7 +35,7 @@ export function DayCard({ day: d }: DayCardProps) {
               color: d.today ? "var(--accent-brand)" : "var(--fg-3)",
             }}
           >
-            DAY {d.n}{d.today ? " · TODAY" : ""}
+            DAY {d.dayNumber}{d.today ? " · TODAY" : ""}
           </div>
           <div
             style={{
@@ -80,7 +80,7 @@ export function DayCard({ day: d }: DayCardProps) {
           >
             <Plus size={11} strokeWidth={2} />
           </span>
-          Add a place to day {d.n}
+          Add a place to day {d.dayNumber}
         </button>
       </div>
     </div>

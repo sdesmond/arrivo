@@ -290,7 +290,7 @@ export interface TripEvent {
 
 export interface DayItinerary {
   tripId?:   string;
-  n:         number;
+  dayNumber: number;
   date?:     string;
   label:     string;
   subtitle?: string;

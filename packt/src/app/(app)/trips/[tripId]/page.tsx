@@ -148,7 +148,7 @@ export default function TripDetailPage() {
             <ChevronLeft size={13} strokeWidth={1.5} />
           </button>
           <span style={{ letterSpacing: "0.04em" }}>
-            DAY <strong style={{ color: "var(--fg)", fontWeight: 700 }}>{TOKYO_DAYS[dayIdx]?.n}</strong>
+            DAY <strong style={{ color: "var(--fg)", fontWeight: 700 }}>{TOKYO_DAYS[dayIdx]?.dayNumber}</strong>
             {" · "}
             {TOKYO_DAYS[dayIdx]?.label.split("·")[0].trim()}
             {TOKYO_DAYS[dayIdx]?.today ? " · TODAY" : ""}
@@ -171,7 +171,7 @@ export default function TripDetailPage() {
           {tab === "itin" && (
             <div>
               {TOKYO_DAYS.map((d) => (
-                <DayCard key={d.n} day={d} />
+                <DayCard key={d.dayNumber} day={d} />
               ))}
             </div>
           )}
