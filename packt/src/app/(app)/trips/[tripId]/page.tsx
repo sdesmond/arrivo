@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
-import { TOKYO_DAYS, TOKYO_DOCS, TOKYO_COLLAB } from "@/data/tokyo";
-import { SAMPLE_ACTIVE_TRIP } from "@/data/trips";
+import { getTripById, TRIP_DATA } from "@/data/trips";
 
 function formatTripHeader(country: string, start: string, end: string) {
   const M = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -25,12 +25,20 @@ const TABS = [
 ];
 
 export default function TripDetailPage() {
+  const { tripId } = useParams<{ tripId: string }>();
   const [tab, setTab] = useState("itin");
-  const [dayIdx, setDayIdx] = useState(4); // day 5 (today)
+  const [dayIdx, setDayIdx] = useState(0);
 
-  const trip = SAMPLE_ACTIVE_TRIP;
-  const eventCount = TOKYO_DAYS.reduce((n, d) => n + d.events.length, 0);
-  const tripCoverCountry = `${trip.countryCode} · DAY ${trip.dayN} OF ${trip.dayTotal}`;
+  const trip = getTripById(tripId);
+  const { days, docs, collaborators } = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
+
+  if (!trip) return <div style={{ padding: 24, color: "var(--fg-2)" }}>Trip not found.</div>;
+
+  const eventCount = days.reduce((n, d) => n + d.events.length, 0);
+  const dayTotal = trip.dayTotal ?? trip.days ?? 0;
+  const tripCoverCountry = trip.countryCode
+    ? (trip.dayN != null ? `${trip.countryCode} · DAY ${trip.dayN} OF ${dayTotal}` : trip.countryCode)
+    : trip.country.toUpperCase();
   const heroDateLine = formatTripHeader(trip.country, trip.startDate, trip.endDate);
 
   return (
@@ -109,10 +117,10 @@ export default function TripDetailPage() {
             {trip.name}
           </h1>
           <div className="flex items-center gap-4 flex-wrap" style={{ color: "rgba(255,255,255,0.72)", fontSize: 12.5 }}>
-            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{trip.dayTotal} days · day {trip.dayN} today</span>
+            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days{trip.dayN != null ? ` · day ${trip.dayN} today` : ""}</span>
             <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
-            <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{TOKYO_DOCS.length} docs</span>
-            <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{TOKYO_COLLAB.length} collaborators</span>
+            <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{docs.length} docs</span>
+            <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{collaborators.length} collaborators</span>
           </div>
         </div>
       </div>
@@ -142,37 +150,39 @@ export default function TripDetailPage() {
             </button>
           ))}
         </div>
-        {/* Day pager */}
-        <div
-          className="flex items-center gap-2 shrink-0 ml-4"
-          style={{
-            fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: "11px", color: "var(--fg-3)",
-          }}
-        >
-          <button
-            className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
-            style={{ width: 26, height: 26, color: "var(--fg-3)" }}
-            onClick={() => setDayIdx((i) => Math.max(0, i - 1))}
-            disabled={dayIdx === 0}
+        {/* Day pager — only shown when there are days */}
+        {days.length > 0 && (
+          <div
+            className="flex items-center gap-2 shrink-0 ml-4"
+            style={{
+              fontFamily: "var(--font-mono-family, ui-monospace)",
+              fontSize: "11px", color: "var(--fg-3)",
+            }}
           >
-            <ChevronLeft size={13} strokeWidth={1.5} />
-          </button>
-          <span style={{ letterSpacing: "0.04em" }}>
-            DAY <strong style={{ color: "var(--fg)", fontWeight: 700 }}>{TOKYO_DAYS[dayIdx]?.dayNumber}</strong>
-            {" · "}
-            {TOKYO_DAYS[dayIdx]?.label.split("·")[0].trim()}
-            {TOKYO_DAYS[dayIdx]?.today ? " · TODAY" : ""}
-          </span>
-          <button
-            className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
-            style={{ width: 26, height: 26, color: "var(--fg-3)" }}
-            onClick={() => setDayIdx((i) => Math.min(TOKYO_DAYS.length - 1, i + 1))}
-            disabled={dayIdx === TOKYO_DAYS.length - 1}
-          >
-            <ChevronRight size={13} strokeWidth={1.5} />
-          </button>
-        </div>
+            <button
+              className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
+              style={{ width: 26, height: 26, color: "var(--fg-3)" }}
+              onClick={() => setDayIdx((i) => Math.max(0, i - 1))}
+              disabled={dayIdx === 0}
+            >
+              <ChevronLeft size={13} strokeWidth={1.5} />
+            </button>
+            <span style={{ letterSpacing: "0.04em" }}>
+              DAY <strong style={{ color: "var(--fg)", fontWeight: 700 }}>{days[dayIdx]?.dayNumber}</strong>
+              {" · "}
+              {days[dayIdx]?.label.split("·")[0].trim()}
+              {days[dayIdx]?.today ? " · TODAY" : ""}
+            </span>
+            <button
+              className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
+              style={{ width: 26, height: 26, color: "var(--fg-3)" }}
+              onClick={() => setDayIdx((i) => Math.min(days.length - 1, i + 1))}
+              disabled={dayIdx === days.length - 1}
+            >
+              <ChevronRight size={13} strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -181,9 +191,10 @@ export default function TripDetailPage() {
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           {tab === "itin" && (
             <div>
-              {TOKYO_DAYS.map((d) => (
-                <DayCard key={d.dayNumber} day={d} />
-              ))}
+              {days.length > 0
+                ? days.map((d) => <DayCard key={d.dayNumber} day={d} />)
+                : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
+              }
             </div>
           )}
           {tab === "docs" && (

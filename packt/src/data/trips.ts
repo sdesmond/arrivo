@@ -7,7 +7,9 @@ export type {
   TripTint,
 } from "./types";
 
-import type { Trip, TripTint, WorldPin } from "./types";
+import type { Trip, TripTint, WorldPin, DayItinerary, Collaborator } from "./types";
+import { TOKYO_DAYS, TOKYO_DOCS, TOKYO_COLLAB } from "./tokyo";
+import { LISBON_DAYS, LISBON_DOCS, LISBON_COLLAB } from "./lisbon";
 
 export const TRIP_TINTS: Record<string, TripTint> = {
   Tokyo:     { hue: 8,   l: "oklch(0.94 0.04 8)",   d: "oklch(0.28 0.05 8)"   },
@@ -48,11 +50,12 @@ export const SAMPLE_UPCOMING: Trip[] = [
     id: "lisbon-2026",
     name: "Lisbon",
     country: "Portugal",
+    countryCode: "PRT",
     status: "upcoming",
     startDate: "2026-05-18",
-    endDate: "2026-05-22",
+    endDate: "2026-05-21",
     days: 4,
-    inDays: 21,
+    inDays: 14,
   },
   {
     id: "oaxaca-2026",
@@ -101,4 +104,15 @@ export const AVATAR_COLORS: Record<string, { bg: string; color: string }> = {
   JK: { bg: "oklch(0.86 0.08 260)", color: "oklch(0.30 0.10 260)" },
   AC: { bg: "oklch(0.86 0.08 45)",  color: "oklch(0.30 0.10 45)"  },
   default: { bg: "oklch(0.86 0.04 220)", color: "oklch(0.30 0.06 220)" },
+};
+
+export const ALL_TRIPS: Trip[] = [SAMPLE_ACTIVE_TRIP, ...SAMPLE_UPCOMING, ...SAMPLE_PAST];
+
+export function getTripById(id: string): Trip | undefined {
+  return ALL_TRIPS.find((t) => t.id === id);
+}
+
+export const TRIP_DATA: Record<string, { days: DayItinerary[]; docs: { name: string }[]; collaborators: Collaborator[] }> = {
+  "tokyo-2026":  { days: TOKYO_DAYS,  docs: TOKYO_DOCS,  collaborators: TOKYO_COLLAB  },
+  "lisbon-2026": { days: LISBON_DAYS, docs: LISBON_DOCS, collaborators: LISBON_COLLAB },
 };
