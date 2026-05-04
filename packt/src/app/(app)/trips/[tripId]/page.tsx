@@ -111,7 +111,7 @@ export default function TripDetailPage() {
         className="flex items-center gap-0 px-4 lg:px-6 shrink-0"
         style={{ borderBottom: "1px solid var(--line)", background: "var(--bg)" }}
       >
-        <div className="flex items-center flex-1 gap-0 overflow-x-auto scroll-thin">
+        <div className="flex items-center flex-1 gap-0 overflow-x-auto overflow-y-hidden scroll-thin">
           {TABS.map((t) => (
             <button
               key={t.id}
