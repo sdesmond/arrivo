@@ -166,6 +166,9 @@ export const TOKYO_DAYS: DayItinerary[] = [
   },
   {
     tripId: "tokyo-2026", dayNumber:5, date: "2026-04-28", label: "Fri · Apr 28", subtitle: "Today · Tokyo Bay", today: true,
+    note: "Easy day — Bay area mostly walkable. Carry portable charger. Sushi Saito is the splurge tonight, dress smart-casual. Trains slow after 23:00 so plan return from Roppongi.",
+    weather: "22° · partly cloudy",
+    travelSummary: "~14 km · 1h 5m",
     events: [
       {
         id: "d5-tsukiji", time: "09:30", durMin: 90,

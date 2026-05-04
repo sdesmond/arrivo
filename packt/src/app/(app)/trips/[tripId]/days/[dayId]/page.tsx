@@ -10,8 +10,17 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TIMED, FLEXIBLE } from "@/data/day-planner";
+import { TOKYO_DAYS } from "@/data/tokyo";
+import { SAMPLE_ACTIVE_TRIP } from "@/data/trips";
 import type { TripEvent } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
+
+function formatDayDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric",
+  });
+}
 
 // Compute end time string from "HH:mm" + duration in minutes.
 function calcEnd(time: string, durMin: number): string {
@@ -410,6 +419,14 @@ export default function DayPlannerPage() {
 
   const onToggle = (id: string) => setOpenId((prev) => (prev === id ? null : id));
 
+  const trip = SAMPLE_ACTIVE_TRIP;
+  const day5 = TOKYO_DAYS.find((d) => d.dayNumber === 5)!;
+  const lastTimed = TIMED[TIMED.length - 1];
+  const timeRangeEnd = lastTimed?.time && lastTimed.durMin != null
+    ? calcEnd(lastTimed.time, lastTimed.durMin)
+    : lastTimed?.time ?? "";
+  const timeRange = TIMED.length > 0 ? `${TIMED[0].time} – ${timeRangeEnd}` : "";
+
   useEffect(() => {
     if (!focusId) return;
     setOpenId(focusId);
@@ -442,14 +459,14 @@ export default function DayPlannerPage() {
           </Link>
           <span style={{ color: "var(--fg-4)", fontSize: 12 }}>/</span>
           <Link
-            href="/trips/tokyo-2026"
+            href={`/trips/${day5.tripId}`}
             className="text-[0.8rem] font-medium h-7 px-2 rounded-[8px] transition-colors hover:bg-muted inline-flex items-center"
             style={{ color: "var(--fg-3)" }}
           >
-            Tokyo
+            {trip.name}
           </Link>
           <span style={{ color: "var(--fg-4)", fontSize: 12 }}>/</span>
-          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>Day 5</span>
+          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>Day {day5.dayNumber}</span>
           <span className="flex-1" />
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">
@@ -476,7 +493,7 @@ export default function DayPlannerPage() {
                 fontSize: 17, fontWeight: 700, color: "var(--fg)",
               }}
             >
-              Friday, April 28
+              {formatDayDate(day5.date!)}
             </div>
             <div
               style={{
@@ -485,22 +502,26 @@ export default function DayPlannerPage() {
                 textTransform: "uppercase", color: "var(--accent-brand)",
               }}
             >
-              DAY 5 · TODAY · TOKYO BAY
+              {`DAY ${day5.dayNumber} · ${day5.subtitle?.toUpperCase()}`}
             </div>
           </div>
           <span className="flex-1" />
           <div className="hidden lg:flex items-center gap-3" style={{ fontSize: 12, color: "var(--fg-3)" }}>
-            <span className="flex items-center gap-1"><MapPin size={12} strokeWidth={1.5} />5 stops</span>
-            <span className="flex items-center gap-1"><Clock size={12} strokeWidth={1.5} />09:30 – 22:00</span>
-            <span className="flex items-center gap-1" style={{ color: "var(--accent-brand)" }}>
-              <Sun size={12} strokeWidth={1.5} />22° · partly cloudy
-            </span>
-            <span
-              className="flex items-center gap-1 rounded-full px-2 py-0.5"
-              style={{ background: "var(--surface-2)", fontWeight: 500 }}
-            >
-              <Map size={11} strokeWidth={1.5} />~14 km · 1h 5m
-            </span>
+            <span className="flex items-center gap-1"><MapPin size={12} strokeWidth={1.5} />{TIMED.length} stops</span>
+            <span className="flex items-center gap-1"><Clock size={12} strokeWidth={1.5} />{timeRange}</span>
+            {day5.weather && (
+              <span className="flex items-center gap-1" style={{ color: "var(--accent-brand)" }}>
+                <Sun size={12} strokeWidth={1.5} />{day5.weather}
+              </span>
+            )}
+            {day5.travelSummary && (
+              <span
+                className="flex items-center gap-1 rounded-full px-2 py-0.5"
+                style={{ background: "var(--surface-2)", fontWeight: 500 }}
+              >
+                <Map size={11} strokeWidth={1.5} />{day5.travelSummary}
+              </span>
+            )}
           </div>
           <button
             className="flex items-center justify-center rounded-[8px] transition-colors hover:bg-surface-2"
@@ -535,7 +556,7 @@ export default function DayPlannerPage() {
               </Button>
             </div>
             <p style={{ fontSize: 13, color: "var(--fg-2)", lineHeight: 1.6 }}>
-              Easy day — Bay area mostly walkable. Carry portable charger. Sushi Saito is the splurge tonight, dress smart-casual. Trains slow after 23:00 so plan return from Roppongi.
+              {day5.note}
             </p>
           </div>
 

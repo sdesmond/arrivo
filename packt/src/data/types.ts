@@ -289,14 +289,16 @@ export interface TripEvent {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface DayItinerary {
-  tripId?:   string;
-  dayNumber: number;
-  date?:     string;
-  label:     string;
-  subtitle?: string;
-  today?:    boolean;
-  note?:     string;
-  events:    TripEvent[];
+  tripId?:       string;
+  dayNumber:     number;
+  date?:         string;
+  label:         string;
+  subtitle?:     string;
+  today?:        boolean;
+  note?:         string;
+  weather?:      string;
+  travelSummary?: string;
+  events:        TripEvent[];
 }
 
 

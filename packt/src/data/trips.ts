@@ -26,6 +26,7 @@ export const SAMPLE_ACTIVE_TRIP: Trip = {
   id: "tokyo-2026",
   name: "Tokyo",
   country: "Japan",
+  countryCode: "JPN",
   status: "active",
   startDate: "2026-04-24",
   endDate: "2026-05-01",

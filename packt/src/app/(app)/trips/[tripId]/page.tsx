@@ -6,7 +6,15 @@ import { ChevronLeft, ChevronRight, Share2, Download, MoreHorizontal, Calendar, 
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
-import { TOKYO_DAYS } from "@/data/tokyo";
+import { TOKYO_DAYS, TOKYO_DOCS, TOKYO_COLLAB } from "@/data/tokyo";
+import { SAMPLE_ACTIVE_TRIP } from "@/data/trips";
+
+function formatTripHeader(country: string, start: string, end: string) {
+  const M = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const [,sm,sd] = start.split("-").map(Number);
+  const [ey,em,ed] = end.split("-").map(Number);
+  return `${country.toUpperCase()} · ${M[sm-1]} ${sd} — ${M[em-1]} ${ed}, ${ey}`;
+}
 
 const TABS = [
   { id: "itin", label: "Itinerary" },
@@ -20,7 +28,10 @@ export default function TripDetailPage() {
   const [tab, setTab] = useState("itin");
   const [dayIdx, setDayIdx] = useState(4); // day 5 (today)
 
-  const todayDay = TOKYO_DAYS.find((d) => d.today);
+  const trip = SAMPLE_ACTIVE_TRIP;
+  const eventCount = TOKYO_DAYS.reduce((n, d) => n + d.events.length, 0);
+  const tripCoverCountry = `${trip.countryCode} · DAY ${trip.dayN} OF ${trip.dayTotal}`;
+  const heroDateLine = formatTripHeader(trip.country, trip.startDate, trip.endDate);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -38,7 +49,7 @@ export default function TripDetailPage() {
           Trips
         </Link>
         <span style={{ color: "var(--fg-4)", fontSize: 13 }}>/</span>
-        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>Tokyo</span>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>{trip.name}</span>
         <span className="flex-1" />
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
@@ -58,9 +69,9 @@ export default function TripDetailPage() {
       {/* Hero */}
       <div className="relative shrink-0" style={{ minHeight: 260 }}>
         <TripCover
-          name="Tokyo"
-          country="JPN · DAY 5 OF 7"
-          metaTag="ACTIVE TRIP · OFFLINE"
+          name={trip.name}
+          country={tripCoverCountry}
+          metaTag={`${trip.status.toUpperCase()} TRIP · OFFLINE`}
           showCity={false}
           style={{ minHeight: 260 }}
         />
@@ -82,7 +93,7 @@ export default function TripDetailPage() {
               marginBottom: 6,
             }}
           >
-            JAPAN · APR 24 — MAY 1, 2026
+            {heroDateLine}
           </div>
           <h1
             style={{
@@ -95,13 +106,13 @@ export default function TripDetailPage() {
               marginBottom: 10,
             }}
           >
-            Tokyo
+            {trip.name}
           </h1>
           <div className="flex items-center gap-4 flex-wrap" style={{ color: "rgba(255,255,255,0.72)", fontSize: 12.5 }}>
-            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />7 days · day 5 today</span>
-            <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />32 places</span>
-            <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />7 docs</span>
-            <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />2 collaborators</span>
+            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{trip.dayTotal} days · day {trip.dayN} today</span>
+            <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
+            <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{TOKYO_DOCS.length} docs</span>
+            <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{TOKYO_COLLAB.length} collaborators</span>
           </div>
         </div>
       </div>
