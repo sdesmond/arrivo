@@ -24,7 +24,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d1-nrt", time: "14:30", durMin: 30,
         name: "Narita Airport (NRT)", cat: "Flight", status: "done",
-        sub: "Terminal 2 · JL flight 0007",
+        subtitle:"Terminal 2 · JL flight 0007",
         location: { name: "Narita Airport · Terminal 2" },
         travelTo: { mode: "Train", detail: "Narita Express", min: 60 },
         confirmationNumber: "JL-7H4K2P",
@@ -53,7 +53,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d1-hyatt", time: "16:00", durMin: 60,
         name: "Park Hyatt Tokyo", cat: "Hotel", status: "done",
-        sub: "Check-in · Shinjuku", note: "Room block held until 18:00.",
+        subtitle:"Check-in · Shinjuku", note: "Room block held until 18:00.",
         location: { name: "Shinjuku · Park Hyatt" },
         confirmationNumber: "HZ-49281",
         docs: [
@@ -66,7 +66,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d1-donjaca", time: "19:30", durMin: 90,
         name: "Donjaca · izakaya", cat: "Restaurant", status: "done",
-        sub: "Shinjuku · 6 min walk",
+        subtitle:"Shinjuku · 6 min walk",
         location: { name: "Shinjuku · 6 min from hotel" },
         travelTo: { mode: "Walk", min: 6 },
       },
@@ -78,27 +78,27 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d2-sensoji", time: "09:00", durMin: 90,
         name: "Senso-ji Temple", cat: "HistoricSite", status: "done",
-        sub: "Asakusa · arrive early to skip crowds",
+        subtitle:"Asakusa · arrive early to skip crowds",
         location: { name: "Asakusa · Senso-ji" },
       },
       {
         id: "d2-sometaro", time: "12:00", durMin: 75,
         name: "Sometaro · okonomiyaki", cat: "Restaurant", status: "done",
-        sub: "Asakusa",
+        subtitle:"Asakusa",
         location: { name: "Asakusa" },
         travelTo: { mode: "Walk", min: 8 },
       },
       {
         id: "d2-ueno", time: "15:00", durMin: 120,
         name: "Ueno Park · Tokyo Nat. Museum", cat: "Museum", status: "done",
-        sub: "Free entry until 17:00",
+        subtitle:"Free entry until 17:00",
         location: { name: "Ueno · Tokyo National Museum" },
         travelTo: { mode: "Subway", detail: "Ginza line", min: 10 },
       },
       {
         id: "d2-yakitori", time: "20:00", durMin: 90,
         name: "Yakitori Toritsune", cat: "Restaurant", status: "done",
-        sub: "Ueno · counter seating only",
+        subtitle:"Ueno · counter seating only",
         location: { name: "Ueno" },
         travelTo: { mode: "Walk", min: 5 },
       },
@@ -110,27 +110,27 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d3-meiji", time: "10:30", durMin: 60,
         name: "Meiji Jingu Shrine", cat: "HistoricSite", status: "done",
-        sub: "Harajuku",
+        subtitle:"Harajuku",
         location: { name: "Harajuku · Meiji Jingu" },
       },
       {
         id: "d3-afuri", time: "13:00", durMin: 60,
         name: "Afuri Ramen · Harajuku", cat: "Restaurant", status: "done",
-        sub: "Yuzu shio",
+        subtitle:"Yuzu shio",
         location: { name: "Harajuku" },
         travelTo: { mode: "Walk", min: 12 },
       },
       {
         id: "d3-catstreet", time: "15:30", durMin: 90,
         name: "Cat Street + Omotesando", cat: "Tour", status: "done",
-        sub: "Architecture loop",
+        subtitle:"Architecture loop",
         location: { name: "Omotesando" },
         travelTo: { mode: "Walk", min: 5 },
       },
       {
         id: "d3-robot", time: "19:00", durMin: 120,
         name: "Robot Restaurant alt show", cat: "Show", status: "done",
-        sub: "Shinjuku · doors 18:30",
+        subtitle:"Shinjuku · doors 18:30",
         location: { name: "Shinjuku Kabukicho" },
         travelTo: { mode: "Subway", detail: "Yamanote line", min: 15 },
       },
@@ -142,20 +142,20 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d4-hakone-train", time: "08:00", durMin: 90,
         name: "Shinkansen → Hakone", cat: "Train", status: "done",
-        sub: "Round-trip · Hakone Free Pass",
+        subtitle:"Round-trip · Hakone Free Pass",
         location: { name: "Shinjuku Station → Odawara" },
       },
       {
         id: "d4-museum", time: "11:00", durMin: 90,
         name: "Hakone Open-Air Museum", cat: "Museum", status: "done",
-        sub: "90 min recommended",
+        subtitle:"90 min recommended",
         location: { name: "Hakone · Open-Air Museum" },
         travelTo: { mode: "Train", detail: "Hakone Tozan Railway", min: 15 },
       },
       {
         id: "d4-ashi", time: "14:00", durMin: 60,
         name: "Lake Ashi pirate ship", cat: "Cruise", status: "done",
-        sub: "Mt Fuji visibility · clear today",
+        subtitle:"Mt Fuji visibility · clear today",
         location: { name: "Lake Ashi · Togendai" },
         travelTo: { mode: "Bus", detail: "Hakone Tozan Bus", min: 20 },
       },
@@ -172,14 +172,14 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d5-tsukiji", time: "09:30", durMin: 90,
         name: "Tsukiji Outer Market", cat: "StreetFood", status: "done",
-        sub: "Sushi breakfast at Sushi Bun",
+        subtitle:"Sushi breakfast at Sushi Bun",
         note: "Brought cash. Got tamagoyaki + uni at Sushi Bun. Wait was 25 min.",
         location: { name: "Tsukiji · 4-chōme" },
       },
       {
         id: "d5-teamlab", time: "11:30", durMin: 120,
         name: "teamLab Planets", cat: "Museum", status: "done",
-        sub: "Toyosu · timed entry 11:30",
+        subtitle:"Toyosu · timed entry 11:30",
         note: "Timed entry 11:30 confirmed in app. Bring shorts (water rooms).",
         location: { name: "Toyosu · timed entry" },
         travelTo: { mode: "Subway", detail: "Yurakucho line", min: 12 },
@@ -209,7 +209,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d5-hama", time: "15:00", durMin: 90,
         name: "Hamarikyu Gardens", cat: "Park", status: "scheduled",
-        sub: "Tea house in pond · 700¥",
+        subtitle:"Tea house in pond · 700¥",
         note: "Tea ceremony at 15:30 in Nakajima-no-Ochaya · ¥850. Reserve at entrance.",
         location: { name: "Chuo · pond + tea house" },
         travelTo: { mode: "Train", detail: "Yurikamome line", min: 14 },
@@ -233,7 +233,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d5-shibuya", time: "17:30", durMin: 90,
         name: "Shibuya Sky", cat: "Viewpoint", status: "scheduled",
-        sub: "46th floor · sunset slot",
+        subtitle:"46th floor · sunset slot",
         note: "Sunset slot 18:08. Free locker for bags. Helix outdoor deck closes if windy.",
         location: { name: "Shibuya Scramble Square · 46F" },
         travelTo: { mode: "Train", detail: "Toei Asakusa line", min: 18 },
@@ -241,7 +241,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d5-saito", time: "20:00", durMin: 120,
         name: "Sushi Saito", cat: "Restaurant", status: "scheduled",
-        sub: "Roppongi · omakase ¥30,000pp",
+        subtitle:"Roppongi · omakase ¥30,000pp",
         note: "Omakase ¥30,000pp. Card ok. Quiet room — phones off. Address sent to phone.",
         location: { name: "Roppongi · ARK Hills" },
         travelTo: { mode: "Taxi", detail: "go straight, no detour", min: 15 },
@@ -299,7 +299,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d6-shimo", time: "10:00", durMin: 120,
         name: "Shimokitazawa walk", cat: "Tour", status: "scheduled",
-        sub: "Vintage + record shops loop",
+        subtitle:"Vintage + record shops loop",
         location: { name: "Shimokitazawa" },
       },
       {
@@ -311,14 +311,14 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d6-gyoen", time: "15:00", durMin: 90,
         name: "Shinjuku Gyoen", cat: "Park", status: "scheduled",
-        sub: "Late cherry blossoms",
+        subtitle:"Late cherry blossoms",
         location: { name: "Shinjuku Gyoen" },
         travelTo: { mode: "Subway", detail: "Odakyu line", min: 20 },
       },
       {
         id: "d6-golden", time: "21:00", durMin: 120,
         name: "Golden Gai bar crawl", cat: "Drinks", status: "scheduled",
-        sub: "Kabukicho · cash only",
+        subtitle:"Kabukicho · cash only",
         location: { name: "Shinjuku Kabukicho · Golden Gai" },
         travelTo: { mode: "Walk", min: 10 },
       },
@@ -341,7 +341,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d7-flight", time: "17:50", durMin: 30,
         name: "Flight JL 0006 to LAX", cat: "Flight", status: "scheduled",
-        sub: "Terminal 2 · gate 33",
+        subtitle:"Terminal 2 · gate 33",
         location: { name: "Narita Airport · Terminal 2 · Gate 33" },
       },
     ],

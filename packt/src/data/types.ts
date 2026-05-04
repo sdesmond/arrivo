@@ -252,7 +252,7 @@ export interface TripEvent {
 
   // ── Names & descriptions ──────────────────────────────────────────────────
   name:  string;
-  sub?:  string;
+  subtitle?:  string;
   note?: string;
 
   // ── Scheduling ────────────────────────────────────────────────────────────

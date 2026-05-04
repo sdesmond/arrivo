@@ -198,8 +198,8 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
               {CAT_ICON[p.cat] ?? <MapPin size={12} strokeWidth={1.5} />}
               {p.cat}
             </span>
-            {p.sub && (
-              <span style={{ fontSize: 12, color: "var(--fg-3)" }}>· {p.sub}</span>
+            {p.subtitle && (
+              <span style={{ fontSize: 12, color: "var(--fg-3)" }}>· {p.subtitle}</span>
             )}
             {p.confirmationNumber && (
               <button
