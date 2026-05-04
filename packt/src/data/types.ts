@@ -362,9 +362,7 @@ export interface Trip {
   collaborators?:        Collaborator[];
   collaboratorInitials?: string[];
 
-  // docs = full Document objects; docsCount = legacy badge number
-  docs?:      Document[];
-  docsCount?: number;
+  docs?: Document[];
 
   // Quick-access strip of today's events shown on the dashboard.
   events?: TripEvent[];

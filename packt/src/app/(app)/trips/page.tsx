@@ -314,8 +314,8 @@ function MobileUpcomingTab() {
             </div>
             <div className="flex items-center gap-1.5 mt-1">
               <Badge variant="soft">in {trip.inDays}d</Badge>
-              {(trip.docsCount ?? 0) > 0
-                ? <Badge variant="success">{trip.docsCount} docs</Badge>
+              {(trip.docs?.length ?? 0) > 0
+                ? <Badge variant="success">{trip.docs!.length} docs</Badge>
                 : <Badge variant="warning">no docs</Badge>
               }
             </div>

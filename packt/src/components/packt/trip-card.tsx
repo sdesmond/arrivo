@@ -73,7 +73,7 @@ export function TripCard({ trip }: TripCardProps) {
           </span>
           <span className="flex items-center gap-1">
             <FileText size={13} strokeWidth={1.5} />
-            {trip.docsCount} docs
+            {trip.docs?.length ?? 0} docs
           </span>
           <span className="flex items-center gap-1">
             <Users size={13} strokeWidth={1.5} />

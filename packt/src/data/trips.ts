@@ -55,7 +55,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
     days: 4,
     inDays: 21,
     collaboratorInitials: ["MR", "AC"],
-    docsCount: 7,
   },
   {
     id: "oaxaca-2026",
@@ -67,7 +66,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
     days: 9,
     inDays: 92,
     collaboratorInitials: ["MR"],
-    docsCount: 3,
   },
   {
     id: "reykjavik-2026",
@@ -79,7 +77,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
     days: 8,
     inDays: 168,
     collaboratorInitials: ["MR", "JK", "AC"],
-    docsCount: 0,
   },
 ];
 
