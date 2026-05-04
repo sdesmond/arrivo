@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type TripEvent, type Document } from "@/data/types";
+import { isEventNow } from "@/lib/utils";
 
 const CAT_ICON: Record<string, React.ReactNode> = {
   // Food & Drink
@@ -119,10 +120,10 @@ interface PlaceRowProps {
 }
 
 export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
-  const [expanded, setExpanded] = useState(p.status === "now");
+  const [expanded, setExpanded] = useState(() => isEventNow(p));
   const hasDocs = (p.docs?.length ?? 0) > 0;
   const isDone = p.status === "done";
-  const isNow = p.status === "now";
+  const isNow = isEventNow(p);
 
   return (
     <div>

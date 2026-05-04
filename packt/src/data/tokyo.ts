@@ -209,7 +209,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       },
       {
         id: "d5-hama", time: "15:00", durMin: 90,
-        name: "Hamarikyu Gardens", cat: "Park", status: "now",
+        name: "Hamarikyu Gardens", cat: "Park", status: "scheduled",
         sub: "Tea house in pond · 700¥",
         note: "Tea ceremony at 15:30 in Nakajima-no-Ochaya · ¥850. Reserve at entrance.",
         location: { name: "Chuo · pond + tea house", mapPin: { x: 0.30, y: 0.43 } },

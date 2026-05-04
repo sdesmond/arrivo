@@ -28,7 +28,6 @@ export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 // EventState is a backward-compat alias; existing checks like === "done" still work.
 export const EventStatus = {
   Scheduled: "scheduled",
-  Now:       "now",
   Done:      "done",
   Skipped:   "skipped",
   Cancelled: "cancelled",

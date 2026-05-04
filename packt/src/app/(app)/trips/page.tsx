@@ -16,6 +16,7 @@ import { ThemeToggle } from "@/components/packt/theme-toggle";
 import {
   SAMPLE_ACTIVE_TRIP, SAMPLE_UPCOMING, SAMPLE_PAST,
 } from "@/data/trips";
+import { isEventNow } from "@/lib/utils";
 
 // ─── Mobile tab types ───────────────────────────────────────────────────────
 type MobileTab = "Active" | "Upcoming" | "Past";
@@ -247,8 +248,8 @@ function MobileActiveTab() {
             className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface"
             style={{
               opacity: ev.status === "done" ? 0.5 : 1,
-              background: ev.status === "now" ? "var(--accent-soft)" : undefined,
-              borderLeft: ev.status === "now" ? "3px solid var(--accent-brand)" : undefined,
+              background: isEventNow(ev) ? "var(--accent-soft)" : undefined,
+              borderLeft: isEventNow(ev) ? "3px solid var(--accent-brand)" : undefined,
             }}
           >
             <span

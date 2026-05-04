@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isEventNow } from "@/lib/utils";
 import { type Trip, type TripEvent } from "@/data/trips";
 
 const CAT_COLORS: Record<string, string> = {
@@ -98,7 +98,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
 }
 
 function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
-  const isNow = ev.status === "now";
+  const isNow = isEventNow(ev);
   const isDone = ev.status === "done";
   const catColor = CAT_COLORS[ev.cat] ?? CAT_COLORS.default;
 

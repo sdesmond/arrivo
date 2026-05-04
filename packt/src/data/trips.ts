@@ -42,7 +42,7 @@ export const SAMPLE_ACTIVE_TRIP: Trip = {
   events: [
     { id: "tsukiji", time: "09:30", name: "Tsukiji Outer Market", cat: "StreetFood", status: "done" },
     { id: "teamlab", time: "11:30", name: "teamLab Planets",      cat: "Museum",     status: "done" },
-    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens",    cat: "Park",       status: "now"  },
+    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens",    cat: "Park",       status: "scheduled" },
     { id: "shibuya", time: "17:30", name: "Shibuya Sky",          cat: "Viewpoint",  status: "scheduled" },
     { id: "saito",   time: "20:00", name: "Sushi Saito",          cat: "Restaurant", status: "scheduled" },
   ],

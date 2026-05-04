@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { TIMED, FLEXIBLE } from "@/data/day-planner";
 import type { TripEvent } from "@/data/types";
+import { isEventNow } from "@/lib/utils";
 
 // Compute end time string from "HH:mm" + duration in minutes.
 function calcEnd(time: string, durMin: number): string {
@@ -59,7 +60,7 @@ function TimedRow({ ev, index, isOpen, onToggle, isPulsed }: {
   isPulsed?: boolean;
 }) {
   const isDone = ev.status === "done";
-  const isNow = ev.status === "now";
+  const isNow = isEventNow(ev);
   const hasDocs = (ev.docs?.length ?? 0) > 0;
   const endTime = ev.time && ev.durMin != null ? calcEnd(ev.time, ev.durMin) : null;
 
