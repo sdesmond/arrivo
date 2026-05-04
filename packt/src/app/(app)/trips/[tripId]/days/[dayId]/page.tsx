@@ -51,13 +51,11 @@ function CatIcon({ cat, size = 12 }: { cat: string; size?: number }) {
 }
 
 // ── Timed event row ───────────────────────────────────────────────────
-function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }: {
+function TimedRow({ ev, index, isOpen, onToggle, isPulsed }: {
   ev: TripEvent;
   index: number;
   isOpen: boolean;
   onToggle: () => void;
-  isHovered: boolean;
-  onHover: (id: string | null) => void;
   isPulsed?: boolean;
 }) {
   const isDone = ev.status === "done";
@@ -86,8 +84,6 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }:
       {/* Event card */}
       <div
         className="flex items-start gap-3"
-        onMouseEnter={() => onHover(ev.id)}
-        onMouseLeave={() => onHover(null)}
         data-event-id={ev.id}
         style={{ outline: isPulsed ? "2px solid var(--accent-brand)" : undefined, borderRadius: 10, transition: "outline 0.3s" }}
       >
@@ -133,7 +129,7 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }:
         <div
           className="flex-1 min-w-0 rounded-[8px] mb-0 cursor-pointer transition-colors"
           style={{
-            background: isNow ? "var(--accent-soft)" : isHovered ? "var(--surface)" : "var(--surface)",
+            background: isNow ? "var(--accent-soft)" : "var(--surface)",
             border: isNow ? "1.5px solid var(--accent-brand)" : "1px solid var(--line)",
             opacity: isDone ? 0.75 : 1,
             marginBottom: 2,
@@ -403,182 +399,11 @@ function FlexCard({ ev }: { ev: TripEvent }) {
   );
 }
 
-// ── Day map (right pane) ──────────────────────────────────────────────
-function DayMap({ activeId, onHover }: { activeId: string | null; onHover: (id: string | null) => void }) {
-  const pathD = TIMED.map((s, i) => {
-    const pin = s.location?.mapPin;
-    return pin ? `${i === 0 ? "M" : "L"} ${(pin.x * 100).toFixed(1)} ${(pin.y * 100).toFixed(1)}` : null;
-  }).filter(Boolean).join(" ");
-
-  const nowEvent = TIMED.find((s) => s.status === "now");
-
-  return (
-    <aside
-      className="hidden lg:flex flex-col shrink-0 overflow-hidden"
-      style={{
-        width: 320,
-        borderLeft: "1px solid var(--line)",
-        background: "var(--bg)",
-      }}
-    >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-4 py-3 shrink-0"
-        style={{ borderBottom: "1px solid var(--line)" }}
-      >
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>Today's route</div>
-          <div style={{ fontSize: 11.5, color: "var(--fg-3)" }}>{TIMED.length} stops · ~14 km · 1h 5m by transit</div>
-        </div>
-        <Button variant="outline" size="sm">Open full map</Button>
-      </div>
-
-      {/* Map area */}
-      <div className="relative flex-1 overflow-hidden" style={{ background: "var(--surface)", minHeight: 280 }}>
-        {/* Grid SVG */}
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-          <defs>
-            <pattern id="dpgrid" width="6.25" height="6.25" patternUnits="userSpaceOnUse">
-              <path d="M 6.25 0 L 0 0 0 6.25" stroke="var(--line)" strokeWidth="0.15" fill="none" />
-            </pattern>
-          </defs>
-          <rect width="100" height="100" fill="url(#dpgrid)" />
-        </svg>
-
-        {/* Water region */}
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-          <path d="M 0 70 Q 25 65, 45 72 T 100 75 L 100 100 L 0 100 Z" fill="var(--surface-2)" opacity="0.7" />
-          <path d="M 0 70 Q 25 65, 45 72 T 100 75" stroke="var(--line)" strokeWidth="0.3" fill="none" />
-        </svg>
-
-        {/* Route */}
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path
-            d={pathD}
-            stroke="var(--accent-brand)"
-            strokeWidth="0.7"
-            strokeDasharray="0.8 1.4"
-            strokeLinecap="round"
-            fill="none"
-            opacity="0.5"
-          />
-        </svg>
-
-        {/* Pins */}
-        {TIMED.map((s, i) => {
-          const pin = s.location?.mapPin;
-          if (!pin) return null;
-          const isActive = activeId === s.id;
-          const isDone = s.status === "done";
-          const isNow = s.status === "now";
-          return (
-            <button
-              key={s.id}
-              className="absolute flex items-center justify-center rounded-full transition-all"
-              style={{
-                left: `${pin.x * 100}%`,
-                top: `${pin.y * 100}%`,
-                transform: "translate(-50%, -50%)",
-                width: isActive ? 28 : 22,
-                height: isActive ? 28 : 22,
-                background: isDone ? "var(--surface-3)" : isNow ? "var(--accent-brand)" : "var(--bg)",
-                border: `2px solid ${isDone ? "var(--line-strong)" : isNow ? "var(--accent-brand)" : "var(--accent-brand)"}`,
-                color: isDone ? "var(--fg-4)" : isNow ? "#fff" : "var(--accent-brand)",
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10, fontWeight: 700,
-                boxShadow: isActive ? "0 0 0 4px var(--accent-soft)" : undefined,
-                zIndex: isActive ? 10 : isNow ? 5 : 1,
-              }}
-              onMouseEnter={() => onHover(s.id)}
-              onMouseLeave={() => onHover(null)}
-              title={s.name}
-            >
-              {i + 1}
-            </button>
-          );
-        })}
-
-        {/* "You are here" pulse */}
-        {nowEvent?.location?.mapPin && (
-          <div
-            className="absolute pointer-events-none"
-            style={{
-              left: `${nowEvent.location.mapPin.x * 100}%`,
-              top: `${nowEvent.location.mapPin.y * 100}%`,
-              transform: "translate(-50%, -50%)",
-              zIndex: 20,
-            }}
-          >
-            <span
-              className="pulse"
-              style={{
-                position: "absolute",
-                width: 32, height: 32,
-                borderRadius: "50%",
-                background: "var(--accent-brand)",
-                opacity: 0.2,
-                top: "50%", left: "50%",
-                transform: "translate(-50%, -50%)",
-              }}
-            />
-          </div>
-        )}
-
-        {/* Scale + compass */}
-        <div
-          className="absolute bottom-2 right-3"
-          style={{
-            fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: 9, color: "var(--fg-4)", letterSpacing: "0.06em",
-          }}
-        >
-          500 m
-        </div>
-        <div
-          className="absolute top-2 right-3"
-          style={{
-            fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: 9, fontWeight: 700, color: "var(--fg-3)",
-          }}
-        >
-          N
-        </div>
-      </div>
-
-      {/* Now panel */}
-      <div
-        className="shrink-0 p-3"
-        style={{ borderTop: "1px solid var(--line)", background: "var(--surface)" }}
-      >
-        {[
-          { label: "YOU ARE AT", value: "Hamarikyu Gardens" },
-          { label: "NEXT", value: "Shibuya Sky · in 1h 22m" },
-          { label: "DAY ENDS", value: "22:00 · ARK Hills, Roppongi" },
-        ].map((row) => (
-          <div key={row.label} className="flex items-baseline justify-between gap-2 py-1">
-            <span
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 9.5, fontWeight: 600, letterSpacing: "0.08em",
-                textTransform: "uppercase", color: "var(--fg-4)",
-              }}
-            >
-              {row.label}
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{row.value}</span>
-          </div>
-        ))}
-      </div>
-    </aside>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────
 export default function DayPlannerPage() {
   const searchParams = useSearchParams();
   const focusId = searchParams.get("focus");
   const [openId, setOpenId] = useState<string | null>(focusId ?? "hama");
-  const [hovId, setHovId] = useState<string | null>(null);
   const [pulseId, setPulseId] = useState<string | null>(focusId);
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -735,16 +560,13 @@ export default function DayPlannerPage() {
                 index={i}
                 isOpen={openId === ev.id}
                 onToggle={() => onToggle(ev.id)}
-                isHovered={hovId === ev.id}
-                onHover={setHovId}
                 isPulsed={pulseId === ev.id}
               />
             ))}
           </div>
         </div>
 
-        {/* Right: Day map */}
-        <DayMap activeId={hovId} onHover={setHovId} />
+
       </div>
     </div>
   );
