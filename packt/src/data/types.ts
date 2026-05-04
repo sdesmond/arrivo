@@ -129,23 +129,6 @@ export const LOGISTICS_CATEGORIES: EventCategory[] = [
   EventCategory.Currency, EventCategory.Packing,
 ];
 
-// Used only when migrating old string category values to the canonical enum.
-export const LEGACY_CATEGORY_MAP: Record<string, EventCategory> = {
-  Food:      "StreetFood",
-  Lunch:     "Restaurant",
-  Dinner:    "Restaurant",
-  Coffee:    "Cafe",
-  Culture:   "HistoricSite",
-  Walk:      "Tour",
-  Boat:      "Cruise",
-  Transit:   "Train",
-  Arrival:   "Flight",
-  Departure: "Flight",
-  Shop:      "Shopping",
-  View:      "Viewpoint",
-  Activity:  "Tour",
-  Transport: "Transfer",
-};
 
 // Used for the travel-to-next-event connector, not for the event category itself.
 export const TransportMode = {

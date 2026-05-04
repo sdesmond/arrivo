@@ -8,10 +8,6 @@ export type {
   TripTint,
 } from "./types";
 
-export {
-  LEGACY_CATEGORY_MAP,
-} from "./types";
-
 import type { Trip, TripTint, WorldPin } from "./types";
 
 export const TRIP_TINTS: Record<string, TripTint> = {
