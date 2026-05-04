@@ -174,14 +174,14 @@ export const TOKYO_DAYS: DayItinerary[] = [
         name: "Tsukiji Outer Market", cat: "StreetFood", status: "done",
         sub: "Sushi breakfast at Sushi Bun",
         note: "Brought cash. Got tamagoyaki + uni at Sushi Bun. Wait was 25 min.",
-        location: { name: "Tsukiji · 4-chōme", mapPin: { x: 0.20, y: 0.36 } },
+        location: { name: "Tsukiji · 4-chōme" },
       },
       {
         id: "d5-teamlab", time: "11:30", durMin: 120,
         name: "teamLab Planets", cat: "Museum", status: "done",
         sub: "Toyosu · timed entry 11:30",
         note: "Timed entry 11:30 confirmed in app. Bring shorts (water rooms).",
-        location: { name: "Toyosu · timed entry", mapPin: { x: 0.34, y: 0.55 } },
+        location: { name: "Toyosu · timed entry" },
         travelTo: { mode: "Subway", detail: "Yurakucho line", min: 12 },
         confirmationNumber: "TLP-9F2K-7741",
         docs: [
@@ -203,7 +203,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
       {
         id: "d5-bills", time: "13:45", durMin: 60,
         name: "Bills · Odaiba", cat: "Restaurant", status: "done",
-        location: { name: "Odaiba · DiverCity", mapPin: { x: 0.42, y: 0.62 } },
+        location: { name: "Odaiba · DiverCity" },
         travelTo: { mode: "Walk", detail: "covered arcade", min: 8 },
       },
       {
@@ -211,7 +211,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         name: "Hamarikyu Gardens", cat: "Park", status: "scheduled",
         sub: "Tea house in pond · 700¥",
         note: "Tea ceremony at 15:30 in Nakajima-no-Ochaya · ¥850. Reserve at entrance.",
-        location: { name: "Chuo · pond + tea house", mapPin: { x: 0.30, y: 0.43 } },
+        location: { name: "Chuo · pond + tea house" },
         travelTo: { mode: "Train", detail: "Yurikamome line", min: 14 },
         docs: [
           {
@@ -235,7 +235,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         name: "Shibuya Sky", cat: "Viewpoint", status: "scheduled",
         sub: "46th floor · sunset slot",
         note: "Sunset slot 18:08. Free locker for bags. Helix outdoor deck closes if windy.",
-        location: { name: "Shibuya Scramble Square · 46F", mapPin: { x: 0.55, y: 0.30 } },
+        location: { name: "Shibuya Scramble Square · 46F" },
         travelTo: { mode: "Train", detail: "Toei Asakusa line", min: 18 },
       },
       {
@@ -243,7 +243,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         name: "Sushi Saito", cat: "Restaurant", status: "scheduled",
         sub: "Roppongi · omakase ¥30,000pp",
         note: "Omakase ¥30,000pp. Card ok. Quiet room — phones off. Address sent to phone.",
-        location: { name: "Roppongi · ARK Hills", mapPin: { x: 0.66, y: 0.42 } },
+        location: { name: "Roppongi · ARK Hills" },
         travelTo: { mode: "Taxi", detail: "go straight, no detour", min: 15 },
         confirmationNumber: "SAITO-20260428-2P",
         docs: [

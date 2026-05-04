@@ -217,16 +217,10 @@ export interface GeoCoords {
   lng: number;
 }
 
-export interface RelativeCoords {
-  x: number;
-  y: number;
-}
-
 export interface EventLocation {
   name?:    string;
   address?: string;
   geo?:     GeoCoords;
-  mapPin?:  RelativeCoords;
 }
 
 // Only populated for transport-category events (Flight, Train, Ferry, etc.)
