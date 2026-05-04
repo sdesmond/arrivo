@@ -168,25 +168,6 @@ export const DocKind = {
 } as const;
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 
-// type = what the document semantically represents
-export const DocType = {
-  BoardingPass:          "boarding-pass",
-  Voucher:               "voucher",
-  FlightTicket:          "flight-ticket",
-  HotelConfirmation:     "hotel-confirmation",
-  RestaurantReservation: "restaurant-reservation",
-  TourTicket:            "tour-ticket",
-  TransitTicket:         "transit-ticket",
-  Visa:                  "visa",
-  Insurance:             "insurance",
-  Receipt:               "receipt",
-  Map:                   "map",
-  GuidePamphlet:         "guide-pamphlet",
-  Photo:                 "photo",
-  Other:                 "other",
-} as const;
-export type DocType = (typeof DocType)[keyof typeof DocType];
-
 // For flexible (non-timed) events.
 export const TimeBucket = {
   Morning:   "morning",
@@ -211,7 +192,6 @@ export interface Document {
   id:      string;
   name:    string;
   kind:    DocKind;
-  type:    DocType;
   size?:   string;
   // trip = belongs to the trip overall; event = attached to one event; both = either
   scope:   "trip" | "event" | "both";
@@ -436,9 +416,9 @@ export interface AvatarTint {
 
 // UI-only projection generated from Document[]; not a canonical model.
 export interface DocRailItem {
-  name:   string;
-  type:   DocType;
-  cached: boolean;
+  name:     string;
+  subtitle?: string;
+  cached:   boolean;
 }
 
 export interface WorldPin {

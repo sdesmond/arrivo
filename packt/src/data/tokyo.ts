@@ -32,7 +32,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         docs: [
           {
             id: "jl0007", name: "JL 0007 — Boarding pass.pdf",
-            kind: "pdf", type: "flight-ticket", size: "124 KB", scope: "event", offline: true,
+            kind: "pdf", size: "124 KB", scope: "event", offline: true,
             previewLines: [
               { text: "JAPAN AIRLINES", level: "h" },
               { text: "Boarding pass · JL 0007", level: "m" },
@@ -47,7 +47,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
           },
           {
             id: "nex-vchr", name: "Narita Express voucher.pdf",
-            kind: "pdf", type: "transit-ticket", size: "88 KB", scope: "event", offline: true,
+            kind: "pdf", size: "88 KB", scope: "event", offline: true,
           },
         ],
       },
@@ -60,7 +60,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         docs: [
           {
             id: "hyatt-cf", name: "Park Hyatt — Confirmation.pdf",
-            kind: "pdf", type: "hotel-confirmation", size: "156 KB", scope: "event", offline: true,
+            kind: "pdf", size: "156 KB", scope: "event", offline: true,
           },
         ],
       },
@@ -188,7 +188,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         docs: [
           {
             id: "tl-tix", name: "teamLab Planets — 2 tickets.pdf",
-            kind: "pdf", type: "tour-ticket", size: "184 KB", scope: "event", offline: true,
+            kind: "pdf", size: "184 KB", scope: "event", offline: true,
             previewLines: [
               { text: "TEAMLAB PLANETS TOKYO", level: "h" },
               { text: "Order TLP-9F2K-7741", level: "m" },
@@ -217,7 +217,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         docs: [
           {
             id: "hm-map", name: "Garden map + tea house guide.pdf",
-            kind: "pdf", type: "guide-pamphlet", size: "612 KB", scope: "event", offline: true,
+            kind: "pdf", size: "612 KB", scope: "event", offline: true,
             previewLines: [
               { text: "HAMARIKYU GARDENS", level: "h" },
               { text: "Visitor map", level: "m" },
@@ -250,7 +250,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
         docs: [
           {
             id: "ss-rsv", name: "Sushi Saito — Reservation.pdf",
-            kind: "pdf", type: "restaurant-reservation", size: "92 KB", scope: "event", offline: true,
+            kind: "pdf", size: "92 KB", scope: "event", offline: true,
             previewLines: [
               { text: "SUSHI SAITO", level: "h" },
               { text: "Reservation confirmation", level: "m" },
@@ -268,7 +268,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
           },
           {
             id: "ss-menu", name: "Omakase menu — April.jpg",
-            kind: "image", type: "photo", size: "1.4 MB", scope: "event", offline: true,
+            kind: "image", size: "1.4 MB", scope: "event", offline: true,
             previewLines: [
               { text: "OMAKASE · APRIL", level: "h" },
               { text: "Photographed menu card", level: "sm" },
@@ -350,13 +350,13 @@ export const TOKYO_DAYS: DayItinerary[] = [
 ];
 
 export const TOKYO_DOCS: DocRailItem[] = [
-  { name: "JL 0007 boarding pass · arrival",  type: "flight-ticket",          cached: true  },
-  { name: "Park Hyatt confirmation HZ-49281",  type: "hotel-confirmation",     cached: true  },
-  { name: "Hakone Free Pass voucher",          type: "transit-ticket",         cached: true  },
-  { name: "Sushi Saito reservation note",      type: "restaurant-reservation", cached: true  },
-  { name: "JL 0006 boarding pass · departure", type: "flight-ticket",          cached: false },
-  { name: "Travel insurance · Allianz",        type: "insurance",              cached: true  },
-  { name: "JR Pass voucher",                   type: "transit-ticket",         cached: true  },
+  { name: "JL 0007 boarding pass · arrival",  subtitle: "Flight ticket",          cached: true  },
+  { name: "Park Hyatt confirmation HZ-49281",  subtitle: "Hotel confirmation",     cached: true  },
+  { name: "Hakone Free Pass voucher",          subtitle: "Transit ticket",         cached: true  },
+  { name: "Sushi Saito reservation note",      subtitle: "Restaurant reservation", cached: true  },
+  { name: "JL 0006 boarding pass · departure", subtitle: "Flight ticket",          cached: false },
+  { name: "Travel insurance · Allianz",        subtitle: "Insurance",              cached: true  },
+  { name: "JR Pass voucher",                   subtitle: "Transit ticket",         cached: true  },
 ];
 
 export const TOKYO_PACKING: PackingItem[] = [

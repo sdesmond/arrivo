@@ -112,7 +112,7 @@ export function DocsRail({ docs }: { docs: DocRailItem[] }) {
               <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }} className="truncate">
                 {d.name}
               </div>
-              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{d.type}</div>
+              {d.subtitle && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{d.subtitle}</div>}
             </div>
             {d.cached ? (
               <span style={{ color: "var(--accent-brand)", flexShrink: 0 }}>
