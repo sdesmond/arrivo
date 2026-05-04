@@ -228,7 +228,7 @@ export interface TransportDetail {
   origin:        string;
   destination:   string;
   operator?:     string;
-  flightNumber?: string;
+  serviceNumber?: string;
   terminal?:     string;
   gate?:         string;
   seat?:         string;
