@@ -4,7 +4,6 @@ export type {
   TravelTo,
   TripEvent,
   DayItinerary,
-  DocRailItem,
   PackingItem,
   Collaborator,
 } from "./types";
@@ -12,7 +11,6 @@ export type {
 import type {
   TripEvent,
   DayItinerary,
-  DocRailItem,
   PackingItem,
   Collaborator,
 } from "./types";
@@ -348,7 +346,7 @@ export const TOKYO_DAYS: DayItinerary[] = [
   },
 ];
 
-export const TOKYO_DOCS: DocRailItem[] = [
+export const TOKYO_DOCS = [
   { name: "JL 0007 boarding pass · arrival",  subtitle: "Flight ticket",          cached: true  },
   { name: "Park Hyatt confirmation HZ-49281",  subtitle: "Hotel confirmation",     cached: true  },
   { name: "Hakone Free Pass voucher",          subtitle: "Transit ticket",         cached: true  },

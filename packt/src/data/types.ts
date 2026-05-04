@@ -393,12 +393,6 @@ export interface AvatarTint {
   color: string;
 }
 
-// UI-only projection generated from Document[]; not a canonical model.
-export interface DocRailItem {
-  name:     string;
-  subtitle?: string;
-  cached:   boolean;
-}
 
 export interface WorldPin {
   x:     number;

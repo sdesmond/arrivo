@@ -2,7 +2,13 @@
 
 import { Check, Download, FileText, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { type DocRailItem, type PackingItem, type Collaborator } from "@/data/types";
+import { type PackingItem, type Collaborator } from "@/data/types";
+
+interface DocRailItem {
+  name:      string;
+  subtitle?: string;
+  cached:    boolean;
+}
 
 function RailPanel({ header, meta, children }: { header: string; meta?: string; children: React.ReactNode }) {
   return (
