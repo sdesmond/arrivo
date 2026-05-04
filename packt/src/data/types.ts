@@ -367,8 +367,6 @@ export interface Trip {
   // Quick-access strip of today's events shown on the dashboard.
   events?: TripEvent[];
 
-  mapPin?: { x: number; y: number; label: string };
-
   createdAt?: string;
   updatedAt?: string;
 }
