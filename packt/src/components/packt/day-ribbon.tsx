@@ -6,13 +6,18 @@ import { cn } from "@/lib/utils";
 import { type Trip, type TripEvent } from "@/data/trips";
 
 const CAT_COLORS: Record<string, string> = {
-  Food:    "var(--accent-brand)",
-  Museum:  "#8b6cf0",
-  Park:    "#1c8a5b",
-  View:    "#0e7ab5",
-  Dinner:  "#c05621",
-  Hotel:   "#7a5c3a",
-  default: "var(--fg-3)",
+  StreetFood:  "var(--accent-brand)",
+  Restaurant:  "#c05621",
+  Cafe:        "#c05621",
+  Museum:      "#8b6cf0",
+  Gallery:     "#8b6cf0",
+  HistoricSite:"#8b6cf0",
+  Show:        "#8b6cf0",
+  Park:        "#1c8a5b",
+  Garden:      "#1c8a5b",
+  Viewpoint:   "#0e7ab5",
+  Hotel:       "#7a5c3a",
+  default:     "var(--fg-3)",
 };
 
 interface DayRibbonProps {
@@ -93,8 +98,8 @@ export function DayRibbon({ trip }: DayRibbonProps) {
 }
 
 function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
-  const isNow = ev.state === "now";
-  const isDone = ev.state === "done";
+  const isNow = ev.status === "now";
+  const isDone = ev.status === "done";
   const catColor = CAT_COLORS[ev.cat] ?? CAT_COLORS.default;
 
   return (

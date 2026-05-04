@@ -2,7 +2,7 @@
 
 import { Check, Download, FileText, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { type DocRailItem, type PackingItem, type Collaborator } from "@/data/tokyo";
+import { type DocRailItem, type PackingItem, type Collaborator } from "@/data/types";
 
 function RailPanel({ header, meta, children }: { header: string; meta?: string; children: React.ReactNode }) {
   return (
@@ -163,7 +163,7 @@ export function PackingRail({ items }: { items: PackingItem[] }) {
                 textDecoration: p.done ? "line-through" : "none",
               }}
             >
-              {p.n}
+              {p.name}
             </span>
             <span
               style={{
@@ -193,17 +193,17 @@ export function CollaboratorsRail({ collaborators }: { collaborators: Collaborat
               className="flex items-center justify-center rounded-full shrink-0 text-xs font-semibold"
               style={{
                 width: 30, height: 30,
-                background: c.tint.bg,
-                color: c.tint.fg,
+                background: c.tint?.bg,
+                color: c.tint?.fg,
                 fontFamily: "var(--font-mono-family, ui-monospace)",
                 fontSize: 11,
               }}
             >
-              {c.i}
+              {c.initials}
             </span>
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{c.n}</div>
-              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{c.e}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{c.name}</div>
+              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{c.email}</div>
             </div>
             <span
               style={{

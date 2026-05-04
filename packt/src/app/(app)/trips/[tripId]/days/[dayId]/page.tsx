@@ -9,37 +9,50 @@ import {
   Edit, FileText, Train,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TIMED, FLEXIBLE, type TimedEvent, type FlexibleEvent } from "@/data/day-planner";
+import { TIMED, FLEXIBLE } from "@/data/day-planner";
+import type { TripEvent } from "@/data/types";
+
+// Compute end time string from "HH:mm" + duration in minutes.
+function calcEnd(time: string, durMin: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + durMin;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 
 // ── Category helpers ──────────────────────────────────────────────────
 const CAT_TONE: Record<string, string> = {
-  Food:    "oklch(0.78 0.10 60)",
-  Lunch:   "oklch(0.78 0.10 60)",
-  Dinner:  "oklch(0.74 0.13 25)",
-  Drinks:  "oklch(0.66 0.14 320)",
-  Coffee:  "oklch(0.70 0.10 50)",
-  Museum:  "oklch(0.75 0.09 280)",
-  View:    "oklch(0.74 0.10 220)",
-  Park:    "oklch(0.75 0.10 145)",
-  Shop:    "oklch(0.78 0.08 30)",
-  Walk:    "oklch(0.75 0.10 145)",
+  StreetFood:  "oklch(0.78 0.10 60)",
+  Restaurant:  "oklch(0.74 0.13 25)",
+  Drinks:      "oklch(0.66 0.14 320)",
+  Cafe:        "oklch(0.70 0.10 50)",
+  Bar:         "oklch(0.66 0.14 320)",
+  Museum:      "oklch(0.75 0.09 280)",
+  Gallery:     "oklch(0.75 0.09 280)",
+  HistoricSite:"oklch(0.75 0.09 280)",
+  Show:        "oklch(0.75 0.09 280)",
+  Viewpoint:   "oklch(0.74 0.10 220)",
+  Park:        "oklch(0.75 0.10 145)",
+  Garden:      "oklch(0.75 0.10 145)",
+  Tour:        "oklch(0.75 0.10 145)",
+  Shopping:    "oklch(0.78 0.08 30)",
 };
 const catTone = (cat: string) => CAT_TONE[cat] ?? "oklch(0.75 0.06 250)";
 
 function CatIcon({ cat, size = 12 }: { cat: string; size?: number }) {
   const sw = 1.5;
-  if (["Food", "Lunch", "Dinner", "Drinks", "Coffee"].includes(cat)) return <Coffee size={size} strokeWidth={sw} />;
-  if (["Museum", "View", "Show", "Culture"].includes(cat)) return <Camera size={size} strokeWidth={sw} />;
-  if (["Park", "Walk", "Boat"].includes(cat)) return <MapPin size={size} strokeWidth={sw} />;
-  if (["Transit", "Arrival", "Departure"].includes(cat)) return <Plane size={size} strokeWidth={sw} />;
-  if (cat === "Hotel") return <Bed size={size} strokeWidth={sw} />;
-  if (cat === "Shop") return <Package size={size} strokeWidth={sw} />;
+  if (["StreetFood", "Restaurant", "Cafe", "Drinks", "Bar"].includes(cat)) return <Coffee size={size} strokeWidth={sw} />;
+  if (["Museum", "Gallery", "HistoricSite", "Viewpoint", "Show", "Concert"].includes(cat)) return <Camera size={size} strokeWidth={sw} />;
+  if (["Park", "Garden", "Hike", "Beach", "Tour", "Cruise"].includes(cat)) return <MapPin size={size} strokeWidth={sw} />;
+  if (["Flight"].includes(cat)) return <Plane size={size} strokeWidth={sw} />;
+  if (["Train", "Bus", "Ferry", "Transfer"].includes(cat)) return <Train size={size} strokeWidth={sw} />;
+  if (cat === "Hotel" || cat === "Hostel" || cat === "Airbnb") return <Bed size={size} strokeWidth={sw} />;
+  if (cat === "Shopping") return <Package size={size} strokeWidth={sw} />;
   return <MapPin size={size} strokeWidth={sw} />;
 }
 
 // ── Timed event row ───────────────────────────────────────────────────
 function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }: {
-  ev: TimedEvent;
+  ev: TripEvent;
   index: number;
   isOpen: boolean;
   onToggle: () => void;
@@ -47,9 +60,10 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }:
   onHover: (id: string | null) => void;
   isPulsed?: boolean;
 }) {
-  const isDone = ev.state === "done";
-  const isNow = ev.state === "now";
+  const isDone = ev.status === "done";
+  const isNow = ev.status === "now";
   const hasDocs = (ev.docs?.length ?? 0) > 0;
+  const endTime = ev.time && ev.durMin != null ? calcEnd(ev.time, ev.durMin) : null;
 
   return (
     <div>
@@ -88,8 +102,8 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }:
           }}
         >
           <div style={{ fontWeight: 600 }}>{ev.time}</div>
-          <div style={{ fontSize: 10, opacity: 0.7 }}>{ev.durMin}m</div>
-          <div style={{ fontSize: 10, opacity: 0.55 }}>→ {ev.end}</div>
+          {ev.durMin != null && <div style={{ fontSize: 10, opacity: 0.7 }}>{ev.durMin}m</div>}
+          {endTime && <div style={{ fontSize: 10, opacity: 0.55 }}>→ {endTime}</div>}
         </div>
 
         {/* Rail + dot */}
@@ -178,10 +192,12 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }:
             className="flex items-center gap-3 px-3 pb-2.5 flex-wrap"
             style={{ fontSize: 12, color: "var(--fg-3)" }}
           >
-            <span className="flex items-center gap-1">
-              <MapPin size={11} strokeWidth={1.5} />
-              {ev.where}
-            </span>
+            {ev.location?.name && (
+              <span className="flex items-center gap-1">
+                <MapPin size={11} strokeWidth={1.5} />
+                {ev.location.name}
+              </span>
+            )}
             {ev.confirmation && (
               <button
                 className="flex items-center gap-1 rounded-full px-2 py-0.5"
@@ -273,7 +289,7 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }:
                   <Clock size={12} strokeWidth={1.5} /> Reschedule
                 </Button>
                 <span className="flex-1" />
-                {ev.state !== "done" && (
+                {ev.status !== "done" && (
                   <Button variant="ghost" size="sm">
                     <Check size={12} strokeWidth={1.5} /> Mark visited
                   </Button>
@@ -288,11 +304,11 @@ function TimedRow({ ev, index, isOpen, onToggle, isHovered, onHover, isPulsed }:
 }
 
 // ── Flexible section ──────────────────────────────────────────────────
-type Bucket = "all" | "morning" | "afternoon" | "evening";
+type BucketFilter = "all" | "morning" | "afternoon" | "evening";
 
 function FlexibleSection() {
-  const [bucket, setBucket] = useState<Bucket>("all");
-  const buckets: { id: Bucket; label: string }[] = [
+  const [bucket, setBucket] = useState<BucketFilter>("all");
+  const buckets: { id: BucketFilter; label: string }[] = [
     { id: "all", label: "All" },
     { id: "morning", label: "Morning" },
     { id: "afternoon", label: "Afternoon" },
@@ -343,11 +359,11 @@ function FlexibleSection() {
   );
 }
 
-function FlexCard({ ev }: { ev: FlexibleEvent }) {
+function FlexCard({ ev }: { ev: TripEvent }) {
   const bucketColor: Record<string, string> = {
-    morning: "oklch(0.78 0.10 60)",
+    morning:   "oklch(0.78 0.10 60)",
     afternoon: "oklch(0.74 0.10 220)",
-    evening: "oklch(0.66 0.14 320)",
+    evening:   "oklch(0.66 0.14 320)",
   };
   return (
     <div
@@ -359,7 +375,7 @@ function FlexCard({ ev }: { ev: FlexibleEvent }) {
         style={{
           fontFamily: "var(--font-mono-family, ui-monospace)",
           fontSize: 9, fontWeight: 700, letterSpacing: "0.08em",
-          color: bucketColor[ev.bucket],
+          color: ev.bucket ? bucketColor[ev.bucket] : "var(--fg-3)",
           textTransform: "uppercase",
         }}
       >
@@ -370,7 +386,9 @@ function FlexCard({ ev }: { ev: FlexibleEvent }) {
         <div className="flex items-center gap-1" style={{ fontSize: 11.5, color: catTone(ev.cat) }}>
           <CatIcon cat={ev.cat} size={11} />
           {ev.cat}
-          <span style={{ color: "var(--fg-3)" }}>· {ev.where}</span>
+          {ev.location?.name && (
+            <span style={{ color: "var(--fg-3)" }}>· {ev.location.name}</span>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
@@ -387,11 +405,12 @@ function FlexCard({ ev }: { ev: FlexibleEvent }) {
 
 // ── Day map (right pane) ──────────────────────────────────────────────
 function DayMap({ activeId, onHover }: { activeId: string | null; onHover: (id: string | null) => void }) {
-  const pathD = TIMED.map((s, i) =>
-    `${i === 0 ? "M" : "L"} ${(s.coords.x * 100).toFixed(1)} ${(s.coords.y * 100).toFixed(1)}`
-  ).join(" ");
+  const pathD = TIMED.map((s, i) => {
+    const pin = s.location?.mapPin;
+    return pin ? `${i === 0 ? "M" : "L"} ${(pin.x * 100).toFixed(1)} ${(pin.y * 100).toFixed(1)}` : null;
+  }).filter(Boolean).join(" ");
 
-  const nowEvent = TIMED.find((s) => s.state === "now");
+  const nowEvent = TIMED.find((s) => s.status === "now");
 
   return (
     <aside
@@ -447,16 +466,18 @@ function DayMap({ activeId, onHover }: { activeId: string | null; onHover: (id: 
 
         {/* Pins */}
         {TIMED.map((s, i) => {
+          const pin = s.location?.mapPin;
+          if (!pin) return null;
           const isActive = activeId === s.id;
-          const isDone = s.state === "done";
-          const isNow = s.state === "now";
+          const isDone = s.status === "done";
+          const isNow = s.status === "now";
           return (
             <button
               key={s.id}
               className="absolute flex items-center justify-center rounded-full transition-all"
               style={{
-                left: `${s.coords.x * 100}%`,
-                top: `${s.coords.y * 100}%`,
+                left: `${pin.x * 100}%`,
+                top: `${pin.y * 100}%`,
                 transform: "translate(-50%, -50%)",
                 width: isActive ? 28 : 22,
                 height: isActive ? 28 : 22,
@@ -478,12 +499,12 @@ function DayMap({ activeId, onHover }: { activeId: string | null; onHover: (id: 
         })}
 
         {/* "You are here" pulse */}
-        {nowEvent && (
+        {nowEvent?.location?.mapPin && (
           <div
             className="absolute pointer-events-none"
             style={{
-              left: `${nowEvent.coords.x * 100}%`,
-              top: `${nowEvent.coords.y * 100}%`,
+              left: `${nowEvent.location.mapPin.x * 100}%`,
+              top: `${nowEvent.location.mapPin.y * 100}%`,
               transform: "translate(-50%, -50%)",
               zIndex: 20,
             }}

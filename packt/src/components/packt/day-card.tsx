@@ -53,7 +53,7 @@ export function DayCard({ day: d }: DayCardProps) {
             style={{ fontSize: 12, color: "var(--fg-3)" }}
           >
             <MapPin size={12} strokeWidth={1.5} />
-            {d.places.length} stops
+            {d.events.length} stops
           </span>
           {d.today && <Badge variant="soft">Active</Badge>}
         </div>
@@ -61,11 +61,11 @@ export function DayCard({ day: d }: DayCardProps) {
 
       {/* Places */}
       <div className="p-3 flex flex-col">
-        {d.places.map((p, i) => (
+        {d.events.map((p, i) => (
           <PlaceRow
             key={p.id ?? i}
             place={p}
-            isLast={i === d.places.length - 1}
+            isLast={i === d.events.length - 1}
           />
         ))}
 

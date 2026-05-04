@@ -246,9 +246,9 @@ function MobileActiveTab() {
             href={`/trips/${trip.id}/days/${trip.dayN}?focus=${ev.id}`}
             className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface"
             style={{
-              opacity: ev.state === "done" ? 0.5 : 1,
-              background: ev.state === "now" ? "var(--accent-soft)" : undefined,
-              borderLeft: ev.state === "now" ? "3px solid var(--accent-brand)" : undefined,
+              opacity: ev.status === "done" ? 0.5 : 1,
+              background: ev.status === "now" ? "var(--accent-soft)" : undefined,
+              borderLeft: ev.status === "now" ? "3px solid var(--accent-brand)" : undefined,
             }}
           >
             <span
@@ -263,7 +263,7 @@ function MobileActiveTab() {
             <span
               style={{
                 flex: 1, fontSize: 13.5, fontWeight: 500, color: "var(--fg)",
-                textDecoration: ev.state === "done" ? "line-through" : undefined,
+                textDecoration: ev.status === "done" ? "line-through" : undefined,
               }}
             >
               {ev.name}
@@ -313,8 +313,8 @@ function MobileUpcomingTab() {
             </div>
             <div className="flex items-center gap-1.5 mt-1">
               <Badge variant="soft">in {trip.inDays}d</Badge>
-              {(trip.docs ?? 0) > 0
-                ? <Badge variant="success">{trip.docs} docs</Badge>
+              {(trip.docsCount ?? 0) > 0
+                ? <Badge variant="success">{trip.docsCount} docs</Badge>
                 : <Badge variant="warning">no docs</Badge>
               }
             </div>

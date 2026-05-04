@@ -73,18 +73,18 @@ export function TripCard({ trip }: TripCardProps) {
           </span>
           <span className="flex items-center gap-1">
             <FileText size={13} strokeWidth={1.5} />
-            {trip.docs} docs
+            {trip.docsCount} docs
           </span>
           <span className="flex items-center gap-1">
             <Users size={13} strokeWidth={1.5} />
-            {trip.collaborators?.length ?? 0}
+            {trip.collaboratorInitials?.length ?? 0}
           </span>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-0.5">
-          {trip.collaborators && (
-            <AvatarStack initials={trip.collaborators} size="sm" />
+          {trip.collaboratorInitials && (
+            <AvatarStack initials={trip.collaboratorInitials} size="sm" />
           )}
           <span
             style={{

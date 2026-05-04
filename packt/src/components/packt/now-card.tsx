@@ -117,11 +117,11 @@ export function NowCard({ trip }: NowCardProps) {
           <Badge variant="muted">9 places</Badge>
           <Badge variant="muted">12 docs</Badge>
           <span className="flex-1" />
-          {trip.collaborators && (
+          {trip.collaboratorInitials && (
             <AvatarStack
-              initials={trip.collaborators}
+              initials={trip.collaboratorInitials}
               size="sm"
-              aria-label={trip.collaborators.join(", ")}
+              aria-label={trip.collaboratorInitials.join(", ")}
             />
           )}
         </div>

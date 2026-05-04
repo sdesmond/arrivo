@@ -1,44 +1,18 @@
-export type EventState = "done" | "now" | "next";
-export type EventCategory = "Food" | "Museum" | "Park" | "View" | "Dinner" | "Hotel" | "Transport" | "Activity";
-export type TripStatus = "active" | "upcoming" | "past";
+export type {
+  EventState,
+  EventCategory,
+  TripStatus,
+  TripEvent,
+  Trip,
+  WorldPin,
+  TripTint,
+} from "./types";
 
-export interface TripEvent {
-  id: string;
-  time: string;
-  name: string;
-  cat: EventCategory;
-  state: EventState;
-}
+export {
+  LEGACY_CATEGORY_MAP,
+} from "./types";
 
-export interface Trip {
-  id: string;
-  name: string;
-  country: string;
-  status: TripStatus;
-  startDate: string;
-  endDate: string;
-  days?: number;
-  dayN?: number;
-  dayTotal?: number;
-  collaborators?: string[];
-  docs?: number;
-  inDays?: number;
-  todayDate?: number;
-  todayMonth?: string;
-  events?: TripEvent[];
-}
-
-export interface WorldPin {
-  x: number;
-  y: number;
-  label: string;
-}
-
-export interface TripTint {
-  hue: number;
-  l: string;
-  d: string;
-}
+import type { Trip, TripTint, WorldPin } from "./types";
 
 export const TRIP_TINTS: Record<string, TripTint> = {
   Tokyo:     { hue: 8,   l: "oklch(0.94 0.04 8)",   d: "oklch(0.28 0.05 8)"   },
@@ -62,15 +36,15 @@ export const SAMPLE_ACTIVE_TRIP: Trip = {
   endDate: "May 1, 2026",
   dayN: 5,
   dayTotal: 7,
-  collaborators: ["MR", "JK"],
+  collaboratorInitials: ["MR", "JK"],
   todayDate: 28,
   todayMonth: "Apr",
   events: [
-    { id: "tsukiji", time: "09:30", name: "Tsukiji Outer Market", cat: "Food",    state: "done" },
-    { id: "teamlab", time: "11:30", name: "teamLab Planets",      cat: "Museum",  state: "done" },
-    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens",    cat: "Park",    state: "now"  },
-    { id: "shibuya", time: "17:30", name: "Shibuya Sky",          cat: "View",    state: "next" },
-    { id: "saito",   time: "20:00", name: "Sushi Saito",          cat: "Dinner",  state: "next" },
+    { id: "tsukiji", time: "09:30", name: "Tsukiji Outer Market", cat: "StreetFood", status: "done" },
+    { id: "teamlab", time: "11:30", name: "teamLab Planets",      cat: "Museum",     status: "done" },
+    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens",    cat: "Park",       status: "now"  },
+    { id: "shibuya", time: "17:30", name: "Shibuya Sky",          cat: "Viewpoint",  status: "scheduled" },
+    { id: "saito",   time: "20:00", name: "Sushi Saito",          cat: "Restaurant", status: "scheduled" },
   ],
 };
 
@@ -84,8 +58,8 @@ export const SAMPLE_UPCOMING: Trip[] = [
     endDate: "May 22, 2026",
     days: 4,
     inDays: 21,
-    collaborators: ["MR", "AC"],
-    docs: 7,
+    collaboratorInitials: ["MR", "AC"],
+    docsCount: 7,
   },
   {
     id: "oaxaca-2026",
@@ -96,8 +70,8 @@ export const SAMPLE_UPCOMING: Trip[] = [
     endDate: "Aug 6, 2026",
     days: 9,
     inDays: 92,
-    collaborators: ["MR"],
-    docs: 3,
+    collaboratorInitials: ["MR"],
+    docsCount: 3,
   },
   {
     id: "reykjavik-2026",
@@ -108,8 +82,8 @@ export const SAMPLE_UPCOMING: Trip[] = [
     endDate: "Oct 20, 2026",
     days: 8,
     inDays: 168,
-    collaborators: ["MR", "JK", "AC"],
-    docs: 0,
+    collaboratorInitials: ["MR", "JK", "AC"],
+    docsCount: 0,
   },
 ];
 

@@ -6,31 +6,50 @@ import {
   MoreHorizontal, FileText, Edit, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { type Place, type TripDoc } from "@/data/tokyo";
+import { type TripEvent, type Document } from "@/data/types";
 
 const CAT_ICON: Record<string, React.ReactNode> = {
-  Food:      <Coffee size={12} strokeWidth={1.5} />,
-  Lunch:     <Coffee size={12} strokeWidth={1.5} />,
-  Dinner:    <Coffee size={12} strokeWidth={1.5} />,
-  Drinks:    <Coffee size={12} strokeWidth={1.5} />,
-  Hotel:     <Bed size={12} strokeWidth={1.5} />,
-  Museum:    <Camera size={12} strokeWidth={1.5} />,
-  Show:      <Camera size={12} strokeWidth={1.5} />,
-  Culture:   <Camera size={12} strokeWidth={1.5} />,
-  View:      <Camera size={12} strokeWidth={1.5} />,
-  Park:      <MapPin size={12} strokeWidth={1.5} />,
-  Walk:      <MapPin size={12} strokeWidth={1.5} />,
-  Boat:      <MapPin size={12} strokeWidth={1.5} />,
-  Transit:   <Plane size={12} strokeWidth={1.5} />,
-  Arrival:   <Plane size={12} strokeWidth={1.5} />,
-  Departure: <Plane size={12} strokeWidth={1.5} />,
+  // Food & Drink
+  StreetFood:  <Coffee size={12} strokeWidth={1.5} />,
+  Restaurant:  <Coffee size={12} strokeWidth={1.5} />,
+  Cafe:        <Coffee size={12} strokeWidth={1.5} />,
+  Bar:         <Coffee size={12} strokeWidth={1.5} />,
+  Drinks:      <Coffee size={12} strokeWidth={1.5} />,
+  Market:      <Coffee size={12} strokeWidth={1.5} />,
+  // Accommodation
+  Hotel:       <Bed size={12} strokeWidth={1.5} />,
+  Hostel:      <Bed size={12} strokeWidth={1.5} />,
+  Airbnb:      <Bed size={12} strokeWidth={1.5} />,
+  Resort:      <Bed size={12} strokeWidth={1.5} />,
+  // Culture
+  Museum:      <Camera size={12} strokeWidth={1.5} />,
+  Gallery:     <Camera size={12} strokeWidth={1.5} />,
+  Monument:    <Camera size={12} strokeWidth={1.5} />,
+  HistoricSite:<Camera size={12} strokeWidth={1.5} />,
+  Show:        <Camera size={12} strokeWidth={1.5} />,
+  Concert:     <Camera size={12} strokeWidth={1.5} />,
+  // Nature & Outdoor
+  Park:        <MapPin size={12} strokeWidth={1.5} />,
+  Hike:        <MapPin size={12} strokeWidth={1.5} />,
+  Beach:       <MapPin size={12} strokeWidth={1.5} />,
+  Viewpoint:   <MapPin size={12} strokeWidth={1.5} />,
+  Garden:      <MapPin size={12} strokeWidth={1.5} />,
+  // Transport
+  Flight:      <Plane size={12} strokeWidth={1.5} />,
+  Train:       <Train size={12} strokeWidth={1.5} />,
+  Bus:         <Train size={12} strokeWidth={1.5} />,
+  Ferry:       <Train size={12} strokeWidth={1.5} />,
+  Transfer:    <Train size={12} strokeWidth={1.5} />,
 };
 
-function DocKindBadge({ kind }: { kind: TripDoc["kind"] }) {
+function DocKindBadge({ kind }: { kind: Document["kind"] }) {
   const map = {
-    pdf:   { label: "PDF", color: "oklch(0.72 0.12 25)" },
-    image: { label: "IMG", color: "oklch(0.72 0.10 145)" },
-    doc:   { label: "DOC", color: "oklch(0.70 0.10 250)" },
+    pdf:            { label: "PDF",  color: "oklch(0.72 0.12 25)"  },
+    image:          { label: "IMG",  color: "oklch(0.72 0.10 145)" },
+    doc:            { label: "DOC",  color: "oklch(0.70 0.10 250)" },
+    link:           { label: "LINK", color: "oklch(0.70 0.08 200)" },
+    "boarding-pass":{ label: "PASS", color: "oklch(0.70 0.12 25)"  },
+    voucher:        { label: "VCH",  color: "oklch(0.70 0.10 140)" },
   } as const;
   const { label, color } = map[kind] ?? { label: "FILE", color: "oklch(0.70 0.04 250)" };
   return (
@@ -50,7 +69,7 @@ function DocKindBadge({ kind }: { kind: TripDoc["kind"] }) {
   );
 }
 
-function DocsBlock({ docs }: { docs: TripDoc[] }) {
+function DocsBlock({ docs }: { docs: Document[] }) {
   return (
     <div className="mt-2" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
       <div
@@ -95,15 +114,15 @@ function DocsBlock({ docs }: { docs: TripDoc[] }) {
 }
 
 interface PlaceRowProps {
-  place: Place;
+  place: TripEvent;
   isLast?: boolean;
 }
 
 export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
-  const [expanded, setExpanded] = useState(p.state === "now");
+  const [expanded, setExpanded] = useState(p.status === "now");
   const hasDocs = (p.docs?.length ?? 0) > 0;
-  const isDone = p.state === "done";
-  const isNow = p.state === "now";
+  const isDone = p.status === "done";
+  const isNow = p.status === "now";
 
   return (
     <div>
@@ -250,7 +269,7 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
                 <Clock size={12} strokeWidth={1.5} /> Reschedule
               </Button>
               <span className="flex-1" />
-              {p.state !== "done" && (
+              {p.status !== "done" && (
                 <Button variant="ghost" size="sm">
                   <Check size={12} strokeWidth={1.5} /> Mark visited
                 </Button>
@@ -289,13 +308,13 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
       </div>
 
       {/* Travel connector */}
-      {p.travel && !isLast && (
+      {p.travelTo && !isLast && (
         <div
           className="flex items-center gap-2 pl-[88px] py-1"
           style={{ fontSize: 12, color: "var(--fg-3)" }}
         >
           <Train size={12} strokeWidth={1.5} />
-          {p.travel.mode} · {p.travel.detail}
+          {p.travelTo.mode} · {p.travelTo.detail}
         </div>
       )}
     </div>
