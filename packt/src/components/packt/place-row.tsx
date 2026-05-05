@@ -1,47 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
-  Check, MapPin, Coffee, Bed, Camera, Plane, Train, ChevronDown,
-  MoreHorizontal, FileText, Edit, Clock,
+  Check, MapPin, Train, ChevronDown,
+  FileText, Clock, DollarSign, Pencil, Trash2,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { type TripEvent, type Document } from "@/data/types";
-import { isEventNow } from "@/lib/utils";
+import { isEventNow, isEventPast } from "@/lib/utils";
 
-const CAT_ICON: Record<string, React.ReactNode> = {
-  // Food & Drink
-  StreetFood:  <Coffee size={12} strokeWidth={1.5} />,
-  Restaurant:  <Coffee size={12} strokeWidth={1.5} />,
-  Cafe:        <Coffee size={12} strokeWidth={1.5} />,
-  Bar:         <Coffee size={12} strokeWidth={1.5} />,
-  Drinks:      <Coffee size={12} strokeWidth={1.5} />,
-  Market:      <Coffee size={12} strokeWidth={1.5} />,
-  // Accommodation
-  Hotel:       <Bed size={12} strokeWidth={1.5} />,
-  Hostel:      <Bed size={12} strokeWidth={1.5} />,
-  Airbnb:      <Bed size={12} strokeWidth={1.5} />,
-  Resort:      <Bed size={12} strokeWidth={1.5} />,
-  // Culture
-  Museum:      <Camera size={12} strokeWidth={1.5} />,
-  Gallery:     <Camera size={12} strokeWidth={1.5} />,
-  Monument:    <Camera size={12} strokeWidth={1.5} />,
-  HistoricSite:<Camera size={12} strokeWidth={1.5} />,
-  Show:        <Camera size={12} strokeWidth={1.5} />,
-  Concert:     <Camera size={12} strokeWidth={1.5} />,
-  // Nature & Outdoor
-  Park:        <MapPin size={12} strokeWidth={1.5} />,
-  Hike:        <MapPin size={12} strokeWidth={1.5} />,
-  Beach:       <MapPin size={12} strokeWidth={1.5} />,
-  Viewpoint:   <MapPin size={12} strokeWidth={1.5} />,
-  Garden:      <MapPin size={12} strokeWidth={1.5} />,
-  // Transport
-  Flight:      <Plane size={12} strokeWidth={1.5} />,
-  Train:       <Train size={12} strokeWidth={1.5} />,
-  Bus:         <Train size={12} strokeWidth={1.5} />,
-  Ferry:       <Train size={12} strokeWidth={1.5} />,
-  Transfer:    <Train size={12} strokeWidth={1.5} />,
-};
+function formatTime(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
+}
 
 function DocKindBadge({ kind }: { kind: Document["kind"] }) {
   const map = {
@@ -112,31 +89,217 @@ function DocsBlock({ docs }: { docs: Document[] }) {
   );
 }
 
+function TimePickerDropdown({
+  time, endTime, onSave, onClose,
+}: {
+  time?: string;
+  endTime?: string;
+  onSave: (time?: string, endTime?: string) => void;
+  onClose: () => void;
+}) {
+  const [draftTime, setDraftTime] = useState(time ?? "");
+  const [draftEnd, setDraftEnd] = useState(endTime ?? "");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute z-50 rounded-[10px] p-4 flex flex-col gap-3"
+      style={{
+        top: "calc(100% + 4px)",
+        left: 0,
+        background: "var(--bg)",
+        border: "1px solid var(--line-strong)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+        minWidth: 260,
+      }}
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--fg-4)", marginBottom: 4 }}>
+            Start time
+          </div>
+          <Input type="time" value={draftTime} onChange={e => setDraftTime(e.target.value)} />
+        </div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--fg-4)", marginBottom: 4 }}>
+            End time
+          </div>
+          <Input type="time" value={draftEnd} onChange={e => setDraftEnd(e.target.value)} />
+        </div>
+      </div>
+      <div className="flex justify-between gap-2">
+        <Button variant="ghost" size="sm" onClick={() => onSave(undefined, undefined)}>Clear</Button>
+        <Button size="sm" onClick={() => onSave(draftTime || undefined, draftEnd || undefined)}>Save</Button>
+      </div>
+    </div>
+  );
+}
+
+function CostDialog({
+  cost, open, onOpenChange, onSave,
+}: {
+  cost?: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (cost?: number) => void;
+}) {
+  const [draft, setDraft] = useState(cost !== undefined ? String(cost) : "");
+
+  useEffect(() => {
+    if (open) setDraft(cost !== undefined ? String(cost) : "");
+  }, [open, cost]);
+
+  function handleSave() {
+    const num = parseFloat(draft);
+    onSave(isNaN(num) ? undefined : num);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => onOpenChange(o as boolean)}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Cost</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2">
+          <span style={{ fontSize: 18, fontWeight: 500, color: "var(--fg-3)" }}>$</span>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleSave(); }}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          {cost !== undefined && (
+            <Button variant="ghost" onClick={() => { onSave(undefined); onOpenChange(false); }}>
+              Remove
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LocationDialog({
+  address, open, onOpenChange, onSave,
+}: {
+  address?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (address?: string) => void;
+}) {
+  const [draft, setDraft] = useState(address ?? "");
+
+  useEffect(() => {
+    if (open) setDraft(address ?? "");
+  }, [open, address]);
+
+  function handleSave() {
+    onSave(draft.trim() || undefined);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => onOpenChange(o as boolean)}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Location</DialogTitle>
+        </DialogHeader>
+        <Input
+          placeholder="Enter address or place name"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") handleSave(); }}
+          autoFocus
+        />
+        <DialogFooter>
+          {address && (
+            <Button variant="ghost" onClick={() => { onSave(undefined); onOpenChange(false); }}>
+              Remove
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface PlaceRowProps {
   place: TripEvent;
   isLast?: boolean;
-  onEdit: (event: TripEvent) => void;
+  onUpdate: (event: TripEvent) => void;
+  onDelete: (id: string) => void;
 }
 
-export function PlaceRow({ place: p, isLast, onEdit }: PlaceRowProps) {
-  const [expanded, setExpanded] = useState(() => isEventNow(p));
+export function PlaceRow({ place: p, isLast, onUpdate, onDelete }: PlaceRowProps) {
+  const [showDocs, setShowDocs] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(p.name);
+
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [draftNote, setDraftNote] = useState(p.note ?? "");
+
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showCostDialog, setShowCostDialog] = useState(false);
+  const [showLocationDialog, setShowLocationDialog] = useState(false);
+
   const hasDocs = (p.docs?.length ?? 0) > 0;
-  const isDone = p.status === "done";
+  const isPast = isEventPast(p);
   const isNow = isEventNow(p);
 
+  function saveName() {
+    const trimmed = draftName.trim();
+    if (trimmed && trimmed !== p.name) onUpdate({ ...p, name: trimmed });
+    else setDraftName(p.name);
+    setIsEditingName(false);
+  }
+
+  function saveNote() {
+    const val = draftNote.trim() || undefined;
+    if (val !== p.note) onUpdate({ ...p, note: val });
+    setIsEditingNote(false);
+  }
+
+  const timeLabel = p.time
+    ? p.endTime
+      ? `${formatTime(p.time)} – ${formatTime(p.endTime)}`
+      : formatTime(p.time)
+    : null;
+
   return (
-    <div>
+    <div
+      className="relative"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div
-        role="button"
-        tabIndex={0}
-        className="flex items-start gap-3 rounded-[8px] px-3 py-2.5 cursor-pointer transition-colors hover:bg-surface"
+        className="flex items-start gap-3 rounded-[8px] px-3 py-2.5"
         style={{
-          opacity: isDone ? 0.7 : 1,
+          opacity: isPast ? 0.7 : 1,
           background: isNow ? "var(--accent-soft)" : undefined,
           border: isNow ? "1px solid var(--accent-brand)" : "1px solid transparent",
         }}
-        onClick={() => setExpanded((v) => !v)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded((v) => !v); } }}
       >
         {/* Time column */}
         <div
@@ -148,7 +311,10 @@ export function PlaceRow({ place: p, isLast, onEdit }: PlaceRowProps) {
             letterSpacing: "0.02em",
           }}
         >
-          {p.time}
+          {p.time && formatTime(p.time)}
+          {p.endTime && (
+            <div style={{ fontSize: 10, color: "var(--fg-4)" }}>–{formatTime(p.endTime)}</div>
+          )}
           {isNow && (
             <div style={{ fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-brand)", marginTop: 1 }}>
               NOW
@@ -162,18 +328,12 @@ export function PlaceRow({ place: p, isLast, onEdit }: PlaceRowProps) {
             className="rounded-full flex items-center justify-center shrink-0"
             style={{
               width: 16, height: 16,
-              background: isDone
-                ? "var(--accent-brand)"
-                : isNow
-                ? "var(--accent-brand)"
-                : "var(--surface-2)",
-              border: isDone || isNow
-                ? "none"
-                : "1.5px solid var(--line-strong)",
-              color: isDone || isNow ? "#fff" : "var(--fg-4)",
+              background: isPast || isNow ? "var(--accent-brand)" : "var(--surface-2)",
+              border: isPast || isNow ? "none" : "1.5px solid var(--line-strong)",
+              color: isPast || isNow ? "#fff" : "var(--fg-4)",
             }}
           >
-            {isDone ? (
+            {isPast ? (
               <Check size={9} strokeWidth={2.5} />
             ) : isNow ? (
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff", display: "block" }} />
@@ -188,123 +348,201 @@ export function PlaceRow({ place: p, isLast, onEdit }: PlaceRowProps) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", lineHeight: 1.2 }}>
-            {p.name}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mt-0.5">
-            <span
-              className="flex items-center gap-1"
-              style={{ fontSize: 12, color: "var(--fg-3)" }}
-            >
-              {CAT_ICON[p.category] ?? <MapPin size={12} strokeWidth={1.5} />}
-              {p.category}
-            </span>
-            {p.subtitle && (
-              <span style={{ fontSize: 12, color: "var(--fg-3)" }}>· {p.subtitle}</span>
+          {/* Name row */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            {isEditingName ? (
+              <input
+                autoFocus
+                value={draftName}
+                onChange={e => setDraftName(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={e => {
+                  if (e.key === "Enter") saveName();
+                  if (e.key === "Escape") { setDraftName(p.name); setIsEditingName(false); }
+                }}
+                style={{
+                  fontSize: 14, fontWeight: 600, color: "var(--fg)",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--accent-brand)",
+                  borderRadius: 4, padding: "1px 6px",
+                  outline: "none", width: "100%",
+                  fontFamily: "inherit",
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", lineHeight: 1.2 }}>
+                  {p.name}
+                </span>
+                <button
+                  onClick={() => { setDraftName(p.name); setIsEditingName(true); }}
+                  style={{
+                    color: "var(--fg-4)",
+                    opacity: isHovered ? 1 : 0,
+                    transition: "opacity 0.1s",
+                    display: "flex", alignItems: "center",
+                    padding: 2, borderRadius: 3,
+                    background: "none", border: "none", cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                  title="Edit name"
+                >
+                  <Pencil size={11} strokeWidth={1.5} />
+                </button>
+              </>
             )}
-            {p.confirmationNumber && (
+          </div>
+
+          {/* Note area */}
+          <div className="mt-1.5">
+            {isEditingNote ? (
+              <textarea
+                autoFocus
+                value={draftNote}
+                onChange={e => setDraftNote(e.target.value)}
+                onBlur={saveNote}
+                onKeyDown={e => {
+                  if (e.key === "Escape") { setDraftNote(p.note ?? ""); setIsEditingNote(false); }
+                }}
+                rows={2}
+                style={{
+                  width: "100%", fontSize: 12, color: "var(--fg-2)",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--accent-brand)",
+                  borderLeft: "2px solid var(--accent-brand)",
+                  borderRadius: 6, padding: "6px 10px",
+                  outline: "none", resize: "vertical",
+                  fontFamily: "inherit", lineHeight: 1.5,
+                }}
+              />
+            ) : (
+              <div
+                onClick={() => { setDraftNote(p.note ?? ""); setIsEditingNote(true); }}
+                style={{
+                  fontSize: 12,
+                  cursor: "text",
+                  borderRadius: 6, padding: "4px 10px",
+                  lineHeight: 1.5,
+                  ...(p.note
+                    ? {
+                        color: "var(--fg-2)",
+                        background: "var(--surface-2)",
+                        borderLeft: "2px solid var(--accent-brand)",
+                      }
+                    : {
+                        color: "var(--fg-4)",
+                      }),
+                }}
+              >
+                {p.note ?? "Add a note…"}
+              </div>
+            )}
+          </div>
+
+          {/* Action bar */}
+          <div className="flex items-center gap-1 flex-wrap mt-2">
+            {/* Time */}
+            <div className="relative">
               <button
-                className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:opacity-80"
+                onClick={() => setShowTimePicker(v => !v)}
+                className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
                 style={{
                   fontSize: 11,
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--line-strong)",
+                  color: p.time ? "var(--fg-2)" : "var(--fg-4)",
+                  background: p.time ? "var(--surface-2)" : "none",
+                  border: p.time ? "1px solid var(--line)" : "1px solid transparent",
                 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigator.clipboard?.writeText(p.confirmationNumber!);
-                }}
-                title="Click to copy"
               >
-                <span style={{ color: "var(--fg-3)" }}>Conf.</span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono-family, ui-monospace)",
-                    fontSize: 10, fontWeight: 600, color: "var(--fg-2)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {p.confirmationNumber}
-                </span>
+                <Clock size={11} strokeWidth={1.5} />
+                {timeLabel ?? "Add time"}
               </button>
-            )}
-            {hasDocs && !expanded && (
-              <span
-                className="flex items-center gap-1 rounded-full px-1.5 py-0.5"
-                style={{
-                  fontSize: 10, color: "var(--fg-3)",
-                  background: "var(--surface-2)",
-                }}
-              >
-                <FileText size={10} strokeWidth={1.5} />
-                {p.docs!.length}
-              </span>
-            )}
-          </div>
-          {p.note && (
-            <div
-              className="rounded-[6px] px-2.5 py-1.5 mt-2"
-              style={{
-                fontSize: 12, color: "var(--fg-2)",
-                background: "var(--surface-2)",
-                borderLeft: "2px solid var(--accent-brand)",
-              }}
-            >
-              {p.note}
-            </div>
-          )}
-          {expanded && hasDocs && <DocsBlock docs={p.docs!} />}
-          {expanded && (
-            <div
-              className="flex items-center gap-1.5 flex-wrap mt-2.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Button variant="outline" size="sm">
-                <MapPin size={12} strokeWidth={1.5} /> Open in map
-              </Button>
-              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(p); }}>
-                <Edit size={12} strokeWidth={1.5} /> Edit
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Clock size={12} strokeWidth={1.5} /> Reschedule
-              </Button>
-              <span className="flex-1" />
-              {p.status !== "done" && (
-                <Button variant="ghost" size="sm">
-                  <Check size={12} strokeWidth={1.5} /> Mark visited
-                </Button>
+              {showTimePicker && (
+                <TimePickerDropdown
+                  time={p.time}
+                  endTime={p.endTime}
+                  onSave={(t, et) => {
+                    onUpdate({ ...p, time: t, endTime: et });
+                    setShowTimePicker(false);
+                  }}
+                  onClose={() => setShowTimePicker(false)}
+                />
               )}
             </div>
-          )}
+
+            {/* Location */}
+            <button
+              onClick={() => setShowLocationDialog(true)}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+              style={{
+                fontSize: 11,
+                color: p.location?.address ? "var(--fg-2)" : "var(--fg-4)",
+                background: p.location?.address ? "var(--surface-2)" : "none",
+                border: p.location?.address ? "1px solid var(--line)" : "1px solid transparent",
+                maxWidth: 160,
+              }}
+            >
+              <MapPin size={11} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+              <span className="truncate">{p.location?.address ?? "Add location"}</span>
+            </button>
+
+            {/* Cost */}
+            <button
+              onClick={() => setShowCostDialog(true)}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+              style={{
+                fontSize: 11,
+                color: p.cost !== undefined ? "var(--fg-2)" : "var(--fg-4)",
+                background: p.cost !== undefined ? "var(--surface-2)" : "none",
+                border: p.cost !== undefined ? "1px solid var(--line)" : "1px solid transparent",
+              }}
+            >
+              <DollarSign size={11} strokeWidth={1.5} />
+              {p.cost !== undefined ? p.cost.toFixed(2) : "Add cost"}
+            </button>
+
+            {/* Docs toggle */}
+            {hasDocs && (
+              <button
+                onClick={() => setShowDocs(v => !v)}
+                className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+                style={{
+                  fontSize: 11,
+                  color: "var(--fg-4)",
+                  border: "1px solid transparent",
+                }}
+              >
+                <FileText size={11} strokeWidth={1.5} />
+                {p.docs!.length} doc{p.docs!.length !== 1 ? "s" : ""}
+                <ChevronDown
+                  size={10}
+                  style={{
+                    transform: showDocs ? "rotate(180deg)" : undefined,
+                    transition: "transform 0.15s",
+                  }}
+                />
+              </button>
+            )}
+          </div>
+
+          {showDocs && hasDocs && <DocsBlock docs={p.docs!} />}
         </div>
 
-        {/* Right chevron + more */}
-        <div
-          className="flex items-center gap-1 shrink-0"
-          onClick={(e) => e.stopPropagation()}
+        {/* Trash icon — hover only */}
+        <button
+          onClick={() => onDelete(p.id)}
+          style={{
+            opacity: isHovered ? 1 : 0,
+            transition: "opacity 0.1s",
+            color: "var(--fg-4)",
+            padding: 4, borderRadius: 4,
+            background: "none", border: "none", cursor: "pointer",
+            flexShrink: 0,
+            display: "flex", alignItems: "center",
+          }}
+          title="Delete event"
         >
-          <button
-            className="rounded-[4px] transition-colors hover:bg-surface-2 flex items-center justify-center"
-            style={{ width: 24, height: 24, color: "var(--fg-4)" }}
-            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-            aria-label={expanded ? "Collapse" : "Expand"}
-          >
-            <ChevronDown
-              size={14}
-              strokeWidth={1.5}
-              style={{
-                transform: expanded ? "rotate(180deg)" : undefined,
-                transition: "transform 0.15s",
-              }}
-            />
-          </button>
-          <button
-            className="rounded-[4px] transition-colors hover:bg-surface-2 flex items-center justify-center"
-            style={{ width: 24, height: 24, color: "var(--fg-4)" }}
-          >
-            <MoreHorizontal size={13} strokeWidth={1.5} />
-          </button>
-        </div>
+          <Trash2 size={13} strokeWidth={1.5} />
+        </button>
       </div>
 
       {/* Travel connector */}
@@ -317,6 +555,19 @@ export function PlaceRow({ place: p, isLast, onEdit }: PlaceRowProps) {
           {p.travelTo.mode} · {p.travelTo.detail}
         </div>
       )}
+
+      <CostDialog
+        cost={p.cost}
+        open={showCostDialog}
+        onOpenChange={setShowCostDialog}
+        onSave={cost => onUpdate({ ...p, cost })}
+      />
+      <LocationDialog
+        address={p.location?.address}
+        open={showLocationDialog}
+        onOpenChange={setShowLocationDialog}
+        onSave={address => onUpdate({ ...p, location: { ...p.location, address } })}
+      />
     </div>
   );
 }

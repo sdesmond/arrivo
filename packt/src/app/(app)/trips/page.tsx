@@ -24,7 +24,7 @@ import {
   SAMPLE_ACTIVE_TRIP, SAMPLE_UPCOMING, SAMPLE_PAST,
 } from "@/data/trips";
 import { type Trip } from "@/data/types";
-import { isEventNow } from "@/lib/utils";
+import { isEventNow, isEventPast } from "@/lib/utils";
 
 // ─── Mobile tab types ───────────────────────────────────────────────────────
 type MobileTab = "Active" | "Upcoming" | "Past";
@@ -253,7 +253,7 @@ function MobileActiveTab() {
             href={`/trips/${trip.id}/days/${trip.activeDayNumber}?focus=${ev.id}`}
             className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface"
             style={{
-              opacity: ev.status === "done" ? 0.5 : 1,
+              opacity: isEventPast(ev) ? 0.5 : 1,
               background: isEventNow(ev) ? "var(--accent-soft)" : undefined,
               borderLeft: isEventNow(ev) ? "3px solid var(--accent-brand)" : undefined,
             }}
@@ -270,12 +270,11 @@ function MobileActiveTab() {
             <span
               style={{
                 flex: 1, fontSize: 13.5, fontWeight: 500, color: "var(--fg)",
-                textDecoration: ev.status === "done" ? "line-through" : undefined,
+                textDecoration: isEventPast(ev) ? "line-through" : undefined,
               }}
             >
               {ev.name}
             </span>
-            <span style={{ fontSize: 11.5, color: "var(--fg-3)" }}>{ev.category}</span>
           </Link>
         ))}
       </div>

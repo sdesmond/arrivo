@@ -5,7 +5,7 @@
 // components import types from here or re-exported from their data file.
 //
 // Naming conventions:
-//   - Enums: PascalCase const object + union type (e.g., EventCategory)
+//   - Enums: PascalCase const object + union type (e.g., TripStatus)
 //   - ISO 8601 date strings: "YYYY-MM-DD"
 //   - ISO 8601 datetime strings: "YYYY-MM-DDTHH:mm:ssZ"
 //   - HH:mm time strings: "09:30"
@@ -24,109 +24,6 @@ export const TripStatus = {
 } as const;
 export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 
-export const EventStatus = {
-  Scheduled: "scheduled",
-  Done:      "done",
-  Skipped:   "skipped",
-  Cancelled: "cancelled",
-} as const;
-export type EventStatus = (typeof EventStatus)[keyof typeof EventStatus];
-
-export const EventCategory = {
-  // Transport
-  Flight:    "Flight",
-  Train:     "Train",
-  Bus:       "Bus",
-  Ferry:     "Ferry",
-  Taxi:      "Taxi",
-  RentalCar: "RentalCar",
-  Transfer:  "Transfer",
-  RideShare: "RideShare",
-
-  // Accommodation
-  Hotel:   "Hotel",
-  Hostel:  "Hostel",
-  Airbnb:  "Airbnb",
-  Resort:  "Resort",
-  Camping: "Camping",
-
-  // Food & Drink
-  Restaurant: "Restaurant",
-  Cafe:       "Cafe",
-  Bar:        "Bar",
-  Drinks:     "Drinks",
-  StreetFood: "StreetFood",
-  Market:     "Market",
-
-  // Culture
-  Museum:      "Museum",
-  Gallery:     "Gallery",
-  Monument:    "Monument",
-  HistoricSite:"HistoricSite",
-  Show:        "Show",
-  Concert:     "Concert",
-
-  // Nature & Outdoor
-  Park:      "Park",
-  Hike:      "Hike",
-  Beach:     "Beach",
-  Viewpoint: "Viewpoint",
-  Garden:    "Garden",
-
-  // Activity
-  Tour:     "Tour",
-  Cruise:   "Cruise",
-  Sport:    "Sport",
-  Shopping: "Shopping",
-  Spa:      "Spa",
-
-  // Logistics
-  Visa:      "Visa",
-  Insurance: "Insurance",
-  Currency:  "Currency",
-  Packing:   "Packing",
-
-  Other: "Other",
-} as const;
-export type EventCategory = (typeof EventCategory)[keyof typeof EventCategory];
-
-export const TRANSPORT_CATEGORIES: EventCategory[] = [
-  EventCategory.Flight, EventCategory.Train, EventCategory.Bus,
-  EventCategory.Ferry, EventCategory.Taxi, EventCategory.RentalCar,
-  EventCategory.Transfer, EventCategory.RideShare,
-];
-
-export const ACCOMMODATION_CATEGORIES: EventCategory[] = [
-  EventCategory.Hotel, EventCategory.Hostel, EventCategory.Airbnb,
-  EventCategory.Resort, EventCategory.Camping,
-];
-
-export const FOOD_CATEGORIES: EventCategory[] = [
-  EventCategory.Restaurant, EventCategory.Cafe, EventCategory.Bar,
-  EventCategory.Drinks, EventCategory.StreetFood, EventCategory.Market,
-];
-
-export const CULTURE_CATEGORIES: EventCategory[] = [
-  EventCategory.Museum, EventCategory.Gallery, EventCategory.Monument,
-  EventCategory.HistoricSite, EventCategory.Show, EventCategory.Concert,
-];
-
-export const NATURE_CATEGORIES: EventCategory[] = [
-  EventCategory.Park, EventCategory.Hike, EventCategory.Beach,
-  EventCategory.Viewpoint, EventCategory.Garden,
-];
-
-export const ACTIVITY_CATEGORIES: EventCategory[] = [
-  EventCategory.Tour, EventCategory.Cruise, EventCategory.Sport,
-  EventCategory.Shopping, EventCategory.Spa,
-];
-
-export const LOGISTICS_CATEGORIES: EventCategory[] = [
-  EventCategory.Visa, EventCategory.Insurance,
-  EventCategory.Currency, EventCategory.Packing,
-];
-
-
 // Used for the travel-to-next-event connector, not for the event category itself.
 export const TransportMode = {
   Walk:      "Walk",
@@ -141,13 +38,6 @@ export const TransportMode = {
   Other:     "Other",
 } as const;
 export type TransportMode = (typeof TransportMode)[keyof typeof TransportMode];
-
-export const EventPriority = {
-  MustDo:   "must-do",
-  WantTo:   "want-to",
-  Flexible: "flexible",
-} as const;
-export type EventPriority = (typeof EventPriority)[keyof typeof EventPriority];
 
 export const CollaboratorRole = {
   Owner:  "owner",
@@ -164,15 +54,6 @@ export const DocKind = {
   Link:  "link",
 } as const;
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
-
-// For flexible (non-timed) events.
-export const TimeBucket = {
-  Morning:   "morning",
-  Afternoon: "afternoon",
-  Evening:   "evening",
-  Anytime:   "anytime",
-} as const;
-export type TimeBucket = (typeof TimeBucket)[keyof typeof TimeBucket];
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,21 +101,9 @@ export interface EventLocation {
   geo?:     GeoCoords;
 }
 
-// Only populated for transport-category events (Flight, Train, Ferry, etc.)
-export interface TransportDetail {
-  origin:        string;
-  destination:   string;
-  operator?:     string;
-  serviceNumber?: string;
-  terminal?:     string;
-  gate?:         string;
-  seat?:         string;
-  class?:        string;
-}
-
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TRIP EVENT — unified replacement for Place, TimedEvent, TripEvent, FlexibleEvent
+// TRIP EVENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TripEvent {
@@ -242,14 +111,8 @@ export interface TripEvent {
   id:      string;
   tripId?: string;
 
-  // ── Classification ────────────────────────────────────────────────────────
-  category:  EventCategory;
-  priority?: EventPriority;
-  status:    EventStatus;
-
   // ── Names & descriptions ──────────────────────────────────────────────────
   name:  string;
-  subtitle?:  string;
   note?: string;
 
   // ── Scheduling ────────────────────────────────────────────────────────────
@@ -257,21 +120,18 @@ export interface TripEvent {
   // startAt / endAt are ISO datetimes for production use.
   date?:    string;
   time?:    string;
+  endTime?: string;
   startAt?: string;
   endAt?:   string;
-  durationMinutes?:  number;
-
-  // Flexible/unscheduled events use bucket instead of a fixed time.
-  bucket?: TimeBucket;
 
   // ── Location ──────────────────────────────────────────────────────────────
   location?: EventLocation;
 
-  // ── Transport detail (flights, trains, ferries) ───────────────────────────
-  transport?: TransportDetail;
-
   // ── Getting to the next event ─────────────────────────────────────────────
   travelTo?: TravelTo;
+
+  // ── Cost ──────────────────────────────────────────────────────────────────
+  cost?: number;
 
   // ── Booking reference ─────────────────────────────────────────────────────
   confirmationNumber?: string;

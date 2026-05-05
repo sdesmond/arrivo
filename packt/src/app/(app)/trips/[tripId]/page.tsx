@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
 import { getTripById, TRIP_DATA } from "@/data/trips"
-import { EventEditSheet } from "@/components/packt/event-edit-sheet"
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet"
 import { type Trip, type TripEvent, type DayItinerary } from "@/data/types";
 
@@ -31,7 +30,6 @@ export default function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>();
   const [activeTab, setActiveTab] = useState("itin");
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
-  const [editingEvent, setEditingEvent] = useState<TripEvent | null>(null);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
   const [trip, setTrip] = useState<Trip | undefined>(getTripById(tripId));
@@ -39,12 +37,18 @@ export default function TripDetailPage() {
   const [days, setDays] = useState<DayItinerary[]>(rawData.days);
   const { docs, collaborators } = rawData;
 
-  function handleEventSave(updated: TripEvent) {
+  function handleEventUpdate(updated: TripEvent) {
     setDays(prev => prev.map(day => ({
       ...day,
       events: day.events.map(e => e.id === updated.id ? updated : e),
     })));
-    setEditingEvent(null);
+  }
+
+  function handleEventDelete(id: string) {
+    setDays(prev => prev.map(day => ({
+      ...day,
+      events: day.events.filter(e => e.id !== id),
+    })));
   }
 
   function handleTripSave(updated: Trip) {
@@ -214,7 +218,7 @@ export default function TripDetailPage() {
           {activeTab === "itin" && (
             <div>
               {days.length > 0
-                ? days.map((day) => <DayCard key={day.dayNumber} day={day} onEditEvent={setEditingEvent} />)
+                ? days.map((day) => <DayCard key={day.dayNumber} day={day} onUpdateEvent={handleEventUpdate} onDeleteEvent={handleEventDelete} />)
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
               }
             </div>
@@ -243,12 +247,6 @@ export default function TripDetailPage() {
 
       </div>
 
-      <EventEditSheet
-        event={editingEvent}
-        open={editingEvent !== null}
-        onClose={() => setEditingEvent(null)}
-        onSave={handleEventSave}
-      />
       <TripEditSheet
         trip={editingTrip}
         open={editingTrip !== null}

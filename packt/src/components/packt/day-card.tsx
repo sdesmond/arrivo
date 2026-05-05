@@ -8,14 +8,15 @@ import { type DayItinerary, type TripEvent } from "@/data/types";
 
 interface DayCardProps {
   day: DayItinerary;
-  onEditEvent: (event: TripEvent) => void;
+  onUpdateEvent: (event: TripEvent) => void;
+  onDeleteEvent: (id: string) => void;
 }
 
-export function DayCard({ day: d, onEditEvent }: DayCardProps) {
+export function DayCard({ day: d, onUpdateEvent, onDeleteEvent }: DayCardProps) {
   const [open, setOpen] = useState(!!d.today);
 
-  const timedEvents = d.events.filter((e) => !e.bucket);
-  const flexibleEvents = d.events.filter((e) => !!e.bucket);
+  const scheduledEvents   = d.events.filter((e) => !!e.time);
+  const unscheduledEvents = d.events.filter((e) => !e.time);
 
   return (
     <div
@@ -103,8 +104,8 @@ export function DayCard({ day: d, onEditEvent }: DayCardProps) {
             </div>
           )}
 
-          {/* Flexible events */}
-          {flexibleEvents.length > 0 && (
+          {/* Unscheduled events */}
+          {unscheduledEvents.length > 0 && (
             <div className="mb-2">
               <div style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
@@ -112,26 +113,28 @@ export function DayCard({ day: d, onEditEvent }: DayCardProps) {
                 textTransform: "uppercase", color: "var(--fg-4)",
                 marginBottom: 4, paddingLeft: 4,
               }}>
-                Flexible
+                Unscheduled
               </div>
-              {flexibleEvents.map((p, i) => (
+              {unscheduledEvents.map((p, i) => (
                 <PlaceRow
                   key={p.id ?? i}
                   place={p}
-                  isLast={i === flexibleEvents.length - 1 && timedEvents.length === 0}
-                  onEdit={e => onEditEvent({ ...e, date: e.date ?? d.date })}
+                  isLast={i === unscheduledEvents.length - 1 && scheduledEvents.length === 0}
+                  onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}
+                  onDelete={onDeleteEvent}
                 />
               ))}
             </div>
           )}
 
-          {/* Timed events */}
-          {timedEvents.map((p, i) => (
+          {/* Scheduled events */}
+          {scheduledEvents.map((p, i) => (
             <PlaceRow
               key={p.id ?? i}
               place={p}
-              isLast={i === timedEvents.length - 1}
-              onEdit={e => onEditEvent({ ...e, date: e.date ?? d.date })}
+              isLast={i === scheduledEvents.length - 1}
+              onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}
+              onDelete={onDeleteEvent}
             />
           ))}
 

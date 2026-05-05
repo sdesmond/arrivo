@@ -2,23 +2,8 @@
 
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { cn, isEventNow } from "@/lib/utils";
+import { cn, isEventNow, isEventPast } from "@/lib/utils";
 import { type Trip, type TripEvent } from "@/data/trips";
-
-const CAT_COLORS: Record<string, string> = {
-  StreetFood:  "var(--accent-brand)",
-  Restaurant:  "#c05621",
-  Cafe:        "#c05621",
-  Museum:      "#8b6cf0",
-  Gallery:     "#8b6cf0",
-  HistoricSite:"#8b6cf0",
-  Show:        "#8b6cf0",
-  Park:        "#1c8a5b",
-  Garden:      "#1c8a5b",
-  Viewpoint:   "#0e7ab5",
-  Hotel:       "#7a5c3a",
-  default:     "var(--fg-3)",
-};
 
 interface DayRibbonProps {
   trip: Trip;
@@ -99,8 +84,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
 
 function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
   const isNow = isEventNow(ev);
-  const isDone = ev.status === "done";
-  const catColor = CAT_COLORS[ev.category] ?? CAT_COLORS.default;
+  const isPast = isEventPast(ev);
 
   return (
     <Link
@@ -111,7 +95,7 @@ function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
         isNow && "border-[1.5px]"
       )}
       style={{
-        opacity: isDone ? 0.55 : 1,
+        opacity: isPast ? 0.55 : 1,
         background: isNow ? "var(--accent-soft)" : undefined,
         borderColor: isNow ? "var(--accent-brand)" : undefined,
       }}
@@ -127,13 +111,10 @@ function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
           textTransform: "uppercase",
         }}
       >
-        {ev.time}{isNow ? " · NOW" : isDone ? " · DONE" : ""}
+        {ev.time}{isNow ? " · NOW" : isPast ? " · DONE" : ""}
       </div>
       <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}>
         {ev.name}
-      </div>
-      <div style={{ fontSize: 11, color: catColor }}>
-        {ev.category}
       </div>
     </Link>
   );

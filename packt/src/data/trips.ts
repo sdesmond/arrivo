@@ -1,5 +1,4 @@
 export type {
-  EventCategory,
   TripStatus,
   TripEvent,
   Trip,
@@ -35,11 +34,11 @@ export const SAMPLE_ACTIVE_TRIP: Trip = {
   todayDate: 28,
   todayMonth: "Apr",
   events: [
-    { id: "tsukiji", time: "09:30", name: "Tsukiji Outer Market", category: "StreetFood", status: "done" },
-    { id: "teamlab", time: "11:30", name: "teamLab Planets",      category: "Museum",     status: "done" },
-    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens",    category: "Park",       status: "scheduled" },
-    { id: "shibuya", time: "17:30", name: "Shibuya Sky",          category: "Viewpoint",  status: "scheduled" },
-    { id: "saito",   time: "20:00", name: "Sushi Saito",          category: "Restaurant", status: "scheduled" },
+    { id: "tsukiji", time: "09:30", name: "Tsukiji Outer Market" },
+    { id: "teamlab", time: "11:30", name: "teamLab Planets"      },
+    { id: "hama",    time: "14:00", name: "Hamarikyu Gardens"    },
+    { id: "shibuya", time: "17:30", name: "Shibuya Sky"          },
+    { id: "saito",   time: "20:00", name: "Sushi Saito"          },
   ],
 };
 
