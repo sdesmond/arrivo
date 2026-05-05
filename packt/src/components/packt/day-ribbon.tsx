@@ -35,7 +35,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
     >
       {/* Date tile */}
       <Link
-        href={`/trips/${trip.id}/days/${trip.activeDayNumber}`}
+        href={`/trips/${trip.id}`}
         className="shrink-0 rounded-[8px] flex flex-col items-center justify-center gap-0.5 transition-colors hover:opacity-80"
         style={{
           width: 72, minHeight: 72,
@@ -104,7 +104,7 @@ function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
 
   return (
     <Link
-      href={`/trips/${tripId}/days/5?focus=${ev.id}`}
+      href={`/trips/${tripId}`}
       className={cn(
         "flex flex-col gap-0.5 px-2.5 py-2 rounded-[8px] transition-colors min-w-[88px]",
         "hover:bg-surface-2",

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git commit -m ' *)",
       "Read(//c/Users/spenc/.claude/**)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Read(//c/Users/spenc/dev/**)"
     ]
   }
 }

@@ -89,7 +89,7 @@ export function NowCard({ trip }: NowCardProps) {
               Open trip
             </Link>
             <Link
-              href={`/trips/${trip.id}/days/5`}
+              href={`/trips/${trip.id}`}
               className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem]"
               style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
             >

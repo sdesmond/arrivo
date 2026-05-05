@@ -1,6 +1,7 @@
 "use client";
 
-import { MapPin, Plus } from "lucide-react";
+import { useState } from "react";
+import { MapPin, Plus, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlaceRow } from "./place-row";
 import { type DayItinerary } from "@/data/tokyo";
@@ -10,6 +11,11 @@ interface DayCardProps {
 }
 
 export function DayCard({ day: d }: DayCardProps) {
+  const [open, setOpen] = useState(!!d.today);
+
+  const timedEvents = d.events.filter((e) => !e.bucket);
+  const flexibleEvents = d.events.filter((e) => !!e.bucket);
+
   return (
     <div
       className="rounded-[10px] overflow-hidden mb-4"
@@ -18,13 +24,16 @@ export function DayCard({ day: d }: DayCardProps) {
         background: "var(--bg)",
       }}
     >
-      {/* Day header */}
-      <div
-        className="flex items-center justify-between gap-3 px-4 py-3"
+      {/* Day header — clickable toggle */}
+      <button
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:opacity-90"
         style={{
           background: d.today ? "var(--accent-soft)" : "var(--surface)",
-          borderBottom: "1px solid var(--line)",
+          borderBottom: open ? "1px solid var(--line)" : "none",
+          cursor: "pointer",
         }}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
       >
         <div>
           <div
@@ -56,33 +65,88 @@ export function DayCard({ day: d }: DayCardProps) {
             {d.events.length} stops
           </span>
           {d.today && <Badge variant="soft">Active</Badge>}
-        </div>
-      </div>
-
-      {/* Places */}
-      <div className="p-3 flex flex-col">
-        {d.events.map((p, i) => (
-          <PlaceRow
-            key={p.id ?? i}
-            place={p}
-            isLast={i === d.events.length - 1}
+          <ChevronDown
+            size={14}
+            strokeWidth={1.5}
+            style={{
+              color: "var(--fg-4)",
+              transform: open ? "rotate(180deg)" : undefined,
+              transition: "transform 0.15s",
+              flexShrink: 0,
+            }}
           />
-        ))}
+        </div>
+      </button>
 
-        {/* Add place button */}
-        <button
-          className="flex items-center gap-2 px-3 py-2 mt-1 rounded-[6px] transition-colors hover:bg-surface"
-          style={{ fontSize: 12.5, color: "var(--fg-4)", border: "none", background: "none" }}
-        >
-          <span
-            className="flex items-center justify-center rounded-full"
-            style={{ width: 18, height: 18, background: "var(--surface-2)" }}
+      {/* Collapsible body */}
+      {open && (
+        <div className="p-3 flex flex-col">
+          {/* Day note */}
+          {d.note && (
+            <div
+              className="rounded-[6px] px-3 py-2.5 mb-3"
+              style={{
+                fontSize: 12.5, color: "var(--fg-2)",
+                background: "var(--surface-2)",
+                borderLeft: "2px solid var(--accent-brand)",
+              }}
+            >
+              <div style={{
+                fontFamily: "var(--font-mono-family, ui-monospace)",
+                fontSize: 9, fontWeight: 600, letterSpacing: "0.08em",
+                textTransform: "uppercase", color: "var(--fg-4)", marginBottom: 4,
+              }}>
+                DAY NOTES
+              </div>
+              {d.note}
+            </div>
+          )}
+
+          {/* Flexible events */}
+          {flexibleEvents.length > 0 && (
+            <div className="mb-2">
+              <div style={{
+                fontFamily: "var(--font-mono-family, ui-monospace)",
+                fontSize: 9, fontWeight: 600, letterSpacing: "0.08em",
+                textTransform: "uppercase", color: "var(--fg-4)",
+                marginBottom: 4, paddingLeft: 4,
+              }}>
+                Flexible
+              </div>
+              {flexibleEvents.map((p, i) => (
+                <PlaceRow
+                  key={p.id ?? i}
+                  place={p}
+                  isLast={i === flexibleEvents.length - 1 && timedEvents.length === 0}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Timed events */}
+          {timedEvents.map((p, i) => (
+            <PlaceRow
+              key={p.id ?? i}
+              place={p}
+              isLast={i === timedEvents.length - 1}
+            />
+          ))}
+
+          {/* Add place button */}
+          <button
+            className="flex items-center gap-2 px-3 py-2 mt-1 rounded-[6px] transition-colors hover:bg-surface"
+            style={{ fontSize: 12.5, color: "var(--fg-4)", border: "none", background: "none" }}
           >
-            <Plus size={11} strokeWidth={2} />
-          </span>
-          Add a place to day {d.dayNumber}
-        </button>
-      </div>
+            <span
+              className="flex items-center justify-center rounded-full"
+              style={{ width: 18, height: 18, background: "var(--surface-2)" }}
+            >
+              <Plus size={11} strokeWidth={2} />
+            </span>
+            Add a place to day {d.dayNumber}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
