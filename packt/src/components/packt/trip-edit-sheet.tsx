@@ -143,18 +143,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
             <Field label="Trip name">
               <Input value={draft.name} onChange={e => set("name", e.target.value)} />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Country">
-                <Input value={draft.country} onChange={e => set("country", e.target.value)} />
-              </Field>
-              <Field label="Country code">
-                <Input
-                  value={draft.countryCode ?? ""}
-                  placeholder="e.g. JPN"
-                  onChange={e => set("countryCode", e.target.value || undefined)}
-                />
-              </Field>
-            </div>
             <Field label="Status">
               <select
                 style={SELECT_STYLE}
@@ -187,13 +175,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
                 />
               </Field>
             </div>
-            <Field label="Timezone">
-              <Input
-                value={draft.timezone ?? ""}
-                placeholder="e.g. Asia/Tokyo"
-                onChange={e => set("timezone", e.target.value || undefined)}
-              />
-            </Field>
           </Section>
 
           {/* Cover Image */}
@@ -205,17 +186,10 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
                 onChange={e => set("coverImageUrl", e.target.value || undefined)}
               />
             </Field>
-            <Field label="Alt text">
-              <Input
-                value={draft.coverImageAlt ?? ""}
-                placeholder="Describe the image"
-                onChange={e => set("coverImageAlt", e.target.value || undefined)}
-              />
-            </Field>
             {draft.coverImageUrl && (
               <img
                 src={draft.coverImageUrl}
-                alt={draft.coverImageAlt ?? ""}
+                alt={draft.name}
                 style={{
                   width: "100%", maxHeight: 120, objectFit: "cover",
                   borderRadius: 6, border: "1px solid var(--line)",

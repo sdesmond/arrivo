@@ -333,15 +333,12 @@ export interface Trip {
   id:     string;
   status: TripStatus;
   name:   string;
-  country:     string;
-  countryCode?: string;
-  tags?:        string[];
+  tags?:  string[];
 
   // Canonical ISO dates. Prototype data still stores display strings
   // ("Apr 24", "May 1, 2026"); those will move to a UI formatting layer.
   startDate: string;
   endDate:   string;
-  timezone?: string;
 
   // Prototype-era computed/display fields — derive from dates in the UI eventually.
   days?:       number;
@@ -352,7 +349,6 @@ export interface Trip {
   todayMonth?: string;
 
   coverImageUrl?: string;
-  coverImageAlt?: string;
   notes?:         string;
   budget?:        Budget;
 

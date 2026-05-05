@@ -14,7 +14,7 @@ interface NowCardProps {
 }
 
 export function NowCard({ trip, onEditTrip }: NowCardProps) {
-  const sub = `${trip.country?.toUpperCase()} · DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`;
+  const sub = `DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`;
 
   return (
     <div
@@ -70,7 +70,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
                 lineHeight: 1.1,
               }}
             >
-              {trip.name}, {trip.country}
+              {trip.name}
             </h2>
             <div style={{ color: "var(--fg-3)", fontSize: 13.5, marginTop: 4 }}>
               {trip.startDate} — {trip.endDate}

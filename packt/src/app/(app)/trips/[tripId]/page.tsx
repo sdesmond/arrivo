@@ -12,11 +12,11 @@ import { EventEditSheet } from "@/components/packt/event-edit-sheet"
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet"
 import { type Trip, type TripEvent, type DayItinerary } from "@/data/types";
 
-function formatTripHeader(country: string, start: string, end: string) {
+function formatTripHeader(start: string, end: string) {
   const MONTH_ABBREVIATIONS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const [, startMonth, startDay] = start.split("-").map(Number);
   const [endYear, endMonth, endDay] = end.split("-").map(Number);
-  return `${country.toUpperCase()} · ${MONTH_ABBREVIATIONS[startMonth-1]} ${startDay} — ${MONTH_ABBREVIATIONS[endMonth-1]} ${endDay}, ${endYear}`;
+  return `${MONTH_ABBREVIATIONS[startMonth-1]} ${startDay} — ${MONTH_ABBREVIATIONS[endMonth-1]} ${endDay}, ${endYear}`;
 }
 
 const TABS = [
@@ -56,10 +56,8 @@ export default function TripDetailPage() {
 
   const eventCount = days.reduce((count, day) => count + day.events.length, 0);
   const dayTotal = trip.dayTotal ?? trip.days ?? 0;
-  const tripCoverCountry = trip.countryCode
-    ? (trip.activeDayNumber != null ? `${trip.countryCode} · DAY ${trip.activeDayNumber} OF ${dayTotal}` : trip.countryCode)
-    : trip.country.toUpperCase();
-  const heroDateLine = formatTripHeader(trip.country, trip.startDate, trip.endDate);
+  const tripCoverCountry = trip.activeDayNumber != null ? `DAY ${trip.activeDayNumber} OF ${dayTotal}` : "";
+  const heroDateLine = formatTripHeader(trip.startDate, trip.endDate);
 
   return (
     <div className="flex flex-col min-h-full">

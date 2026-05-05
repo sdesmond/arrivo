@@ -146,16 +146,7 @@ function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip
           {/* Name */}
           <div className="flex-1 min-w-0">
             <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg)" }}>
-              {trip.name}, {trip.country}
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "10.5px", color: "var(--fg-3)",
-                letterSpacing: "0.04em", textTransform: "uppercase", marginTop: 2,
-              }}
-            >
-              {trip.country}
+              {trip.name}
             </div>
           </div>
           {/* Date */}
@@ -205,7 +196,7 @@ function MobileActiveTab() {
       >
         <TripCover
           name={trip.name}
-          country={`JPN · DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`}
+          country={`DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`}
           metaTag="ACTIVE"
           showCity
           style={{ minHeight: 160 }}
@@ -231,7 +222,7 @@ function MobileActiveTab() {
               fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--fg)",
             }}
           >
-            {trip.name}, {trip.country}
+            {trip.name}
           </h2>
         </div>
       </div>
@@ -313,7 +304,7 @@ function MobileUpcomingTab() {
           <TripCover name={trip.name} showCity={false} style={{ width: 100, minHeight: 100 }} />
           <div className="flex flex-col gap-1.5 p-3 flex-1 min-w-0">
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
-              {trip.name}, {trip.country}
+              {trip.name}
             </div>
             <div
               style={{
@@ -322,7 +313,7 @@ function MobileUpcomingTab() {
                 letterSpacing: "0.04em", textTransform: "uppercase",
               }}
             >
-              {trip.country} · {trip.days} DAYS
+              {trip.days} DAYS
             </div>
             <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>
               {trip.startDate} — {trip.endDate}
@@ -354,7 +345,7 @@ function MobilePastTab() {
           <TripCover name={trip.name} showCity={false} style={{ width: 80, minHeight: 80 }} />
           <div className="flex flex-col gap-1 p-3 flex-1 min-w-0">
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
-              {trip.name}, {trip.country}
+              {trip.name}
             </div>
             <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{trip.startDate} · {trip.days} days</div>
             <Badge variant="outline" className="w-fit mt-1">Past</Badge>

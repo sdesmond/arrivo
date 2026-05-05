@@ -13,7 +13,7 @@ interface TripCardProps {
 }
 
 export function TripCard({ trip, onEditTrip }: TripCardProps) {
-  const sub = `${trip.country?.toUpperCase()} · ${trip.days} DAYS`;
+  const sub = `${trip.days} DAYS`;
 
   return (
     <Link
@@ -47,7 +47,7 @@ export function TripCard({ trip, onEditTrip }: TripCardProps) {
                 lineHeight: 1.2,
               }}
             >
-              {trip.name}, {trip.country}
+              {trip.name}
             </div>
             <div
               style={{

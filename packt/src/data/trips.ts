@@ -27,8 +27,6 @@ export const TRIP_TINTS: Record<string, TripTint> = {
 export const SAMPLE_ACTIVE_TRIP: Trip = {
   id: "tokyo-2026",
   name: "Tokyo",
-  country: "Japan",
-  countryCode: "JPN",
   status: "active",
   startDate: "2026-04-24",
   endDate: "2026-05-01",
@@ -49,8 +47,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
   {
     id: "lisbon-2026",
     name: "Lisbon",
-    country: "Portugal",
-    countryCode: "PRT",
     status: "upcoming",
     startDate: "2026-05-18",
     endDate: "2026-05-21",
@@ -60,7 +56,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
   {
     id: "oaxaca-2026",
     name: "Oaxaca",
-    country: "Mexico",
     status: "upcoming",
     startDate: "2026-07-28",
     endDate: "2026-08-06",
@@ -70,7 +65,6 @@ export const SAMPLE_UPCOMING: Trip[] = [
   {
     id: "reykjavik-2026",
     name: "Reykjavik",
-    country: "Iceland",
     status: "upcoming",
     startDate: "2026-10-12",
     endDate: "2026-10-20",
@@ -80,11 +74,11 @@ export const SAMPLE_UPCOMING: Trip[] = [
 ];
 
 export const SAMPLE_PAST: Trip[] = [
-  { id: "marrakech-2026", name: "Marrakech", country: "Morocco",   status: "past", startDate: "2026-03-01", endDate: "2026-03-06", days: 6 },
-  { id: "kyoto-2025",     name: "Kyoto",     country: "Japan",     status: "past", startDate: "2025-11-01", endDate: "2025-11-04", days: 4 },
-  { id: "athens-2025",    name: "Athens",    country: "Greece",    status: "past", startDate: "2025-09-01", endDate: "2025-09-05", days: 5 },
-  { id: "hanoi-2025",     name: "Hanoi",     country: "Vietnam",   status: "past", startDate: "2025-05-01", endDate: "2025-05-08", days: 8 },
-  { id: "patagonia-2025", name: "Patagonia", country: "Argentina", status: "past", startDate: "2025-01-10", endDate: "2025-01-21", days: 12 },
+  { id: "marrakech-2026", name: "Marrakech", status: "past", startDate: "2026-03-01", endDate: "2026-03-06", days: 6 },
+  { id: "kyoto-2025",     name: "Kyoto",     status: "past", startDate: "2025-11-01", endDate: "2025-11-04", days: 4 },
+  { id: "athens-2025",    name: "Athens",    status: "past", startDate: "2025-09-01", endDate: "2025-09-05", days: 5 },
+  { id: "hanoi-2025",     name: "Hanoi",     status: "past", startDate: "2025-05-01", endDate: "2025-05-08", days: 8 },
+  { id: "patagonia-2025", name: "Patagonia", status: "past", startDate: "2025-01-10", endDate: "2025-01-21", days: 12 },
 ];
 
 export const WORLD_PINS: WorldPin[] = [
