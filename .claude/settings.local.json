@@ -4,7 +4,9 @@
       "Bash(git commit -m ' *)",
       "Read(//c/Users/spenc/.claude/**)",
       "Bash(xargs grep *)",
-      "Read(//c/Users/spenc/dev/**)"
+      "Read(//c/Users/spenc/dev/**)",
+      "Bash(Get-ChildItem -Path c:\\\\Users\\\\spenc\\\\dev\\\\packt -Recurse -Directory -Name)",
+      "Bash(Select-Object -First 30)"
     ]
   }
 }

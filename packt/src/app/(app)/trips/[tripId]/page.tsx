@@ -7,7 +7,9 @@ import { ChevronLeft, ChevronRight, Share2, Download, MoreHorizontal, Calendar, 
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
-import { getTripById, TRIP_DATA } from "@/data/trips";
+import { getTripById, TRIP_DATA } from "@/data/trips"
+import { EventEditSheet } from "@/components/packt/event-edit-sheet"
+import { type TripEvent, type DayItinerary } from "@/data/types";
 
 function formatTripHeader(country: string, start: string, end: string) {
   const MONTH_ABBREVIATIONS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -28,9 +30,20 @@ export default function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>();
   const [activeTab, setActiveTab] = useState("itin");
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [editingEvent, setEditingEvent] = useState<TripEvent | null>(null);
 
   const trip = getTripById(tripId);
-  const { days, docs, collaborators } = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
+  const rawData = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
+  const [days, setDays] = useState<DayItinerary[]>(rawData.days);
+  const { docs, collaborators } = rawData;
+
+  function handleEventSave(updated: TripEvent) {
+    setDays(prev => prev.map(day => ({
+      ...day,
+      events: day.events.map(e => e.id === updated.id ? updated : e),
+    })));
+    setEditingEvent(null);
+  }
 
   if (!trip) return <div style={{ padding: 24, color: "var(--fg-2)" }}>Trip not found.</div>;
 
@@ -192,7 +205,7 @@ export default function TripDetailPage() {
           {activeTab === "itin" && (
             <div>
               {days.length > 0
-                ? days.map((day) => <DayCard key={day.dayNumber} day={day} />)
+                ? days.map((day) => <DayCard key={day.dayNumber} day={day} onEditEvent={setEditingEvent} />)
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
               }
             </div>
@@ -220,6 +233,13 @@ export default function TripDetailPage() {
         </div>
 
       </div>
+
+      <EventEditSheet
+        event={editingEvent}
+        open={editingEvent !== null}
+        onClose={() => setEditingEvent(null)}
+        onSave={handleEventSave}
+      />
     </div>
   );
 }

@@ -115,9 +115,10 @@ function DocsBlock({ docs }: { docs: Document[] }) {
 interface PlaceRowProps {
   place: TripEvent;
   isLast?: boolean;
+  onEdit: (event: TripEvent) => void;
 }
 
-export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
+export function PlaceRow({ place: p, isLast, onEdit }: PlaceRowProps) {
   const [expanded, setExpanded] = useState(() => isEventNow(p));
   const hasDocs = (p.docs?.length ?? 0) > 0;
   const isDone = p.status === "done";
@@ -261,7 +262,7 @@ export function PlaceRow({ place: p, isLast }: PlaceRowProps) {
               <Button variant="outline" size="sm">
                 <MapPin size={12} strokeWidth={1.5} /> Open in map
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(p); }}>
                 <Edit size={12} strokeWidth={1.5} /> Edit
               </Button>
               <Button variant="ghost" size="sm">

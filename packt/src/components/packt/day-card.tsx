@@ -4,13 +4,14 @@ import { useState } from "react";
 import { MapPin, Plus, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlaceRow } from "./place-row";
-import { type DayItinerary } from "@/data/tokyo";
+import { type DayItinerary, type TripEvent } from "@/data/types";
 
 interface DayCardProps {
   day: DayItinerary;
+  onEditEvent: (event: TripEvent) => void;
 }
 
-export function DayCard({ day: d }: DayCardProps) {
+export function DayCard({ day: d, onEditEvent }: DayCardProps) {
   const [open, setOpen] = useState(!!d.today);
 
   const timedEvents = d.events.filter((e) => !e.bucket);
@@ -118,6 +119,7 @@ export function DayCard({ day: d }: DayCardProps) {
                   key={p.id ?? i}
                   place={p}
                   isLast={i === flexibleEvents.length - 1 && timedEvents.length === 0}
+                  onEdit={e => onEditEvent({ ...e, date: e.date ?? d.date })}
                 />
               ))}
             </div>
@@ -129,6 +131,7 @@ export function DayCard({ day: d }: DayCardProps) {
               key={p.id ?? i}
               place={p}
               isLast={i === timedEvents.length - 1}
+              onEdit={e => onEditEvent({ ...e, date: e.date ?? d.date })}
             />
           ))}
 
