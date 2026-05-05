@@ -11,7 +11,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { type TripEvent, type Document } from "@/data/types";
-import { isEventNow, isEventPast } from "@/lib/utils";
+import { isEventNow } from "@/lib/utils";
 
 function formatTime(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -248,9 +248,10 @@ interface PlaceRowProps {
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
+  dragHandle?: React.ReactNode;
 }
 
-export function PlaceRow({ place: p, isLast, onUpdate, onDelete }: PlaceRowProps) {
+export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -265,7 +266,6 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete }: PlaceRowProps
   const [showLocationDialog, setShowLocationDialog] = useState(false);
 
   const hasDocs = (p.docs?.length ?? 0) > 0;
-  const isPast = isEventPast(p);
   const isNow = isEventNow(p);
 
   function saveName() {
@@ -290,13 +290,13 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete }: PlaceRowProps
   return (
     <div
       className="relative"
+      style={{ zIndex: showTimePicker ? 10 : undefined }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
         className="flex items-start gap-3 rounded-[8px] px-3 py-2.5"
         style={{
-          opacity: isPast ? 0.7 : 1,
           background: isNow ? "var(--accent-soft)" : undefined,
           border: isNow ? "1px solid var(--accent-brand)" : "1px solid transparent",
         }}
@@ -328,14 +328,12 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete }: PlaceRowProps
             className="rounded-full flex items-center justify-center shrink-0"
             style={{
               width: 16, height: 16,
-              background: isPast || isNow ? "var(--accent-brand)" : "var(--surface-2)",
-              border: isPast || isNow ? "none" : "1.5px solid var(--line-strong)",
-              color: isPast || isNow ? "#fff" : "var(--fg-4)",
+              background: isNow ? "var(--accent-brand)" : "var(--surface-2)",
+              border: isNow ? "none" : "1.5px solid var(--line-strong)",
+              color: isNow ? "#fff" : "var(--fg-4)",
             }}
           >
-            {isPast ? (
-              <Check size={9} strokeWidth={2.5} />
-            ) : isNow ? (
+            {isNow ? (
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff", display: "block" }} />
             ) : (
               <span style={{ width: 4, height: 4, borderRadius: "50%", background: "currentColor", display: "block", opacity: 0.5 }} />
@@ -526,6 +524,21 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete }: PlaceRowProps
 
           {showDocs && hasDocs && <DocsBlock docs={p.docs!} />}
         </div>
+
+        {/* Drag handle — hover only */}
+        {dragHandle && (
+          <span
+            style={{
+              opacity: isHovered ? 1 : 0,
+              transition: "opacity 0.1s",
+              display: "flex",
+              alignItems: "center",
+              color: "var(--fg-4)",
+            }}
+          >
+            {dragHandle}
+          </span>
+        )}
 
         {/* Trash icon — hover only */}
         <button

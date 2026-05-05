@@ -51,6 +51,12 @@ export default function TripDetailPage() {
     })));
   }
 
+  function handleEventReorder(dayNumber: number, events: TripEvent[]) {
+    setDays(prev => prev.map(day =>
+      day.dayNumber === dayNumber ? { ...day, events } : day
+    ));
+  }
+
   function handleTripSave(updated: Trip) {
     setTrip(updated);
     setEditingTrip(null);
@@ -218,7 +224,7 @@ export default function TripDetailPage() {
           {activeTab === "itin" && (
             <div>
               {days.length > 0
-                ? days.map((day) => <DayCard key={day.dayNumber} day={day} onUpdateEvent={handleEventUpdate} onDeleteEvent={handleEventDelete} />)
+                ? days.map((day) => <DayCard key={day.dayNumber} day={day} onUpdateEvent={handleEventUpdate} onDeleteEvent={handleEventDelete} onReorderEvents={handleEventReorder} />)
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
               }
             </div>
