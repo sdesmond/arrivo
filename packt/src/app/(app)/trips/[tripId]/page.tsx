@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
 import { getTripById, TRIP_DATA } from "@/data/trips"
 import { EventEditSheet } from "@/components/packt/event-edit-sheet"
-import { type TripEvent, type DayItinerary } from "@/data/types";
+import { TripEditSheet } from "@/components/packt/trip-edit-sheet"
+import { type Trip, type TripEvent, type DayItinerary } from "@/data/types";
 
 function formatTripHeader(country: string, start: string, end: string) {
   const MONTH_ABBREVIATIONS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -31,8 +32,9 @@ export default function TripDetailPage() {
   const [activeTab, setActiveTab] = useState("itin");
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [editingEvent, setEditingEvent] = useState<TripEvent | null>(null);
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
-  const trip = getTripById(tripId);
+  const [trip, setTrip] = useState<Trip | undefined>(getTripById(tripId));
   const rawData = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
   const [days, setDays] = useState<DayItinerary[]>(rawData.days);
   const { docs, collaborators } = rawData;
@@ -43,6 +45,11 @@ export default function TripDetailPage() {
       events: day.events.map(e => e.id === updated.id ? updated : e),
     })));
     setEditingEvent(null);
+  }
+
+  function handleTripSave(updated: Trip) {
+    setTrip(updated);
+    setEditingTrip(null);
   }
 
   if (!trip) return <div style={{ padding: 24, color: "var(--fg-2)" }}>Trip not found.</div>;
@@ -73,6 +80,10 @@ export default function TripDetailPage() {
         <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>{trip.name}</span>
         <span className="flex-1" />
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditingTrip(trip ?? null)}>
+            <Pencil size={13} strokeWidth={1.5} />
+            Edit
+          </Button>
           <Button variant="outline" size="sm">
             <Share2 size={13} strokeWidth={1.5} />
             Share
@@ -239,6 +250,12 @@ export default function TripDetailPage() {
         open={editingEvent !== null}
         onClose={() => setEditingEvent(null)}
         onSave={handleEventSave}
+      />
+      <TripEditSheet
+        trip={editingTrip}
+        open={editingTrip !== null}
+        onClose={() => setEditingTrip(null)}
+        onSave={handleTripSave}
       />
     </div>
   );

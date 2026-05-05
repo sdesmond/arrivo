@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Search, Bell, Plus, ArrowUpDown, Filter, MoreHorizontal,
+  Search, Bell, Plus, ArrowUpDown, Filter, MoreHorizontal, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,17 @@ import { DayRibbon } from "@/components/packt/day-ribbon";
 import { TripCard, NewTripCard } from "@/components/packt/trip-card";
 import { TripCover } from "@/components/packt/trip-cover";
 import { ThemeToggle } from "@/components/packt/theme-toggle";
+import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import {
   SAMPLE_ACTIVE_TRIP, SAMPLE_UPCOMING, SAMPLE_PAST,
 } from "@/data/trips";
+import { type Trip } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
 
 // ─── Mobile tab types ───────────────────────────────────────────────────────
@@ -114,13 +122,13 @@ function SectionHead({
 }
 
 // ─── Past trips list ──────────────────────────────────────────────────────────
-function PastTripsList() {
+function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip: Trip) => void }) {
   return (
     <div
       className="rounded-[14px] overflow-hidden"
       style={{ border: "1px solid var(--line)" }}
     >
-      {SAMPLE_PAST.map((trip, i) => (
+      {trips.map((trip, i) => (
         <Link
           key={trip.id}
           href={`/trips/${trip.id}`}
@@ -166,13 +174,20 @@ function PastTripsList() {
             {trip.days} DAYS
           </span>
           <Badge variant="outline">Past</Badge>
-          <button
-            className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
-            title="More options"
-            onClick={(e) => e.preventDefault()}
-          >
-            <MoreHorizontal size={14} strokeWidth={1.5} />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            >
+              <MoreHorizontal size={14} strokeWidth={1.5} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end">
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditTrip(trip); }}>
+                <Pencil size={13} strokeWidth={1.5} />
+                Edit trip
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </Link>
       ))}
     </div>
@@ -353,6 +368,21 @@ function MobilePastTab() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function TripsPage() {
   const [mobileTab, setMobileTab] = useState<MobileTab>("Active");
+  const [activeTrip, setActiveTrip] = useState<Trip>(SAMPLE_ACTIVE_TRIP);
+  const [upcomingTrips, setUpcomingTrips] = useState<Trip[]>(SAMPLE_UPCOMING);
+  const [pastTrips, setPastTrips] = useState<Trip[]>(SAMPLE_PAST);
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+
+  function handleTripSave(updated: Trip) {
+    if (updated.id === activeTrip.id) {
+      setActiveTrip(updated);
+    } else if (upcomingTrips.some(t => t.id === updated.id)) {
+      setUpcomingTrips(prev => prev.map(t => t.id === updated.id ? updated : t));
+    } else {
+      setPastTrips(prev => prev.map(t => t.id === updated.id ? updated : t));
+    }
+    setEditingTrip(null);
+  }
 
   return (
     <>
@@ -362,8 +392,8 @@ export default function TripsPage() {
         <div className="flex-1 overflow-y-auto scroll-thin">
           <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
             {/* Active trip */}
-            <NowCard trip={SAMPLE_ACTIVE_TRIP} />
-            <DayRibbon trip={SAMPLE_ACTIVE_TRIP} />
+            <NowCard trip={activeTrip} onEditTrip={setEditingTrip} />
+            <DayRibbon trip={activeTrip} />
 
             {/* Upcoming */}
             <div>
@@ -378,8 +408,8 @@ export default function TripsPage() {
                 </Button>
               </SectionHead>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {SAMPLE_UPCOMING.map((trip) => (
-                  <TripCard key={trip.id} trip={trip} />
+                {upcomingTrips.map((trip) => (
+                  <TripCard key={trip.id} trip={trip} onEditTrip={setEditingTrip} />
                 ))}
                 <NewTripCard />
               </div>
@@ -393,7 +423,7 @@ export default function TripsPage() {
                   Filter
                 </Button>
               </SectionHead>
-              <PastTripsList />
+              <PastTripsList trips={pastTrips} onEditTrip={setEditingTrip} />
             </div>
           </div>
         </div>
@@ -481,6 +511,13 @@ export default function TripsPage() {
           {mobileTab === "Past"     && <MobilePastTab />}
         </div>
       </div>
+
+      <TripEditSheet
+        trip={editingTrip}
+        open={editingTrip !== null}
+        onClose={() => setEditingTrip(null)}
+        onSave={handleTripSave}
+      />
     </>
   );
 }

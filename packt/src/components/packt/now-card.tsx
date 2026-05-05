@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Share2, MapPin, CheckCircle } from "lucide-react";
+import { Share2, MapPin, CheckCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
@@ -10,9 +10,10 @@ import { type Trip } from "@/data/trips";
 
 interface NowCardProps {
   trip: Trip;
+  onEditTrip?: (trip: Trip) => void;
 }
 
-export function NowCard({ trip }: NowCardProps) {
+export function NowCard({ trip, onEditTrip }: NowCardProps) {
   const sub = `${trip.country?.toUpperCase()} · DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`;
 
   return (
@@ -78,6 +79,11 @@ export function NowCard({ trip }: NowCardProps) {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
+            {onEditTrip && (
+              <Button variant="outline" size="icon-sm" title="Edit trip" onClick={() => onEditTrip(trip)}>
+                <Pencil size={13} strokeWidth={1.5} />
+              </Button>
+            )}
             <Button variant="outline" size="icon-sm" title="Share">
               <Share2 size={13} strokeWidth={1.5} />
             </Button>

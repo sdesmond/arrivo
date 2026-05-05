@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, FileText, Users, Plus } from "lucide-react";
+import { Calendar, FileText, Users, Plus, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
@@ -9,9 +9,10 @@ import { type Trip } from "@/data/trips";
 
 interface TripCardProps {
   trip: Trip;
+  onEditTrip?: (trip: Trip) => void;
 }
 
-export function TripCard({ trip }: TripCardProps) {
+export function TripCard({ trip, onEditTrip }: TripCardProps) {
   const sub = `${trip.country?.toUpperCase()} · ${trip.days} DAYS`;
 
   return (
@@ -86,14 +87,25 @@ export function TripCard({ trip }: TripCardProps) {
           {trip.collaborators && (
             <AvatarStack initials={trip.collaborators.map((c) => c.initials)} size="sm" />
           )}
-          <span
-            style={{
-              fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: 11, color: "var(--fg-4)",
-            }}
-          >
-            Open →
-          </span>
+          <div className="flex items-center gap-1.5">
+            {onEditTrip && (
+              <button
+                className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
+                title="Edit trip"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEditTrip(trip); }}
+              >
+                <Pencil size={13} strokeWidth={1.5} />
+              </button>
+            )}
+            <span
+              style={{
+                fontFamily: "var(--font-mono-family, ui-monospace)",
+                fontSize: 11, color: "var(--fg-4)",
+              }}
+            >
+              Open →
+            </span>
+          </div>
         </div>
       </div>
     </Link>
