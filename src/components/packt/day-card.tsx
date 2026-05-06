@@ -166,6 +166,11 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                 color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
                 cursor: "text",
                 minHeight: "1.2em",
+                width: "fit-content",
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
               {d.subtitle ?? "Add a note"}
