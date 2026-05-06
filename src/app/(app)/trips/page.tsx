@@ -503,6 +503,7 @@ export default function TripsPage() {
       </div>
 
       <TripEditSheet
+        key={editingTrip?.id ?? "none"}
         trip={editingTrip}
         open={editingTrip !== null}
         onClose={() => setEditingTrip(null)}

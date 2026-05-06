@@ -91,7 +91,7 @@ export function MiniMapRail() {
         style={{ fontSize: 12, color: "var(--fg-3)" }}
       >
         <span>
-          You're at{" "}
+          {"You're at"}{" "}
           <span style={{ fontWeight: 600, color: "var(--fg)" }}>Hamarikyu</span>
         </span>
         <Button variant="outline" size="sm">Open map</Button>

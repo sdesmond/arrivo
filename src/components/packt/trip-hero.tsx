@@ -19,7 +19,7 @@ interface TripHeroProps {
 }
 
 export function TripHero({
-  name, country, countryCode, startDate, endDate,
+  name, countryCode, startDate, endDate,
   dayN, dayTotal, places, docs, collaborators,
 }: TripHeroProps) {
   return (

@@ -163,7 +163,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents 
               }}>
                 Unscheduled
               </div>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleUnscheduledDragEnd}>
+              <DndContext id={`day-${d.dayNumber}-unscheduled`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleUnscheduledDragEnd}>
                 <SortableContext items={unscheduledEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
                   {unscheduledEvents.map((p, i) => (
                     <SortablePlaceRow
@@ -180,7 +180,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents 
           )}
 
           {/* Scheduled events */}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleScheduledDragEnd}>
+          <DndContext id={`day-${d.dayNumber}-scheduled`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleScheduledDragEnd}>
             <SortableContext items={scheduledEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
               {scheduledEvents.map((p, i) => (
                 <SortablePlaceRow

@@ -6,7 +6,6 @@ import {
   Briefcase, Search, Map, Globe, User, Settings, MoreHorizontal, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TRIP_TINTS } from "@/data/trips";
 import { getAvatarTint } from "@/lib/trip-tints";
 
 const NAV_ITEMS = [

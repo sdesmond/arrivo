@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Briefcase, Search, Map, User } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const TABS = [
   { id: "trips",   label: "Trips",   icon: Briefcase, href: "/trips"  },

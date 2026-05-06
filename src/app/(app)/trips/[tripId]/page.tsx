@@ -254,6 +254,7 @@ export default function TripDetailPage() {
       </div>
 
       <TripEditSheet
+        key={editingTrip?.id ?? "none"}
         trip={editingTrip}
         open={editingTrip !== null}
         onClose={() => setEditingTrip(null)}

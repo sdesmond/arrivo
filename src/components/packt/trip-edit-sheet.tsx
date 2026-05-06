@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import Image from "next/image"
 import { Trash2, UserPlus } from "lucide-react"
 import {
   Sheet,
@@ -79,10 +80,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
   const [newName, setNewName] = useState("")
   const [newEmail, setNewEmail] = useState("")
   const [newRole, setNewRole] = useState<CollaboratorRole>("editor")
-
-  useEffect(() => {
-    if (trip) setDraft(trip)
-  }, [trip])
 
   if (!draft) return null
 
@@ -187,9 +184,12 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
               />
             </Field>
             {draft.coverImageUrl && (
-              <img
+              <Image
                 src={draft.coverImageUrl}
                 alt={draft.name}
+                width={400}
+                height={120}
+                unoptimized
                 style={{
                   width: "100%", maxHeight: 120, objectFit: "cover",
                   borderRadius: 6, border: "1px solid var(--line)",

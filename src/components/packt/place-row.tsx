@@ -154,10 +154,6 @@ function CostDialog({
 }) {
   const [draft, setDraft] = useState(cost !== undefined ? String(cost) : "");
 
-  useEffect(() => {
-    if (open) setDraft(cost !== undefined ? String(cost) : "");
-  }, [open, cost]);
-
   function handleSave() {
     const num = parseFloat(draft);
     onSave(isNaN(num) ? undefined : num);
@@ -206,10 +202,6 @@ function LocationDialog({
   onSave: (address?: string) => void;
 }) {
   const [draft, setDraft] = useState(address ?? "");
-
-  useEffect(() => {
-    if (open) setDraft(address ?? "");
-  }, [open, address]);
 
   function handleSave() {
     onSave(draft.trim() || undefined);
