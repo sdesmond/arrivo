@@ -293,27 +293,6 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
           border: isNow ? "1px solid var(--accent-brand)" : "1px solid transparent",
         }}
       >
-        {/* Time column */}
-        <div
-          style={{
-            fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: 11, fontWeight: 500,
-            color: isNow ? "var(--accent-brand)" : "var(--fg-3)",
-            width: 56, flexShrink: 0, paddingTop: 1, lineHeight: 1.4,
-            letterSpacing: "0.02em",
-          }}
-        >
-          {p.time && formatTime(p.time)}
-          {p.endTime && (
-            <div style={{ fontSize: 10, color: "var(--fg-4)" }}>–{formatTime(p.endTime)}</div>
-          )}
-          {isNow && (
-            <div style={{ fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-brand)", marginTop: 1 }}>
-              NOW
-            </div>
-          )}
-        </div>
-
         {/* Timeline dot */}
         <div className="flex flex-col items-center shrink-0 pt-1" style={{ width: 16 }}>
           <div
