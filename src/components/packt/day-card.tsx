@@ -18,6 +18,7 @@ interface DayCardProps {
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderEvents: (dayNumber: number, events: TripEvent[]) => void;
+  onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
 }
 
 function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
@@ -44,8 +45,22 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
   );
 }
 
-export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents }: DayCardProps) {
+export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay }: DayCardProps) {
   const [open, setOpen] = useState(!!d.today);
+  const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
+  const [draftSubtitle, setDraftSubtitle] = useState(d.subtitle ?? "");
+
+  const dateDisplay = d.date
+    ? new Date(d.date + "T12:00:00").toLocaleDateString("en-US", {
+        weekday: "short", month: "short", day: "numeric",
+      })
+    : d.label.replace(" · ", ", ");
+
+  function saveSubtitle() {
+    const val = draftSubtitle.trim() || undefined;
+    if (val !== d.subtitle) onUpdateDay?.(d.dayNumber, { subtitle: val });
+    setIsEditingSubtitle(false);
+  }
 
   const scheduledEvents   = d.events.filter((e) => !!e.time);
   const unscheduledEvents = d.events.filter((e) => !e.time);
@@ -74,59 +89,90 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents 
         background: "var(--bg)",
       }}
     >
-      {/* Day header — clickable toggle */}
-      <button
-        className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:opacity-90 rounded-t-[10px] ${!open ? "rounded-b-[10px]" : ""}`}
+      {/* Day header */}
+      <div
+        className={`rounded-t-[10px] ${!open ? "rounded-b-[10px]" : ""}`}
         style={{
           background: d.today ? "var(--accent-soft)" : "var(--surface)",
           borderBottom: open ? "1px solid var(--line)" : "none",
-          cursor: "pointer",
         }}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
       >
-        <div>
-          <div
-            style={{
-              fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "10px", fontWeight: 600,
-              letterSpacing: "0.08em", textTransform: "uppercase",
-              color: d.today ? "var(--accent-brand)" : "var(--fg-3)",
-            }}
-          >
-            DAY {d.dayNumber}{d.today ? " · TODAY" : ""}
-          </div>
+        {/* Toggle row */}
+        <button
+          className="w-full flex items-center justify-between gap-3 px-4 pt-3 pb-1.5 text-left transition-colors hover:opacity-90"
+          style={{ cursor: "pointer", background: "none", border: "none" }}
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
           <div
             style={{
               fontFamily: "var(--font-heading-family, ui-sans-serif)",
               fontSize: 14, fontWeight: 600,
-              color: "var(--fg)", marginTop: 1,
+              color: "var(--fg)",
             }}
           >
-            {d.label} · {d.subtitle}
+            {dateDisplay}
           </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="flex items-center gap-1"
+              style={{ fontSize: 12, color: "var(--fg-3)" }}
+            >
+              <MapPin size={12} strokeWidth={1.5} />
+              {d.events.length} stops
+            </span>
+            {d.today && <Badge variant="soft">Active</Badge>}
+            <ChevronDown
+              size={14}
+              strokeWidth={1.5}
+              style={{
+                color: "var(--fg-4)",
+                transform: open ? "rotate(180deg)" : undefined,
+                transition: "transform 0.15s",
+                flexShrink: 0,
+              }}
+            />
+          </div>
+        </button>
+
+        {/* Editable subtitle zone */}
+        <div className="px-4 pb-2.5">
+          {isEditingSubtitle ? (
+            <input
+              autoFocus
+              value={draftSubtitle}
+              placeholder="Add a note"
+              onChange={e => setDraftSubtitle(e.target.value)}
+              onBlur={saveSubtitle}
+              onKeyDown={e => {
+                if (e.key === "Enter") saveSubtitle();
+                if (e.key === "Escape") { setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(false); }
+              }}
+              style={{
+                fontSize: 12, color: "var(--fg-3)",
+                background: "transparent",
+                border: "none",
+                borderBottom: "1px solid var(--accent-brand)",
+                outline: "none", width: "100%",
+                fontFamily: "inherit",
+                padding: "1px 0",
+              }}
+            />
+          ) : (
+            <div
+              onClick={e => { e.stopPropagation(); setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(true); }}
+              style={{
+                fontSize: 12,
+                color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
+                cursor: "text",
+                minHeight: "1.2em",
+              }}
+            >
+              {d.subtitle ?? "Add a note"}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <span
-            className="flex items-center gap-1"
-            style={{ fontSize: 12, color: "var(--fg-3)" }}
-          >
-            <MapPin size={12} strokeWidth={1.5} />
-            {d.events.length} stops
-          </span>
-          {d.today && <Badge variant="soft">Active</Badge>}
-          <ChevronDown
-            size={14}
-            strokeWidth={1.5}
-            style={{
-              color: "var(--fg-4)",
-              transform: open ? "rotate(180deg)" : undefined,
-              transition: "transform 0.15s",
-              flexShrink: 0,
-            }}
-          />
-        </div>
-      </button>
+      </div>
 
       {/* Collapsible body */}
       {open && (

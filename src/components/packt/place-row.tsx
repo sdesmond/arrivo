@@ -392,15 +392,8 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
                   cursor: "text",
                   borderRadius: 6, padding: "4px 10px",
                   lineHeight: 1.5,
-                  ...(p.note
-                    ? {
-                        color: "var(--fg-2)",
-                        background: "var(--surface-2)",
-                        borderLeft: "2px solid var(--accent-brand)",
-                      }
-                    : {
-                        color: "var(--fg-4)",
-                      }),
+                  whiteSpace: "pre-wrap",
+                  color: p.note ? "var(--fg-2)" : "var(--fg-4)",
                 }}
               >
                 {p.note ?? "Add a note…"}
@@ -417,9 +410,9 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
                 style={{
                   fontSize: 11,
-                  color: p.time ? "var(--fg-2)" : "var(--fg-4)",
-                  background: p.time ? "var(--surface-2)" : "none",
-                  border: p.time ? "1px solid var(--line)" : "1px solid transparent",
+                  color: p.time ? "var(--accent-ink)" : "var(--fg-4)",
+                  background: p.time ? "var(--accent-soft)" : "none",
+                  border: "1px solid transparent",
                 }}
               >
                 <Clock size={11} strokeWidth={1.5} />
@@ -444,9 +437,9 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
               className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
               style={{
                 fontSize: 11,
-                color: p.location?.address ? "var(--fg-2)" : "var(--fg-4)",
-                background: p.location?.address ? "var(--surface-2)" : "none",
-                border: p.location?.address ? "1px solid var(--line)" : "1px solid transparent",
+                color: p.location?.address ? "var(--accent-ink)" : "var(--fg-4)",
+                background: p.location?.address ? "var(--accent-soft)" : "none",
+                border: "1px solid transparent",
                 maxWidth: 160,
               }}
             >
@@ -460,9 +453,9 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
               className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
               style={{
                 fontSize: 11,
-                color: p.cost !== undefined ? "var(--fg-2)" : "var(--fg-4)",
-                background: p.cost !== undefined ? "var(--surface-2)" : "none",
-                border: p.cost !== undefined ? "1px solid var(--line)" : "1px solid transparent",
+                color: p.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
+                background: p.cost !== undefined ? "var(--accent-soft)" : "none",
+                border: "1px solid transparent",
               }}
             >
               <DollarSign size={11} strokeWidth={1.5} />

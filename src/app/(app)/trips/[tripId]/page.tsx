@@ -57,6 +57,12 @@ export default function TripDetailPage() {
     ));
   }
 
+  function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>) {
+    setDays(prev => prev.map(day =>
+      day.dayNumber === dayNumber ? { ...day, ...updates } : day
+    ));
+  }
+
   function handleTripSave(updated: Trip) {
     setTrip(updated);
     setEditingTrip(null);
@@ -224,7 +230,7 @@ export default function TripDetailPage() {
           {activeTab === "itin" && (
             <div>
               {days.length > 0
-                ? days.map((day) => <DayCard key={day.dayNumber} day={day} onUpdateEvent={handleEventUpdate} onDeleteEvent={handleEventDelete} onReorderEvents={handleEventReorder} />)
+                ? days.map((day) => <DayCard key={day.dayNumber} day={day} onUpdateEvent={handleEventUpdate} onDeleteEvent={handleEventDelete} onReorderEvents={handleEventReorder} onUpdateDay={handleDayUpdate} />)
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
               }
             </div>
