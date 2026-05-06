@@ -59,7 +59,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
               }}
             >
               <span
-                className="pulse rounded-full shrink-0"
+                className={`${status === "active" ? "pulse" : ""} rounded-full shrink-0`}
                 style={{
                   width: 6, height: 6,
                   background: "var(--accent-brand)",

@@ -23,12 +23,13 @@ export const TRIP_TINTS: Record<string, TripTint> = {
   Default:   { hue: 60,  light: "oklch(0.94 0.02 60)",  dark: "oklch(0.30 0.02 60)"  },
 };
 
-export const SAMPLE_ACTIVE_TRIP: Trip = {
+export const SAMPLE_TOKYO_TRIP: Trip = {
   id: "tokyo-2026",
   name: "Tokyo",
   status: "active",
   startDate: "2026-04-24",
   endDate: "2026-05-01",
+  days: 7,
   activeDayNumber: 5,
   dayTotal: 7,
   todayDate: 28,
@@ -41,44 +42,6 @@ export const SAMPLE_ACTIVE_TRIP: Trip = {
     { id: "saito",   time: "20:00", name: "Sushi Saito"          },
   ],
 };
-
-export const SAMPLE_UPCOMING: Trip[] = [
-  {
-    id: "lisbon-2026",
-    name: "Lisbon",
-    status: "upcoming",
-    startDate: "2026-05-18",
-    endDate: "2026-05-21",
-    days: 4,
-    inDays: 14,
-  },
-  {
-    id: "oaxaca-2026",
-    name: "Oaxaca",
-    status: "upcoming",
-    startDate: "2026-07-28",
-    endDate: "2026-08-06",
-    days: 9,
-    inDays: 92,
-  },
-  {
-    id: "reykjavik-2026",
-    name: "Reykjavik",
-    status: "upcoming",
-    startDate: "2026-10-12",
-    endDate: "2026-10-20",
-    days: 8,
-    inDays: 168,
-  },
-];
-
-export const SAMPLE_PAST: Trip[] = [
-  { id: "marrakech-2026", name: "Marrakech", status: "past", startDate: "2026-03-01", endDate: "2026-03-06", days: 6 },
-  { id: "kyoto-2025",     name: "Kyoto",     status: "past", startDate: "2025-11-01", endDate: "2025-11-04", days: 4 },
-  { id: "athens-2025",    name: "Athens",    status: "past", startDate: "2025-09-01", endDate: "2025-09-05", days: 5 },
-  { id: "hanoi-2025",     name: "Hanoi",     status: "past", startDate: "2025-05-01", endDate: "2025-05-08", days: 8 },
-  { id: "patagonia-2025", name: "Patagonia", status: "past", startDate: "2025-01-10", endDate: "2025-01-21", days: 12 },
-];
 
 export const WORLD_PINS: WorldPin[] = [
   { x: 760, y: 200, label: "Tokyo"     },
@@ -99,7 +62,17 @@ export const AVATAR_COLORS: Record<string, { bg: string; color: string }> = {
   default: { bg: "oklch(0.86 0.04 220)", color: "oklch(0.30 0.06 220)" },
 };
 
-export const ALL_TRIPS: Trip[] = [SAMPLE_ACTIVE_TRIP, ...SAMPLE_UPCOMING, ...SAMPLE_PAST];
+export const ALL_TRIPS: Trip[] = [
+  SAMPLE_TOKYO_TRIP,
+  { id: "lisbon-2026",    name: "Lisbon",    status: "upcoming", startDate: "2026-05-18", endDate: "2026-05-21", days: 4  },
+  { id: "oaxaca-2026",   name: "Oaxaca",    status: "upcoming", startDate: "2026-07-28", endDate: "2026-08-06", days: 9  },
+  { id: "reykjavik-2026",name: "Reykjavik", status: "upcoming", startDate: "2026-10-12", endDate: "2026-10-20", days: 8  },
+  { id: "marrakech-2026",name: "Marrakech", status: "past",     startDate: "2026-03-01", endDate: "2026-03-06", days: 6  },
+  { id: "kyoto-2025",    name: "Kyoto",     status: "past",     startDate: "2025-11-01", endDate: "2025-11-04", days: 4  },
+  { id: "athens-2025",   name: "Athens",    status: "past",     startDate: "2025-09-01", endDate: "2025-09-05", days: 5  },
+  { id: "hanoi-2025",    name: "Hanoi",     status: "past",     startDate: "2025-05-01", endDate: "2025-05-08", days: 8  },
+  { id: "patagonia-2025",name: "Patagonia", status: "past",     startDate: "2025-01-10", endDate: "2025-01-21", days: 12 },
+];
 
 export function getTripById(id: string): Trip | undefined {
   return ALL_TRIPS.find((trip) => trip.id === id);
