@@ -13,7 +13,9 @@
       "Bash(Format-Table FullName)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\src\" -Recurse -Directory)",
       "Bash(Select-Object FullName)",
-      "mcp__playwright__browser_navigate"
+      "mcp__playwright__browser_navigate",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(Get-Content \"C:\\\\Users\\\\spenc\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-spenc-dev-packt\\\\905a9177-121a-48c9-bfbc-bd9ea6de8a6b\\\\tasks\\\\bwtdyg6cs.output\" -Tail 20)"
     ]
   },
   "enableAllProjectMcpServers": true,

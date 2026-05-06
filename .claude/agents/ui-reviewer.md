@@ -38,7 +38,10 @@ Per route (`http://localhost:3000`, `http://localhost:3000/trips`, and any other
 1. `browser_navigate` to the route URL
 2. `browser_resize(width: 1280, height: 800)` — set desktop viewport
 3. `browser_wait_for` 2 seconds for the page and any Next.js overlay to settle
-4. `browser_snapshot` — examine the accessibility tree for a button or element containing "Issues" text in the bottom-left area (this is the Next.js dev error indicator)
+4. `browser_snapshot` — check for the Next.js dev error indicator using these selectors (in order of preference):
+   - `[data-nextjs-error-overlay-nav]` — the error overlay navigation bar (most reliable)
+   - `.nextjs-toast-errors` — the compact toast-style error indicator
+   - `.nextjs-toast-hide-button` — present when the toast is dismissible
 5. If the error indicator is present:
    - `browser_click` it to open the error panel
    - `browser_snapshot` to read the first error's full message
@@ -85,6 +88,10 @@ Packt uses a CSS custom property-based theme defined in `src/app/globals.css`. A
 - Body: `var(--font-body, ui-sans-serif)`
 - Headings: `var(--font-heading-family, ui-sans-serif)`
 - Monospace/tabular: `var(--font-mono-family, ui-monospace)`
+
+## Dev-Only Component Exemption
+
+`src/components/packt/dev-date-picker.tsx` is a development utility, not a production UI component. Its hardcoded orange colors (`#ff6a00`, `#1a0a00`, `#ff9a4d`) and non-theme inline styles are intentional — **do not flag them as dark-mode or color token violations**. In the DOM, its toggle button is identifiable by `[data-testid="dev-date-picker-toggle"]`.
 
 ## Standards to Enforce
 

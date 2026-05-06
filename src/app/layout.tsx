@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Manrope, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { MockDateProvider } from "@/components/providers/mock-date-provider";
+import { DevDatePicker } from "@/components/packt/dev-date-picker";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -27,11 +30,15 @@ export const metadata: Metadata = {
   description: "Plan your trips with Packt",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const mockISO = process.env.NODE_ENV === 'development'
+    ? (await cookies()).get('__packt_mock_date__')?.value ?? null
+    : null;
+
   return (
     <html
       lang="en"
@@ -45,9 +52,12 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <TooltipProvider>
-            {children}
-          </TooltipProvider>
+          <MockDateProvider initialISO={mockISO}>
+            <TooltipProvider>
+              {children}
+              <DevDatePicker />
+            </TooltipProvider>
+          </MockDateProvider>
         </ThemeProvider>
       </body>
     </html>

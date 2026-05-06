@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useNow } from "@/components/providers/mock-date-provider";
 import { MapPin, Plus, ChevronDown, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlaceRow } from "./place-row";
@@ -46,10 +47,10 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
 }
 
 export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay }: DayCardProps) {
+  const now = useNow();
   const isToday = d.date
     ? (() => {
         const dayDate = new Date(d.date + "T12:00:00");
-        const now = new Date();
         return (
           dayDate.getFullYear() === now.getFullYear() &&
           dayDate.getMonth() === now.getMonth() &&

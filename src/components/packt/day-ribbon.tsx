@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 import { cn, isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
+import { useNow } from "@/components/providers/mock-date-provider";
 import { type Trip, type TripEvent } from "@/data/trips";
 
 interface DayRibbonProps {
@@ -10,9 +11,10 @@ interface DayRibbonProps {
 }
 
 export function DayRibbon({ trip }: DayRibbonProps) {
-  const status       = getTripStatus(trip.startDate, trip.endDate);
-  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate) : null;
-  const { date: todayDate, month: todayMonth } = getTodayDisplay();
+  const now = useNow();
+  const status       = getTripStatus(trip.startDate, trip.endDate, now);
+  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate, now) : null;
+  const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
 
   return (
     <div
@@ -62,7 +64,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
       <div className="flex-1 flex items-center gap-1 overflow-x-auto scroll-thin min-w-0">
         {(trip.events ?? []).map((ev, i) => (
           <div key={ev.id} className="flex items-center gap-1 shrink-0">
-            <EventChip ev={ev} tripId={trip.id!} />
+            <EventChip ev={ev} tripId={trip.id!} now={now} />
             {i < (trip.events?.length ?? 0) - 1 && (
               <ChevronRight
                 size={12}
@@ -86,9 +88,9 @@ export function DayRibbon({ trip }: DayRibbonProps) {
   );
 }
 
-function EventChip({ ev, tripId }: { ev: TripEvent; tripId: string }) {
-  const isNow = isEventNow(ev);
-  const isPast = isEventPast(ev);
+function EventChip({ ev, tripId, now }: { ev: TripEvent; tripId: string; now: Date }) {
+  const isNow = isEventNow(ev, now);
+  const isPast = isEventPast(ev, now);
 
   return (
     <Link

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { type TripEvent, type Document } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
+import { useNow } from "@/components/providers/mock-date-provider";
 
 function formatTime(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -257,8 +258,9 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
 
+  const now = useNow();
   const hasDocs = (p.docs?.length ?? 0) > 0;
-  const isNow = isEventNow(p);
+  const isNow = isEventNow(p, now);
 
   function saveName() {
     const trimmed = draftName.trim();

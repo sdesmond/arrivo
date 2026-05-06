@@ -23,13 +23,14 @@ import {
 import { ALL_TRIPS } from "@/data/trips";
 import { type Trip } from "@/data/types";
 import { isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
+import { useNow } from "@/components/providers/mock-date-provider";
 
 // ─── Mobile tab types ───────────────────────────────────────────────────────
 type MobileTab = "Active" | "Upcoming" | "Past";
 
 // ─── Desktop topbar ──────────────────────────────────────────────────────────
-function Topbar({ tripCount, pastCount }: { tripCount: number; pastCount: number }) {
-  const todayFormatted = new Date().toLocaleDateString("en-US", {
+function Topbar({ tripCount, pastCount, now }: { tripCount: number; pastCount: number; now: Date }) {
+  const todayFormatted = now.toLocaleDateString("en-US", {
     month: "2-digit", day: "2-digit", year: "numeric",
   }).replace(/\//g, ".");
 
@@ -188,7 +189,7 @@ function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip
 }
 
 // ─── Mobile — Active tab ─────────────────────────────────────────────────────
-function MobileActiveTab({ trip }: { trip: Trip | null }) {
+function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
   if (!trip) {
     return (
       <div
@@ -199,10 +200,10 @@ function MobileActiveTab({ trip }: { trip: Trip | null }) {
       </div>
     );
   }
-  const status       = getTripStatus(trip.startDate, trip.endDate);
-  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate) : null;
+  const status       = getTripStatus(trip.startDate, trip.endDate, now);
+  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate, now) : null;
   const statusLabel  = status === "active" ? "ACTIVE" : status === "upcoming" ? "UPCOMING" : "PAST";
-  const { date: todayDate, month: todayMonth } = getTodayDisplay();
+  const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
 
   return (
     <div className="flex flex-col gap-4">
@@ -212,7 +213,7 @@ function MobileActiveTab({ trip }: { trip: Trip | null }) {
       >
         <TripCover
           name={trip.name}
-          country={activeDayNum != null ? `DAY ${activeDayNum} OF ${trip.dayTotal}` : ""}
+          country=""
           metaTag={statusLabel}
           showCity
           style={{ minHeight: 160 }}
@@ -230,7 +231,7 @@ function MobileActiveTab({ trip }: { trip: Trip | null }) {
               className="rounded-full"
               style={{ width: 6, height: 6, background: "var(--accent-brand)", display: "inline-block" }}
             />
-            {statusLabel}{activeDayNum != null ? ` · DAY ${activeDayNum} OF ${trip.dayTotal}` : ""}
+            {statusLabel}
           </div>
           <h2
             style={{
@@ -270,9 +271,9 @@ function MobileActiveTab({ trip }: { trip: Trip | null }) {
               href={`/trips/${trip.id}/days/${activeDayNum ?? 1}?focus=${ev.id}`}
               className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface"
               style={{
-                opacity: isEventPast(ev) ? 0.5 : 1,
-                background: isEventNow(ev) ? "var(--accent-soft)" : undefined,
-                borderLeft: isEventNow(ev) ? "3px solid var(--accent-brand)" : undefined,
+                opacity: isEventPast(ev, now) ? 0.5 : 1,
+                background: isEventNow(ev, now) ? "var(--accent-soft)" : undefined,
+                borderLeft: isEventNow(ev, now) ? "3px solid var(--accent-brand)" : undefined,
               }}
             >
               <span
@@ -287,7 +288,7 @@ function MobileActiveTab({ trip }: { trip: Trip | null }) {
               <span
                 style={{
                   flex: 1, fontSize: 13.5, fontWeight: 500, color: "var(--fg)",
-                  textDecoration: isEventPast(ev) ? "line-through" : undefined,
+                  textDecoration: isEventPast(ev, now) ? "line-through" : undefined,
                 }}
               >
                 {ev.name}
@@ -308,11 +309,11 @@ function MobileActiveTab({ trip }: { trip: Trip | null }) {
   );
 }
 
-function MobileUpcomingTab({ trips }: { trips: Trip[] }) {
+function MobileUpcomingTab({ trips, now }: { trips: Trip[]; now: Date }) {
   return (
     <div className="flex flex-col gap-3">
       {trips.map((trip) => {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const today = new Date(now); today.setHours(0, 0, 0, 0);
         const inDays = Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         return (
           <Link
@@ -381,19 +382,20 @@ function MobilePastTab({ trips }: { trips: Trip[] }) {
 export default function TripsPage() {
   const [trips, setTrips] = useState<Trip[]>(ALL_TRIPS);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const now = useNow();
 
-  const activeTrips  = trips.filter(t => getTripStatus(t.startDate, t.endDate) === "active");
-  const upcomingTrips = trips.filter(t => getTripStatus(t.startDate, t.endDate) === "upcoming");
-  const pastTrips    = trips.filter(t => getTripStatus(t.startDate, t.endDate) === "past");
-  const activeTrip   = activeTrips[0] ?? null;
+  const activeTrips   = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "active");
+  const upcomingTrips = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "upcoming");
+  const pastTrips     = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "past");
+  const activeTrip    = activeTrips[0] ?? null;
 
   const [mobileTab, setMobileTab] = useState<MobileTab>(() =>
-    ALL_TRIPS.some(t => getTripStatus(t.startDate, t.endDate) === "active") ? "Active" : "Upcoming"
+    ALL_TRIPS.some(t => getTripStatus(t.startDate, t.endDate, now) === "active") ? "Active" : "Upcoming"
   );
 
   const nextInDays = upcomingTrips.length > 0
     ? Math.min(...upcomingTrips.map(t => {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const today = new Date(now); today.setHours(0, 0, 0, 0);
         return Math.ceil((new Date(t.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       }))
     : null;
@@ -407,7 +409,7 @@ export default function TripsPage() {
     <>
       {/* ── Desktop layout ── */}
       <div className="hidden lg:flex lg:flex-col h-full">
-        <Topbar tripCount={activeTrips.length + upcomingTrips.length} pastCount={pastTrips.length} />
+        <Topbar tripCount={activeTrips.length + upcomingTrips.length} pastCount={pastTrips.length} now={now} />
         <div className="flex-1 overflow-y-auto scroll-thin">
           <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
             {/* Active trip — only shown when a trip is currently active by date */}
@@ -531,8 +533,8 @@ export default function TripsPage() {
 
         {/* Mobile tab content */}
         <div className="flex-1 overflow-y-auto scroll-thin p-4">
-          {mobileTab === "Active"   && <MobileActiveTab trip={activeTrip} />}
-          {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} />}
+          {mobileTab === "Active"   && <MobileActiveTab trip={activeTrip} now={now} />}
+          {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} now={now} />}
           {mobileTab === "Past"     && <MobilePastTab trips={pastTrips} />}
         </div>
       </div>

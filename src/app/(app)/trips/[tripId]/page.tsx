@@ -10,7 +10,8 @@ import { DayCard } from "@/components/packt/day-card";
 import { getTripById, TRIP_DATA } from "@/data/trips"
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet"
 import { type Trip, type TripEvent, type DayItinerary } from "@/data/types";
-import { getTripStatus, getActiveDayNumber } from "@/lib/utils";
+import { getTripStatus } from "@/lib/utils";
+import { useNow } from "@/components/providers/mock-date-provider";
 
 function formatTripHeader(start: string, end: string) {
   const MONTH_ABBREVIATIONS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -29,8 +30,9 @@ const TABS = [
 
 export default function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>();
+  const now = useNow();
   const [activeTab, setActiveTab] = useState("itin");
-const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
   const [trip, setTrip] = useState<Trip | undefined>(getTripById(tripId));
   const rawData = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
@@ -72,9 +74,7 @@ const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
   const eventCount   = days.reduce((count, day) => count + day.events.length, 0);
   const dayTotal     = trip.dayTotal ?? trip.days ?? 0;
-  const status       = getTripStatus(trip.startDate, trip.endDate);
-  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate) : null;
-  const tripCoverCountry = activeDayNum != null ? `DAY ${activeDayNum} OF ${dayTotal}` : "";
+  const status       = getTripStatus(trip.startDate, trip.endDate, now);
   const heroDateLine = formatTripHeader(trip.startDate, trip.endDate);
 
   return (
@@ -118,7 +118,7 @@ const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
       <div className="relative shrink-0" style={{ minHeight: 260 }}>
         <TripCover
           name={trip.name}
-          country={tripCoverCountry}
+          country=""
           metaTag={`${status.toUpperCase()} TRIP · OFFLINE`}
           showCity={false}
           style={{ minHeight: 260 }}
@@ -157,7 +157,7 @@ const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
             {trip.name}
           </h1>
           <div className="flex items-center gap-4 flex-wrap" style={{ color: "rgba(255,255,255,0.72)", fontSize: 12.5 }}>
-            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days{activeDayNum != null ? ` · day ${activeDayNum} today` : ""}</span>
+            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days</span>
             <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
             <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{docs.length} docs</span>
             <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{collaborators.length} collaborators</span>
