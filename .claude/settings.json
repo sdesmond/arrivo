@@ -2,9 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\initial-spec\\\\Packt\\\\design_handoff_packt\\\\\" -Recurse)",
+      "Bash(Get-ChildItem *)",
       "Bash(git add *)",
       "Bash(git commit -m 'feat: dashboard — NowCard, DayRibbon, TripCard, WorldMap, page *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_wait_for"
     ],
     "additionalDirectories": [
       "c:\\Users\\spenc\\dev\\packt\\packt\\src\\app\\(app)\\trips\\[tripId]\\days"
