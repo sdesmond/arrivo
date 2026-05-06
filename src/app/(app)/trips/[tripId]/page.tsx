@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
+import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
@@ -30,8 +30,7 @@ const TABS = [
 export default function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>();
   const [activeTab, setActiveTab] = useState("itin");
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
-  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
   const [trip, setTrip] = useState<Trip | undefined>(getTripById(tripId));
   const rawData = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
@@ -191,39 +190,7 @@ export default function TripDetailPage() {
             </button>
           ))}
         </div>
-        {/* Day pager — only shown when there are days */}
-        {days.length > 0 && (
-          <div
-            className="flex items-center gap-2 shrink-0 ml-4"
-            style={{
-              fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "11px", color: "var(--fg-3)",
-            }}
-          >
-            <button
-              className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
-              style={{ width: 26, height: 26, color: "var(--fg-3)" }}
-              onClick={() => setSelectedDayIndex((prevIndex) => Math.max(0, prevIndex - 1))}
-              disabled={selectedDayIndex === 0}
-            >
-              <ChevronLeft size={13} strokeWidth={1.5} />
-            </button>
-            <span style={{ letterSpacing: "0.04em" }}>
-              DAY <strong style={{ color: "var(--fg)", fontWeight: 700 }}>{days[selectedDayIndex]?.dayNumber}</strong>
-              {" · "}
-              {days[selectedDayIndex]?.label.split("·")[0].trim()}
-              {days[selectedDayIndex]?.today ? " · TODAY" : ""}
-            </span>
-            <button
-              className="rounded-[6px] flex items-center justify-center transition-colors hover:bg-surface-2"
-              style={{ width: 26, height: 26, color: "var(--fg-3)" }}
-              onClick={() => setSelectedDayIndex((prevIndex) => Math.min(days.length - 1, prevIndex + 1))}
-              disabled={selectedDayIndex === days.length - 1}
-            >
-              <ChevronRight size={13} strokeWidth={1.5} />
-            </button>
-          </div>
-        )}
+
       </div>
 
       {/* Body */}
