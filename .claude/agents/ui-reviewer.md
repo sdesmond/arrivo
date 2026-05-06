@@ -1,7 +1,7 @@
 ---
 name: ui-reviewer
 description: Reviews UI components for visual consistency, accessibility, and dark/light mode correctness. Use after implementing new UI or making significant visual changes.
-tools: Read, Grep, Bash, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_wait_for, mcp__playwright__browser_close
+tools: Read, Grep, Bash, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_wait_for, mcp__playwright__browser_close, mcp__playwright__browser_console_messages, mcp__playwright__browser_resize, mcp__playwright__browser_hover, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_fill_form, mcp__playwright__browser_select_option, mcp__playwright__browser_drag, mcp__playwright__browser_drop, mcp__playwright__browser_evaluate, mcp__playwright__browser_tabs, mcp__playwright__browser_handle_dialog, mcp__playwright__browser_network_request, mcp__playwright__browser_network_requests, mcp__playwright__browser_file_upload, mcp__playwright__browser_run_code_unsafe
 color: teal
 ---
 
@@ -31,22 +31,38 @@ Screenshots go in `c:\Users\spenc\dev\packt\.ui-review-screenshots\`. This direc
 
 **1c. Navigate and inspect for errors** using the Playwright MCP tools:
 
-1. `browser_navigate` to `http://localhost:3000`
-2. Wait 2 seconds with `browser_wait_for` for the page and any Next.js overlay to settle
-3. `browser_snapshot` — examine the accessibility tree for a button or element containing "Issues" text in the bottom-left area (this is the Next.js dev error indicator)
-4. If the error indicator is present:
+> **Viewport note:** The Playwright MCP server does not support setting viewport size at launch. Always call `browser_resize` *after* `browser_navigate` to establish a known width before snapshotting. Test each route at both desktop (1280×800) and mobile (390×844) widths.
+
+Per route (`http://localhost:3000`, `http://localhost:3000/trips`, and any other relevant routes):
+
+1. `browser_navigate` to the route URL
+2. `browser_resize(width: 1280, height: 800)` — set desktop viewport
+3. `browser_wait_for` 2 seconds for the page and any Next.js overlay to settle
+4. `browser_snapshot` — examine the accessibility tree for a button or element containing "Issues" text in the bottom-left area (this is the Next.js dev error indicator)
+5. If the error indicator is present:
    - `browser_click` it to open the error panel
    - `browser_snapshot` to read the first error's full message
    - Look for a "Next" arrow button and click it to cycle through additional errors, snapshotting each one
    - Collect all error messages
-5. `browser_take_screenshot` — save to `c:\Users\spenc\dev\packt\.ui-review-screenshots\` with a descriptive name (e.g. `root-before.png`, `trips-after.png`)
-6. Repeat steps 1–5 for `http://localhost:3000/trips`
-7. **Always call `browser_close` when done with all Playwright steps**, even if errors occurred — this ensures the browser is never left open.
+6. `browser_take_screenshot` — save as `<route>-desktop.png` (e.g. `trips-desktop.png`) in `c:\Users\spenc\dev\packt\.ui-review-screenshots\`
+7. `browser_resize(width: 390, height: 844)` — switch to mobile viewport (iPhone 14 Pro)
+8. `browser_wait_for` 500ms for layout to reflow
+9. `browser_snapshot` — check for horizontal overflow, broken truncation, or layout collapse in the mobile tree
+10. `browser_take_screenshot` — save as `<route>-mobile.png` (e.g. `trips-mobile.png`)
+11. **`browser_console_messages` with `level: "error"`** — capture all browser console errors. These catch React warnings (e.g. mixed shorthand/longhand style props, key errors, hydration mismatches) that do NOT appear in the Next.js overlay but are still real bugs.
+
+**Mobile-specific things to look for at 390px width:**
+- Content horizontally overflowing its container
+- Fixed-width elements (e.g. `width: 400px`) that don't reflow
+- Text truncation or wrapping that breaks the visual hierarchy
+- Touch targets that become too small or overlap
+
+After all routes are done: **always call `browser_close`**, even if errors occurred — this ensures the browser is never left open.
 
 **Interpret results:**
-- Error indicator found: list every error message as a numbered item. Mark as **BLOCKING**.
-- No error indicator: state "No Next.js runtime errors detected on `/` and `/trips`."
-- Console errors visible in snapshot: list as warnings.
+- Next.js error overlay found: list every error message as a numbered item. Mark as **BLOCKING**.
+- Console errors found (from `browser_console_messages`): list each one. Mark as **BLOCKING** — these must be fixed before the review passes.
+- No overlay and no console errors: state "No Next.js runtime errors detected on `/` and `/trips`."
 
 ## Step 2: Static Code Review
 
