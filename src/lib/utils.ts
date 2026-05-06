@@ -26,13 +26,21 @@ export function isEventPast(
 }
 
 export function isEventNow(
-  ev: { startAt?: string; endAt?: string; time?: string; endTime?: string },
+  ev: { startAt?: string; endAt?: string; time?: string; endTime?: string; date?: string },
   now = new Date()
 ): boolean {
   if (ev.startAt && ev.endAt) {
     return now >= new Date(ev.startAt) && now < new Date(ev.endAt);
   }
   if (ev.time && ev.endTime) {
+    if (ev.date) {
+      const d = new Date(ev.date + "T12:00:00");
+      if (
+        d.getFullYear() !== now.getFullYear() ||
+        d.getMonth() !== now.getMonth() ||
+        d.getDate() !== now.getDate()
+      ) return false;
+    }
     const [sh, sm] = ev.time.split(":").map(Number);
     const [eh, em] = ev.endTime.split(":").map(Number);
     const start = new Date(now); start.setHours(sh, sm, 0, 0);
@@ -40,4 +48,32 @@ export function isEventNow(
     return now >= start && now < end;
   }
   return false;
+}
+
+export function getTripStatus(
+  startDate: string,
+  endDate: string
+): "upcoming" | "active" | "past" {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate + "T00:00:00");
+  const end   = new Date(endDate   + "T00:00:00");
+  if (today < start) return "upcoming";
+  if (today > end)   return "past";
+  return "active";
+}
+
+export function getActiveDayNumber(startDate: string): number {
+  const start = new Date(startDate + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((today.getTime() - start.getTime()) / 86_400_000) + 1;
+}
+
+export function getTodayDisplay(): { date: number; month: string } {
+  const now = new Date();
+  return {
+    date:  now.getDate(),
+    month: now.toLocaleString("en-US", { month: "short" }),
+  };
 }

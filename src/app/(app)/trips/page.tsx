@@ -24,13 +24,17 @@ import {
   SAMPLE_ACTIVE_TRIP, SAMPLE_UPCOMING, SAMPLE_PAST,
 } from "@/data/trips";
 import { type Trip } from "@/data/types";
-import { isEventNow, isEventPast } from "@/lib/utils";
+import { isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
 
 // ─── Mobile tab types ───────────────────────────────────────────────────────
 type MobileTab = "Active" | "Upcoming" | "Past";
 
 // ─── Desktop topbar ──────────────────────────────────────────────────────────
 function Topbar() {
+  const todayFormatted = new Date().toLocaleDateString("en-US", {
+    month: "2-digit", day: "2-digit", year: "numeric",
+  }).replace(/\//g, ".");
+
   return (
     <div
       className="flex items-center gap-3 px-6 py-4"
@@ -56,7 +60,7 @@ function Topbar() {
             marginTop: 2,
           }}
         >
-          04.28.2026 · 4 trips · 5 past
+          {todayFormatted} · 4 trips · 5 past
         </div>
       </div>
 
@@ -187,7 +191,12 @@ function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip
 
 // ─── Mobile — Active tab ─────────────────────────────────────────────────────
 function MobileActiveTab() {
-  const trip = SAMPLE_ACTIVE_TRIP;
+  const trip         = SAMPLE_ACTIVE_TRIP;
+  const status       = getTripStatus(trip.startDate, trip.endDate);
+  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate) : null;
+  const statusLabel  = status === "active" ? "ACTIVE" : status === "upcoming" ? "UPCOMING" : "PAST";
+  const { date: todayDate, month: todayMonth } = getTodayDisplay();
+
   return (
     <div className="flex flex-col gap-4">
       <div
@@ -196,8 +205,8 @@ function MobileActiveTab() {
       >
         <TripCover
           name={trip.name}
-          country={`DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`}
-          metaTag="ACTIVE"
+          country={activeDayNum != null ? `DAY ${activeDayNum} OF ${trip.dayTotal}` : ""}
+          metaTag={statusLabel}
           showCity
           style={{ minHeight: 160 }}
         />
@@ -214,7 +223,7 @@ function MobileActiveTab() {
               className="rounded-full"
               style={{ width: 6, height: 6, background: "var(--accent-brand)", display: "inline-block" }}
             />
-            Day {trip.activeDayNumber} of {trip.dayTotal} · 14:08 JST
+            {statusLabel}{activeDayNum != null ? ` · DAY ${activeDayNum} OF ${trip.dayTotal}` : ""}
           </div>
           <h2
             style={{
@@ -243,14 +252,14 @@ function MobileActiveTab() {
               letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-3)",
             }}
           >
-            TODAY · APR 28
+            TODAY · {todayMonth.toUpperCase()} {todayDate}
           </span>
           <span style={{ fontSize: 12.5, color: "var(--fg-3)" }}>5 stops</span>
         </div>
         {trip.events?.map((ev) => (
           <Link
             key={ev.id}
-            href={`/trips/${trip.id}/days/${trip.activeDayNumber}?focus=${ev.id}`}
+            href={`/trips/${trip.id}/days/${activeDayNum ?? 1}?focus=${ev.id}`}
             className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface"
             style={{
               opacity: isEventPast(ev) ? 0.5 : 1,

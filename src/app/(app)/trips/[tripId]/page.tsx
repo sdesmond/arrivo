@@ -10,6 +10,7 @@ import { DayCard } from "@/components/packt/day-card";
 import { getTripById, TRIP_DATA } from "@/data/trips"
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet"
 import { type Trip, type TripEvent, type DayItinerary } from "@/data/types";
+import { getTripStatus, getActiveDayNumber } from "@/lib/utils";
 
 function formatTripHeader(start: string, end: string) {
   const MONTH_ABBREVIATIONS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -70,9 +71,11 @@ export default function TripDetailPage() {
 
   if (!trip) return <div style={{ padding: 24, color: "var(--fg-2)" }}>Trip not found.</div>;
 
-  const eventCount = days.reduce((count, day) => count + day.events.length, 0);
-  const dayTotal = trip.dayTotal ?? trip.days ?? 0;
-  const tripCoverCountry = trip.activeDayNumber != null ? `DAY ${trip.activeDayNumber} OF ${dayTotal}` : "";
+  const eventCount   = days.reduce((count, day) => count + day.events.length, 0);
+  const dayTotal     = trip.dayTotal ?? trip.days ?? 0;
+  const status       = getTripStatus(trip.startDate, trip.endDate);
+  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate) : null;
+  const tripCoverCountry = activeDayNum != null ? `DAY ${activeDayNum} OF ${dayTotal}` : "";
   const heroDateLine = formatTripHeader(trip.startDate, trip.endDate);
 
   return (
@@ -117,7 +120,7 @@ export default function TripDetailPage() {
         <TripCover
           name={trip.name}
           country={tripCoverCountry}
-          metaTag={`${trip.status.toUpperCase()} TRIP · OFFLINE`}
+          metaTag={`${status.toUpperCase()} TRIP · OFFLINE`}
           showCity={false}
           style={{ minHeight: 260 }}
         />
@@ -155,7 +158,7 @@ export default function TripDetailPage() {
             {trip.name}
           </h1>
           <div className="flex items-center gap-4 flex-wrap" style={{ color: "rgba(255,255,255,0.72)", fontSize: 12.5 }}>
-            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days{trip.activeDayNumber != null ? ` · day ${trip.activeDayNumber} today` : ""}</span>
+            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days{activeDayNum != null ? ` · day ${activeDayNum} today` : ""}</span>
             <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
             <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{docs.length} docs</span>
             <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{collaborators.length} collaborators</span>

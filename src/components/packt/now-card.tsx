@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/trips";
+import { getTripStatus, getActiveDayNumber } from "@/lib/utils";
 
 interface NowCardProps {
   trip: Trip;
@@ -14,7 +15,14 @@ interface NowCardProps {
 }
 
 export function NowCard({ trip, onEditTrip }: NowCardProps) {
-  const sub = `DAY ${trip.activeDayNumber} OF ${trip.dayTotal}`;
+  const status      = getTripStatus(trip.startDate, trip.endDate);
+  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate) : null;
+  const statusLabel = status === "active" ? "ACTIVE TRIP"
+                    : status === "upcoming" ? "UPCOMING TRIP"
+                    : "PAST TRIP";
+  const sub = activeDayNum != null
+    ? `DAY ${activeDayNum} OF ${trip.dayTotal}`
+    : status === "upcoming" ? trip.startDate : trip.endDate;
 
   return (
     <div
@@ -29,7 +37,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
       <TripCover
         name={trip.name}
         country={sub}
-        metaTag="ACTIVE TRIP"
+        metaTag={statusLabel}
         showCity
         style={{ minHeight: 220 }}
       />
@@ -58,7 +66,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
                   display: "inline-block",
                 }}
               />
-              ACTIVE TRIP · DAY {trip.activeDayNumber} OF {trip.dayTotal}
+              {statusLabel}{activeDayNum != null ? ` · DAY ${activeDayNum} OF ${trip.dayTotal}` : ""}
             </div>
             <h2
               style={{

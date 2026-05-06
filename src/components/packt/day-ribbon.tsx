@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { cn, isEventNow, isEventPast } from "@/lib/utils";
+import { cn, isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
 import { type Trip, type TripEvent } from "@/data/trips";
 
 interface DayRibbonProps {
@@ -10,6 +10,10 @@ interface DayRibbonProps {
 }
 
 export function DayRibbon({ trip }: DayRibbonProps) {
+  const status       = getTripStatus(trip.startDate, trip.endDate);
+  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate) : null;
+  const { date: todayDate, month: todayMonth } = getTodayDisplay();
+
   return (
     <div
       className="flex items-stretch gap-3 p-3 rounded-[10px] mt-3"
@@ -36,7 +40,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
             color: "var(--accent-brand)",
           }}
         >
-          {trip.todayDate}
+          {todayDate}
         </div>
         <div
           style={{
@@ -50,7 +54,7 @@ export function DayRibbon({ trip }: DayRibbonProps) {
             lineHeight: 1.3,
           }}
         >
-          {trip.todayMonth} · DAY {trip.activeDayNumber}
+          {todayMonth}{activeDayNum != null ? ` · DAY ${activeDayNum}` : ""}
         </div>
       </Link>
 

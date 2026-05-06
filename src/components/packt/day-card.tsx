@@ -46,7 +46,18 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
 }
 
 export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay }: DayCardProps) {
-  const [open, setOpen] = useState(!!d.today);
+  const isToday = d.date
+    ? (() => {
+        const dayDate = new Date(d.date + "T12:00:00");
+        const now = new Date();
+        return (
+          dayDate.getFullYear() === now.getFullYear() &&
+          dayDate.getMonth() === now.getMonth() &&
+          dayDate.getDate() === now.getDate()
+        );
+      })()
+    : !!d.today;
+  const [open, setOpen] = useState(isToday);
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
   const [draftSubtitle, setDraftSubtitle] = useState(d.subtitle ?? "");
 
@@ -85,7 +96,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
     <div
       className="rounded-[10px] mb-4"
       style={{
-        border: d.today ? "1.5px solid var(--accent-brand)" : "1px solid var(--line)",
+        border: isToday ? "1.5px solid var(--accent-brand)" : "1px solid var(--line)",
         background: "var(--bg)",
       }}
     >
@@ -93,7 +104,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
       <div
         className={`rounded-t-[10px] ${!open ? "rounded-b-[10px]" : ""}`}
         style={{
-          background: d.today ? "var(--accent-soft)" : "var(--surface)",
+          background: isToday ? "var(--accent-soft)" : "var(--surface)",
           borderBottom: open ? "1px solid var(--line)" : "none",
         }}
       >
@@ -121,7 +132,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
               <MapPin size={12} strokeWidth={1.5} />
               {d.events.length} stops
             </span>
-            {d.today && <Badge variant="soft">Active</Badge>}
+            {isToday && <Badge variant="soft">Active</Badge>}
             <ChevronDown
               size={14}
               strokeWidth={1.5}
@@ -219,7 +230,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                   {unscheduledEvents.map((p, i) => (
                     <SortablePlaceRow
                       key={p.id ?? i}
-                      place={p}
+                      place={{ ...p, date: p.date ?? d.date }}
                       isLast={i === unscheduledEvents.length - 1 && scheduledEvents.length === 0}
                       onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}
                       onDelete={onDeleteEvent}
@@ -236,7 +247,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
               {scheduledEvents.map((p, i) => (
                 <SortablePlaceRow
                   key={p.id ?? i}
-                  place={p}
+                  place={{ ...p, date: p.date ?? d.date }}
                   isLast={i === scheduledEvents.length - 1}
                   onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}
                   onDelete={onDeleteEvent}
