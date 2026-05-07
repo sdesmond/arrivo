@@ -137,16 +137,41 @@ Packt uses a CSS custom property-based theme defined in `src/app/globals.css`. A
 
 ## How to Report
 
-**Runtime errors (from Playwright) — report first:**
-- If Next.js errors were found: list each one with its full message. Mark as BLOCKING.
-- If console errors were found: list them as warnings.
-- If no runtime errors: state "No Next.js runtime errors detected."
+Your report MUST follow this exact structure. Do not collapse or omit any section. If you skipped a section, say so explicitly — a missing section is a failed review.
 
-**Static review — report per file:**
+---
+
+### Desktop Test — [route] (1280px)
+- Screenshot: `<absolute path to desktop screenshot>`
+- Runtime errors: PASS / FAIL (list errors if FAIL)
+- Console errors: PASS / FAIL (list errors if FAIL)
+- Layout findings: [observations or "No issues"]
+
+### Mobile Test — [route] (390px)
+- Screenshot: `<absolute path to mobile screenshot>`
+- Runtime errors: PASS / FAIL (list errors if FAIL)
+- Overflow/layout: PASS / FAIL (describe if FAIL)
+- Touch targets: PASS / FAIL (describe if FAIL)
+- Layout findings: [observations or "No issues"]
+
+_(Repeat Desktop + Mobile blocks for each route tested.)_
+
+---
+
+### Static Code Review
 - Filename and overall assessment (clean / has issues)
 - Each issue: line number, what the problem is, which standard it violates, and a suggested fix
 - Clean files: state explicitly that they passed
 
-End with a summary: N files reviewed, N passed, N had issues. N runtime errors found.
+---
+
+### Summary
+- Routes tested: N (list them)
+- Desktop: PASS / FAIL
+- Mobile: PASS / FAIL
+- Static files reviewed: N passed, N had issues
+- Runtime errors: N found
+
+A review is only PASS if both Desktop and Mobile sections are present and passing for every route. A report with no Mobile section is an incomplete review and must be re-run.
 
 Report findings only — do not rewrite files.
