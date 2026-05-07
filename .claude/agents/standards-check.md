@@ -10,8 +10,8 @@ You are the pre-commit standards gate for the Packt travel planning application.
 ## Step 1: Find Changed Files
 
 ```bash
-cd "c:\Users\spenc\dev\packt\packt" && git diff --name-only HEAD
-cd "c:\Users\spenc\dev\packt\packt" && git ls-files --others --exclude-standard
+cd "c:\Users\spenc\dev\packt" && git diff --name-only HEAD
+cd "c:\Users\spenc\dev\packt" && git ls-files --others --exclude-standard
 ```
 
 Categorize results:
@@ -24,9 +24,9 @@ Categorize results:
 Run all three even if one fails:
 
 ```bash
-cd "c:\Users\spenc\dev\packt\packt" && npm run lint 2>&1
-cd "c:\Users\spenc\dev\packt\packt" && npx tsc --noEmit 2>&1
-cd "c:\Users\spenc\dev\packt\packt" && npm run build 2>&1
+cd "c:\Users\spenc\dev\packt" && npm run lint 2>&1
+cd "c:\Users\spenc\dev\packt" && npx tsc --noEmit 2>&1
+cd "c:\Users\spenc\dev\packt" && npm run build 2>&1
 ```
 
 ## Step 3: TypeScript Review (all changed .ts and .tsx files)
@@ -68,6 +68,10 @@ Additionally check each .tsx file:
 - **Focus states** — `outline` not disabled without replacement; elements remain keyboard-focusable
 - **Spacing rhythm** — padding/gap follows Tailwind units `2`, `2.5`, `3`, `4`, `6`, `8`
 - **Border radius** — cards `rounded-[14px]`, rows `rounded-[8px]`, badges `rounded-full`/`rounded-[4px]`
+
+## Step 6: Visual Browser Testing (if any .tsx files changed)
+
+Invoke the `desktop-reviewer` and `mobile-reviewer` agents **in parallel** (launch both in the same message). Wait for both to complete and include their findings under a "VISUAL" section in the final report.
 
 ## Final Report Format
 
