@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,18 +30,25 @@ const TABS = [
 
 export default function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const now = useNow();
   const [activeTab, setActiveTab] = useState("itin");
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
   const [trip, setTrip] = useState<Trip | undefined>(getTripById(tripId));
 
+  const focus = searchParams.get("focus");
   useEffect(() => {
-    const hash = window.location.hash;
-    if (!hash) return;
-    const el = document.getElementById(hash.slice(1));
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, []);
+    if (!focus) return;
+    const tick = requestAnimationFrame(() => {
+      const el = document.getElementById(`event-${focus}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      router.replace(`/trips/${tripId}`, { scroll: false });
+    });
+    return () => cancelAnimationFrame(tick);
+  }, [focus, tripId, router]);
   const rawData = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
   const [days, setDays] = useState<DayItinerary[]>(rawData.days);
   const { docs, collaborators } = rawData;

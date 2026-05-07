@@ -121,7 +121,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
               Open trip
             </Link>
             <Link
-              href={displayEvent ? `/trips/${trip.id}#event-${displayEvent.id}` : `/trips/${trip.id}`}
+              href={displayEvent ? `/trips/${trip.id}?focus=${displayEvent.id}` : `/trips/${trip.id}`}
               className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
               style={{ fontSize: "0.8rem", borderRadius: "min(var(--radius-md), 12px)", background: "var(--accent-brand)", color: "#fff" }}
             >
@@ -161,7 +161,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
         {/* Current or next event */}
         {displayEvent && (
           <Link
-            href={`/trips/${trip.id}#event-${displayEvent.id}`}
+            href={`/trips/${trip.id}?focus=${displayEvent.id}`}
             className="block mt-4 rounded-[10px] group"
             style={{
               background: "var(--accent-soft)",

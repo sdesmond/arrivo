@@ -274,7 +274,7 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
       {/* Now / Next Event card */}
       {status === "active" && displayEvent && (
         <Link
-          href={`/trips/${trip.id}`}
+          href={`/trips/${trip.id}?focus=${displayEvent.id}`}
           className="rounded-[14px] group"
           style={{
             background: "var(--accent-soft)",
