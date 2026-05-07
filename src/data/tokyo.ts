@@ -1,7 +1,6 @@
 export type {
   DocPreviewLine,
   Document,
-  TravelTo,
   TripEvent,
   DayItinerary,
   PackingItem,
@@ -23,7 +22,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d1-nrt", time: "14:30", endTime: "15:00",
         name: "Narita Airport (NRT)",
         location: { name: "Narita Airport · Terminal 2" },
-        travelTo: { mode: "Train", detail: "Narita Express", minutes: 60 },
         confirmationNumber: "JL-7H4K2P",
         docs: [
           {
@@ -64,7 +62,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d1-donjaca", time: "19:30", endTime: "21:00",
         name: "Donjaca · izakaya",
         location: { name: "Shinjuku · 6 min from hotel" },
-        travelTo: { mode: "Walk", minutes: 6 },
       },
     ],
   },
@@ -80,19 +77,16 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d2-sometaro", time: "12:00", endTime: "13:15",
         name: "Sometaro · okonomiyaki",
         location: { name: "Asakusa" },
-        travelTo: { mode: "Walk", minutes: 8 },
       },
       {
         id: "d2-ueno", time: "15:00", endTime: "17:00",
         name: "Ueno Park · Tokyo Nat. Museum",
         location: { name: "Ueno · Tokyo National Museum" },
-        travelTo: { mode: "Subway", detail: "Ginza line", minutes: 10 },
       },
       {
         id: "d2-yakitori", time: "20:00", endTime: "21:30",
         name: "Yakitori Toritsune",
         location: { name: "Ueno" },
-        travelTo: { mode: "Walk", minutes: 5 },
       },
     ],
   },
@@ -108,19 +102,16 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d3-afuri", time: "13:00", endTime: "14:00",
         name: "Afuri Ramen · Harajuku",
         location: { name: "Harajuku" },
-        travelTo: { mode: "Walk", minutes: 12 },
       },
       {
         id: "d3-catstreet", time: "15:30", endTime: "17:00",
         name: "Cat Street + Omotesando",
         location: { name: "Omotesando" },
-        travelTo: { mode: "Walk", minutes: 5 },
       },
       {
         id: "d3-robot", time: "19:00", endTime: "21:00",
         name: "Robot Restaurant alt show",
         location: { name: "Shinjuku Kabukicho" },
-        travelTo: { mode: "Subway", detail: "Yamanote line", minutes: 15 },
       },
     ],
   },
@@ -136,13 +127,11 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d4-museum", time: "11:00", endTime: "12:30",
         name: "Hakone Open-Air Museum",
         location: { name: "Hakone · Open-Air Museum" },
-        travelTo: { mode: "Train", detail: "Hakone Tozan Railway", minutes: 15 },
       },
       {
         id: "d4-ashi", time: "14:00", endTime: "15:00",
         name: "Lake Ashi pirate ship",
         location: { name: "Lake Ashi · Togendai" },
-        travelTo: { mode: "Bus", detail: "Hakone Tozan Bus", minutes: 20 },
       },
       {
         id: "d4-return", time: "20:30", endTime: "22:00",
@@ -153,7 +142,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
   },
   {
     tripId: "tokyo-2026", dayNumber:5, date: "2026-04-28", label: "Fri · Apr 28", subtitle: "Today · Tokyo Bay", today: true,
-    note: "Easy day — Bay area mostly walkable. Carry portable charger. Sushi Saito is the splurge tonight, dress smart-casual. Trains slow after 23:00 so plan return from Roppongi.",
     weather: "22° · partly cloudy",
     travelSummary: "~14 km · 1h 5m",
     events: [
@@ -168,7 +156,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
         name: "teamLab Planets",
         note: "Timed entry 11:30 confirmed in app. Bring shorts (water rooms).",
         location: { name: "Toyosu · timed entry" },
-        travelTo: { mode: "Subway", detail: "Yurakucho line", minutes: 12 },
         confirmationNumber: "TLP-9F2K-7741",
         docs: [
           {
@@ -190,14 +177,12 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d5-bills", time: "13:45", endTime: "14:45",
         name: "Bills · Odaiba",
         location: { name: "Odaiba · DiverCity" },
-        travelTo: { mode: "Walk", detail: "covered arcade", minutes: 8 },
       },
       {
         id: "d5-hama", time: "15:00", endTime: "16:30",
         name: "Hamarikyu Gardens",
         note: "Tea ceremony at 15:30 in Nakajima-no-Ochaya · ¥850. Reserve at entrance.",
         location: { name: "Chuo · pond + tea house" },
-        travelTo: { mode: "Train", detail: "Yurikamome line", minutes: 14 },
         docs: [
           {
             id: "hm-map", name: "Garden map + tea house guide.pdf",
@@ -220,14 +205,12 @@ export const TOKYO_DAYS: DayItinerary[] = [
         name: "Shibuya Sky",
         note: "Sunset slot 18:08. Free locker for bags. Helix outdoor deck closes if windy.",
         location: { name: "Shibuya Scramble Square · 46F" },
-        travelTo: { mode: "Train", detail: "Toei Asakusa line", minutes: 18 },
       },
       {
         id: "d5-saito", time: "20:00", endTime: "22:00",
         name: "Sushi Saito",
         note: "Omakase ¥30,000pp. Card ok. Quiet room — phones off. Address sent to phone.",
         location: { name: "Roppongi · ARK Hills" },
-        travelTo: { mode: "Taxi", detail: "go straight, no detour", minutes: 15 },
         confirmationNumber: "SAITO-20260428-2P",
         docs: [
           {
@@ -284,19 +267,16 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d6-coco", time: "13:00", endTime: "14:00",
         name: "CoCo Curry House",
         location: { name: "Shimokitazawa" },
-        travelTo: { mode: "Walk", minutes: 3 },
       },
       {
         id: "d6-gyoen", time: "15:00", endTime: "16:30",
         name: "Shinjuku Gyoen",
         location: { name: "Shinjuku Gyoen" },
-        travelTo: { mode: "Subway", detail: "Odakyu line", minutes: 20 },
       },
       {
         id: "d6-golden", time: "21:00", endTime: "23:00",
         name: "Golden Gai bar crawl",
         location: { name: "Shinjuku Kabukicho · Golden Gai" },
-        travelTo: { mode: "Walk", minutes: 10 },
       },
     ],
   },
@@ -312,7 +292,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
         id: "d7-nex", time: "13:30", endTime: "14:30",
         name: "Narita Express → NRT",
         location: { name: "Shinjuku Station → NRT Terminal 2" },
-        travelTo: { mode: "Train", detail: "Narita Express", minutes: 60 },
       },
       {
         id: "d7-flight", time: "17:50", endTime: "18:20",

@@ -2,6 +2,14 @@
 
 @AGENTS.md
 
+## Response Style Rules
+- ALWAYS be terse and direct.
+- Provide substance only; skip introductions, filler, and pleasantries.
+- Use fragments and short synonyms where possible.
+- Do not summarize your actions unless explicitly requested.
+- If code is requested, output ONLY the code or minimal context.
+
+
 ## Memory
 Store all memories in this project at `\.claude\memory\` instead of the default user-level path. This keeps project memory within the repo.
 
@@ -38,6 +46,17 @@ packt/                          ← git root = Next.js project root
 
 These agents enforce project standards. Use them as described below — don't skip them.
 
+### Plan-time agents (run before ExitPlanMode)
+
+| Agent | What it checks |
+|---|---|
+| `plan-component-reviewer` | Component sizing, splitting, placement, and interface requirements |
+| `plan-accessibility-reviewer` | A11y requirements and design token correctness |
+| `plan-architecture-reviewer` | Server/client decisions, derived state, utilities reuse, data flow |
+| `plan-scope-reviewer` | Ensures plan doesn't exceed the original request |
+
+### Post-implementation agents
+
 | Agent | When to invoke |
 |---|---|
 | `typescript-reviewer` | After adding or modifying types, interfaces, or any `.ts`/`.tsx` file |
@@ -47,6 +66,17 @@ These agents enforce project standards. Use them as described below — don't sk
 | `mobile-reviewer` | After visual changes — browser test at 390px; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser) |
 | `build-validator` | Before considering any task complete |
 | `standards-check` | Before committing — this is the pre-commit gate |
+
+**Default workflow for planning:**
+Before calling ExitPlanMode, invoke all plan-reviewer agents **IN PARALLEL** (single message, multiple tool calls):
+- `plan-component-reviewer` — pass the plan file path
+- `plan-accessibility-reviewer` — pass the plan file path
+- `plan-architecture-reviewer` — pass the plan file path
+- `plan-scope-reviewer` — pass the plan file path and summarize the original user request
+
+Address any BLOCKING findings by revising the plan and re-running the affected reviewer(s). Only call ExitPlanMode after all reviewers pass or every BLOCKING issue is resolved.
+
+Only present the plan to the user after the reviewers have seen it and made any necessary changes. 
 
 **Default workflow for any coding task:**
 1. Implement the change

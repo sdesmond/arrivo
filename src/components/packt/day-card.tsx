@@ -194,27 +194,6 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
       {/* Collapsible body */}
       {open && (
         <div className="p-3 flex flex-col">
-          {/* Day note */}
-          {d.note && (
-            <div
-              className="rounded-[6px] px-3 py-2.5 mb-3"
-              style={{
-                fontSize: 12.5, color: "var(--fg-2)",
-                background: "var(--surface-2)",
-                borderLeft: "2px solid var(--accent-brand)",
-              }}
-            >
-              <div style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 9, fontWeight: 600, letterSpacing: "0.08em",
-                textTransform: "uppercase", color: "var(--fg-4)", marginBottom: 4,
-              }}>
-                DAY NOTES
-              </div>
-              {d.note}
-            </div>
-          )}
-
           {/* Unscheduled events */}
           {unscheduledEvents.length > 0 && (
             <div className="mb-2">
