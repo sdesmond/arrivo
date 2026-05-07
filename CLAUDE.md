@@ -43,8 +43,8 @@ These agents enforce project standards. Use them as described below — don't sk
 | `typescript-reviewer` | After adding or modifying types, interfaces, or any `.ts`/`.tsx` file |
 | `component-reviewer` | After creating or significantly modifying a component in `src/components/` |
 | `ui-reviewer` | After visual/styling changes — static code review only (design tokens, a11y, spacing, etc.) |
-| `desktop-reviewer` | After visual changes — browser test at 1280px; run in parallel with `mobile-reviewer` |
-| `mobile-reviewer` | After visual changes — browser test at 390px; run in parallel with `desktop-reviewer` |
+| `desktop-reviewer` | After visual changes — browser test at 1280px; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser) |
+| `mobile-reviewer` | After visual changes — browser test at 390px; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser) |
 | `build-validator` | Before considering any task complete |
 | `standards-check` | Before committing — this is the pre-commit gate |
 
