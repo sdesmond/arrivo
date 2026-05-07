@@ -27,11 +27,11 @@ If the Playwright MCP tools are unavailable (tool not found errors), report: "Pl
 mkdir -p "c:\Users\spenc\dev\packt\.ui-review-screenshots"
 ```
 
-Screenshots go in `c:\Users\spenc\dev\packt\.ui-review-screenshots\`. This directory is gitignored and safe to accumulate files in.
+**ALL screenshots MUST be saved in `c:\Users\spenc\dev\packt\.ui-review-screenshots\` — no exceptions.** Always pass the full absolute path to the `filename` parameter of `browser_take_screenshot`, e.g. `c:\Users\spenc\dev\packt\.ui-review-screenshots\trips-desktop.png`. Never pass a bare filename or save to any other location. This directory is gitignored and safe to accumulate files in.
 
 **1c. Navigate and inspect for errors** using the Playwright MCP tools:
 
-> **Viewport note:** The Playwright MCP server does not support setting viewport size at launch. Always call `browser_resize` *after* `browser_navigate` to establish a known width before snapshotting. Test each route at both desktop (1280×800) and mobile (390×844) widths.
+> **Viewport note:** The Playwright MCP server does not support setting viewport size at launch. Always call `browser_resize` *after* `browser_navigate` to establish a known width before snapshotting. **You MUST test every route at BOTH desktop (1280×800) AND mobile (390×844) widths — this is non-negotiable. A review that only tests desktop (or only mobile) is incomplete and must not be reported as passing.**
 
 Per route (`http://localhost:3000`, `http://localhost:3000/trips`, and any other relevant routes):
 
