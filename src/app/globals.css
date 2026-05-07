@@ -82,6 +82,12 @@
   --accent-fg: #ffffff;
   --accent-ink: #0a4a44;
 
+  /* Cover / photo overlay tokens — same in both themes (scrim always on photo) */
+  --cover-scrim: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 60%, transparent 100%);
+  --cover-text: #ffffff;
+  --cover-text-dim: rgba(255,255,255,0.65);
+  --cover-text-sub: rgba(255,255,255,0.72);
+
   /* Shadows — light */
   --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-2: 0 1px 0 rgba(0, 0, 0, 0.02), 0 6px 24px rgba(0, 0, 0, 0.06);

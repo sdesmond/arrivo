@@ -13,7 +13,7 @@ import { type Trip, type TripEvent, type DayItinerary } from "@/data/types";
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
-function formatTripHeader(start: string, end: string) {
+function formatTripHeader(start: string, end: string): string {
   const MONTH_ABBREVIATIONS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const [, startMonth, startDay] = start.split("-").map(Number);
   const [endYear, endMonth, endDay] = end.split("-").map(Number);
@@ -53,33 +53,33 @@ export default function TripDetailPage() {
   const [days, setDays] = useState<DayItinerary[]>(rawData.days);
   const { docs, collaborators } = rawData;
 
-  function handleEventUpdate(updated: TripEvent) {
+  function handleEventUpdate(updated: TripEvent): void {
     setDays(prev => prev.map(day => ({
       ...day,
-      events: day.events.map(e => e.id === updated.id ? updated : e),
+      events: day.events.map(ev => ev.id === updated.id ? updated : ev),
     })));
   }
 
-  function handleEventDelete(id: string) {
+  function handleEventDelete(id: string): void {
     setDays(prev => prev.map(day => ({
       ...day,
-      events: day.events.filter(e => e.id !== id),
+      events: day.events.filter(ev => ev.id !== id),
     })));
   }
 
-  function handleEventReorder(dayNumber: number, events: TripEvent[]) {
+  function handleEventReorder(dayNumber: number, events: TripEvent[]): void {
     setDays(prev => prev.map(day =>
       day.dayNumber === dayNumber ? { ...day, events } : day
     ));
   }
 
-  function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>) {
+  function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): void {
     setDays(prev => prev.map(day =>
       day.dayNumber === dayNumber ? { ...day, ...updates } : day
     ));
   }
 
-  function handleTripSave(updated: Trip) {
+  function handleTripSave(updated: Trip): void {
     setTrip(updated);
     setEditingTrip(null);
   }
@@ -100,8 +100,8 @@ export default function TripDetailPage() {
       >
         <Link
           href="/trips"
-          className="inline-flex shrink-0 items-center gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] font-medium h-7 transition-colors hover:bg-muted"
-          style={{ color: "var(--foreground)" }}
+          className="inline-flex shrink-0 items-center gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 font-medium h-7 transition-colors hover:bg-surface"
+          style={{ fontSize: "0.8rem", color: "var(--fg)" }}
         >
           <ChevronLeft size={14} strokeWidth={1.5} />
           Trips
@@ -141,7 +141,7 @@ export default function TripDetailPage() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)",
+            background: "var(--cover-scrim)",
           }}
         />
         {/* Overlay info */}
@@ -151,7 +151,7 @@ export default function TripDetailPage() {
               fontFamily: "var(--font-mono-family, ui-monospace)",
               fontSize: "10.5px", fontWeight: 500,
               letterSpacing: "0.08em", textTransform: "uppercase",
-              color: "rgba(255,255,255,0.65)",
+              color: "var(--cover-text-dim)",
               marginBottom: 6,
             }}
           >
@@ -163,14 +163,14 @@ export default function TripDetailPage() {
               fontSize: "clamp(28px, 5vw, 40px)",
               fontWeight: 800,
               letterSpacing: "-0.03em",
-              color: "#fff",
+              color: "var(--cover-text)",
               lineHeight: 1.05,
               marginBottom: 10,
             }}
           >
             {trip.name}
           </h1>
-          <div className="flex items-center gap-4 flex-wrap" style={{ color: "rgba(255,255,255,0.72)", fontSize: 12.5 }}>
+          <div className="flex items-center gap-4 flex-wrap" style={{ color: "var(--cover-text-sub)", fontSize: 12.5 }}>
             <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days</span>
             <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
             <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{docs.length} docs</span>

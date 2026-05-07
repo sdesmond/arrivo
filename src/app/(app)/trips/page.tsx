@@ -40,7 +40,12 @@ function withTodayEvents(trip: Trip, now: Date): Trip {
 }
 
 // ─── Desktop topbar ──────────────────────────────────────────────────────────
-function Topbar({ tripCount, pastCount, now }: { tripCount: number; pastCount: number; now: Date }) {
+interface TopbarProps {
+  tripCount: number;
+  pastCount: number;
+  now: Date;
+}
+function Topbar({ tripCount, pastCount, now }: TopbarProps) {
   const todayFormatted = now.toLocaleDateString("en-US", {
     month: "2-digit", day: "2-digit", year: "numeric",
   }).replace(/\//g, ".");
@@ -103,9 +108,12 @@ function Topbar({ tripCount, pastCount, now }: { tripCount: number; pastCount: n
 }
 
 // ─── Section heading ─────────────────────────────────────────────────────────
-function SectionHead({
-  title, count, children,
-}: { title: string; count?: string; children?: React.ReactNode }) {
+interface SectionHeadProps {
+  title: string;
+  count?: string;
+  children?: React.ReactNode;
+}
+function SectionHead({ title, count, children }: SectionHeadProps) {
   return (
     <div className="flex items-center gap-3 mb-4">
       <h2
@@ -136,7 +144,11 @@ function SectionHead({
 }
 
 // ─── Past trips list ──────────────────────────────────────────────────────────
-function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip: Trip) => void }) {
+interface PastTripsListProps {
+  trips: Trip[];
+  onEditTrip: (trip: Trip) => void;
+}
+function PastTripsList({ trips, onEditTrip }: PastTripsListProps) {
   return (
     <div
       className="rounded-[14px] overflow-hidden"
@@ -181,6 +193,7 @@ function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip
           <Badge variant="outline">Past</Badge>
           <DropdownMenu>
             <DropdownMenuTrigger
+              title="Trip options"
               className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
             >
@@ -200,7 +213,11 @@ function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip
 }
 
 // ─── Mobile — Active tab ─────────────────────────────────────────────────────
-function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
+interface MobileActiveTabProps {
+  trip: Trip | null;
+  now: Date;
+}
+function MobileActiveTab({ trip, now }: MobileActiveTabProps) {
   if (!trip) {
     return (
       <div
@@ -219,15 +236,15 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
   const todayEvents = trip.events ?? [];
   const currentEvent = [...todayEvents].reverse().find((ev) => {
     if (!ev.time) return false;
-    const [h, m] = ev.time.split(":").map(Number);
-    const t = new Date(now); t.setHours(h, m, 0, 0);
-    return t <= now;
+    const [hours, minutes] = ev.time.split(":").map(Number);
+    const eventTime = new Date(now); eventTime.setHours(hours, minutes, 0, 0);
+    return eventTime <= now;
   }) ?? null;
   const nextEvent = todayEvents.find((ev) => {
     if (!ev.time) return false;
-    const [h, m] = ev.time.split(":").map(Number);
-    const t = new Date(now); t.setHours(h, m, 0, 0);
-    return t > now;
+    const [hours, minutes] = ev.time.split(":").map(Number);
+    const eventTime = new Date(now); eventTime.setHours(hours, minutes, 0, 0);
+    return eventTime > now;
   }) ?? null;
   const displayEvent = currentEvent ?? nextEvent;
   const eventLabel   = currentEvent ? "Now" : "Next Event";
@@ -342,7 +359,7 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
             <Link
               key={ev.id}
               href={`/trips/${trip.id}/days/${activeDayNum ?? 1}?focus=${ev.id}`}
-              className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface"
+              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface"
               style={{
                 opacity: isEventPast(ev, now) ? 0.5 : 1,
                 background: isEventNow(ev, now) ? "var(--accent-soft)" : undefined,
@@ -373,7 +390,7 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
 
       <Link
         href={`/trips/${trip.id}`}
-        className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium whitespace-nowrap transition-all h-7 px-2.5"
+        className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium whitespace-nowrap transition-all h-11 px-2.5"
         style={{ border: "1px solid var(--line)", background: "var(--bg)", color: "var(--fg)" }}
       >
         Open trip →
@@ -382,7 +399,11 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
   );
 }
 
-function MobileUpcomingTab({ trips, now }: { trips: Trip[]; now: Date }) {
+interface MobileUpcomingTabProps {
+  trips: Trip[];
+  now: Date;
+}
+function MobileUpcomingTab({ trips, now }: MobileUpcomingTabProps) {
   return (
     <div className="flex flex-col gap-3">
       {trips.map((trip) => {
@@ -427,7 +448,10 @@ function MobileUpcomingTab({ trips, now }: { trips: Trip[]; now: Date }) {
   );
 }
 
-function MobilePastTab({ trips }: { trips: Trip[] }) {
+interface MobilePastTabProps {
+  trips: Trip[];
+}
+function MobilePastTab({ trips }: MobilePastTabProps) {
   return (
     <div className="flex flex-col gap-3">
       {trips.map((trip) => (
@@ -457,24 +481,24 @@ export default function TripsPage() {
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const now = useNow();
 
-  const activeTrips   = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "active");
-  const upcomingTrips = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "upcoming");
-  const pastTrips     = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "past");
+  const activeTrips   = trips.filter(trip => getTripStatus(trip.startDate, trip.endDate, now) === "active");
+  const upcomingTrips = trips.filter(trip => getTripStatus(trip.startDate, trip.endDate, now) === "upcoming");
+  const pastTrips     = trips.filter(trip => getTripStatus(trip.startDate, trip.endDate, now) === "past");
   const activeTrip    = activeTrips[0] ? withTodayEvents(activeTrips[0], now) : null;
 
   const [mobileTab, setMobileTab] = useState<MobileTab>(() =>
-    ALL_TRIPS.some(t => getTripStatus(t.startDate, t.endDate, now) === "active") ? "Active" : "Upcoming"
+    ALL_TRIPS.some(trip => getTripStatus(trip.startDate, trip.endDate, now) === "active") ? "Active" : "Upcoming"
   );
 
   const nextInDays = upcomingTrips.length > 0
-    ? Math.min(...upcomingTrips.map(t => {
+    ? Math.min(...upcomingTrips.map(trip => {
         const today = new Date(now); today.setHours(0, 0, 0, 0);
-        return Math.ceil((new Date(t.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       }))
     : null;
 
-  function handleTripSave(updated: Trip) {
-    setTrips(prev => prev.map(t => t.id === updated.id ? updated : t));
+  function handleTripSave(updated: Trip): void {
+    setTrips(prev => prev.map(trip => trip.id === updated.id ? updated : trip));
     setEditingTrip(null);
   }
 
@@ -567,11 +591,11 @@ export default function TripsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <Button variant="ghost" size="icon-sm">
+              <ThemeToggle style={{ minHeight: 44, minWidth: 44 }} />
+              <Button variant="ghost" size="icon-sm" title="Search trips" style={{ minHeight: 44, minWidth: 44 }}>
                 <Search size={15} strokeWidth={1.5} />
               </Button>
-              <Button size="icon-sm">
+              <Button size="icon-sm" title="New trip" style={{ minHeight: 44, minWidth: 44 }}>
                 <Plus size={15} strokeWidth={1.5} />
               </Button>
             </div>
@@ -586,8 +610,10 @@ export default function TripsPage() {
               <button
                 key={tab}
                 onClick={() => setMobileTab(tab)}
-                className="px-4 py-2 text-[13px] font-medium transition-colors"
+                className="px-4 py-2 font-medium transition-colors"
                 style={{
+                  fontSize: 13,
+                  minHeight: 44,
                   color: mobileTab === tab ? "var(--accent-brand)" : "var(--fg-3)",
                   borderBottom: mobileTab === tab
                     ? "2px solid var(--accent-brand)"

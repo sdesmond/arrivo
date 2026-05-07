@@ -5,8 +5,9 @@ import { Calendar, FileText, Users, Plus, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
-import { type Trip } from "@/data/trips";
+import { type Trip } from "@/data/types";
 import { getTripDays } from "@/lib/utils";
+import { useNow } from "@/components/providers/mock-date-provider";
 
 interface TripCardProps {
   trip: Trip;
@@ -14,7 +15,10 @@ interface TripCardProps {
 }
 
 export function TripCard({ trip, onEditTrip }: TripCardProps) {
+  const now = useNow();
   const sub = `${getTripDays(trip.startDate, trip.endDate)} DAYS`;
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const inDays = Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   return (
     <Link
@@ -60,7 +64,7 @@ export function TripCard({ trip, onEditTrip }: TripCardProps) {
             </div>
           </div>
           <Badge variant="soft" className="shrink-0 mt-0.5">
-            in {trip.inDays}d
+            in {inDays}d
           </Badge>
         </div>
 

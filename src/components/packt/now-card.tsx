@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
-import { type Trip } from "@/data/trips";
+import { type Trip } from "@/data/types";
+import { cn } from "@/lib/utils";
 import { getTripStatus, formatTripDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
@@ -27,16 +28,16 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
 
   const currentEvent = [...todayEvents].reverse().find((ev) => {
     if (!ev.time) return false;
-    const [h, m] = ev.time.split(":").map(Number);
-    const t = new Date(now); t.setHours(h, m, 0, 0);
-    return t <= now;
+    const [hours, minutes] = ev.time.split(":").map(Number);
+    const eventTime = new Date(now); eventTime.setHours(hours, minutes, 0, 0);
+    return eventTime <= now;
   }) ?? null;
 
   const nextEvent = todayEvents.find((ev) => {
     if (!ev.time) return false;
-    const [h, m] = ev.time.split(":").map(Number);
-    const t = new Date(now); t.setHours(h, m, 0, 0);
-    return t > now;
+    const [hours, minutes] = ev.time.split(":").map(Number);
+    const eventTime = new Date(now); eventTime.setHours(hours, minutes, 0, 0);
+    return eventTime > now;
   }) ?? null;
 
   const displayEvent = currentEvent ?? nextEvent;
@@ -77,7 +78,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
               }}
             >
               <span
-                className={`${status === "active" ? "pulse" : ""} rounded-full shrink-0`}
+                className={cn(status === "active" && "pulse", "rounded-full shrink-0")}
                 style={{
                   width: 6, height: 6,
                   background: "var(--accent-brand)",
@@ -123,7 +124,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
             <Link
               href={displayEvent ? `/trips/${trip.id}?focus=${displayEvent.id}` : `/trips/${trip.id}`}
               className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
-              style={{ fontSize: "0.8rem", borderRadius: "min(var(--radius-md), 12px)", background: "var(--accent-brand)", color: "#fff" }}
+              style={{ fontSize: "0.8rem", borderRadius: "min(var(--radius-md), 12px)", background: "var(--accent-brand)", color: "var(--accent-fg)" }}
             >
               <MapPin size={13} strokeWidth={1.5} />
               Today
@@ -162,7 +163,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
         {displayEvent && (
           <Link
             href={`/trips/${trip.id}?focus=${displayEvent.id}`}
-            className="block mt-4 rounded-[10px] group"
+            className="block mt-4 rounded-[8px] group"
             style={{
               background: "var(--accent-soft)",
               border: "1px solid var(--line)",
