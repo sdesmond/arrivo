@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
@@ -10,7 +10,7 @@ import { DayCard } from "@/components/packt/day-card";
 import { getTripById, TRIP_DATA } from "@/data/trips"
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet"
 import { type Trip, type TripEvent, type DayItinerary } from "@/data/types";
-import { getTripStatus } from "@/lib/utils";
+import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 function formatTripHeader(start: string, end: string) {
@@ -35,6 +35,13 @@ export default function TripDetailPage() {
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
   const [trip, setTrip] = useState<Trip | undefined>(getTripById(tripId));
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash) return;
+    const el = document.getElementById(hash.slice(1));
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
   const rawData = TRIP_DATA[tripId] ?? { days: [], docs: [], collaborators: [] };
   const [days, setDays] = useState<DayItinerary[]>(rawData.days);
   const { docs, collaborators } = rawData;
@@ -73,7 +80,7 @@ export default function TripDetailPage() {
   if (!trip) return <div style={{ padding: 24, color: "var(--fg-2)" }}>Trip not found.</div>;
 
   const eventCount   = days.reduce((count, day) => count + day.events.length, 0);
-  const dayTotal     = trip.dayTotal ?? trip.days ?? 0;
+  const dayTotal     = trip.dayTotal ?? getTripDays(trip.startDate, trip.endDate);
   const status       = getTripStatus(trip.startDate, trip.endDate, now);
   const heroDateLine = formatTripHeader(trip.startDate, trip.endDate);
 
@@ -108,7 +115,7 @@ export default function TripDetailPage() {
             <Download size={13} strokeWidth={1.5} />
             Offline
           </Button>
-          <Button variant="outline" size="icon-sm">
+          <Button variant="outline" size="icon-sm" title="More options">
             <MoreHorizontal size={13} strokeWidth={1.5} />
           </Button>
         </div>

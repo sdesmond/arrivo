@@ -231,6 +231,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                   {unscheduledEvents.map((p, i) => (
                     <SortablePlaceRow
                       key={p.id ?? i}
+                      id={`event-${p.id}`}
                       place={{ ...p, date: p.date ?? d.date }}
                       isLast={i === unscheduledEvents.length - 1 && scheduledEvents.length === 0}
                       onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}
@@ -248,6 +249,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
               {scheduledEvents.map((p, i) => (
                 <SortablePlaceRow
                   key={p.id ?? i}
+                  id={`event-${p.id}`}
                   place={{ ...p, date: p.date ?? d.date }}
                   isLast={i === scheduledEvents.length - 1}
                   onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}

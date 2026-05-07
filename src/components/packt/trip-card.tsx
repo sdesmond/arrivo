@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/trips";
+import { getTripDays } from "@/lib/utils";
 
 interface TripCardProps {
   trip: Trip;
@@ -13,7 +14,7 @@ interface TripCardProps {
 }
 
 export function TripCard({ trip, onEditTrip }: TripCardProps) {
-  const sub = `${trip.days} DAYS`;
+  const sub = `${getTripDays(trip.startDate, trip.endDate)} DAYS`;
 
   return (
     <Link
@@ -70,7 +71,7 @@ export function TripCard({ trip, onEditTrip }: TripCardProps) {
         >
           <span className="flex items-center gap-1">
             <Calendar size={13} strokeWidth={1.5} />
-            {trip.days} days
+            {getTripDays(trip.startDate, trip.endDate)} days
           </span>
           <span className="flex items-center gap-1">
             <FileText size={13} strokeWidth={1.5} />

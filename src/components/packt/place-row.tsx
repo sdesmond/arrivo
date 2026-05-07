@@ -242,9 +242,10 @@ interface PlaceRowProps {
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
   dragHandle?: React.ReactNode;
+  id?: string;
 }
 
-export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: PlaceRowProps) {
+export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -283,6 +284,7 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
 
   return (
     <div
+      id={id}
       className="relative"
       style={{ zIndex: showTimePicker ? 10 : undefined }}
       onMouseEnter={() => setIsHovered(true)}
@@ -349,7 +351,7 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle }: P
                   onClick={() => { setDraftName(p.name); setIsEditingName(true); }}
                   style={{
                     color: "var(--fg-4)",
-                    opacity: isHovered ? 1 : 0,
+                    opacity: isHovered ? 1 : 0.25,
                     transition: "opacity 0.1s",
                     display: "flex", alignItems: "center",
                     padding: 2, borderRadius: 3,

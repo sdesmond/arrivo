@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Share2, MapPin, CheckCircle, Pencil } from "lucide-react";
+import { Share2, MapPin, CheckCircle, Pencil, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/trips";
-import { getTripStatus } from "@/lib/utils";
+import { getTripStatus, formatTripDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 interface NowCardProps {
@@ -22,6 +22,25 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
                     : status === "upcoming" ? "UPCOMING TRIP"
                     : "PAST TRIP";
   const sub = status === "upcoming" ? trip.startDate : status === "past" ? trip.endDate : "";
+
+  const todayEvents = trip.events ?? [];
+
+  const currentEvent = [...todayEvents].reverse().find((ev) => {
+    if (!ev.time) return false;
+    const [h, m] = ev.time.split(":").map(Number);
+    const t = new Date(now); t.setHours(h, m, 0, 0);
+    return t <= now;
+  }) ?? null;
+
+  const nextEvent = todayEvents.find((ev) => {
+    if (!ev.time) return false;
+    const [h, m] = ev.time.split(":").map(Number);
+    const t = new Date(now); t.setHours(h, m, 0, 0);
+    return t > now;
+  }) ?? null;
+
+  const displayEvent = currentEvent ?? nextEvent;
+  const eventLabel   = currentEvent ? "Now" : "Next Event";
 
   return (
     <div
@@ -80,7 +99,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
               {trip.name}
             </h2>
             <div style={{ color: "var(--fg-3)", fontSize: 13.5, marginTop: 4 }}>
-              {trip.startDate} — {trip.endDate}
+              {formatTripDate(trip.startDate)} – {formatTripDate(trip.endDate)}
             </div>
           </div>
 
@@ -96,15 +115,15 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
             </Button>
             <Link
               href={`/trips/${trip.id}`}
-              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem]"
-              style={{ border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }}
+              className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
+              style={{ fontSize: "0.8rem", borderRadius: "min(var(--radius-md), 12px)", border: "1px solid var(--line)", background: "var(--bg)", color: "var(--fg)" }}
             >
               Open trip
             </Link>
             <Link
-              href={`/trips/${trip.id}`}
-              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem]"
-              style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+              href={displayEvent ? `/trips/${trip.id}#event-${displayEvent.id}` : `/trips/${trip.id}`}
+              className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
+              style={{ fontSize: "0.8rem", borderRadius: "min(var(--radius-md), 12px)", background: "var(--accent-brand)", color: "#fff" }}
             >
               <MapPin size={13} strokeWidth={1.5} />
               Today
@@ -139,61 +158,65 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
           )}
         </div>
 
-        {/* Meta grid */}
-        <div
-          className="grid grid-cols-2 gap-4 mt-4 pt-4 min-[900px]:grid-cols-4"
-          style={{ borderTop: "1px solid var(--line)" }}
-        >
-          <MetaCell label="Where" value="Tokyo Bay area" sub="Hamarikyu now" />
-          <MetaCell label="Weather" value="19°C clear" sub="light wind · 11 km/h" />
-          <MetaCell label="Local time" value="14:08" sub="UTC+9 · JST" />
-          <MetaCell label="Next event" value="17:30" sub="Shibuya Sky · 3.4 km" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MetaCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div>
-      <div
-        style={{
-          fontFamily: "var(--font-mono-family, ui-monospace)",
-          fontSize: "10.5px",
-          fontWeight: 500,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          color: "var(--fg-3)",
-          lineHeight: 1,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-heading-family, ui-sans-serif)",
-          fontSize: 17,
-          fontWeight: 600,
-          color: "var(--fg)",
-          marginTop: 4,
-          lineHeight: 1.2,
-        }}
-      >
-        {value}
-        {sub && (
-          <span
+        {/* Current or next event */}
+        {displayEvent && (
+          <Link
+            href={`/trips/${trip.id}#event-${displayEvent.id}`}
+            className="block mt-4 rounded-[10px] group"
             style={{
-              display: "block",
-              fontFamily: "var(--font-body, ui-sans-serif)",
-              fontWeight: 400,
-              fontSize: 12,
-              color: "var(--fg-3)",
-              marginTop: 2,
+              background: "var(--accent-soft)",
+              border: "1px solid var(--line)",
+              padding: "14px 16px",
             }}
           >
-            {sub}
-          </span>
+            <div
+              style={{
+                fontFamily: "var(--font-mono-family, ui-monospace)",
+                fontSize: "10.5px",
+                fontWeight: 500,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--accent-brand)",
+              }}
+            >
+              {eventLabel}
+            </div>
+
+            <div className="flex items-center justify-between mt-1">
+              <span
+                style={{
+                  fontFamily: "var(--font-heading-family, ui-sans-serif)",
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: "var(--fg)",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {displayEvent.name}
+              </span>
+              <ChevronRight
+                size={18}
+                strokeWidth={1.5}
+                style={{ color: "var(--fg-3)" }}
+                className="group-hover:translate-x-0.5 transition-transform"
+              />
+            </div>
+
+            <div
+              style={{
+                fontFamily: "var(--font-body, ui-sans-serif)",
+                fontSize: 13,
+                color: "var(--fg-3)",
+                marginTop: 4,
+              }}
+            >
+              {displayEvent.time}
+              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>
+              —
+              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>
+              — km
+            </div>
+          </Link>
         )}
       </div>
     </div>

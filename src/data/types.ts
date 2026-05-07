@@ -201,7 +201,6 @@ export interface Trip {
   endDate:   string;
 
   // Prototype-era computed/display fields — derive from dates in the UI eventually.
-  days?:       number;
   activeDayNumber?:       number;
   dayTotal?:   number;
   inDays?:     number;

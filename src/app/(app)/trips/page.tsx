@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Search, Bell, Plus, ArrowUpDown, Filter, MoreHorizontal, Pencil,
+  Search, Bell, Plus, ArrowUpDown, Filter, MoreHorizontal, Pencil, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,13 +20,24 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { ALL_TRIPS } from "@/data/trips";
+import { ALL_TRIPS, TRIP_DATA } from "@/data/trips";
 import { type Trip } from "@/data/types";
-import { isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
+import { isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay, getTripDays } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 // ─── Mobile tab types ───────────────────────────────────────────────────────
 type MobileTab = "Active" | "Upcoming" | "Past";
+
+function withTodayEvents(trip: Trip, now: Date): Trip {
+  const todayStr = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+  const todayEvents =
+    TRIP_DATA[trip.id]?.days.find((d) => d.date === todayStr)?.events ?? [];
+  return todayEvents.length > 0 ? { ...trip, events: todayEvents } : trip;
+}
 
 // ─── Desktop topbar ──────────────────────────────────────────────────────────
 function Topbar({ tripCount, pastCount, now }: { tripCount: number; pastCount: number; now: Date }) {
@@ -165,7 +176,7 @@ function PastTripsList({ trips, onEditTrip }: { trips: Trip[]; onEditTrip: (trip
               width: 52, textAlign: "right",
             }}
           >
-            {trip.days} DAYS
+            {getTripDays(trip.startDate, trip.endDate)} DAYS
           </span>
           <Badge variant="outline">Past</Badge>
           <DropdownMenu>
@@ -205,6 +216,22 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
   const statusLabel  = status === "active" ? "ACTIVE" : status === "upcoming" ? "UPCOMING" : "PAST";
   const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
 
+  const todayEvents = trip.events ?? [];
+  const currentEvent = [...todayEvents].reverse().find((ev) => {
+    if (!ev.time) return false;
+    const [h, m] = ev.time.split(":").map(Number);
+    const t = new Date(now); t.setHours(h, m, 0, 0);
+    return t <= now;
+  }) ?? null;
+  const nextEvent = todayEvents.find((ev) => {
+    if (!ev.time) return false;
+    const [h, m] = ev.time.split(":").map(Number);
+    const t = new Date(now); t.setHours(h, m, 0, 0);
+    return t > now;
+  }) ?? null;
+  const displayEvent = currentEvent ?? nextEvent;
+  const eventLabel   = currentEvent ? "Now" : "Next Event";
+
   return (
     <div className="flex flex-col gap-4">
       <div
@@ -243,6 +270,52 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
           </h2>
         </div>
       </div>
+
+      {/* Now / Next Event card */}
+      {status === "active" && displayEvent && (
+        <Link
+          href={`/trips/${trip.id}`}
+          className="rounded-[14px] group"
+          style={{
+            background: "var(--accent-soft)",
+            border: "1px solid var(--line)",
+            padding: "14px 16px",
+            display: "block",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--font-mono-family, ui-monospace)",
+              fontSize: "10.5px", fontWeight: 500,
+              letterSpacing: "0.06em", textTransform: "uppercase",
+              color: "var(--accent-brand)",
+            }}
+          >
+            {eventLabel}
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <span
+              style={{
+                fontFamily: "var(--font-heading-family, ui-sans-serif)",
+                fontSize: 18, fontWeight: 700,
+                color: "var(--fg)", letterSpacing: "-0.01em",
+              }}
+            >
+              {displayEvent.name}
+            </span>
+            <ChevronRight size={16} strokeWidth={1.5} style={{ color: "var(--fg-3)" }}
+              className="group-hover:translate-x-0.5 transition-transform"
+            />
+          </div>
+          <div style={{ fontFamily: "var(--font-body, ui-sans-serif)", fontSize: 13, color: "var(--fg-3)", marginTop: 4 }}>
+            {displayEvent.time}
+            <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>
+            —
+            <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>
+            — km
+          </div>
+        </Link>
+      )}
 
       {/* Today strip — only shown when trip is currently active by date */}
       {status === "active" && (
@@ -301,7 +374,7 @@ function MobileActiveTab({ trip, now }: { trip: Trip | null; now: Date }) {
       <Link
         href={`/trips/${trip.id}`}
         className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium whitespace-nowrap transition-all h-7 px-2.5"
-        style={{ border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }}
+        style={{ border: "1px solid var(--line)", background: "var(--bg)", color: "var(--fg)" }}
       >
         Open trip →
       </Link>
@@ -334,7 +407,7 @@ function MobileUpcomingTab({ trips, now }: { trips: Trip[]; now: Date }) {
                   letterSpacing: "0.04em", textTransform: "uppercase",
                 }}
               >
-                {trip.days} DAYS
+                {getTripDays(trip.startDate, trip.endDate)} DAYS
               </div>
               <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>
                 {trip.startDate} — {trip.endDate}
@@ -369,7 +442,7 @@ function MobilePastTab({ trips }: { trips: Trip[] }) {
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
               {trip.name}
             </div>
-            <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{trip.startDate} · {trip.days} days</div>
+            <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{trip.startDate} · {getTripDays(trip.startDate, trip.endDate)} days</div>
             <Badge variant="outline" className="w-fit mt-1">Past</Badge>
           </div>
         </Link>
@@ -387,7 +460,7 @@ export default function TripsPage() {
   const activeTrips   = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "active");
   const upcomingTrips = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "upcoming");
   const pastTrips     = trips.filter(t => getTripStatus(t.startDate, t.endDate, now) === "past");
-  const activeTrip    = activeTrips[0] ?? null;
+  const activeTrip    = activeTrips[0] ? withTodayEvents(activeTrips[0], now) : null;
 
   const [mobileTab, setMobileTab] = useState<MobileTab>(() =>
     ALL_TRIPS.some(t => getTripStatus(t.startDate, t.endDate, now) === "active") ? "Active" : "Upcoming"
@@ -486,7 +559,7 @@ export default function TripsPage() {
                 <span
                   style={{
                     display: "inline-block", width: 6, height: 6,
-                    borderRadius: "50%", background: "#1c8a5b",
+                    borderRadius: "50%", background: "var(--accent-brand)",
                     marginRight: 6, verticalAlign: "middle",
                   }}
                 />

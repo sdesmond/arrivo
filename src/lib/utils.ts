@@ -78,3 +78,15 @@ export function getTodayDisplay(now = getNow()): { date: number; month: string }
     month: now.toLocaleString("en-US", { month: "short" }),
   };
 }
+
+export function formatTripDate(dateStr: string): string {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
+}
+
+export function getTripDays(startDate: string, endDate: string): number {
+  const start = new Date(startDate + "T00:00:00");
+  const end   = new Date(endDate   + "T00:00:00");
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
