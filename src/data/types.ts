@@ -24,21 +24,6 @@ export const TripStatus = {
 } as const;
 export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 
-// Used for the travel-to-next-event connector, not for the event category itself.
-export const TransportMode = {
-  Walk:      "Walk",
-  Subway:    "Subway",
-  Train:     "Train",
-  Bus:       "Bus",
-  Taxi:      "Taxi",
-  Rideshare: "Rideshare",
-  Ferry:     "Ferry",
-  Bike:      "Bike",
-  Car:       "Car",
-  Other:     "Other",
-} as const;
-export type TransportMode = (typeof TransportMode)[keyof typeof TransportMode];
-
 export const CollaboratorRole = {
   Owner:  "owner",
   Editor: "editor",
@@ -84,12 +69,6 @@ export interface Document {
 // SUPPORTING TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface TravelTo {
-  mode:    TransportMode;
-  detail?: string;
-  minutes?:    number;
-}
-
 export interface GeoCoords {
   lat: number;
   lng: number;
@@ -127,9 +106,6 @@ export interface TripEvent {
   // ── Location ──────────────────────────────────────────────────────────────
   location?: EventLocation;
 
-  // ── Getting to the next event ─────────────────────────────────────────────
-  travelTo?: TravelTo;
-
   // ── Cost ──────────────────────────────────────────────────────────────────
   cost?: number;
 
@@ -155,7 +131,6 @@ export interface DayItinerary {
   label:         string;
   subtitle?:     string;
   today?:        boolean;
-  note?:         string;
   weather?:      string;
   travelSummary?: string;
   events:        TripEvent[];

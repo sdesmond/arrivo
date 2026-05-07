@@ -9,7 +9,6 @@ export const LISBON_DAYS: DayItinerary[] = [
         name: "TAP Air Portugal · TP 202",
         location: { name: "Lisbon Airport · Terminal 1" },
         confirmationNumber: "TAP-KM9X3",
-        travelTo: { mode: "Subway", detail: "Blue line → Marquês de Pombal", minutes:35 },
         docs: [
           {
             id: "tap-out", name: "TP 202 — Boarding pass.pdf",
@@ -55,7 +54,6 @@ export const LISBON_DAYS: DayItinerary[] = [
         name: "Cervejaria Ramiro",
         note: "No reservations — arrive by 19:30 to avoid a long wait. Cash preferred.",
         location: { name: "Intendente · Av. Almirante Reis" },
-        travelTo: { mode: "Taxi", minutes:12 },
       },
     ],
   },
@@ -66,39 +64,33 @@ export const LISBON_DAYS: DayItinerary[] = [
         id: "l2-belem", time: "09:30", endTime: "10:15",
         name: "Pastéis de Belém",
         location: { name: "Belém · Rua de Belém 84" },
-        travelTo: { mode: "Bus", detail: "Tram 15E from Praça da Figueira", minutes:20 },
       },
       {
         id: "l2-jeronimos", time: "11:00", endTime: "12:30",
         name: "Mosteiro dos Jerónimos",
         note: "Book tickets online — free Sunday mornings but crowds are brutal. Paid slot recommended.",
         location: { name: "Belém · Praça do Império" },
-        travelTo: { mode: "Walk", minutes:5 },
       },
       {
         id: "l2-lxfactory", time: "14:00", endTime: "15:30",
         name: "LX Factory",
         location: { name: "Alcântara · Rua Rodrigues de Faria" },
-        travelTo: { mode: "Walk", detail: "Along the river", minutes:12 },
       },
       {
         id: "l2-alfama", time: "17:30", endTime: "19:00",
         name: "Alfama neighbourhood walk",
         location: { name: "Alfama · Miradouro da Graça" },
-        travelTo: { mode: "Taxi", minutes:18 },
       },
       {
         id: "l2-fado", time: "20:30", endTime: "22:30",
         name: "A Baiuca · fado house",
         note: "Called twice, no answer. Will try again or walk-in. Tasca do Chico is the backup — same street.",
         location: { name: "Alfama · Rua de São Miguel" },
-        travelTo: { mode: "Walk", minutes:5 },
       },
     ],
   },
   {
     tripId: "lisbon-2026", dayNumber: 3, date: "2026-05-20", label: "Wed · May 20", subtitle: "Sintra or Mouraria?",
-    note: "Still deciding — Sintra needs an early start (7:30 train) or it's overrun by noon. Mouraria is the low-key alternative and probably more honest to how we actually travel. Both options below.",
     events: [
       {
         id: "l3-sintra-train", time: "07:45", endTime: "08:25",
@@ -133,7 +125,6 @@ export const LISBON_DAYS: DayItinerary[] = [
   },
   {
     tripId: "lisbon-2026", dayNumber: 4, date: "2026-05-21", label: "Thu · May 21", subtitle: "Last morning + departure",
-    note: "Flight is 17:55 so we have until early afternoon. Checkout at noon.",
     events: [
       {
         id: "l4-breakfast",
@@ -148,14 +139,12 @@ export const LISBON_DAYS: DayItinerary[] = [
         id: "l4-market", time: "12:30", endTime: "13:30",
         name: "Time Out Market Lisboa",
         location: { name: "Cais do Sodré · Av. 24 de Julho" },
-        travelTo: { mode: "Walk", detail: "Along riverfront", minutes:8 },
       },
       {
         id: "l4-flight", time: "17:55", endTime: "18:25",
         name: "TAP Air Portugal · TP 203",
         location: { name: "Lisbon Airport · Terminal 1" },
         confirmationNumber: "TAP-KM9X3",
-        travelTo: { mode: "Subway", detail: "Blue line → Aeroporto · depart by 15:15", minutes:35 },
         docs: [
           {
             id: "tap-ret", name: "TP 203 — Boarding pass.pdf",

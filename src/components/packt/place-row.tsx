@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import {
-  Check, MapPin, Train, ChevronDown,
+  Check, MapPin, ChevronDown,
   FileText, Clock, DollarSign, Pencil, Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -525,17 +525,6 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
           <Trash2 size={13} strokeWidth={1.5} />
         </button>
       </div>
-
-      {/* Travel connector */}
-      {p.travelTo && !isLast && (
-        <div
-          className="flex items-center gap-2 pl-[88px] py-1"
-          style={{ fontSize: 12, color: "var(--fg-3)" }}
-        >
-          <Train size={12} strokeWidth={1.5} />
-          {p.travelTo.mode} · {p.travelTo.detail}
-        </div>
-      )}
 
       <CostDialog
         cost={p.cost}
