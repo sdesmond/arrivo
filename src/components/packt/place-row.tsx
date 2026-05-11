@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import {
   Check, MapPin, ChevronDown,
   FileText, Clock, DollarSign, Pencil, Trash2,
+  Paperclip, X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { type TripEvent, type Document } from "@/data/types";
+import { type TripEvent, type Document, DocKind } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
@@ -46,7 +47,13 @@ function DocKindBadge({ kind }: { kind: Document["kind"] }) {
   );
 }
 
-function DocsBlock({ docs }: { docs: Document[] }) {
+interface DocsBlockProps {
+  docs: Document[];
+  onDelete: (id: string) => void;
+  onAdd: () => void;
+}
+
+function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
   return (
     <div className="mt-2" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
       <div
@@ -61,9 +68,9 @@ function DocsBlock({ docs }: { docs: Document[] }) {
       </div>
       <div className="flex flex-col gap-1.5">
         {docs.map((d) => (
-          <button
+          <div
             key={d.id}
-            className="flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-surface-2 w-full"
+            className="flex items-center gap-2 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-surface-2 w-full"
             style={{ background: "var(--surface)" }}
           >
             <DocKindBadge kind={d.kind} />
@@ -83,8 +90,35 @@ function DocsBlock({ docs }: { docs: Document[] }) {
             ) : (
               <span style={{ fontSize: 11, color: "var(--fg-4)" }}>↓</span>
             )}
-          </button>
+            <button
+              onClick={() => onDelete(d.id)}
+              aria-label={`Remove ${d.name}`}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                minWidth: 28, minHeight: 28,
+                padding: 4, borderRadius: 4,
+                background: "none", border: "none", cursor: "pointer",
+                color: "var(--fg-4)", flexShrink: 0,
+              }}
+            >
+              <X size={12} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          </div>
         ))}
+        <button
+          onClick={onAdd}
+          className="flex items-center gap-1.5 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-surface-2 w-full"
+          style={{
+            fontSize: 12, color: "var(--fg-4)",
+            background: "none", border: "none", cursor: "pointer",
+            borderTop: docs.length > 0 ? "1px solid var(--line)" : "none",
+            marginTop: docs.length > 0 ? 4 : 0,
+            paddingTop: docs.length > 0 ? 8 : 4,
+          }}
+        >
+          <Paperclip size={12} strokeWidth={1.5} aria-hidden="true" />
+          Add doc
+        </button>
       </div>
     </div>
   );
@@ -236,6 +270,135 @@ function LocationDialog({
   );
 }
 
+interface AddDocDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdd: (doc: Document) => void;
+}
+
+function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
+  const [draftName, setDraftName] = useState("");
+  const [draftKind, setDraftKind] = useState<DocKind>(DocKind.PDF);
+  const [draftUrl, setDraftUrl] = useState("");
+
+  function handleClose(o: boolean) {
+    if (!o) { setDraftName(""); setDraftKind(DocKind.PDF); setDraftUrl(""); }
+    onOpenChange(o);
+  }
+
+  function handleAdd() {
+    const name = draftName.trim();
+    if (!name) return;
+    onAdd({
+      id: crypto.randomUUID(),
+      name,
+      kind: draftKind,
+      scope: "event",
+      offline: false,
+      url: draftKind === DocKind.Link ? draftUrl.trim() || undefined : undefined,
+    });
+    handleClose(false);
+  }
+
+  const kinds = [DocKind.PDF, DocKind.Image, DocKind.Doc, DocKind.Link] as const;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => handleClose(o as boolean)}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Attach document</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div>
+            <div
+              style={{
+                fontFamily: "var(--font-mono-family, ui-monospace)",
+                fontSize: 10, fontWeight: 600,
+                letterSpacing: "0.08em", textTransform: "uppercase",
+                color: "var(--fg-4)", marginBottom: 6,
+              }}
+            >
+              Type
+            </div>
+            <div className="flex gap-1">
+              {kinds.map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setDraftKind(k)}
+                  aria-pressed={draftKind === k}
+                  style={{
+                    flex: 1, padding: "4px 0", borderRadius: 6,
+                    fontSize: 11, fontWeight: 600, letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    fontFamily: "var(--font-mono-family, ui-monospace)",
+                    cursor: "pointer",
+                    border: draftKind === k ? "1px solid var(--accent-brand)" : "1px solid var(--line-strong)",
+                    background: draftKind === k ? "var(--accent-soft)" : "var(--surface-2)",
+                    color: draftKind === k ? "var(--accent-ink)" : "var(--fg-3)",
+                    transition: "background 0.1s, border-color 0.1s, color 0.1s",
+                  }}
+                >
+                  {k.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label
+              htmlFor="add-doc-name"
+              style={{
+                fontFamily: "var(--font-mono-family, ui-monospace)",
+                fontSize: 10, fontWeight: 600,
+                letterSpacing: "0.08em", textTransform: "uppercase",
+                color: "var(--fg-4)", display: "block", marginBottom: 4,
+              }}
+            >
+              Name
+            </label>
+            <Input
+              id="add-doc-name"
+              placeholder="Document name"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+              autoFocus
+            />
+          </div>
+          {draftKind === DocKind.Link && (
+            <div>
+              <label
+                htmlFor="add-doc-url"
+                style={{
+                  fontFamily: "var(--font-mono-family, ui-monospace)",
+                  fontSize: 10, fontWeight: 600,
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: "var(--fg-4)", display: "block", marginBottom: 4,
+                }}
+              >
+                URL
+              </label>
+              <Input
+                id="add-doc-url"
+                placeholder="https://…"
+                value={draftUrl}
+                onChange={(e) => setDraftUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => handleClose(false)}>Cancel</Button>
+          <Button onClick={handleAdd} disabled={!draftName.trim()}>
+            <Paperclip size={13} strokeWidth={1.5} aria-hidden="true" />
+            Attach
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface PlaceRowProps {
   place: TripEvent;
   isLast?: boolean;
@@ -258,6 +421,7 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
+  const [showAddDocDialog, setShowAddDocDialog] = useState(false);
 
   const now = useNow();
   const hasDocs = (p.docs?.length ?? 0) > 0;
@@ -473,7 +637,8 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
                 style={{
                   fontSize: 11,
-                  color: "var(--fg-4)",
+                  color: "var(--accent-ink)",
+                  background: "var(--accent-soft)",
                   border: "1px solid transparent",
                 }}
               >
@@ -488,9 +653,28 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
                 />
               </button>
             )}
+
+            {/* Attach button — only when no docs */}
+            {!hasDocs && (
+              <button
+                onClick={() => setShowAddDocDialog(true)}
+                className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+                style={{ fontSize: 11, color: "var(--fg-4)", border: "1px solid transparent" }}
+                title="Attach document"
+              >
+                <Paperclip size={11} strokeWidth={1.5} />
+                Attach
+              </button>
+            )}
           </div>
 
-          {showDocs && hasDocs && <DocsBlock docs={p.docs!} />}
+          {showDocs && hasDocs && (
+            <DocsBlock
+              docs={p.docs!}
+              onDelete={(docId) => onUpdate({ ...p, docs: p.docs!.filter((d) => d.id !== docId) })}
+              onAdd={() => setShowAddDocDialog(true)}
+            />
+          )}
         </div>
 
         {/* Drag handle — hover only */}
@@ -537,6 +721,11 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
         open={showLocationDialog}
         onOpenChange={setShowLocationDialog}
         onSave={address => onUpdate({ ...p, location: { ...p.location, address } })}
+      />
+      <AddDocDialog
+        open={showAddDocDialog}
+        onOpenChange={setShowAddDocDialog}
+        onAdd={(doc) => onUpdate({ ...p, docs: [...(p.docs ?? []), doc] })}
       />
     </div>
   );
