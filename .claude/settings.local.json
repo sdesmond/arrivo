@@ -21,7 +21,9 @@
       "Bash(npx next *)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Select-Object -First 20 FullName)",
-      "Bash(pkill -f \"next dev\")"
+      "Bash(pkill -f \"next dev\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/next/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/react/package.json'\\).version\\)\")"
     ]
   },
   "enableAllProjectMcpServers": true,
