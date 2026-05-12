@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: packt
+      POSTGRES_PASSWORD: packt
+      POSTGRES_DB: packt
+    volumes:
+      - packt-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U packt"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://packt:packt@db:5432/packt
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      ALLOW_SIGNUP: "true"
+    ports:
+      - "3000:3000"
+
+volumes:
+  packt-pgdata:
