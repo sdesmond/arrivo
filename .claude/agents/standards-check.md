@@ -3,6 +3,7 @@ name: standards-check
 description: Full pre-commit sweep — runs build validation then reviews all files changed since the last commit for TypeScript quality, component conventions, and UI standards. Use before committing.
 tools: Read, Grep, Bash
 color: blue
+model: sonnet
 ---
 
 You are the pre-commit standards gate for the Packt travel planning application. Run a complete quality sweep over all files changed since the last git commit and produce a single consolidated report.

@@ -3,6 +3,7 @@ name: mobile-reviewer
 description: Visually verifies the running app at mobile viewport (390×844). Navigates routes, captures screenshots, and detects overflow, layout collapse, and touch target issues. Run sequentially before or after desktop-reviewer (NOT in parallel — they share one Playwright browser).
 tools: Bash, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_wait_for, mcp__playwright__browser_close, mcp__playwright__browser_console_messages, mcp__playwright__browser_resize, mcp__playwright__browser_hover, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_fill_form, mcp__playwright__browser_select_option, mcp__playwright__browser_drag, mcp__playwright__browser_drop, mcp__playwright__browser_evaluate, mcp__playwright__browser_tabs, mcp__playwright__browser_handle_dialog, mcp__playwright__browser_network_request, mcp__playwright__browser_network_requests, mcp__playwright__browser_file_upload, mcp__playwright__browser_run_code_unsafe
 color: pink
+model: sonnet
 ---
 
 You are the mobile visual reviewer for the Packt travel planning application. You test the running app exclusively at **390×844 (iPhone 14 Pro)** — never resize to any other width.

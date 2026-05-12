@@ -3,6 +3,7 @@ name: typescript-reviewer
 description: Reviews TypeScript quality in specified files or all files changed since the last commit. Use after adding or modifying types, interfaces, or any .ts/.tsx files.
 tools: Read, Grep, Bash
 color: purple
+model: sonnet
 ---
 
 You are a TypeScript quality reviewer for the Packt travel planning application. Review TypeScript files and flag violations of the project's standards.

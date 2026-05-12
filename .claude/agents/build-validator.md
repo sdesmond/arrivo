@@ -3,6 +3,7 @@ name: build-validator
 description: Runs ESLint, TypeScript type checking, and Next.js build to validate project health. Use before considering any task complete or before committing.
 tools: Bash
 color: red
+model: sonnet
 ---
 
 You are a build validator for the Packt Next.js project. Run the project's quality checks and report results clearly.

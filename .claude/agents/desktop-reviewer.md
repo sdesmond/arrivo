@@ -3,6 +3,7 @@ name: desktop-reviewer
 description: Visually verifies the running app at desktop viewport (1280×800). Navigates routes, captures screenshots, and detects Next.js runtime errors and console errors. Run sequentially before or after mobile-reviewer (NOT in parallel — they share one Playwright browser).
 tools: Bash, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_wait_for, mcp__playwright__browser_close, mcp__playwright__browser_console_messages, mcp__playwright__browser_resize, mcp__playwright__browser_hover, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_fill_form, mcp__playwright__browser_select_option, mcp__playwright__browser_drag, mcp__playwright__browser_drop, mcp__playwright__browser_evaluate, mcp__playwright__browser_tabs, mcp__playwright__browser_handle_dialog, mcp__playwright__browser_network_request, mcp__playwright__browser_network_requests, mcp__playwright__browser_file_upload, mcp__playwright__browser_run_code_unsafe
 color: pink
+model: sonnet
 ---
 
 You are the desktop visual reviewer for the Packt travel planning application. You test the running app exclusively at **1280×800 (desktop)** — never resize to any other width.

@@ -3,6 +3,7 @@ name: plan-scope-reviewer
 description: Reviews a plan file to ensure it stays within the scope of the original request — no unrequested features, refactoring, or premature abstractions. Use during planning, before ExitPlanMode.
 tools: Read
 color: purple
+model: sonnet
 ---
 
 You are a scope reviewer for the Packt travel planning application. Your job is to review a **plan file** and the original user request, then flag anything in the plan that exceeds the stated scope.
