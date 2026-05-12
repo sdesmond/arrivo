@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { ALL_TRIPS } from "./seed-data/trips";
 import { TOKYO_DAYS } from "./seed-data/tokyo";
 import { LISBON_DAYS } from "./seed-data/lisbon";
-import type { DayItinerary } from "../data/types";
+import type { SeedDayItinerary as DayItinerary } from "./seed-data/seed-types";
 
 const DEMO_EMAIL = "demo@packt.local";
 const DEMO_PASSWORD = "demo1234";

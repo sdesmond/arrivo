@@ -6,7 +6,8 @@ export type {
   TripTint,
 } from "../../data/types";
 
-import type { Trip, TripTint, WorldPin, DayItinerary, Collaborator } from "../../data/types";
+import type { Trip, TripTint, WorldPin } from "../../data/types";
+import type { SeedDayItinerary as DayItinerary, Collaborator } from "./seed-types";
 import { TOKYO_DAYS, TOKYO_DOCS, TOKYO_COLLAB } from "./tokyo";
 import { LISBON_DAYS, LISBON_DOCS, LISBON_COLLAB } from "./lisbon";
 

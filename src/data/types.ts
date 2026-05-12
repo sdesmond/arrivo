@@ -56,8 +56,7 @@ export interface Document {
   name:    string;
   kind:    DocKind;
   size?:   string;
-  // trip = belongs to the trip overall; event = attached to one event; both = either
-  scope:   "trip" | "event" | "both";
+  scope:   "trip" | "event";
   offline: boolean;
   url?:    string;
   previewLines?: DocPreviewLine[];
@@ -95,11 +94,6 @@ export interface TripEvent {
   note?: string;
 
   // ── Scheduling ────────────────────────────────────────────────────────────
-  // date + time are the prototype-era fields (plain strings).
-  // startAt / endAt are ISO datetimes for production use.
-  date?:    string;
-  time?:    string;
-  endTime?: string;
   startAt?: string;
   endAt?:   string;
 
@@ -131,6 +125,7 @@ export interface TripEvent {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface DayItinerary {
+  id?:           string;
   tripId?:       string;
   dayNumber:     number;
   date?:         string;
@@ -198,9 +193,6 @@ export interface Trip {
   collaborators?: Collaborator[];
 
   docs?: Document[];
-
-  // Quick-access strip of today's events shown on the dashboard.
-  events?: TripEvent[];
 
   createdAt?: string;
   updatedAt?: string;

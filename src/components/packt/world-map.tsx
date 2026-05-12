@@ -1,4 +1,4 @@
-import { type WorldPin } from "@/data/trips";
+import { type WorldPin } from "@/data/types";
 
 const MASK = [
   "..................................................",
@@ -68,8 +68,8 @@ export function WorldMap({ pins = [], size = "lg", className }: WorldMapProps) {
     >
       <g>{dots}</g>
       <g>
-        {pins.map((p, i) => (
-          <g key={i}>
+        {pins.map((p, pinIdx) => (
+          <g key={pinIdx}>
             <circle cx={p.x} cy={p.y} r={9} fill="var(--accent-brand)" fillOpacity={0.18} />
             <circle cx={p.x} cy={p.y} r={4.5} fill="var(--accent-brand)" stroke="var(--bg)" strokeWidth={1.5} />
           </g>

@@ -6,49 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function isEventPast(
-  ev: { date?: string; time?: string; endTime?: string; endAt?: string },
-  now = getNow()
-): boolean {
-  if (ev.endAt) return now > new Date(ev.endAt);
-  if (ev.date) {
-    const timeStr = ev.endTime ?? ev.time;
-    if (timeStr) {
-      const [h, m] = timeStr.split(":").map(Number);
-      const dt = new Date(ev.date);
-      dt.setHours(h, m, 0, 0);
-      return now > dt;
-    }
-    const dt = new Date(ev.date);
-    dt.setHours(23, 59, 59, 999);
-    return now > dt;
-  }
-  return false;
+export function isEventPast(event: { endAt?: string }, now: Date): boolean {
+  if (!event.endAt) return false;
+  return new Date(event.endAt) < now;
 }
 
-export function isEventNow(
-  ev: { startAt?: string; endAt?: string; time?: string; endTime?: string; date?: string },
-  now = getNow()
-): boolean {
-  if (ev.startAt && ev.endAt) {
-    return now >= new Date(ev.startAt) && now < new Date(ev.endAt);
-  }
-  if (ev.time && ev.endTime) {
-    if (ev.date) {
-      const d = new Date(ev.date + "T12:00:00");
-      if (
-        d.getFullYear() !== now.getFullYear() ||
-        d.getMonth() !== now.getMonth() ||
-        d.getDate() !== now.getDate()
-      ) return false;
-    }
-    const [sh, sm] = ev.time.split(":").map(Number);
-    const [eh, em] = ev.endTime.split(":").map(Number);
-    const start = new Date(now); start.setHours(sh, sm, 0, 0);
-    const end = new Date(now);   end.setHours(eh, em, 0, 0);
-    return now >= start && now < end;
-  }
-  return false;
+export function isEventNow(event: { startAt?: string; endAt?: string }, now: Date): boolean {
+  if (!event.startAt || !event.endAt) return false;
+  const start = new Date(event.startAt);
+  const end = new Date(event.endAt);
+  return start <= now && now <= end;
 }
 
 export function getTripStatus(

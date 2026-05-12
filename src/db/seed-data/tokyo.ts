@@ -1,18 +1,5 @@
-export type {
-  DocPreviewLine,
-  Document,
-  TripEvent,
-  DayItinerary,
-  PackingItem,
-  Collaborator,
-} from "../../data/types";
-
-import type {
-  TripEvent,
-  DayItinerary,
-  PackingItem,
-  Collaborator,
-} from "../../data/types";
+import type { PackingItem } from "../../data/types";
+import type { SeedTripEvent as TripEvent, SeedDayItinerary as DayItinerary, Collaborator } from "./seed-types";
 
 export const TOKYO_DAYS: DayItinerary[] = [
   {

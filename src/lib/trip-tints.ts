@@ -1,4 +1,17 @@
-import { TRIP_TINTS, type TripTint } from "@/data/trips";
+import type { TripTint } from "@/data/types";
+
+export const TRIP_TINTS: Record<string, TripTint> = {
+  Tokyo:     { hue: 8,   light: "oklch(0.94 0.04 8)",   dark: "oklch(0.28 0.05 8)"   },
+  Lisbon:    { hue: 78,  light: "oklch(0.95 0.04 78)",  dark: "oklch(0.30 0.04 78)"  },
+  Oaxaca:    { hue: 45,  light: "oklch(0.94 0.05 45)",  dark: "oklch(0.30 0.05 45)"  },
+  Reykjavik: { hue: 220, light: "oklch(0.94 0.03 220)", dark: "oklch(0.28 0.04 220)" },
+  Marrakech: { hue: 30,  light: "oklch(0.93 0.06 30)",  dark: "oklch(0.30 0.06 30)"  },
+  Kyoto:     { hue: 350, light: "oklch(0.94 0.04 350)", dark: "oklch(0.30 0.04 350)" },
+  Athens:    { hue: 200, light: "oklch(0.95 0.03 200)", dark: "oklch(0.30 0.04 200)" },
+  Hanoi:     { hue: 150, light: "oklch(0.94 0.04 150)", dark: "oklch(0.30 0.04 150)" },
+  Patagonia: { hue: 245, light: "oklch(0.94 0.03 245)", dark: "oklch(0.28 0.04 245)" },
+  Default:   { hue: 60,  light: "oklch(0.94 0.02 60)",  dark: "oklch(0.30 0.02 60)"  },
+};
 
 export function getTint(name: string, dark: boolean): string {
   const tint: TripTint = TRIP_TINTS[name] ?? TRIP_TINTS.Default;

@@ -18,13 +18,14 @@ import {
   type CollaboratorRole,
   type TripStatus,
   type Budget,
+  type UpdateTripPatch,
 } from "@/data/types"
 
 interface TripEditSheetProps {
   trip: Trip | null
   open: boolean
   onClose: () => void
-  onSave: (updated: Trip) => void
+  onSave: (patch: UpdateTripPatch) => void
 }
 
 const LABEL_STYLE: React.CSSProperties = {
@@ -49,7 +50,9 @@ const SELECT_STYLE: React.CSSProperties = {
   outline: "none",
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+interface SectionProps { title: string; children: React.ReactNode; }
+
+function Section({ title, children }: SectionProps) {
   return (
     <div>
       <div style={{
@@ -66,7 +69,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+interface FieldProps { label: string; children: React.ReactNode; }
+
+function Field({ label, children }: FieldProps) {
   return (
     <div>
       <span style={LABEL_STYLE}>{label}</span>
@@ -339,7 +344,17 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
 
         <SheetFooter className="shrink-0" style={{ borderTop: "1px solid var(--line)" }}>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSave(draft)}>Save changes</Button>
+          <Button onClick={() => onSave({
+            name: draft.name,
+            startDate: draft.startDate,
+            endDate: draft.endDate,
+            coverImageUrl: draft.coverImageUrl,
+            notes: draft.notes,
+            budgetCurrency: draft.budget?.currency,
+            budgetTotal: draft.budget?.total,
+            budgetPerPerson: draft.budget?.perPerson,
+            tags: draft.tags,
+          })}>Save changes</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
