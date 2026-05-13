@@ -54,7 +54,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "jsdom": "^27.0.1",
+    "jsdom": "^25.0.0",
     "playwright-bdd": "^8.5.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",

@@ -32,7 +32,8 @@
       "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\tests\\\\e2e\\\\steps\")",
       "Bash(New-Item -ItemType File -Path \"C:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\tests\\\\e2e\\\\.gitkeep\")",
       "Bash(Write-Host \"Done\")",
-      "Bash(echo \"Exit code: $?\")"
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(node *)"
     ]
   },
   "enableAllProjectMcpServers": true,
