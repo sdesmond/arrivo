@@ -22,11 +22,12 @@ Categorize results:
 
 ## Step 2: Build Validation
 
-Run all three even if one fails:
+Run all checks even if one fails:
 
 ```bash
 cd "c:\Users\spenc\dev\packt" && npm run lint 2>&1
 cd "c:\Users\spenc\dev\packt" && npx tsc --noEmit 2>&1
+cd "c:\Users\spenc\dev\packt" && npm run test:coverage 2>&1
 cd "c:\Users\spenc\dev\packt" && npm run build 2>&1
 ```
 
@@ -84,10 +85,11 @@ Invoke the `desktop-reviewer` and `mobile-reviewer` agents **in parallel** (laun
 Files changed: N .ts, N .tsx, N other
 
 BUILD
-  Lint:   ✓ PASS  /  ✗ FAIL
-  TSC:    ✓ PASS  /  ✗ FAIL
-  Build:  ✓ PASS  /  ✗ FAIL
-  [list any build errors with file:line and fix suggestion]
+  Lint:    ✓ PASS  /  ✗ FAIL
+  TSC:     ✓ PASS  /  ✗ FAIL
+  Tests:   ✓ PASS  /  ✗ FAIL  (N passed — coverage: lines X%, functions X%, branches X%)
+  Build:   ✓ PASS  /  ✗ FAIL
+  [list any errors with file:line and fix suggestion]
 
 CODE REVIEW
   [filename]

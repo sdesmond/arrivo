@@ -19,6 +19,17 @@ Packt is a travel itinerary planning app built with Next.js (App Router), TypeSc
 
 **Run the dev server:** `npm run dev`
 
+## Test Commands
+
+| Command | What it runs |
+|---|---|
+| `npm test` | Vitest unit tests (watch mode) |
+| `npm run test:coverage` | Vitest with Istanbul coverage report |
+| `npm run test:e2e` | Playwright BDD E2E tests (headless) |
+| `npm run test:e2e:ui` | Playwright E2E with interactive UI |
+
+Coverage thresholds: 95% lines/functions, 90% branches (enforced in CI).
+
 ## Directory Structure
 
 ```
@@ -29,13 +40,23 @@ packt/                          ← git root = Next.js project root
 │   │   ├── layout.tsx          ← font setup, providers
 │   │   └── (app)/trips/        ← main app routes
 │   ├── components/
-│   │   ├── packt/              ← domain components (trip cards, event rows, etc.)
+│   │   ├── packt/              ← domain components; *.test.tsx lives next to source
 │   │   └── ui/                 ← reusable primitives (button, badge, dialog, etc.)
 │   ├── data/
 │   │   ├── types.ts            ← ALL canonical TypeScript types live here
 │   │   └── *.ts                ← sample trip data
 │   └── lib/
-│       └── utils.ts            ← cn(), isEventPast(), isEventNow()
+│       ├── utils.ts            ← cn(), isEventPast(), isEventNow()
+│       └── *.test.ts           ← unit tests colocated with source files
+├── tests/
+│   └── e2e/
+│       ├── features/           ← Gherkin .feature files (BDD scenarios)
+│       ├── steps/              ← step definitions (TypeScript)
+│       ├── fixtures.ts         ← shared Playwright fixtures
+│       └── auth.setup.ts       ← auth state setup (runs before chromium project)
+├── vitest.config.mts           ← Vitest + Istanbul coverage config
+├── vitest.setup.mts            ← global mocks (next/navigation, next/headers)
+├── playwright.config.ts        ← Playwright BDD config (playwright-bdd)
 ├── tsconfig.json               ← strict: true, path alias @/* → ./src/*
 ├── eslint.config.mjs
 └── .claude/
@@ -80,10 +101,12 @@ Only present the plan to the user after the reviewers have seen it and made any 
 
 **Default workflow for any coding task:**
 1. Implement the change
-2. Run `build-validator` to catch lint/tsc/build errors
+2. Run `build-validator` to catch lint/tsc/build/test errors
 3. Run the relevant focused reviewer(s) for what changed
 4. Fix any flagged issues, then re-validate
 5. Run `standards-check` before the final commit
+
+When adding or modifying source files covered by coverage thresholds (`src/lib/**`, `src/components/packt/**`), also add or update the colocated test file to keep coverage passing.
 
 ## Key Conventions
 
@@ -112,3 +135,12 @@ Only present the plan to the user after the reviewers have seen it and made any 
 - Reusable primitives → `src/components/ui/`
 - New types → `src/data/types.ts`
 - New utilities → `src/lib/utils.ts`
+
+### Testing
+- Unit test files live **next to their source file** (`foo.tsx` → `foo.test.tsx`); never under a separate `__tests__/` directory
+- E2E goes in `tests/e2e/` only — Gherkin features in `features/`, step definitions in `steps/`
+- Use Vitest (`vitest`, `@testing-library/react`) for unit/component tests
+- Use `playwright-bdd` + Playwright for E2E — write scenarios in `.feature` files, implement in step `.ts` files
+- Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
+- Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`
+- `src/components/ui/**`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, and `src/lib/server-now.ts` are excluded from coverage
