@@ -1,4 +1,4 @@
-import type { DayItinerary, Collaborator } from "./types";
+import type { SeedDayItinerary as DayItinerary, Collaborator } from "./seed-types";
 
 export const LISBON_DAYS: DayItinerary[] = [
   {

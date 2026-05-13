@@ -6,17 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
-import { type Trip } from "@/data/types";
-import { cn } from "@/lib/utils";
-import { getTripStatus, formatTripDate } from "@/lib/utils";
+import { type Trip, type TripEvent } from "@/data/types";
+import { cn, getTripStatus, formatTripDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
+
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
 
 interface NowCardProps {
   trip: Trip;
+  todayEvents: TripEvent[];
   onEditTrip?: (trip: Trip) => void;
 }
 
-export function NowCard({ trip, onEditTrip }: NowCardProps) {
+export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
   const now = useNow();
   const status      = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP"
@@ -24,20 +28,14 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
                     : "PAST TRIP";
   const sub = status === "upcoming" ? trip.startDate : status === "past" ? trip.endDate : "";
 
-  const todayEvents = trip.events ?? [];
-
   const currentEvent = [...todayEvents].reverse().find((ev) => {
-    if (!ev.time) return false;
-    const [hours, minutes] = ev.time.split(":").map(Number);
-    const eventTime = new Date(now); eventTime.setHours(hours, minutes, 0, 0);
-    return eventTime <= now;
+    if (!ev.startAt) return false;
+    return new Date(ev.startAt) <= now;
   }) ?? null;
 
   const nextEvent = todayEvents.find((ev) => {
-    if (!ev.time) return false;
-    const [hours, minutes] = ev.time.split(":").map(Number);
-    const eventTime = new Date(now); eventTime.setHours(hours, minutes, 0, 0);
-    return eventTime > now;
+    if (!ev.startAt) return false;
+    return new Date(ev.startAt) > now;
   }) ?? null;
 
   const displayEvent = currentEvent ?? nextEvent;
@@ -211,7 +209,7 @@ export function NowCard({ trip, onEditTrip }: NowCardProps) {
                 marginTop: 4,
               }}
             >
-              {displayEvent.time}
+              {displayEvent.startAt ? fmtTime(displayEvent.startAt) : "—"}
               <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>
               —
               <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>

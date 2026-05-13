@@ -1,6 +1,6 @@
-export type { TripEvent } from "./types";
+export type { SeedTripEvent as TripEvent } from "./seed-types";
 
-import type { TripEvent } from "./types";
+import type { SeedTripEvent as TripEvent } from "./seed-types";
 import { TOKYO_DAYS } from "./tokyo";
 
 const day5 = TOKYO_DAYS.find((d) => d.dayNumber === 5)!;

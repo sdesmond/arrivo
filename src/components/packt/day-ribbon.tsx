@@ -4,13 +4,14 @@ import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 import { cn, isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
-import { type Trip, type TripEvent } from "@/data/trips";
+import { type Trip, type TripEvent } from "@/data/types";
 
 interface DayRibbonProps {
   trip: Trip;
+  todayEvents: TripEvent[];
 }
 
-export function DayRibbon({ trip }: DayRibbonProps) {
+export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
   const now = useNow();
   const status       = getTripStatus(trip.startDate, trip.endDate, now);
   const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate, now) : null;
@@ -62,10 +63,10 @@ export function DayRibbon({ trip }: DayRibbonProps) {
 
       {/* Events — horizontally scrollable */}
       <div className="flex-1 flex items-center gap-1 overflow-x-auto scroll-thin min-w-0">
-        {(trip.events ?? []).map((ev, i) => (
+        {todayEvents.map((ev, i) => (
           <div key={ev.id} className="flex items-center gap-1 shrink-0">
             <EventChip ev={ev} tripId={trip.id!} now={now} />
-            {i < (trip.events?.length ?? 0) - 1 && (
+            {i < todayEvents.length - 1 && (
               <ChevronRight
                 size={12}
                 strokeWidth={1.5}
@@ -91,6 +92,9 @@ export function DayRibbon({ trip }: DayRibbonProps) {
 function EventChip({ ev, tripId, now }: { ev: TripEvent; tripId: string; now: Date }) {
   const isNow = isEventNow(ev, now);
   const isPast = isEventPast(ev, now);
+  const timeStr = ev.startAt
+    ? new Date(ev.startAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    : "";
 
   return (
     <Link
@@ -117,7 +121,7 @@ function EventChip({ ev, tripId, now }: { ev: TripEvent; tripId: string; now: Da
           textTransform: "uppercase",
         }}
       >
-        {ev.time}{isNow ? " · NOW" : isPast ? " · DONE" : ""}
+        {timeStr}{isNow ? " · NOW" : isPast ? " · DONE" : ""}
       </div>
       <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}>
         {ev.name}

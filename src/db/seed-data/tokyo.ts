@@ -1,18 +1,5 @@
-export type {
-  DocPreviewLine,
-  Document,
-  TripEvent,
-  DayItinerary,
-  PackingItem,
-  Collaborator,
-} from "./types";
-
-import type {
-  TripEvent,
-  DayItinerary,
-  PackingItem,
-  Collaborator,
-} from "./types";
+import type { PackingItem } from "../../data/types";
+import type { SeedTripEvent as TripEvent, SeedDayItinerary as DayItinerary, Collaborator } from "./seed-types";
 
 export const TOKYO_DAYS: DayItinerary[] = [
   {
@@ -334,5 +321,4 @@ export const TOKYO_COLLAB: Collaborator[] = [
   },
 ];
 
-// Re-export a typed alias for consumers that still reference Place by name.
 export type Place = TripEvent;

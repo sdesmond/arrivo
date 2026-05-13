@@ -1,0 +1,251 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TripCover } from "@/components/packt/trip-cover";
+import { DayCard } from "@/components/packt/day-card";
+import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
+import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateTripPatch } from "@/data/types";
+import { getTripStatus, getTripDays } from "@/lib/utils";
+import { useFocusScroll } from "@/lib/use-focus-scroll";
+import { updateTripMetadata } from "../actions";
+import { updateEvent, deleteEvent, reorderEvents, updateDay } from "./actions";
+
+function formatTripHeader(start: string, end: string): string {
+  const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const [, startMonth, startDay] = start.split("-").map(Number);
+  const [endYear, endMonth, endDay] = end.split("-").map(Number);
+  return `${MONTHS[startMonth-1]} ${startDay} — ${MONTHS[endMonth-1]} ${endDay}, ${endYear}`;
+}
+
+const TABS = [
+  { id: "itin", label: "Itinerary" },
+  { id: "map", label: "Map" },
+  { id: "docs", label: "Documents" },
+  { id: "pack", label: "Packing" },
+  { id: "notes", label: "Notes" },
+];
+
+interface TripDetailClientProps {
+  detail: TripDetailPayload;
+  nowISO: string;
+}
+
+export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
+  const now = new Date(nowISO);
+  useFocusScroll();
+
+  const [activeTab, setActiveTab] = useState<"itin" | "map" | "docs" | "pack" | "notes">("itin");
+  const [editingTrip, setEditingTrip] = useState(false);
+
+  const { trip, days, docs, collaborators } = detail;
+
+  function handleEventUpdate(updated: TripEvent): void {
+    React.startTransition(() => {
+      updateEvent(updated.id, {
+        name: updated.name,
+        startAt: updated.startAt,
+        endAt: updated.endAt,
+        locationName: updated.locationName,
+        locationAddress: updated.locationAddress,
+        locationLat: updated.locationLat,
+        locationLng: updated.locationLng,
+        cost: updated.cost,
+        confirmationNumber: updated.confirmationNumber,
+        note: updated.note,
+      });
+    });
+  }
+
+  function handleEventDelete(id: string): void {
+    React.startTransition(() => {
+      deleteEvent(id);
+    });
+  }
+
+  function handleEventReorder(dayNumber: number, reorderedEvents: TripEvent[]): void {
+    const day = days.find(d => d.dayNumber === dayNumber);
+    if (!day?.id) return;
+    React.startTransition(() => {
+      reorderEvents({ dayId: day.id!, orderedEventIds: reorderedEvents.map(e => e.id) });
+    });
+  }
+
+  function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): void {
+    const day = days.find(d => d.dayNumber === dayNumber);
+    if (!day?.id) return;
+    React.startTransition(() => {
+      updateDay(day.id!, updates);
+    });
+  }
+
+  function handleTripSave(patch: UpdateTripPatch): void {
+    React.startTransition(() => {
+      updateTripMetadata(trip.id, patch);
+    });
+    setEditingTrip(false);
+  }
+
+  const eventCount   = days.reduce((count, day) => count + day.events.length, 0);
+  const dayTotal     = getTripDays(trip.startDate, trip.endDate);
+  const status       = getTripStatus(trip.startDate, trip.endDate, now);
+  const heroDateLine = formatTripHeader(trip.startDate, trip.endDate);
+
+  return (
+    <div className="flex flex-col min-h-full">
+      {/* Crumb bar */}
+      <div
+        className="flex items-center gap-2 px-4 lg:px-6 py-2.5 shrink-0"
+        style={{ borderBottom: "1px solid var(--line)" }}
+      >
+        <Link
+          href="/trips"
+          className="inline-flex shrink-0 items-center gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 font-medium h-7 transition-colors hover:bg-surface"
+          style={{ fontSize: "0.8rem", color: "var(--fg)" }}
+        >
+          <ChevronLeft size={14} strokeWidth={1.5} />
+          Trips
+        </Link>
+        <span style={{ color: "var(--fg-4)", fontSize: 13 }}>/</span>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>{trip.name}</span>
+        <span className="flex-1" />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditingTrip(true)}>
+            <Pencil size={13} strokeWidth={1.5} />
+            Edit
+          </Button>
+          <Button variant="outline" size="sm">
+            <Share2 size={13} strokeWidth={1.5} />
+            Share
+          </Button>
+          <Button variant="outline" size="sm">
+            <Download size={13} strokeWidth={1.5} />
+            Offline
+          </Button>
+          <Button variant="outline" size="icon-sm" title="More options">
+            <MoreHorizontal size={13} strokeWidth={1.5} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <div className="relative shrink-0" style={{ minHeight: 260 }}>
+        <TripCover
+          name={trip.name}
+          country=""
+          metaTag={`${status.toUpperCase()} TRIP · OFFLINE`}
+          showCity={false}
+          style={{ minHeight: 260 }}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "var(--cover-scrim)" }}
+        />
+        <div className="absolute bottom-0 left-0 right-0 p-5 lg:p-6">
+          <div
+            style={{
+              fontFamily: "var(--font-mono-family, ui-monospace)",
+              fontSize: "10.5px", fontWeight: 500,
+              letterSpacing: "0.08em", textTransform: "uppercase",
+              color: "var(--cover-text-dim)",
+              marginBottom: 6,
+            }}
+          >
+            {heroDateLine}
+          </div>
+          <h1
+            style={{
+              fontFamily: "var(--font-heading-family, ui-sans-serif)",
+              fontSize: "clamp(28px, 5vw, 40px)",
+              fontWeight: 800,
+              letterSpacing: "-0.03em",
+              color: "var(--cover-text)",
+              lineHeight: 1.05,
+              marginBottom: 10,
+            }}
+          >
+            {trip.name}
+          </h1>
+          <div className="flex items-center gap-4 flex-wrap" style={{ color: "var(--cover-text-sub)", fontSize: 12.5 }}>
+            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days</span>
+            <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
+            <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{docs.length} docs</span>
+            <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{collaborators.length} collaborators</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div
+        className="flex items-center gap-0 px-4 lg:px-6 shrink-0"
+        style={{ borderBottom: "1px solid var(--line)", background: "var(--bg)" }}
+      >
+        <div className="flex items-center flex-1 gap-0 overflow-x-auto overflow-y-hidden scroll-thin">
+          {TABS.map((tabItem) => (
+            <button
+              key={tabItem.id}
+              className="shrink-0 px-3.5 py-3 transition-colors relative"
+              style={{
+                fontSize: 13,
+                fontWeight: activeTab === tabItem.id ? 600 : 400,
+                color: activeTab === tabItem.id ? "var(--fg)" : "var(--fg-3)",
+                background: "none",
+                border: "none",
+                borderBottom: activeTab === tabItem.id ? "2px solid var(--accent-brand)" : "2px solid transparent",
+                marginBottom: -1,
+              }}
+              onClick={() => setActiveTab(tabItem.id as typeof activeTab)}
+            >
+              {tabItem.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 flex min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
+          {activeTab === "itin" && (
+            <div>
+              {days.length > 0
+                ? days.map((day) => (
+                    <DayCard
+                      key={day.dayNumber}
+                      day={day}
+                      onUpdateEvent={handleEventUpdate}
+                      onDeleteEvent={handleEventDelete}
+                      onReorderEvents={handleEventReorder}
+                      onUpdateDay={handleDayUpdate}
+                    />
+                  ))
+                : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
+              }
+            </div>
+          )}
+          {activeTab === "docs" && (
+            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Document view coming soon.</div>
+          )}
+          {activeTab === "map" && (
+            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Map view coming soon.</div>
+          )}
+          {activeTab === "pack" && (
+            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Packing list view coming soon.</div>
+          )}
+          {activeTab === "notes" && (
+            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Notes coming soon.</div>
+          )}
+        </div>
+      </div>
+
+      <TripEditSheet
+        key={trip.id}
+        trip={editingTrip ? trip : null}
+        open={editingTrip}
+        onClose={() => setEditingTrip(false)}
+        onSave={handleTripSave}
+      />
+    </div>
+  );
+}

@@ -6,6 +6,7 @@ import { MapPin, Plus, ChevronDown, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlaceRow } from "./place-row";
 import { type DayItinerary, type TripEvent } from "@/data/types";
+import { cn } from "@/lib/utils";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -74,8 +75,8 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
     setIsEditingSubtitle(false);
   }
 
-  const scheduledEvents   = d.events.filter((e) => !!e.time);
-  const unscheduledEvents = d.events.filter((e) => !e.time);
+  const scheduledEvents   = d.events.filter((e) => !!e.startAt);
+  const unscheduledEvents = d.events.filter((e) => !e.startAt);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -103,7 +104,7 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
     >
       {/* Day header */}
       <div
-        className={`rounded-t-[10px] ${!open ? "rounded-b-[10px]" : ""}`}
+        className={cn("rounded-t-[10px]", !open && "rounded-b-[10px]")}
         style={{
           background: isToday ? "var(--accent-soft)" : "var(--surface)",
           borderBottom: open ? "1px solid var(--line)" : "none",
@@ -172,7 +173,10 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
             />
           ) : (
             <div
+              role="button"
+              tabIndex={0}
               onClick={e => { e.stopPropagation(); setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(true); }}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(true); } }}
               style={{
                 fontSize: 12,
                 color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
@@ -211,9 +215,10 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                     <SortablePlaceRow
                       key={p.id ?? i}
                       id={`event-${p.id}`}
-                      place={{ ...p, date: p.date ?? d.date }}
+                      place={p}
+                      dayDate={d.date}
                       isLast={i === unscheduledEvents.length - 1 && scheduledEvents.length === 0}
-                      onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}
+                      onUpdate={onUpdateEvent}
                       onDelete={onDeleteEvent}
                     />
                   ))}
@@ -229,9 +234,10 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                 <SortablePlaceRow
                   key={p.id ?? i}
                   id={`event-${p.id}`}
-                  place={{ ...p, date: p.date ?? d.date }}
+                  place={p}
+                  dayDate={d.date}
                   isLast={i === scheduledEvents.length - 1}
-                  onUpdate={e => onUpdateEvent({ ...e, date: e.date ?? d.date })}
+                  onUpdate={onUpdateEvent}
                   onDelete={onDeleteEvent}
                 />
               ))}

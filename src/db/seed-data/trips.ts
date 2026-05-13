@@ -4,9 +4,10 @@ export type {
   Trip,
   WorldPin,
   TripTint,
-} from "./types";
+} from "../../data/types";
 
-import type { Trip, TripTint, WorldPin, DayItinerary, Collaborator } from "./types";
+import type { Trip, TripTint, WorldPin } from "../../data/types";
+import type { SeedDayItinerary as DayItinerary, Collaborator } from "./seed-types";
 import { TOKYO_DAYS, TOKYO_DOCS, TOKYO_COLLAB } from "./tokyo";
 import { LISBON_DAYS, LISBON_DOCS, LISBON_COLLAB } from "./lisbon";
 
@@ -43,7 +44,7 @@ export const WORLD_PINS: WorldPin[] = [
   { x: 320, y: 410, label: "Patagonia" },
 ];
 
-export const AVATAR_COLORS: Record<string, { bg: string; color: string; }> = {
+export const AVATAR_COLORS: Record<string, { bg: string; color: string }> = {
   MR: { bg: "oklch(0.86 0.08 160)", color: "oklch(0.30 0.10 160)" },
   JK: { bg: "oklch(0.86 0.08 260)", color: "oklch(0.30 0.10 260)" },
   AC: { bg: "oklch(0.86 0.08 45)", color: "oklch(0.30 0.10 45)" },
@@ -66,7 +67,7 @@ export function getTripById(id: string): Trip | undefined {
   return ALL_TRIPS.find((trip) => trip.id === id);
 }
 
-export const TRIP_DATA: Record<string, { days: DayItinerary[]; docs: { name: string; }[]; collaborators: Collaborator[]; }> = {
+export const TRIP_DATA: Record<string, { days: DayItinerary[]; docs: { name: string }[]; collaborators: Collaborator[] }> = {
   "tokyo-2026": { days: TOKYO_DAYS, docs: TOKYO_DOCS, collaborators: TOKYO_COLLAB },
   "lisbon-2026": { days: LISBON_DAYS, docs: LISBON_DOCS, collaborators: LISBON_COLLAB },
 };

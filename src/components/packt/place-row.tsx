@@ -22,7 +22,9 @@ function formatTime(t: string) {
   return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
-function DocKindBadge({ kind }: { kind: Document["kind"] }) {
+interface DocKindBadgeProps { kind: Document["kind"]; }
+
+function DocKindBadge({ kind }: DocKindBadgeProps) {
   const map = {
     pdf:   { label: "PDF",  color: "oklch(0.72 0.12 25)"  },
     image: { label: "IMG",  color: "oklch(0.72 0.10 145)" },
@@ -399,8 +401,22 @@ function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
   );
 }
 
+function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHHMM: string) {
+  if (!dayDate) return { startAt: undefined, endAt: undefined };
+  return {
+    startAt: new Date(`${dayDate}T${startHHMM}:00`).toISOString(),
+    endAt:   new Date(`${dayDate}T${endHHMM}:00`).toISOString(),
+  };
+}
+
+function toHHMM(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 interface PlaceRowProps {
   place: TripEvent;
+  dayDate?: string;
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
@@ -408,7 +424,7 @@ interface PlaceRowProps {
   id?: string;
 }
 
-export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id }: PlaceRowProps) {
+export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, dragHandle, id }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -440,10 +456,10 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
     setIsEditingNote(false);
   }
 
-  const timeLabel = p.time
-    ? p.endTime
-      ? `${formatTime(p.time)} – ${formatTime(p.endTime)}`
-      : formatTime(p.time)
+  const timeLabel = p.startAt
+    ? p.endAt
+      ? `${formatTime(toHHMM(p.startAt))} – ${formatTime(toHHMM(p.endAt))}`
+      : formatTime(toHHMM(p.startAt))
     : null;
 
   return (
@@ -554,7 +570,10 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
               />
             ) : (
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => { setDraftNote(p.note ?? ""); setIsEditingNote(true); }}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { setDraftNote(p.note ?? ""); setIsEditingNote(true); } }}
                 style={{
                   fontSize: 12,
                   cursor: "text",
@@ -578,8 +597,8 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
                 style={{
                   fontSize: 11,
-                  color: p.time ? "var(--accent-ink)" : "var(--fg-4)",
-                  background: p.time ? "var(--accent-soft)" : "none",
+                  color: p.startAt ? "var(--accent-ink)" : "var(--fg-4)",
+                  background: p.startAt ? "var(--accent-soft)" : "none",
                   border: "1px solid transparent",
                 }}
               >
@@ -588,10 +607,14 @@ export function PlaceRow({ place: p, isLast, onUpdate, onDelete, dragHandle, id 
               </button>
               {showTimePicker && (
                 <TimePickerDropdown
-                  time={p.time}
-                  endTime={p.endTime}
+                  time={p.startAt ? toHHMM(p.startAt) : undefined}
+                  endTime={p.endAt ? toHHMM(p.endAt) : undefined}
                   onSave={(t, et) => {
-                    onUpdate({ ...p, time: t, endTime: et });
+                    if (!t) {
+                      onUpdate({ ...p, startAt: undefined, endAt: undefined });
+                    } else {
+                      onUpdate({ ...p, ...composeStartEndAt(dayDate, t, et ?? t) });
+                    }
                     setShowTimePicker(false);
                   }}
                   onClose={() => setShowTimePicker(false)}

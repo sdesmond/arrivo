@@ -15,14 +15,22 @@ The user will provide the path to the plan file. Read it and assess every propos
 ```
 src/components/packt/   ← domain components (use trip/event data, business logic)
 src/components/ui/      ← reusable primitives (no business logic, generic)
+src/app/                ← route-level client/server components (page.tsx, page-client.tsx, etc.)
 ```
 
-Grep `src/components/` to check for existing components that may already fulfill a proposed need:
+Grep both `src/components/` and `src/app/` to check for existing components:
 ```
 C:\Users\spenc\dev\packt\src\components\
+C:\Users\spenc\dev\packt\src\app\
 ```
 
 ## What to Check
+
+**0. Existing file size (check FIRST)**
+- For every file the plan proposes to modify, Read that file and count its lines.
+- If the file already exceeds ~250 lines of JSX, it is already too large. Flag it as BLOCKING and recommend that the plan include a step to split it before or alongside adding the new code.
+- Suggest a logical split based on the distinct UI regions or responsibilities visible in the file (e.g., desktop layout vs. mobile layout, header/topbar, individual tab views, sub-lists).
+- Do not skip this check because the file is in `src/app/` rather than `src/components/` — route-level client components are subject to the same size limit.
 
 **1. Component size / cohesion**
 - A component with >4 distinct responsibilities described is too large. Flag it and suggest which responsibilities should split into sub-components.
@@ -30,7 +38,7 @@ C:\Users\spenc\dev\packt\src\components\
 - A rough heuristic: if the description implies >~250 lines of JSX, it needs splitting.
 
 **2. Reuse opportunities**
-- Grep for existing component names and patterns. If a proposed component closely duplicates an existing one, flag it as DUPLICATE and point to the existing file.
+- Grep for existing component names and patterns in both `src/components/` and `src/app/`. If a proposed component closely duplicates an existing one, flag it as DUPLICATE and point to the existing file.
 - If a proposed component is generic enough to be used elsewhere, recommend placing it in `ui/` not `packt/`.
 
 **3. File placement**
@@ -48,7 +56,22 @@ C:\Users\spenc\dev\packt\src\components\
 
 ## How to Report
 
-Print a table of all proposed components:
+First, report any existing files that are already too large:
+
+```
+EXISTING FILE SIZE CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+src/app/(app)/trips/page-client.tsx  — 647 lines  ✗ TOO LARGE
+  Plan must include a split step. Suggested breakdown:
+    - MobileActiveTab, MobileUpcomingTab, MobilePastTab → trips/components/mobile-tabs.tsx
+    - Topbar → trips/components/topbar.tsx
+    - PastTripsList → already a named function, extract to trips/components/past-trips-list.tsx
+
+[repeat for each modified file that exceeds ~250 lines]
+```
+
+Then report proposed new components:
 
 ```
 COMPONENT REVIEW
@@ -68,6 +91,6 @@ BLOCKING: N issues must be resolved before implementation
 WARNINGS: N issues to consider
 ```
 
-Mark an issue BLOCKING if it would require significant restructuring to fix post-implementation (wrong placement, component too large, missing interface structure). Mark WARNING for smaller concerns (potential reuse opportunity, slight ambiguity in splitting).
+Mark an issue BLOCKING if it would require significant restructuring to fix post-implementation (wrong placement, component too large, missing interface structure, target file already oversized). Mark WARNING for smaller concerns (potential reuse opportunity, slight ambiguity in splitting).
 
 Report findings only — do not rewrite the plan.

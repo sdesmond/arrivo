@@ -56,8 +56,7 @@ export interface Document {
   name:    string;
   kind:    DocKind;
   size?:   string;
-  // trip = belongs to the trip overall; event = attached to one event; both = either
-  scope:   "trip" | "event" | "both";
+  scope:   "trip" | "event";
   offline: boolean;
   url?:    string;
   previewLines?: DocPreviewLine[];
@@ -95,16 +94,16 @@ export interface TripEvent {
   note?: string;
 
   // ── Scheduling ────────────────────────────────────────────────────────────
-  // date + time are the prototype-era fields (plain strings).
-  // startAt / endAt are ISO datetimes for production use.
-  date?:    string;
-  time?:    string;
-  endTime?: string;
   startAt?: string;
   endAt?:   string;
 
   // ── Location ──────────────────────────────────────────────────────────────
-  location?: EventLocation;
+  location?:        EventLocation;
+  // Flat DB-backed fields (prototype nested location above will be removed in Part 4)
+  locationName?:    string;
+  locationAddress?: string;
+  locationLat?:     number;
+  locationLng?:     number;
 
   // ── Cost ──────────────────────────────────────────────────────────────────
   cost?: number;
@@ -115,6 +114,7 @@ export interface TripEvent {
   // ── Attached documents ────────────────────────────────────────────────────
   docs?: Document[];
 
+  position?:  number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -125,6 +125,7 @@ export interface TripEvent {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface DayItinerary {
+  id?:           string;
   tripId?:       string;
   dayNumber:     number;
   date?:         string;
@@ -151,6 +152,9 @@ export interface Collaborator {
     bg: string;
     fg: string;
   };
+  // Flat DB-backed tint fields (nested tint above will be removed in Part 4)
+  tintBg?: string;
+  tintFg?: string;
 }
 
 
@@ -190,9 +194,6 @@ export interface Trip {
 
   docs?: Document[];
 
-  // Quick-access strip of today's events shown on the dashboard.
-  events?: TripEvent[];
-
   createdAt?: string;
   updatedAt?: string;
 }
@@ -203,10 +204,11 @@ export interface Trip {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PackingItem {
-  id?:     string;
-  name:    string;
-  done:    boolean;
-  tripId?: string;
+  id?:       string;
+  name:      string;
+  done:      boolean;
+  tripId?:   string;
+  position?: number;
 }
 
 
@@ -224,4 +226,105 @@ export interface WorldPin {
   x:     number;
   y:     number;
   label: string;
+}
+
+
+// ── Server Action input/patch shapes ─────────────────────────────────────────
+
+export interface TripListEntry {
+  trip: Trip;          // status computed at read time via getTripStatus(), not stored
+  todayEvents: TripEvent[];
+}
+
+export interface TripDetailPayload {
+  trip: Trip;
+  days: DayItinerary[];
+  docs: Document[];
+  collaborators: Collaborator[];
+  packingItems: PackingItem[];
+}
+
+export interface CreateTripInput {
+  name: string;
+  startDate: string;  // ISO date "YYYY-MM-DD"
+  endDate: string;
+  coverImageUrl?: string;
+  notes?: string;
+  budgetCurrency?: string;
+  budgetTotal?: number;
+  budgetPerPerson?: number;
+  tags?: string[];
+}
+
+export interface UpdateTripPatch {
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+  coverImageUrl?: string;
+  notes?: string;
+  budgetCurrency?: string;
+  budgetTotal?: number;
+  budgetPerPerson?: number;
+  tags?: string[];
+}
+
+export interface CreateEventInput {
+  name: string;
+  startAt?: string;   // ISO datetime
+  endAt?: string;
+  locationName?: string;
+  locationAddress?: string;
+  locationLat?: number;
+  locationLng?: number;
+  cost?: number;
+  confirmationNumber?: string;
+  note?: string;
+}
+
+export interface UpdateEventPatch {
+  name?: string;
+  startAt?: string;
+  endAt?: string;
+  locationName?: string;
+  locationAddress?: string;
+  locationLat?: number;
+  locationLng?: number;
+  cost?: number;
+  confirmationNumber?: string;
+  note?: string;
+}
+
+export interface ReorderEventsInput {
+  dayId: string;
+  orderedEventIds: string[];
+}
+
+export interface UpdateDayPatch {
+  label?: string;
+  subtitle?: string;
+  weather?: string;
+  travelSummary?: string;
+}
+
+export interface AddCollaboratorInput {
+  email: string;
+  name: string;
+  initials: string;
+  role: "editor" | "viewer";
+  tintBg?: string;
+  tintFg?: string;
+}
+
+export interface AddDocumentInput {
+  tripId?: string;
+  eventId?: string;
+  name: string;
+  kind: string;
+  size?: string;
+  offline?: boolean;
+  url?: string;
+}
+
+export interface AddPackingItemInput {
+  name: string;
 }
