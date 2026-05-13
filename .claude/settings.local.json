@@ -26,7 +26,13 @@
       "Bash(node -e \"console.log\\(require\\('./node_modules/react/package.json'\\).version\\)\")",
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(Sort-Object PSIsContainer -Descending, Name)",
-      "Bash(grep -E '\\\\.\\(json|mjs|ts|tsx|css|yml|yaml|sh\\)$|package|tsconfig|next|eslint|postcss|docker')"
+      "Bash(grep -E '\\\\.\\(json|mjs|ts|tsx|css|yml|yaml|sh\\)$|package|tsconfig|next|eslint|postcss|docker')",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\tests\\\\e2e\\\\features\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\tests\\\\e2e\\\\steps\")",
+      "Bash(New-Item -ItemType File -Path \"C:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\tests\\\\e2e\\\\.gitkeep\")",
+      "Bash(Write-Host \"Done\")",
+      "Bash(echo \"Exit code: $?\")"
     ]
   },
   "enableAllProjectMcpServers": true,
