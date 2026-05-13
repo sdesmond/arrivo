@@ -250,7 +250,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
 
       <TripEditSheet
         key={trip.id}
-        trip={editingTrip ? trip : null}
+        trip={trip}
         open={editingTrip}
         onClose={() => setEditingTrip(false)}
         onSave={handleTripSave}

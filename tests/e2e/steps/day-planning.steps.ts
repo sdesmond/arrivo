@@ -1,24 +1,60 @@
 import { expect, type Page } from '@playwright/test'
-import { Given, When, Then } from '../fixtures'
+import { Given, When, Then, Before, After } from '../fixtures'
 
-// Shared within a scenario's sequential steps
 let lastEventName: string | undefined
+let createdEventIds: string[] = []
+let eventIdByName: Map<string, string> = new Map()
 
 async function openFirstDay(page: Page) {
-  // Expand the first day card if it is collapsed
-  const firstToggle = page.locator('button[aria-expanded="false"]').first()
-  if (await firstToggle.count() > 0) {
-    await firstToggle.click()
+  // Wait for day cards to render (unique to trip detail — toggle buttons contain "X stops")
+  const firstDayToggle = page.locator('button').filter({ hasText: /\d+ stops/ }).first()
+  await expect(firstDayToggle).toBeVisible()
+
+  // Expand if collapsed
+  if (await firstDayToggle.getAttribute('aria-expanded') === 'false') {
+    await firstDayToggle.click()
   }
-  await expect(page.locator('button[aria-expanded="true"]')).toBeVisible()
+
+  // Confirm the day body is open by waiting for the add-event button
+  await expect(page.getByRole('button', { name: /add a place/i }).first()).toBeVisible()
 }
 
 async function addEvent(page: Page, name: string) {
+  const idsBefore = new Set(
+    await page.locator('[id^="event-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+  )
   await page.getByRole('button', { name: /add a place/i }).first().click()
   await page.getByPlaceholder('Event name').fill(name)
   await page.keyboard.press('Enter')
-  await expect(page.getByText(name)).toBeVisible()
+  // Wait for the new event row to appear
+  await expect(page.locator('[id^="event-"]')).toHaveCount(idsBefore.size + 1)
+  const idsAfter = await page.locator('[id^="event-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+  const newId = idsAfter.find(id => !idsBefore.has(id))
+  if (newId) {
+    createdEventIds.push(newId)
+    eventIdByName.set(name, newId)
+  }
 }
+
+Before(async () => {
+  lastEventName = undefined
+  createdEventIds = []
+  eventIdByName = new Map()
+})
+
+After(async ({ page }) => {
+  for (const rowId of [...createdEventIds]) {
+    const row = page.locator(`#${rowId}`)
+    if (await row.isVisible()) {
+      await row.hover()
+      await row.getByTitle('Delete event').click()
+      await expect(row).not.toBeVisible({ timeout: 5000 })
+    }
+  }
+  createdEventIds = []
+  lastEventName = undefined
+  eventIdByName = new Map()
+})
 
 Given('I have an existing trip with days', async ({ page }) => {
   await page.goto('/trips')
@@ -32,13 +68,13 @@ Given('I am on the trip detail page', async ({ page }) => {
 })
 
 When('I add a new event named {string}', async ({ page }, name: string) => {
-  await page.getByRole('button', { name: /add a place/i }).first().click()
-  await page.getByPlaceholder('Event name').fill(name)
-  await page.keyboard.press('Enter')
+  await addEvent(page, name)
 })
 
 Then('the day should contain {string}', async ({ page }, name: string) => {
-  await expect(page.getByText(name)).toBeVisible()
+  const id = eventIdByName.get(name)
+  const row = id ? page.locator(`#${id}`) : page.locator('[id^="event-"]').filter({ hasText: name }).first()
+  await expect(row).toBeVisible()
 })
 
 Given('a day has an event named {string}', async ({ page }, name: string) => {
@@ -47,16 +83,20 @@ Given('a day has an event named {string}', async ({ page }, name: string) => {
 })
 
 When('I edit the event name to {string}', async ({ page }, newName: string) => {
-  const row = page.locator('[id^="event-"]').filter({ hasText: lastEventName! })
+  const id = eventIdByName.get(lastEventName!)
+  const row = id ? page.locator(`#${id}`) : page.locator('[id^="event-"]').filter({ hasText: lastEventName! }).first()
+  const rowId = await row.getAttribute('id')
   await row.hover()
   await row.getByTitle('Edit name').click()
-  const input = row.getByRole('textbox')
-  await input.fill(newName)
+  await page.locator(`#${rowId}`).getByRole('textbox').fill(newName)
   await page.keyboard.press('Enter')
 })
 
 Then('the day should show {string}', async ({ page }, name: string) => {
-  await expect(page.getByText(name)).toBeVisible()
+  // Use tracked ID — the event was renamed so text changed but ID is stable
+  const lastId = createdEventIds[createdEventIds.length - 1]
+  const row = lastId ? page.locator(`#${lastId}`) : page.locator('[id^="event-"]').filter({ hasText: name }).first()
+  await expect(row).toContainText(name)
 })
 
 Given('a day has an event without a time', async ({ page }) => {
@@ -66,24 +106,33 @@ Given('a day has an event without a time', async ({ page }) => {
 })
 
 When('I open the time picker and set a start time', async ({ page }) => {
-  const row = page.locator('[id^="event-"]').filter({ hasText: lastEventName! }).first()
+  const id = eventIdByName.get(lastEventName!)
+  const row = id ? page.locator(`#${id}`) : page.locator('[id^="event-"]').filter({ hasText: lastEventName! }).first()
   await row.getByRole('button', { name: 'Add time' }).click()
   await page.locator('input[type="time"]').first().fill('09:00')
   await page.getByRole('button', { name: 'Save' }).click()
 })
 
 Then('the event should display the time', async ({ page }) => {
-  await expect(page.getByText(/\d+:\d{2}\s*(AM|PM)/i)).toBeVisible()
+  const id = eventIdByName.get(lastEventName!)
+  const eventRow = id ? page.locator(`#${id}`) : page.locator('[id^="event-"]').filter({ hasText: lastEventName! }).first()
+  await expect(eventRow.getByText(/\d+:\d{2}\s*(AM|PM)/i)).toBeVisible()
 })
 
 When('I delete that event', async ({ page }) => {
-  const row = page.locator('[id^="event-"]').filter({ hasText: lastEventName! }).first()
+  const id = eventIdByName.get(lastEventName!)
+  const row = id ? page.locator(`#${id}`) : page.locator('[id^="event-"]').filter({ hasText: lastEventName! }).first()
   await row.hover()
   await row.getByTitle('Delete event').click()
+  // Remove from tracking — deleted, no need for After cleanup
+  if (id) {
+    createdEventIds = createdEventIds.filter(eid => eid !== id)
+    eventIdByName.delete(lastEventName!)
+  }
 })
 
 Then('the day should not contain {string}', async ({ page }, name: string) => {
-  await expect(page.getByText(name)).not.toBeVisible()
+  await expect(page.locator('[id^="event-"]').filter({ hasText: name })).toHaveCount(0)
 })
 
 Given('a day has events {string} and {string} in order', async ({ page }, first: string, second: string) => {
@@ -92,8 +141,10 @@ Given('a day has events {string} and {string} in order', async ({ page }, first:
 })
 
 When('I drag {string} above {string}', async ({ page }, source: string, target: string) => {
-  const sourceRow = page.locator('[id^="event-"]').filter({ hasText: source })
-  const targetRow = page.locator('[id^="event-"]').filter({ hasText: target })
+  const sourceId = eventIdByName.get(source)
+  const targetId = eventIdByName.get(target)
+  const sourceRow = sourceId ? page.locator(`#${sourceId}`) : page.locator('[id^="event-"]').filter({ hasText: source }).first()
+  const targetRow = targetId ? page.locator(`#${targetId}`) : page.locator('[id^="event-"]').filter({ hasText: target }).first()
 
   // Hover source to ensure drag handle is in hover state
   await sourceRow.hover()
@@ -119,11 +170,12 @@ When('I drag {string} above {string}', async ({ page }, source: string, target: 
 })
 
 Then('the order should be {string} then {string}', async ({ page }, first: string, second: string) => {
+  const firstId = eventIdByName.get(first)
+  const secondId = eventIdByName.get(second)
   await expect(async () => {
-    const rows = page.locator('[id^="event-"]')
-    const texts = await rows.allTextContents()
-    const firstIdx = texts.findIndex(t => t.includes(first))
-    const secondIdx = texts.findIndex(t => t.includes(second))
+    const ids = await page.locator('[id^="event-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+    const firstIdx = firstId ? ids.indexOf(firstId) : ids.findIndex(id => id.includes(first))
+    const secondIdx = secondId ? ids.indexOf(secondId) : ids.findIndex(id => id.includes(second))
     expect(firstIdx).toBeGreaterThanOrEqual(0)
     expect(secondIdx).toBeGreaterThanOrEqual(0)
     expect(firstIdx).toBeLessThan(secondIdx)

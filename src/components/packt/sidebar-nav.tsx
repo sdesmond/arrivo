@@ -13,14 +13,7 @@ import { SectionHeading } from "./section-heading";
 const NAV_ITEMS = [
   { id: "trips",          label: "Trips",          icon: Briefcase, href: "/trips",           count: 4 },
   { id: "search",         label: "Search",         icon: Search,    href: "/search" },
-  { id: "map",            label: "Map",            icon: Map,       href: "/map" },
-  { id: "world",          label: "World map",      icon: Globe,     href: "/world" },
   { id: "travel-history", label: "Travel History", icon: Clock,     href: "/travel-history" },
-];
-
-const ACCOUNT_ITEMS = [
-  { id: "profile",  label: "Profile",  icon: User,     href: "/profile" },
-  { id: "settings", label: "Settings", icon: Settings, href: "/settings" },
 ];
 
 const PINNED = [
@@ -106,20 +99,6 @@ export function SidebarNav() {
               {trip.meta}
             </span>
           </Link>
-        ))}
-      </div>
-
-      {/* Account */}
-      <div className="px-2 pb-1">
-        <SectionHeading>Account</SectionHeading>
-        {ACCOUNT_ITEMS.map((item) => (
-          <NavItem
-            key={item.id}
-            icon={item.icon}
-            label={item.label}
-            href={item.href}
-            active={pathname === item.href}
-          />
         ))}
       </div>
 

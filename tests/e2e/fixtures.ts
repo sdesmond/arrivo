@@ -1,4 +1,4 @@
 import { test as base, createBdd } from 'playwright-bdd'
 
 export const test = base
-export const { Given, When, Then } = createBdd(test)
+export const { Given, When, Then, Before, After } = createBdd(test)

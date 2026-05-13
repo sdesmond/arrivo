@@ -34,7 +34,9 @@
       "Bash(Write-Host \"Done\")",
       "Bash(echo \"Exit code: $?\")",
       "Bash(node *)",
-      "Bash(Remove-Item -Recurse -Force coverage -ErrorAction SilentlyContinue)"
+      "Bash(Remove-Item -Recurse -Force coverage -ErrorAction SilentlyContinue)",
+      "Read(//c/Users/spenc/AppData/Local/Temp/claude/C--Users-spenc-dev-packt/2ccc95b8-d8fb-479c-b0e2-4c2639789ceb/tasks/**)",
+      "Bash(Get-Content *)"
     ]
   },
   "enableAllProjectMcpServers": true,
