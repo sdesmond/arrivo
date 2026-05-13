@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import {
   Briefcase, Search, Map, Globe, User, Settings, MoreHorizontal, Clock,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { getAvatarTint } from "@/lib/trip-tints";
+import { NavItem } from "./nav-item";
+import { SectionHeading } from "./section-heading";
 
 const NAV_ITEMS = [
   { id: "trips",          label: "Trips",          icon: Briefcase, href: "/trips",           count: 4 },
@@ -26,50 +27,6 @@ const PINNED = [
   { name: "Lisbon",   hue: 78, meta: "21d" },
   { name: "Oaxaca",   hue: 45, meta: "92d" },
 ];
-
-interface NavItemProps {
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-  label: string;
-  href: string;
-  count?: number;
-  active?: boolean;
-}
-
-function NavItem({ icon: Icon, label, href, count, active }: NavItemProps) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors",
-        "hover:bg-surface",
-        active
-          ? "bg-surface-2 text-fg"
-          : "text-fg-2"
-      )}
-    >
-      <Icon
-        size={16}
-        strokeWidth={1.5}
-        className={cn("shrink-0", active ? "text-accent-brand" : "text-fg-3")}
-      />
-      <span>{label}</span>
-      {count != null && (
-        <span
-          className="ml-auto"
-          style={{
-            fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: "10.5px",
-            fontWeight: 500,
-            letterSpacing: "0.04em",
-            color: "var(--fg-3)",
-          }}
-        >
-          {count}
-        </span>
-      )}
-    </Link>
-  );
-}
 
 export function SidebarNav() {
   const pathname = usePathname();
@@ -199,20 +156,3 @@ export function SidebarNav() {
   );
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="px-2.5 pb-1 pt-3"
-      style={{
-        fontFamily: "var(--font-mono-family, ui-monospace)",
-        fontSize: "10.5px",
-        fontWeight: 500,
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        color: "var(--fg-4)",
-      }}
-    >
-      {children}
-    </div>
-  );
-}

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
-import { cn, isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
+import { getTripStatus, getActiveDayNumber, getTodayDisplay } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { type Trip, type TripEvent } from "@/data/types";
+import { EventChip } from "@/components/packt/event-chip";
 
 interface DayRibbonProps {
   trip: Trip;
@@ -86,46 +87,5 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
         </button>
       </div>
     </div>
-  );
-}
-
-function EventChip({ ev, tripId, now }: { ev: TripEvent; tripId: string; now: Date }) {
-  const isNow = isEventNow(ev, now);
-  const isPast = isEventPast(ev, now);
-  const timeStr = ev.startAt
-    ? new Date(ev.startAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-    : "";
-
-  return (
-    <Link
-      href={`/trips/${tripId}`}
-      className={cn(
-        "flex flex-col gap-0.5 px-2.5 py-2 rounded-[8px] transition-colors min-w-[88px]",
-        "hover:bg-surface-2",
-        isNow && "border-[1.5px]"
-      )}
-      style={{
-        opacity: isPast ? 0.55 : 1,
-        background: isNow ? "var(--accent-soft)" : undefined,
-        borderColor: isNow ? "var(--accent-brand)" : undefined,
-      }}
-      title={`Open ${ev.name} in day planner`}
-    >
-      <div
-        style={{
-          fontFamily: "var(--font-mono-family, ui-monospace)",
-          fontSize: "10px",
-          fontWeight: 500,
-          letterSpacing: "0.04em",
-          color: isNow ? "var(--accent-brand)" : "var(--fg-3)",
-          textTransform: "uppercase",
-        }}
-      >
-        {timeStr}{isNow ? " · NOW" : isPast ? " · DONE" : ""}
-      </div>
-      <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}>
-        {ev.name}
-      </div>
-    </Link>
   );
 }

@@ -1,0 +1,74 @@
+"use client";
+
+import { Search, Bell, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ThemeToggle } from "@/components/packt/theme-toggle";
+
+interface TopbarProps {
+  tripCount: number;
+  pastCount: number;
+  now: Date;
+}
+
+export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
+  const todayFormatted = now.toLocaleDateString("en-US", {
+    month: "2-digit", day: "2-digit", year: "numeric",
+  }).replace(/\//g, ".");
+
+  return (
+    <div
+      className="flex items-center gap-3 px-6 py-4"
+      style={{ borderBottom: "1px solid var(--line)" }}
+    >
+      <div>
+        <div
+          style={{
+            fontFamily: "var(--font-heading-family, ui-sans-serif)",
+            fontSize: 16, fontWeight: 600,
+            letterSpacing: "-0.01em",
+            color: "var(--fg)",
+          }}
+        >
+          My trips
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-mono-family, ui-monospace)",
+            fontSize: "10.5px",
+            color: "var(--fg-3)",
+            letterSpacing: "0.04em",
+            marginTop: 2,
+          }}
+        >
+          {todayFormatted} · {tripCount} trip{tripCount !== 1 ? "s" : ""} · {pastCount} past
+        </div>
+      </div>
+
+      <span className="flex-1" />
+
+      <div className="relative w-[280px] hidden md:block">
+        <Search
+          size={14} strokeWidth={1.5}
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ color: "var(--fg-3)" }}
+        />
+        <Input
+          placeholder="Search trips, places, docs…"
+          className="pl-8"
+          style={{ height: 34, fontSize: 13 }}
+        />
+      </div>
+
+      <ThemeToggle />
+
+      <Button variant="outline" size="icon-sm" title="Notifications">
+        <Bell size={14} strokeWidth={1.5} />
+      </Button>
+      <Button size="sm">
+        <Plus size={14} strokeWidth={1.5} />
+        New trip
+      </Button>
+    </div>
+  );
+}

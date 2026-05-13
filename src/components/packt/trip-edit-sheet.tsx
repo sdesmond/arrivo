@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { Trash2, UserPlus } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -20,23 +19,14 @@ import {
   type Budget,
   type UpdateTripPatch,
 } from "@/data/types"
+import { Section, Field } from "@/components/packt/form-section"
+import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators"
 
 interface TripEditSheetProps {
   trip: Trip | null
   open: boolean
   onClose: () => void
   onSave: (patch: UpdateTripPatch) => void
-}
-
-const LABEL_STYLE: React.CSSProperties = {
-  fontFamily: "var(--font-mono-family, ui-monospace)",
-  fontSize: 9,
-  fontWeight: 600,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  color: "var(--fg-4)",
-  marginBottom: 4,
-  display: "block",
 }
 
 const SELECT_STYLE: React.CSSProperties = {
@@ -50,41 +40,8 @@ const SELECT_STYLE: React.CSSProperties = {
   outline: "none",
 }
 
-interface SectionProps { title: string; children: React.ReactNode; }
-
-function Section({ title, children }: SectionProps) {
-  return (
-    <div>
-      <div style={{
-        fontFamily: "var(--font-mono-family, ui-monospace)",
-        fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
-        textTransform: "uppercase", color: "var(--fg-4)",
-        borderBottom: "1px solid var(--line)",
-        paddingBottom: 6, marginBottom: 12,
-      }}>
-        {title}
-      </div>
-      <div className="flex flex-col gap-3">{children}</div>
-    </div>
-  )
-}
-
-interface FieldProps { label: string; children: React.ReactNode; }
-
-function Field({ label, children }: FieldProps) {
-  return (
-    <div>
-      <span style={LABEL_STYLE}>{label}</span>
-      {children}
-    </div>
-  )
-}
-
 export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(trip)
-  const [newName, setNewName] = useState("")
-  const [newEmail, setNewEmail] = useState("")
-  const [newRole, setNewRole] = useState<CollaboratorRole>("editor")
 
   if (!draft) return null
 
@@ -116,20 +73,14 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
     })
   }
 
-  function handleAddCollaborator() {
-    const name = newName.trim()
-    const email = newEmail.trim()
-    if (!name || !email) return
+  function addCollaborator(name: string, email: string, role: CollaboratorRole) {
     const parts = name.split(" ")
     const initials = ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase()
-    const collab: Collaborator = { name, email, initials, role: newRole }
+    const collab: Collaborator = { name, email, initials, role }
     setDraft(prev => prev ? {
       ...prev,
       collaborators: [...(prev.collaborators ?? []), collab],
     } : prev)
-    setNewName("")
-    setNewEmail("")
-    setNewRole("editor")
   }
 
   return (
@@ -140,7 +91,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
-          {/* Basic */}
           <Section title="Basic">
             <Field label="Trip name">
               <Input value={draft.name} onChange={e => set("name", e.target.value)} />
@@ -159,7 +109,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
             </Field>
           </Section>
 
-          {/* Dates */}
           <Section title="Dates">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Start date">
@@ -179,7 +128,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
             </div>
           </Section>
 
-          {/* Cover Image */}
           <Section title="Cover image">
             <Field label="Image URL">
               <Input
@@ -203,7 +151,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
             )}
           </Section>
 
-          {/* Notes */}
           <Section title="Notes">
             <textarea
               value={draft.notes ?? ""}
@@ -213,7 +160,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
             />
           </Section>
 
-          {/* Budget */}
           <Section title="Budget">
             <Field label="Currency">
               <Input
@@ -242,103 +188,13 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
             </div>
           </Section>
 
-          {/* People */}
           <Section title="People">
-            {(draft.collaborators ?? []).length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {draft.collaborators!.map((c, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2"
-                    style={{ padding: "6px 8px", borderRadius: 8, background: "var(--surface-2)" }}
-                  >
-                    {/* Avatar */}
-                    <span
-                      className="rounded-full flex items-center justify-center shrink-0"
-                      style={{
-                        width: 28, height: 28, fontSize: 10, fontWeight: 700,
-                        letterSpacing: "0.04em",
-                        background: c.tint?.bg ?? "var(--surface-3)",
-                        color: c.tint?.fg ?? "var(--fg-2)",
-                      }}
-                    >
-                      {c.initials}
-                    </span>
-                    {/* Name + email */}
-                    <div className="flex-1 min-w-0">
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>{c.name}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--fg-3)" }}>{c.email}</div>
-                    </div>
-                    {/* Role select */}
-                    <select
-                      style={{ ...SELECT_STYLE, width: "auto", fontSize: 11.5, padding: "3px 6px" }}
-                      value={c.role}
-                      disabled={c.role === "owner"}
-                      onChange={e => updateCollaboratorRole(i, e.target.value as CollaboratorRole)}
-                    >
-                      <option value="owner">Owner</option>
-                      <option value="editor">Editor</option>
-                      <option value="viewer">Viewer</option>
-                    </select>
-                    {/* Remove */}
-                    <button
-                      disabled={c.role === "owner"}
-                      onClick={() => removeCollaborator(i)}
-                      className="p-1 rounded-[5px] transition-colors"
-                      style={{
-                        color: c.role === "owner" ? "var(--fg-5)" : "var(--fg-3)",
-                        cursor: c.role === "owner" ? "not-allowed" : "pointer",
-                      }}
-                      title={c.role === "owner" ? "Owner cannot be removed" : "Remove"}
-                    >
-                      <Trash2 size={13} strokeWidth={1.5} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "var(--fg-4)" }}>No collaborators yet.</div>
-            )}
-
-            {/* Add person */}
-            <div
-              className="flex flex-col gap-2"
-              style={{ padding: "10px 10px 8px", borderRadius: 8, border: "1px dashed var(--line-strong)" }}
-            >
-              <span style={{ ...LABEL_STYLE, marginBottom: 2 }}>Add person</span>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="Name"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                />
-                <Input
-                  placeholder="Email"
-                  type="email"
-                  value={newEmail}
-                  onChange={e => setNewEmail(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  style={{ ...SELECT_STYLE, flex: 1 }}
-                  value={newRole}
-                  onChange={e => setNewRole(e.target.value as CollaboratorRole)}
-                >
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddCollaborator}
-                  disabled={!newName.trim() || !newEmail.trim()}
-                >
-                  <UserPlus size={13} strokeWidth={1.5} />
-                  Add
-                </Button>
-              </div>
-            </div>
+            <TripEditCollaborators
+              collaborators={draft.collaborators ?? []}
+              onRemove={removeCollaborator}
+              onUpdateRole={updateCollaboratorRole}
+              onAdd={addCollaborator}
+            />
           </Section>
         </div>
 

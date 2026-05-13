@@ -23,7 +23,10 @@
       "Bash(Select-Object -First 20 FullName)",
       "Bash(pkill -f \"next dev\")",
       "Bash(node -e \"console.log\\(require\\('./node_modules/next/package.json'\\).version\\)\")",
-      "Bash(node -e \"console.log\\(require\\('./node_modules/react/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\(require\\('./node_modules/react/package.json'\\).version\\)\")",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Sort-Object PSIsContainer -Descending, Name)",
+      "Bash(grep -E '\\\\.\\(json|mjs|ts|tsx|css|yml|yaml|sh\\)$|package|tsconfig|next|eslint|postcss|docker')"
     ]
   },
   "enableAllProjectMcpServers": true,
