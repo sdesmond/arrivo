@@ -20,6 +20,10 @@ Categorize results:
 - `.tsx` files → TypeScript + component + UI review
 - Other files → note them, no code review needed
 
+After categorizing, check for missing test files. For each changed source file in `src/lib/**` or `src/components/packt/**` that is **not itself a test file** (i.e. does not end in `.test.ts` or `.test.tsx`), check whether a colocated test file exists. Exempt files: `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, `src/lib/server-now.ts`.
+
+List any source files missing a colocated test file under a "MISSING TESTS" section in the final report and treat each as a violation.
+
 ## Step 2: Build Validation
 
 Run all checks even if one fails:

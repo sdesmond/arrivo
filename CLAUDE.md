@@ -75,6 +75,7 @@ These agents enforce project standards. Use them as described below — don't sk
 | `plan-accessibility-reviewer` | A11y requirements and design token correctness |
 | `plan-architecture-reviewer` | Server/client decisions, derived state, utilities reuse, data flow |
 | `plan-scope-reviewer` | Ensures plan doesn't exceed the original request |
+| `plan-test-reviewer` | Ensures plan includes tests for every covered file touched |
 
 ### Post-implementation agents
 
@@ -94,19 +95,20 @@ Before calling ExitPlanMode, invoke all plan-reviewer agents **IN PARALLEL** (si
 - `plan-accessibility-reviewer` — pass the plan file path
 - `plan-architecture-reviewer` — pass the plan file path
 - `plan-scope-reviewer` — pass the plan file path and summarize the original user request
+- `plan-test-reviewer` — pass the plan file path and summarize the original user request
 
 Address any BLOCKING findings by revising the plan and re-running the affected reviewer(s). Only call ExitPlanMode after all reviewers pass or every BLOCKING issue is resolved.
 
 Only present the plan to the user after the reviewers have seen it and made any necessary changes. 
 
 **Default workflow for any coding task:**
-1. Implement the change
+1. Implement the change **and write/update the colocated test file** — tests are part of the same step, not an afterthought
+   - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create `*.test.ts` / `*.test.tsx` alongside it
+   - New user-facing flow (auth, trip CRUD, day planning) → add or extend a `.feature` + step file in `tests/e2e/`
 2. Run `build-validator` to catch lint/tsc/build/test errors
 3. Run the relevant focused reviewer(s) for what changed
 4. Fix any flagged issues, then re-validate
 5. Run `standards-check` before the final commit
-
-When adding or modifying source files covered by coverage thresholds (`src/lib/**`, `src/components/packt/**`), also add or update the colocated test file to keep coverage passing.
 
 ## Key Conventions
 

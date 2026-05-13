@@ -62,6 +62,12 @@ cd "c:\Users\spenc\dev\packt\packt" && git diff --name-only HEAD -- "src/compone
 - `src/components/ui/` — reusable primitives with no business logic (button, badge, dialog shell, etc.)
 - Flag domain-specific components placed in `ui/`, or generic primitives placed in `packt/`.
 
+**10. Colocated test file**
+- Every component in `src/components/packt/` must have a colocated `ComponentName.test.tsx` in the same directory.
+- Components in `src/components/ui/` are exempt.
+- To check, look for the test file at the same path with `.test.tsx` substituted for `.tsx`.
+- Flag MISSING if no test file exists for a `packt/` component being reviewed.
+
 ## How to Report
 
 For each file:
