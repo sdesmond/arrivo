@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Briefcase, Search, Map, Globe, User, Settings, MoreHorizontal, Clock,
+  Briefcase, Search, Map, Globe, User, Settings, LogOut, Clock,
 } from "lucide-react";
+import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { NavItem } from "./nav-item";
 import { SectionHeading } from "./section-heading";
@@ -145,12 +146,15 @@ export function SidebarNav() {
           <div className="text-[13px] font-medium text-fg truncate">Maya R.</div>
           <div className="text-[11px] text-fg-3 truncate">maya@packt.local</div>
         </div>
-        <button
-          className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
-          title="More options"
-        >
-          <MoreHorizontal size={14} strokeWidth={1.5} />
-        </button>
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
+            title="Sign out"
+          >
+            <LogOut size={14} strokeWidth={1.5} />
+          </button>
+        </form>
       </div>
     </aside>
   );

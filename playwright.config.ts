@@ -10,13 +10,12 @@ export default defineConfig({
   testDir,
   use: {
     baseURL: 'http://localhost:3000',
-    storageState: 'tests/e2e/.auth/user.json',
   },
   projects: [
     { name: 'setup', testMatch: /.*\.setup\.ts/ },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], storageState: 'tests/e2e/.auth/user.json' },
       dependencies: ['setup'],
     },
   ],
