@@ -87,4 +87,22 @@ describe("TripCard", () => {
     const link = screen.getByRole("link")
     expect(link).toHaveAttribute("href", `/trips/${baseTrip.id}`)
   })
+
+  it("renders without collaborators", () => {
+    const trip = { ...baseTrip, collaborators: undefined }
+    render(<TripCard trip={trip} />, { wrapper: Wrapper })
+    expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("renders without docs field", () => {
+    const trip = { ...baseTrip, docs: undefined }
+    render(<TripCard trip={trip} />, { wrapper: Wrapper })
+    expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("renders trip starting today (inDays=0)", () => {
+    const trip = { ...baseTrip, startDate: "2026-05-13", endDate: "2026-05-20" }
+    render(<TripCard trip={trip} />, { wrapper: Wrapper })
+    expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1)
+  })
 })

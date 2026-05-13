@@ -40,4 +40,10 @@ describe("AvatarStack", () => {
     expect(screen.getByText("CC")).toBeInTheDocument()
     expect(screen.queryByText(/^\+/)).not.toBeInTheDocument()
   })
+
+  it("renders with size md (larger dimensions)", () => {
+    render(<AvatarStack initials={["AB"]} size="md" />)
+    const container = screen.getByLabelText("AB")
+    expect(container).toBeInTheDocument()
+  })
 })

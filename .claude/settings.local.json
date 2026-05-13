@@ -33,7 +33,8 @@
       "Bash(New-Item -ItemType File -Path \"C:\\\\Users\\\\spenc\\\\dev\\\\packt\\\\tests\\\\e2e\\\\.gitkeep\")",
       "Bash(Write-Host \"Done\")",
       "Bash(echo \"Exit code: $?\")",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(Remove-Item -Recurse -Force coverage -ErrorAction SilentlyContinue)"
     ]
   },
   "enableAllProjectMcpServers": true,

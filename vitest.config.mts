@@ -10,9 +10,8 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./vitest.setup.mts'],
     coverage: {
-      provider: 'v8',
-      // thresholds re-enabled once component tests are added in later phases
-      // thresholds: { lines: 95, functions: 95, branches: 90 },
+      provider: 'istanbul',
+      thresholds: { lines: 95, functions: 95, branches: 90 },
       include: ['src/lib/**', 'src/components/**'],
       exclude: [
         'src/lib/auth-helpers.ts',
