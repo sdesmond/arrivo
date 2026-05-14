@@ -1,11 +1,5 @@
 # Backlog of items
 
-You need to be less verbose in your responses.  For example, instead of "Let me (action)..." or "Let's (action)..." you should simply say what you're doing (e.g. "Let me investigate" becomes "Investigating"). 
-
-Overall, your responses should be more terse while still clearly communicating what is happening.  This applies especially to communications while you are taking actions (i.e. coding, reviewing, etc).  This more concise communication applies to planning as well, but where clarity is critical to accomplish a task, that clarity is preferred over extreme terseness.
-
-Make changes to `claude.md` so that Claude knows to limit its output.  Suggest other changes that would be needed to be more concise in responses.
-
 ## Bugs
 
 ### E2E tests are overwriting data
