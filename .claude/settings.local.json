@@ -42,7 +42,8 @@
       "Bash(python3 *)",
       "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\spenc\\\\.claude\\\\plans\")",
       "Bash(Sort-Object FullName)",
-      "Skill(bmad-quick-dev)"
+      "Skill(bmad-quick-dev)",
+      "Skill(bmad-agent-builder)"
     ]
   },
   "enableAllProjectMcpServers": true,

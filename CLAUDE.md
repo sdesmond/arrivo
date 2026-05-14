@@ -103,7 +103,7 @@ These agents enforce project standards. Use them as described below — don't sk
 | `build-validator` | Before considering any task complete |
 | `standards-check` | Before committing — this is the pre-commit gate |
 
-**Default workflow for planning:**
+**Default workflow for planning (Claude Code plan mode):**
 Before calling ExitPlanMode, invoke all plan-reviewer agents **IN PARALLEL** (single message, multiple tool calls):
 - `plan-component-reviewer` — pass the plan file path
 - `plan-accessibility-reviewer` — pass the plan file path
@@ -113,7 +113,16 @@ Before calling ExitPlanMode, invoke all plan-reviewer agents **IN PARALLEL** (si
 
 Address any BLOCKING findings by revising the plan and re-running the affected reviewer(s). Only call ExitPlanMode after all reviewers pass or every BLOCKING issue is resolved.
 
-Only present the plan to the user after the reviewers have seen it and made any necessary changes. 
+Only present the plan to the user after the reviewers have seen it and made any necessary changes.
+
+**Default workflow for BMad planning skills:**
+After a BMad planning skill (architect, PM, UX, etc.) saves its artifact, run the plan reviewer **inline** before presenting the artifact to the user — do NOT spawn a subagent:
+
+```
+/packt-plan-reviewer <artifact-path>
+```
+
+Pass the original request as context so scope and test checks have what they need. Address any BLOCKING findings by editing the artifact in place. Do not move or recreate the artifact — it stays wherever the BMad skill saved it.
 
 **Default workflow for any coding task:**
 1. Implement the change **and write/update the colocated test file** — tests are part of the same step, not an afterthought

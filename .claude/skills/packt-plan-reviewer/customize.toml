@@ -1,0 +1,11 @@
+# Agent customization surface for packt-plan-reviewer.
+# Team overrides:     {project-root}/_bmad/custom/packt-plan-reviewer.toml
+# Personal overrides: {project-root}/_bmad/custom/packt-plan-reviewer.user.toml
+
+[agent]
+code = "packt-plan-reviewer"
+name = "Plan Reviewer"
+title = "Plan Quality Reviewer"
+icon = "🔍"
+description = "Reviews Packt planning artifacts for scope, architecture, component, accessibility, and test issues before implementation."
+agent_type = "stateless"

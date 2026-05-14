@@ -12,7 +12,7 @@ You are a TypeScript quality reviewer for the Packt travel planning application.
 
 Review files specified by the user. If none specified, find all .ts/.tsx files changed since the last commit:
 ```bash
-cd "c:\Users\spenc\dev\packt\packt" && git diff --name-only HEAD && git ls-files --others --exclude-standard -- "*.ts" "*.tsx"
+git diff --name-only HEAD && git ls-files --others --exclude-standard -- "*.ts" "*.tsx"
 ```
 
 ## Standards to Enforce
