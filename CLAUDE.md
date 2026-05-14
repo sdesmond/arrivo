@@ -28,8 +28,19 @@ Packt is a travel itinerary planning app built with Next.js (App Router), TypeSc
 | `npm run test:coverage` | Vitest with Istanbul coverage report |
 | `npm run test:e2e` | Playwright BDD E2E tests (headless) |
 | `npm run test:e2e:ui` | Playwright E2E with interactive UI |
+| `npm run db:migrate:e2e` | Apply schema to the E2E database (run once after schema changes) |
 
 Coverage thresholds: 95% lines/functions, 90% branches (enforced in CI).
+
+### E2E Database Setup
+
+E2E tests run against a dedicated `packt_e2e` database (isolated from dev). One-time setup:
+
+1. Create the database: `createdb packt_e2e` (or equivalent)
+2. Apply the schema: `npm run db:migrate:e2e`
+3. Ensure `.env` contains `E2E_DATABASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD` — see `.env.example`
+
+`tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and re-seeds with fixed data from `e2e-seed-data.ts` (user `e2e@packt.local`, one trip, three days). Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
 
 ## Directory Structure
 
@@ -54,7 +65,9 @@ packt/                          ← git root = Next.js project root
 │       ├── features/           ← Gherkin .feature files (BDD scenarios)
 │       ├── steps/              ← step definitions (TypeScript)
 │       ├── fixtures.ts         ← shared Playwright fixtures
-│       └── auth.setup.ts       ← auth state setup (runs before chromium project)
+│       ├── auth.setup.ts       ← auth state setup (runs before chromium project)
+│       ├── global-setup.ts     ← wipes & re-seeds E2E DB before each run
+│       └── e2e-seed-data.ts    ← seed constants (E2E user, trip, days)
 ├── vitest.config.mts           ← Vitest + Istanbul coverage config
 ├── vitest.setup.mts            ← global mocks (next/navigation, next/headers)
 ├── playwright.config.ts        ← Playwright BDD config (playwright-bdd)
@@ -147,3 +160,5 @@ Only present the plan to the user after the reviewers have seen it and made any 
 - Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
 - Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`
 - `src/components/ui/**`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, and `src/lib/server-now.ts` are excluded from coverage
+- E2E tests run against the `packt_e2e` database — `global-setup.ts` seeds it fresh before each run; do not assume any pre-existing state in step definitions
+- The E2E webServer runs on port 3001 with `DATABASE_URL` pointed at `E2E_DATABASE_URL` and `NEXT_DISTDIR=.next-e2e` (separate build cache from dev)
