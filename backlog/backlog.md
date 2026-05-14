@@ -4,6 +4,7 @@
 
 ### E2E tests are overwriting data
 
+E2E tets runs are currently changing database
 When the E2E tests run, they should only update data in a sandbox.  Currently they are changing data that I see when I run `npm run dev` but I want them to be separate.  How can we accomplish this separation of test environment vs my dev environment? 
 
 ## Event time, location, cost, and attachments
