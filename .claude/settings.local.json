@@ -39,7 +39,10 @@
       "Bash(Get-Content *)",
       "Bash(Select-Object Name, FullName)",
       "Bash(xargs cat)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\spenc\\\\.claude\\\\plans\")",
+      "Bash(Sort-Object FullName)",
+      "Skill(bmad-quick-dev)"
     ]
   },
   "enableAllProjectMcpServers": true,

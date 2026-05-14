@@ -54,9 +54,13 @@ export async function updateEvent(eventId: string, patch: UpdateEventPatch) {
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(events).set({
     ...patch,
-    startAt: patch.startAt ? new Date(patch.startAt) : undefined,
-    endAt: patch.endAt ? new Date(patch.endAt) : undefined,
-    cost: patch.cost?.toString(),
+    startAt: patch.startAt ? new Date(patch.startAt) : null,
+    endAt: patch.endAt ? new Date(patch.endAt) : null,
+    locationName: patch.locationName ?? null,
+    locationAddress: patch.locationAddress ?? null,
+    locationLat: patch.locationLat ?? null,
+    locationLng: patch.locationLng ?? null,
+    cost: patch.cost !== undefined ? patch.cost.toString() : null,
     updatedAt: new Date(),
   }).where(eq(events.id, eventId));
   revalidatePath(`/trips/${tripId}`);

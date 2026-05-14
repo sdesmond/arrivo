@@ -92,4 +92,12 @@ describe("CostDialog", () => {
     await user.click(screen.getByTestId("dialog-backdrop-close"))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
+
+  it("syncs draft from cost prop when dialog transitions from closed to open", () => {
+    const { rerender } = render(
+      <CostDialog open={false} cost={75} onOpenChange={vi.fn()} onSave={vi.fn()} />
+    )
+    rerender(<CostDialog open cost={75} onOpenChange={vi.fn()} onSave={vi.fn()} />)
+    expect(screen.getByRole("spinbutton")).toHaveValue(75)
+  })
 })

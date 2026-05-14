@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/db";
 import { trips, days, events, documents, collaborators, packingItems } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType } from "@/lib/db-mappers";
 import type { TripListEntry, TripDetailPayload } from "@/data/types";
@@ -65,11 +65,25 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(packingItems.tripId, tripId))
     .orderBy(packingItems.position);
 
+  const eventIds = tripEvents.map(e => e.id);
+  const eventDocs = eventIds.length > 0
+    ? await db.select().from(documents).where(inArray(documents.eventId, eventIds))
+    : [];
+
   const eventsByDay = new Map<string, typeof tripEvents>();
   for (const event of tripEvents) {
     const arr = eventsByDay.get(event.dayId) ?? [];
     arr.push(event);
     eventsByDay.set(event.dayId, arr);
+  }
+
+  const docsByEventId = new Map<string, typeof eventDocs>();
+  for (const doc of eventDocs) {
+    if (doc.eventId) {
+      const arr = docsByEventId.get(doc.eventId) ?? [];
+      arr.push(doc);
+      docsByEventId.set(doc.eventId, arr);
+    }
   }
 
   return {
@@ -82,7 +96,10 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
       subtitle: d.subtitle ?? undefined,
       weather: d.weather ?? undefined,
       travelSummary: d.travelSummary ?? undefined,
-      events: (eventsByDay.get(d.id) ?? []).map(dbEventToType),
+      events: (eventsByDay.get(d.id) ?? []).map((e) => ({
+        ...dbEventToType(e),
+        docs: (docsByEventId.get(e.id) ?? []).map(dbDocToType),
+      })),
     })),
     docs: tripDocs.map(dbDocToType),
     collaborators: tripCollaborators.map(dbCollabToType),

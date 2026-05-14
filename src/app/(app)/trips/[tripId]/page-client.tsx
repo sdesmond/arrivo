@@ -11,7 +11,7 @@ import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateT
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
-import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent } from "./actions";
+import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, addDocument, removeDocument } from "./actions";
 
 function formatTripHeader(start: string, end: string): string {
   const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -86,6 +86,18 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
     if (!day?.id) return;
     React.startTransition(() => {
       createEvent(day.id!, { name });
+    });
+  }
+
+  function handleAddDoc(eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }): void {
+    React.startTransition(() => {
+      addDocument({ eventId, name: input.name, kind: input.kind, url: input.url, offline: input.offline });
+    });
+  }
+
+  function handleDeleteDoc(docId: string): void {
+    React.startTransition(() => {
+      removeDocument(docId);
     });
   }
 
@@ -227,6 +239,8 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                       onReorderEvents={handleEventReorder}
                       onUpdateDay={handleDayUpdate}
                       onAddEvent={handleAddEvent}
+                      onAddDoc={handleAddDoc}
+                      onDeleteDoc={handleDeleteDoc}
                     />
                   ))
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
