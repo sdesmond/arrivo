@@ -41,12 +41,14 @@ export function LocationDialog({ address, open, onOpenChange, onSave }: Location
         />
         <DialogFooter>
           {address && (
-            <Button variant="ghost" onClick={() => { onSave(undefined); onOpenChange(false); }}>
+            <Button variant="ghost" className="sm:mr-auto" onClick={() => { onSave(undefined); onOpenChange(false); }}>
               Remove
             </Button>
           )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave}>Save</Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={handleSave}>Save</Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

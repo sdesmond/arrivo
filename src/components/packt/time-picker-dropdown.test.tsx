@@ -22,11 +22,21 @@ describe("TimePickerDropdown", () => {
     expect(screen.getByDisplayValue("11:45")).toBeInTheDocument()
   })
 
-  it("Clear button calls onSave(undefined, undefined)", async () => {
+  it("does not show Remove button when no time is set", () => {
+    render(<TimePickerDropdown onSave={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument()
+  })
+
+  it("shows Remove button when time prop is provided", () => {
+    render(<TimePickerDropdown time="10:00" onSave={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByRole("button", { name: /remove/i })).toBeInTheDocument()
+  })
+
+  it("Remove button calls onSave(undefined, undefined)", async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(<TimePickerDropdown time="10:00" endTime="11:00" onSave={onSave} onClose={vi.fn()} />)
-    await user.click(screen.getByRole("button", { name: /clear/i }))
+    await user.click(screen.getByRole("button", { name: /remove/i }))
     expect(onSave).toHaveBeenCalledWith(undefined, undefined)
   })
 
@@ -55,9 +65,17 @@ describe("TimePickerDropdown", () => {
 
   it("mousedown inside the picker does not call onClose", () => {
     const onClose = vi.fn()
-    render(<TimePickerDropdown onSave={vi.fn()} onClose={onClose} />)
-    fireEvent.mouseDown(screen.getByRole("button", { name: /clear/i }))
+    render(<TimePickerDropdown time="10:00" onSave={vi.fn()} onClose={onClose} />)
+    fireEvent.mouseDown(screen.getByRole("button", { name: /remove/i }))
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("Cancel button calls onClose", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<TimePickerDropdown onSave={vi.fn()} onClose={onClose} />)
+    await user.click(screen.getByRole("button", { name: /cancel/i }))
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it("changing start time input updates draft on Save", async () => {
