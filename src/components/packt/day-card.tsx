@@ -21,6 +21,7 @@ interface DayCardProps {
   onDeleteEvent: (id: string) => void;
   onReorderEvents: (dayNumber: number, events: TripEvent[]) => void;
   onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
+  onAddEvent?: (dayNumber: number, name: string) => void;
 }
 
 function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
@@ -47,7 +48,7 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
   );
 }
 
-export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay }: DayCardProps) {
+export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay, onAddEvent }: DayCardProps) {
   const now = useNow();
   const isToday = d.date
     ? (() => {
@@ -61,6 +62,15 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
     : !!d.today;
   const [open, setOpen] = useState(isToday);
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
+  const [draftEventName, setDraftEventName] = useState("");
+
+  function commitAdd() {
+    const name = draftEventName.trim();
+    if (name) onAddEvent?.(d.dayNumber, name);
+    setDraftEventName("");
+    setIsAddingEvent(false);
+  }
   const [draftSubtitle, setDraftSubtitle] = useState(d.subtitle ?? "");
 
   const dateDisplay = d.date
@@ -244,19 +254,43 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
             </SortableContext>
           </DndContext>
 
-          {/* Add place button */}
-          <button
-            className="flex items-center gap-2 px-3 py-2 mt-1 rounded-[6px] transition-colors hover:bg-surface"
-            style={{ fontSize: 12.5, color: "var(--fg-4)", border: "none", background: "none" }}
-          >
-            <span
-              className="flex items-center justify-center rounded-full"
-              style={{ width: 18, height: 18, background: "var(--surface-2)" }}
+          {/* Add event */}
+          {isAddingEvent ? (
+            <input
+              autoFocus
+              placeholder="Event name"
+              value={draftEventName}
+              onChange={e => setDraftEventName(e.target.value)}
+              onBlur={() => { setDraftEventName(""); setIsAddingEvent(false); }}
+              onKeyDown={e => {
+                if (e.key === "Enter") { e.preventDefault(); commitAdd(); }
+                if (e.key === "Escape") { setDraftEventName(""); setIsAddingEvent(false); }
+              }}
+              style={{
+                fontSize: 12.5, color: "var(--fg)",
+                background: "var(--surface-2)",
+                border: "1px solid var(--accent-brand)",
+                borderRadius: 6, padding: "6px 12px",
+                outline: "none", width: "100%",
+                fontFamily: "inherit",
+                marginTop: 4,
+              }}
+            />
+          ) : (
+            <button
+              onClick={() => setIsAddingEvent(true)}
+              className="flex items-center gap-2 px-3 py-2 mt-1 rounded-[6px] transition-colors hover:bg-surface"
+              style={{ fontSize: 12.5, color: "var(--fg-4)", border: "none", background: "none" }}
             >
-              <Plus size={11} strokeWidth={2} />
-            </span>
-            Add a place to day {d.dayNumber}
-          </button>
+              <span
+                className="flex items-center justify-center rounded-full"
+                style={{ width: 18, height: 18, background: "var(--surface-2)" }}
+              >
+                <Plus size={11} strokeWidth={2} />
+              </span>
+              Add a place to day {d.dayNumber}
+            </button>
+          )}
         </div>
       )}
     </div>

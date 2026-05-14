@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Briefcase, Search, Map, Globe, User, Settings, MoreHorizontal, Clock,
+  Briefcase, Search, Map, Globe, User, Settings, LogOut, Clock,
 } from "lucide-react";
+import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { NavItem } from "./nav-item";
 import { SectionHeading } from "./section-heading";
@@ -12,14 +13,7 @@ import { SectionHeading } from "./section-heading";
 const NAV_ITEMS = [
   { id: "trips",          label: "Trips",          icon: Briefcase, href: "/trips",           count: 4 },
   { id: "search",         label: "Search",         icon: Search,    href: "/search" },
-  { id: "map",            label: "Map",            icon: Map,       href: "/map" },
-  { id: "world",          label: "World map",      icon: Globe,     href: "/world" },
   { id: "travel-history", label: "Travel History", icon: Clock,     href: "/travel-history" },
-];
-
-const ACCOUNT_ITEMS = [
-  { id: "profile",  label: "Profile",  icon: User,     href: "/profile" },
-  { id: "settings", label: "Settings", icon: Settings, href: "/settings" },
 ];
 
 const PINNED = [
@@ -108,20 +102,6 @@ export function SidebarNav() {
         ))}
       </div>
 
-      {/* Account */}
-      <div className="px-2 pb-1">
-        <SectionHeading>Account</SectionHeading>
-        {ACCOUNT_ITEMS.map((item) => (
-          <NavItem
-            key={item.id}
-            icon={item.icon}
-            label={item.label}
-            href={item.href}
-            active={pathname === item.href}
-          />
-        ))}
-      </div>
-
       {/* Spacer */}
       <div className="flex-1" />
 
@@ -145,12 +125,15 @@ export function SidebarNav() {
           <div className="text-[13px] font-medium text-fg truncate">Maya R.</div>
           <div className="text-[11px] text-fg-3 truncate">maya@packt.local</div>
         </div>
-        <button
-          className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
-          title="More options"
-        >
-          <MoreHorizontal size={14} strokeWidth={1.5} />
-        </button>
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
+            title="Sign out"
+          >
+            <LogOut size={14} strokeWidth={1.5} />
+          </button>
+        </form>
       </div>
     </aside>
   );

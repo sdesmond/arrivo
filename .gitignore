@@ -11,7 +11,12 @@
 !.yarn/versions
 
 # testing
+.features-gen/
 /coverage
+/test-results
+
+# e2e auth state
+tests/e2e/.auth/
 
 # next.js
 /.next/
@@ -43,5 +48,3 @@ next-env.d.ts
 # claude
 .playwright-mcp
 .ui-review-screenshots
-
-screenshots-for-chat

@@ -11,7 +11,7 @@ import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateT
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
-import { updateEvent, deleteEvent, reorderEvents, updateDay } from "./actions";
+import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent } from "./actions";
 
 function formatTripHeader(start: string, end: string): string {
   const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -78,6 +78,14 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
     if (!day?.id) return;
     React.startTransition(() => {
       updateDay(day.id!, updates);
+    });
+  }
+
+  function handleAddEvent(dayNumber: number, name: string): void {
+    const day = days.find(d => d.dayNumber === dayNumber);
+    if (!day?.id) return;
+    React.startTransition(() => {
+      createEvent(day.id!, { name });
     });
   }
 
@@ -218,6 +226,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                       onDeleteEvent={handleEventDelete}
                       onReorderEvents={handleEventReorder}
                       onUpdateDay={handleDayUpdate}
+                      onAddEvent={handleAddEvent}
                     />
                   ))
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
@@ -241,7 +250,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
 
       <TripEditSheet
         key={trip.id}
-        trip={editingTrip ? trip : null}
+        trip={trip}
         open={editingTrip}
         onClose={() => setEditingTrip(false)}
         onSave={handleTripSave}
