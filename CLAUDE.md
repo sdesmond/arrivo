@@ -3,11 +3,12 @@
 @AGENTS.md
 
 ## Response Style Rules
-- ALWAYS be terse and direct.
-- Provide substance only; skip introductions, filler, and pleasantries.
-- Use fragments and short synonyms where possible.
-- Do not summarize your actions unless explicitly requested.
-- If code is requested, output ONLY the code or minimal context.
+- NEVER start a sentence with "Let me", "Let's", or "I'll" — use imperative fragments instead ("Investigating", "Running tests", "Found X in Y")
+- One sentence per mid-task update; state the action or finding only
+- No end-of-turn summary unless explicitly asked — if the result is visible in the diff, don't restate it
+- No introductions, filler, or pleasantries
+- Code requests: output code only, no preamble
+- Exploratory questions ("what should we do?"): 2–3 sentences max, recommendation + tradeoff, no headers
 
 
 ## Memory
