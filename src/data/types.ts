@@ -24,6 +24,13 @@ export const TripStatus = {
 } as const;
 export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 
+export const ItineraryItemType = {
+  Event:     "event",
+  Checklist: "checklist",
+  Note:      "note",
+} as const;
+export type ItineraryItemType = (typeof ItineraryItemType)[keyof typeof ItineraryItemType];
+
 export const CollaboratorRole = {
   Owner:  "owner",
   Editor: "editor",
@@ -115,6 +122,20 @@ export interface TripEvent {
   docs?: Document[];
 
   position?:  number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ITINERARY NOTE
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Note {
+  id:         string;
+  tripDayId:  string;
+  position:   number;
+  content:    string;
   createdAt?: string;
   updatedAt?: string;
 }

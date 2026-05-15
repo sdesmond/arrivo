@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType } from "@/lib/db-mappers";
-import type { trips, events, documents, collaborators } from "@/db/schema";
+import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbNoteToType } from "@/lib/db-mappers";
+import type { trips, events, documents, collaborators, itineraryNotes } from "@/db/schema";
 
 type TripRow = typeof trips.$inferSelect;
 type EventRow = typeof events.$inferSelect;
@@ -245,5 +245,56 @@ describe("dbCollabToType", () => {
     });
     expect(result.tintBg).toBe("oklch(0.86 0.07 30)");
     expect(result.tintFg).toBe("oklch(0.30 0.10 30)");
+  });
+});
+
+// ── dbNoteToType ──────────────────────────────────────────────────────────────
+
+type NoteRow = typeof itineraryNotes.$inferSelect;
+
+const BASE_NOTE: NoteRow = {
+  id: "note-1",
+  dayId: "day-1",
+  position: 0,
+  content: "Remember to bring sunscreen",
+  createdAt: null,
+  updatedAt: null,
+};
+
+describe("dbNoteToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbNoteToType(BASE_NOTE);
+    expect(result.id).toBe("note-1");
+    expect(result.tripDayId).toBe("day-1");
+    expect(result.position).toBe(0);
+    expect(result.content).toBe("Remember to bring sunscreen");
+  });
+
+  it("null timestamp fields become undefined", () => {
+    const result = dbNoteToType(BASE_NOTE);
+    expect(result.createdAt).toBeUndefined();
+    expect(result.updatedAt).toBeUndefined();
+  });
+
+  it("converts createdAt Date to ISO string", () => {
+    const date = new Date("2026-05-14T10:00:00.000Z");
+    const result = dbNoteToType({ ...BASE_NOTE, createdAt: date });
+    expect(result.createdAt).toBe(date.toISOString());
+  });
+
+  it("converts updatedAt Date to ISO string", () => {
+    const date = new Date("2026-05-14T11:00:00.000Z");
+    const result = dbNoteToType({ ...BASE_NOTE, updatedAt: date });
+    expect(result.updatedAt).toBe(date.toISOString());
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbNoteToType({ ...BASE_NOTE, position: 3 });
+    expect(result.position).toBe(3);
+  });
+
+  it("maps content string exactly", () => {
+    const result = dbNoteToType({ ...BASE_NOTE, content: "Gate B22 – boarding at 14:30" });
+    expect(result.content).toBe("Gate B22 – boarding at 14:30");
   });
 });

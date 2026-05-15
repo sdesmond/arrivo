@@ -3,12 +3,13 @@ import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
-const dndHandlers = vi.hoisted(() => ({} as Record<string, ((e: any) => void) | undefined>))
+type MockDndEvent = { active: { id: string }; over: { id: string } | null };
+const dndHandlers = vi.hoisted(() => ({} as Record<string, ((e: MockDndEvent) => void) | undefined>))
 
 vi.mock("@dnd-kit/core", () => ({
   DndContext: ({ children, onDragEnd, id }: {
     children: React.ReactNode
-    onDragEnd?: (e: any) => void
+    onDragEnd?: (e: MockDndEvent) => void
     id?: string
   }) => {
     if (id) dndHandlers[id] = onDragEnd

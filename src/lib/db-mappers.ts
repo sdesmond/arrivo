@@ -1,6 +1,6 @@
-import { trips, events, documents, collaborators } from "@/db/schema";
+import { trips, events, documents, collaborators, itineraryNotes } from "@/db/schema";
 import { getTripStatus } from "@/lib/utils";
-import type { Trip, TripEvent, Document, Collaborator, DocPreviewLine } from "@/data/types";
+import type { Trip, TripEvent, Document, Collaborator, DocPreviewLine, Note } from "@/data/types";
 
 export function dbTripToType(row: typeof trips.$inferSelect): Trip {
   return {
@@ -58,5 +58,16 @@ export function dbCollabToType(row: typeof collaborators.$inferSelect): Collabor
     role: row.role as Collaborator["role"],
     tintBg: row.tintBg ?? undefined,
     tintFg: row.tintFg ?? undefined,
+  };
+}
+
+export function dbNoteToType(row: typeof itineraryNotes.$inferSelect): Note {
+  return {
+    id:        row.id,
+    tripDayId: row.dayId,
+    position:  row.position,
+    content:   row.content,
+    createdAt: row.createdAt?.toISOString() ?? undefined,
+    updatedAt: row.updatedAt?.toISOString() ?? undefined,
   };
 }

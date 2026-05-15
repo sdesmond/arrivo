@@ -121,3 +121,12 @@ export const packingItems = pgTable("packing_items", {
   done:     boolean("done").default(false),
   position: integer("position").notNull(),
 });
+
+export const itineraryNotes = pgTable("itinerary_notes", {
+  id:        uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  dayId:     uuid("day_id").notNull().references(() => days.id, { onDelete: "cascade" }),
+  position:  integer("position").notNull(),
+  content:   text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
+}, (t) => [index().on(t.dayId, t.position)]);

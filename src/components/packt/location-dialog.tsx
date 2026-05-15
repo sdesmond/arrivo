@@ -18,7 +18,7 @@ export function LocationDialog({ address, open, onOpenChange, onSave }: Location
   const [draft, setDraft] = useState(address ?? "");
 
   // Sync draft from prop each time the dialog opens so stale state doesn't cause accidental clears
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
   useEffect(() => { if (open) setDraft(address ?? ""); }, [open]);
 
   function handleSave() {
