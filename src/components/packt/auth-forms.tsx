@@ -5,8 +5,12 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 
 type ActionState = { error?: string } | undefined;
-interface SignInFormProps { action: (prev: ActionState, formData: FormData) => Promise<ActionState>; }
-interface SignUpFormProps { action: (prev: ActionState, formData: FormData) => Promise<ActionState>; }
+interface SignInFormProps {
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+}
+interface SignUpFormProps {
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+}
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -42,7 +46,11 @@ export function SignInForm({ action }: SignInFormProps) {
       <div className="flex flex-col gap-1">
         <label htmlFor="email">Email</label>
         <input
-          id="email" name="email" type="email" required autoComplete="email"
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
           aria-invalid={hasError || undefined}
@@ -52,7 +60,11 @@ export function SignInForm({ action }: SignInFormProps) {
       <div className="flex flex-col gap-1">
         <label htmlFor="password">Password</label>
         <input
-          id="password" name="password" type="password" required autoComplete="current-password"
+          id="password"
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
           aria-invalid={hasError || undefined}
@@ -89,7 +101,11 @@ export function SignUpForm({ action }: SignUpFormProps) {
       <div className="flex flex-col gap-1">
         <label htmlFor="name">Name</label>
         <input
-          id="name" name="name" type="text" required autoComplete="name"
+          id="name"
+          name="name"
+          type="text"
+          required
+          autoComplete="name"
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
         />
@@ -97,7 +113,11 @@ export function SignUpForm({ action }: SignUpFormProps) {
       <div className="flex flex-col gap-1">
         <label htmlFor="email">Email</label>
         <input
-          id="email" name="email" type="email" required autoComplete="email"
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
           aria-invalid={hasError || undefined}
@@ -107,7 +127,11 @@ export function SignUpForm({ action }: SignUpFormProps) {
       <div className="flex flex-col gap-1">
         <label htmlFor="password">Password</label>
         <input
-          id="password" name="password" type="password" required autoComplete="new-password"
+          id="password"
+          name="password"
+          type="password"
+          required
+          autoComplete="new-password"
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
           aria-invalid={hasError || undefined}

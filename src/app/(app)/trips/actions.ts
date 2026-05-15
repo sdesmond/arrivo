@@ -6,10 +6,7 @@ import { db } from "@/db";
 import { trips, collaborators, packingItems } from "@/db/schema";
 import { eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import type {
-  CreateTripInput, UpdateTripPatch,
-  AddCollaboratorInput, AddPackingItemInput,
-} from "@/data/types";
+import type { CreateTripInput, UpdateTripPatch, AddCollaboratorInput, AddPackingItemInput } from "@/data/types";
 
 export async function createTrip(input: CreateTripInput) {
   const user = await requireUser();
@@ -43,12 +40,15 @@ export async function createTrip(input: CreateTripInput) {
 export async function updateTripMetadata(tripId: string, patch: UpdateTripPatch) {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(trips).set({
-    ...patch,
-    budgetTotal: patch.budgetTotal?.toString(),
-    budgetPerPerson: patch.budgetPerPerson?.toString(),
-    updatedAt: new Date(),
-  }).where(eq(trips.id, tripId));
+  await db
+    .update(trips)
+    .set({
+      ...patch,
+      budgetTotal: patch.budgetTotal?.toString(),
+      budgetPerPerson: patch.budgetPerPerson?.toString(),
+      updatedAt: new Date(),
+    })
+    .where(eq(trips.id, tripId));
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
 }
@@ -63,15 +63,18 @@ export async function deleteTrip(tripId: string) {
 export async function addCollaborator(tripId: string, input: AddCollaboratorInput) {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "owner");
-  await db.insert(collaborators).values({
-    tripId,
-    email: input.email,
-    name: input.name,
-    initials: input.initials,
-    role: input.role,
-    tintBg: input.tintBg,
-    tintFg: input.tintFg,
-  }).onConflictDoNothing();
+  await db
+    .insert(collaborators)
+    .values({
+      tripId,
+      email: input.email,
+      name: input.name,
+      initials: input.initials,
+      role: input.role,
+      tintBg: input.tintBg,
+      tintFg: input.tintFg,
+    })
+    .onConflictDoNothing();
   revalidatePath(`/trips/${tripId}`);
 }
 

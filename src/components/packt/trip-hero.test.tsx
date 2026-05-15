@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest"
-import { render, screen } from "@testing-library/react"
-import { TripHero } from "./trip-hero"
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { TripHero } from "./trip-hero";
 
 describe("TripHero", () => {
   const props = {
@@ -15,25 +15,25 @@ describe("TripHero", () => {
     places: 9,
     docs: 5,
     collaborators: 2,
-  }
+  };
 
   it("renders the trip name", () => {
-    render(<TripHero {...props} />)
-    expect(screen.getByText("Tokyo Adventure")).toBeInTheDocument()
-  })
+    render(<TripHero {...props} />);
+    expect(screen.getByText("Tokyo Adventure")).toBeInTheDocument();
+  });
 
   it("renders day count info", () => {
-    render(<TripHero {...props} />)
-    expect(screen.getByText(/10 days/i)).toBeInTheDocument()
-  })
+    render(<TripHero {...props} />);
+    expect(screen.getByText(/10 days/i)).toBeInTheDocument();
+  });
 
   it("renders places count", () => {
-    render(<TripHero {...props} />)
-    expect(screen.getByText(/9 places/i)).toBeInTheDocument()
-  })
+    render(<TripHero {...props} />);
+    expect(screen.getByText(/9 places/i)).toBeInTheDocument();
+  });
 
   it("renders docs count", () => {
-    render(<TripHero {...props} />)
-    expect(screen.getByText(/5 docs/i)).toBeInTheDocument()
-  })
-})
+    render(<TripHero {...props} />);
+    expect(screen.getByText(/5 docs/i)).toBeInTheDocument();
+  });
+});

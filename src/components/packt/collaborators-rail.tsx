@@ -18,7 +18,8 @@ export function CollaboratorsRail({ collaborators }: CollaboratorsRailProps) {
             <span
               className="flex items-center justify-center rounded-full shrink-0 text-xs font-semibold"
               style={{
-                width: 30, height: 30,
+                width: 30,
+                height: 30,
                 background: c.tint?.bg,
                 color: c.tint?.fg,
                 fontFamily: "var(--font-mono-family, ui-monospace)",
@@ -34,7 +35,8 @@ export function CollaboratorsRail({ collaborators }: CollaboratorsRailProps) {
             <span
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10, fontWeight: 500,
+                fontSize: 10,
+                fontWeight: 500,
                 color: "var(--fg-3)",
                 letterSpacing: "0.04em",
               }}

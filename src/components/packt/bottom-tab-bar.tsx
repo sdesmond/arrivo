@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { Briefcase, Search, Map, User } from "lucide-react";
 
 const TABS = [
-  { id: "trips",   label: "Trips",   icon: Briefcase, href: "/trips"  },
-  { id: "search",  label: "Search",  icon: Search,    href: "/search" },
-  { id: "map",     label: "Map",     icon: Map,       href: "/map"    },
-  { id: "profile", label: "Profile", icon: User,      href: "/profile"},
+  { id: "trips", label: "Trips", icon: Briefcase, href: "/trips" },
+  { id: "search", label: "Search", icon: Search, href: "/search" },
+  { id: "map", label: "Map", icon: Map, href: "/map" },
+  { id: "profile", label: "Profile", icon: User, href: "/profile" },
 ];
 
 export function BottomTabBar() {
@@ -26,9 +26,7 @@ export function BottomTabBar() {
       }}
     >
       {TABS.map((tab) => {
-        const active = tab.href === "/trips"
-          ? pathname.startsWith("/trips")
-          : pathname === tab.href;
+        const active = tab.href === "/trips" ? pathname.startsWith("/trips") : pathname === tab.href;
         const Icon = tab.icon;
         return (
           <Link

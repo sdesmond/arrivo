@@ -1,26 +1,26 @@
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     globals: true,
     passWithNoTests: true,
-    environment: 'node',
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    setupFiles: ['./vitest.setup.mts'],
+    environment: "node",
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    setupFiles: ["./vitest.setup.mts"],
     coverage: {
-      provider: 'istanbul',
+      provider: "istanbul",
       thresholds: { lines: 95, functions: 95, branches: 90 },
-      include: ['src/lib/**', 'src/components/**'],
+      include: ["src/lib/**", "src/components/**"],
       exclude: [
-        'src/lib/auth-helpers.ts',
-        'src/lib/queries.ts',
-        'src/lib/server-now.ts',
-        'src/app/**',
-        'src/components/ui/**',
+        "src/lib/auth-helpers.ts",
+        "src/lib/queries.ts",
+        "src/lib/server-now.ts",
+        "src/app/**",
+        "src/components/ui/**",
       ],
     },
   },
-})
+});

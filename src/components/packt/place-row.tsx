@@ -22,7 +22,7 @@ function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHH
   if (!dayDate) return { startAt: undefined, endAt: undefined };
   return {
     startAt: new Date(`${dayDate}T${startHHMM}:00`).toISOString(),
-    endAt:   new Date(`${dayDate}T${endHHMM}:00`).toISOString(),
+    endAt: new Date(`${dayDate}T${endHHMM}:00`).toISOString(),
   };
 }
 
@@ -46,7 +46,20 @@ export interface PlaceRowProps {
   onCancelDraft?: () => void;
 }
 
-export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddDoc, onDeleteDoc, dragHandle, id, isDraft, onCreate, onCancelDraft }: PlaceRowProps) {
+export function PlaceRow({
+  place: p,
+  dayDate,
+  isLast,
+  onUpdate,
+  onDelete,
+  onAddDoc,
+  onDeleteDoc,
+  dragHandle,
+  id,
+  isDraft,
+  onCreate,
+  onCancelDraft,
+}: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -111,9 +124,7 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
             strokeWidth={1.5}
             style={{ color: isNow ? "var(--accent-brand)" : "var(--fg-3)", flexShrink: 0 }}
           />
-          {!isLast && (
-            <div style={{ width: 1, flex: 1, minHeight: 12, background: "var(--line)", marginTop: 2 }} />
-          )}
+          {!isLast && <div style={{ width: 1, flex: 1, minHeight: 12, background: "var(--line)", marginTop: 2 }} />}
         </div>
 
         {/* Content */}
@@ -124,38 +135,51 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
               <input
                 autoFocus
                 value={draftName}
-                onChange={e => setDraftName(e.target.value)}
+                onChange={(e) => setDraftName(e.target.value)}
                 onBlur={saveName}
-                onKeyDown={e => {
+                onKeyDown={(e) => {
                   if (e.key === "Enter") saveName();
                   if (e.key === "Escape") {
-                    if (isDraft) { onCancelDraft?.(); return; }
-                    setDraftName(p.name); setIsEditingName(false);
+                    if (isDraft) {
+                      onCancelDraft?.();
+                      return;
+                    }
+                    setDraftName(p.name);
+                    setIsEditingName(false);
                   }
                 }}
                 style={{
-                  fontSize: 14, fontWeight: 600, color: "var(--fg)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--fg)",
                   background: "var(--surface-2)",
                   border: "1px solid var(--accent-brand)",
-                  borderRadius: 4, padding: "1px 6px",
-                  outline: "none", width: "100%",
+                  borderRadius: 4,
+                  padding: "1px 6px",
+                  outline: "none",
+                  width: "100%",
                   fontFamily: "inherit",
                 }}
               />
             ) : (
               <>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", lineHeight: 1.2 }}>
-                  {p.name}
-                </span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", lineHeight: 1.2 }}>{p.name}</span>
                 <button
-                  onClick={() => { setDraftName(p.name); setIsEditingName(true); }}
+                  onClick={() => {
+                    setDraftName(p.name);
+                    setIsEditingName(true);
+                  }}
                   style={{
                     color: "var(--fg-4)",
                     opacity: isHovered ? 1 : 0.25,
                     transition: "opacity 0.1s",
-                    display: "flex", alignItems: "center",
-                    padding: 2, borderRadius: 3,
-                    background: "none", border: "none", cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: 2,
+                    borderRadius: 3,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
                     flexShrink: 0,
                   }}
                   title="Edit name"
@@ -172,32 +196,49 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
               <textarea
                 autoFocus
                 value={draftNote}
-                onChange={e => setDraftNote(e.target.value)}
+                onChange={(e) => setDraftNote(e.target.value)}
                 onBlur={saveNote}
-                onKeyDown={e => {
-                  if (e.key === "Escape") { setDraftNote(p.note ?? ""); setIsEditingNote(false); }
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setDraftNote(p.note ?? "");
+                    setIsEditingNote(false);
+                  }
                 }}
                 rows={2}
                 style={{
-                  width: "100%", fontSize: 12, color: "var(--fg-2)",
+                  width: "100%",
+                  fontSize: 12,
+                  color: "var(--fg-2)",
                   background: "var(--surface-2)",
                   border: "1px solid var(--accent-brand)",
                   borderLeft: "2px solid var(--accent-brand)",
-                  borderRadius: 6, padding: "6px 10px",
-                  outline: "none", resize: "vertical",
-                  fontFamily: "inherit", lineHeight: 1.5,
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  outline: "none",
+                  resize: "vertical",
+                  fontFamily: "inherit",
+                  lineHeight: 1.5,
                 }}
               />
             ) : (
               <div
                 role="button"
                 tabIndex={0}
-                onClick={() => { setDraftNote(p.note ?? ""); setIsEditingNote(true); }}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { setDraftNote(p.note ?? ""); setIsEditingNote(true); } }}
+                onClick={() => {
+                  setDraftNote(p.note ?? "");
+                  setIsEditingNote(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    setDraftNote(p.note ?? "");
+                    setIsEditingNote(true);
+                  }
+                }}
                 style={{
                   fontSize: 12,
                   cursor: "text",
-                  borderRadius: 6, padding: "4px 10px",
+                  borderRadius: 6,
+                  padding: "4px 10px",
                   lineHeight: 1.5,
                   whiteSpace: "pre-wrap",
                   color: p.note ? "var(--fg-2)" : "var(--fg-4)",
@@ -213,7 +254,7 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
             {/* Time */}
             <div className="relative">
               <button
-                onClick={() => setShowTimePicker(v => !v)}
+                onClick={() => setShowTimePicker((v) => !v)}
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
                 style={{
                   fontSize: 11,
@@ -276,7 +317,7 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
             {/* Docs toggle */}
             {hasDocs && (
               <button
-                onClick={() => setShowDocs(v => !v)}
+                onClick={() => setShowDocs((v) => !v)}
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
                 style={{
                   fontSize: 11,
@@ -336,8 +377,11 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
           style={{
             color: "var(--fg-4)",
-            padding: 4, borderRadius: 4,
-            background: "none", border: "none", cursor: "pointer",
+            padding: 4,
+            borderRadius: 4,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
             flexShrink: 0,
           }}
           title="Delete event"
@@ -350,13 +394,13 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
         cost={p.cost}
         open={showCostDialog}
         onOpenChange={setShowCostDialog}
-        onSave={cost => onUpdate({ ...p, cost })}
+        onSave={(cost) => onUpdate({ ...p, cost })}
       />
       <LocationDialog
         address={p.locationAddress}
         open={showLocationDialog}
         onOpenChange={setShowLocationDialog}
-        onSave={address => onUpdate({ ...p, locationAddress: address })}
+        onSave={(address) => onUpdate({ ...p, locationAddress: address })}
       />
       <AddDocDialog
         open={showAddDocDialog}

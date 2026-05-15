@@ -60,7 +60,7 @@ export function ChecklistItem({
   }, [isComplete, isDraft]);
 
   const genericLabel = `Checklist · ${itemCount} item${itemCount === 1 ? "" : "s"}`;
-  const headerLabel = (isExpanded && checklist.title) ? genericLabel : (checklist.title ?? genericLabel);
+  const headerLabel = isExpanded && checklist.title ? genericLabel : (checklist.title ?? genericLabel);
 
   function saveTitle() {
     const trimmed = draftTitle.trim() || undefined;
@@ -127,12 +127,15 @@ export function ChecklistItem({
       <button
         className="w-full flex items-center gap-2.5 px-3 py-2 text-left"
         style={{ background: "none", border: "none", cursor: "pointer" }}
-        onClick={() => { if (!isDraft) setIsExpanded((v) => !v); }}
+        onClick={() => {
+          if (!isDraft) setIsExpanded((v) => !v);
+        }}
       >
         <span
           className="flex items-center justify-center shrink-0"
           style={{
-            width: 22, height: 22,
+            width: 22,
+            height: 22,
             borderRadius: "50%",
             background: "var(--surface-2)",
             color: "var(--fg-3)",
@@ -171,7 +174,8 @@ export function ChecklistItem({
         )}
         {!isDraft && (
           <ChevronDown
-            size={13} strokeWidth={1.5}
+            size={13}
+            strokeWidth={1.5}
             style={{
               color: "var(--fg-4)",
               transform: isExpanded ? "rotate(180deg)" : undefined,
@@ -201,7 +205,8 @@ export function ChecklistItem({
                 }
               }}
               style={{
-                fontSize: 13, fontWeight: 500,
+                fontSize: 13,
+                fontWeight: 500,
                 color: "var(--fg)",
                 background: "transparent",
                 border: "none",
@@ -218,7 +223,10 @@ export function ChecklistItem({
             <div
               role="button"
               tabIndex={0}
-              onClick={() => { setDraftTitle(checklist.title ?? ""); setIsEditingTitle(true); }}
+              onClick={() => {
+                setDraftTitle(checklist.title ?? "");
+                setIsEditingTitle(true);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -263,9 +271,7 @@ export function ChecklistItem({
                   transition: "background 0.1s, border-color 0.1s",
                 }}
               >
-                {item.isChecked && (
-                  <Check size={9} strokeWidth={2.5} style={{ color: "var(--accent-fg)" }} />
-                )}
+                {item.isChecked && <Check size={9} strokeWidth={2.5} style={{ color: "var(--accent-fg)" }} />}
               </button>
               {editingItemId === item.id ? (
                 <input
@@ -274,8 +280,14 @@ export function ChecklistItem({
                   onChange={(e) => setEditingItemContent(e.target.value)}
                   onBlur={saveItemEdit}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); saveItemEdit(); }
-                    if (e.key === "Escape") { e.preventDefault(); setEditingItemId(null); }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      saveItemEdit();
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setEditingItemId(null);
+                    }
                   }}
                   style={{
                     flex: 1,
@@ -293,7 +305,10 @@ export function ChecklistItem({
                 <span
                   role="button"
                   tabIndex={0}
-                  onClick={() => { setEditingItemContent(item.content); setEditingItemId(item.id); }}
+                  onClick={() => {
+                    setEditingItemContent(item.content);
+                    setEditingItemId(item.id);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();

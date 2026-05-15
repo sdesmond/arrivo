@@ -4,9 +4,7 @@ import { useState } from "react";
 import { Paperclip } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { type Document, DocKind } from "@/data/types";
 
 export interface AddDocDialogProps {
@@ -21,7 +19,11 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
   const [draftUrl, setDraftUrl] = useState("");
 
   function handleClose(o: boolean) {
-    if (!o) { setDraftName(""); setDraftKind(DocKind.PDF); setDraftUrl(""); }
+    if (!o) {
+      setDraftName("");
+      setDraftKind(DocKind.PDF);
+      setDraftUrl("");
+    }
     onOpenChange(o);
   }
 
@@ -52,9 +54,12 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
             <div
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10, fontWeight: 600,
-                letterSpacing: "0.08em", textTransform: "uppercase",
-                color: "var(--fg-4)", marginBottom: 6,
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--fg-4)",
+                marginBottom: 6,
               }}
             >
               Type
@@ -66,8 +71,12 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
                   onClick={() => setDraftKind(k)}
                   aria-pressed={draftKind === k}
                   style={{
-                    flex: 1, padding: "4px 0", borderRadius: 6,
-                    fontSize: 11, fontWeight: 600, letterSpacing: "0.05em",
+                    flex: 1,
+                    padding: "4px 0",
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: "0.05em",
                     textTransform: "uppercase",
                     fontFamily: "var(--font-mono-family, ui-monospace)",
                     cursor: "pointer",
@@ -87,9 +96,13 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
               htmlFor="add-doc-name"
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10, fontWeight: 600,
-                letterSpacing: "0.08em", textTransform: "uppercase",
-                color: "var(--fg-4)", display: "block", marginBottom: 4,
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--fg-4)",
+                display: "block",
+                marginBottom: 4,
               }}
             >
               Name
@@ -99,7 +112,9 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
               placeholder="Document name"
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd();
+              }}
               autoFocus
             />
           </div>
@@ -109,9 +124,13 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
                 htmlFor="add-doc-url"
                 style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: 10, fontWeight: 600,
-                  letterSpacing: "0.08em", textTransform: "uppercase",
-                  color: "var(--fg-4)", display: "block", marginBottom: 4,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--fg-4)",
+                  display: "block",
+                  marginBottom: 4,
                 }}
               >
                 URL
@@ -121,13 +140,17 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
                 placeholder="https://…"
                 value={draftUrl}
                 onChange={(e) => setDraftUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAdd();
+                }}
               />
             </div>
           )}
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => handleClose(false)}>Cancel</Button>
+          <Button variant="ghost" onClick={() => handleClose(false)}>
+            Cancel
+          </Button>
           <Button onClick={handleAdd} disabled={!draftName.trim()}>
             <Paperclip size={13} strokeWidth={1.5} aria-hidden="true" />
             Attach

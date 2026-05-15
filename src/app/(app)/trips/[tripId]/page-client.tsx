@@ -11,13 +11,31 @@ import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateT
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
-import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, createNote, updateNote, deleteNote, addDocument, removeDocument, createChecklist, updateChecklistTitle, deleteChecklist, createChecklistItem, updateChecklistItem, deleteChecklistItem, toggleChecklistItem } from "./actions";
+import {
+  updateEvent,
+  deleteEvent,
+  reorderEvents,
+  updateDay,
+  createEvent,
+  createNote,
+  updateNote,
+  deleteNote,
+  addDocument,
+  removeDocument,
+  createChecklist,
+  updateChecklistTitle,
+  deleteChecklist,
+  createChecklistItem,
+  updateChecklistItem,
+  deleteChecklistItem,
+  toggleChecklistItem,
+} from "./actions";
 
 function formatTripHeader(start: string, end: string): string {
-  const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   const [, startMonth, startDay] = start.split("-").map(Number);
   const [endYear, endMonth, endDay] = end.split("-").map(Number);
-  return `${MONTHS[startMonth-1]} ${startDay} — ${MONTHS[endMonth-1]} ${endDay}, ${endYear}`;
+  return `${MONTHS[startMonth - 1]} ${startDay} — ${MONTHS[endMonth - 1]} ${endDay}, ${endYear}`;
 }
 
 const TABS = [
@@ -66,15 +84,15 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
   }
 
   function handleEventReorder(dayNumber: number, reorderedEvents: TripEvent[]): void {
-    const day = days.find(d => d.dayNumber === dayNumber);
+    const day = days.find((d) => d.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
-      reorderEvents({ dayId: day.id!, orderedEventIds: reorderedEvents.map(e => e.id) });
+      reorderEvents({ dayId: day.id!, orderedEventIds: reorderedEvents.map((e) => e.id) });
     });
   }
 
   function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): void {
-    const day = days.find(d => d.dayNumber === dayNumber);
+    const day = days.find((d) => d.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
       updateDay(day.id!, updates);
@@ -82,7 +100,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
   }
 
   function handleAddEvent(dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number): void {
-    const day = days.find(d => d.dayNumber === dayNumber);
+    const day = days.find((d) => d.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
       createEvent(day.id!, { name, afterEventId, insertAtPosition });
@@ -111,7 +129,13 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
 
   function handleAddDoc(eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }): void {
     React.startTransition(() => {
-      addDocument({ eventId, name: input.name, kind: input.kind, url: input.url, offline: input.offline });
+      addDocument({
+        eventId,
+        name: input.name,
+        kind: input.kind,
+        url: input.url,
+        offline: input.offline,
+      });
     });
   }
 
@@ -172,9 +196,9 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
     setEditingTrip(false);
   }
 
-  const eventCount   = days.reduce((count, day) => count + day.events.length, 0);
-  const dayTotal     = getTripDays(trip.startDate, trip.endDate);
-  const status       = getTripStatus(trip.startDate, trip.endDate, now);
+  const eventCount = days.reduce((count, day) => count + day.events.length, 0);
+  const dayTotal = getTripDays(trip.startDate, trip.endDate);
+  const status = getTripStatus(trip.startDate, trip.endDate, now);
   const heroDateLine = formatTripHeader(trip.startDate, trip.endDate);
 
   return (
@@ -223,16 +247,15 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
           showCity={false}
           style={{ minHeight: 260 }}
         />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: "var(--cover-scrim)" }}
-        />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "var(--cover-scrim)" }} />
         <div className="absolute bottom-0 left-0 right-0 p-5 lg:p-6">
           <div
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "10.5px", fontWeight: 500,
-              letterSpacing: "0.08em", textTransform: "uppercase",
+              fontSize: "10.5px",
+              fontWeight: 500,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
               color: "var(--cover-text-dim)",
               marginBottom: 6,
             }}
@@ -253,10 +276,22 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
             {trip.name}
           </h1>
           <div className="flex items-center gap-4 flex-wrap" style={{ color: "var(--cover-text-sub)", fontSize: 12.5 }}>
-            <span className="flex items-center gap-1.5"><Calendar size={13} strokeWidth={1.5} />{dayTotal} days</span>
-            <span className="flex items-center gap-1.5"><MapPin size={13} strokeWidth={1.5} />{eventCount} places</span>
-            <span className="flex items-center gap-1.5"><FileText size={13} strokeWidth={1.5} />{docs.length} docs</span>
-            <span className="flex items-center gap-1.5"><Users size={13} strokeWidth={1.5} />{collaborators.length} collaborators</span>
+            <span className="flex items-center gap-1.5">
+              <Calendar size={13} strokeWidth={1.5} />
+              {dayTotal} days
+            </span>
+            <span className="flex items-center gap-1.5">
+              <MapPin size={13} strokeWidth={1.5} />
+              {eventCount} places
+            </span>
+            <span className="flex items-center gap-1.5">
+              <FileText size={13} strokeWidth={1.5} />
+              {docs.length} docs
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Users size={13} strokeWidth={1.5} />
+              {collaborators.length} collaborators
+            </span>
           </div>
         </div>
       </div>
@@ -293,46 +328,41 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           {activeTab === "itin" && (
             <div>
-              {days.length > 0
-                ? days.map((day) => (
-                    <DayCard
-                      key={day.dayNumber}
-                      day={day}
-                      onUpdateEvent={handleEventUpdate}
-                      onDeleteEvent={handleEventDelete}
-                      onReorderEvents={handleEventReorder}
-                      onUpdateDay={handleDayUpdate}
-                      onAddEvent={handleAddEvent}
-                      onAddNote={handleAddNote}
-                      onUpdateNote={handleUpdateNote}
-                      onDeleteNote={handleDeleteNote}
-                      onAddDoc={handleAddDoc}
-                      onDeleteDoc={handleDeleteDoc}
-                      onAddChecklist={handleAddChecklist}
-                      onUpdateChecklistTitle={handleUpdateChecklistTitle}
-                      onDeleteChecklist={handleDeleteChecklist}
-                      onAddChecklistItem={handleAddChecklistItem}
-                      onUpdateChecklistItem={handleUpdateChecklistItem}
-                      onDeleteChecklistItem={handleDeleteChecklistItem}
-                      onToggleChecklistItem={handleToggleChecklistItem}
-                    />
-                  ))
-                : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
-              }
+              {days.length > 0 ? (
+                days.map((day) => (
+                  <DayCard
+                    key={day.dayNumber}
+                    day={day}
+                    onUpdateEvent={handleEventUpdate}
+                    onDeleteEvent={handleEventDelete}
+                    onReorderEvents={handleEventReorder}
+                    onUpdateDay={handleDayUpdate}
+                    onAddEvent={handleAddEvent}
+                    onAddNote={handleAddNote}
+                    onUpdateNote={handleUpdateNote}
+                    onDeleteNote={handleDeleteNote}
+                    onAddDoc={handleAddDoc}
+                    onDeleteDoc={handleDeleteDoc}
+                    onAddChecklist={handleAddChecklist}
+                    onUpdateChecklistTitle={handleUpdateChecklistTitle}
+                    onDeleteChecklist={handleDeleteChecklist}
+                    onAddChecklistItem={handleAddChecklistItem}
+                    onUpdateChecklistItem={handleUpdateChecklistItem}
+                    onDeleteChecklistItem={handleDeleteChecklistItem}
+                    onToggleChecklistItem={handleToggleChecklistItem}
+                  />
+                ))
+              ) : (
+                <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
+              )}
             </div>
           )}
-          {activeTab === "docs" && (
-            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Document view coming soon.</div>
-          )}
-          {activeTab === "map" && (
-            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Map view coming soon.</div>
-          )}
+          {activeTab === "docs" && <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Document view coming soon.</div>}
+          {activeTab === "map" && <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Map view coming soon.</div>}
           {activeTab === "pack" && (
             <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Packing list view coming soon.</div>
           )}
-          {activeTab === "notes" && (
-            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Notes coming soon.</div>
-          )}
+          {activeTab === "notes" && <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Notes coming soon.</div>}
         </div>
       </div>
 

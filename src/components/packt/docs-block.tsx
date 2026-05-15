@@ -16,9 +16,12 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
       <div
         style={{
           fontFamily: "var(--font-mono-family, ui-monospace)",
-          fontSize: "9.5px", fontWeight: 600,
-          letterSpacing: "0.08em", textTransform: "uppercase",
-          color: "var(--fg-4)", marginBottom: 6,
+          fontSize: "9.5px",
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--fg-4)",
+          marginBottom: 6,
         }}
       >
         DOCS
@@ -40,7 +43,11 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
             {d.offline ? (
               <span
                 className="shrink-0 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
-                style={{ fontSize: 10, color: "var(--accent-ink)", background: "var(--accent-soft)" }}
+                style={{
+                  fontSize: 10,
+                  color: "var(--accent-ink)",
+                  background: "var(--accent-soft)",
+                }}
               >
                 <Check size={9} strokeWidth={2} /> Offline
               </span>
@@ -51,11 +58,18 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
               onClick={() => onDelete(d.id)}
               aria-label={`Remove ${d.name}`}
               style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                minWidth: 28, minHeight: 28,
-                padding: 4, borderRadius: 4,
-                background: "none", border: "none", cursor: "pointer",
-                color: "var(--fg-4)", flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: 28,
+                minHeight: 28,
+                padding: 4,
+                borderRadius: 4,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--fg-4)",
+                flexShrink: 0,
               }}
             >
               <X size={12} strokeWidth={1.5} aria-hidden="true" />
@@ -66,8 +80,11 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
           onClick={onAdd}
           className="flex items-center gap-1.5 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-surface-2 w-full"
           style={{
-            fontSize: 12, color: "var(--fg-4)",
-            background: "none", border: "none", cursor: "pointer",
+            fontSize: 12,
+            color: "var(--fg-4)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
             borderTop: docs.length > 0 ? "1px solid var(--line)" : "none",
             marginTop: docs.length > 0 ? 4 : 0,
             paddingTop: docs.length > 0 ? 8 : 4,

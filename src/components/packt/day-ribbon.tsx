@@ -14,7 +14,7 @@ interface DayRibbonProps {
 
 export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
   const now = useNow();
-  const status       = getTripStatus(trip.startDate, trip.endDate, now);
+  const status = getTripStatus(trip.startDate, trip.endDate, now);
   const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate, now) : null;
   const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
 
@@ -31,7 +31,8 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
         href={`/trips/${trip.id}`}
         className="shrink-0 rounded-[8px] flex flex-col items-center justify-center gap-0.5 transition-colors hover:opacity-80"
         style={{
-          width: 72, minHeight: 72,
+          width: 72,
+          minHeight: 72,
           background: "var(--accent-soft)",
           padding: "8px 6px",
         }}
@@ -40,7 +41,9 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
         <div
           style={{
             fontFamily: "var(--font-heading-family, ui-sans-serif)",
-            fontSize: 28, fontWeight: 700, lineHeight: 1,
+            fontSize: 28,
+            fontWeight: 700,
+            lineHeight: 1,
             color: "var(--accent-brand)",
           }}
         >
@@ -58,7 +61,8 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
             lineHeight: 1.3,
           }}
         >
-          {todayMonth}{activeDayNum != null ? ` · DAY ${activeDayNum}` : ""}
+          {todayMonth}
+          {activeDayNum != null ? ` · DAY ${activeDayNum}` : ""}
         </div>
       </Link>
 
@@ -68,11 +72,7 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
           <div key={ev.id} className="flex items-center gap-1 shrink-0">
             <EventChip ev={ev} tripId={trip.id!} now={now} />
             {i < todayEvents.length - 1 && (
-              <ChevronRight
-                size={12}
-                strokeWidth={1.5}
-                style={{ color: "var(--fg-4)", flexShrink: 0 }}
-              />
+              <ChevronRight size={12} strokeWidth={1.5} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
             )}
           </div>
         ))}

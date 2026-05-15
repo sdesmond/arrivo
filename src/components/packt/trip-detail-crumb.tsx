@@ -10,10 +10,7 @@ interface TripDetailCrumbProps {
 
 export function TripDetailCrumb({ tripName }: TripDetailCrumbProps) {
   return (
-    <div
-      className="flex items-center gap-2 px-6 py-3"
-      style={{ borderBottom: "1px solid var(--line)" }}
-    >
+    <div className="flex items-center gap-2 px-6 py-3" style={{ borderBottom: "1px solid var(--line)" }}>
       <Link
         href="/trips"
         className="inline-flex shrink-0 items-center gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] font-medium h-7 transition-colors hover:bg-muted"

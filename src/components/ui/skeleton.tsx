@@ -1,12 +1,9 @@
 import { cn } from "@/lib/utils";
 
-interface SkeletonProps { className?: string; }
+interface SkeletonProps {
+  className?: string;
+}
 
 export function Skeleton({ className }: SkeletonProps) {
-  return (
-    <div
-      className={cn("animate-pulse rounded-md", className)}
-      style={{ background: "var(--surface-2)" }}
-    />
-  );
+  return <div className={cn("animate-pulse rounded-md", className)} style={{ background: "var(--surface-2)" }} />;
 }

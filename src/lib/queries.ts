@@ -1,6 +1,16 @@
 import "server-only";
 import { db } from "@/db";
-import { trips, days, events, documents, collaborators, packingItems, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
+import {
+  trips,
+  days,
+  events,
+  documents,
+  collaborators,
+  packingItems,
+  itineraryNotes,
+  itineraryChecklists,
+  checklistItems,
+} from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbChecklistToType } from "@/lib/db-mappers";
@@ -10,10 +20,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
   const rows = await db
     .select({ trip: trips })
     .from(trips)
-    .innerJoin(collaborators, and(
-      eq(collaborators.tripId, trips.id),
-      eq(collaborators.userId, userId),
-    ))
+    .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
     .orderBy(trips.startDate);
 
   const todayISO = now.toISOString().slice(0, 10);
@@ -23,10 +30,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
       const todayEvents = await db
         .select()
         .from(events)
-        .where(and(
-          eq(events.tripId, trip.id),
-          sql`${events.startAt}::date = ${todayISO}::date`,
-        ))
+        .where(and(eq(events.tripId, trip.id), sql`${events.startAt}::date = ${todayISO}::date`))
         .orderBy(events.position);
 
       return {
@@ -45,17 +49,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
   const [trip] = await db.select().from(trips).where(eq(trips.id, tripId));
   if (!trip) throw new Error("Trip not found");
 
-  const tripDays = await db
-    .select()
-    .from(days)
-    .where(eq(days.tripId, tripId))
-    .orderBy(days.dayNumber);
+  const tripDays = await db.select().from(days).where(eq(days.tripId, tripId)).orderBy(days.dayNumber);
 
-  const tripEvents = await db
-    .select()
-    .from(events)
-    .where(eq(events.tripId, tripId))
-    .orderBy(events.position);
+  const tripEvents = await db.select().from(events).where(eq(events.tripId, tripId)).orderBy(events.position);
 
   const tripDocs = await db.select().from(documents).where(eq(documents.tripId, tripId));
   const tripCollaborators = await db.select().from(collaborators).where(eq(collaborators.tripId, tripId));
@@ -65,35 +61,47 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(packingItems.tripId, tripId))
     .orderBy(packingItems.position);
 
-  const allNotes = tripDays.length > 0
-    ? await db
-        .select()
-        .from(itineraryNotes)
-        .where(inArray(itineraryNotes.dayId, tripDays.map(d => d.id)))
-        .orderBy(itineraryNotes.position)
-    : [];
+  const allNotes =
+    tripDays.length > 0
+      ? await db
+          .select()
+          .from(itineraryNotes)
+          .where(
+            inArray(
+              itineraryNotes.dayId,
+              tripDays.map((d) => d.id)
+            )
+          )
+          .orderBy(itineraryNotes.position)
+      : [];
 
-  const allChecklists = tripDays.length > 0
-    ? await db
-        .select()
-        .from(itineraryChecklists)
-        .where(inArray(itineraryChecklists.dayId, tripDays.map(d => d.id)))
-        .orderBy(itineraryChecklists.position)
-    : [];
+  const allChecklists =
+    tripDays.length > 0
+      ? await db
+          .select()
+          .from(itineraryChecklists)
+          .where(
+            inArray(
+              itineraryChecklists.dayId,
+              tripDays.map((d) => d.id)
+            )
+          )
+          .orderBy(itineraryChecklists.position)
+      : [];
 
-  const checklistIds = allChecklists.map(cl => cl.id);
-  const allChecklistItems = checklistIds.length > 0
-    ? await db
-        .select()
-        .from(checklistItems)
-        .where(inArray(checklistItems.checklistId, checklistIds))
-        .orderBy(checklistItems.createdAt)
-    : [];
+  const checklistIds = allChecklists.map((cl) => cl.id);
+  const allChecklistItems =
+    checklistIds.length > 0
+      ? await db
+          .select()
+          .from(checklistItems)
+          .where(inArray(checklistItems.checklistId, checklistIds))
+          .orderBy(checklistItems.createdAt)
+      : [];
 
-  const eventIds = tripEvents.map(e => e.id);
-  const eventDocs = eventIds.length > 0
-    ? await db.select().from(documents).where(inArray(documents.eventId, eventIds))
-    : [];
+  const eventIds = tripEvents.map((e) => e.id);
+  const eventDocs =
+    eventIds.length > 0 ? await db.select().from(documents).where(inArray(documents.eventId, eventIds)) : [];
 
   const eventsByDay = new Map<string, typeof tripEvents>();
   for (const event of tripEvents) {
@@ -165,4 +173,3 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     })),
   };
 }
-

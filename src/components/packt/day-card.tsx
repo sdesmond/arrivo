@@ -10,12 +10,8 @@ import { ChecklistItem } from "./checklist-item";
 import { TypePicker } from "./type-picker";
 import { type DayItinerary, type TripEvent, type ItineraryNote, type Checklist, ItineraryItemType } from "@/data/types";
 import { cn } from "@/lib/utils";
-import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
-} from "@dnd-kit/sortable";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 interface DayCardProps {
@@ -74,8 +70,12 @@ function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
         onClick={onOpen}
         className="relative z-10 flex items-center justify-center rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
         style={{
-          marginLeft: 12, width: 20, height: 20,
-          background: "var(--surface)", border: "1px solid var(--line)", cursor: "pointer",
+          marginLeft: 12,
+          width: 20,
+          height: 20,
+          background: "var(--surface)",
+          border: "1px solid var(--line)",
+          cursor: "pointer",
         }}
         title="Insert item here"
       >
@@ -88,11 +88,20 @@ function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
 // ── SortablePlaceRow ──────────────────────────────────────────────────────────
 
 function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: props.place.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.place.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
   const dragHandle = (
-    <span {...attributes} {...listeners} style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}>
+    <span
+      {...attributes}
+      {...listeners}
+      style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
+    >
       <GripVertical size={13} strokeWidth={1.5} />
     </span>
   );
@@ -151,7 +160,11 @@ export function DayCard({
   const [draft, setDraft] = useState<DraftState | null>(null);
 
   const dateDisplay = d.date
-    ? new Date(d.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+    ? new Date(d.date + "T12:00:00").toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      })
     : d.label.replace(" · ", ", ");
 
   function saveSubtitle() {
@@ -170,9 +183,7 @@ export function DayCard({
     ...checklists.map((c) => ({ kind: "checklist" as const, data: c, position: c.position })),
   ].sort((a, b) => a.position - b.position);
 
-  const maxTimelinePos = timelineItems.length > 0
-    ? Math.max(...timelineItems.map((item) => item.position))
-    : -1;
+  const maxTimelinePos = timelineItems.length > 0 ? Math.max(...timelineItems.map((item) => item.position)) : -1;
   const bottomInsertPosition = maxTimelinePos + 1;
 
   // Build render list, injecting the draft at the right index
@@ -181,13 +192,13 @@ export function DayCard({
     | { type: "draft"; draftKind: ItineraryItemType };
 
   const renderEntries: RenderEntry[] = timelineItems.map((item, idx) => ({
-    type: "timeline" as const, item, idx,
+    type: "timeline" as const,
+    item,
+    idx,
   }));
 
   if (draft !== null) {
-    const insertIdx = draft.gapKey === "bottom"
-      ? renderEntries.length
-      : parseInt(draft.gapKey.slice(3), 10) + 1;
+    const insertIdx = draft.gapKey === "bottom" ? renderEntries.length : parseInt(draft.gapKey.slice(3), 10) + 1;
     renderEntries.splice(insertIdx, 0, { type: "draft" as const, draftKind: draft.kind });
   }
 
@@ -236,8 +247,8 @@ export function DayCard({
 
   function handleDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
-    const oldIdx = allEvents.findIndex(e => e.id === active.id);
-    const newIdx = allEvents.findIndex(e => e.id === over.id);
+    const oldIdx = allEvents.findIndex((e) => e.id === active.id);
+    const newIdx = allEvents.findIndex((e) => e.id === over.id);
     onReorderEvents(d.dayNumber, arrayMove(allEvents, oldIdx, newIdx));
   }
 
@@ -263,7 +274,14 @@ export function DayCard({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          <div style={{ fontFamily: "var(--font-heading-family, ui-sans-serif)", fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
+          <div
+            style={{
+              fontFamily: "var(--font-heading-family, ui-sans-serif)",
+              fontSize: 14,
+              fontWeight: 600,
+              color: "var(--fg)",
+            }}
+          >
             {dateDisplay}
           </div>
           <div className="flex items-center gap-2">
@@ -273,8 +291,14 @@ export function DayCard({
             </span>
             {isToday && <Badge variant="soft">Active</Badge>}
             <ChevronDown
-              size={14} strokeWidth={1.5}
-              style={{ color: "var(--fg-4)", transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s", flexShrink: 0 }}
+              size={14}
+              strokeWidth={1.5}
+              style={{
+                color: "var(--fg-4)",
+                transform: open ? "rotate(180deg)" : undefined,
+                transition: "transform 0.15s",
+                flexShrink: 0,
+              }}
             />
           </div>
         </button>
@@ -285,29 +309,53 @@ export function DayCard({
               autoFocus
               value={draftSubtitle}
               placeholder="Add a note"
-              onChange={e => setDraftSubtitle(e.target.value)}
+              onChange={(e) => setDraftSubtitle(e.target.value)}
               onBlur={saveSubtitle}
-              onKeyDown={e => {
+              onKeyDown={(e) => {
                 if (e.key === "Enter") saveSubtitle();
-                if (e.key === "Escape") { setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(false); }
+                if (e.key === "Escape") {
+                  setDraftSubtitle(d.subtitle ?? "");
+                  setIsEditingSubtitle(false);
+                }
               }}
               style={{
-                fontSize: 12, color: "var(--fg-3)", background: "transparent",
-                border: "none", borderBottom: "1px solid var(--accent-brand)",
-                outline: "none", width: "100%", fontFamily: "inherit", padding: "1px 0",
+                fontSize: 12,
+                color: "var(--fg-3)",
+                background: "transparent",
+                border: "none",
+                borderBottom: "1px solid var(--accent-brand)",
+                outline: "none",
+                width: "100%",
+                fontFamily: "inherit",
+                padding: "1px 0",
               }}
             />
           ) : (
             <div
               role="button"
               tabIndex={0}
-              onClick={e => { e.stopPropagation(); setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(true); }}
-              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(true); } }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDraftSubtitle(d.subtitle ?? "");
+                setIsEditingSubtitle(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  setDraftSubtitle(d.subtitle ?? "");
+                  setIsEditingSubtitle(true);
+                }
+              }}
               style={{
-                fontSize: 12, color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
-                cursor: "text", minHeight: "1.2em",
-                width: "fit-content", maxWidth: "100%",
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                fontSize: 12,
+                color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
+                cursor: "text",
+                minHeight: "1.2em",
+                width: "fit-content",
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
               {d.subtitle ?? "Add a note"}
@@ -319,8 +367,13 @@ export function DayCard({
       {/* Collapsible body */}
       {open && (
         <div className="p-3 flex flex-col">
-          <DndContext id={`day-${d.dayNumber}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={allEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+          <DndContext
+            id={`day-${d.dayNumber}`}
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={allEvents.map((e) => e.id)} strategy={verticalListSortingStrategy}>
               {renderEntries.map((entry, renderIdx) => {
                 const isLast = renderIdx === renderEntries.length - 1;
                 const key = entry.type === "draft" ? "draft" : entry.item.data.id;
@@ -330,7 +383,12 @@ export function DayCard({
                     {entry.type === "draft" ? (
                       entry.draftKind === ItineraryItemType.Checklist ? (
                         <ChecklistItem
-                          checklist={{ id: "draft", tripDayId: d.id ?? "", position: draft!.insertAtPosition, items: [] }}
+                          checklist={{
+                            id: "draft",
+                            tripDayId: d.id ?? "",
+                            position: draft!.insertAtPosition,
+                            items: [],
+                          }}
                           isDraft
                           onCommitDraft={() => {
                             onAddChecklist?.(d.dayNumber, draft!.insertAtPosition);
@@ -378,18 +436,12 @@ export function DayCard({
                         onDeleteDoc={onDeleteDoc}
                       />
                     ) : (
-                      <NoteItem
-                        note={entry.item.data}
-                        onUpdate={onUpdateNote}
-                        onDelete={onDeleteNote}
-                      />
+                      <NoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />
                     )}
                     {!isLast && entry.type === "timeline" && (
                       <GapZone {...makeGapProps(`ti-${entry.idx}`, entry.item.position + 1)} />
                     )}
-                    {!isLast && entry.type === "draft" && (
-                      <div style={{ height: 28 }} />
-                    )}
+                    {!isLast && entry.type === "draft" && <div style={{ height: 28 }} />}
                   </div>
                 );
               })}

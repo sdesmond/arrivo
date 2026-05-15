@@ -22,24 +22,24 @@ interface NowCardProps {
 
 export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
   const now = useNow();
-  const status      = getTripStatus(trip.startDate, trip.endDate, now);
-  const statusLabel = status === "active" ? "ACTIVE TRIP"
-                    : status === "upcoming" ? "UPCOMING TRIP"
-                    : "PAST TRIP";
+  const status = getTripStatus(trip.startDate, trip.endDate, now);
+  const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
   const sub = status === "upcoming" ? trip.startDate : status === "past" ? trip.endDate : "";
 
-  const currentEvent = [...todayEvents].reverse().find((ev) => {
-    if (!ev.startAt) return false;
-    return new Date(ev.startAt) <= now;
-  }) ?? null;
+  const currentEvent =
+    [...todayEvents].reverse().find((ev) => {
+      if (!ev.startAt) return false;
+      return new Date(ev.startAt) <= now;
+    }) ?? null;
 
-  const nextEvent = todayEvents.find((ev) => {
-    if (!ev.startAt) return false;
-    return new Date(ev.startAt) > now;
-  }) ?? null;
+  const nextEvent =
+    todayEvents.find((ev) => {
+      if (!ev.startAt) return false;
+      return new Date(ev.startAt) > now;
+    }) ?? null;
 
   const displayEvent = currentEvent ?? nextEvent;
-  const eventLabel   = currentEvent ? "Now" : "Next Event";
+  const eventLabel = currentEvent ? "Now" : "Next Event";
 
   return (
     <div
@@ -51,13 +51,7 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
       }}
     >
       {/* Cover */}
-      <TripCover
-        name={trip.name}
-        country={sub}
-        metaTag={statusLabel}
-        showCity
-        style={{ minHeight: 220 }}
-      />
+      <TripCover name={trip.name} country={sub} metaTag={statusLabel} showCity style={{ minHeight: 220 }} />
 
       {/* Body */}
       <div className="p-6">
@@ -78,7 +72,8 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
               <span
                 className={cn(status === "active" && "pulse", "rounded-full shrink-0")}
                 style={{
-                  width: 6, height: 6,
+                  width: 6,
+                  height: 6,
                   background: "var(--accent-brand)",
                   display: "inline-block",
                 }}
@@ -115,14 +110,25 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
             <Link
               href={`/trips/${trip.id}`}
               className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
-              style={{ fontSize: "0.8rem", borderRadius: "min(var(--radius-md), 12px)", border: "1px solid var(--line)", background: "var(--bg)", color: "var(--fg)" }}
+              style={{
+                fontSize: "0.8rem",
+                borderRadius: "min(var(--radius-md), 12px)",
+                border: "1px solid var(--line)",
+                background: "var(--bg)",
+                color: "var(--fg)",
+              }}
             >
               Open trip
             </Link>
             <Link
               href={displayEvent ? `/trips/${trip.id}?focus=${displayEvent.id}` : `/trips/${trip.id}`}
               className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
-              style={{ fontSize: "0.8rem", borderRadius: "min(var(--radius-md), 12px)", background: "var(--accent-brand)", color: "var(--accent-fg)" }}
+              style={{
+                fontSize: "0.8rem",
+                borderRadius: "min(var(--radius-md), 12px)",
+                background: "var(--accent-brand)",
+                color: "var(--accent-fg)",
+              }}
             >
               <MapPin size={13} strokeWidth={1.5} />
               Today
@@ -210,10 +216,8 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
               }}
             >
               {displayEvent.startAt ? fmtTime(displayEvent.startAt) : "—"}
-              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>
-              —
-              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>
-              — km
+              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
+              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>— km
             </div>
           </Link>
         )}

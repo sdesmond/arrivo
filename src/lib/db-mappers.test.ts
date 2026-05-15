@@ -1,6 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbNoteToType, dbChecklistToType } from "@/lib/db-mappers";
-import type { trips, events, documents, collaborators, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
+import {
+  dbTripToType,
+  dbEventToType,
+  dbDocToType,
+  dbCollabToType,
+  dbNoteToType,
+  dbChecklistToType,
+} from "@/lib/db-mappers";
+import type {
+  trips,
+  events,
+  documents,
+  collaborators,
+  itineraryNotes,
+  itineraryChecklists,
+  checklistItems,
+} from "@/db/schema";
 
 type TripRow = typeof trips.$inferSelect;
 type EventRow = typeof events.$inferSelect;
@@ -254,20 +269,20 @@ type ChecklistRow = typeof itineraryChecklists.$inferSelect;
 type ChecklistItemRow = typeof checklistItems.$inferSelect;
 
 const BASE_CHECKLIST: ChecklistRow = {
-  id:        "cl-1",
-  dayId:     "day-1",
-  position:  0,
-  title:     null,
+  id: "cl-1",
+  dayId: "day-1",
+  position: 0,
+  title: null,
   createdAt: null,
   updatedAt: null,
 };
 
 const BASE_ITEM: ChecklistItemRow = {
-  id:          "item-1",
+  id: "item-1",
   checklistId: "cl-1",
-  content:     "Buy sunscreen",
-  isChecked:   false,
-  createdAt:   null,
+  content: "Buy sunscreen",
+  isChecked: false,
+  createdAt: null,
 };
 
 describe("dbChecklistToType", () => {

@@ -6,8 +6,11 @@ import { events, days, documents, itineraryNotes, itineraryChecklists, checklist
 import { eq, and, max, gte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type {
-  CreateEventInput, UpdateEventPatch, ReorderEventsInput,
-  UpdateDayPatch, AddDocumentInput,
+  CreateEventInput,
+  UpdateEventPatch,
+  ReorderEventsInput,
+  UpdateDayPatch,
+  AddDocumentInput,
 } from "@/data/types";
 
 async function getDayTripId(dayId: string): Promise<string> {
@@ -23,20 +26,32 @@ async function getEventTripId(eventId: string): Promise<string> {
 }
 
 async function getAppendPosition(dayId: string): Promise<number> {
-  const [{ maxEvt }] = await db.select({ maxEvt: max(events.position) }).from(events).where(eq(events.dayId, dayId));
-  const [{ maxNote }] = await db.select({ maxNote: max(itineraryNotes.position) }).from(itineraryNotes).where(eq(itineraryNotes.dayId, dayId));
-  const [{ maxCl }] = await db.select({ maxCl: max(itineraryChecklists.position) }).from(itineraryChecklists).where(eq(itineraryChecklists.dayId, dayId));
+  const [{ maxEvt }] = await db
+    .select({ maxEvt: max(events.position) })
+    .from(events)
+    .where(eq(events.dayId, dayId));
+  const [{ maxNote }] = await db
+    .select({ maxNote: max(itineraryNotes.position) })
+    .from(itineraryNotes)
+    .where(eq(itineraryNotes.dayId, dayId));
+  const [{ maxCl }] = await db
+    .select({ maxCl: max(itineraryChecklists.position) })
+    .from(itineraryChecklists)
+    .where(eq(itineraryChecklists.dayId, dayId));
   return Math.max(maxEvt ?? -1, maxNote ?? -1, maxCl ?? -1) + 1;
 }
 
 async function shiftItemsAtOrAbove(dayId: string, fromPosition: number): Promise<void> {
-  await db.update(events)
+  await db
+    .update(events)
     .set({ position: sql`${events.position} + 1` })
     .where(and(eq(events.dayId, dayId), gte(events.position, fromPosition)));
-  await db.update(itineraryNotes)
+  await db
+    .update(itineraryNotes)
     .set({ position: sql`${itineraryNotes.position} + 1` })
     .where(and(eq(itineraryNotes.dayId, dayId), gte(itineraryNotes.position, fromPosition)));
-  await db.update(itineraryChecklists)
+  await db
+    .update(itineraryChecklists)
     .set({ position: sql`${itineraryChecklists.position} + 1` })
     .where(and(eq(itineraryChecklists.dayId, dayId), gte(itineraryChecklists.position, fromPosition)));
 }
@@ -112,17 +127,20 @@ export async function updateEvent(eventId: string, patch: UpdateEventPatch) {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(events).set({
-    ...patch,
-    startAt: patch.startAt ? new Date(patch.startAt) : null,
-    endAt: patch.endAt ? new Date(patch.endAt) : null,
-    locationName: patch.locationName ?? null,
-    locationAddress: patch.locationAddress ?? null,
-    locationLat: patch.locationLat ?? null,
-    locationLng: patch.locationLng ?? null,
-    cost: patch.cost !== undefined ? patch.cost.toString() : null,
-    updatedAt: new Date(),
-  }).where(eq(events.id, eventId));
+  await db
+    .update(events)
+    .set({
+      ...patch,
+      startAt: patch.startAt ? new Date(patch.startAt) : null,
+      endAt: patch.endAt ? new Date(patch.endAt) : null,
+      locationName: patch.locationName ?? null,
+      locationAddress: patch.locationAddress ?? null,
+      locationLat: patch.locationLat ?? null,
+      locationLng: patch.locationLng ?? null,
+      cost: patch.cost !== undefined ? patch.cost.toString() : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(events.id, eventId));
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -159,9 +177,7 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch) {
 
 export async function addDocument(input: AddDocumentInput) {
   const user = await requireUser();
-  const tripId = input.tripId ?? (input.eventId
-    ? (await getEventTripId(input.eventId))
-    : null);
+  const tripId = input.tripId ?? (input.eventId ? await getEventTripId(input.eventId) : null);
   if (!tripId) throw new Error("tripId or eventId required");
   await assertTripAccess(tripId, user.id!, "editor");
   await db.insert(documents).values({
@@ -197,9 +213,7 @@ export async function updateNote(noteId: string, content: string) {
   if (!note) return;
   const tripId = await getDayTripId(note.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(itineraryNotes)
-    .set({ content, updatedAt: new Date() })
-    .where(eq(itineraryNotes.id, noteId));
+  await db.update(itineraryNotes).set({ content, updatedAt: new Date() }).where(eq(itineraryNotes.id, noteId));
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -227,7 +241,8 @@ export async function updateChecklistTitle(checklistId: string, title: string | 
   const dayId = await getChecklistDayId(checklistId);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(itineraryChecklists)
+  await db
+    .update(itineraryChecklists)
     .set({ title: title ?? null, updatedAt: new Date() })
     .where(eq(itineraryChecklists.id, checklistId));
   revalidatePath(`/trips/${tripId}`);
@@ -263,7 +278,8 @@ export async function toggleChecklistItem(itemId: string) {
   const user = await requireUser();
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(checklistItems)
+  await db
+    .update(checklistItems)
     .set({ isChecked: sql`NOT ${checklistItems.isChecked}` })
     .where(eq(checklistItems.id, itemId));
   revalidatePath(`/trips/${tripId}`);

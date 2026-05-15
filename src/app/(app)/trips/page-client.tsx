@@ -28,24 +28,30 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
   const now = new Date(nowISO);
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
 
-  const activeEntries   = initialEntries.filter(e => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "active");
-  const upcomingEntries = initialEntries.filter(e => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "upcoming");
-  const pastEntries     = initialEntries.filter(e => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "past");
-
-  const activeEntry   = activeEntries[0] ?? null;
-  const upcomingTrips = upcomingEntries.map(e => e.trip);
-  const pastTrips     = pastEntries.map(e => e.trip);
-
-  const [mobileTab, setMobileTab] = useState<MobileTab>(
-    activeEntry !== null ? "Active" : "Upcoming"
+  const activeEntries = initialEntries.filter((e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "active");
+  const upcomingEntries = initialEntries.filter(
+    (e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "upcoming"
   );
+  const pastEntries = initialEntries.filter((e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "past");
 
-  const nextInDays = upcomingTrips.length > 0
-    ? Math.min(...upcomingTrips.map(trip => {
-        const today = new Date(now); today.setHours(0, 0, 0, 0);
-        return Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      }))
-    : null;
+  const activeEntry = activeEntries[0] ?? null;
+  const upcomingTrips = upcomingEntries.map((e) => e.trip);
+  const pastTrips = pastEntries.map((e) => e.trip);
+
+  const [mobileTab, setMobileTab] = useState<MobileTab>(activeEntry !== null ? "Active" : "Upcoming");
+
+  const nextInDays =
+    upcomingTrips.length > 0
+      ? Math.min(
+          ...upcomingTrips.map((trip) => {
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+            return Math.ceil(
+              (new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+            );
+          })
+        )
+      : null;
 
   function handleTripSave(tripId: string, patch: UpdateTripPatch) {
     React.startTransition(() => {
@@ -54,7 +60,7 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
     setEditingTrip(null);
   }
 
-  const editingEntry = editingTrip ? initialEntries.find(e => e.trip.id === editingTrip) ?? null : null;
+  const editingEntry = editingTrip ? (initialEntries.find((e) => e.trip.id === editingTrip) ?? null) : null;
 
   return (
     <>
@@ -65,7 +71,11 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
           <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
             {activeEntry !== null && (
               <>
-                <NowCard trip={activeEntry.trip} todayEvents={activeEntry.todayEvents} onEditTrip={(t) => setEditingTrip(t.id)} />
+                <NowCard
+                  trip={activeEntry.trip}
+                  todayEvents={activeEntry.todayEvents}
+                  onEditTrip={(t) => setEditingTrip(t.id)}
+                />
                 <DayRibbon trip={activeEntry.trip} todayEvents={activeEntry.todayEvents} />
               </>
             )}
@@ -109,17 +119,16 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
 
       {/* ── Mobile layout ── */}
       <div className="flex flex-col lg:hidden min-h-screen">
-        <div
-          className="px-4 pt-12 pb-3"
-          style={{ borderBottom: "1px solid var(--line)" }}
-        >
+        <div className="px-4 pt-12 pb-3" style={{ borderBottom: "1px solid var(--line)" }}>
           <div className="flex items-end justify-between">
             <div>
               <h1
                 style={{
                   fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                  fontSize: 26, fontWeight: 700,
-                  letterSpacing: "-0.02em", color: "var(--fg)",
+                  fontSize: 26,
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em",
+                  color: "var(--fg)",
                 }}
               >
                 Trips
@@ -127,16 +136,22 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
               <div
                 style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: "10.5px", color: "var(--fg-3)",
-                  letterSpacing: "0.04em", textTransform: "uppercase",
+                  fontSize: "10.5px",
+                  color: "var(--fg-3)",
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
                   marginTop: 4,
                 }}
               >
                 <span
                   style={{
-                    display: "inline-block", width: 6, height: 6,
-                    borderRadius: "50%", background: "var(--accent-brand)",
-                    marginRight: 6, verticalAlign: "middle",
+                    display: "inline-block",
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "var(--accent-brand)",
+                    marginRight: 6,
+                    verticalAlign: "middle",
                   }}
                 />
                 Synced offline · {initialEntries.length} trips
@@ -153,44 +168,37 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
             </div>
           </div>
 
-          <div
-            className="flex gap-0 mt-4"
-            style={{ borderBottom: "2px solid var(--line)" }}
-          >
-            {(["Active", "Upcoming", "Past"] as MobileTab[]).filter(tab => tab !== "Active" || activeEntry !== null).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setMobileTab(tab)}
-                className="px-4 py-2 font-medium transition-colors"
-                style={{
-                  fontSize: 13,
-                  minHeight: 44,
-                  color: mobileTab === tab ? "var(--accent-brand)" : "var(--fg-3)",
-                  borderBottom: mobileTab === tab
-                    ? "2px solid var(--accent-brand)"
-                    : "2px solid transparent",
-                  marginBottom: -2,
-                  background: "transparent",
-                  cursor: "pointer",
-                  paddingBottom: 8,
-                }}
-              >
-                {tab}
-              </button>
-            ))}
+          <div className="flex gap-0 mt-4" style={{ borderBottom: "2px solid var(--line)" }}>
+            {(["Active", "Upcoming", "Past"] as MobileTab[])
+              .filter((tab) => tab !== "Active" || activeEntry !== null)
+              .map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMobileTab(tab)}
+                  className="px-4 py-2 font-medium transition-colors"
+                  style={{
+                    fontSize: 13,
+                    minHeight: 44,
+                    color: mobileTab === tab ? "var(--accent-brand)" : "var(--fg-3)",
+                    borderBottom: mobileTab === tab ? "2px solid var(--accent-brand)" : "2px solid transparent",
+                    marginBottom: -2,
+                    background: "transparent",
+                    cursor: "pointer",
+                    paddingBottom: 8,
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto scroll-thin p-4">
           {mobileTab === "Active" && (
-            <MobileActiveTab
-              trip={activeEntry?.trip ?? null}
-              todayEvents={activeEntry?.todayEvents ?? []}
-              now={now}
-            />
+            <MobileActiveTab trip={activeEntry?.trip ?? null} todayEvents={activeEntry?.todayEvents ?? []} now={now} />
           )}
           {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} now={now} />}
-          {mobileTab === "Past"     && <MobilePastTab trips={pastTrips} />}
+          {mobileTab === "Past" && <MobilePastTab trips={pastTrips} />}
         </div>
       </div>
 

@@ -1,0 +1,12 @@
+node_modules
+.next
+.next-e2e
+out
+build
+coverage
+.features-gen
+public
+*.generated.*
+.claude
+_bmad
+_bmad-output

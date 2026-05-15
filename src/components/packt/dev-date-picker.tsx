@@ -12,17 +12,13 @@ export function DevDatePicker() {
 
 function toLocalInputValue(iso: string): string {
   const d = new Date(iso);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
 function DevDatePickerInner() {
   const mockISO = useContext(MockDateContext);
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(() =>
-    mockISO ? toLocalInputValue(mockISO) : ""
-  );
+  const [inputValue, setInputValue] = useState(() => (mockISO ? toLocalInputValue(mockISO) : ""));
 
   function handleApply() {
     if (!inputValue) return;
@@ -64,7 +60,14 @@ function DevDatePickerInner() {
             minWidth: 220,
           }}
         >
-          <div style={{ color: "#ff9a4d", fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          <div
+            style={{
+              color: "#ff9a4d",
+              fontSize: 10,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}
+          >
             Mock date / time
           </div>
           <input

@@ -12,20 +12,22 @@ interface TopbarProps {
 }
 
 export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
-  const todayFormatted = now.toLocaleDateString("en-US", {
-    month: "2-digit", day: "2-digit", year: "numeric",
-  }).replace(/\//g, ".");
+  const todayFormatted = now
+    .toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    })
+    .replace(/\//g, ".");
 
   return (
-    <div
-      className="flex items-center gap-3 px-6 py-4"
-      style={{ borderBottom: "1px solid var(--line)" }}
-    >
+    <div className="flex items-center gap-3 px-6 py-4" style={{ borderBottom: "1px solid var(--line)" }}>
       <div>
         <div
           style={{
             fontFamily: "var(--font-heading-family, ui-sans-serif)",
-            fontSize: 16, fontWeight: 600,
+            fontSize: 16,
+            fontWeight: 600,
             letterSpacing: "-0.01em",
             color: "var(--fg)",
           }}
@@ -49,15 +51,12 @@ export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
 
       <div className="relative w-[280px] hidden md:block">
         <Search
-          size={14} strokeWidth={1.5}
+          size={14}
+          strokeWidth={1.5}
           className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
           style={{ color: "var(--fg-3)" }}
         />
-        <Input
-          placeholder="Search trips, places, docs…"
-          className="pl-8"
-          style={{ height: 34, fontSize: 13 }}
-        />
+        <Input placeholder="Search trips, places, docs…" className="pl-8" style={{ height: 34, fontSize: 13 }} />
       </div>
 
       <ThemeToggle />

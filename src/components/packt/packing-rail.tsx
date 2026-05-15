@@ -23,7 +23,8 @@ export function PackingRail({ items }: PackingRailProps) {
             <span
               className="flex items-center justify-center rounded-full shrink-0"
               style={{
-                width: 16, height: 16,
+                width: 16,
+                height: 16,
                 background: p.done ? "var(--accent-brand)" : "var(--surface-2)",
                 border: p.done ? "none" : "1.5px solid var(--line-strong)",
                 color: p.done ? "#fff" : "transparent",
@@ -34,7 +35,8 @@ export function PackingRail({ items }: PackingRailProps) {
             <span
               style={{
                 flex: 1,
-                fontSize: 12.5, fontWeight: 500,
+                fontSize: 12.5,
+                fontWeight: 500,
                 color: "var(--fg)",
                 textDecoration: p.done ? "line-through" : "none",
               }}
@@ -44,7 +46,8 @@ export function PackingRail({ items }: PackingRailProps) {
             <span
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10, color: "var(--fg-4)",
+                fontSize: 10,
+                color: "var(--fg-4)",
               }}
             >
               {String(i + 1).padStart(2, "0")}

@@ -1,6 +1,23 @@
-import { trips, events, documents, collaborators, itineraryChecklists, checklistItems, itineraryNotes } from "@/db/schema";
+import {
+  trips,
+  events,
+  documents,
+  collaborators,
+  itineraryChecklists,
+  checklistItems,
+  itineraryNotes,
+} from "@/db/schema";
 import { getTripStatus } from "@/lib/utils";
-import type { Trip, TripEvent, Document, Collaborator, DocPreviewLine, Checklist, ChecklistItem, Note } from "@/data/types";
+import type {
+  Trip,
+  TripEvent,
+  Document,
+  Collaborator,
+  DocPreviewLine,
+  Checklist,
+  ChecklistItem,
+  Note,
+} from "@/data/types";
 
 export function dbTripToType(row: typeof trips.$inferSelect): Trip {
   return {
@@ -12,7 +29,11 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
     coverImageUrl: row.coverImageUrl ?? undefined,
     notes: row.notes ?? undefined,
     budget: row.budgetTotal
-      ? { currency: row.budgetCurrency ?? "USD", total: Number(row.budgetTotal), perPerson: Number(row.budgetPerPerson ?? 0) }
+      ? {
+          currency: row.budgetCurrency ?? "USD",
+          total: Number(row.budgetTotal),
+          perPerson: Number(row.budgetPerPerson ?? 0),
+        }
       : undefined,
     tags: row.tags ?? [],
   };
@@ -63,24 +84,24 @@ export function dbCollabToType(row: typeof collaborators.$inferSelect): Collabor
 
 function dbChecklistItemToType(row: typeof checklistItems.$inferSelect): ChecklistItem {
   return {
-    id:          row.id,
+    id: row.id,
     checklistId: row.checklistId,
-    content:     row.content,
-    isChecked:   row.isChecked,
-    createdAt:   row.createdAt?.toISOString() ?? undefined,
+    content: row.content,
+    isChecked: row.isChecked,
+    createdAt: row.createdAt?.toISOString() ?? undefined,
   };
 }
 
 export function dbChecklistToType(
   row: typeof itineraryChecklists.$inferSelect,
-  itemRows: (typeof checklistItems.$inferSelect)[],
+  itemRows: (typeof checklistItems.$inferSelect)[]
 ): Checklist {
   return {
-    id:        row.id,
+    id: row.id,
     tripDayId: row.dayId,
-    position:  row.position,
-    title:     row.title ?? undefined,
-    items:     itemRows.map(dbChecklistItemToType),
+    position: row.position,
+    title: row.title ?? undefined,
+    items: itemRows.map(dbChecklistItemToType),
     createdAt: row.createdAt?.toISOString() ?? undefined,
     updatedAt: row.updatedAt?.toISOString() ?? undefined,
   };
@@ -88,10 +109,10 @@ export function dbChecklistToType(
 
 export function dbNoteToType(row: typeof itineraryNotes.$inferSelect): Note {
   return {
-    id:        row.id,
+    id: row.id,
     tripDayId: row.dayId,
-    position:  row.position,
-    content:   row.content,
+    position: row.position,
+    content: row.content,
     createdAt: row.createdAt?.toISOString() ?? undefined,
     updatedAt: row.updatedAt?.toISOString() ?? undefined,
   };
