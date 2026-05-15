@@ -36,10 +36,12 @@ If the Playwright MCP tools are unavailable, stop and report: "Playwright MCP is
 
 **Set up the screenshot directory:**
 ```bash
-mkdir -p "c:\Users\spenc\dev\packt\.ui-review-screenshots"
+SCREENSHOTS_DIR="$(git rev-parse --show-toplevel)/.ui-review-screenshots"
+mkdir -p "$SCREENSHOTS_DIR"
+echo "Screenshots: $SCREENSHOTS_DIR"
 ```
 
-All screenshots MUST be saved in `c:\Users\spenc\dev\packt\.ui-review-screenshots\` using full absolute paths. Never pass a bare filename.
+All screenshots MUST be saved in `$SCREENSHOTS_DIR` (the absolute path printed above). Never pass a bare filename.
 
 ## Step 1: Navigate and set viewport
 
@@ -67,7 +69,7 @@ For each route:
    - Fixed-width elements that don't reflow at 390px (e.g. `width: 400px`)
    - Text truncation or wrapping that breaks visual hierarchy
    - Touch targets that are too small or overlap
-5. `browser_take_screenshot` — save as `<route>-mobile.png` (e.g. `trips-mobile.png`) in `c:\Users\spenc\dev\packt\.ui-review-screenshots\`
+5. `browser_take_screenshot` — save as `<route>-mobile.png` (e.g. `trips-mobile.png`) in the `.ui-review-screenshots` directory (use the absolute path from Step 0)
 6. `browser_console_messages(level: "error")` — capture all browser console errors
 
 ## Step 3: Teardown

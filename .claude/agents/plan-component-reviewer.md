@@ -20,8 +20,8 @@ src/app/                ← route-level client/server components (page.tsx, page
 
 Grep both `src/components/` and `src/app/` to check for existing components:
 ```
-C:\Users\spenc\dev\packt\src\components\
-C:\Users\spenc\dev\packt\src\app\
+src/components/
+src/app/
 ```
 
 ## What to Check
@@ -49,10 +49,6 @@ C:\Users\spenc\dev\packt\src\app\
 **4. Props interface**
 - Every proposed component must plan for an explicit `ComponentNameProps` interface.
 - If the plan describes props inline or doesn't mention a typed interface, flag it.
-
-**5. `"use client"` directive**
-- If a component is described as having click handlers, form inputs, useState, useEffect, or any browser interaction → it must be a client component. Flag if this isn't noted in the plan.
-- If a component only renders data with no interactivity, it can be a server component — no directive needed.
 
 ## How to Report
 

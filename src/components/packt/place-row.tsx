@@ -37,11 +37,13 @@ export interface PlaceRowProps {
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
+  onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
+  onDeleteDoc?: (docId: string) => void;
   dragHandle?: React.ReactNode;
   id?: string;
 }
 
-export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, dragHandle, id }: PlaceRowProps) {
+export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddDoc, onDeleteDoc, dragHandle, id }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -245,14 +247,14 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, dragHa
               className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
               style={{
                 fontSize: 11,
-                color: p.location?.address ? "var(--accent-ink)" : "var(--fg-4)",
-                background: p.location?.address ? "var(--accent-soft)" : "none",
+                color: p.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
+                background: p.locationAddress ? "var(--accent-soft)" : "none",
                 border: "1px solid transparent",
                 maxWidth: 160,
               }}
             >
               <MapPin size={11} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-              <span className="truncate">{p.location?.address ?? "Add location"}</span>
+              <span className="truncate">{p.locationAddress ?? "Add location"}</span>
             </button>
 
             {/* Cost */}
@@ -311,7 +313,7 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, dragHa
           {showDocs && hasDocs && (
             <DocsBlock
               docs={p.docs!}
-              onDelete={(docId) => onUpdate({ ...p, docs: p.docs!.filter((d) => d.id !== docId) })}
+              onDelete={(docId) => onDeleteDoc?.(docId)}
               onAdd={() => setShowAddDocDialog(true)}
             />
           )}
@@ -357,15 +359,15 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, dragHa
         onSave={cost => onUpdate({ ...p, cost })}
       />
       <LocationDialog
-        address={p.location?.address}
+        address={p.locationAddress}
         open={showLocationDialog}
         onOpenChange={setShowLocationDialog}
-        onSave={address => onUpdate({ ...p, location: { ...p.location, address } })}
+        onSave={address => onUpdate({ ...p, locationAddress: address })}
       />
       <AddDocDialog
         open={showAddDocDialog}
         onOpenChange={setShowAddDocDialog}
-        onAdd={(doc) => onUpdate({ ...p, docs: [...(p.docs ?? []), doc] })}
+        onAdd={(doc) => onAddDoc?.(p.id, { name: doc.name, kind: doc.kind, url: doc.url, offline: doc.offline })}
       />
     </div>
   );

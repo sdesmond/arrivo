@@ -52,8 +52,13 @@ export function TimePickerDropdown({ time, endTime, onSave, onClose }: TimePicke
         </div>
       </div>
       <div className="flex justify-between gap-2">
-        <Button variant="ghost" size="sm" onClick={() => onSave(undefined, undefined)}>Clear</Button>
-        <Button size="sm" onClick={() => onSave(draftTime || undefined, draftEnd || undefined)}>Save</Button>
+        {(time || endTime) && (
+          <Button variant="ghost" size="sm" onClick={() => onSave(undefined, undefined)}>Remove</Button>
+        )}
+        <div className="flex gap-2 ml-auto">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={() => onSave(draftTime || undefined, draftEnd || undefined)}>Save</Button>
+        </div>
       </div>
     </div>
   );

@@ -30,7 +30,7 @@ Flag BLOCKING if a covered file is added/modified but no test step is planned.
 
 Check whether a test file already exists using Grep before flagging:
 ```
-C:\Users\spenc\dev\packt\src\
+src/
 ```
 
 **2. E2E scenario for new user-facing flows**
@@ -49,11 +49,7 @@ If the plan mentions writing tests, check placement:
 
 Flag BLOCKING if tests are planned in the wrong location.
 
-**4. Global mock reuse**
-
-If the plan mentions mocking `next/navigation` or `next/headers` at the file level, flag it — these are already provided globally by `vitest.setup.mts` and must not be re-mocked per file.
-
-**5. Coverage-exempt files**
+**4. Coverage-exempt files**
 
 Do not require tests for:
 - `src/lib/auth-helpers.ts`

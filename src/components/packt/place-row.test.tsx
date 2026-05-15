@@ -228,7 +228,7 @@ describe("PlaceRow", () => {
   })
 
   it("renders location address when set", () => {
-    const place = { ...basePlace, location: { address: "Shibuya, Tokyo" } }
+    const place = { ...basePlace, locationAddress: "Shibuya, Tokyo" }
     render(
       <PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />,
       { wrapper: Wrapper }
@@ -311,7 +311,7 @@ describe("PlaceRow", () => {
     expect(screen.getByTestId("location-dialog")).toBeInTheDocument()
   })
 
-  it("location dialog save calls onUpdate with new address", async () => {
+  it("location dialog save calls onUpdate with locationAddress", async () => {
     const user = userEvent.setup()
     const onUpdate = vi.fn()
     render(
@@ -320,7 +320,7 @@ describe("PlaceRow", () => {
     )
     await user.click(screen.getByRole("button", { name: /add location/i }))
     await user.click(screen.getByRole("button", { name: "loc-save" }))
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ location: expect.objectContaining({ address: "Tokyo" }) }))
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ locationAddress: "Tokyo" }))
   })
 
   it("clicking cost button shows cost dialog", async () => {
@@ -369,31 +369,29 @@ describe("PlaceRow", () => {
     expect(screen.getByTestId("add-doc-dialog")).toBeInTheDocument()
   })
 
-  it("add-doc dialog onAdd calls onUpdate with new doc appended", async () => {
+  it("add-doc dialog onAdd calls onAddDoc with event id and doc data", async () => {
     const user = userEvent.setup()
-    const onUpdate = vi.fn()
+    const onAddDoc = vi.fn()
     render(
-      <PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />,
+      <PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} onAddDoc={onAddDoc} />,
       { wrapper: Wrapper }
     )
     await user.click(screen.getByTitle("Attach document"))
     await user.click(screen.getByRole("button", { name: "doc-add" }))
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
-      docs: expect.arrayContaining([expect.objectContaining({ id: "d99" })]),
-    }))
+    expect(onAddDoc).toHaveBeenCalledWith(basePlace.id, expect.objectContaining({ name: "New.pdf", kind: "pdf" }))
   })
 
-  it("docs block onDelete calls onUpdate with doc removed", async () => {
+  it("docs block onDelete calls onDeleteDoc with docId", async () => {
     const user = userEvent.setup()
-    const onUpdate = vi.fn()
+    const onDeleteDoc = vi.fn()
     const place = { ...basePlace, docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf" as const, scope: "event" as const, offline: false }] }
     render(
-      <PlaceRow place={place} onUpdate={onUpdate} onDelete={vi.fn()} />,
+      <PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} onDeleteDoc={onDeleteDoc} />,
       { wrapper: Wrapper }
     )
     await user.click(screen.getByRole("button", { name: /1 doc/i }))
     await user.click(screen.getByRole("button", { name: /del-Plan.pdf/i }))
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ docs: [] }))
+    expect(onDeleteDoc).toHaveBeenCalledWith("d1")
   })
 
   it("renders dragHandle when provided", () => {

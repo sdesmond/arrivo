@@ -25,7 +25,7 @@ The user will provide the path to the plan file. Read it and assess the proposed
 
 Grep the codebase to verify whether utilities, types, or components already exist before flagging a duplication:
 ```
-C:\Users\spenc\dev\packt\src\
+src/
 ```
 
 ## What to Check

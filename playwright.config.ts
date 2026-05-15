@@ -10,9 +10,20 @@ const testDir = defineBddConfig({
 })
 
 export default defineConfig({
+  globalSetup: './tests/e2e/global-setup.ts',
   testDir,
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3001',
+  },
+  webServer: {
+    command: 'npm run dev -- -p 3001',
+    url: 'http://localhost:3001',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    env: {
+      DATABASE_URL: process.env.E2E_DATABASE_URL!,
+      NEXT_DISTDIR: '.next-e2e',
+    },
   },
   projects: [
     { name: 'setup', testMatch: /.*\.setup\.ts/, testDir: 'tests/e2e' },

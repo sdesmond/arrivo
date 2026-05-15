@@ -2,19 +2,6 @@
 
 ## Bugs
 
-### E2E tests are overwriting data
-
-When the E2E tests run, they should only update data in a sandbox.  Currently they are changing data that I see when I run `npm run dev` but I want them to be separate.  How can we accomplish this separation of test environment vs my dev environment? 
-
-## Event time, location, cost, and attachments
-There are various problems with these event attributes.
-* After adding a location to an event, the chip doesn't change but rather still shows "Add location."  
-* The same problem happens with the "Attach" button.  It never changes to the drop down showing all attachments.
-* The "Clear" button on the time chip does not work, the event maintains the time it had before pressing Clear.
-* The "Remove" button on the "Cost" chip has no effect.
-
-There also seems to be
-
 ### Trip status in edit sheet
 The trip status is mentioned in the edit sheet, but this should be a purely calculated field.  Trip status should be displayed throughout the app but it should never be a field the user can edit.
 
@@ -23,19 +10,16 @@ The trip notes are not displayed anywhere.  I can add them in the edit sheet, bu
 
 Add in a place where trip notes would be viewable.
 
-
-
 ## Improvements
 
 ### Code Cleanup
 Add automated tools to cleanup code after each change to keep consistent standards.  Something like Prettier or some other auto-formatter should work.  This would likely need to be added as a hook, but propose any alternate solutions as well.
 
-### Event chip consistency
-Currently, the buttons across the various event dialogs (add time, add location, cost, attach) are not consistent with each other.
+### Events show in the wrong order in the itinerary
+When changing an event's time, it moves to its appropriate spot in the daily timeline.  The events don't seem to respect AM vs PM though.  If choose 1:00 AM, for example, it orders it between events in the afternoon instead of in the morning where it belongs.
 
-Each dialog should have a "Remove" option on the far left that, when clicked, clears whatever is in the field, saves it, and closes the dialog.  On the far right there should be two buttons in a group, Cancel, and Save.  Cancel should close the dialog and take no other action, Save should update whatever needs updated based on the user actions in the dialog.
 
-## Event move and delete
+### Event move and delete
 The icons for moving and deleting an event are too small and faint.  Make them more visible 
 
 ## New Features

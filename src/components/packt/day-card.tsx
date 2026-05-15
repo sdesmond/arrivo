@@ -22,6 +22,8 @@ interface DayCardProps {
   onReorderEvents: (dayNumber: number, events: TripEvent[]) => void;
   onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
   onAddEvent?: (dayNumber: number, name: string) => void;
+  onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
+  onDeleteDoc?: (docId: string) => void;
 }
 
 function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
@@ -48,7 +50,7 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
   );
 }
 
-export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay, onAddEvent }: DayCardProps) {
+export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay, onAddEvent, onAddDoc, onDeleteDoc }: DayCardProps) {
   const now = useNow();
   const isToday = d.date
     ? (() => {
@@ -230,6 +232,8 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                       isLast={i === unscheduledEvents.length - 1 && scheduledEvents.length === 0}
                       onUpdate={onUpdateEvent}
                       onDelete={onDeleteEvent}
+                      onAddDoc={onAddDoc}
+                      onDeleteDoc={onDeleteDoc}
                     />
                   ))}
                 </SortableContext>
@@ -249,6 +253,8 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                   isLast={i === scheduledEvents.length - 1}
                   onUpdate={onUpdateEvent}
                   onDelete={onDeleteEvent}
+                  onAddDoc={onAddDoc}
+                  onDeleteDoc={onDeleteDoc}
                 />
               ))}
             </SortableContext>

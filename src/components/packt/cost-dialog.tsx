@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,10 @@ export interface CostDialogProps {
 
 export function CostDialog({ cost, open, onOpenChange, onSave }: CostDialogProps) {
   const [draft, setDraft] = useState(cost !== undefined ? String(cost) : "");
+
+  // Sync draft from prop each time the dialog opens so stale state doesn't cause accidental clears
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) setDraft(cost !== undefined ? String(cost) : ""); }, [open]);
 
   function handleSave() {
     const num = parseFloat(draft);
@@ -44,12 +48,14 @@ export function CostDialog({ cost, open, onOpenChange, onSave }: CostDialogProps
         </div>
         <DialogFooter>
           {cost !== undefined && (
-            <Button variant="ghost" onClick={() => { onSave(undefined); onOpenChange(false); }}>
+            <Button variant="ghost" className="sm:mr-auto" onClick={() => { onSave(undefined); onOpenChange(false); }}>
               Remove
             </Button>
           )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave}>Save</Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={handleSave}>Save</Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

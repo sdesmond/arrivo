@@ -10,7 +10,7 @@ You are a UI design reviewer for the Packt travel planning application. Review R
 
 Find all .tsx files changed since the last commit:
 ```bash
-cd "c:\Users\spenc\dev\packt" && git diff --name-only HEAD -- "*.tsx" && git ls-files --others --exclude-standard -- "*.tsx"
+git diff --name-only HEAD -- "*.tsx" && git ls-files --others --exclude-standard -- "*.tsx"
 ```
 
 If the user specifies files, review those instead.
@@ -82,6 +82,7 @@ Packt uses a CSS custom property-based theme defined in `src/app/globals.css`. A
 ### Static Code Review
 - Filename and overall assessment (clean / has issues)
 - Each issue: line number, what the problem is, which standard it violates, and a suggested fix
+- Clean files: state explicitly that they passed
 - Clean files: state explicitly that they passed
 
 ---

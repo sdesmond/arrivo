@@ -89,4 +89,12 @@ describe("LocationDialog", () => {
     await user.click(screen.getByTestId("dialog-backdrop-close"))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
+
+  it("syncs draft from address prop when dialog transitions from closed to open", async () => {
+    const { rerender } = render(
+      <LocationDialog open={false} address="Paris" onOpenChange={vi.fn()} onSave={vi.fn()} />
+    )
+    rerender(<LocationDialog open address="Paris" onOpenChange={vi.fn()} onSave={vi.fn()} />)
+    expect(screen.getByRole("textbox")).toHaveValue("Paris")
+  })
 })

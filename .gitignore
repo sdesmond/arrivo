@@ -20,6 +20,7 @@ tests/e2e/.auth/
 
 # next.js
 /.next/
+/.next-e2e/
 /out/
 
 # production
@@ -48,3 +49,4 @@ next-env.d.ts
 # claude
 .playwright-mcp
 .ui-review-screenshots
+.claude/settings.local.json
