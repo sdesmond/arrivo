@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/db";
-import { trips, days, events, documents, collaborators, packingItems } from "@/db/schema";
+import { trips, days, events, documents, collaborators, packingItems, itineraryNotes } from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType } from "@/lib/db-mappers";
@@ -65,6 +65,14 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(packingItems.tripId, tripId))
     .orderBy(packingItems.position);
 
+  const allNotes = tripDays.length > 0
+    ? await db
+        .select()
+        .from(itineraryNotes)
+        .where(inArray(itineraryNotes.dayId, tripDays.map(d => d.id)))
+        .orderBy(itineraryNotes.position)
+    : [];
+
   const eventIds = tripEvents.map(e => e.id);
   const eventDocs = eventIds.length > 0
     ? await db.select().from(documents).where(inArray(documents.eventId, eventIds))
@@ -75,6 +83,13 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     const arr = eventsByDay.get(event.dayId) ?? [];
     arr.push(event);
     eventsByDay.set(event.dayId, arr);
+  }
+
+  const notesByDay = new Map<string, typeof allNotes>();
+  for (const note of allNotes) {
+    const arr = notesByDay.get(note.dayId) ?? [];
+    arr.push(note);
+    notesByDay.set(note.dayId, arr);
   }
 
   const docsByEventId = new Map<string, typeof eventDocs>();
@@ -99,6 +114,11 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
       events: (eventsByDay.get(d.id) ?? []).map((e) => ({
         ...dbEventToType(e),
         docs: (docsByEventId.get(e.id) ?? []).map(dbDocToType),
+      })),
+      notes: (notesByDay.get(d.id) ?? []).map((n) => ({
+        id: n.id,
+        content: n.content,
+        position: n.position,
       })),
     })),
     docs: tripDocs.map(dbDocToType),

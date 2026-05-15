@@ -41,13 +41,16 @@ export interface PlaceRowProps {
   onDeleteDoc?: (docId: string) => void;
   dragHandle?: React.ReactNode;
   id?: string;
+  isDraft?: boolean;
+  onCreate?: (name: string) => void;
+  onCancelDraft?: () => void;
 }
 
-export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddDoc, onDeleteDoc, dragHandle, id }: PlaceRowProps) {
+export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddDoc, onDeleteDoc, dragHandle, id, isDraft, onCreate, onCancelDraft }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(isDraft ?? false);
   const [draftName, setDraftName] = useState(p.name);
 
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -64,6 +67,11 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
 
   function saveName() {
     const trimmed = draftName.trim();
+    if (isDraft) {
+      if (trimmed) onCreate?.(trimmed);
+      else onCancelDraft?.();
+      return;
+    }
     if (trimmed && trimmed !== p.name) onUpdate({ ...p, name: trimmed });
     else setDraftName(p.name);
     setIsEditingName(false);
@@ -120,7 +128,10 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
                 onBlur={saveName}
                 onKeyDown={e => {
                   if (e.key === "Enter") saveName();
-                  if (e.key === "Escape") { setDraftName(p.name); setIsEditingName(false); }
+                  if (e.key === "Escape") {
+                    if (isDraft) { onCancelDraft?.(); return; }
+                    setDraftName(p.name); setIsEditingName(false);
+                  }
                 }}
                 style={{
                   fontSize: 14, fontWeight: 600, color: "var(--fg)",

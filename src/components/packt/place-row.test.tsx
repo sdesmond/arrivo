@@ -516,4 +516,67 @@ describe("PlaceRow", () => {
     const icons = screen.getAllByTestId("map-pin-icon")
     expect(icons[0]).toHaveAttribute("data-stroke-width", "1.5")
   })
+
+  // ── isDraft mode ──────────────────────────────────────────────────────────
+
+  it("isDraft renders name input focused with empty placeholder", () => {
+    const draftPlace: TripEvent = { id: "draft", name: "" }
+    render(
+      <PlaceRow place={draftPlace} onUpdate={vi.fn()} onDelete={vi.fn()} isDraft onCreate={vi.fn()} onCancelDraft={vi.fn()} />,
+      { wrapper: Wrapper }
+    )
+    expect(screen.getByRole("textbox")).toBeInTheDocument()
+  })
+
+  it("isDraft Enter with content calls onCreate and not onUpdate", async () => {
+    const user = userEvent.setup()
+    const onCreate = vi.fn()
+    const onUpdate = vi.fn()
+    const draftPlace: TripEvent = { id: "draft", name: "" }
+    render(
+      <PlaceRow place={draftPlace} onUpdate={onUpdate} onDelete={vi.fn()} isDraft onCreate={onCreate} onCancelDraft={vi.fn()} />,
+      { wrapper: Wrapper }
+    )
+    const input = screen.getByRole("textbox")
+    await user.type(input, "New Stop")
+    await user.keyboard("{Enter}")
+    expect(onCreate).toHaveBeenCalledWith("New Stop")
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+
+  it("isDraft Escape calls onCancelDraft", async () => {
+    const user = userEvent.setup()
+    const onCancelDraft = vi.fn()
+    const draftPlace: TripEvent = { id: "draft", name: "" }
+    render(
+      <PlaceRow place={draftPlace} onUpdate={vi.fn()} onDelete={vi.fn()} isDraft onCreate={vi.fn()} onCancelDraft={onCancelDraft} />,
+      { wrapper: Wrapper }
+    )
+    await user.keyboard("{Escape}")
+    expect(onCancelDraft).toHaveBeenCalled()
+  })
+
+  it("isDraft blur with empty content calls onCancelDraft", () => {
+    const onCancelDraft = vi.fn()
+    const draftPlace: TripEvent = { id: "draft", name: "" }
+    render(
+      <PlaceRow place={draftPlace} onUpdate={vi.fn()} onDelete={vi.fn()} isDraft onCreate={vi.fn()} onCancelDraft={onCancelDraft} />,
+      { wrapper: Wrapper }
+    )
+    fireEvent.blur(screen.getByRole("textbox"))
+    expect(onCancelDraft).toHaveBeenCalled()
+  })
+
+  it("isDraft blur with content calls onCreate", async () => {
+    const user = userEvent.setup()
+    const onCreate = vi.fn()
+    const draftPlace: TripEvent = { id: "draft", name: "" }
+    render(
+      <PlaceRow place={draftPlace} onUpdate={vi.fn()} onDelete={vi.fn()} isDraft onCreate={onCreate} onCancelDraft={vi.fn()} />,
+      { wrapper: Wrapper }
+    )
+    await user.type(screen.getByRole("textbox"), "Tokyo Museum")
+    fireEvent.blur(screen.getByRole("textbox"))
+    expect(onCreate).toHaveBeenCalledWith("Tokyo Museum")
+  })
 })

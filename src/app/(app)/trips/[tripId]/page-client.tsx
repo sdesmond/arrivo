@@ -11,7 +11,7 @@ import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateT
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
-import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, addDocument, removeDocument } from "./actions";
+import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, createNote, updateNote, deleteNote, addDocument, removeDocument } from "./actions";
 
 function formatTripHeader(start: string, end: string): string {
   const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -81,11 +81,31 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
     });
   }
 
-  function handleAddEvent(dayNumber: number, name: string): void {
+  function handleAddEvent(dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number): void {
     const day = days.find(d => d.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
-      createEvent(day.id!, { name });
+      createEvent(day.id!, { name, afterEventId, insertAtPosition });
+    });
+  }
+
+  function handleAddNote(dayNumber: number, content: string, insertAtPosition?: number): void {
+    const day = days.find((d) => d.dayNumber === dayNumber);
+    if (!day?.id) return;
+    React.startTransition(() => {
+      createNote(day.id!, content, insertAtPosition);
+    });
+  }
+
+  function handleUpdateNote(noteId: string, content: string): void {
+    React.startTransition(() => {
+      updateNote(noteId, content);
+    });
+  }
+
+  function handleDeleteNote(noteId: string): void {
+    React.startTransition(() => {
+      deleteNote(noteId);
     });
   }
 
@@ -239,6 +259,9 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                       onReorderEvents={handleEventReorder}
                       onUpdateDay={handleDayUpdate}
                       onAddEvent={handleAddEvent}
+                      onAddNote={handleAddNote}
+                      onUpdateNote={handleUpdateNote}
+                      onDeleteNote={handleDeleteNote}
                       onAddDoc={handleAddDoc}
                       onDeleteDoc={handleDeleteDoc}
                     />

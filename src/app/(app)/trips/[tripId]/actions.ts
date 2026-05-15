@@ -2,8 +2,8 @@
 
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { events, days, documents } from "@/db/schema";
-import { eq, and, max } from "drizzle-orm";
+import { events, days, documents, itineraryNotes } from "@/db/schema";
+import { eq, and, max, gte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type {
   CreateEventInput, UpdateEventPatch, ReorderEventsInput,
@@ -22,15 +22,27 @@ async function getEventTripId(eventId: string): Promise<string> {
   return event.tripId;
 }
 
+async function getAppendPosition(dayId: string): Promise<number> {
+  const [{ maxEvt }] = await db.select({ maxEvt: max(events.position) }).from(events).where(eq(events.dayId, dayId));
+  const [{ maxNote }] = await db.select({ maxNote: max(itineraryNotes.position) }).from(itineraryNotes).where(eq(itineraryNotes.dayId, dayId));
+  return Math.max(maxEvt ?? -1, maxNote ?? -1) + 1;
+}
+
+async function shiftItemsAtOrAbove(dayId: string, fromPosition: number): Promise<void> {
+  await db.update(events)
+    .set({ position: sql`${events.position} + 1` })
+    .where(and(eq(events.dayId, dayId), gte(events.position, fromPosition)));
+  await db.update(itineraryNotes)
+    .set({ position: sql`${itineraryNotes.position} + 1` })
+    .where(and(eq(itineraryNotes.dayId, dayId), gte(itineraryNotes.position, fromPosition)));
+}
+
 export async function createEvent(dayId: string, input: CreateEventInput) {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
-  const [{ maxPos }] = await db
-    .select({ maxPos: max(events.position) })
-    .from(events)
-    .where(eq(events.dayId, dayId));
-  await db.insert(events).values({
+
+  const values = {
     dayId,
     tripId,
     name: input.name,
@@ -43,8 +55,32 @@ export async function createEvent(dayId: string, input: CreateEventInput) {
     cost: input.cost?.toString(),
     confirmationNumber: input.confirmationNumber,
     note: input.note,
-    position: (maxPos ?? -1) + 1,
-  });
+  };
+
+  if (input.afterEventId) {
+    const [refEvent] = await db
+      .select({ position: events.position })
+      .from(events)
+      .where(and(eq(events.id, input.afterEventId), eq(events.dayId, dayId)));
+
+    if (refEvent) {
+      const insertPos = refEvent.position + 1;
+      await shiftItemsAtOrAbove(dayId, insertPos);
+      await db.insert(events).values({ ...values, position: insertPos });
+      revalidatePath(`/trips/${tripId}`);
+      return;
+    }
+  }
+
+  if (input.insertAtPosition !== undefined) {
+    await shiftItemsAtOrAbove(dayId, input.insertAtPosition);
+    await db.insert(events).values({ ...values, position: input.insertAtPosition });
+    revalidatePath(`/trips/${tripId}`);
+    return;
+  }
+
+  const appendPos = await getAppendPosition(dayId);
+  await db.insert(events).values({ ...values, position: appendPos });
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -113,6 +149,43 @@ export async function addDocument(input: AddDocumentInput) {
     offline: input.offline,
     url: input.url,
   });
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function createNote(dayId: string, content: string, insertAtPosition?: number) {
+  const user = await requireUser();
+  const tripId = await getDayTripId(dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  if (insertAtPosition !== undefined) {
+    await shiftItemsAtOrAbove(dayId, insertAtPosition);
+    await db.insert(itineraryNotes).values({ dayId, content, position: insertAtPosition });
+  } else {
+    const appendPos = await getAppendPosition(dayId);
+    await db.insert(itineraryNotes).values({ dayId, content, position: appendPos });
+  }
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function updateNote(noteId: string, content: string) {
+  const user = await requireUser();
+  const [note] = await db.select().from(itineraryNotes).where(eq(itineraryNotes.id, noteId));
+  if (!note) return;
+  const tripId = await getDayTripId(note.dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(itineraryNotes)
+    .set({ content, updatedAt: new Date() })
+    .where(eq(itineraryNotes.id, noteId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function deleteNote(noteId: string) {
+  const user = await requireUser();
+  const [note] = await db.select().from(itineraryNotes).where(eq(itineraryNotes.id, noteId));
+  if (!note) return;
+  const tripId = await getDayTripId(note.dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
   revalidatePath(`/trips/${tripId}`);
 }
 

@@ -145,6 +145,12 @@ export interface Note {
 // DAY ITINERARY
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface ItineraryNote {
+  id:       string;
+  content:  string;
+  position: number;
+}
+
 export interface DayItinerary {
   id?:           string;
   tripId?:       string;
@@ -156,6 +162,7 @@ export interface DayItinerary {
   weather?:      string;
   travelSummary?: string;
   events:        TripEvent[];
+  notes?:        ItineraryNote[];
 }
 
 
@@ -300,6 +307,8 @@ export interface CreateEventInput {
   cost?: number;
   confirmationNumber?: string;
   note?: string;
+  afterEventId?: string;
+  insertAtPosition?: number;
 }
 
 export interface UpdateEventPatch {

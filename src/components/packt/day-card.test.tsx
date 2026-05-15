@@ -45,9 +45,28 @@ vi.mock("@dnd-kit/utilities", () => ({
 }))
 
 vi.mock("./place-row", () => ({
-  PlaceRow: ({ place }: { place: { id: string; name: string } }) => (
-    <div data-testid={`place-row-${place.id}`}>{place.name}</div>
-  ),
+  PlaceRow: ({ place, isDraft, onCreate, onCancelDraft }: {
+    place: { id: string; name: string };
+    isDraft?: boolean;
+    onCreate?: (name: string) => void;
+    onCancelDraft?: () => void;
+  }) => {
+    if (isDraft) {
+      return (
+        <input
+          autoFocus
+          placeholder="Event name"
+          onKeyDown={e => {
+            const val = (e.target as HTMLInputElement).value.trim();
+            if (e.key === "Enter") { if (val) onCreate?.(val); else onCancelDraft?.(); }
+            if (e.key === "Escape") onCancelDraft?.();
+          }}
+          onBlur={e => { const val = e.target.value.trim(); if (val) onCreate?.(val); else onCancelDraft?.(); }}
+        />
+      );
+    }
+    return <div data-testid={`place-row-${place.id}`}>{place.name}</div>;
+  },
 }))
 
 import { DayCard } from "./day-card"
@@ -65,11 +84,13 @@ const scheduledEvent: TripEvent = {
   name: "Museum Visit",
   startAt: "2026-05-13T10:00:00Z",
   endAt: "2026-05-13T12:00:00Z",
+  position: 0,
 }
 
 const unscheduledEvent: TripEvent = {
   id: "ev-u1",
   name: "Free Roaming",
+  position: 1,
 }
 
 const baseDay: DayItinerary = {
@@ -109,7 +130,7 @@ describe("DayCard", () => {
     expect(screen.getByText("Free Roaming")).toBeInTheDocument()
   })
 
-  it("renders an Unscheduled section label for events without startAt", () => {
+  it("renders events without startAt inline in the flat events list", () => {
     render(
       <DayCard
         day={{ ...baseDay, today: true }}
@@ -119,7 +140,7 @@ describe("DayCard", () => {
       />,
       { wrapper: Wrapper }
     )
-    expect(screen.getByText(/unscheduled/i)).toBeInTheDocument()
+    expect(screen.getByText("Free Roaming")).toBeInTheDocument()
   })
 
   it("toggle button has aria-expanded reflecting open state", () => {
@@ -305,7 +326,9 @@ describe("DayCard", () => {
     expect(onUpdateDay).toHaveBeenCalledWith(baseDay.dayNumber, { subtitle: "New note" })
   })
 
-  it("clicking 'Add a place' button shows event name input", async () => {
+  // ── TypePicker / bottom "+" flow ──────────────────────────────────────────
+
+  it("clicking 'Add a place' button shows TypePicker", async () => {
     const user = userEvent.setup()
     render(
       <DayCard
@@ -317,7 +340,40 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    expect(screen.getByTitle("Add event")).toBeInTheDocument()
+    expect(screen.getByTitle("Add note")).toBeInTheDocument()
+  })
+
+  it("clicking Add event in TypePicker shows event name input", async () => {
+    const user = userEvent.setup()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add event"))
     expect(screen.getByPlaceholderText("Event name")).toBeInTheDocument()
+  })
+
+  it("clicking Add note in TypePicker shows note content input", async () => {
+    const user = userEvent.setup()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add note"))
+    expect(screen.getByPlaceholderText("Add a note…")).toBeInTheDocument()
   })
 
   it("typing event name and pressing Enter calls onAddEvent", async () => {
@@ -334,12 +390,33 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add event"))
     await user.type(screen.getByPlaceholderText("Event name"), "New Museum")
     await user.keyboard("{Enter}")
-    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "New Museum")
+    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "New Museum", undefined, 2)
   })
 
-  it("pressing Escape in add event input dismisses it", async () => {
+  it("typing note content and pressing Enter calls onAddNote", async () => {
+    const user = userEvent.setup()
+    const onAddNote = vi.fn()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+        onAddNote={onAddNote}
+      />,
+      { wrapper: Wrapper }
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add note"))
+    await user.type(screen.getByPlaceholderText("Add a note…"), "Bring sunscreen")
+    await user.keyboard("{Enter}")
+    expect(onAddNote).toHaveBeenCalledWith(baseDay.dayNumber, "Bring sunscreen", 2)
+  })
+
+  it("pressing Escape in event name input dismisses it", async () => {
     const user = userEvent.setup()
     render(
       <DayCard
@@ -351,12 +428,13 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add event"))
     expect(screen.getByPlaceholderText("Event name")).toBeInTheDocument()
     await user.keyboard("{Escape}")
     expect(screen.queryByPlaceholderText("Event name")).not.toBeInTheDocument()
   })
 
-  it("blurring the add event input dismisses it", async () => {
+  it("blurring the event name input dismisses it", async () => {
     const user = userEvent.setup()
     render(
       <DayCard
@@ -368,12 +446,163 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add event"))
     const input = screen.getByPlaceholderText("Event name")
     fireEvent.blur(input)
     expect(screen.queryByPlaceholderText("Event name")).not.toBeInTheDocument()
   })
 
-  it("handleUnscheduledDragEnd returns early when over is null", () => {
+  it("pressing Escape in TypePicker dismisses it and restores bottom button", async () => {
+    const user = userEvent.setup()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    expect(screen.getByTitle("Add event")).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByTitle("Add event")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /add a place to day 1/i })).toBeInTheDocument()
+  })
+
+  // ── Between-item gap zones ────────────────────────────────────────────────
+
+  it("renders 'Insert item here' buttons between consecutive scheduled events", () => {
+    const secondScheduled: TripEvent = {
+      id: "ev-s2",
+      name: "Dinner",
+      startAt: "2026-05-13T19:00:00Z",
+      position: 2,
+    }
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [scheduledEvent, secondScheduled],
+    }
+    render(
+      <DayCard
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    expect(screen.getByTitle("Insert item here")).toBeInTheDocument()
+  })
+
+  it("clicking between-item '+' opens TypePicker at that gap", async () => {
+    const user = userEvent.setup()
+    const secondScheduled: TripEvent = {
+      id: "ev-s2",
+      name: "Dinner",
+      startAt: "2026-05-13T19:00:00Z",
+      position: 2,
+    }
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [scheduledEvent, secondScheduled],
+    }
+    render(
+      <DayCard
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    await user.click(screen.getByTitle("Insert item here"))
+    expect(screen.getByTitle("Add event")).toBeInTheDocument()
+    expect(screen.getByTitle("Add note")).toBeInTheDocument()
+  })
+
+  it("inserting event between scheduled items passes afterEventId to onAddEvent", async () => {
+    const user = userEvent.setup()
+    const onAddEvent = vi.fn()
+    const secondScheduled: TripEvent = {
+      id: "ev-s2",
+      name: "Dinner",
+      startAt: "2026-05-13T19:00:00Z",
+      position: 2,
+    }
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [scheduledEvent, secondScheduled],
+    }
+    render(
+      <DayCard
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+        onAddEvent={onAddEvent}
+      />,
+      { wrapper: Wrapper }
+    )
+    await user.click(screen.getByTitle("Insert item here"))
+    await user.click(screen.getByTitle("Add event"))
+    await user.type(screen.getByPlaceholderText("Event name"), "Afternoon Walk")
+    await user.keyboard("{Enter}")
+    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Afternoon Walk", "ev-s1")
+  })
+
+  it("renders inline notes from d.notes", () => {
+    const dayWithNote: DayItinerary = {
+      ...baseDay,
+      events: [scheduledEvent],
+      notes: [{ id: "n1", content: "Bring sunscreen", position: 1 }],
+    }
+    render(
+      <DayCard
+        day={dayWithNote}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    expect(screen.getByText("Bring sunscreen")).toBeInTheDocument()
+  })
+
+  it("renders gap between adjacent events when day has multiple events", () => {
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    // baseDay has two events; one gap between them
+    expect(screen.getByTitle("Insert item here")).toBeInTheDocument()
+  })
+
+  it("no gap rendered when day has only one event", () => {
+    const dayOneEvent: DayItinerary = {
+      ...baseDay,
+      events: [scheduledEvent],
+    }
+    render(
+      <DayCard
+        day={dayOneEvent}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    expect(screen.queryByTitle("Insert item here")).not.toBeInTheDocument()
+  })
+
+  // ── DnD tests ─────────────────────────────────────────────────────────────
+
+  it("handleDragEnd returns early when over is null", () => {
     const onReorderEvents = vi.fn()
     render(
       <DayCard
@@ -385,12 +614,12 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     act(() => {
-      dndHandlers["day-1-unscheduled"]?.({ active: { id: "ev-u1" }, over: null })
+      dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: null })
     })
     expect(onReorderEvents).not.toHaveBeenCalled()
   })
 
-  it("handleUnscheduledDragEnd returns early when same id", () => {
+  it("handleDragEnd returns early when same id", () => {
     const onReorderEvents = vi.fn()
     render(
       <DayCard
@@ -402,14 +631,14 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     act(() => {
-      dndHandlers["day-1-unscheduled"]?.({ active: { id: "ev-u1" }, over: { id: "ev-u1" } })
+      dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-s1" } })
     })
     expect(onReorderEvents).not.toHaveBeenCalled()
   })
 
-  it("handleUnscheduledDragEnd calls onReorderEvents when ids differ", () => {
-    const secondUnscheduled: TripEvent = { id: "ev-u2", name: "Park Walk" }
-    const day = { ...baseDay, events: [unscheduledEvent, secondUnscheduled] }
+  it("handleDragEnd calls onReorderEvents when ids differ", () => {
+    const secondEvent: TripEvent = { id: "ev-u2", name: "Park Walk" }
+    const day = { ...baseDay, events: [scheduledEvent, secondEvent] }
     const onReorderEvents = vi.fn()
     render(
       <DayCard
@@ -421,29 +650,12 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     act(() => {
-      dndHandlers["day-1-unscheduled"]?.({ active: { id: "ev-u1" }, over: { id: "ev-u2" } })
+      dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-u2" } })
     })
     expect(onReorderEvents).toHaveBeenCalledWith(1, expect.any(Array))
   })
 
-  it("handleScheduledDragEnd returns early when over is null", () => {
-    const onReorderEvents = vi.fn()
-    render(
-      <DayCard
-        day={baseDay}
-        onUpdateEvent={vi.fn()}
-        onDeleteEvent={vi.fn()}
-        onReorderEvents={onReorderEvents}
-      />,
-      { wrapper: Wrapper }
-    )
-    act(() => {
-      dndHandlers["day-1-scheduled"]?.({ active: { id: "ev-s1" }, over: null })
-    })
-    expect(onReorderEvents).not.toHaveBeenCalled()
-  })
-
-  it("handleScheduledDragEnd calls onReorderEvents when ids differ", () => {
+  it("handleDragEnd calls onReorderEvents for any two events", () => {
     const secondScheduled: TripEvent = {
       id: "ev-s2",
       name: "Dinner",
@@ -461,7 +673,7 @@ describe("DayCard", () => {
       { wrapper: Wrapper }
     )
     act(() => {
-      dndHandlers["day-1-scheduled"]?.({ active: { id: "ev-s1" }, over: { id: "ev-s2" } })
+      dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-s2" } })
     })
     expect(onReorderEvents).toHaveBeenCalledWith(1, expect.any(Array))
   })

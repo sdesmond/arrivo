@@ -4,6 +4,7 @@ import { Given, When, Then, Before, After } from '../fixtures'
 let lastEventName: string | undefined
 let createdEventIds: string[] = []
 let eventIdByName: Map<string, string> = new Map()
+let createdNoteIds: string[] = []
 
 async function openFirstDay(page: Page) {
   // Wait for day cards to render (unique to trip detail — toggle buttons contain "X stops")
@@ -24,6 +25,7 @@ async function addEvent(page: Page, name: string) {
     await page.locator('[id^="event-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
   )
   await page.getByRole('button', { name: /add a place/i }).first().click()
+  await page.getByTitle('Add event').click()
   await page.getByPlaceholder('Event name').fill(name)
   await page.keyboard.press('Enter')
   // Wait for the new event row to appear
@@ -40,7 +42,8 @@ Before(async () => {
   lastEventName = undefined
   createdEventIds = []
   eventIdByName = new Map()
-})
+  createdNoteIds = []
+  })
 
 After(async ({ page }) => {
   for (const rowId of [...createdEventIds]) {
@@ -51,9 +54,18 @@ After(async ({ page }) => {
       await expect(row).not.toBeVisible({ timeout: 5000 })
     }
   }
+  for (const noteId of [...createdNoteIds]) {
+    const noteEl = page.locator(`#${noteId}`)
+    if (await noteEl.isVisible()) {
+      await noteEl.hover()
+      await noteEl.getByTitle('Delete note').click()
+      await expect(noteEl).not.toBeVisible({ timeout: 5000 })
+    }
+  }
   createdEventIds = []
+  createdNoteIds = []
   lastEventName = undefined
-  eventIdByName = new Map()
+    eventIdByName = new Map()
 })
 
 Given('I have an existing trip with days', async ({ page }) => {
@@ -180,4 +192,45 @@ Then('the order should be {string} then {string}', async ({ page }, first: strin
     expect(secondIdx).toBeGreaterThanOrEqual(0)
     expect(firstIdx).toBeLessThan(secondIdx)
   }).toPass({ timeout: 10000 })
+})
+
+When('I add a note {string}', async ({ page }, content: string) => {
+  const idsBefore = new Set(
+    await page.locator('[id^="note-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+  )
+  await page.getByRole('button', { name: /add a place/i }).first().click()
+  await page.getByTitle('Add note').click()
+  await page.getByPlaceholder('Add a note…').fill(content)
+  await page.keyboard.press('Enter')
+  await expect(async () => {
+    const idsAfter = await page.locator('[id^="note-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+    expect(idsAfter.length).toBeGreaterThan(idsBefore.size)
+  }).toPass({ timeout: 5000 })
+  const idsAfter = await page.locator('[id^="note-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+  const newId = idsAfter.find(id => !idsBefore.has(id))
+  if (newId) createdNoteIds.push(newId)
+})
+
+Then('the note {string} should be visible on the timeline', async ({ page }, content: string) => {
+  await expect(page.locator('[id^="note-"]').filter({ hasText: content })).toBeVisible()
+})
+
+Then('the note {string} should not be visible', async ({ page }, content: string) => {
+  await expect(page.locator('[id^="note-"]').filter({ hasText: content })).toHaveCount(0)
+})
+
+When('I edit the note {string} to {string}', async ({ page }, oldContent: string, newContent: string) => {
+  const noteEl = page.locator('[id^="note-"]').filter({ hasText: oldContent }).first()
+  await noteEl.getByRole('button', { name: oldContent }).click()
+  const textarea = noteEl.locator('textarea')
+  await textarea.fill(newContent)
+  await page.keyboard.press('Enter')
+})
+
+When('I delete the note {string}', async ({ page }, content: string) => {
+  const noteEl = page.locator('[id^="note-"]').filter({ hasText: content }).first()
+  const noteId = await noteEl.getAttribute('id')
+  await noteEl.hover()
+  await noteEl.getByTitle('Delete note').click()
+  if (noteId) createdNoteIds = createdNoteIds.filter(id => id !== noteId)
 })
