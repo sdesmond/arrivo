@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Trash2, UserPlus } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { type Collaborator, type CollaboratorRole } from "@/data/types"
+import { useState } from "react";
+import { Trash2, UserPlus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { type Collaborator, type CollaboratorRole } from "@/data/types";
 
 const LABEL_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-mono-family, ui-monospace)",
@@ -15,7 +15,7 @@ const LABEL_STYLE: React.CSSProperties = {
   color: "var(--fg-4)",
   marginBottom: 4,
   display: "block",
-}
+};
 
 const SELECT_STYLE: React.CSSProperties = {
   width: "100%",
@@ -26,28 +26,28 @@ const SELECT_STYLE: React.CSSProperties = {
   borderRadius: 6,
   color: "var(--fg)",
   outline: "none",
-}
+};
 
 interface TripEditCollaboratorsProps {
-  collaborators: Collaborator[]
-  onRemove: (index: number) => void
-  onUpdateRole: (index: number, role: CollaboratorRole) => void
-  onAdd: (name: string, email: string, role: CollaboratorRole) => void
+  collaborators: Collaborator[];
+  onRemove: (index: number) => void;
+  onUpdateRole: (index: number, role: CollaboratorRole) => void;
+  onAdd: (name: string, email: string, role: CollaboratorRole) => void;
 }
 
 export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, onAdd }: TripEditCollaboratorsProps) {
-  const [newName, setNewName] = useState("")
-  const [newEmail, setNewEmail] = useState("")
-  const [newRole, setNewRole] = useState<CollaboratorRole>("editor")
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newRole, setNewRole] = useState<CollaboratorRole>("editor");
 
   function handleAdd() {
-    const name = newName.trim()
-    const email = newEmail.trim()
-    if (!name || !email) return
-    onAdd(name, email, newRole)
-    setNewName("")
-    setNewEmail("")
-    setNewRole("editor")
+    const name = newName.trim();
+    const email = newEmail.trim();
+    if (!name || !email) return;
+    onAdd(name, email, newRole);
+    setNewName("");
+    setNewEmail("");
+    setNewRole("editor");
   }
 
   return (
@@ -63,7 +63,10 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
               <span
                 className="rounded-full flex items-center justify-center shrink-0"
                 style={{
-                  width: 28, height: 28, fontSize: 10, fontWeight: 700,
+                  width: 28,
+                  height: 28,
+                  fontSize: 10,
+                  fontWeight: 700,
                   letterSpacing: "0.04em",
                   background: c.tint?.bg ?? "var(--surface-3)",
                   color: c.tint?.fg ?? "var(--fg-2)",
@@ -79,7 +82,7 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
                 style={{ ...SELECT_STYLE, width: "auto", fontSize: 11.5, padding: "3px 6px" }}
                 value={c.role}
                 disabled={c.role === "owner"}
-                onChange={e => onUpdateRole(i, e.target.value as CollaboratorRole)}
+                onChange={(e) => onUpdateRole(i, e.target.value as CollaboratorRole)}
               >
                 <option value="owner">Owner</option>
                 <option value="editor">Editor</option>
@@ -106,42 +109,32 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
 
       <div
         className="flex flex-col gap-2"
-        style={{ padding: "10px 10px 8px", borderRadius: 8, border: "1px dashed var(--line-strong)" }}
+        style={{
+          padding: "10px 10px 8px",
+          borderRadius: 8,
+          border: "1px dashed var(--line-strong)",
+        }}
       >
         <span style={{ ...LABEL_STYLE, marginBottom: 2 }}>Add person</span>
         <div className="grid grid-cols-2 gap-2">
-          <Input
-            placeholder="Name"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-          />
-          <Input
-            placeholder="Email"
-            type="email"
-            value={newEmail}
-            onChange={e => setNewEmail(e.target.value)}
-          />
+          <Input placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <Input placeholder="Email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
         </div>
         <div className="flex items-center gap-2">
           <select
             style={{ ...SELECT_STYLE, flex: 1 }}
             value={newRole}
-            onChange={e => setNewRole(e.target.value as CollaboratorRole)}
+            onChange={(e) => setNewRole(e.target.value as CollaboratorRole)}
           >
             <option value="editor">Editor</option>
             <option value="viewer">Viewer</option>
           </select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAdd}
-            disabled={!newName.trim() || !newEmail.trim()}
-          >
+          <Button variant="outline" size="sm" onClick={handleAdd} disabled={!newName.trim() || !newEmail.trim()}>
             <UserPlus size={13} strokeWidth={1.5} />
             Add
           </Button>
         </div>
       </div>
     </div>
-  )
+  );
 }

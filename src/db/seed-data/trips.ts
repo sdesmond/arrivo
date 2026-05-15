@@ -1,10 +1,4 @@
-export type {
-  TripStatus,
-  TripEvent,
-  Trip,
-  WorldPin,
-  TripTint,
-} from "../../data/types";
+export type { TripStatus, TripEvent, Trip, WorldPin, TripTint } from "../../data/types";
 
 import type { Trip, TripTint, WorldPin } from "../../data/types";
 import type { SeedDayItinerary as DayItinerary, Collaborator } from "./seed-types";
@@ -53,21 +47,72 @@ export const AVATAR_COLORS: Record<string, { bg: string; color: string }> = {
 
 export const ALL_TRIPS: Trip[] = [
   SAMPLE_TOKYO_TRIP,
-  { id: "lisbon-2026", name: "Lisbon", status: "upcoming", startDate: "2026-05-18", endDate: "2026-05-21" },
-  { id: "oaxaca-2026", name: "Oaxaca", status: "upcoming", startDate: "2026-07-28", endDate: "2026-08-06" },
-  { id: "reykjavik-2026", name: "Reykjavik", status: "upcoming", startDate: "2026-10-12", endDate: "2026-10-20" },
-  { id: "marrakech-2026", name: "Marrakech", status: "past", startDate: "2026-03-01", endDate: "2026-03-06" },
-  { id: "kyoto-2025", name: "Kyoto", status: "past", startDate: "2025-11-01", endDate: "2025-11-04" },
-  { id: "athens-2025", name: "Athens", status: "past", startDate: "2025-09-01", endDate: "2025-09-05" },
-  { id: "hanoi-2025", name: "Hanoi", status: "past", startDate: "2025-05-01", endDate: "2025-05-08" },
-  { id: "patagonia-2025", name: "Patagonia", status: "past", startDate: "2025-01-10", endDate: "2025-01-21" },
+  {
+    id: "lisbon-2026",
+    name: "Lisbon",
+    status: "upcoming",
+    startDate: "2026-05-18",
+    endDate: "2026-05-21",
+  },
+  {
+    id: "oaxaca-2026",
+    name: "Oaxaca",
+    status: "upcoming",
+    startDate: "2026-07-28",
+    endDate: "2026-08-06",
+  },
+  {
+    id: "reykjavik-2026",
+    name: "Reykjavik",
+    status: "upcoming",
+    startDate: "2026-10-12",
+    endDate: "2026-10-20",
+  },
+  {
+    id: "marrakech-2026",
+    name: "Marrakech",
+    status: "past",
+    startDate: "2026-03-01",
+    endDate: "2026-03-06",
+  },
+  {
+    id: "kyoto-2025",
+    name: "Kyoto",
+    status: "past",
+    startDate: "2025-11-01",
+    endDate: "2025-11-04",
+  },
+  {
+    id: "athens-2025",
+    name: "Athens",
+    status: "past",
+    startDate: "2025-09-01",
+    endDate: "2025-09-05",
+  },
+  {
+    id: "hanoi-2025",
+    name: "Hanoi",
+    status: "past",
+    startDate: "2025-05-01",
+    endDate: "2025-05-08",
+  },
+  {
+    id: "patagonia-2025",
+    name: "Patagonia",
+    status: "past",
+    startDate: "2025-01-10",
+    endDate: "2025-01-21",
+  },
 ];
 
 export function getTripById(id: string): Trip | undefined {
   return ALL_TRIPS.find((trip) => trip.id === id);
 }
 
-export const TRIP_DATA: Record<string, { days: DayItinerary[]; docs: { name: string }[]; collaborators: Collaborator[] }> = {
+export const TRIP_DATA: Record<
+  string,
+  { days: DayItinerary[]; docs: { name: string }[]; collaborators: Collaborator[] }
+> = {
   "tokyo-2026": { days: TOKYO_DAYS, docs: TOKYO_DOCS, collaborators: TOKYO_COLLAB },
   "lisbon-2026": { days: LISBON_DAYS, docs: LISBON_DOCS, collaborators: LISBON_COLLAB },
 };

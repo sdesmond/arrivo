@@ -34,7 +34,10 @@ export function NoteItem({ note, onUpdate, onDelete, isDraft, onCreate, onCancel
   }
 
   function cancel() {
-    if (isDraft) { onCancelDraft?.(); return; }
+    if (isDraft) {
+      onCancelDraft?.();
+      return;
+    }
     setDraft(note.content);
     setIsEditing(false);
   }
@@ -66,8 +69,14 @@ export function NoteItem({ note, onUpdate, onDelete, isDraft, onCreate, onCancel
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); }
-            if (e.key === "Escape") { e.preventDefault(); cancel(); }
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              commit();
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              cancel();
+            }
           }}
           rows={Math.max(1, draft.split("\n").length)}
           style={{
@@ -89,7 +98,9 @@ export function NoteItem({ note, onUpdate, onDelete, isDraft, onCreate, onCancel
           role="button"
           tabIndex={0}
           onClick={startEdit}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") startEdit(); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") startEdit();
+          }}
           style={{ flex: 1, lineHeight: 1.5, paddingTop: 2, cursor: "text" }}
         >
           {note.content}

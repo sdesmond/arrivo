@@ -26,7 +26,8 @@ export function NewTripCard() {
       <span
         className="rounded-full flex items-center justify-center"
         style={{
-          width: 32, height: 32,
+          width: 32,
+          height: 32,
           background: "var(--surface-2)",
           color: "var(--fg-3)",
         }}
@@ -35,7 +36,8 @@ export function NewTripCard() {
       </span>
       <span
         style={{
-          fontSize: 14, fontWeight: 600,
+          fontSize: 14,
+          fontWeight: 600,
           color: "var(--fg-2)",
           fontFamily: "var(--font-heading-family, ui-sans-serif)",
           letterSpacing: "-0.01em",

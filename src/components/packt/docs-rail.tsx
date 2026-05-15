@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { RailPanel } from "./rail-panel";
 
 export interface DocRailItem {
-  name:      string;
+  name: string;
   subtitle?: string;
-  cached:    boolean;
+  cached: boolean;
 }
 
 interface DocsRailProps {
@@ -29,7 +29,10 @@ export function DocsRail({ docs }: DocsRailProps) {
               <FileText size={14} strokeWidth={1.5} />
             </span>
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }} className="truncate">
+              <div
+                style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}
+                className="truncate"
+              >
                 {d.name}
               </div>
               {d.subtitle && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{d.subtitle}</div>}

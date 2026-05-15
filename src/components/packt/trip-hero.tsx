@@ -17,8 +17,15 @@ interface TripHeroProps {
 }
 
 export function TripHero({
-  name, countryCode, startDate, endDate,
-  dayN, dayTotal, places, docs, collaborators,
+  name,
+  countryCode,
+  startDate,
+  endDate,
+  dayN,
+  dayTotal,
+  places,
+  docs,
+  collaborators,
 }: TripHeroProps) {
   return (
     <div className="relative overflow-hidden rounded-t-none">
@@ -93,4 +100,3 @@ export function TripHero({
     </div>
   );
 }
-

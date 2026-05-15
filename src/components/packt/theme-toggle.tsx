@@ -12,7 +12,11 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ className, style }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme();
-  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const isDark = mounted && resolvedTheme === "dark";
 
   return (

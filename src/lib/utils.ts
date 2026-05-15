@@ -1,9 +1,9 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-import { getNow } from "@/lib/mock-date"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { getNow } from "@/lib/mock-date";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 export function isEventPast(event: { endAt?: string }, now: Date): boolean {
@@ -18,17 +18,13 @@ export function isEventNow(event: { startAt?: string; endAt?: string }, now: Dat
   return start <= now && now <= end;
 }
 
-export function getTripStatus(
-  startDate: string,
-  endDate: string,
-  now = getNow()
-): "upcoming" | "active" | "past" {
+export function getTripStatus(startDate: string, endDate: string, now = getNow()): "upcoming" | "active" | "past" {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const start = new Date(startDate + "T00:00:00");
-  const end   = new Date(endDate   + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
   if (today < start) return "upcoming";
-  if (today > end)   return "past";
+  if (today > end) return "past";
   return "active";
 }
 
@@ -41,19 +37,21 @@ export function getActiveDayNumber(startDate: string, now = getNow()): number {
 
 export function getTodayDisplay(now = getNow()): { date: number; month: string } {
   return {
-    date:  now.getDate(),
+    date: now.getDate(),
     month: now.toLocaleString("en-US", { month: "short" }),
   };
 }
 
 export function formatTripDate(dateStr: string): string {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
 export function getTripDays(startDate: string, endDate: string): number {
   const start = new Date(startDate + "T00:00:00");
-  const end   = new Date(endDate   + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
   return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
 }

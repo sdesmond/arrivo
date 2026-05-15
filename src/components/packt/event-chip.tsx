@@ -47,11 +47,10 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
         }}
       >
         <MapPin size={10} strokeWidth={1.5} />
-        {timeStr}{isNow ? " · NOW" : isPast ? " · DONE" : ""}
+        {timeStr}
+        {isNow ? " · NOW" : isPast ? " · DONE" : ""}
       </div>
-      <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}>
-        {ev.name}
-      </div>
+      <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}>{ev.name}</div>
     </Link>
   );
 }

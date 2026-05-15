@@ -14,24 +14,18 @@ interface TripCoverProps {
   style?: React.CSSProperties;
 }
 
-export function TripCover({
-  name,
-  country,
-  metaTag,
-  showCity = true,
-  className,
-  style,
-}: TripCoverProps) {
+export function TripCover({ name, country, metaTag, showCity = true, className, style }: TripCoverProps) {
   const { resolvedTheme } = useTheme();
-  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const dark = mounted && resolvedTheme === "dark";
   const bg = getTint(name, dark);
 
   return (
-    <div
-      className={cn("relative overflow-hidden", className)}
-      style={{ background: bg, ...style }}
-    >
+    <div className={cn("relative overflow-hidden", className)} style={{ background: bg, ...style }}>
       {/* Stripes overlay */}
       <div className="cover-stripes absolute inset-0" />
 

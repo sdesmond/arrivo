@@ -20,10 +20,7 @@ interface PastTripsListProps {
 
 export function PastTripsList({ trips, onEditTrip }: PastTripsListProps) {
   return (
-    <div
-      className="rounded-[14px] overflow-hidden"
-      style={{ border: "1px solid var(--line)" }}
-    >
+    <div className="rounded-[14px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
       {trips.map((trip, i) => (
         <Link
           key={trip.id}
@@ -39,9 +36,7 @@ export function PastTripsList({ trips, onEditTrip }: PastTripsListProps) {
             style={{ width: 52, height: 40, borderRadius: 6, flexShrink: 0 }}
           />
           <div className="flex-1 min-w-0">
-            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg)" }}>
-              {trip.name}
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg)" }}>{trip.name}</div>
           </div>
           <span style={{ fontSize: 12.5, color: "var(--fg-3)", fontVariantNumeric: "tabular-nums" }}>
             {trip.startDate}
@@ -49,9 +44,12 @@ export function PastTripsList({ trips, onEditTrip }: PastTripsListProps) {
           <span
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "10.5px", color: "var(--fg-4)",
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              width: 52, textAlign: "right",
+              fontSize: "10.5px",
+              color: "var(--fg-4)",
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              width: 52,
+              textAlign: "right",
             }}
           >
             {getTripDays(trip.startDate, trip.endDate)} DAYS
@@ -61,12 +59,20 @@ export function PastTripsList({ trips, onEditTrip }: PastTripsListProps) {
             <DropdownMenuTrigger
               title="Trip options"
               className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
             >
               <MoreHorizontal size={14} strokeWidth={1.5} />
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditTrip(trip); }}>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditTrip(trip);
+                }}
+              >
                 <Pencil size={13} strokeWidth={1.5} />
                 Edit trip
               </DropdownMenuItem>

@@ -12,5 +12,18 @@
       "Skill(bmad-agent-builder)",
       "Skill(bmad-brainstorming)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys,json; f=json.load(sys.stdin).get('tool_input',{}).get('file_path',''); print(f) if f else None\" | { read -r f; [ -n \"$f\" ] && npx prettier --write \"$f\" --ignore-unknown && npx eslint --fix \"$f\"; } 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
   }
 }

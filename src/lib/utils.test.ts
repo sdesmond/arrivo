@@ -10,7 +10,7 @@ import {
   formatTripDate,
 } from "@/lib/utils";
 
-const NOW = new Date("2026-05-13T12:00:00");      // local noon — for date-based functions
+const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
 const NOW_UTC = new Date("2026-05-13T12:00:00Z"); // UTC noon — for event time comparisons
 
 describe("cn", () => {
@@ -65,21 +65,15 @@ describe("isEventPast", () => {
 
 describe("isEventNow", () => {
   it("active when now is between startAt and endAt", () => {
-    expect(
-      isEventNow({ startAt: "2026-05-13T10:00:00Z", endAt: "2026-05-13T14:00:00Z" }, NOW_UTC)
-    ).toBe(true);
+    expect(isEventNow({ startAt: "2026-05-13T10:00:00Z", endAt: "2026-05-13T14:00:00Z" }, NOW_UTC)).toBe(true);
   });
 
   it("not active when now is before startAt", () => {
-    expect(
-      isEventNow({ startAt: "2026-05-13T13:00:00Z", endAt: "2026-05-13T15:00:00Z" }, NOW_UTC)
-    ).toBe(false);
+    expect(isEventNow({ startAt: "2026-05-13T13:00:00Z", endAt: "2026-05-13T15:00:00Z" }, NOW_UTC)).toBe(false);
   });
 
   it("not active when now is after endAt", () => {
-    expect(
-      isEventNow({ startAt: "2026-05-13T09:00:00Z", endAt: "2026-05-13T11:00:00Z" }, NOW_UTC)
-    ).toBe(false);
+    expect(isEventNow({ startAt: "2026-05-13T09:00:00Z", endAt: "2026-05-13T11:00:00Z" }, NOW_UTC)).toBe(false);
   });
 
   it("not active when startAt is missing", () => {

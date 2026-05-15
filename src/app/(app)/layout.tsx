@@ -10,10 +10,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main content area */}
-      <main
-        className="flex-1 overflow-y-auto scroll-thin pb-14 lg:pb-0"
-        id="main-content"
-      >
+      <main className="flex-1 overflow-y-auto scroll-thin pb-14 lg:pb-0" id="main-content">
         {children}
       </main>
 

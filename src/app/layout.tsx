@@ -35,9 +35,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const mockISO = process.env.NODE_ENV === 'development'
-    ? (await cookies()).get('__packt_mock_date__')?.value ?? null
-    : null;
+  const mockISO =
+    process.env.NODE_ENV === "development" ? ((await cookies()).get("__packt_mock_date__")?.value ?? null) : null;
 
   return (
     <html
@@ -46,12 +45,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-          disableTransitionOnChange
-        >
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           <MockDateProvider initialISO={mockISO}>
             <TooltipProvider>
               {children}

@@ -39,10 +39,10 @@ async function main() {
     const [dbTrip] = await db
       .insert(trips)
       .values({
-        ownerId:   user.id,
-        name:      trip.name,
+        ownerId: user.id,
+        name: trip.name,
         startDate: trip.startDate,
-        endDate:   trip.endDate,
+        endDate: trip.endDate,
       })
       .onConflictDoNothing()
       .returning();
@@ -52,12 +52,12 @@ async function main() {
     await db
       .insert(collaborators)
       .values({
-        tripId:   dbTrip.id,
-        userId:   user.id,
-        email:    DEMO_EMAIL,
-        name:     "Demo User",
+        tripId: dbTrip.id,
+        userId: user.id,
+        email: DEMO_EMAIL,
+        name: "Demo User",
         initials: "DU",
-        role:     "owner",
+        role: "owner",
       })
       .onConflictDoNothing();
 
@@ -68,12 +68,12 @@ async function main() {
       const [dbDay] = await db
         .insert(days)
         .values({
-          tripId:        dbTrip.id,
-          dayNumber:     day.dayNumber,
-          date:          day.date,
-          label:         day.label,
-          subtitle:      day.subtitle,
-          weather:       day.weather,
+          tripId: dbTrip.id,
+          dayNumber: day.dayNumber,
+          date: day.date,
+          label: day.label,
+          subtitle: day.subtitle,
+          weather: day.weather,
           travelSummary: day.travelSummary,
         })
         .onConflictDoNothing()
@@ -86,18 +86,18 @@ async function main() {
         const [dbEvent] = await db
           .insert(events)
           .values({
-            dayId:              dbDay.id,
-            tripId:             dbTrip.id,
-            name:               ev.name,
-            note:               ev.note,
-            startAt:            toStartAt(day.date, ev.time) ? new Date(toStartAt(day.date, ev.time)!) : null,
-            endAt:              toStartAt(day.date, ev.endTime) ? new Date(toStartAt(day.date, ev.endTime)!) : null,
-            locationName:       ev.location?.name,
-            locationAddress:    ev.location?.address,
-            locationLat:        ev.location?.geo?.lat,
-            locationLng:        ev.location?.geo?.lng,
+            dayId: dbDay.id,
+            tripId: dbTrip.id,
+            name: ev.name,
+            note: ev.note,
+            startAt: toStartAt(day.date, ev.time) ? new Date(toStartAt(day.date, ev.time)!) : null,
+            endAt: toStartAt(day.date, ev.endTime) ? new Date(toStartAt(day.date, ev.endTime)!) : null,
+            locationName: ev.location?.name,
+            locationAddress: ev.location?.address,
+            locationLat: ev.location?.geo?.lat,
+            locationLng: ev.location?.geo?.lng,
             confirmationNumber: ev.confirmationNumber,
-            position:           pos,
+            position: pos,
           })
           .onConflictDoNothing()
           .returning();
@@ -108,13 +108,13 @@ async function main() {
           await db
             .insert(documents)
             .values({
-              tripId:       dbTrip.id,
-              eventId:      dbEvent.id,
-              name:         doc.name,
-              kind:         doc.kind,
-              size:         doc.size,
-              offline:      doc.offline,
-              url:          doc.url,
+              tripId: dbTrip.id,
+              eventId: dbEvent.id,
+              name: doc.name,
+              kind: doc.kind,
+              size: doc.size,
+              offline: doc.offline,
+              url: doc.url,
               previewLines: doc.previewLines ?? null,
             })
             .onConflictDoNothing();
@@ -127,4 +127,7 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

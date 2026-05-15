@@ -2,24 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Briefcase, Search, Map, Globe, User, Settings, LogOut, Clock,
-} from "lucide-react";
+import { Briefcase, Search, Map, Globe, User, Settings, LogOut, Clock } from "lucide-react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { NavItem } from "./nav-item";
 import { SectionHeading } from "./section-heading";
 
 const NAV_ITEMS = [
-  { id: "trips",          label: "Trips",          icon: Briefcase, href: "/trips",           count: 4 },
-  { id: "search",         label: "Search",         icon: Search,    href: "/search" },
-  { id: "travel-history", label: "Travel History", icon: Clock,     href: "/travel-history" },
+  { id: "trips", label: "Trips", icon: Briefcase, href: "/trips", count: 4 },
+  { id: "search", label: "Search", icon: Search, href: "/search" },
+  { id: "travel-history", label: "Travel History", icon: Clock, href: "/travel-history" },
 ];
 
 const PINNED = [
-  { name: "Tokyo",    hue: 8,  meta: "D5"  },
-  { name: "Lisbon",   hue: 78, meta: "21d" },
-  { name: "Oaxaca",   hue: 45, meta: "92d" },
+  { name: "Tokyo", hue: 8, meta: "D5" },
+  { name: "Lisbon", hue: 78, meta: "21d" },
+  { name: "Oaxaca", hue: 45, meta: "92d" },
 ];
 
 export function SidebarNav() {
@@ -36,7 +34,12 @@ export function SidebarNav() {
       {/* Brand row */}
       <div
         className="flex items-center gap-2 px-4 py-4"
-        style={{ fontFamily: "var(--font-heading-family, ui-sans-serif)", fontWeight: 700, fontSize: 16, letterSpacing: "-0.02em" }}
+        style={{
+          fontFamily: "var(--font-heading-family, ui-sans-serif)",
+          fontWeight: 700,
+          fontSize: 16,
+          letterSpacing: "-0.02em",
+        }}
       >
         <span
           className="relative grid place-items-center rounded-[5px]"
@@ -45,7 +48,9 @@ export function SidebarNav() {
           <span
             className="absolute"
             style={{
-              width: 8, height: 8, borderRadius: 2,
+              width: 8,
+              height: 8,
+              borderRadius: 2,
               background: "var(--accent-brand)",
               transform: "rotate(45deg)",
             }}
@@ -81,7 +86,8 @@ export function SidebarNav() {
             <span
               className="shrink-0 rounded-[3px]"
               style={{
-                width: 14, height: 14,
+                width: 14,
+                height: 14,
                 background: `oklch(0.85 0.06 ${trip.hue})`,
               }}
             />
@@ -106,14 +112,12 @@ export function SidebarNav() {
       <div className="flex-1" />
 
       {/* Footer */}
-      <div
-        className="flex items-center gap-2 px-3 py-3"
-        style={{ borderTop: "1px solid var(--line)" }}
-      >
+      <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: "1px solid var(--line)" }}>
         <div
           className="shrink-0 rounded-full flex items-center justify-center font-semibold text-[12px]"
           style={{
-            width: 28, height: 28,
+            width: 28,
+            height: 28,
             background: avatarTint.bg,
             color: avatarTint.color,
             fontFamily: "var(--font-body, ui-sans-serif)",
@@ -138,4 +142,3 @@ export function SidebarNav() {
     </aside>
   );
 }
-

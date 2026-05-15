@@ -21,8 +21,10 @@ export function RailPanel({ header, meta, children }: RailPanelProps) {
           <span
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "9.5px", fontWeight: 500,
-              letterSpacing: "0.08em", textTransform: "uppercase",
+              fontSize: "9.5px",
+              fontWeight: 500,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
               color: "var(--fg-3)",
             }}
           >

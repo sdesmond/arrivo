@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from 'react';
+import { createContext, useContext } from "react";
 
 export const MockDateContext = createContext<string | null>(null);
 
@@ -10,11 +10,7 @@ interface MockDateProviderProps {
 }
 
 export function MockDateProvider({ children, initialISO }: MockDateProviderProps) {
-  return (
-    <MockDateContext.Provider value={initialISO}>
-      {children}
-    </MockDateContext.Provider>
-  );
+  return <MockDateContext.Provider value={initialISO}>{children}</MockDateContext.Provider>;
 }
 
 export function useNow(): Date {

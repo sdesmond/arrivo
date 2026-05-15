@@ -11,13 +11,7 @@ interface AvatarStackProps {
   "aria-label"?: string;
 }
 
-export function AvatarStack({
-  initials,
-  size = "sm",
-  max = 4,
-  className,
-  "aria-label": ariaLabel,
-}: AvatarStackProps) {
+export function AvatarStack({ initials, size = "sm", max = 4, className, "aria-label": ariaLabel }: AvatarStackProps) {
   const visible = initials.slice(0, max);
   const overflow = initials.length - visible.length;
 

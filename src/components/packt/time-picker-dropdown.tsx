@@ -39,25 +39,49 @@ export function TimePickerDropdown({ time, endTime, onSave, onClose }: TimePicke
     >
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--fg-4)", marginBottom: 4 }}>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--fg-4)",
+              marginBottom: 4,
+            }}
+          >
             Start time
           </div>
-          <Input type="time" value={draftTime} onChange={e => setDraftTime(e.target.value)} />
+          <Input type="time" value={draftTime} onChange={(e) => setDraftTime(e.target.value)} />
         </div>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--fg-4)", marginBottom: 4 }}>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--fg-4)",
+              marginBottom: 4,
+            }}
+          >
             End time
           </div>
-          <Input type="time" value={draftEnd} onChange={e => setDraftEnd(e.target.value)} />
+          <Input type="time" value={draftEnd} onChange={(e) => setDraftEnd(e.target.value)} />
         </div>
       </div>
       <div className="flex justify-between gap-2">
         {(time || endTime) && (
-          <Button variant="ghost" size="sm" onClick={() => onSave(undefined, undefined)}>Remove</Button>
+          <Button variant="ghost" size="sm" onClick={() => onSave(undefined, undefined)}>
+            Remove
+          </Button>
         )}
         <div className="flex gap-2 ml-auto">
-          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" onClick={() => onSave(draftTime || undefined, draftEnd || undefined)}>Save</Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={() => onSave(draftTime || undefined, draftEnd || undefined)}>
+            Save
+          </Button>
         </div>
       </div>
     </div>

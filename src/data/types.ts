@@ -17,22 +17,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const TripStatus = {
-  Draft:    "draft",
+  Draft: "draft",
   Upcoming: "upcoming",
-  Active:   "active",
-  Past:     "past",
+  Active: "active",
+  Past: "past",
 } as const;
 export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 
 export const ItineraryItemType = {
-  Event:     "event",
+  Event: "event",
   Checklist: "checklist",
-  Note:      "note",
+  Note: "note",
 } as const;
 export type ItineraryItemType = (typeof ItineraryItemType)[keyof typeof ItineraryItemType];
 
 export const CollaboratorRole = {
-  Owner:  "owner",
+  Owner: "owner",
   Editor: "editor",
   Viewer: "viewer",
 } as const;
@@ -40,36 +40,34 @@ export type CollaboratorRole = (typeof CollaboratorRole)[keyof typeof Collaborat
 
 // kind = the file format
 export const DocKind = {
-  PDF:   "pdf",
+  PDF: "pdf",
   Image: "image",
-  Doc:   "doc",
-  Link:  "link",
+  Doc: "doc",
+  Link: "link",
 } as const;
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface DocPreviewLine {
-  text:  string;
+  text: string;
   // h = heading, m = subheading, b = body, sm = caption, "" = spacer
   level: "h" | "m" | "b" | "sm" | "";
 }
 
 export interface Document {
-  id:      string;
-  name:    string;
-  kind:    DocKind;
-  size?:   string;
-  scope:   "trip" | "event";
+  id: string;
+  name: string;
+  kind: DocKind;
+  size?: string;
+  scope: "trip" | "event";
   offline: boolean;
-  url?:    string;
+  url?: string;
   previewLines?: DocPreviewLine[];
   addedAt?: string;
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUPPORTING TYPES
@@ -81,11 +79,10 @@ export interface GeoCoords {
 }
 
 export interface EventLocation {
-  name?:    string;
+  name?: string;
   address?: string;
-  geo?:     GeoCoords;
+  geo?: GeoCoords;
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP EVENT
@@ -93,24 +90,24 @@ export interface EventLocation {
 
 export interface TripEvent {
   // ── Identity ──────────────────────────────────────────────────────────────
-  id:      string;
+  id: string;
   tripId?: string;
 
   // ── Names & descriptions ──────────────────────────────────────────────────
-  name:  string;
+  name: string;
   note?: string;
 
   // ── Scheduling ────────────────────────────────────────────────────────────
   startAt?: string;
-  endAt?:   string;
+  endAt?: string;
 
   // ── Location ──────────────────────────────────────────────────────────────
-  location?:        EventLocation;
+  location?: EventLocation;
   // Flat DB-backed fields (prototype nested location above will be removed in Part 4)
-  locationName?:    string;
+  locationName?: string;
   locationAddress?: string;
-  locationLat?:     number;
-  locationLng?:     number;
+  locationLat?: number;
+  locationLng?: number;
 
   // ── Cost ──────────────────────────────────────────────────────────────────
   cost?: number;
@@ -121,85 +118,81 @@ export interface TripEvent {
   // ── Attached documents ────────────────────────────────────────────────────
   docs?: Document[];
 
-  position?:  number;
+  position?: number;
   createdAt?: string;
   updatedAt?: string;
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHECKLIST
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ChecklistItem {
-  id:          string;
+  id: string;
   checklistId: string;
-  content:     string;
-  isChecked:   boolean;
-  createdAt?:  string;
+  content: string;
+  isChecked: boolean;
+  createdAt?: string;
 }
 
 export interface Checklist {
-  id:         string;
-  tripDayId:  string;
-  position:   number;
-  title?:     string;
-  items:      ChecklistItem[];
+  id: string;
+  tripDayId: string;
+  position: number;
+  title?: string;
+  items: ChecklistItem[];
   createdAt?: string;
   updatedAt?: string;
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ITINERARY NOTE
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Note {
-  id:         string;
-  tripDayId:  string;
-  position:   number;
-  content:    string;
+  id: string;
+  tripDayId: string;
+  position: number;
+  content: string;
   createdAt?: string;
   updatedAt?: string;
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DAY ITINERARY
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ItineraryNote {
-  id:       string;
-  content:  string;
+  id: string;
+  content: string;
   position: number;
 }
 
 export interface DayItinerary {
-  id?:           string;
-  tripId?:       string;
-  dayNumber:     number;
-  date?:         string;
-  label:         string;
-  subtitle?:     string;
-  today?:        boolean;
-  weather?:      string;
+  id?: string;
+  tripId?: string;
+  dayNumber: number;
+  date?: string;
+  label: string;
+  subtitle?: string;
+  today?: boolean;
+  weather?: string;
   travelSummary?: string;
-  events:        TripEvent[];
-  notes?:        ItineraryNote[];
-  checklists?:   Checklist[];
+  events: TripEvent[];
+  notes?: ItineraryNote[];
+  checklists?: Checklist[];
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COLLABORATOR
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Collaborator {
-  id?:      string;
-  name:     string;
-  email:    string;
+  id?: string;
+  name: string;
+  email: string;
   initials: string;
-  role:     CollaboratorRole;
+  role: CollaboratorRole;
   tint?: {
     bg: string;
     fg: string;
@@ -209,38 +202,37 @@ export interface Collaborator {
   tintFg?: string;
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Budget {
-  currency:   string;
-  total?:     number;
+  currency: string;
+  total?: number;
   perPerson?: number;
 }
 
 export interface Trip {
-  id:     string;
+  id: string;
   status: TripStatus;
-  name:   string;
-  tags?:  string[];
+  name: string;
+  tags?: string[];
 
   // Canonical ISO dates. Prototype data still stores display strings
   // ("Apr 24", "May 1, 2026"); those will move to a UI formatting layer.
   startDate: string;
-  endDate:   string;
+  endDate: string;
 
   // Prototype-era computed/display fields — derive from dates in the UI eventually.
-  activeDayNumber?:       number;
-  dayTotal?:   number;
-  inDays?:     number;
-  todayDate?:  number;
+  activeDayNumber?: number;
+  dayTotal?: number;
+  inDays?: number;
+  todayDate?: number;
   todayMonth?: string;
 
   coverImageUrl?: string;
-  notes?:         string;
-  budget?:        Budget;
+  notes?: string;
+  budget?: Budget;
 
   collaborators?: Collaborator[];
 
@@ -250,41 +242,38 @@ export interface Trip {
   updatedAt?: string;
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // PACKING
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PackingItem {
-  id?:       string;
-  name:      string;
-  done:      boolean;
-  tripId?:   string;
+  id?: string;
+  name: string;
+  done: boolean;
+  tripId?: string;
   position?: number;
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VISUAL / THEME HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TripTint {
-  hue:   number;
+  hue: number;
   light: string;
-  dark:  string;
+  dark: string;
 }
 
 export interface WorldPin {
-  x:     number;
-  y:     number;
+  x: number;
+  y: number;
   label: string;
 }
-
 
 // ── Server Action input/patch shapes ─────────────────────────────────────────
 
 export interface TripListEntry {
-  trip: Trip;          // status computed at read time via getTripStatus(), not stored
+  trip: Trip; // status computed at read time via getTripStatus(), not stored
   todayEvents: TripEvent[];
 }
 
@@ -298,7 +287,7 @@ export interface TripDetailPayload {
 
 export interface CreateTripInput {
   name: string;
-  startDate: string;  // ISO date "YYYY-MM-DD"
+  startDate: string; // ISO date "YYYY-MM-DD"
   endDate: string;
   coverImageUrl?: string;
   notes?: string;
@@ -322,7 +311,7 @@ export interface UpdateTripPatch {
 
 export interface CreateEventInput {
   name: string;
-  startAt?: string;   // ISO datetime
+  startAt?: string; // ISO datetime
   endAt?: string;
   locationName?: string;
   locationAddress?: string;
