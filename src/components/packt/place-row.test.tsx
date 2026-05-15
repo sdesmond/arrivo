@@ -3,6 +3,16 @@ import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
+vi.mock("lucide-react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("lucide-react")>()
+  return {
+    ...actual,
+    MapPin: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+      <svg data-testid="map-pin-icon" data-stroke-width={strokeWidth} {...props} />
+    ),
+  }
+})
+
 vi.mock("./docs-block", () => ({
   DocsBlock: ({ docs, onDelete, onAdd }: { docs: { id: string; name: string }[]; onDelete: (id: string) => void; onAdd: () => void }) => (
     <div data-testid="docs-block">
@@ -487,5 +497,23 @@ describe("PlaceRow", () => {
     const allButtons = screen.getAllByRole("button")
     const timeBtn = allButtons.find(btn => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))
     expect(timeBtn).toBeDefined()
+  })
+
+  it("renders MapPin icon as the event type indicator", () => {
+    render(
+      <PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />,
+      { wrapper: Wrapper }
+    )
+    const icons = screen.getAllByTestId("map-pin-icon")
+    expect(icons.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("timeline MapPin icon has strokeWidth 1.5", () => {
+    render(
+      <PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />,
+      { wrapper: Wrapper }
+    )
+    const icons = screen.getAllByTestId("map-pin-icon")
+    expect(icons[0]).toHaveAttribute("data-stroke-width", "1.5")
   })
 })

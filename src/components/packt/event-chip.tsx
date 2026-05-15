@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MapPin } from "lucide-react";
 import { cn, isEventNow, isEventPast } from "@/lib/utils";
 import { type TripEvent } from "@/data/types";
 
@@ -40,8 +41,12 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
           letterSpacing: "0.04em",
           color: isNow ? "var(--accent-brand)" : "var(--fg-3)",
           textTransform: "uppercase",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
         }}
       >
+        <MapPin size={10} strokeWidth={1.5} />
         {timeStr}{isNow ? " · NOW" : isPast ? " · DONE" : ""}
       </div>
       <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}>

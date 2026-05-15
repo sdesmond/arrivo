@@ -96,23 +96,13 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
           border: isNow ? "1px solid var(--accent-brand)" : "1px solid transparent",
         }}
       >
-        {/* Timeline dot */}
-        <div className="flex flex-col items-center shrink-0 pt-1" style={{ width: 16 }}>
-          <div
-            className="rounded-full flex items-center justify-center shrink-0"
-            style={{
-              width: 16, height: 16,
-              background: isNow ? "var(--accent-brand)" : "var(--surface-2)",
-              border: isNow ? "none" : "1.5px solid var(--line-strong)",
-              color: isNow ? "#fff" : "var(--fg-4)",
-            }}
-          >
-            {isNow ? (
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff", display: "block" }} />
-            ) : (
-              <span style={{ width: 4, height: 4, borderRadius: "50%", background: "currentColor", display: "block", opacity: 0.5 }} />
-            )}
-          </div>
+        {/* Event icon */}
+        <div className="flex flex-col items-center shrink-0 pt-0.5" style={{ width: 16 }}>
+          <MapPin
+            size={16}
+            strokeWidth={1.5}
+            style={{ color: isNow ? "var(--accent-brand)" : "var(--fg-3)", flexShrink: 0 }}
+          />
           {!isLast && (
             <div style={{ width: 1, flex: 1, minHeight: 12, background: "var(--line)", marginTop: 2 }} />
           )}
