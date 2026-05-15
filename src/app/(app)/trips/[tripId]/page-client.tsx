@@ -11,7 +11,7 @@ import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateT
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
-import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, createNote, updateNote, deleteNote, addDocument, removeDocument } from "./actions";
+import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, createNote, updateNote, deleteNote, addDocument, removeDocument, createChecklist, updateChecklistTitle, deleteChecklist, createChecklistItem, updateChecklistItem, deleteChecklistItem } from "./actions";
 
 function formatTripHeader(start: string, end: string): string {
   const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -118,6 +118,44 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
   function handleDeleteDoc(docId: string): void {
     React.startTransition(() => {
       removeDocument(docId);
+    });
+  }
+
+  function handleAddChecklist(dayNumber: number, insertAtPosition: number): void {
+    const day = days.find((d) => d.dayNumber === dayNumber);
+    if (!day?.id) return;
+    React.startTransition(() => {
+      createChecklist(day.id!, insertAtPosition);
+    });
+  }
+
+  function handleUpdateChecklistTitle(checklistId: string, title: string | undefined): void {
+    React.startTransition(() => {
+      updateChecklistTitle(checklistId, title);
+    });
+  }
+
+  function handleDeleteChecklist(checklistId: string): void {
+    React.startTransition(() => {
+      deleteChecklist(checklistId);
+    });
+  }
+
+  function handleAddChecklistItem(checklistId: string, content: string): void {
+    React.startTransition(() => {
+      createChecklistItem(checklistId, content);
+    });
+  }
+
+  function handleUpdateChecklistItem(itemId: string, content: string): void {
+    React.startTransition(() => {
+      updateChecklistItem(itemId, content);
+    });
+  }
+
+  function handleDeleteChecklistItem(itemId: string): void {
+    React.startTransition(() => {
+      deleteChecklistItem(itemId);
     });
   }
 
@@ -264,6 +302,12 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                       onDeleteNote={handleDeleteNote}
                       onAddDoc={handleAddDoc}
                       onDeleteDoc={handleDeleteDoc}
+                      onAddChecklist={handleAddChecklist}
+                      onUpdateChecklistTitle={handleUpdateChecklistTitle}
+                      onDeleteChecklist={handleDeleteChecklist}
+                      onAddChecklistItem={handleAddChecklistItem}
+                      onUpdateChecklistItem={handleUpdateChecklistItem}
+                      onDeleteChecklistItem={handleDeleteChecklistItem}
                     />
                   ))
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>

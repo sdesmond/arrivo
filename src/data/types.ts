@@ -186,6 +186,7 @@ export interface DayItinerary {
   travelSummary?: string;
   events:        TripEvent[];
   notes?:        ItineraryNote[];
+  checklists?:   Checklist[];
 }
 
 

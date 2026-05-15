@@ -44,6 +44,40 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }))
 
+vi.mock("./checklist-item", () => ({
+  ChecklistItem: ({
+    checklist,
+    isDraft,
+    onCommitDraft,
+    onCancelDraft,
+  }: {
+    checklist: { id: string; items: unknown[] };
+    isDraft?: boolean;
+    onCommitDraft?: () => void;
+    onCancelDraft?: () => void;
+  }) => {
+    if (isDraft) {
+      return (
+        <input
+          autoFocus
+          data-testid="checklist-draft-input"
+          placeholder="Add an item…"
+          onKeyDown={e => {
+            const val = (e.target as HTMLInputElement).value.trim();
+            if (e.key === "Enter") { if (val) onCommitDraft?.(); else onCancelDraft?.(); }
+            if (e.key === "Escape") onCancelDraft?.();
+          }}
+          onBlur={e => {
+            const val = e.target.value.trim();
+            if (val) onCommitDraft?.(); else onCancelDraft?.();
+          }}
+        />
+      );
+    }
+    return <div data-testid={`checklist-item-${checklist.id}`} />;
+  },
+}))
+
 vi.mock("./place-row", () => ({
   PlaceRow: ({ place, isDraft, onCreate, onCancelDraft }: {
     place: { id: string; name: string };
@@ -679,6 +713,97 @@ describe("DayCard", () => {
       dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-u2" } })
     })
     expect(onReorderEvents).toHaveBeenCalledWith(1, expect.any(Array))
+  })
+
+  // ── Checklist integration ─────────────────────────────────────────────────
+
+  it("TypePicker shows 'Add checklist' button", async () => {
+    const user = userEvent.setup()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    expect(screen.getByTitle("Add checklist")).toBeInTheDocument()
+  })
+
+  it("clicking Add checklist in TypePicker shows checklist draft input", async () => {
+    const user = userEvent.setup()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add checklist"))
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument()
+  })
+
+  it("committing checklist draft calls onAddChecklist", async () => {
+    const user = userEvent.setup()
+    const onAddChecklist = vi.fn()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+        onAddChecklist={onAddChecklist}
+      />,
+      { wrapper: Wrapper },
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add checklist"))
+    await user.type(screen.getByPlaceholderText("Add an item…"), "Sunscreen")
+    await user.keyboard("{Enter}")
+    expect(onAddChecklist).toHaveBeenCalledWith(baseDay.dayNumber, 2)
+  })
+
+  it("Escape in checklist draft input cancels without calling onAddChecklist", async () => {
+    const user = userEvent.setup()
+    const onAddChecklist = vi.fn()
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+        onAddChecklist={onAddChecklist}
+      />,
+      { wrapper: Wrapper },
+    )
+    await user.click(screen.getByRole("button", { name: /add a place to day 1/i }))
+    await user.click(screen.getByTitle("Add checklist"))
+    await user.keyboard("{Escape}")
+    expect(onAddChecklist).not.toHaveBeenCalled()
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument()
+  })
+
+  it("renders checklists from d.checklists", () => {
+    const dayWithChecklist: DayItinerary = {
+      ...baseDay,
+      events: [scheduledEvent],
+      checklists: [{ id: "cl-1", tripDayId: "day-1", position: 1, items: [] }],
+    }
+    render(
+      <DayCard
+        day={dayWithChecklist}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    )
+    expect(screen.getByTestId("checklist-item-cl-1")).toBeInTheDocument()
   })
 
   it("handleDragEnd calls onReorderEvents for any two events", () => {

@@ -2,7 +2,7 @@
 
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { events, days, documents, itineraryNotes } from "@/db/schema";
+import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
 import { eq, and, max, gte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type {
@@ -25,7 +25,8 @@ async function getEventTripId(eventId: string): Promise<string> {
 async function getAppendPosition(dayId: string): Promise<number> {
   const [{ maxEvt }] = await db.select({ maxEvt: max(events.position) }).from(events).where(eq(events.dayId, dayId));
   const [{ maxNote }] = await db.select({ maxNote: max(itineraryNotes.position) }).from(itineraryNotes).where(eq(itineraryNotes.dayId, dayId));
-  return Math.max(maxEvt ?? -1, maxNote ?? -1) + 1;
+  const [{ maxCl }] = await db.select({ maxCl: max(itineraryChecklists.position) }).from(itineraryChecklists).where(eq(itineraryChecklists.dayId, dayId));
+  return Math.max(maxEvt ?? -1, maxNote ?? -1, maxCl ?? -1) + 1;
 }
 
 async function shiftItemsAtOrAbove(dayId: string, fromPosition: number): Promise<void> {
@@ -35,6 +36,29 @@ async function shiftItemsAtOrAbove(dayId: string, fromPosition: number): Promise
   await db.update(itineraryNotes)
     .set({ position: sql`${itineraryNotes.position} + 1` })
     .where(and(eq(itineraryNotes.dayId, dayId), gte(itineraryNotes.position, fromPosition)));
+  await db.update(itineraryChecklists)
+    .set({ position: sql`${itineraryChecklists.position} + 1` })
+    .where(and(eq(itineraryChecklists.dayId, dayId), gte(itineraryChecklists.position, fromPosition)));
+}
+
+async function getChecklistDayId(checklistId: string): Promise<string> {
+  const [cl] = await db
+    .select({ dayId: itineraryChecklists.dayId })
+    .from(itineraryChecklists)
+    .where(eq(itineraryChecklists.id, checklistId));
+  if (!cl) throw new Error("Checklist not found");
+  return cl.dayId;
+}
+
+async function getChecklistItemIds(itemId: string): Promise<{ checklistId: string; tripId: string }> {
+  const [item] = await db
+    .select({ checklistId: checklistItems.checklistId })
+    .from(checklistItems)
+    .where(eq(checklistItems.id, itemId));
+  if (!item) throw new Error("Checklist item not found");
+  const dayId = await getChecklistDayId(item.checklistId);
+  const tripId = await getDayTripId(dayId);
+  return { checklistId: item.checklistId, tripId };
 }
 
 export async function createEvent(dayId: string, input: CreateEventInput) {
@@ -186,6 +210,60 @@ export async function deleteNote(noteId: string) {
   const tripId = await getDayTripId(note.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function createChecklist(dayId: string, insertAtPosition: number) {
+  const user = await requireUser();
+  const tripId = await getDayTripId(dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await shiftItemsAtOrAbove(dayId, insertAtPosition);
+  await db.insert(itineraryChecklists).values({ dayId, position: insertAtPosition });
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function updateChecklistTitle(checklistId: string, title: string | undefined) {
+  const user = await requireUser();
+  const dayId = await getChecklistDayId(checklistId);
+  const tripId = await getDayTripId(dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(itineraryChecklists)
+    .set({ title: title ?? null, updatedAt: new Date() })
+    .where(eq(itineraryChecklists.id, checklistId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function deleteChecklist(checklistId: string) {
+  const user = await requireUser();
+  const dayId = await getChecklistDayId(checklistId);
+  const tripId = await getDayTripId(dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.delete(itineraryChecklists).where(eq(itineraryChecklists.id, checklistId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function createChecklistItem(checklistId: string, content: string) {
+  const user = await requireUser();
+  const dayId = await getChecklistDayId(checklistId);
+  const tripId = await getDayTripId(dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.insert(checklistItems).values({ checklistId, content });
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function updateChecklistItem(itemId: string, content: string) {
+  const user = await requireUser();
+  const { tripId } = await getChecklistItemIds(itemId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(checklistItems).set({ content }).where(eq(checklistItems.id, itemId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function deleteChecklistItem(itemId: string) {
+  const user = await requireUser();
+  const { tripId } = await getChecklistItemIds(itemId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.delete(checklistItems).where(eq(checklistItems.id, itemId));
   revalidatePath(`/trips/${tripId}`);
 }
 

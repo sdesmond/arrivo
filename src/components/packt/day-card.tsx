@@ -6,8 +6,9 @@ import { MapPin, Plus, ChevronDown, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlaceRow } from "./place-row";
 import { NoteItem } from "./note-item";
+import { ChecklistItem } from "./checklist-item";
 import { TypePicker } from "./type-picker";
-import { type DayItinerary, type TripEvent, type ItineraryNote, ItineraryItemType } from "@/data/types";
+import { type DayItinerary, type TripEvent, type ItineraryNote, type Checklist, ItineraryItemType } from "@/data/types";
 import { cn } from "@/lib/utils";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
@@ -29,6 +30,12 @@ interface DayCardProps {
   onDeleteNote?: (noteId: string) => void;
   onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
   onDeleteDoc?: (docId: string) => void;
+  onAddChecklist?: (dayNumber: number, insertAtPosition: number) => void;
+  onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
+  onDeleteChecklist?: (checklistId: string) => void;
+  onAddChecklistItem?: (checklistId: string, content: string) => void;
+  onUpdateChecklistItem?: (itemId: string, content: string) => void;
+  onDeleteChecklistItem?: (itemId: string) => void;
 }
 
 interface DraftState {
@@ -99,7 +106,8 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
 
 type TimelineItem =
   | { kind: "event"; data: TripEvent; position: number }
-  | { kind: "note"; data: ItineraryNote; position: number };
+  | { kind: "note"; data: ItineraryNote; position: number }
+  | { kind: "checklist"; data: Checklist; position: number };
 
 // ── DayCard ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +123,12 @@ export function DayCard({
   onDeleteNote,
   onAddDoc,
   onDeleteDoc,
+  onAddChecklist,
+  onUpdateChecklistTitle,
+  onDeleteChecklist,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
 }: DayCardProps) {
   const now = useNow();
   const isToday = d.date
@@ -146,10 +160,12 @@ export function DayCard({
 
   const allEvents = d.events;
   const notes = d.notes ?? [];
+  const checklists = d.checklists ?? [];
 
   const timelineItems: TimelineItem[] = [
     ...allEvents.map((e, i) => ({ kind: "event" as const, data: e, position: e.position ?? i })),
     ...notes.map((n) => ({ kind: "note" as const, data: n, position: n.position })),
+    ...checklists.map((c) => ({ kind: "checklist" as const, data: c, position: c.position })),
   ].sort((a, b) => a.position - b.position);
 
   const maxTimelinePos = timelineItems.length > 0
@@ -310,7 +326,17 @@ export function DayCard({
                 return (
                   <div key={key}>
                     {entry.type === "draft" ? (
-                      entry.draftKind === ItineraryItemType.Note ? (
+                      entry.draftKind === ItineraryItemType.Checklist ? (
+                        <ChecklistItem
+                          checklist={{ id: "draft", tripDayId: d.id ?? "", position: draft!.insertAtPosition, items: [] }}
+                          isDraft
+                          onCommitDraft={() => {
+                            onAddChecklist?.(d.dayNumber, draft!.insertAtPosition);
+                            setDraft(null);
+                          }}
+                          onCancelDraft={cancelDraft}
+                        />
+                      ) : entry.draftKind === ItineraryItemType.Note ? (
                         <NoteItem
                           note={{ id: "draft", content: "", position: draft!.insertAtPosition }}
                           isDraft
@@ -328,6 +354,15 @@ export function DayCard({
                           onDelete={cancelDraft}
                         />
                       )
+                    ) : entry.item.kind === "checklist" ? (
+                      <ChecklistItem
+                        checklist={entry.item.data}
+                        onTitleUpdate={onUpdateChecklistTitle}
+                        onDelete={onDeleteChecklist}
+                        onAddItem={onAddChecklistItem}
+                        onUpdateItem={onUpdateChecklistItem}
+                        onDeleteItem={onDeleteChecklistItem}
+                      />
                     ) : entry.item.kind === "event" ? (
                       <SortablePlaceRow
                         id={`event-${entry.item.data.id}`}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MapPin, FileText } from "lucide-react";
+import { MapPin, FileText, ListChecks } from "lucide-react";
 import { ItineraryItemType } from "@/data/types";
 
 export interface TypePickerProps {
@@ -55,6 +55,14 @@ export function TypePicker({ onSelect, onDismiss }: TypePickerProps) {
         title="Add note"
       >
         <FileText size={15} strokeWidth={1.5} />
+      </button>
+      <button
+        onClick={() => onSelect(ItineraryItemType.Checklist)}
+        className="flex items-center justify-center rounded-[4px] p-1.5 transition-colors hover:bg-surface-2"
+        style={{ color: "var(--fg-3)", background: "none", border: "none", cursor: "pointer" }}
+        title="Add checklist"
+      >
+        <ListChecks size={15} strokeWidth={1.5} />
       </button>
     </div>
   );

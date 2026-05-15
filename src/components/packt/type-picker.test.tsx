@@ -13,6 +13,9 @@ vi.mock("lucide-react", async (importOriginal) => {
     FileText: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
       <svg data-testid="file-text-icon" data-stroke-width={strokeWidth} {...props} />
     ),
+    ListChecks: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+      <svg data-testid="list-checks-icon" data-stroke-width={strokeWidth} {...props} />
+    ),
   }
 })
 
@@ -75,5 +78,25 @@ describe("TypePicker", () => {
     render(<TypePicker onSelect={vi.fn()} onDismiss={onDismiss} />)
     fireEvent.mouseDown(screen.getByTitle("Add event"))
     expect(onDismiss).not.toHaveBeenCalled()
+  })
+})
+
+describe("TypePicker — ListChecks (checklist)", () => {
+  it("renders ListChecks icon with strokeWidth 1.5", () => {
+    render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} />)
+    expect(screen.getByTestId("list-checks-icon")).toHaveAttribute("data-stroke-width", "1.5")
+  })
+
+  it("ListChecks button has title 'Add checklist'", () => {
+    render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} />)
+    expect(screen.getByTitle("Add checklist")).toBeInTheDocument()
+  })
+
+  it("clicking ListChecks button calls onSelect with Checklist type", async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    render(<TypePicker onSelect={onSelect} onDismiss={vi.fn()} />)
+    await user.click(screen.getByTitle("Add checklist"))
+    expect(onSelect).toHaveBeenCalledWith(ItineraryItemType.Checklist)
   })
 })

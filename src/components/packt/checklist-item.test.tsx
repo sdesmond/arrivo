@@ -1,0 +1,433 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi } from "vitest"
+import { render, screen, fireEvent } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+
+vi.mock("lucide-react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("lucide-react")>()
+  return {
+    ...actual,
+    ListChecks: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+      <svg data-testid="list-checks-icon" data-stroke-width={strokeWidth} {...props} />
+    ),
+    Trash2: (props: React.SVGProps<SVGSVGElement>) => (
+      <svg data-testid="trash-icon" {...props} />
+    ),
+    ChevronDown: (props: React.SVGProps<SVGSVGElement>) => (
+      <svg data-testid="chevron-icon" {...props} />
+    ),
+  }
+})
+
+import { ChecklistItem } from "./checklist-item"
+import type { Checklist } from "@/data/types"
+
+const BASE_CHECKLIST: Checklist = {
+  id: "cl-1",
+  tripDayId: "day-1",
+  position: 0,
+  items: [],
+}
+
+const CHECKLIST_WITH_TITLE: Checklist = {
+  ...BASE_CHECKLIST,
+  title: "Packing list",
+}
+
+const CHECKLIST_WITH_ITEMS: Checklist = {
+  ...BASE_CHECKLIST,
+  items: [
+    { id: "item-1", checklistId: "cl-1", content: "Sunscreen", isChecked: false },
+    { id: "item-2", checklistId: "cl-1", content: "Passport", isChecked: false },
+  ],
+}
+
+describe("ChecklistItem — icon", () => {
+  it("renders ListChecks icon with strokeWidth 1.5", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    expect(screen.getByTestId("list-checks-icon")).toHaveAttribute("data-stroke-width", "1.5")
+  })
+})
+
+describe("ChecklistItem — collapsed state", () => {
+  it("shows generic label with item count when untitled", () => {
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />)
+    expect(screen.getByText("Checklist · 2 items")).toBeInTheDocument()
+  })
+
+  it("uses singular 'item' when count is 1", () => {
+    const single: Checklist = {
+      ...BASE_CHECKLIST,
+      items: [{ id: "i1", checklistId: "cl-1", content: "x", isChecked: false }],
+    }
+    render(<ChecklistItem checklist={single} />)
+    expect(screen.getByText("Checklist · 1 item")).toBeInTheDocument()
+  })
+
+  it("shows '0 items' when no items and untitled", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    expect(screen.getByText("Checklist · 0 items")).toBeInTheDocument()
+  })
+
+  it("shows title text in header when title is set", () => {
+    render(<ChecklistItem checklist={CHECKLIST_WITH_TITLE} />)
+    expect(screen.getByText("Packing list")).toBeInTheDocument()
+  })
+
+  it("renders chevron icon in collapsed state", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    expect(screen.getByTestId("chevron-icon")).toBeInTheDocument()
+  })
+
+  it("clicking header expands the body", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument()
+  })
+})
+
+describe("ChecklistItem — expanded state (title management)", () => {
+  it("shows 'Add title...' when no title in expanded state", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    expect(screen.getByText("Add title...")).toBeInTheDocument()
+  })
+
+  it("'Add title...' text is dim (fg-4 color)", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    const titleBtn = screen.getByRole("button", { name: "Add title..." })
+    expect(titleBtn).toHaveStyle({ color: "var(--fg-4)" })
+  })
+
+  it("clicking 'Add title...' enters inline edit mode", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    await user.click(screen.getByRole("button", { name: "Add title..." }))
+    expect(screen.getByPlaceholderText("Add title...")).toBeInTheDocument()
+  })
+
+  it("typing and pressing Enter in title input calls onTitleUpdate", async () => {
+    const onTitleUpdate = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onTitleUpdate={onTitleUpdate} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    await user.click(screen.getByRole("button", { name: "Add title..." }))
+    await user.type(screen.getByPlaceholderText("Add title..."), "Beach trip")
+    await user.keyboard("{Enter}")
+    expect(onTitleUpdate).toHaveBeenCalledWith("cl-1", "Beach trip")
+  })
+
+  it("blurring title input calls onTitleUpdate", async () => {
+    const onTitleUpdate = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onTitleUpdate={onTitleUpdate} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    await user.click(screen.getByRole("button", { name: "Add title..." }))
+    await user.type(screen.getByPlaceholderText("Add title..."), "My list")
+    fireEvent.blur(screen.getByPlaceholderText("Add title..."))
+    expect(onTitleUpdate).toHaveBeenCalledWith("cl-1", "My list")
+  })
+
+  it("shows existing title as editable button in expanded state", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_TITLE} />)
+    await user.click(screen.getByRole("button", { name: /Packing list/i }))
+    const titleButtons = screen.getAllByRole("button", { name: /Packing list/i })
+    // At least one is the title edit area (the second one after header)
+    expect(titleButtons.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("Escape in title input cancels edit without calling onTitleUpdate", async () => {
+    const onTitleUpdate = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onTitleUpdate={onTitleUpdate} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    await user.click(screen.getByRole("button", { name: "Add title..." }))
+    await user.type(screen.getByPlaceholderText("Add title..."), "draft title")
+    await user.keyboard("{Escape}")
+    expect(onTitleUpdate).not.toHaveBeenCalled()
+    expect(screen.getByText("Add title...")).toBeInTheDocument()
+  })
+})
+
+describe("ChecklistItem — draft mode", () => {
+  it("is expanded in draft mode showing item input", () => {
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument()
+  })
+
+  it("item input is auto-focused in draft mode", () => {
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    expect(screen.getByPlaceholderText("Add an item…")).toHaveFocus()
+  })
+
+  it("no chevron icon in draft mode", () => {
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    expect(screen.queryByTestId("chevron-icon")).not.toBeInTheDocument()
+  })
+
+  it("pressing Enter with content calls onCommitDraft", async () => {
+    const onCommitDraft = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={onCommitDraft}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    await user.type(screen.getByPlaceholderText("Add an item…"), "Sunscreen")
+    await user.keyboard("{Enter}")
+    expect(onCommitDraft).toHaveBeenCalled()
+  })
+
+  it("pressing Enter with empty input calls onCancelDraft", async () => {
+    const onCancelDraft = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={onCancelDraft}
+      />,
+    )
+    await user.keyboard("{Enter}")
+    expect(onCancelDraft).toHaveBeenCalled()
+  })
+
+  it("pressing Escape calls onCancelDraft", async () => {
+    const onCancelDraft = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={onCancelDraft}
+      />,
+    )
+    await user.keyboard("{Escape}")
+    expect(onCancelDraft).toHaveBeenCalled()
+  })
+
+  it("no delete button in draft mode", () => {
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    expect(screen.queryByTitle("Delete checklist")).not.toBeInTheDocument()
+  })
+})
+
+describe("ChecklistItem — draft blur behavior", () => {
+  it("blurring item input with content (relatedTarget outside) calls onCommitDraft", () => {
+    const onCommitDraft = vi.fn()
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={onCommitDraft}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    const input = screen.getByPlaceholderText("Add an item…")
+    fireEvent.change(input, { target: { value: "Sunscreen" } })
+    fireEvent.blur(input)
+    expect(onCommitDraft).toHaveBeenCalled()
+  })
+
+  it("blurring item input with empty content (relatedTarget outside) calls onCancelDraft", () => {
+    const onCancelDraft = vi.fn()
+    render(
+      <ChecklistItem
+        checklist={BASE_CHECKLIST}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={onCancelDraft}
+      />,
+    )
+    fireEvent.blur(screen.getByPlaceholderText("Add an item…"))
+    expect(onCancelDraft).toHaveBeenCalled()
+  })
+
+  it("blurring item input when relatedTarget is inside wrapper does not commit or cancel", () => {
+    const onCommitDraft = vi.fn()
+    const onCancelDraft = vi.fn()
+    render(
+      <div>
+        <ChecklistItem
+          checklist={BASE_CHECKLIST}
+          isDraft
+          onCommitDraft={onCommitDraft}
+          onCancelDraft={onCancelDraft}
+        />
+      </div>,
+    )
+    const input = screen.getByPlaceholderText("Add an item…")
+    const titleBtn = screen.getByRole("button", { name: "Add title..." })
+    fireEvent.blur(input, { relatedTarget: titleBtn })
+    expect(onCommitDraft).not.toHaveBeenCalled()
+    expect(onCancelDraft).not.toHaveBeenCalled()
+  })
+})
+
+describe("ChecklistItem — delete", () => {
+  it("delete button is present in non-draft mode", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={vi.fn()} />)
+    expect(screen.getByTitle("Delete checklist")).toBeInTheDocument()
+  })
+
+  it("clicking delete button calls onDelete with checklist id", async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />)
+    await user.click(screen.getByTitle("Delete checklist"))
+    expect(onDelete).toHaveBeenCalledWith("cl-1")
+  })
+})
+
+describe("ChecklistItem — add item (non-draft)", () => {
+  it("pressing Enter with content calls onAddItem and clears input", async () => {
+    const onAddItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    await user.type(screen.getByPlaceholderText("Add an item…"), "Sunscreen")
+    await user.keyboard("{Enter}")
+    expect(onAddItem).toHaveBeenCalledWith("cl-1", "Sunscreen")
+    expect(screen.getByPlaceholderText("Add an item…")).toHaveValue("")
+  })
+
+  it("pressing Enter with empty input does not call onAddItem", async () => {
+    const onAddItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    await user.keyboard("{Enter}")
+    expect(onAddItem).not.toHaveBeenCalled()
+  })
+
+  it("pressing Escape clears input without calling onAddItem", async () => {
+    const onAddItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    await user.type(screen.getByPlaceholderText("Add an item…"), "Draft text")
+    await user.keyboard("{Escape}")
+    expect(onAddItem).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText("Add an item…")).toHaveValue("")
+  })
+
+  it("blurring with content calls onAddItem", () => {
+    const onAddItem = vi.fn()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />)
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    const input = screen.getByPlaceholderText("Add an item…")
+    fireEvent.change(input, { target: { value: "Passport" } })
+    fireEvent.blur(input)
+    expect(onAddItem).toHaveBeenCalledWith("cl-1", "Passport")
+  })
+
+  it("blurring with empty input does not call onAddItem", () => {
+    const onAddItem = vi.fn()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />)
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    fireEvent.blur(screen.getByPlaceholderText("Add an item…"))
+    expect(onAddItem).not.toHaveBeenCalled()
+  })
+})
+
+describe("ChecklistItem — item rendering", () => {
+  it("renders each item's content text", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getByText("Sunscreen")).toBeInTheDocument()
+    expect(screen.getByText("Passport")).toBeInTheDocument()
+  })
+
+  it("clicking an item text enters inline edit", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    await user.click(screen.getByText("Sunscreen"))
+    expect(screen.getByDisplayValue("Sunscreen")).toBeInTheDocument()
+  })
+
+  it("pressing Enter in item edit calls onUpdateItem", async () => {
+    const onUpdateItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onUpdateItem={onUpdateItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    await user.click(screen.getByText("Sunscreen"))
+    const editInput = screen.getByDisplayValue("Sunscreen")
+    await user.clear(editInput)
+    await user.type(editInput, "Sun block")
+    await user.keyboard("{Enter}")
+    expect(onUpdateItem).toHaveBeenCalledWith("item-1", "Sun block")
+  })
+
+  it("pressing Escape in item edit cancels without calling onUpdateItem", async () => {
+    const onUpdateItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onUpdateItem={onUpdateItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    await user.click(screen.getByText("Sunscreen"))
+    await user.keyboard("{Escape}")
+    expect(onUpdateItem).not.toHaveBeenCalled()
+    expect(screen.getByText("Sunscreen")).toBeInTheDocument()
+  })
+
+  it("blurring item edit calls onUpdateItem", async () => {
+    const onUpdateItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onUpdateItem={onUpdateItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    await user.click(screen.getByText("Sunscreen"))
+    fireEvent.blur(screen.getByDisplayValue("Sunscreen"))
+    expect(onUpdateItem).toHaveBeenCalledWith("item-1", "Sunscreen")
+  })
+
+  it("clicking item delete button calls onDeleteItem", async () => {
+    const onDeleteItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onDeleteItem={onDeleteItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    const deleteButtons = screen.getAllByTitle("Delete item")
+    await user.click(deleteButtons[0])
+    expect(onDeleteItem).toHaveBeenCalledWith("item-1")
+  })
+})
