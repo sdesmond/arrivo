@@ -5,6 +5,8 @@ let lastEventName: string | undefined
 let createdEventIds: string[] = []
 let eventIdByName: Map<string, string> = new Map()
 let createdNoteIds: string[] = []
+let createdChecklistIds: string[] = []
+let lastChecklistId: string | undefined
 
 async function openFirstDay(page: Page) {
   // Wait for day cards to render (unique to trip detail — toggle buttons contain "X stops")
@@ -43,7 +45,9 @@ Before(async () => {
   createdEventIds = []
   eventIdByName = new Map()
   createdNoteIds = []
-  })
+  createdChecklistIds = []
+  lastChecklistId = undefined
+})
 
 After(async ({ page }) => {
   for (const rowId of [...createdEventIds]) {
@@ -62,10 +66,20 @@ After(async ({ page }) => {
       await expect(noteEl).not.toBeVisible({ timeout: 5000 })
     }
   }
+  for (const checklistId of [...createdChecklistIds]) {
+    const clEl = page.locator(`#${checklistId}`)
+    if (await clEl.isVisible()) {
+      await clEl.hover()
+      await clEl.getByTitle('Delete checklist').click()
+      await expect(clEl).not.toBeVisible({ timeout: 5000 })
+    }
+  }
   createdEventIds = []
   createdNoteIds = []
+  createdChecklistIds = []
+  lastChecklistId = undefined
   lastEventName = undefined
-    eventIdByName = new Map()
+  eventIdByName = new Map()
 })
 
 Given('I have an existing trip with days', async ({ page }) => {
@@ -233,4 +247,81 @@ When('I delete the note {string}', async ({ page }, content: string) => {
   await noteEl.hover()
   await noteEl.getByTitle('Delete note').click()
   if (noteId) createdNoteIds = createdNoteIds.filter(id => id !== noteId)
+})
+
+When('I add a checklist with item {string}', async ({ page }, itemContent: string) => {
+  const idsBefore = new Set(
+    await page.locator('[id^="checklist-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+  )
+  await page.getByRole('button', { name: /add a place/i }).first().click()
+  await page.getByTitle('Add checklist').click()
+  await page.getByPlaceholder('Add an item…').fill(itemContent)
+  await page.keyboard.press('Enter')
+  await expect(async () => {
+    const idsAfter = await page.locator('[id^="checklist-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+    expect(idsAfter.length).toBeGreaterThan(idsBefore.size)
+  }).toPass({ timeout: 5000 })
+  const idsAfter = await page.locator('[id^="checklist-"]').evaluateAll((els: Element[]) => els.map(el => el.id))
+  const newId = idsAfter.find(id => !idsBefore.has(id))
+  if (newId) {
+    createdChecklistIds.push(newId)
+    lastChecklistId = newId
+  }
+})
+
+Then('the checklist should be visible on the timeline', async ({ page }) => {
+  await expect(page.locator(`#${lastChecklistId}`)).toBeVisible()
+})
+
+When('I check all items in the checklist', async ({ page }) => {
+  const clEl = page.locator(`#${lastChecklistId}`)
+  // Expand if collapsed
+  const header = clEl.getByRole('button').first()
+  const isExpanded = await clEl.locator('[placeholder="Add an item…"]').isVisible().catch(() => false)
+  if (!isExpanded) {
+    await header.click()
+  }
+  const checkboxes = clEl.locator('button[title="Check item"]')
+  const count = await checkboxes.count()
+  for (let i = 0; i < count; i++) {
+    await checkboxes.first().click()
+  }
+})
+
+Then('the checklist should show the completion badge', async ({ page }) => {
+  const clEl = page.locator(`#${lastChecklistId}`)
+  await expect(clEl.locator('[aria-label="Complete"]')).toBeVisible({ timeout: 3000 })
+})
+
+When('I collapse the checklist', async ({ page }) => {
+  const clEl = page.locator(`#${lastChecklistId}`)
+  // After completion ceremony, checklist auto-collapses; if still expanded, click header
+  const addInput = clEl.locator('[placeholder="Add an item…"]')
+  const isExpanded = await addInput.isVisible().catch(() => false)
+  if (isExpanded) {
+    await clEl.getByRole('button').first().click()
+  }
+})
+
+Then('the checklist should be collapsed', async ({ page }) => {
+  const clEl = page.locator(`#${lastChecklistId}`)
+  await expect(clEl.locator('[placeholder="Add an item…"]')).not.toBeVisible()
+})
+
+When('I delete the checklist', async ({ page }) => {
+  const clEl = page.locator(`#${lastChecklistId}`)
+  await clEl.hover()
+  await clEl.getByTitle('Delete checklist').click()
+  if (lastChecklistId) {
+    createdChecklistIds = createdChecklistIds.filter(id => id !== lastChecklistId)
+    lastChecklistId = undefined
+  }
+})
+
+Then('the checklist should not be visible on the timeline', async ({ page }) => {
+  if (lastChecklistId) {
+    await expect(page.locator(`#${lastChecklistId}`)).not.toBeVisible({ timeout: 5000 })
+  } else {
+    await expect(page.locator('[id^="checklist-"]')).toHaveCount(0)
+  }
 })

@@ -47,14 +47,17 @@ export function ChecklistItem({
     if (isComplete && !prevCompleteRef.current) {
       prevCompleteRef.current = true;
       setJustCompleted(true);
-      const timer = setTimeout(() => setJustCompleted(false), 600);
+      const timer = setTimeout(() => {
+        setJustCompleted(false);
+        if (!isDraft) setIsExpanded(false);
+      }, 600);
       return () => clearTimeout(timer);
     }
     if (!isComplete && prevCompleteRef.current) {
       prevCompleteRef.current = false;
       setJustCompleted(false);
     }
-  }, [isComplete]);
+  }, [isComplete, isDraft]);
 
   const genericLabel = `Checklist · ${itemCount} item${itemCount === 1 ? "" : "s"}`;
   const headerLabel = (isExpanded && checklist.title) ? genericLabel : (checklist.title ?? genericLabel);
@@ -83,12 +86,15 @@ export function ChecklistItem({
   }
 
   function handleWrapperBlur(e: React.FocusEvent<HTMLDivElement>) {
-    if (!isDraft) return;
     const relatedTarget = e.relatedTarget as Element | null;
     if (wrapperRef.current?.contains(relatedTarget)) return;
-    const trimmed = itemInput.trim();
-    if (trimmed) onCommitDraft?.();
-    else onCancelDraft?.();
+    if (isDraft) {
+      const trimmed = itemInput.trim();
+      if (trimmed) onCommitDraft?.();
+      else onCancelDraft?.();
+    } else if (checklist.items.length === 0 && itemInput.trim() === "") {
+      onDelete?.(checklist.id);
+    }
   }
 
   function handleItemKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -111,8 +117,9 @@ export function ChecklistItem({
 
   return (
     <div
+      id={`checklist-${checklist.id}`}
       ref={wrapperRef}
-      onBlur={isDraft ? handleWrapperBlur : undefined}
+      onBlur={handleWrapperBlur}
       className="group relative"
       style={{ fontSize: 13, color: "var(--fg-2)" }}
     >

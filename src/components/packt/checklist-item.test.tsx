@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { render, screen, fireEvent, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 vi.mock("lucide-react", async (importOriginal) => {
@@ -596,5 +596,98 @@ describe("ChecklistItem — completion indicators (Story 2.4)", () => {
       />,
     )
     expect(screen.getByText("Checklist · 2 items")).not.toHaveStyle({ textDecoration: "line-through" })
+  })
+})
+
+describe("ChecklistItem — collapse behavior (Story 2.5)", () => {
+  it("clicking an expanded checklist header collapses it", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument()
+  })
+
+  it("auto-collapses after completion animation timer fires", () => {
+    vi.useFakeTimers()
+    const { rerender } = render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />)
+    // Expand by clicking header
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument()
+    // Transition to all-checked → completion fires
+    rerender(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} />)
+    // Before timer fires, still expanded
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument()
+    // Advance past the 600ms animation timer
+    act(() => { vi.advanceTimersByTime(600) })
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it("does NOT auto-collapse in draft mode when completion fires", () => {
+    vi.useFakeTimers()
+    render(
+      <ChecklistItem
+        checklist={CHECKLIST_ALL_CHECKED}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    // Completion effect fires on mount (all items checked from the start)
+    act(() => { vi.advanceTimersByTime(600) })
+    // Draft mode should still be expanded
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+})
+
+describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("blurring outside when items is empty and add-field is empty calls onDelete", () => {
+    const onDelete = vi.fn()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />)
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    fireEvent.blur(screen.getByPlaceholderText("Add an item…"))
+    expect(onDelete).toHaveBeenCalledWith("cl-1")
+  })
+
+  it("blurring outside when items exist does NOT call onDelete", () => {
+    const onDelete = vi.fn()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onDelete={onDelete} />)
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    fireEvent.blur(screen.getByPlaceholderText("Add an item…"))
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it("blurring outside when add-field has content does NOT call onDelete", () => {
+    const onDelete = vi.fn()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />)
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    fireEvent.change(screen.getByPlaceholderText("Add an item…"), { target: { value: "Sunscreen" } })
+    fireEvent.blur(screen.getByPlaceholderText("Add an item…"))
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it("blurring to a target inside the wrapper does NOT call onDelete", () => {
+    const onDelete = vi.fn()
+    render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />)
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }))
+    const titleBtn = screen.getByRole("button", { name: "Add title..." })
+    fireEvent.blur(screen.getByPlaceholderText("Add an item…"), { relatedTarget: titleBtn })
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it("wrapper has id attribute for E2E targeting", () => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    expect(container.querySelector("#checklist-cl-1")).toBeInTheDocument()
   })
 })
