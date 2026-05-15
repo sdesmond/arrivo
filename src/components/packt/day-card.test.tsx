@@ -495,6 +495,32 @@ describe("DayCard", () => {
     expect(screen.getByTitle("Insert item here")).toBeInTheDocument()
   })
 
+  it("GapZone insert button has mobile-always-visible and desktop-hover-only CSS classes", () => {
+    const secondScheduled: TripEvent = {
+      id: "ev-s2",
+      name: "Dinner",
+      startAt: "2026-05-13T19:00:00Z",
+      position: 2,
+    }
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [scheduledEvent, secondScheduled],
+    }
+    render(
+      <DayCard
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderEvents={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+    const insertBtn = screen.getByTitle("Insert item here")
+    expect(insertBtn.className).toContain("opacity-100")
+    expect(insertBtn.className).toContain("sm:opacity-0")
+    expect(insertBtn.className).toContain("sm:group-hover:opacity-100")
+  })
+
   it("clicking between-item '+' opens TypePicker at that gap", async () => {
     const user = userEvent.setup()
     const secondScheduled: TripEvent = {

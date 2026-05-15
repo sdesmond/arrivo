@@ -412,6 +412,28 @@ describe("PlaceRow", () => {
     expect(screen.getByTestId("drag-handle")).toBeInTheDocument()
   })
 
+  it("trash button has mobile-always-visible and desktop-hover-only CSS classes", () => {
+    render(
+      <PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />,
+      { wrapper: Wrapper }
+    )
+    const trashBtn = screen.getByTitle("Delete event")
+    expect(trashBtn.className).toContain("opacity-100")
+    expect(trashBtn.className).toContain("sm:opacity-0")
+    expect(trashBtn.className).toContain("sm:group-hover:opacity-100")
+  })
+
+  it("drag handle wrapper has mobile-always-visible and desktop-hover-only CSS classes", () => {
+    render(
+      <PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} dragHandle={<span data-testid="drag-handle">drag</span>} />,
+      { wrapper: Wrapper }
+    )
+    const dragHandleWrapper = screen.getByTestId("drag-handle").parentElement
+    expect(dragHandleWrapper?.className).toContain("opacity-100")
+    expect(dragHandleWrapper?.className).toContain("sm:opacity-0")
+    expect(dragHandleWrapper?.className).toContain("sm:group-hover:opacity-100")
+  })
+
   it("isLast prop omits the connector line", () => {
     const { container } = render(
       <PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} isLast />,

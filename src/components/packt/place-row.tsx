@@ -92,7 +92,7 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
   return (
     <div
       id={id}
-      className="relative"
+      className="group relative"
       style={{ zIndex: showTimePicker ? 10 : undefined }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -320,32 +320,25 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
           )}
         </div>
 
-        {/* Drag handle — hover only */}
+        {/* Drag handle — always visible on mobile, hover-only on desktop */}
         {dragHandle && (
           <span
-            style={{
-              opacity: isHovered ? 1 : 0,
-              transition: "opacity 0.1s",
-              display: "flex",
-              alignItems: "center",
-              color: "var(--fg-4)",
-            }}
+            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
+            style={{ color: "var(--fg-4)" }}
           >
             {dragHandle}
           </span>
         )}
 
-        {/* Trash icon — hover only */}
+        {/* Trash icon — always visible on mobile, hover-only on desktop */}
         <button
           onClick={() => onDelete(p.id)}
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
           style={{
-            opacity: isHovered ? 1 : 0,
-            transition: "opacity 0.1s",
             color: "var(--fg-4)",
             padding: 4, borderRadius: 4,
             background: "none", border: "none", cursor: "pointer",
             flexShrink: 0,
-            display: "flex", alignItems: "center",
           }}
           title="Delete event"
         >

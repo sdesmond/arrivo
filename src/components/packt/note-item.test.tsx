@@ -89,6 +89,14 @@ describe("NoteItem", () => {
     expect(onDelete).toHaveBeenCalledWith("note-1")
   })
 
+  it("delete button has mobile-always-visible and desktop-hover-only CSS classes", () => {
+    render(<NoteItem note={note} onDelete={vi.fn()} />)
+    const trashBtn = screen.getByTitle("Delete note")
+    expect(trashBtn.className).toContain("opacity-100")
+    expect(trashBtn.className).toContain("sm:opacity-0")
+    expect(trashBtn.className).toContain("sm:group-hover:opacity-100")
+  })
+
   // ── isDraft mode ──────────────────────────────────────────────────────────
 
   it("isDraft renders textarea immediately without clicking", () => {

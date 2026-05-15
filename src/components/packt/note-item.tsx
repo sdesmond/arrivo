@@ -99,7 +99,7 @@ export function NoteItem({ note, onUpdate, onDelete, isDraft, onCreate, onCancel
       {!isEditing && (
         <button
           onClick={() => onDelete?.(note.id)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2"
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-2 top-2"
           title="Delete note"
           style={{
             background: "none",

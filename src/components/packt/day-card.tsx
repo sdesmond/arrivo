@@ -64,7 +64,7 @@ function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
       />
       <button
         onClick={onOpen}
-        className="relative z-10 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+        className="relative z-10 flex items-center justify-center rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
         style={{
           marginLeft: 12, width: 20, height: 20,
           background: "var(--surface)", border: "1px solid var(--line)", cursor: "pointer",
