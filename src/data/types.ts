@@ -128,6 +128,29 @@ export interface TripEvent {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CHECKLIST
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ChecklistItem {
+  id:          string;
+  checklistId: string;
+  content:     string;
+  isChecked:   boolean;
+  createdAt?:  string;
+}
+
+export interface Checklist {
+  id:         string;
+  tripDayId:  string;
+  position:   number;
+  title?:     string;
+  items:      ChecklistItem[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ITINERARY NOTE
 // ─────────────────────────────────────────────────────────────────────────────
 

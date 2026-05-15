@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbNoteToType } from "@/lib/db-mappers";
-import type { trips, events, documents, collaborators, itineraryNotes } from "@/db/schema";
+import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbNoteToType, dbChecklistToType } from "@/lib/db-mappers";
+import type { trips, events, documents, collaborators, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
 
 type TripRow = typeof trips.$inferSelect;
 type EventRow = typeof events.$inferSelect;
@@ -245,6 +245,113 @@ describe("dbCollabToType", () => {
     });
     expect(result.tintBg).toBe("oklch(0.86 0.07 30)");
     expect(result.tintFg).toBe("oklch(0.30 0.10 30)");
+  });
+});
+
+// ── dbChecklistToType ─────────────────────────────────────────────────────────
+
+type ChecklistRow = typeof itineraryChecklists.$inferSelect;
+type ChecklistItemRow = typeof checklistItems.$inferSelect;
+
+const BASE_CHECKLIST: ChecklistRow = {
+  id:        "cl-1",
+  dayId:     "day-1",
+  position:  0,
+  title:     null,
+  createdAt: null,
+  updatedAt: null,
+};
+
+const BASE_ITEM: ChecklistItemRow = {
+  id:          "item-1",
+  checklistId: "cl-1",
+  content:     "Buy sunscreen",
+  isChecked:   false,
+  createdAt:   null,
+};
+
+describe("dbChecklistToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, []);
+    expect(result.id).toBe("cl-1");
+    expect(result.tripDayId).toBe("day-1");
+    expect(result.position).toBe(0);
+  });
+
+  it("null title becomes undefined", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, []);
+    expect(result.title).toBeUndefined();
+  });
+
+  it("maps title when present", () => {
+    const result = dbChecklistToType({ ...BASE_CHECKLIST, title: "Packing" }, []);
+    expect(result.title).toBe("Packing");
+  });
+
+  it("null timestamp fields become undefined", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, []);
+    expect(result.createdAt).toBeUndefined();
+    expect(result.updatedAt).toBeUndefined();
+  });
+
+  it("converts createdAt Date to ISO string", () => {
+    const date = new Date("2026-05-14T10:00:00.000Z");
+    const result = dbChecklistToType({ ...BASE_CHECKLIST, createdAt: date }, []);
+    expect(result.createdAt).toBe(date.toISOString());
+  });
+
+  it("converts updatedAt Date to ISO string", () => {
+    const date = new Date("2026-05-14T11:00:00.000Z");
+    const result = dbChecklistToType({ ...BASE_CHECKLIST, updatedAt: date }, []);
+    expect(result.updatedAt).toBe(date.toISOString());
+  });
+
+  it("returns empty items array when no items given", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, []);
+    expect(result.items).toEqual([]);
+  });
+
+  it("maps item core fields correctly", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, [BASE_ITEM]);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe("item-1");
+    expect(result.items[0].checklistId).toBe("cl-1");
+    expect(result.items[0].content).toBe("Buy sunscreen");
+    expect(result.items[0].isChecked).toBe(false);
+  });
+
+  it("coerces isChecked boolean correctly — false", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, [{ ...BASE_ITEM, isChecked: false }]);
+    expect(result.items[0].isChecked).toBe(false);
+  });
+
+  it("coerces isChecked boolean correctly — true", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, [{ ...BASE_ITEM, isChecked: true }]);
+    expect(result.items[0].isChecked).toBe(true);
+  });
+
+  it("null item createdAt becomes undefined", () => {
+    const result = dbChecklistToType(BASE_CHECKLIST, [BASE_ITEM]);
+    expect(result.items[0].createdAt).toBeUndefined();
+  });
+
+  it("converts item createdAt Date to ISO string", () => {
+    const date = new Date("2026-05-14T09:00:00.000Z");
+    const result = dbChecklistToType(BASE_CHECKLIST, [{ ...BASE_ITEM, createdAt: date }]);
+    expect(result.items[0].createdAt).toBe(date.toISOString());
+  });
+
+  it("maps multiple items preserving order", () => {
+    const item2: ChecklistItemRow = { ...BASE_ITEM, id: "item-2", content: "Book hotel" };
+    const result = dbChecklistToType(BASE_CHECKLIST, [BASE_ITEM, item2]);
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0].id).toBe("item-1");
+    expect(result.items[1].id).toBe("item-2");
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbChecklistToType({ ...BASE_CHECKLIST, position: 4 }, []);
+    expect(result.position).toBe(4);
   });
 });
 
