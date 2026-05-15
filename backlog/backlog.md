@@ -33,21 +33,3 @@ The user displayed at the bottom of the sidenav bar does not match the logged in
 Clicking on the profile picture/name area should direct to a new page where the profile information is displayed and can be changed, along with a section for settings that allow for app customization.
 
 This settings/profile page needs to be fleshed out
-
-### Add non-event Itinerary Items
-
-I want to be able to add things other than events to the itinerary. To distinguish between itinerary item types, each should have a distinct icon that represents whether it is an event, a checklist, or a note. The current "event" icon should be a GPS marker
-
-#### Checklists
-
-This will enable me to add reminders or prep items between events. This should be a checklist that I can interact with by checking off the items in the list.
-
-I should also be able to click to edit the items just like a day note
-
-Suggest an appropriate icon for the "checklist" type
-
-#### Notes
-
-I want to be able to add a note at any point in the itinerary. This should be a simple text field for writing a free-form note.
-
-Suggest an appropriate icon for the "note" type
