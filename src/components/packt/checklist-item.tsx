@@ -37,7 +37,7 @@ export function ChecklistItem({
 
   const itemCount = checklist.items.length;
   const genericLabel = `Checklist · ${itemCount} item${itemCount === 1 ? "" : "s"}`;
-  const headerLabel = checklist.title ?? genericLabel;
+  const headerLabel = (isExpanded && checklist.title) ? genericLabel : (checklist.title ?? genericLabel);
 
   function saveTitle() {
     const trimmed = draftTitle.trim() || undefined;
