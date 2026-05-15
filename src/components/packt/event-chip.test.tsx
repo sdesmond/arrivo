@@ -8,6 +8,16 @@ vi.mock("next/link", () => ({
   }) => <a href={href} title={title} className={className}>{children}</a>,
 }))
 
+vi.mock("lucide-react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("lucide-react")>()
+  return {
+    ...actual,
+    MapPin: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+      <svg data-testid="map-pin-icon" data-stroke-width={strokeWidth} {...props} />
+    ),
+  }
+})
+
 import { EventChip } from "./event-chip"
 import type { TripEvent } from "@/data/types"
 
@@ -62,5 +72,17 @@ describe("EventChip", () => {
     const now = new Date("2026-05-13T09:00:00Z")
     render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />)
     expect(screen.getByTitle(`Open ${baseEvent.name} in day planner`)).toBeInTheDocument()
+  })
+
+  it("renders MapPin icon", () => {
+    const now = new Date("2026-05-13T09:00:00Z")
+    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />)
+    expect(screen.getByTestId("map-pin-icon")).toBeInTheDocument()
+  })
+
+  it("MapPin icon has strokeWidth 1.5", () => {
+    const now = new Date("2026-05-13T09:00:00Z")
+    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />)
+    expect(screen.getByTestId("map-pin-icon")).toHaveAttribute("data-stroke-width", "1.5")
   })
 })

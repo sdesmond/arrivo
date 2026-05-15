@@ -18,7 +18,7 @@ export function CostDialog({ cost, open, onOpenChange, onSave }: CostDialogProps
   const [draft, setDraft] = useState(cost !== undefined ? String(cost) : "");
 
   // Sync draft from prop each time the dialog opens so stale state doesn't cause accidental clears
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
   useEffect(() => { if (open) setDraft(cost !== undefined ? String(cost) : ""); }, [open]);
 
   function handleSave() {

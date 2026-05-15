@@ -5,7 +5,10 @@ import { useNow } from "@/components/providers/mock-date-provider";
 import { MapPin, Plus, ChevronDown, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlaceRow } from "./place-row";
-import { type DayItinerary, type TripEvent } from "@/data/types";
+import { NoteItem } from "./note-item";
+import { ChecklistItem } from "./checklist-item";
+import { TypePicker } from "./type-picker";
+import { type DayItinerary, type TripEvent, type ItineraryNote, type Checklist, ItineraryItemType } from "@/data/types";
 import { cn } from "@/lib/utils";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
@@ -21,25 +24,75 @@ interface DayCardProps {
   onDeleteEvent: (id: string) => void;
   onReorderEvents: (dayNumber: number, events: TripEvent[]) => void;
   onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
-  onAddEvent?: (dayNumber: number, name: string) => void;
+  onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
+  onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
+  onUpdateNote?: (noteId: string, content: string) => void;
+  onDeleteNote?: (noteId: string) => void;
   onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
   onDeleteDoc?: (docId: string) => void;
+  onAddChecklist?: (dayNumber: number, insertAtPosition: number) => void;
+  onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
+  onDeleteChecklist?: (checklistId: string) => void;
+  onAddChecklistItem?: (checklistId: string, content: string) => void;
+  onUpdateChecklistItem?: (itemId: string, content: string) => void;
+  onDeleteChecklistItem?: (itemId: string) => void;
+  onToggleChecklistItem?: (itemId: string) => void;
 }
+
+interface DraftState {
+  kind: ItineraryItemType;
+  insertAtPosition: number;
+  gapKey: string;
+}
+
+// ── GapZone ───────────────────────────────────────────────────────────────────
+
+interface GapZoneProps {
+  gapKey: string;
+  isActive: boolean;
+  onOpen: () => void;
+  onSelectType: (type: ItineraryItemType) => void;
+  onDismiss: () => void;
+}
+
+function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
+  if (isActive) {
+    return (
+      <div className="flex items-center" style={{ height: 32, paddingLeft: 12 }}>
+        <TypePicker onSelect={onSelectType} onDismiss={onDismiss} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="group relative flex items-center" style={{ height: 28 }}>
+      <div
+        className="absolute inset-x-0 opacity-25 group-hover:opacity-50 transition-opacity"
+        style={{ top: "50%", height: 1, background: "var(--line)", transform: "translateY(-50%)" }}
+      />
+      <button
+        onClick={onOpen}
+        className="relative z-10 flex items-center justify-center rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+        style={{
+          marginLeft: 12, width: 20, height: 20,
+          background: "var(--surface)", border: "1px solid var(--line)", cursor: "pointer",
+        }}
+        title="Insert item here"
+      >
+        <Plus size={11} strokeWidth={2} style={{ color: "var(--fg-3)" }} />
+      </button>
+    </div>
+  );
+}
+
+// ── SortablePlaceRow ──────────────────────────────────────────────────────────
 
 function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: props.place.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const dragHandle = (
-    <span
-      {...attributes}
-      {...listeners}
-      style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
-    >
+    <span {...attributes} {...listeners} style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}>
       <GripVertical size={13} strokeWidth={1.5} />
     </span>
   );
@@ -50,7 +103,35 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
   );
 }
 
-export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents, onUpdateDay, onAddEvent, onAddDoc, onDeleteDoc }: DayCardProps) {
+// ── Timeline types ────────────────────────────────────────────────────────────
+
+type TimelineItem =
+  | { kind: "event"; data: TripEvent; position: number }
+  | { kind: "note"; data: ItineraryNote; position: number }
+  | { kind: "checklist"; data: Checklist; position: number };
+
+// ── DayCard ───────────────────────────────────────────────────────────────────
+
+export function DayCard({
+  day: d,
+  onUpdateEvent,
+  onDeleteEvent,
+  onReorderEvents,
+  onUpdateDay,
+  onAddEvent,
+  onAddNote,
+  onUpdateNote,
+  onDeleteNote,
+  onAddDoc,
+  onDeleteDoc,
+  onAddChecklist,
+  onUpdateChecklistTitle,
+  onDeleteChecklist,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
+  onToggleChecklistItem,
+}: DayCardProps) {
   const now = useNow();
   const isToday = d.date
     ? (() => {
@@ -62,23 +143,15 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
         );
       })()
     : !!d.today;
+
   const [open, setOpen] = useState(isToday);
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
-  const [isAddingEvent, setIsAddingEvent] = useState(false);
-  const [draftEventName, setDraftEventName] = useState("");
-
-  function commitAdd() {
-    const name = draftEventName.trim();
-    if (name) onAddEvent?.(d.dayNumber, name);
-    setDraftEventName("");
-    setIsAddingEvent(false);
-  }
   const [draftSubtitle, setDraftSubtitle] = useState(d.subtitle ?? "");
+  const [openGapKey, setOpenGapKey] = useState<string | null>(null);
+  const [draft, setDraft] = useState<DraftState | null>(null);
 
   const dateDisplay = d.date
-    ? new Date(d.date + "T12:00:00").toLocaleDateString("en-US", {
-        weekday: "short", month: "short", day: "numeric",
-      })
+    ? new Date(d.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
     : d.label.replace(" · ", ", ");
 
   function saveSubtitle() {
@@ -87,23 +160,85 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
     setIsEditingSubtitle(false);
   }
 
-  const scheduledEvents   = d.events.filter((e) => !!e.startAt);
-  const unscheduledEvents = d.events.filter((e) => !e.startAt);
+  const allEvents = d.events;
+  const notes = d.notes ?? [];
+  const checklists = d.checklists ?? [];
+
+  const timelineItems: TimelineItem[] = [
+    ...allEvents.map((e, i) => ({ kind: "event" as const, data: e, position: e.position ?? i })),
+    ...notes.map((n) => ({ kind: "note" as const, data: n, position: n.position })),
+    ...checklists.map((c) => ({ kind: "checklist" as const, data: c, position: c.position })),
+  ].sort((a, b) => a.position - b.position);
+
+  const maxTimelinePos = timelineItems.length > 0
+    ? Math.max(...timelineItems.map((item) => item.position))
+    : -1;
+  const bottomInsertPosition = maxTimelinePos + 1;
+
+  // Build render list, injecting the draft at the right index
+  type RenderEntry =
+    | { type: "timeline"; item: TimelineItem; idx: number }
+    | { type: "draft"; draftKind: ItineraryItemType };
+
+  const renderEntries: RenderEntry[] = timelineItems.map((item, idx) => ({
+    type: "timeline" as const, item, idx,
+  }));
+
+  if (draft !== null) {
+    const insertIdx = draft.gapKey === "bottom"
+      ? renderEntries.length
+      : parseInt(draft.gapKey.slice(3), 10) + 1;
+    renderEntries.splice(insertIdx, 0, { type: "draft" as const, draftKind: draft.kind });
+  }
+
+  function openGap(key: string) {
+    setOpenGapKey(key);
+    setDraft(null);
+  }
+
+  function activateDraft(type: ItineraryItemType, insertAtPosition: number, gapKey: string) {
+    setOpenGapKey(null);
+    setDraft({ kind: type, insertAtPosition, gapKey });
+  }
+
+  function commitDraft(content: string) {
+    if (!draft) return;
+    if (draft.kind === ItineraryItemType.Note) {
+      onAddNote?.(d.dayNumber, content, draft.insertAtPosition);
+    } else {
+      const gapIdx = draft.gapKey === "bottom" ? -1 : parseInt(draft.gapKey.slice(3), 10);
+      const itemBefore = gapIdx >= 0 ? timelineItems[gapIdx] : undefined;
+      const afterEventId = itemBefore?.kind === "event" ? itemBefore.data.id : undefined;
+      if (afterEventId) {
+        onAddEvent?.(d.dayNumber, content, afterEventId);
+      } else {
+        onAddEvent?.(d.dayNumber, content, undefined, draft.insertAtPosition);
+      }
+    }
+    setDraft(null);
+  }
+
+  function cancelDraft() {
+    setDraft(null);
+  }
+
+  function makeGapProps(gapKey: string, insertAtPosition: number): GapZoneProps {
+    return {
+      gapKey,
+      isActive: openGapKey === gapKey,
+      onOpen: draft !== null ? () => {} : () => openGap(gapKey),
+      onSelectType: (type) => activateDraft(type, insertAtPosition, gapKey),
+      onDismiss: () => setOpenGapKey(null),
+    };
+  }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  function handleUnscheduledDragEnd({ active, over }: DragEndEvent) {
+  function handleDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
-    const oldIdx = unscheduledEvents.findIndex(e => e.id === active.id);
-    const newIdx = unscheduledEvents.findIndex(e => e.id === over.id);
-    onReorderEvents(d.dayNumber, [...arrayMove(unscheduledEvents, oldIdx, newIdx), ...scheduledEvents]);
-  }
-
-  function handleScheduledDragEnd({ active, over }: DragEndEvent) {
-    if (!over || active.id === over.id) return;
-    const oldIdx = scheduledEvents.findIndex(e => e.id === active.id);
-    const newIdx = scheduledEvents.findIndex(e => e.id === over.id);
-    onReorderEvents(d.dayNumber, [...unscheduledEvents, ...arrayMove(scheduledEvents, oldIdx, newIdx)]);
+    const oldIdx = allEvents.findIndex(e => e.id === active.id);
+    const newIdx = allEvents.findIndex(e => e.id === over.id);
+    onReorderEvents(d.dayNumber, arrayMove(allEvents, oldIdx, newIdx));
   }
 
   return (
@@ -122,45 +257,28 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
           borderBottom: open ? "1px solid var(--line)" : "none",
         }}
       >
-        {/* Toggle row */}
         <button
           className="w-full flex items-center justify-between gap-3 px-4 pt-3 pb-1.5 text-left transition-colors hover:opacity-90"
           style={{ cursor: "pointer", background: "none", border: "none" }}
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          <div
-            style={{
-              fontFamily: "var(--font-heading-family, ui-sans-serif)",
-              fontSize: 14, fontWeight: 600,
-              color: "var(--fg)",
-            }}
-          >
+          <div style={{ fontFamily: "var(--font-heading-family, ui-sans-serif)", fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
             {dateDisplay}
           </div>
           <div className="flex items-center gap-2">
-            <span
-              className="flex items-center gap-1"
-              style={{ fontSize: 12, color: "var(--fg-3)" }}
-            >
+            <span className="flex items-center gap-1" style={{ fontSize: 12, color: "var(--fg-3)" }}>
               <MapPin size={12} strokeWidth={1.5} />
               {d.events.length} stops
             </span>
             {isToday && <Badge variant="soft">Active</Badge>}
             <ChevronDown
-              size={14}
-              strokeWidth={1.5}
-              style={{
-                color: "var(--fg-4)",
-                transform: open ? "rotate(180deg)" : undefined,
-                transition: "transform 0.15s",
-                flexShrink: 0,
-              }}
+              size={14} strokeWidth={1.5}
+              style={{ color: "var(--fg-4)", transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s", flexShrink: 0 }}
             />
           </div>
         </button>
 
-        {/* Editable subtitle zone */}
         <div className="px-4 pb-2.5">
           {isEditingSubtitle ? (
             <input
@@ -174,13 +292,9 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
                 if (e.key === "Escape") { setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(false); }
               }}
               style={{
-                fontSize: 12, color: "var(--fg-3)",
-                background: "transparent",
-                border: "none",
-                borderBottom: "1px solid var(--accent-brand)",
-                outline: "none", width: "100%",
-                fontFamily: "inherit",
-                padding: "1px 0",
+                fontSize: 12, color: "var(--fg-3)", background: "transparent",
+                border: "none", borderBottom: "1px solid var(--accent-brand)",
+                outline: "none", width: "100%", fontFamily: "inherit", padding: "1px 0",
               }}
             />
           ) : (
@@ -190,15 +304,10 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
               onClick={e => { e.stopPropagation(); setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(true); }}
               onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setDraftSubtitle(d.subtitle ?? ""); setIsEditingSubtitle(true); } }}
               style={{
-                fontSize: 12,
-                color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
-                cursor: "text",
-                minHeight: "1.2em",
-                width: "fit-content",
-                maxWidth: "100%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                fontSize: 12, color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
+                cursor: "text", minHeight: "1.2em",
+                width: "fit-content", maxWidth: "100%",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}
             >
               {d.subtitle ?? "Add a note"}
@@ -210,81 +319,94 @@ export function DayCard({ day: d, onUpdateEvent, onDeleteEvent, onReorderEvents,
       {/* Collapsible body */}
       {open && (
         <div className="p-3 flex flex-col">
-          {/* Unscheduled events */}
-          {unscheduledEvents.length > 0 && (
-            <div className="mb-2">
-              <div style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 9, fontWeight: 600, letterSpacing: "0.08em",
-                textTransform: "uppercase", color: "var(--fg-4)",
-                marginBottom: 4, paddingLeft: 4,
-              }}>
-                Unscheduled
-              </div>
-              <DndContext id={`day-${d.dayNumber}-unscheduled`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleUnscheduledDragEnd}>
-                <SortableContext items={unscheduledEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-                  {unscheduledEvents.map((p, i) => (
-                    <SortablePlaceRow
-                      key={p.id ?? i}
-                      id={`event-${p.id}`}
-                      place={p}
-                      dayDate={d.date}
-                      isLast={i === unscheduledEvents.length - 1 && scheduledEvents.length === 0}
-                      onUpdate={onUpdateEvent}
-                      onDelete={onDeleteEvent}
-                      onAddDoc={onAddDoc}
-                      onDeleteDoc={onDeleteDoc}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
-            </div>
-          )}
+          <DndContext id={`day-${d.dayNumber}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={allEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+              {renderEntries.map((entry, renderIdx) => {
+                const isLast = renderIdx === renderEntries.length - 1;
+                const key = entry.type === "draft" ? "draft" : entry.item.data.id;
 
-          {/* Scheduled events */}
-          <DndContext id={`day-${d.dayNumber}-scheduled`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleScheduledDragEnd}>
-            <SortableContext items={scheduledEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-              {scheduledEvents.map((p, i) => (
-                <SortablePlaceRow
-                  key={p.id ?? i}
-                  id={`event-${p.id}`}
-                  place={p}
-                  dayDate={d.date}
-                  isLast={i === scheduledEvents.length - 1}
-                  onUpdate={onUpdateEvent}
-                  onDelete={onDeleteEvent}
-                  onAddDoc={onAddDoc}
-                  onDeleteDoc={onDeleteDoc}
-                />
-              ))}
+                return (
+                  <div key={key}>
+                    {entry.type === "draft" ? (
+                      entry.draftKind === ItineraryItemType.Checklist ? (
+                        <ChecklistItem
+                          checklist={{ id: "draft", tripDayId: d.id ?? "", position: draft!.insertAtPosition, items: [] }}
+                          isDraft
+                          onCommitDraft={() => {
+                            onAddChecklist?.(d.dayNumber, draft!.insertAtPosition);
+                            setDraft(null);
+                          }}
+                          onCancelDraft={cancelDraft}
+                        />
+                      ) : entry.draftKind === ItineraryItemType.Note ? (
+                        <NoteItem
+                          note={{ id: "draft", content: "", position: draft!.insertAtPosition }}
+                          isDraft
+                          onCreate={commitDraft}
+                          onCancelDraft={cancelDraft}
+                        />
+                      ) : (
+                        <PlaceRow
+                          place={{ id: "draft", name: "" }}
+                          dayDate={d.date}
+                          isDraft
+                          onCreate={commitDraft}
+                          onCancelDraft={cancelDraft}
+                          onUpdate={() => {}}
+                          onDelete={cancelDraft}
+                        />
+                      )
+                    ) : entry.item.kind === "checklist" ? (
+                      <ChecklistItem
+                        checklist={entry.item.data}
+                        onTitleUpdate={onUpdateChecklistTitle}
+                        onDelete={onDeleteChecklist}
+                        onAddItem={onAddChecklistItem}
+                        onUpdateItem={onUpdateChecklistItem}
+                        onDeleteItem={onDeleteChecklistItem}
+                        onToggleItem={onToggleChecklistItem}
+                      />
+                    ) : entry.item.kind === "event" ? (
+                      <SortablePlaceRow
+                        id={`event-${entry.item.data.id}`}
+                        place={entry.item.data}
+                        dayDate={d.date}
+                        isLast={isLast}
+                        onUpdate={onUpdateEvent}
+                        onDelete={onDeleteEvent}
+                        onAddDoc={onAddDoc}
+                        onDeleteDoc={onDeleteDoc}
+                      />
+                    ) : (
+                      <NoteItem
+                        note={entry.item.data}
+                        onUpdate={onUpdateNote}
+                        onDelete={onDeleteNote}
+                      />
+                    )}
+                    {!isLast && entry.type === "timeline" && (
+                      <GapZone {...makeGapProps(`ti-${entry.idx}`, entry.item.position + 1)} />
+                    )}
+                    {!isLast && entry.type === "draft" && (
+                      <div style={{ height: 28 }} />
+                    )}
+                  </div>
+                );
+              })}
             </SortableContext>
           </DndContext>
 
-          {/* Add event */}
-          {isAddingEvent ? (
-            <input
-              autoFocus
-              placeholder="Event name"
-              value={draftEventName}
-              onChange={e => setDraftEventName(e.target.value)}
-              onBlur={() => { setDraftEventName(""); setIsAddingEvent(false); }}
-              onKeyDown={e => {
-                if (e.key === "Enter") { e.preventDefault(); commitAdd(); }
-                if (e.key === "Escape") { setDraftEventName(""); setIsAddingEvent(false); }
-              }}
-              style={{
-                fontSize: 12.5, color: "var(--fg)",
-                background: "var(--surface-2)",
-                border: "1px solid var(--accent-brand)",
-                borderRadius: 6, padding: "6px 12px",
-                outline: "none", width: "100%",
-                fontFamily: "inherit",
-                marginTop: 4,
-              }}
-            />
+          {/* Bottom add */}
+          {openGapKey === "bottom" ? (
+            <div className="flex items-center mt-1" style={{ paddingLeft: 12, paddingTop: 4, paddingBottom: 4 }}>
+              <TypePicker
+                onSelect={(type) => activateDraft(type, bottomInsertPosition, "bottom")}
+                onDismiss={() => setOpenGapKey(null)}
+              />
+            </div>
           ) : (
             <button
-              onClick={() => setIsAddingEvent(true)}
+              onClick={() => openGap("bottom")}
               className="flex items-center gap-2 px-3 py-2 mt-1 rounded-[6px] transition-colors hover:bg-surface"
               style={{ fontSize: 12.5, color: "var(--fg-4)", border: "none", background: "none" }}
             >

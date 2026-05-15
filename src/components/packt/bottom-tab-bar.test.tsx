@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/link", () => ({
   default: ({ children, href, className, style, "aria-label": ariaLabel, "aria-current": ariaCurrent }: {
     children: React.ReactNode; href: string; className?: string; style?: React.CSSProperties;
-    "aria-label"?: string; "aria-current"?: string;
+    "aria-label"?: string; "aria-current"?: React.AriaAttributes["aria-current"];
   }) => <a href={href} className={className} style={style} aria-label={ariaLabel} aria-current={ariaCurrent}>{children}</a>,
 }))
 

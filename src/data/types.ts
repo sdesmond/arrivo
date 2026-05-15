@@ -24,6 +24,13 @@ export const TripStatus = {
 } as const;
 export type TripStatus = (typeof TripStatus)[keyof typeof TripStatus];
 
+export const ItineraryItemType = {
+  Event:     "event",
+  Checklist: "checklist",
+  Note:      "note",
+} as const;
+export type ItineraryItemType = (typeof ItineraryItemType)[keyof typeof ItineraryItemType];
+
 export const CollaboratorRole = {
   Owner:  "owner",
   Editor: "editor",
@@ -121,8 +128,51 @@ export interface TripEvent {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CHECKLIST
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ChecklistItem {
+  id:          string;
+  checklistId: string;
+  content:     string;
+  isChecked:   boolean;
+  createdAt?:  string;
+}
+
+export interface Checklist {
+  id:         string;
+  tripDayId:  string;
+  position:   number;
+  title?:     string;
+  items:      ChecklistItem[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ITINERARY NOTE
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Note {
+  id:         string;
+  tripDayId:  string;
+  position:   number;
+  content:    string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DAY ITINERARY
 // ─────────────────────────────────────────────────────────────────────────────
+
+export interface ItineraryNote {
+  id:       string;
+  content:  string;
+  position: number;
+}
 
 export interface DayItinerary {
   id?:           string;
@@ -135,6 +185,8 @@ export interface DayItinerary {
   weather?:      string;
   travelSummary?: string;
   events:        TripEvent[];
+  notes?:        ItineraryNote[];
+  checklists?:   Checklist[];
 }
 
 
@@ -279,6 +331,8 @@ export interface CreateEventInput {
   cost?: number;
   confirmationNumber?: string;
   note?: string;
+  afterEventId?: string;
+  insertAtPosition?: number;
 }
 
 export interface UpdateEventPatch {

@@ -1,9 +1,9 @@
 import "server-only";
 import { db } from "@/db";
-import { trips, days, events, documents, collaborators, packingItems } from "@/db/schema";
+import { trips, days, events, documents, collaborators, packingItems, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
-import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType } from "@/lib/db-mappers";
+import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbChecklistToType } from "@/lib/db-mappers";
 import type { TripListEntry, TripDetailPayload } from "@/data/types";
 
 export async function listTripsForUser(userId: string, now: Date): Promise<TripListEntry[]> {
@@ -65,6 +65,31 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(packingItems.tripId, tripId))
     .orderBy(packingItems.position);
 
+  const allNotes = tripDays.length > 0
+    ? await db
+        .select()
+        .from(itineraryNotes)
+        .where(inArray(itineraryNotes.dayId, tripDays.map(d => d.id)))
+        .orderBy(itineraryNotes.position)
+    : [];
+
+  const allChecklists = tripDays.length > 0
+    ? await db
+        .select()
+        .from(itineraryChecklists)
+        .where(inArray(itineraryChecklists.dayId, tripDays.map(d => d.id)))
+        .orderBy(itineraryChecklists.position)
+    : [];
+
+  const checklistIds = allChecklists.map(cl => cl.id);
+  const allChecklistItems = checklistIds.length > 0
+    ? await db
+        .select()
+        .from(checklistItems)
+        .where(inArray(checklistItems.checklistId, checklistIds))
+        .orderBy(checklistItems.createdAt)
+    : [];
+
   const eventIds = tripEvents.map(e => e.id);
   const eventDocs = eventIds.length > 0
     ? await db.select().from(documents).where(inArray(documents.eventId, eventIds))
@@ -75,6 +100,27 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     const arr = eventsByDay.get(event.dayId) ?? [];
     arr.push(event);
     eventsByDay.set(event.dayId, arr);
+  }
+
+  const notesByDay = new Map<string, typeof allNotes>();
+  for (const note of allNotes) {
+    const arr = notesByDay.get(note.dayId) ?? [];
+    arr.push(note);
+    notesByDay.set(note.dayId, arr);
+  }
+
+  const checklistsByDay = new Map<string, typeof allChecklists>();
+  for (const cl of allChecklists) {
+    const arr = checklistsByDay.get(cl.dayId) ?? [];
+    arr.push(cl);
+    checklistsByDay.set(cl.dayId, arr);
+  }
+
+  const itemsByChecklistId = new Map<string, typeof allChecklistItems>();
+  for (const item of allChecklistItems) {
+    const arr = itemsByChecklistId.get(item.checklistId) ?? [];
+    arr.push(item);
+    itemsByChecklistId.set(item.checklistId, arr);
   }
 
   const docsByEventId = new Map<string, typeof eventDocs>();
@@ -100,6 +146,14 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
         ...dbEventToType(e),
         docs: (docsByEventId.get(e.id) ?? []).map(dbDocToType),
       })),
+      notes: (notesByDay.get(d.id) ?? []).map((n) => ({
+        id: n.id,
+        content: n.content,
+        position: n.position,
+      })),
+      checklists: (checklistsByDay.get(d.id) ?? []).map((cl) =>
+        dbChecklistToType(cl, itemsByChecklistId.get(cl.id) ?? [])
+      ),
     })),
     docs: tripDocs.map(dbDocToType),
     collaborators: tripCollaborators.map(dbCollabToType),

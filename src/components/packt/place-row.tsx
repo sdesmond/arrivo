@@ -41,13 +41,16 @@ export interface PlaceRowProps {
   onDeleteDoc?: (docId: string) => void;
   dragHandle?: React.ReactNode;
   id?: string;
+  isDraft?: boolean;
+  onCreate?: (name: string) => void;
+  onCancelDraft?: () => void;
 }
 
-export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddDoc, onDeleteDoc, dragHandle, id }: PlaceRowProps) {
+export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddDoc, onDeleteDoc, dragHandle, id, isDraft, onCreate, onCancelDraft }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(isDraft ?? false);
   const [draftName, setDraftName] = useState(p.name);
 
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -64,6 +67,11 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
 
   function saveName() {
     const trimmed = draftName.trim();
+    if (isDraft) {
+      if (trimmed) onCreate?.(trimmed);
+      else onCancelDraft?.();
+      return;
+    }
     if (trimmed && trimmed !== p.name) onUpdate({ ...p, name: trimmed });
     else setDraftName(p.name);
     setIsEditingName(false);
@@ -84,7 +92,7 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
   return (
     <div
       id={id}
-      className="relative"
+      className="group relative"
       style={{ zIndex: showTimePicker ? 10 : undefined }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -96,23 +104,13 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
           border: isNow ? "1px solid var(--accent-brand)" : "1px solid transparent",
         }}
       >
-        {/* Timeline dot */}
-        <div className="flex flex-col items-center shrink-0 pt-1" style={{ width: 16 }}>
-          <div
-            className="rounded-full flex items-center justify-center shrink-0"
-            style={{
-              width: 16, height: 16,
-              background: isNow ? "var(--accent-brand)" : "var(--surface-2)",
-              border: isNow ? "none" : "1.5px solid var(--line-strong)",
-              color: isNow ? "#fff" : "var(--fg-4)",
-            }}
-          >
-            {isNow ? (
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff", display: "block" }} />
-            ) : (
-              <span style={{ width: 4, height: 4, borderRadius: "50%", background: "currentColor", display: "block", opacity: 0.5 }} />
-            )}
-          </div>
+        {/* Event icon */}
+        <div className="flex flex-col items-center shrink-0 pt-0.5" style={{ width: 16 }}>
+          <MapPin
+            size={16}
+            strokeWidth={1.5}
+            style={{ color: isNow ? "var(--accent-brand)" : "var(--fg-3)", flexShrink: 0 }}
+          />
           {!isLast && (
             <div style={{ width: 1, flex: 1, minHeight: 12, background: "var(--line)", marginTop: 2 }} />
           )}
@@ -130,7 +128,10 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
                 onBlur={saveName}
                 onKeyDown={e => {
                   if (e.key === "Enter") saveName();
-                  if (e.key === "Escape") { setDraftName(p.name); setIsEditingName(false); }
+                  if (e.key === "Escape") {
+                    if (isDraft) { onCancelDraft?.(); return; }
+                    setDraftName(p.name); setIsEditingName(false);
+                  }
                 }}
                 style={{
                   fontSize: 14, fontWeight: 600, color: "var(--fg)",
@@ -319,32 +320,25 @@ export function PlaceRow({ place: p, dayDate, isLast, onUpdate, onDelete, onAddD
           )}
         </div>
 
-        {/* Drag handle — hover only */}
+        {/* Drag handle — always visible on mobile, hover-only on desktop */}
         {dragHandle && (
           <span
-            style={{
-              opacity: isHovered ? 1 : 0,
-              transition: "opacity 0.1s",
-              display: "flex",
-              alignItems: "center",
-              color: "var(--fg-4)",
-            }}
+            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
+            style={{ color: "var(--fg-4)" }}
           >
             {dragHandle}
           </span>
         )}
 
-        {/* Trash icon — hover only */}
+        {/* Trash icon — always visible on mobile, hover-only on desktop */}
         <button
           onClick={() => onDelete(p.id)}
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
           style={{
-            opacity: isHovered ? 1 : 0,
-            transition: "opacity 0.1s",
             color: "var(--fg-4)",
             padding: 4, borderRadius: 4,
             background: "none", border: "none", cursor: "pointer",
             flexShrink: 0,
-            display: "flex", alignItems: "center",
           }}
           title="Delete event"
         >

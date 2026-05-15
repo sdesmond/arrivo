@@ -27,3 +27,23 @@ Feature: Day Planning
     Given a day has events "First" and "Second" in order
     When I drag "Second" above "First"
     Then the order should be "Second" then "First"
+
+  Scenario: User adds, edits, and deletes a note
+    Given I am on the trip detail page
+    When I add a note "Pick up sunscreen at duty free"
+    Then the note "Pick up sunscreen at duty free" should be visible on the timeline
+    When I edit the note "Pick up sunscreen at duty free" to "Buy sunscreen before flight"
+    Then the note "Buy sunscreen before flight" should be visible on the timeline
+    When I delete the note "Buy sunscreen before flight"
+    Then the note "Buy sunscreen before flight" should not be visible
+
+  Scenario: User creates, checks off, collapses, and deletes a checklist
+    Given I am on the trip detail page
+    When I add a checklist with item "Pack sunscreen"
+    Then the checklist should be visible on the timeline
+    When I check all items in the checklist
+    Then the checklist should show the completion badge
+    When I collapse the checklist
+    Then the checklist should be collapsed
+    When I delete the checklist
+    Then the checklist should not be visible on the timeline

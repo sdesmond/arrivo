@@ -11,7 +11,7 @@ import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateT
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
-import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, addDocument, removeDocument } from "./actions";
+import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, createNote, updateNote, deleteNote, addDocument, removeDocument, createChecklist, updateChecklistTitle, deleteChecklist, createChecklistItem, updateChecklistItem, deleteChecklistItem, toggleChecklistItem } from "./actions";
 
 function formatTripHeader(start: string, end: string): string {
   const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -81,11 +81,31 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
     });
   }
 
-  function handleAddEvent(dayNumber: number, name: string): void {
+  function handleAddEvent(dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number): void {
     const day = days.find(d => d.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
-      createEvent(day.id!, { name });
+      createEvent(day.id!, { name, afterEventId, insertAtPosition });
+    });
+  }
+
+  function handleAddNote(dayNumber: number, content: string, insertAtPosition?: number): void {
+    const day = days.find((d) => d.dayNumber === dayNumber);
+    if (!day?.id) return;
+    React.startTransition(() => {
+      createNote(day.id!, content, insertAtPosition);
+    });
+  }
+
+  function handleUpdateNote(noteId: string, content: string): void {
+    React.startTransition(() => {
+      updateNote(noteId, content);
+    });
+  }
+
+  function handleDeleteNote(noteId: string): void {
+    React.startTransition(() => {
+      deleteNote(noteId);
     });
   }
 
@@ -98,6 +118,50 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
   function handleDeleteDoc(docId: string): void {
     React.startTransition(() => {
       removeDocument(docId);
+    });
+  }
+
+  function handleAddChecklist(dayNumber: number, insertAtPosition: number): void {
+    const day = days.find((d) => d.dayNumber === dayNumber);
+    if (!day?.id) return;
+    React.startTransition(() => {
+      createChecklist(day.id!, insertAtPosition);
+    });
+  }
+
+  function handleUpdateChecklistTitle(checklistId: string, title: string | undefined): void {
+    React.startTransition(() => {
+      updateChecklistTitle(checklistId, title);
+    });
+  }
+
+  function handleDeleteChecklist(checklistId: string): void {
+    React.startTransition(() => {
+      deleteChecklist(checklistId);
+    });
+  }
+
+  function handleAddChecklistItem(checklistId: string, content: string): void {
+    React.startTransition(() => {
+      createChecklistItem(checklistId, content);
+    });
+  }
+
+  function handleUpdateChecklistItem(itemId: string, content: string): void {
+    React.startTransition(() => {
+      updateChecklistItem(itemId, content);
+    });
+  }
+
+  function handleDeleteChecklistItem(itemId: string): void {
+    React.startTransition(() => {
+      deleteChecklistItem(itemId);
+    });
+  }
+
+  function handleToggleChecklistItem(itemId: string): void {
+    React.startTransition(() => {
+      toggleChecklistItem(itemId);
     });
   }
 
@@ -239,8 +303,18 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                       onReorderEvents={handleEventReorder}
                       onUpdateDay={handleDayUpdate}
                       onAddEvent={handleAddEvent}
+                      onAddNote={handleAddNote}
+                      onUpdateNote={handleUpdateNote}
+                      onDeleteNote={handleDeleteNote}
                       onAddDoc={handleAddDoc}
                       onDeleteDoc={handleDeleteDoc}
+                      onAddChecklist={handleAddChecklist}
+                      onUpdateChecklistTitle={handleUpdateChecklistTitle}
+                      onDeleteChecklist={handleDeleteChecklist}
+                      onAddChecklistItem={handleAddChecklistItem}
+                      onUpdateChecklistItem={handleUpdateChecklistItem}
+                      onDeleteChecklistItem={handleDeleteChecklistItem}
+                      onToggleChecklistItem={handleToggleChecklistItem}
                     />
                   ))
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
