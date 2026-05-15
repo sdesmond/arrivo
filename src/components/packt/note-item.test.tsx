@@ -35,6 +35,14 @@ describe("NoteItem", () => {
     expect(screen.getByDisplayValue("Remember to bring sunscreen")).toBeInTheDocument()
   })
 
+  it("pressing Enter on content span activates inline edit", async () => {
+    const user = userEvent.setup()
+    render(<NoteItem note={note} />)
+    screen.getByRole("button", { name: "Remember to bring sunscreen" }).focus()
+    await user.keyboard("{Enter}")
+    expect(screen.getByDisplayValue("Remember to bring sunscreen")).toBeInTheDocument()
+  })
+
   it("Enter key commits the edit and calls onUpdate", async () => {
     const user = userEvent.setup()
     const onUpdate = vi.fn()

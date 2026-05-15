@@ -36,6 +36,7 @@ interface DayCardProps {
   onAddChecklistItem?: (checklistId: string, content: string) => void;
   onUpdateChecklistItem?: (itemId: string, content: string) => void;
   onDeleteChecklistItem?: (itemId: string) => void;
+  onToggleChecklistItem?: (itemId: string) => void;
 }
 
 interface DraftState {
@@ -129,6 +130,7 @@ export function DayCard({
   onAddChecklistItem,
   onUpdateChecklistItem,
   onDeleteChecklistItem,
+  onToggleChecklistItem,
 }: DayCardProps) {
   const now = useNow();
   const isToday = d.date
@@ -362,6 +364,7 @@ export function DayCard({
                         onAddItem={onAddChecklistItem}
                         onUpdateItem={onUpdateChecklistItem}
                         onDeleteItem={onDeleteChecklistItem}
+                        onToggleItem={onToggleChecklistItem}
                       />
                     ) : entry.item.kind === "event" ? (
                       <SortablePlaceRow

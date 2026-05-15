@@ -11,7 +11,7 @@ import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateT
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
-import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, createNote, updateNote, deleteNote, addDocument, removeDocument, createChecklist, updateChecklistTitle, deleteChecklist, createChecklistItem, updateChecklistItem, deleteChecklistItem } from "./actions";
+import { updateEvent, deleteEvent, reorderEvents, updateDay, createEvent, createNote, updateNote, deleteNote, addDocument, removeDocument, createChecklist, updateChecklistTitle, deleteChecklist, createChecklistItem, updateChecklistItem, deleteChecklistItem, toggleChecklistItem } from "./actions";
 
 function formatTripHeader(start: string, end: string): string {
   const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -156,6 +156,12 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
   function handleDeleteChecklistItem(itemId: string): void {
     React.startTransition(() => {
       deleteChecklistItem(itemId);
+    });
+  }
+
+  function handleToggleChecklistItem(itemId: string): void {
+    React.startTransition(() => {
+      toggleChecklistItem(itemId);
     });
   }
 
@@ -308,6 +314,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                       onAddChecklistItem={handleAddChecklistItem}
                       onUpdateChecklistItem={handleUpdateChecklistItem}
                       onDeleteChecklistItem={handleDeleteChecklistItem}
+                      onToggleChecklistItem={handleToggleChecklistItem}
                     />
                   ))
                 : <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>

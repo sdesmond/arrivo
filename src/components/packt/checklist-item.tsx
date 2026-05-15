@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { ListChecks, Trash2, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ListChecks, Trash2, ChevronDown, Check, CheckCheck } from "lucide-react";
 import type { Checklist } from "@/data/types";
 
 export interface ChecklistItemProps {
@@ -14,6 +14,7 @@ export interface ChecklistItemProps {
   onAddItem?: (checklistId: string, content: string) => void;
   onUpdateItem?: (itemId: string, content: string) => void;
   onDeleteItem?: (itemId: string) => void;
+  onToggleItem?: (itemId: string) => void;
 }
 
 export function ChecklistItem({
@@ -26,6 +27,7 @@ export function ChecklistItem({
   onAddItem,
   onUpdateItem,
   onDeleteItem,
+  onToggleItem,
 }: ChecklistItemProps) {
   const [isExpanded, setIsExpanded] = useState(!!isDraft);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -36,6 +38,24 @@ export function ChecklistItem({
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const itemCount = checklist.items.length;
+  const checkedCount = checklist.items.filter((item) => item.isChecked).length;
+  const isComplete = itemCount > 0 && checkedCount === itemCount;
+  const prevCompleteRef = useRef(false);
+  const [justCompleted, setJustCompleted] = useState(false);
+
+  useEffect(() => {
+    if (isComplete && !prevCompleteRef.current) {
+      prevCompleteRef.current = true;
+      setJustCompleted(true);
+      const timer = setTimeout(() => setJustCompleted(false), 600);
+      return () => clearTimeout(timer);
+    }
+    if (!isComplete && prevCompleteRef.current) {
+      prevCompleteRef.current = false;
+      setJustCompleted(false);
+    }
+  }, [isComplete]);
+
   const genericLabel = `Checklist · ${itemCount} item${itemCount === 1 ? "" : "s"}`;
   const headerLabel = (isExpanded && checklist.title) ? genericLabel : (checklist.title ?? genericLabel);
 
@@ -113,9 +133,35 @@ export function ChecklistItem({
         >
           <ListChecks size={12} strokeWidth={1.5} />
         </span>
-        <span style={{ flex: 1, color: "var(--fg-2)" }}>
+        <span
+          style={{
+            flex: 1,
+            color: "var(--fg-2)",
+            textDecoration: isComplete && !isDraft ? "line-through" : "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+          }}
+        >
           {headerLabel}
+          {!isDraft && isComplete && (
+            <CheckCheck
+              size={13}
+              strokeWidth={1.5}
+              aria-label="Complete"
+              style={{
+                color: "var(--fg-3)",
+                flexShrink: 0,
+                animation: justCompleted ? "checklist-complete 0.4s ease-out" : undefined,
+              }}
+            />
+          )}
         </span>
+        {!isDraft && !isComplete && itemCount > 0 && (
+          <span style={{ fontSize: 11, color: "var(--fg-4)", flexShrink: 0 }}>
+            {checkedCount}/{itemCount}
+          </span>
+        )}
         {!isDraft && (
           <ChevronDown
             size={13} strokeWidth={1.5}
@@ -190,16 +236,30 @@ export function ChecklistItem({
           {/* Existing items */}
           {checklist.items.map((item) => (
             <div key={item.id} className="group/item relative flex items-start gap-2 py-0.5">
-              <span
+              <button
+                onClick={() => onToggleItem?.(item.id)}
+                title={item.isChecked ? "Uncheck item" : "Check item"}
+                aria-label={item.isChecked ? "Uncheck item" : "Check item"}
                 style={{
-                  width: 14, height: 14,
-                  border: "1.5px solid var(--fg-4)",
+                  width: 14,
+                  height: 14,
+                  border: `1.5px solid ${item.isChecked ? "var(--accent-brand)" : "var(--fg-4)"}`,
                   borderRadius: 3,
                   flexShrink: 0,
                   marginTop: 1,
-                  display: "inline-block",
+                  background: item.isChecked ? "var(--accent-brand)" : "transparent",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  transition: "background 0.1s, border-color 0.1s",
                 }}
-              />
+              >
+                {item.isChecked && (
+                  <Check size={9} strokeWidth={2.5} style={{ color: "var(--accent-fg)" }} />
+                )}
+              </button>
               {editingItemId === item.id ? (
                 <input
                   autoFocus
@@ -234,7 +294,12 @@ export function ChecklistItem({
                       setEditingItemId(item.id);
                     }
                   }}
-                  style={{ flex: 1, cursor: "text", color: "var(--fg-2)" }}
+                  style={{
+                    flex: 1,
+                    cursor: "text",
+                    color: item.isChecked ? "var(--fg-4)" : "var(--fg-2)",
+                    textDecoration: item.isChecked ? "line-through" : "none",
+                  }}
                 >
                   {item.content}
                 </span>

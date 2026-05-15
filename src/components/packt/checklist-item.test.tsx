@@ -16,6 +16,12 @@ vi.mock("lucide-react", async (importOriginal) => {
     ChevronDown: (props: React.SVGProps<SVGSVGElement>) => (
       <svg data-testid="chevron-icon" {...props} />
     ),
+    Check: (props: React.SVGProps<SVGSVGElement>) => (
+      <svg data-testid="check-icon" {...props} />
+    ),
+    CheckCheck: ({ "aria-label": ariaLabel, ...props }: React.SVGProps<SVGSVGElement> & { "aria-label"?: string }) => (
+      <svg data-testid="check-check-icon" aria-label={ariaLabel} {...props} />
+    ),
   }
 })
 
@@ -39,6 +45,22 @@ const CHECKLIST_WITH_ITEMS: Checklist = {
   items: [
     { id: "item-1", checklistId: "cl-1", content: "Sunscreen", isChecked: false },
     { id: "item-2", checklistId: "cl-1", content: "Passport", isChecked: false },
+  ],
+}
+
+const CHECKLIST_PARTIAL_CHECKED: Checklist = {
+  ...BASE_CHECKLIST,
+  items: [
+    { id: "item-1", checklistId: "cl-1", content: "Sunscreen", isChecked: true },
+    { id: "item-2", checklistId: "cl-1", content: "Passport", isChecked: false },
+  ],
+}
+
+const CHECKLIST_ALL_CHECKED: Checklist = {
+  ...BASE_CHECKLIST,
+  items: [
+    { id: "item-1", checklistId: "cl-1", content: "Sunscreen", isChecked: true },
+    { id: "item-2", checklistId: "cl-1", content: "Passport", isChecked: true },
   ],
 }
 
@@ -429,5 +451,150 @@ describe("ChecklistItem — item rendering", () => {
     const deleteButtons = screen.getAllByTitle("Delete item")
     await user.click(deleteButtons[0])
     expect(onDeleteItem).toHaveBeenCalledWith("item-1")
+  })
+})
+
+describe("ChecklistItem — check state (Story 2.4)", () => {
+  it("checked item renders with line-through text decoration", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getByText("Sunscreen")).toHaveStyle({ textDecoration: "line-through" })
+  })
+
+  it("checked item renders with dimmed color", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getByText("Sunscreen")).toHaveStyle({ color: "var(--fg-4)" })
+  })
+
+  it("unchecked item does not have line-through", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getByText("Passport")).not.toHaveStyle({ textDecoration: "line-through" })
+  })
+
+  it("clicking checkbox calls onToggleItem with the item id", async () => {
+    const onToggleItem = vi.fn()
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onToggleItem={onToggleItem} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    const checkboxes = screen.getAllByTitle("Check item")
+    await user.click(checkboxes[0])
+    expect(onToggleItem).toHaveBeenCalledWith("item-1")
+  })
+
+  it("unchecked checkbox has title 'Check item'", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getAllByTitle("Check item")).toHaveLength(2)
+  })
+
+  it("checked checkbox has title 'Uncheck item'", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getByTitle("Uncheck item")).toBeInTheDocument()
+    expect(screen.getByTitle("Check item")).toBeInTheDocument()
+  })
+
+  it("checked item checkbox renders Check icon", async () => {
+    const user = userEvent.setup()
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }))
+    expect(screen.getByTestId("check-icon")).toBeInTheDocument()
+  })
+})
+
+describe("ChecklistItem — progress counter (Story 2.4)", () => {
+  it("shows X/Y progress counter when items exist and not all checked", () => {
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    expect(screen.getByText("1/2")).toBeInTheDocument()
+  })
+
+  it("shows 0/N when no items are checked", () => {
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />)
+    expect(screen.getByText("0/2")).toBeInTheDocument()
+  })
+
+  it("does not show progress counter when checklist has no items", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    expect(screen.queryByText(/^\d+\/\d+$/)).not.toBeInTheDocument()
+  })
+
+  it("does not show progress counter when all items are checked (badge shown instead)", () => {
+    render(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} />)
+    expect(screen.queryByText("2/2")).not.toBeInTheDocument()
+  })
+
+  it("does not show progress counter in draft mode", () => {
+    render(
+      <ChecklistItem
+        checklist={CHECKLIST_WITH_ITEMS}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText("0/2")).not.toBeInTheDocument()
+  })
+})
+
+describe("ChecklistItem — completion indicators (Story 2.4)", () => {
+  it("header label has strikethrough when all items are checked", () => {
+    render(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} />)
+    expect(screen.getByText("Checklist · 2 items")).toHaveStyle({ textDecoration: "line-through" })
+  })
+
+  it("header label has no strikethrough when not all items are checked", () => {
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    expect(screen.getByText("Checklist · 2 items")).not.toHaveStyle({ textDecoration: "line-through" })
+  })
+
+  it("shows CheckCheck icon when all items are checked", () => {
+    render(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} />)
+    expect(screen.getByTestId("check-check-icon")).toBeInTheDocument()
+  })
+
+  it("CheckCheck icon has aria-label 'Complete'", () => {
+    render(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} />)
+    expect(screen.getByLabelText("Complete")).toBeInTheDocument()
+  })
+
+  it("does not show CheckCheck icon when not all items are checked", () => {
+    render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />)
+    expect(screen.queryByTestId("check-check-icon")).not.toBeInTheDocument()
+  })
+
+  it("does not show CheckCheck icon when checklist has no items", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />)
+    expect(screen.queryByTestId("check-check-icon")).not.toBeInTheDocument()
+  })
+
+  it("does not show CheckCheck icon in draft mode", () => {
+    render(
+      <ChecklistItem
+        checklist={CHECKLIST_ALL_CHECKED}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    expect(screen.queryByTestId("check-check-icon")).not.toBeInTheDocument()
+  })
+
+  it("header label has no strikethrough in draft mode", () => {
+    render(
+      <ChecklistItem
+        checklist={CHECKLIST_ALL_CHECKED}
+        isDraft
+        onCommitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+      />,
+    )
+    expect(screen.getByText("Checklist · 2 items")).not.toHaveStyle({ textDecoration: "line-through" })
   })
 })

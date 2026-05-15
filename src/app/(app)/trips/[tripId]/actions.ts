@@ -259,6 +259,16 @@ export async function updateChecklistItem(itemId: string, content: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function toggleChecklistItem(itemId: string) {
+  const user = await requireUser();
+  const { tripId } = await getChecklistItemIds(itemId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(checklistItems)
+    .set({ isChecked: sql`NOT ${checklistItems.isChecked}` })
+    .where(eq(checklistItems.id, itemId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
 export async function deleteChecklistItem(itemId: string) {
   const user = await requireUser();
   const { tripId } = await getChecklistItemIds(itemId);
