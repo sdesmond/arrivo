@@ -16,17 +16,6 @@ interface TripEditSheetProps {
   onSave: (patch: UpdateTripPatch) => void;
 }
 
-const SELECT_STYLE: React.CSSProperties = {
-  width: "100%",
-  padding: "6px 8px",
-  fontSize: 13,
-  background: "var(--bg)",
-  border: "1px solid var(--line-strong)",
-  borderRadius: 6,
-  color: "var(--fg)",
-  outline: "none",
-};
-
 export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(trip);
 
@@ -134,20 +123,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
             )}
           </Section>
 
-          <Section title="Notes">
-            <textarea
-              value={draft.notes ?? ""}
-              onChange={(e) => set("notes", e.target.value || undefined)}
-              rows={4}
-              style={{
-                ...SELECT_STYLE,
-                resize: "vertical",
-                fontFamily: "inherit",
-                lineHeight: 1.5,
-              }}
-            />
-          </Section>
-
           <Section title="Budget">
             <Field label="Currency">
               <Input
@@ -197,7 +172,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
                 startDate: draft.startDate,
                 endDate: draft.endDate,
                 coverImageUrl: draft.coverImageUrl,
-                notes: draft.notes,
                 budgetCurrency: draft.budget?.currency,
                 budgetTotal: draft.budget?.total,
                 budgetPerPerson: draft.budget?.perPerson,

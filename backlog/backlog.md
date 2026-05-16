@@ -10,9 +10,9 @@
 
 ### Trip Notes
 
-The trip notes are not displayed anywhere. I can add them in the edit sheet, but they don't display anywhere outside of that.
+The Notes tab exists on the trip detail page as a placeholder. The trip-level `notes` field is stored in the DB and wired through the backend, but has no display surface or editing UI yet (the edit sheet input was removed to avoid orphaned data entry).
 
-Add in a place where trip notes would be viewable.
+Needs full design and implementation: display in the Notes tab, editing UX (inline or via a dedicated entry point), and an empty state that communicates what the field is for (general reminders, parking-lot ideas not yet on the itinerary).
 
 ## Improvements
 

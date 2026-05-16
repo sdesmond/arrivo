@@ -142,16 +142,6 @@ describe("TripEditSheet", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ startDate: "2026-07-01" }));
   });
 
-  it("onSave includes notes after editing", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    const textarea = document.querySelector("textarea")!;
-    await user.type(textarea, "Great adventure");
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ notes: "Great adventure" }));
-  });
-
   it("renders cover image URL input", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByPlaceholderText("https://…")).toBeInTheDocument();
@@ -205,17 +195,6 @@ describe("TripEditSheet", () => {
     await user.clear(screen.getByPlaceholderText("https://…"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ coverImageUrl: undefined }));
-  });
-
-  it("sets notes to undefined when textarea is cleared", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn();
-    const trip = { ...baseTrip, notes: "Some notes" };
-    render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={onSave} />);
-    const textarea = document.querySelector("textarea")!;
-    await user.clear(textarea);
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ notes: undefined }));
   });
 
   it("addCollaborator via TripEditCollaborators callback does not crash", async () => {
