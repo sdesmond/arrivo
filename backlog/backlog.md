@@ -8,10 +8,6 @@
 2. I don't see the move handle at all, it should be moveable like other items in the itinerary
 3. Initially adding a checklist doesn't behave like it should. Adding a new checklist drops the cursor on the first item (as it should). When I enter an item and hit "enter" the list collapses and doesn't save the item I just typed. After opening the list again and typing, it behaves as it should, enter moves me to a new row in the list. This same behavior should happen initially.
 
-### Trip status in edit sheet
-
-The trip status is mentioned in the edit sheet, but this should be a purely calculated field. Trip status should be displayed throughout the app but it should never be a field the user can edit.
-
 ### Trip Notes
 
 The trip notes are not displayed anywhere. I can add them in the edit sheet, but they don't display anywhere outside of that.
