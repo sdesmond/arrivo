@@ -23,6 +23,7 @@ import {
   addDocument,
   removeDocument,
   createChecklist,
+  createChecklistWithItem,
   updateChecklistTitle,
   deleteChecklist,
   createChecklistItem,
@@ -57,6 +58,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
 
   const [activeTab, setActiveTab] = useState<"itin" | "map" | "docs" | "pack" | "notes">("itin");
   const [editingTrip, setEditingTrip] = useState(false);
+  const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
 
   const { trip, days, docs, collaborators } = detail;
 
@@ -145,12 +147,20 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
     });
   }
 
-  function handleAddChecklist(dayNumber: number, insertAtPosition: number): void {
+  function handleAddChecklist(dayNumber: number, insertAtPosition: number, firstItemContent?: string): void {
     const day = days.find((d) => d.dayNumber === dayNumber);
     if (!day?.id) return;
-    React.startTransition(() => {
-      createChecklist(day.id!, insertAtPosition);
-    });
+    if (firstItemContent) {
+      React.startTransition(async () => {
+        const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent);
+        setNewlyCreatedChecklistId(id);
+        setTimeout(() => setNewlyCreatedChecklistId(null), 1000);
+      });
+    } else {
+      React.startTransition(() => {
+        createChecklist(day.id!, insertAtPosition);
+      });
+    }
   }
 
   function handleUpdateChecklistTitle(checklistId: string, title: string | undefined): void {
@@ -344,6 +354,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                     onAddDoc={handleAddDoc}
                     onDeleteDoc={handleDeleteDoc}
                     onAddChecklist={handleAddChecklist}
+                    newlyCreatedChecklistId={newlyCreatedChecklistId ?? undefined}
                     onUpdateChecklistTitle={handleUpdateChecklistTitle}
                     onDeleteChecklist={handleDeleteChecklist}
                     onAddChecklistItem={handleAddChecklistItem}

@@ -236,6 +236,24 @@ export async function createChecklist(dayId: string, insertAtPosition: number) {
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function createChecklistWithItem(
+  dayId: string,
+  insertAtPosition: number,
+  firstItemContent: string
+): Promise<string> {
+  const user = await requireUser();
+  const tripId = await getDayTripId(dayId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await shiftItemsAtOrAbove(dayId, insertAtPosition);
+  const [newChecklist] = await db
+    .insert(itineraryChecklists)
+    .values({ dayId, position: insertAtPosition })
+    .returning({ id: itineraryChecklists.id });
+  await db.insert(checklistItems).values({ checklistId: newChecklist.id, content: firstItemContent });
+  revalidatePath(`/trips/${tripId}`);
+  return newChecklist.id;
+}
+
 export async function updateChecklistTitle(checklistId: string, title: string | undefined) {
   const user = await requireUser();
   const dayId = await getChecklistDayId(checklistId);

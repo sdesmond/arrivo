@@ -223,6 +223,7 @@ def main():
     else:
         output = merged
 
+    sys.stdout.reconfigure(encoding="utf-8")
     sys.stdout.write(json.dumps(output, indent=2, ensure_ascii=False) + "\n")
 
 
