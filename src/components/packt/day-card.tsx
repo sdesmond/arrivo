@@ -26,7 +26,8 @@ interface DayCardProps {
   onDeleteNote?: (noteId: string) => void;
   onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
   onDeleteDoc?: (docId: string) => void;
-  onAddChecklist?: (dayNumber: number, insertAtPosition: number) => void;
+  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
+  newlyCreatedChecklistId?: string;
   onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
   onDeleteChecklist?: (checklistId: string) => void;
   onAddChecklistItem?: (checklistId: string, content: string) => void;
@@ -134,6 +135,7 @@ export function DayCard({
   onAddDoc,
   onDeleteDoc,
   onAddChecklist,
+  newlyCreatedChecklistId,
   onUpdateChecklistTitle,
   onDeleteChecklist,
   onAddChecklistItem,
@@ -390,8 +392,8 @@ export function DayCard({
                             items: [],
                           }}
                           isDraft
-                          onCommitDraft={() => {
-                            onAddChecklist?.(d.dayNumber, draft!.insertAtPosition);
+                          onCommitDraft={(firstItemContent) => {
+                            onAddChecklist?.(d.dayNumber, draft!.insertAtPosition, firstItemContent);
                             setDraft(null);
                           }}
                           onCancelDraft={cancelDraft}
@@ -417,6 +419,7 @@ export function DayCard({
                     ) : entry.item.kind === "checklist" ? (
                       <ChecklistItem
                         checklist={entry.item.data}
+                        initiallyExpanded={entry.item.data.id === newlyCreatedChecklistId}
                         onTitleUpdate={onUpdateChecklistTitle}
                         onDelete={onDeleteChecklist}
                         onAddItem={onAddChecklistItem}

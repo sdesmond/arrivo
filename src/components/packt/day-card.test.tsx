@@ -57,7 +57,7 @@ vi.mock("./checklist-item", () => ({
   }: {
     checklist: { id: string; items: unknown[] };
     isDraft?: boolean;
-    onCommitDraft?: () => void;
+    onCommitDraft?: (firstItemContent?: string) => void;
     onCancelDraft?: () => void;
   }) => {
     if (isDraft) {
@@ -69,14 +69,14 @@ vi.mock("./checklist-item", () => ({
           onKeyDown={(e) => {
             const val = (e.target as HTMLInputElement).value.trim();
             if (e.key === "Enter") {
-              if (val) onCommitDraft?.();
+              if (val) onCommitDraft?.(val);
               else onCancelDraft?.();
             }
             if (e.key === "Escape") onCancelDraft?.();
           }}
           onBlur={(e) => {
             const val = e.target.value.trim();
-            if (val) onCommitDraft?.();
+            if (val) onCommitDraft?.(val);
             else onCancelDraft?.();
           }}
         />
@@ -643,7 +643,7 @@ describe("DayCard", () => {
     await user.click(screen.getByTitle("Add checklist"));
     await user.type(screen.getByPlaceholderText("Add an item…"), "Sunscreen");
     await user.keyboard("{Enter}");
-    expect(onAddChecklist).toHaveBeenCalledWith(baseDay.dayNumber, 2);
+    expect(onAddChecklist).toHaveBeenCalledWith(baseDay.dayNumber, 2, "Sunscreen");
   });
 
   it("Escape in checklist draft input cancels without calling onAddChecklist", async () => {

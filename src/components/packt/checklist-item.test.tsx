@@ -65,6 +65,34 @@ describe("ChecklistItem — icon", () => {
   });
 });
 
+describe("ChecklistItem — Bug 1: chevron/trash overlap fix", () => {
+  it("header button has pr-9 class in non-draft mode to clear the absolute trash icon", () => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    const headerBtn = container.querySelector("button.pr-9");
+    expect(headerBtn).toBeInTheDocument();
+  });
+
+  it("header button does NOT have pr-9 class in draft mode (no trash icon present)", () => {
+    const { container } = render(
+      <ChecklistItem checklist={BASE_CHECKLIST} isDraft onCommitDraft={vi.fn()} onCancelDraft={vi.fn()} />
+    );
+    const headerBtn = container.querySelector("button.pr-9");
+    expect(headerBtn).not.toBeInTheDocument();
+  });
+});
+
+describe("ChecklistItem — Bug 3b: initiallyExpanded prop", () => {
+  it("starts expanded when initiallyExpanded is true even without isDraft", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} initiallyExpanded />);
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
+  });
+
+  it("starts collapsed when initiallyExpanded is false (default)", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument();
+  });
+});
+
 describe("ChecklistItem — collapsed state", () => {
   it("shows generic label with item count when untitled", () => {
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
@@ -188,13 +216,13 @@ describe("ChecklistItem — draft mode", () => {
     expect(screen.queryByTestId("chevron-icon")).not.toBeInTheDocument();
   });
 
-  it("pressing Enter with content calls onCommitDraft", async () => {
+  it("pressing Enter with content calls onCommitDraft with the typed content", async () => {
     const onCommitDraft = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} isDraft onCommitDraft={onCommitDraft} onCancelDraft={vi.fn()} />);
     await user.type(screen.getByPlaceholderText("Add an item…"), "Sunscreen");
     await user.keyboard("{Enter}");
-    expect(onCommitDraft).toHaveBeenCalled();
+    expect(onCommitDraft).toHaveBeenCalledWith("Sunscreen");
   });
 
   it("pressing Enter with empty input calls onCancelDraft", async () => {
@@ -220,13 +248,13 @@ describe("ChecklistItem — draft mode", () => {
 });
 
 describe("ChecklistItem — draft blur behavior", () => {
-  it("blurring item input with content (relatedTarget outside) calls onCommitDraft", () => {
+  it("blurring item input with content (relatedTarget outside) calls onCommitDraft with content", () => {
     const onCommitDraft = vi.fn();
     render(<ChecklistItem checklist={BASE_CHECKLIST} isDraft onCommitDraft={onCommitDraft} onCancelDraft={vi.fn()} />);
     const input = screen.getByPlaceholderText("Add an item…");
     fireEvent.change(input, { target: { value: "Sunscreen" } });
     fireEvent.blur(input);
-    expect(onCommitDraft).toHaveBeenCalled();
+    expect(onCommitDraft).toHaveBeenCalledWith("Sunscreen");
   });
 
   it("blurring item input with empty content (relatedTarget outside) calls onCancelDraft", () => {

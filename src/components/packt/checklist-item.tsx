@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { ListChecks, Trash2, ChevronDown, Check, CheckCheck } from "lucide-react";
 import type { Checklist } from "@/data/types";
 
 export interface ChecklistItemProps {
   checklist: Checklist;
   isDraft?: boolean;
-  onCommitDraft?: () => void;
+  initiallyExpanded?: boolean;
+  onCommitDraft?: (firstItemContent?: string) => void;
   onCancelDraft?: () => void;
   onTitleUpdate?: (id: string, title: string | undefined) => void;
   onDelete?: (id: string) => void;
@@ -20,6 +22,7 @@ export interface ChecklistItemProps {
 export function ChecklistItem({
   checklist,
   isDraft,
+  initiallyExpanded,
   onCommitDraft,
   onCancelDraft,
   onTitleUpdate,
@@ -29,7 +32,7 @@ export function ChecklistItem({
   onDeleteItem,
   onToggleItem,
 }: ChecklistItemProps) {
-  const [isExpanded, setIsExpanded] = useState(!!isDraft);
+  const [isExpanded, setIsExpanded] = useState(initiallyExpanded ?? !!isDraft);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(checklist.title ?? "");
   const [itemInput, setItemInput] = useState("");
@@ -90,7 +93,7 @@ export function ChecklistItem({
     if (wrapperRef.current?.contains(relatedTarget)) return;
     if (isDraft) {
       const trimmed = itemInput.trim();
-      if (trimmed) onCommitDraft?.();
+      if (trimmed) onCommitDraft?.(trimmed);
       else onCancelDraft?.();
     } else if (checklist.items.length === 0 && itemInput.trim() === "") {
       onDelete?.(checklist.id);
@@ -102,7 +105,7 @@ export function ChecklistItem({
       e.preventDefault();
       const trimmed = itemInput.trim();
       if (isDraft) {
-        if (trimmed) onCommitDraft?.();
+        if (trimmed) onCommitDraft?.(trimmed);
         else onCancelDraft?.();
       } else {
         if (trimmed) commitNewItem();
@@ -125,7 +128,7 @@ export function ChecklistItem({
     >
       {/* Header */}
       <button
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-left"
+        className={cn("w-full flex items-center gap-2.5 px-3 py-2 text-left", !isDraft && "pr-9")}
         style={{ background: "none", border: "none", cursor: "pointer" }}
         onClick={() => {
           if (!isDraft) setIsExpanded((v) => !v);
