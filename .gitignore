@@ -50,3 +50,6 @@ next-env.d.ts
 .playwright-mcp
 .ui-review-screenshots
 .claude/settings.local.json
+
+# bmad implementation artifacts (epics/planning committed; per-story specs are not)
+_bmad-output/implementation-artifacts/

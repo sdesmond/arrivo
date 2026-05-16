@@ -5,14 +5,7 @@ import Image from "next/image";
 import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  type Trip,
-  type Collaborator,
-  type CollaboratorRole,
-  type TripStatus,
-  type Budget,
-  type UpdateTripPatch,
-} from "@/data/types";
+import { type Trip, type Collaborator, type CollaboratorRole, type Budget, type UpdateTripPatch } from "@/data/types";
 import { Section, Field } from "@/components/packt/form-section";
 import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
 
@@ -101,18 +94,6 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
           <Section title="Basic">
             <Field label="Trip name">
               <Input value={draft.name} onChange={(e) => set("name", e.target.value)} />
-            </Field>
-            <Field label="Status">
-              <select
-                style={SELECT_STYLE}
-                value={draft.status}
-                onChange={(e) => set("status", e.target.value as TripStatus)}
-              >
-                <option value="draft">Draft</option>
-                <option value="upcoming">Upcoming</option>
-                <option value="active">Active</option>
-                <option value="past">Past</option>
-              </select>
             </Field>
           </Section>
 
