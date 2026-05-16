@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import type {
   CreateEventInput,
   UpdateEventPatch,
-  ReorderEventsInput,
+  ReorderDayItemsInput,
   UpdateDayPatch,
   AddDocumentInput,
 } from "@/data/types";
@@ -152,16 +152,29 @@ export async function deleteEvent(eventId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function reorderEvents(input: ReorderEventsInput) {
+export async function reorderDayItems(input: ReorderDayItemsInput) {
   const user = await requireUser();
   const tripId = await getDayTripId(input.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.transaction(async (tx) => {
-    for (let i = 0; i < input.orderedEventIds.length; i++) {
-      await tx
-        .update(events)
-        .set({ position: i })
-        .where(and(eq(events.id, input.orderedEventIds[i]), eq(events.dayId, input.dayId)));
+    for (let i = 0; i < input.orderedItems.length; i++) {
+      const item = input.orderedItems[i];
+      if (item.type === "event") {
+        await tx
+          .update(events)
+          .set({ position: i })
+          .where(and(eq(events.id, item.id), eq(events.dayId, input.dayId)));
+      } else if (item.type === "note") {
+        await tx
+          .update(itineraryNotes)
+          .set({ position: i })
+          .where(and(eq(itineraryNotes.id, item.id), eq(itineraryNotes.dayId, input.dayId)));
+      } else {
+        await tx
+          .update(itineraryChecklists)
+          .set({ position: i })
+          .where(and(eq(itineraryChecklists.id, item.id), eq(itineraryChecklists.dayId, input.dayId)));
+      }
     }
   });
   revalidatePath(`/trips/${tripId}`);

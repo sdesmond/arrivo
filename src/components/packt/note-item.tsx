@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FileText, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ItineraryNote } from "@/data/types";
 
 interface NoteItemProps {
@@ -11,9 +12,20 @@ interface NoteItemProps {
   isDraft?: boolean;
   onCreate?: (content: string) => void;
   onCancelDraft?: () => void;
+  dragHandle?: React.ReactNode;
+  displayOnly?: boolean;
 }
 
-export function NoteItem({ note, onUpdate, onDelete, isDraft, onCreate, onCancelDraft }: NoteItemProps) {
+export function NoteItem({
+  note,
+  onUpdate,
+  onDelete,
+  isDraft,
+  onCreate,
+  onCancelDraft,
+  dragHandle,
+  displayOnly,
+}: NoteItemProps) {
   const [isEditing, setIsEditing] = useState(isDraft ?? false);
   const [draft, setDraft] = useState(note.content);
 
@@ -44,8 +56,8 @@ export function NoteItem({ note, onUpdate, onDelete, isDraft, onCreate, onCancel
 
   return (
     <div
-      id={`note-${note.id}`}
-      className="group flex items-start gap-3 px-3 py-2 relative"
+      id={displayOnly ? undefined : `note-${note.id}`}
+      className={cn("group flex items-start gap-3 px-3 py-2 relative", dragHandle && "pr-16")}
       style={{ fontSize: 13, color: "var(--fg-2)" }}
     >
       <span
@@ -104,6 +116,15 @@ export function NoteItem({ note, onUpdate, onDelete, isDraft, onCreate, onCancel
           style={{ flex: 1, lineHeight: 1.5, paddingTop: 2, cursor: "text" }}
         >
           {note.content}
+        </span>
+      )}
+
+      {!isEditing && !isDraft && dragHandle && (
+        <span
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-2 flex items-center"
+          style={{ right: 32, color: "var(--fg-4)", padding: 4 }}
+        >
+          {dragHandle}
         </span>
       )}
 

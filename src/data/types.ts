@@ -337,9 +337,11 @@ export interface UpdateEventPatch {
   note?: string;
 }
 
-export interface ReorderEventsInput {
+export type DayItemType = "event" | "note" | "checklist";
+
+export interface ReorderDayItemsInput {
   dayId: string;
-  orderedEventIds: string[];
+  orderedItems: { type: DayItemType; id: string }[];
 }
 
 export interface UpdateDayPatch {

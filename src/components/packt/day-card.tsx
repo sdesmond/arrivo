@@ -8,9 +8,25 @@ import { PlaceRow } from "./place-row";
 import { NoteItem } from "./note-item";
 import { ChecklistItem } from "./checklist-item";
 import { TypePicker } from "./type-picker";
-import { type DayItinerary, type TripEvent, type ItineraryNote, type Checklist, ItineraryItemType } from "@/data/types";
+import {
+  type DayItinerary,
+  type TripEvent,
+  type ItineraryNote,
+  type Checklist,
+  type DayItemType,
+  ItineraryItemType,
+} from "@/data/types";
 import { cn } from "@/lib/utils";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -18,7 +34,7 @@ interface DayCardProps {
   day: DayItinerary;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
-  onReorderEvents: (dayNumber: number, events: TripEvent[]) => void;
+  onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
   onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
@@ -86,7 +102,22 @@ function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
   );
 }
 
-// ── SortablePlaceRow ──────────────────────────────────────────────────────────
+// ── Sortable wrappers ─────────────────────────────────────────────────────────
+
+function makeDragHandle(
+  attributes: ReturnType<typeof useSortable>["attributes"],
+  listeners: ReturnType<typeof useSortable>["listeners"]
+) {
+  return (
+    <span
+      {...attributes}
+      {...listeners}
+      style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
+    >
+      <GripVertical size={13} strokeWidth={1.5} />
+    </span>
+  );
+}
 
 function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -97,18 +128,41 @@ function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
-  const dragHandle = (
-    <span
-      {...attributes}
-      {...listeners}
-      style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
-    >
-      <GripVertical size={13} strokeWidth={1.5} />
-    </span>
-  );
   return (
     <div ref={setNodeRef} style={style}>
-      <PlaceRow {...props} dragHandle={dragHandle} />
+      <PlaceRow {...props} dragHandle={makeDragHandle(attributes, listeners)} />
+    </div>
+  );
+}
+
+function SortableNoteItem(props: React.ComponentProps<typeof NoteItem>) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.note.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <NoteItem {...props} dragHandle={makeDragHandle(attributes, listeners)} />
+    </div>
+  );
+}
+
+function SortableChecklistItem(props: React.ComponentProps<typeof ChecklistItem>) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.checklist.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <ChecklistItem {...props} dragHandle={makeDragHandle(attributes, listeners)} />
     </div>
   );
 }
@@ -126,7 +180,7 @@ export function DayCard({
   day: d,
   onUpdateEvent,
   onDeleteEvent,
-  onReorderEvents,
+  onReorderDayItems,
   onUpdateDay,
   onAddEvent,
   onAddNote,
@@ -160,6 +214,7 @@ export function DayCard({
   const [draftSubtitle, setDraftSubtitle] = useState(d.subtitle ?? "");
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const dateDisplay = d.date
     ? new Date(d.date + "T12:00:00").toLocaleDateString("en-US", {
@@ -247,12 +302,28 @@ export function DayCard({
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  function handleDragEnd({ active, over }: DragEndEvent) {
-    if (!over || active.id === over.id) return;
-    const oldIdx = allEvents.findIndex((e) => e.id === active.id);
-    const newIdx = allEvents.findIndex((e) => e.id === over.id);
-    onReorderEvents(d.dayNumber, arrayMove(allEvents, oldIdx, newIdx));
+  function handleDragStart({ active }: DragStartEvent) {
+    setActiveId(String(active.id));
   }
+
+  function handleDragCancel() {
+    setActiveId(null);
+  }
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+    const oldIdx = timelineItems.findIndex((it) => it.data.id === active.id);
+    const newIdx = timelineItems.findIndex((it) => it.data.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const reordered = arrayMove(timelineItems, oldIdx, newIdx);
+    onReorderDayItems(
+      d.dayNumber,
+      reordered.map((it) => ({ type: it.kind, id: it.data.id }))
+    );
+  }
+
+  const activeItem = activeId !== null ? timelineItems.find((it) => it.data.id === activeId) : undefined;
 
   return (
     <div
@@ -373,9 +444,11 @@ export function DayCard({
             id={`day-${d.dayNumber}`}
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragCancel={handleDragCancel}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={allEvents.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={timelineItems.map((it) => it.data.id)} strategy={verticalListSortingStrategy}>
               {renderEntries.map((entry, renderIdx) => {
                 const isLast = renderIdx === renderEntries.length - 1;
                 const key = entry.type === "draft" ? "draft" : entry.item.data.id;
@@ -417,7 +490,7 @@ export function DayCard({
                         />
                       )
                     ) : entry.item.kind === "checklist" ? (
-                      <ChecklistItem
+                      <SortableChecklistItem
                         checklist={entry.item.data}
                         initiallyExpanded={entry.item.data.id === newlyCreatedChecklistId}
                         onTitleUpdate={onUpdateChecklistTitle}
@@ -439,7 +512,7 @@ export function DayCard({
                         onDeleteDoc={onDeleteDoc}
                       />
                     ) : (
-                      <NoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />
+                      <SortableNoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />
                     )}
                     {!isLast && entry.type === "timeline" && (
                       <GapZone {...makeGapProps(`ti-${entry.idx}`, entry.item.position + 1)} />
@@ -449,6 +522,17 @@ export function DayCard({
                 );
               })}
             </SortableContext>
+            <DragOverlay>
+              {activeItem ? (
+                activeItem.kind === "event" ? (
+                  <PlaceRow place={activeItem.data} dayDate={d.date} onUpdate={() => {}} onDelete={() => {}} />
+                ) : activeItem.kind === "note" ? (
+                  <NoteItem note={activeItem.data} displayOnly />
+                ) : (
+                  <ChecklistItem checklist={activeItem.data} displayOnly />
+                )
+              ) : null}
+            </DragOverlay>
           </DndContext>
 
           {/* Bottom add */}

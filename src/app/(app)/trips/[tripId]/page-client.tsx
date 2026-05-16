@@ -7,14 +7,20 @@ import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { DayCard } from "@/components/packt/day-card";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { type TripDetailPayload, type TripEvent, type DayItinerary, type UpdateTripPatch } from "@/data/types";
+import {
+  type TripDetailPayload,
+  type TripEvent,
+  type DayItinerary,
+  type UpdateTripPatch,
+  type DayItemType,
+} from "@/data/types";
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
 import {
   updateEvent,
   deleteEvent,
-  reorderEvents,
+  reorderDayItems,
   updateDay,
   createEvent,
   createNote,
@@ -85,11 +91,11 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
     });
   }
 
-  function handleEventReorder(dayNumber: number, reorderedEvents: TripEvent[]): void {
+  function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
     const day = days.find((d) => d.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
-      reorderEvents({ dayId: day.id!, orderedEventIds: reorderedEvents.map((e) => e.id) });
+      reorderDayItems({ dayId: day.id!, orderedItems });
     });
   }
 
@@ -345,7 +351,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
                     day={day}
                     onUpdateEvent={handleEventUpdate}
                     onDeleteEvent={handleEventDelete}
-                    onReorderEvents={handleEventReorder}
+                    onReorderDayItems={handleDayItemsReorder}
                     onUpdateDay={handleDayUpdate}
                     onAddEvent={handleAddEvent}
                     onAddNote={handleAddNote}

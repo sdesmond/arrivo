@@ -626,4 +626,16 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
     const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />);
     expect(container.querySelector("#checklist-cl-1")).toBeInTheDocument();
   });
+
+  it("renders dragHandle when provided", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={<span data-testid="drag-handle">grip</span>} />);
+    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+  });
+
+  it("does NOT render dragHandle slot when isDraft", () => {
+    render(
+      <ChecklistItem checklist={BASE_CHECKLIST} isDraft dragHandle={<span data-testid="drag-handle">grip</span>} />
+    );
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+  });
 });

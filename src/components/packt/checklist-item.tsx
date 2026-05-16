@@ -17,6 +17,8 @@ export interface ChecklistItemProps {
   onUpdateItem?: (itemId: string, content: string) => void;
   onDeleteItem?: (itemId: string) => void;
   onToggleItem?: (itemId: string) => void;
+  dragHandle?: React.ReactNode;
+  displayOnly?: boolean;
 }
 
 export function ChecklistItem({
@@ -31,6 +33,8 @@ export function ChecklistItem({
   onUpdateItem,
   onDeleteItem,
   onToggleItem,
+  dragHandle,
+  displayOnly,
 }: ChecklistItemProps) {
   const [isExpanded, setIsExpanded] = useState(initiallyExpanded ?? !!isDraft);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -120,7 +124,7 @@ export function ChecklistItem({
 
   return (
     <div
-      id={`checklist-${checklist.id}`}
+      id={displayOnly ? undefined : `checklist-${checklist.id}`}
       ref={wrapperRef}
       onBlur={handleWrapperBlur}
       className="group relative"
@@ -128,7 +132,10 @@ export function ChecklistItem({
     >
       {/* Header */}
       <button
-        className={cn("w-full flex items-center gap-2.5 px-3 py-2 text-left", !isDraft && "pr-9")}
+        className={cn(
+          "w-full flex items-center gap-2.5 px-3 py-2 text-left",
+          !isDraft && (dragHandle ? "pr-16" : "pr-9")
+        )}
         style={{ background: "none", border: "none", cursor: "pointer" }}
         onClick={() => {
           if (!isDraft) setIsExpanded((v) => !v);
@@ -367,6 +374,16 @@ export function ChecklistItem({
             }}
           />
         </div>
+      )}
+
+      {/* Drag handle — always visible on mobile, hover-only on desktop */}
+      {!isDraft && dragHandle && (
+        <span
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-2 flex items-center"
+          style={{ right: 32, color: "var(--fg-4)", padding: 4 }}
+        >
+          {dragHandle}
+        </span>
       )}
 
       {/* Delete button */}
