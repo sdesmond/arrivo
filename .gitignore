@@ -50,3 +50,6 @@ next-env.d.ts
 .playwright-mcp
 .ui-review-screenshots
 .claude/settings.local.json
+
+# bmad generated output
+_bmad-output/
