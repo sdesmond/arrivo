@@ -145,7 +145,7 @@ describe("TripEditSheet", () => {
   it("onSave includes notes after editing", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    const { container } = render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     const textarea = document.querySelector("textarea")!;
     await user.type(textarea, "Great adventure");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
@@ -163,17 +163,9 @@ describe("TripEditSheet", () => {
     expect(screen.getByRole("img", { name: "Tokyo Adventure" })).toBeInTheDocument();
   });
 
-  it("renders status select with current value", () => {
+  it("does not render a status select", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    const select = screen.getByRole("combobox");
-    expect(select).toHaveValue("upcoming");
-  });
-
-  it("updates status when select changes", async () => {
-    const user = userEvent.setup();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.selectOptions(screen.getByRole("combobox"), "active");
-    expect(screen.getByRole("combobox")).toHaveValue("active");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("updates budget currency input", async () => {
