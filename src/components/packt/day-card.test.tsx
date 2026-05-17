@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 
 type MockDndEvent = { active: { id: string }; over: { id: string } | null };
 const dndHandlers = vi.hoisted(() => ({}) as Record<string, ((e: MockDndEvent) => void) | undefined>);
+const dragOverlayCapture = vi.hoisted(() => ({ lastProps: undefined as Record<string, unknown> | undefined }));
 
 vi.mock("@dnd-kit/core", () => ({
   DndContext: ({
@@ -19,7 +20,10 @@ vi.mock("@dnd-kit/core", () => ({
     if (id) dndHandlers[id] = onDragEnd;
     return <>{children}</>;
   },
-  DragOverlay: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DragOverlay: ({ children, ...rest }: { children: React.ReactNode } & Record<string, unknown>) => {
+    dragOverlayCapture.lastProps = rest;
+    return <>{children}</>;
+  },
   closestCenter: vi.fn(),
   PointerSensor: vi.fn(),
   useSensor: vi.fn(() => ({})),
@@ -569,6 +573,15 @@ describe("DayCard", () => {
 
   // ── DnD tests ─────────────────────────────────────────────────────────────
 
+  it("passes dropAnimation={null} to DragOverlay", () => {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    const captured = dragOverlayCapture.lastProps;
+    expect(captured).toBeDefined();
+    expect(captured!.dropAnimation).toBeNull();
+  });
+
   it("handleDragEnd returns early when over is null", () => {
     const onReorderDayItems = vi.fn();
     render(
@@ -760,5 +773,32 @@ describe("DayCard", () => {
       { type: "event", id: "ev-s2" },
       { type: "event", id: "ev-s1" },
     ]);
+  });
+
+  it("renders items in optimistic order immediately after drop, before the day prop catches up", () => {
+    const secondScheduled: TripEvent = {
+      id: "ev-s2",
+      name: "Dinner",
+      startAt: "2026-05-13T19:00:00Z",
+      position: 1,
+    };
+    const day = { ...baseDay, events: [{ ...scheduledEvent, position: 0 }, secondScheduled] };
+    const { container } = render(
+      <DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />,
+      { wrapper: Wrapper }
+    );
+    const idsBefore = Array.from(container.querySelectorAll('[data-testid^="place-row-"]'))
+      .map((el) => el.getAttribute("data-testid"))
+      .filter((id): id is string => id !== null);
+    expect(idsBefore).toEqual(["place-row-ev-s1", "place-row-ev-s2"]);
+
+    act(() => {
+      dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-s2" } });
+    });
+
+    const idsAfter = Array.from(container.querySelectorAll('[data-testid^="place-row-"]'))
+      .map((el) => el.getAttribute("data-testid"))
+      .filter((id): id is string => id !== null);
+    expect(idsAfter).toEqual(["place-row-ev-s2", "place-row-ev-s1"]);
   });
 });

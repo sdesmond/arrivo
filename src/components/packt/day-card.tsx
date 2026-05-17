@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNow } from "@/components/providers/mock-date-provider";
-import { MapPin, Plus, ChevronDown, GripVertical } from "lucide-react";
+import { MapPin, Plus, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlaceRow } from "./place-row";
 import { NoteItem } from "./note-item";
 import { ChecklistItem } from "./checklist-item";
 import { TypePicker } from "./type-picker";
+import { SortablePlaceRow, SortableNoteItem, SortableChecklistItem } from "./day-card-sortables";
 import {
   type DayItinerary,
   type TripEvent,
@@ -27,8 +28,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 
 interface DayCardProps {
   day: DayItinerary;
@@ -102,71 +102,6 @@ function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
   );
 }
 
-// ── Sortable wrappers ─────────────────────────────────────────────────────────
-
-function makeDragHandle(
-  attributes: ReturnType<typeof useSortable>["attributes"],
-  listeners: ReturnType<typeof useSortable>["listeners"]
-) {
-  return (
-    <span
-      {...attributes}
-      {...listeners}
-      style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
-    >
-      <GripVertical size={13} strokeWidth={1.5} />
-    </span>
-  );
-}
-
-function SortablePlaceRow(props: React.ComponentProps<typeof PlaceRow>) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.place.id,
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
-  return (
-    <div ref={setNodeRef} style={style}>
-      <PlaceRow {...props} dragHandle={makeDragHandle(attributes, listeners)} />
-    </div>
-  );
-}
-
-function SortableNoteItem(props: React.ComponentProps<typeof NoteItem>) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.note.id,
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
-  return (
-    <div ref={setNodeRef} style={style}>
-      <NoteItem {...props} dragHandle={makeDragHandle(attributes, listeners)} />
-    </div>
-  );
-}
-
-function SortableChecklistItem(props: React.ComponentProps<typeof ChecklistItem>) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.checklist.id,
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
-  return (
-    <div ref={setNodeRef} style={style}>
-      <ChecklistItem {...props} dragHandle={makeDragHandle(attributes, listeners)} />
-    </div>
-  );
-}
-
 // ── Timeline types ────────────────────────────────────────────────────────────
 
 type TimelineItem =
@@ -230,15 +165,36 @@ export function DayCard({
     setIsEditingSubtitle(false);
   }
 
+  const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
+
   const allEvents = d.events;
   const notes = d.notes ?? [];
   const checklists = d.checklists ?? [];
 
-  const timelineItems: TimelineItem[] = [
+  const propTimelineItems: TimelineItem[] = [
     ...allEvents.map((e, i) => ({ kind: "event" as const, data: e, position: e.position ?? i })),
     ...notes.map((n) => ({ kind: "note" as const, data: n, position: n.position })),
     ...checklists.map((c) => ({ kind: "checklist" as const, data: c, position: c.position })),
   ].sort((a, b) => a.position - b.position);
+
+  const timelineItems = useMemo(() => {
+    if (!optimisticOrder) return propTimelineItems;
+    const byId = new Map(propTimelineItems.map((it) => [it.data.id, it]));
+    const ordered: TimelineItem[] = [];
+    for (const id of optimisticOrder) {
+      const item = byId.get(id);
+      if (item) ordered.push(item);
+    }
+    return ordered.length === propTimelineItems.length ? ordered : propTimelineItems;
+  }, [propTimelineItems, optimisticOrder]);
+
+  useEffect(() => {
+    if (optimisticOrder === null) return;
+    const propIds = propTimelineItems.map((it) => it.data.id).join("");
+    const optIds = optimisticOrder.join("");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear optimistic state once parent prop has caught up; the guard above prevents loops
+    if (propIds === optIds) setOptimisticOrder(null);
+  }, [propTimelineItems, optimisticOrder]);
 
   const maxTimelinePos = timelineItems.length > 0 ? Math.max(...timelineItems.map((item) => item.position)) : -1;
   const bottomInsertPosition = maxTimelinePos + 1;
@@ -317,6 +273,7 @@ export function DayCard({
     const newIdx = timelineItems.findIndex((it) => it.data.id === over.id);
     if (oldIdx === -1 || newIdx === -1) return;
     const reordered = arrayMove(timelineItems, oldIdx, newIdx);
+    setOptimisticOrder(reordered.map((it) => it.data.id));
     onReorderDayItems(
       d.dayNumber,
       reordered.map((it) => ({ type: it.kind, id: it.data.id }))
@@ -522,7 +479,7 @@ export function DayCard({
                 );
               })}
             </SortableContext>
-            <DragOverlay>
+            <DragOverlay dropAnimation={null}>
               {activeItem ? (
                 activeItem.kind === "event" ? (
                   <PlaceRow place={activeItem.data} dayDate={d.date} onUpdate={() => {}} onDelete={() => {}} />
