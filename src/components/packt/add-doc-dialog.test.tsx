@@ -123,4 +123,9 @@ describe("AddDocDialog", () => {
     await user.click(screen.getByTestId("dialog-backdrop-close"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it("shows eventName as subtitle when provided", () => {
+    render(<AddDocDialog open eventName="Museum visit" onOpenChange={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByText("Museum visit")).toBeInTheDocument();
+  });
 });

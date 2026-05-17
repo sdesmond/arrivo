@@ -7,12 +7,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 export interface CostDialogProps {
   cost?: number;
+  eventName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (cost?: number) => void;
 }
 
-export function CostDialog({ cost, open, onOpenChange, onSave }: CostDialogProps) {
+export function CostDialog({ cost, eventName, open, onOpenChange, onSave }: CostDialogProps) {
   const [draft, setDraft] = useState(cost !== undefined ? String(cost) : "");
 
   // Sync draft from prop each time the dialog opens so stale state doesn't cause accidental clears
@@ -33,6 +34,7 @@ export function CostDialog({ cost, open, onOpenChange, onSave }: CostDialogProps
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Cost</DialogTitle>
+          {eventName && <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: -4 }}>{eventName}</p>}
         </DialogHeader>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 18, fontWeight: 500, color: "var(--fg-3)" }}>$</span>

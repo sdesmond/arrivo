@@ -8,12 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { type Document, DocKind } from "@/data/types";
 
 export interface AddDocDialogProps {
+  eventName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdd: (doc: Document) => void;
 }
 
-export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
+export function AddDocDialog({ eventName, open, onOpenChange, onAdd }: AddDocDialogProps) {
   const [draftName, setDraftName] = useState("");
   const [draftKind, setDraftKind] = useState<DocKind>(DocKind.PDF);
   const [draftUrl, setDraftUrl] = useState("");
@@ -48,6 +49,7 @@ export function AddDocDialog({ open, onOpenChange, onAdd }: AddDocDialogProps) {
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Attach document</DialogTitle>
+          {eventName && <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: -4 }}>{eventName}</p>}
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div>

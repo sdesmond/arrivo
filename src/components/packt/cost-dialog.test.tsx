@@ -105,4 +105,9 @@ describe("CostDialog", () => {
     rerender(<CostDialog open cost={75} onOpenChange={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByRole("spinbutton")).toHaveValue(75);
   });
+
+  it("shows eventName as subtitle when provided", () => {
+    render(<CostDialog open eventName="Flight to Tokyo" onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("Flight to Tokyo")).toBeInTheDocument();
+  });
 });

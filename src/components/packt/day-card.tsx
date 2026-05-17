@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useNow } from "@/components/providers/mock-date-provider";
-import { MapPin, Plus, ChevronDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Plus } from "lucide-react";
 import { PlaceRow } from "./place-row";
 import { NoteItem } from "./note-item";
 import { ChecklistItem } from "./checklist-item";
 import { TypePicker } from "./type-picker";
 import { SortablePlaceRow, SortableNoteItem, SortableChecklistItem } from "./day-card-sortables";
+import { GapZone, type GapZoneProps } from "./gap-zone";
+import { DayCardHeader } from "./day-card-header";
 import {
   type DayItinerary,
   type TripEvent,
@@ -17,7 +18,6 @@ import {
   type DayItemType,
   ItineraryItemType,
 } from "@/data/types";
-import { cn } from "@/lib/utils";
 import {
   DndContext,
   DragOverlay,
@@ -56,50 +56,6 @@ interface DraftState {
   kind: ItineraryItemType;
   insertAtPosition: number;
   gapKey: string;
-}
-
-// ── GapZone ───────────────────────────────────────────────────────────────────
-
-interface GapZoneProps {
-  gapKey: string;
-  isActive: boolean;
-  onOpen: () => void;
-  onSelectType: (type: ItineraryItemType) => void;
-  onDismiss: () => void;
-}
-
-function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
-  if (isActive) {
-    return (
-      <div className="flex items-center" style={{ height: 32, paddingLeft: 12 }}>
-        <TypePicker onSelect={onSelectType} onDismiss={onDismiss} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="group relative flex items-center" style={{ height: 28 }}>
-      <div
-        className="absolute inset-x-0 opacity-25 group-hover:opacity-50 transition-opacity"
-        style={{ top: "50%", height: 1, background: "var(--line)", transform: "translateY(-50%)" }}
-      />
-      <button
-        onClick={onOpen}
-        className="relative z-10 flex items-center justify-center rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-        style={{
-          marginLeft: 12,
-          width: 20,
-          height: 20,
-          background: "var(--surface)",
-          border: "1px solid var(--line)",
-          cursor: "pointer",
-        }}
-        title="Insert item here"
-      >
-        <Plus size={11} strokeWidth={2} style={{ color: "var(--fg-3)" }} />
-      </button>
-    </div>
-  );
 }
 
 // ── Timeline types ────────────────────────────────────────────────────────────
@@ -145,8 +101,6 @@ export function DayCard({
     : !!d.today;
 
   const [open, setOpen] = useState(isToday);
-  const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
-  const [draftSubtitle, setDraftSubtitle] = useState(d.subtitle ?? "");
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -158,12 +112,6 @@ export function DayCard({
         day: "numeric",
       })
     : d.label.replace(" · ", ", ");
-
-  function saveSubtitle() {
-    const val = draftSubtitle.trim() || undefined;
-    if (val !== d.subtitle) onUpdateDay?.(d.dayNumber, { subtitle: val });
-    setIsEditingSubtitle(false);
-  }
 
   const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
 
@@ -290,109 +238,16 @@ export function DayCard({
         background: "var(--bg)",
       }}
     >
-      {/* Day header */}
-      <div
-        className={cn("rounded-t-[10px]", !open && "rounded-b-[10px]")}
-        style={{
-          background: isToday ? "var(--accent-soft)" : "var(--surface)",
-          borderBottom: open ? "1px solid var(--line)" : "none",
-        }}
-      >
-        <button
-          className="w-full flex items-center justify-between gap-3 px-4 pt-3 pb-1.5 text-left transition-colors hover:opacity-90"
-          style={{ cursor: "pointer", background: "none", border: "none" }}
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          <div
-            style={{
-              fontFamily: "var(--font-heading-family, ui-sans-serif)",
-              fontSize: 14,
-              fontWeight: 600,
-              color: "var(--fg)",
-            }}
-          >
-            {dateDisplay}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1" style={{ fontSize: 12, color: "var(--fg-3)" }}>
-              <MapPin size={12} strokeWidth={1.5} />
-              {d.events.length} stops
-            </span>
-            {isToday && <Badge variant="soft">Active</Badge>}
-            <ChevronDown
-              size={14}
-              strokeWidth={1.5}
-              style={{
-                color: "var(--fg-4)",
-                transform: open ? "rotate(180deg)" : undefined,
-                transition: "transform 0.15s",
-                flexShrink: 0,
-              }}
-            />
-          </div>
-        </button>
-
-        <div className="px-4 pb-2.5">
-          {isEditingSubtitle ? (
-            <input
-              autoFocus
-              value={draftSubtitle}
-              placeholder="Add a note"
-              onChange={(e) => setDraftSubtitle(e.target.value)}
-              onBlur={saveSubtitle}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveSubtitle();
-                if (e.key === "Escape") {
-                  setDraftSubtitle(d.subtitle ?? "");
-                  setIsEditingSubtitle(false);
-                }
-              }}
-              style={{
-                fontSize: 12,
-                color: "var(--fg-3)",
-                background: "transparent",
-                border: "none",
-                borderBottom: "1px solid var(--accent-brand)",
-                outline: "none",
-                width: "100%",
-                fontFamily: "inherit",
-                padding: "1px 0",
-              }}
-            />
-          ) : (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                setDraftSubtitle(d.subtitle ?? "");
-                setIsEditingSubtitle(true);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.stopPropagation();
-                  setDraftSubtitle(d.subtitle ?? "");
-                  setIsEditingSubtitle(true);
-                }
-              }}
-              style={{
-                fontSize: 12,
-                color: d.subtitle ? "var(--fg-3)" : "var(--fg-4)",
-                cursor: "text",
-                minHeight: "1.2em",
-                width: "fit-content",
-                maxWidth: "100%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {d.subtitle ?? "Add a note"}
-            </div>
-          )}
-        </div>
-      </div>
+      <DayCardHeader
+        dateDisplay={dateDisplay}
+        isToday={isToday}
+        stopsCount={d.events.length}
+        subtitle={d.subtitle}
+        open={open}
+        onToggle={() => setOpen((v) => !v)}
+        dayNumber={d.dayNumber}
+        onUpdateDay={onUpdateDay}
+      />
 
       {/* Collapsible body */}
       {open && (
