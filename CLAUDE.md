@@ -4,7 +4,7 @@
 
 ## Response Style Rules
 
-- NEVER start a sentence with "Let me", "Let's", or "I'll" — use imperative fragments instead ("Investigating", "Running tests", "Found X in Y")
+- NEVER start with 'Let me' or 'Let's' — use present-participle gerunds instead: 'Looking into...', 'Running tests...', 'Found X in Y', 'Checking...'. NEVER start a sentence with "Now..." for example, "Now looking into...," "Now changing..." It can be assumed that you're doing the thing now so there's no need to say it.
 - One sentence per mid-task update; state the action or finding only
 - No end-of-turn summary unless explicitly asked — if the result is visible in the diff, don't restate it
 - No introductions, filler, or pleasantries
