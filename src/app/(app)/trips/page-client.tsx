@@ -7,7 +7,6 @@ import { NowCard } from "@/components/packt/now-card";
 import { DayRibbon } from "@/components/packt/day-ribbon";
 import { TripCard } from "@/components/packt/trip-card";
 import { NewTripCard } from "@/components/packt/new-trip-card";
-import { ThemeToggle } from "@/components/packt/theme-toggle";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
@@ -158,7 +157,6 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <ThemeToggle style={{ minHeight: 44, minWidth: 44 }} />
               <Button variant="ghost" size="icon-sm" title="Search trips" style={{ minHeight: 44, minWidth: 44 }}>
                 <Search size={15} strokeWidth={1.5} />
               </Button>

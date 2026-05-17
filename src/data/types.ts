@@ -48,6 +48,26 @@ export const DocKind = {
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  id: string;
+  name: string | null;
+  email: string;
+  dateFormat: string | null;
+  currency: string | null;
+  distanceUnit: string | null;
+}
+
+export interface UpdateUserProfilePatch {
+  name?: string;
+  dateFormat?: string;
+  currency?: string;
+  distanceUnit?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT
 // ─────────────────────────────────────────────────────────────────────────────
 

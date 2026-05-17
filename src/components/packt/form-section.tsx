@@ -39,13 +39,20 @@ export function Section({ title, children }: SectionProps) {
 
 export interface FieldProps {
   label: string;
+  htmlFor?: string;
   children: React.ReactNode;
 }
 
-export function Field({ label, children }: FieldProps) {
+export function Field({ label, htmlFor, children }: FieldProps) {
   return (
     <div>
-      <span style={LABEL_STYLE}>{label}</span>
+      {htmlFor ? (
+        <label htmlFor={htmlFor} style={LABEL_STYLE}>
+          {label}
+        </label>
+      ) : (
+        <span style={LABEL_STYLE}>{label}</span>
+      )}
       {children}
     </div>
   );

@@ -10,11 +10,28 @@ import {
   itineraryNotes,
   itineraryChecklists,
   checklistItems,
+  users,
 } from "@/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbChecklistToType } from "@/lib/db-mappers";
-import type { TripListEntry, TripDetailPayload } from "@/data/types";
+import type { TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
+
+export async function getUserById(id: string): Promise<UserProfile | null> {
+  const [user] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      dateFormat: users.dateFormat,
+      currency: users.currency,
+      distanceUnit: users.distanceUnit,
+    })
+    .from(users)
+    .where(eq(users.id, id));
+  if (!user || !user.email) return null;
+  return { ...user, email: user.email };
+}
 
 export async function listTripsForUser(userId: string, now: Date): Promise<TripListEntry[]> {
   const rows = await db

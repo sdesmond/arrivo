@@ -20,6 +20,7 @@ export default defineConfig({
         "src/lib/server-now.ts",
         "src/app/**",
         "src/components/ui/**",
+        "src/components/providers/**",
       ],
     },
   },

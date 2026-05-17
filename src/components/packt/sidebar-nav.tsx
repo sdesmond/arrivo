@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Search, Map, Globe, User, Settings, LogOut, Clock } from "lucide-react";
+import { Briefcase, Search, Clock, LogOut } from "lucide-react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { NavItem } from "./nav-item";
 import { SectionHeading } from "./section-heading";
+import type { UserProfile } from "@/data/types";
 
 const NAV_ITEMS = [
   { id: "trips", label: "Trips", icon: Briefcase, href: "/trips", count: 4 },
@@ -20,9 +21,23 @@ const PINNED = [
   { name: "Oaxaca", hue: 45, meta: "92d" },
 ];
 
-export function SidebarNav() {
+function getInitials(user: UserProfile): string {
+  if (user.name) {
+    const parts = user.name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0][0].toUpperCase();
+  }
+  return user.email[0].toUpperCase();
+}
+
+export interface SidebarNavProps {
+  user: UserProfile | null;
+}
+
+export function SidebarNav({ user }: SidebarNavProps) {
   const pathname = usePathname();
-  const avatarTint = getAvatarTint("MR");
+  const initials = user ? getInitials(user) : "?";
+  const avatarTint = getAvatarTint(initials);
 
   return (
     <aside
@@ -113,22 +128,28 @@ export function SidebarNav() {
 
       {/* Footer */}
       <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: "1px solid var(--line)" }}>
-        <div
-          className="shrink-0 rounded-full flex items-center justify-center font-semibold text-[12px]"
-          style={{
-            width: 28,
-            height: 28,
-            background: avatarTint.bg,
-            color: avatarTint.color,
-            fontFamily: "var(--font-body, ui-sans-serif)",
-          }}
+        <Link
+          href="/profile"
+          className="flex items-center gap-2 flex-1 min-w-0 rounded-[6px] hover:bg-surface-2 transition-colors px-1 py-0.5"
+          aria-label="View profile"
         >
-          MR
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-fg truncate">Maya R.</div>
-          <div className="text-[11px] text-fg-3 truncate">maya@packt.local</div>
-        </div>
+          <div
+            className="shrink-0 rounded-full flex items-center justify-center font-semibold text-[12px]"
+            style={{
+              width: 28,
+              height: 28,
+              background: avatarTint.bg,
+              color: avatarTint.color,
+              fontFamily: "var(--font-body, ui-sans-serif)",
+            }}
+          >
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-medium text-fg truncate">{user?.name ?? user?.email ?? "—"}</div>
+            <div className="text-[11px] text-fg-3 truncate">{user?.email ?? ""}</div>
+          </div>
+        </Link>
         <form action={signOutAction}>
           <button
             type="submit"
