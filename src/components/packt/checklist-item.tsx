@@ -133,7 +133,7 @@ export function ChecklistItem({
       {/* Header */}
       <button
         className={cn(
-          "w-full flex items-center gap-2.5 px-3 py-2 text-left",
+          "w-full flex items-center gap-2.5 px-3 py-2.5 text-left",
           !isDraft && (dragHandle ? "pr-16" : "pr-9")
         )}
         style={{ background: "none", border: "none", cursor: "pointer" }}

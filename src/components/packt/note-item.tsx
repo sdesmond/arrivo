@@ -57,7 +57,7 @@ export function NoteItem({
   return (
     <div
       id={displayOnly ? undefined : `note-${note.id}`}
-      className={cn("group flex items-start gap-3 px-3 py-2 relative", dragHandle && "pr-16")}
+      className={cn("group flex items-start gap-3 px-3 py-2.5 relative", dragHandle && "pr-16")}
       style={{ fontSize: 13, color: "var(--fg-2)" }}
     >
       <span
