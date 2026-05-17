@@ -149,4 +149,23 @@ describe("NoteItem", () => {
     fireEvent.blur(screen.getByRole("textbox"));
     expect(onCreate).toHaveBeenCalledWith("Pack sunscreen");
   });
+
+  it("renders dragHandle when provided", () => {
+    render(<NoteItem note={note} dragHandle={<span data-testid="drag-handle">grip</span>} />);
+    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+  });
+
+  it("does NOT render dragHandle slot when isDraft", () => {
+    const draftNote: ItineraryNote = { id: "draft", content: "", position: 0 };
+    render(
+      <NoteItem
+        note={draftNote}
+        isDraft
+        onCreate={vi.fn()}
+        onCancelDraft={vi.fn()}
+        dragHandle={<span data-testid="drag-handle">grip</span>}
+      />
+    );
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+  });
 });

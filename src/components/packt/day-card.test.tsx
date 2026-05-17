@@ -19,6 +19,7 @@ vi.mock("@dnd-kit/core", () => ({
     if (id) dndHandlers[id] = onDragEnd;
     return <>{children}</>;
   },
+  DragOverlay: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   closestCenter: vi.fn(),
   PointerSensor: vi.fn(),
   useSensor: vi.fn(() => ({})),
@@ -158,7 +159,7 @@ const baseDay: DayItinerary = {
 
 describe("DayCard", () => {
   it("renders the day label and date", () => {
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByText(/Wed, May 13/i)).toBeInTheDocument();
@@ -170,7 +171,7 @@ describe("DayCard", () => {
         day={{ ...baseDay, today: true }}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -184,7 +185,7 @@ describe("DayCard", () => {
         day={{ ...baseDay, today: true }}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -197,7 +198,7 @@ describe("DayCard", () => {
         day={{ ...baseDay, today: true }}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -207,7 +208,7 @@ describe("DayCard", () => {
 
   it("clicking toggle button collapses the card", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const toggle = screen.getByRole("button", { name: /Wed, May 13/i });
@@ -224,7 +225,7 @@ describe("DayCard", () => {
       today: false,
       events: [],
     };
-    render(<DayCard day={dayNoDate} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={dayNoDate} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByText("Day 3, Free Day")).toBeInTheDocument();
@@ -238,7 +239,7 @@ describe("DayCard", () => {
       today: true,
       events: [],
     };
-    render(<DayCard day={dayNoDate} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={dayNoDate} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const toggle = screen.getByRole("button", { name: /Day 4/ });
@@ -247,7 +248,7 @@ describe("DayCard", () => {
 
   it("subtitle edit activates on click", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const subtitleBtn = screen.getByRole("button", { name: /exploring the city/i });
@@ -257,7 +258,7 @@ describe("DayCard", () => {
 
   it("subtitle edit activates on Enter key", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const subtitleBtn = screen.getByRole("button", { name: /exploring the city/i });
@@ -268,7 +269,7 @@ describe("DayCard", () => {
 
   it("subtitle edit activates on Space key", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const subtitleBtn = screen.getByRole("button", { name: /exploring the city/i });
@@ -285,7 +286,7 @@ describe("DayCard", () => {
         day={baseDay}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onUpdateDay={onUpdateDay}
       />,
       { wrapper: Wrapper }
@@ -307,7 +308,7 @@ describe("DayCard", () => {
         day={baseDay}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onUpdateDay={onUpdateDay}
       />,
       { wrapper: Wrapper }
@@ -326,7 +327,7 @@ describe("DayCard", () => {
         day={baseDay}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onUpdateDay={onUpdateDay}
       />,
       { wrapper: Wrapper }
@@ -342,7 +343,7 @@ describe("DayCard", () => {
 
   it("clicking 'Add a place' button shows TypePicker", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -352,7 +353,7 @@ describe("DayCard", () => {
 
   it("clicking Add event in TypePicker shows event name input", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -362,7 +363,7 @@ describe("DayCard", () => {
 
   it("clicking Add note in TypePicker shows note content input", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -378,7 +379,7 @@ describe("DayCard", () => {
         day={baseDay}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onAddEvent={onAddEvent}
       />,
       { wrapper: Wrapper }
@@ -398,7 +399,7 @@ describe("DayCard", () => {
         day={baseDay}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onAddNote={onAddNote}
       />,
       { wrapper: Wrapper }
@@ -412,7 +413,7 @@ describe("DayCard", () => {
 
   it("pressing Escape in event name input dismisses it", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -424,7 +425,7 @@ describe("DayCard", () => {
 
   it("blurring the event name input dismisses it", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -436,7 +437,7 @@ describe("DayCard", () => {
 
   it("pressing Escape in TypePicker dismisses it and restores bottom button", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -459,7 +460,7 @@ describe("DayCard", () => {
       ...baseDay,
       events: [scheduledEvent, secondScheduled],
     };
-    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByTitle("Insert item here")).toBeInTheDocument();
@@ -476,7 +477,7 @@ describe("DayCard", () => {
       ...baseDay,
       events: [scheduledEvent, secondScheduled],
     };
-    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const insertBtn = screen.getByTitle("Insert item here");
@@ -497,7 +498,7 @@ describe("DayCard", () => {
       ...baseDay,
       events: [scheduledEvent, secondScheduled],
     };
-    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByTitle("Insert item here"));
@@ -523,7 +524,7 @@ describe("DayCard", () => {
         day={day}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onAddEvent={onAddEvent}
       />,
       { wrapper: Wrapper }
@@ -541,14 +542,14 @@ describe("DayCard", () => {
       events: [scheduledEvent],
       notes: [{ id: "n1", content: "Bring sunscreen", position: 1 }],
     };
-    render(<DayCard day={dayWithNote} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={dayWithNote} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByText("Bring sunscreen")).toBeInTheDocument();
   });
 
   it("renders gap between adjacent events when day has multiple events", () => {
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     // baseDay has two events; one gap between them
@@ -560,7 +561,7 @@ describe("DayCard", () => {
       ...baseDay,
       events: [scheduledEvent],
     };
-    render(<DayCard day={dayOneEvent} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={dayOneEvent} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     expect(screen.queryByTitle("Insert item here")).not.toBeInTheDocument();
@@ -569,47 +570,105 @@ describe("DayCard", () => {
   // ── DnD tests ─────────────────────────────────────────────────────────────
 
   it("handleDragEnd returns early when over is null", () => {
-    const onReorderEvents = vi.fn();
+    const onReorderDayItems = vi.fn();
     render(
-      <DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={onReorderEvents} />,
+      <DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={onReorderDayItems} />,
       { wrapper: Wrapper }
     );
     act(() => {
       dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: null });
     });
-    expect(onReorderEvents).not.toHaveBeenCalled();
+    expect(onReorderDayItems).not.toHaveBeenCalled();
   });
 
   it("handleDragEnd returns early when same id", () => {
-    const onReorderEvents = vi.fn();
+    const onReorderDayItems = vi.fn();
     render(
-      <DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={onReorderEvents} />,
+      <DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={onReorderDayItems} />,
       { wrapper: Wrapper }
     );
     act(() => {
       dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-s1" } });
     });
-    expect(onReorderEvents).not.toHaveBeenCalled();
+    expect(onReorderDayItems).not.toHaveBeenCalled();
   });
 
-  it("handleDragEnd calls onReorderEvents when ids differ", () => {
-    const secondEvent: TripEvent = { id: "ev-u2", name: "Park Walk" };
-    const day = { ...baseDay, events: [scheduledEvent, secondEvent] };
-    const onReorderEvents = vi.fn();
-    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={onReorderEvents} />, {
-      wrapper: Wrapper,
-    });
+  it("handleDragEnd calls onReorderDayItems with typed entries when ids differ", () => {
+    const secondEvent: TripEvent = { id: "ev-u2", name: "Park Walk", position: 1 };
+    const day = { ...baseDay, events: [{ ...scheduledEvent, position: 0 }, secondEvent] };
+    const onReorderDayItems = vi.fn();
+    render(
+      <DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={onReorderDayItems} />,
+      {
+        wrapper: Wrapper,
+      }
+    );
     act(() => {
       dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-u2" } });
     });
-    expect(onReorderEvents).toHaveBeenCalledWith(1, expect.any(Array));
+    expect(onReorderDayItems).toHaveBeenCalledWith(1, [
+      { type: "event", id: "ev-u2" },
+      { type: "event", id: "ev-s1" },
+    ]);
+  });
+
+  it("handleDragEnd reorders an event past a checklist (mixed types)", () => {
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [{ ...scheduledEvent, position: 0 }],
+      checklists: [{ id: "cl-1", tripDayId: "day-1", position: 1, items: [] }],
+    };
+    const onReorderDayItems = vi.fn();
+    render(
+      <DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={onReorderDayItems} />,
+      { wrapper: Wrapper }
+    );
+    act(() => {
+      dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "cl-1" } });
+    });
+    expect(onReorderDayItems).toHaveBeenCalledWith(1, [
+      { type: "checklist", id: "cl-1" },
+      { type: "event", id: "ev-s1" },
+    ]);
+  });
+
+  it("handleDragEnd reorders a checklist before an event (mixed types)", () => {
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [{ ...scheduledEvent, position: 0 }],
+      checklists: [{ id: "cl-1", tripDayId: "day-1", position: 1, items: [] }],
+    };
+    const onReorderDayItems = vi.fn();
+    render(
+      <DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={onReorderDayItems} />,
+      { wrapper: Wrapper }
+    );
+    act(() => {
+      dndHandlers["day-1"]?.({ active: { id: "cl-1" }, over: { id: "ev-s1" } });
+    });
+    expect(onReorderDayItems).toHaveBeenCalledWith(1, [
+      { type: "checklist", id: "cl-1" },
+      { type: "event", id: "ev-s1" },
+    ]);
+  });
+
+  it("handleDragEnd no-ops when active id is not in timelineItems", () => {
+    const onReorderDayItems = vi.fn();
+    render(
+      <DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={onReorderDayItems} />,
+      { wrapper: Wrapper }
+    );
+    act(() => {
+      dndHandlers["day-1"]?.({ active: { id: "does-not-exist" }, over: { id: "ev-s1" } });
+    });
+    expect(onReorderDayItems).not.toHaveBeenCalled();
   });
 
   // ── Checklist integration ─────────────────────────────────────────────────
 
   it("TypePicker shows 'Add checklist' button", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -618,7 +677,7 @@ describe("DayCard", () => {
 
   it("clicking Add checklist in TypePicker shows checklist draft input", async () => {
     const user = userEvent.setup();
-    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />, {
+    render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add a place to day 1/i }));
@@ -634,7 +693,7 @@ describe("DayCard", () => {
         day={baseDay}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onAddChecklist={onAddChecklist}
       />,
       { wrapper: Wrapper }
@@ -654,7 +713,7 @@ describe("DayCard", () => {
         day={baseDay}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderEvents={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onAddChecklist={onAddChecklist}
       />,
       { wrapper: Wrapper }
@@ -673,26 +732,33 @@ describe("DayCard", () => {
       checklists: [{ id: "cl-1", tripDayId: "day-1", position: 1, items: [] }],
     };
     render(
-      <DayCard day={dayWithChecklist} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={vi.fn()} />,
+      <DayCard day={dayWithChecklist} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />,
       { wrapper: Wrapper }
     );
     expect(screen.getByTestId("checklist-item-cl-1")).toBeInTheDocument();
   });
 
-  it("handleDragEnd calls onReorderEvents for any two events", () => {
+  it("handleDragEnd calls onReorderDayItems for any two events", () => {
     const secondScheduled: TripEvent = {
       id: "ev-s2",
       name: "Dinner",
       startAt: "2026-05-13T19:00:00Z",
+      position: 1,
     };
-    const day = { ...baseDay, events: [scheduledEvent, secondScheduled] };
-    const onReorderEvents = vi.fn();
-    render(<DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderEvents={onReorderEvents} />, {
-      wrapper: Wrapper,
-    });
+    const day = { ...baseDay, events: [{ ...scheduledEvent, position: 0 }, secondScheduled] };
+    const onReorderDayItems = vi.fn();
+    render(
+      <DayCard day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={onReorderDayItems} />,
+      {
+        wrapper: Wrapper,
+      }
+    );
     act(() => {
       dndHandlers["day-1"]?.({ active: { id: "ev-s1" }, over: { id: "ev-s2" } });
     });
-    expect(onReorderEvents).toHaveBeenCalledWith(1, expect.any(Array));
+    expect(onReorderDayItems).toHaveBeenCalledWith(1, [
+      { type: "event", id: "ev-s2" },
+      { type: "event", id: "ev-s1" },
+    ]);
   });
 });
