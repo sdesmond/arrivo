@@ -104,4 +104,9 @@ describe("LocationDialog", () => {
     rerender(<LocationDialog open address="Paris" onOpenChange={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByRole("textbox")).toHaveValue("Paris");
   });
+
+  it("shows eventName as subtitle when provided", () => {
+    render(<LocationDialog open eventName="Day hike" onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("Day hike")).toBeInTheDocument();
+  });
 });

@@ -1,6 +1,18 @@
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  });
+}
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: vi.fn(),

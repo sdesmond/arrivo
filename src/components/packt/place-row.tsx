@@ -6,7 +6,7 @@ import { type TripEvent } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
-import { TimePickerDropdown } from "./time-picker-dropdown";
+import { TimeDialog } from "./time-dialog";
 import { CostDialog } from "./cost-dialog";
 import { LocationDialog } from "./location-dialog";
 import { AddDocDialog } from "./add-doc-dialog";
@@ -69,7 +69,7 @@ export function PlaceRow({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [draftNote, setDraftNote] = useState(p.note ?? "");
 
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showTimeDialog, setShowTimeDialog] = useState(false);
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
@@ -106,7 +106,6 @@ export function PlaceRow({
     <div
       id={id}
       className="group relative"
-      style={{ zIndex: showTimePicker ? 10 : undefined }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -252,36 +251,19 @@ export function PlaceRow({
           {/* Action bar */}
           <div className="flex items-center gap-1 flex-wrap mt-2">
             {/* Time */}
-            <div className="relative">
-              <button
-                onClick={() => setShowTimePicker((v) => !v)}
-                className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-                style={{
-                  fontSize: 11,
-                  color: p.startAt ? "var(--accent-ink)" : "var(--fg-4)",
-                  background: p.startAt ? "var(--accent-soft)" : "none",
-                  border: "1px solid transparent",
-                }}
-              >
-                <Clock size={11} strokeWidth={1.5} />
-                {timeLabel ?? "Add time"}
-              </button>
-              {showTimePicker && (
-                <TimePickerDropdown
-                  time={p.startAt ? toHHMM(p.startAt) : undefined}
-                  endTime={p.endAt ? toHHMM(p.endAt) : undefined}
-                  onSave={(t, et) => {
-                    if (!t) {
-                      onUpdate({ ...p, startAt: undefined, endAt: undefined });
-                    } else {
-                      onUpdate({ ...p, ...composeStartEndAt(dayDate, t, et ?? t) });
-                    }
-                    setShowTimePicker(false);
-                  }}
-                  onClose={() => setShowTimePicker(false)}
-                />
-              )}
-            </div>
+            <button
+              onClick={() => setShowTimeDialog(true)}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+              style={{
+                fontSize: 11,
+                color: p.startAt ? "var(--accent-ink)" : "var(--fg-4)",
+                background: p.startAt ? "var(--accent-soft)" : "none",
+                border: "1px solid transparent",
+              }}
+            >
+              <Clock size={11} strokeWidth={1.5} />
+              {timeLabel ?? "Add time"}
+            </button>
 
             {/* Location */}
             <button
@@ -390,19 +372,36 @@ export function PlaceRow({
         </button>
       </div>
 
+      <TimeDialog
+        time={p.startAt ? toHHMM(p.startAt) : undefined}
+        endTime={p.endAt ? toHHMM(p.endAt) : undefined}
+        eventName={p.name}
+        open={showTimeDialog}
+        onOpenChange={setShowTimeDialog}
+        onSave={(t, et) => {
+          if (!t) {
+            onUpdate({ ...p, startAt: undefined, endAt: undefined });
+          } else {
+            onUpdate({ ...p, ...composeStartEndAt(dayDate, t, et ?? t) });
+          }
+        }}
+      />
       <CostDialog
         cost={p.cost}
+        eventName={p.name}
         open={showCostDialog}
         onOpenChange={setShowCostDialog}
         onSave={(cost) => onUpdate({ ...p, cost })}
       />
       <LocationDialog
         address={p.locationAddress}
+        eventName={p.name}
         open={showLocationDialog}
         onOpenChange={setShowLocationDialog}
         onSave={(address) => onUpdate({ ...p, locationAddress: address })}
       />
       <AddDocDialog
+        eventName={p.name}
         open={showAddDocDialog}
         onOpenChange={setShowAddDocDialog}
         onAdd={(doc) => onAddDoc?.(p.id, { name: doc.name, kind: doc.kind, url: doc.url, offline: doc.offline })}

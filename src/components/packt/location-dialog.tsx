@@ -7,12 +7,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 export interface LocationDialogProps {
   address?: string;
+  eventName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (address?: string) => void;
 }
 
-export function LocationDialog({ address, open, onOpenChange, onSave }: LocationDialogProps) {
+export function LocationDialog({ address, eventName, open, onOpenChange, onSave }: LocationDialogProps) {
   const [draft, setDraft] = useState(address ?? "");
 
   // Sync draft from prop each time the dialog opens so stale state doesn't cause accidental clears
@@ -32,6 +33,7 @@ export function LocationDialog({ address, open, onOpenChange, onSave }: Location
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Location</DialogTitle>
+          {eventName && <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: -4 }}>{eventName}</p>}
         </DialogHeader>
         <Input
           placeholder="Enter address or place name"

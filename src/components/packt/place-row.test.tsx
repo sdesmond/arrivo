@@ -33,14 +33,37 @@ vi.mock("./docs-block", () => ({
     </div>
   ),
 }));
-vi.mock("./time-picker-dropdown", () => ({
-  TimePickerDropdown: ({ onSave, onClose }: { onSave: (t?: string, et?: string) => void; onClose: () => void }) => (
-    <div data-testid="time-picker-dropdown">
-      <button onClick={() => onSave("10:00", "11:00")}>picker-save</button>
-      <button onClick={() => onSave(undefined, undefined)}>picker-clear</button>
-      <button onClick={onClose}>picker-close</button>
-    </div>
-  ),
+vi.mock("./time-dialog", () => ({
+  TimeDialog: ({
+    open,
+    onSave,
+    onOpenChange,
+  }: {
+    open: boolean;
+    onSave: (t?: string, et?: string) => void;
+    onOpenChange: (v: boolean) => void;
+  }) =>
+    open ? (
+      <div data-testid="time-dialog">
+        <button
+          onClick={() => {
+            onSave("10:00", "11:00");
+            onOpenChange(false);
+          }}
+        >
+          picker-save
+        </button>
+        <button
+          onClick={() => {
+            onSave(undefined, undefined);
+            onOpenChange(false);
+          }}
+        >
+          picker-clear
+        </button>
+        <button onClick={() => onOpenChange(false)}>picker-close</button>
+      </div>
+    ) : null,
 }));
 vi.mock("./cost-dialog", () => ({
   CostDialog: ({
@@ -273,14 +296,14 @@ describe("PlaceRow", () => {
     expect(screen.getByText("Shibuya, Tokyo")).toBeInTheDocument();
   });
 
-  it("clicking time button shows time picker dropdown", async () => {
+  it("clicking time button opens time dialog", async () => {
     const user = userEvent.setup();
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const timeBtn = screen.getAllByRole("button").find((b) => /\d:\d{2}\s*(AM|PM)/.test(b.textContent ?? ""))!;
     await user.click(timeBtn);
-    expect(screen.getByTestId("time-picker-dropdown")).toBeInTheDocument();
+    expect(screen.getByTestId("time-dialog")).toBeInTheDocument();
   });
 
   it("picker save with times calls onUpdate and hides picker", async () => {
@@ -293,7 +316,7 @@ describe("PlaceRow", () => {
     await user.click(timeBtn);
     await user.click(screen.getByRole("button", { name: "picker-save" }));
     expect(onUpdate).toHaveBeenCalledOnce();
-    expect(screen.queryByTestId("time-picker-dropdown")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("time-dialog")).not.toBeInTheDocument();
   });
 
   it("picker save with no dayDate sets startAt/endAt to undefined", async () => {
@@ -329,7 +352,7 @@ describe("PlaceRow", () => {
     const timeBtn = screen.getAllByRole("button").find((b) => /\d:\d{2}\s*(AM|PM)/.test(b.textContent ?? ""))!;
     await user.click(timeBtn);
     await user.click(screen.getByRole("button", { name: "picker-close" }));
-    expect(screen.queryByTestId("time-picker-dropdown")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("time-dialog")).not.toBeInTheDocument();
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
