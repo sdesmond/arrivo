@@ -15,14 +15,14 @@ export interface GapZoneProps {
 export function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
   if (isActive) {
     return (
-      <div className="flex items-center" style={{ height: 32, paddingLeft: 12 }}>
+      <div className="flex items-center px-3 py-2.5">
         <TypePicker onSelect={onSelectType} onDismiss={onDismiss} />
       </div>
     );
   }
 
   return (
-    <div className="group relative flex items-center" style={{ height: 28 }}>
+    <div className="group relative flex items-center px-3 py-2.5">
       <div
         className="absolute inset-x-0 opacity-25 group-hover:opacity-50 transition-opacity"
         style={{ top: "50%", height: 1, background: "var(--line)", transform: "translateY(-50%)" }}
