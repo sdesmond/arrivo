@@ -149,7 +149,7 @@ export function PlaceRow({
                   }
                 }}
                 style={{
-                  fontSize: 14,
+                  fontSize: "calc(14px * var(--font-scale))",
                   fontWeight: 600,
                   color: "var(--fg)",
                   background: "var(--surface-2)",
@@ -163,7 +163,16 @@ export function PlaceRow({
               />
             ) : (
               <>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", lineHeight: 1.2 }}>{p.name}</span>
+                <span
+                  style={{
+                    fontSize: "calc(14px * var(--font-scale))",
+                    fontWeight: 600,
+                    color: "var(--fg)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {p.name}
+                </span>
                 <button
                   onClick={() => {
                     setDraftName(p.name);
@@ -207,7 +216,7 @@ export function PlaceRow({
                 rows={2}
                 style={{
                   width: "100%",
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--font-scale))",
                   color: "var(--fg-2)",
                   background: "var(--surface-2)",
                   border: "1px solid var(--accent-brand)",
@@ -235,7 +244,7 @@ export function PlaceRow({
                   }
                 }}
                 style={{
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--font-scale))",
                   cursor: "text",
                   borderRadius: 6,
                   padding: "4px 10px",
@@ -256,7 +265,7 @@ export function PlaceRow({
               onClick={() => setShowTimeDialog(true)}
               className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
               style={{
-                fontSize: 11,
+                fontSize: "calc(11px * var(--font-scale))",
                 color: p.startAt ? "var(--accent-ink)" : "var(--fg-4)",
                 background: p.startAt ? "var(--accent-soft)" : "none",
                 border: "1px solid transparent",
@@ -271,7 +280,7 @@ export function PlaceRow({
               onClick={() => setShowLocationDialog(true)}
               className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
               style={{
-                fontSize: 11,
+                fontSize: "calc(11px * var(--font-scale))",
                 color: p.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
                 background: p.locationAddress ? "var(--accent-soft)" : "none",
                 border: "1px solid transparent",
@@ -287,7 +296,7 @@ export function PlaceRow({
               onClick={() => setShowCostDialog(true)}
               className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
               style={{
-                fontSize: 11,
+                fontSize: "calc(11px * var(--font-scale))",
                 color: p.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
                 background: p.cost !== undefined ? "var(--accent-soft)" : "none",
                 border: "1px solid transparent",
@@ -303,7 +312,7 @@ export function PlaceRow({
                 onClick={() => setShowDocs((v) => !v)}
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
                 style={{
-                  fontSize: 11,
+                  fontSize: "calc(11px * var(--font-scale))",
                   color: "var(--accent-ink)",
                   background: "var(--accent-soft)",
                   border: "1px solid transparent",
@@ -326,7 +335,11 @@ export function PlaceRow({
               <button
                 onClick={() => setShowAddDocDialog(true)}
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-                style={{ fontSize: 11, color: "var(--fg-4)", border: "1px solid transparent" }}
+                style={{
+                  fontSize: "calc(11px * var(--font-scale))",
+                  color: "var(--fg-4)",
+                  border: "1px solid transparent",
+                }}
                 title="Attach document"
               >
                 <Paperclip size={11} strokeWidth={1.5} />

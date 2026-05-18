@@ -128,7 +128,7 @@ export function ChecklistItem({
       ref={wrapperRef}
       onBlur={handleWrapperBlur}
       className="group relative"
-      style={{ fontSize: 13, color: "var(--fg-2)" }}
+      style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}
     >
       {/* Header */}
       <button
@@ -178,7 +178,7 @@ export function ChecklistItem({
           )}
         </span>
         {!isDraft && !isComplete && itemCount > 0 && (
-          <span style={{ fontSize: 11, color: "var(--fg-4)", flexShrink: 0 }}>
+          <span style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)", flexShrink: 0 }}>
             {checkedCount}/{itemCount}
           </span>
         )}
@@ -215,7 +215,7 @@ export function ChecklistItem({
                 }
               }}
               style={{
-                fontSize: 13,
+                fontSize: "calc(13px * var(--font-scale))",
                 fontWeight: 500,
                 color: "var(--fg)",
                 background: "transparent",
@@ -245,7 +245,7 @@ export function ChecklistItem({
                 }
               }}
               style={{
-                fontSize: 13,
+                fontSize: "calc(13px * var(--font-scale))",
                 fontWeight: checklist.title ? 500 : 400,
                 color: checklist.title ? "var(--fg)" : "var(--fg-4)",
                 cursor: "text",
@@ -301,7 +301,7 @@ export function ChecklistItem({
                   }}
                   style={{
                     flex: 1,
-                    fontSize: 13,
+                    fontSize: "calc(13px * var(--font-scale))",
                     color: "var(--fg-2)",
                     background: "transparent",
                     border: "none",
@@ -363,7 +363,7 @@ export function ChecklistItem({
             onKeyDown={handleItemKeyDown}
             onBlur={!isDraft ? commitNewItem : undefined}
             style={{
-              fontSize: 13,
+              fontSize: "calc(13px * var(--font-scale))",
               color: "var(--fg-2)",
               background: "transparent",
               border: "none",

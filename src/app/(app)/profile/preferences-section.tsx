@@ -7,10 +7,9 @@ import { updateProfile } from "./actions";
 import type { UserProfile } from "@/data/types";
 
 const DATE_FORMAT_OPTIONS = [
-  { value: "MM/DD/YYYY", label: "MM/DD/YYYY (US)" },
-  { value: "DD/MM/YYYY", label: "DD/MM/YYYY (International)" },
-  { value: "YYYY-MM-DD", label: "YYYY-MM-DD (ISO)" },
-];
+  { value: "MM/DD/YYYY", label: "Month/Day" },
+  { value: "DD/MM/YYYY", label: "Day/Month" },
+] as const;
 
 interface ProfilePreferencesSectionProps {
   user: UserProfile;
@@ -60,24 +59,24 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
 
   return (
     <Section>
-      <Field label="Date format" htmlFor="pref-date-format">
-        <select
-          id="pref-date-format"
-          value={dateFormat}
-          onChange={(e) => handleDateFormatChange(e.target.value)}
-          className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
-          style={{
-            background: "var(--surface-2)",
-            color: "var(--fg)",
-            border: "1px solid var(--line)",
-          }}
-        >
+      <Field label="Date format">
+        <div className="flex rounded-[6px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
           {DATE_FORMAT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleDateFormatChange(opt.value)}
+              className="flex-1 px-3 py-1.5 font-medium transition-colors"
+              style={{
+                background: dateFormat === opt.value ? "var(--accent-brand)" : "var(--surface-2)",
+                color: dateFormat === opt.value ? "var(--accent-fg)" : "var(--fg-2)",
+                fontSize: "calc(13px * var(--font-scale))",
+              }}
+            >
               {opt.label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
       </Field>
 
       <Field label="Currency" htmlFor="pref-currency">
@@ -86,11 +85,12 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
           type="text"
           value={currency}
           onChange={(e) => handleCurrencyChange(e.target.value.toUpperCase().slice(0, 3))}
-          className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+          className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={{
             background: "var(--surface-2)",
             color: "var(--fg)",
             border: "1px solid var(--line)",
+            fontSize: "calc(13px * var(--font-scale))",
           }}
           placeholder="USD"
           maxLength={3}
@@ -104,10 +104,11 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
               key={unit}
               type="button"
               onClick={() => handleDistanceUnitChange(unit)}
-              className="flex-1 px-3 py-1.5 text-[13px] font-medium transition-colors capitalize"
+              className="flex-1 px-3 py-1.5 font-medium transition-colors capitalize"
               style={{
                 background: distanceUnit === unit ? "var(--accent-brand)" : "var(--surface-2)",
                 color: distanceUnit === unit ? "var(--accent-fg)" : "var(--fg-2)",
+                fontSize: "calc(13px * var(--font-scale))",
               }}
             >
               {unit}
@@ -118,7 +119,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
 
       <div className="flex items-center justify-end gap-3">
         {justSaved && (
-          <span role="status" style={{ fontSize: "12px", color: "var(--accent-brand)" }}>
+          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
             Saved
           </span>
         )}

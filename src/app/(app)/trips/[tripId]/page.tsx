@@ -1,12 +1,18 @@
+import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
-import { getTripDetail } from "@/lib/queries";
+import { getTripDetail, getUserById } from "@/lib/queries";
 import { getServerNow } from "@/lib/server-now";
+import { detectDefaultDateFormat } from "@/lib/utils";
 import { TripDetailClient } from "./page-client";
 
 export default async function TripDetailPage({ params }: { params: Promise<{ tripId: string }> }) {
-  const user = await requireUser();
+  const session = await requireUser();
   const { tripId } = await params;
-  const detail = await getTripDetail(tripId, user.id!);
-  const now = await getServerNow();
-  return <TripDetailClient detail={detail} nowISO={now.toISOString()} />;
+  const [detail, profile, now] = await Promise.all([
+    getTripDetail(tripId, session.id!),
+    getUserById(session.id!),
+    getServerNow(),
+  ]);
+  const dateFormat = profile?.dateFormat ?? detectDefaultDateFormat((await headers()).get("accept-language") ?? "");
+  return <TripDetailClient detail={detail} nowISO={now.toISOString()} dateFormat={dateFormat} />;
 }

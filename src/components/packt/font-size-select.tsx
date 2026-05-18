@@ -15,6 +15,7 @@ const DEFAULT: FontSizeValue = "medium";
 function applyFontSize(value: FontSizeValue) {
   const size = SIZES.find((s) => s.value === value) ?? SIZES[1];
   document.documentElement.style.setProperty("--font-size-base", size.px);
+  document.documentElement.dataset.fontSize = value;
 }
 
 function readStorage(): FontSizeValue {
@@ -64,12 +65,13 @@ export function FontSizeSelect() {
       onChange={handleChange}
       disabled={!mounted}
       aria-label="Font size"
-      className="rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+      className="rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
       style={{
         background: "var(--surface-2)",
         color: "var(--fg)",
         border: "1px solid var(--line)",
         minWidth: 120,
+        fontSize: "calc(13px * var(--font-scale))",
       }}
     >
       {SIZES.map((opt) => (

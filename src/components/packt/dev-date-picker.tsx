@@ -44,7 +44,7 @@ function DevDatePickerInner() {
         alignItems: "flex-end",
         gap: 6,
         fontFamily: "var(--font-mono-family, ui-monospace)",
-        fontSize: 11,
+        fontSize: "calc(11px * var(--font-scale))",
       }}
     >
       {open && (
@@ -63,7 +63,7 @@ function DevDatePickerInner() {
           <div
             style={{
               color: "#ff9a4d",
-              fontSize: 10,
+              fontSize: "calc(10px * var(--font-scale))",
               letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}
@@ -80,7 +80,7 @@ function DevDatePickerInner() {
               borderRadius: 6,
               color: "#ffcfa0",
               fontFamily: "inherit",
-              fontSize: 12,
+              fontSize: "calc(12px * var(--font-scale))",
               padding: "4px 8px",
               width: "100%",
             }}
@@ -97,7 +97,7 @@ function DevDatePickerInner() {
                 padding: "5px 0",
                 cursor: "pointer",
                 fontFamily: "inherit",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--font-scale))",
                 fontWeight: 700,
               }}
             >
@@ -115,7 +115,7 @@ function DevDatePickerInner() {
                   padding: "5px 0",
                   cursor: "pointer",
                   fontFamily: "inherit",
-                  fontSize: 11,
+                  fontSize: "calc(11px * var(--font-scale))",
                 }}
               >
                 Clear
@@ -137,7 +137,7 @@ function DevDatePickerInner() {
           padding: "4px 10px",
           cursor: "pointer",
           fontFamily: "inherit",
-          fontSize: 10,
+          fontSize: "calc(10px * var(--font-scale))",
           fontWeight: 700,
           letterSpacing: "0.05em",
           textTransform: "uppercase",

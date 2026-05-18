@@ -11,11 +11,12 @@ export interface CompanionRowProps {
   companion: Companion;
 }
 
-const INPUT_CLASS = "w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors";
+const INPUT_CLASS = "w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors";
 const INPUT_STYLE: React.CSSProperties = {
   background: "var(--surface-2)",
   color: "var(--fg)",
   border: "1px solid var(--line)",
+  fontSize: "calc(13px * var(--font-scale))",
 };
 
 export function CompanionRow({ companion }: CompanionRowProps) {
@@ -86,14 +87,16 @@ export function CompanionRow({ companion }: CompanionRowProps) {
       onKeyDown={isExpanded ? handleKeyDown : undefined}
     >
       <div className="flex items-center gap-2 py-2">
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>
+        <span style={{ flex: 1, fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
           {companion.name}
           {companion.age != null && (
-            <span style={{ fontSize: 12, color: "var(--fg-3)", marginLeft: 6 }}>({companion.age})</span>
+            <span style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)", marginLeft: 6 }}>
+              ({companion.age})
+            </span>
           )}
         </span>
         {justSaved && (
-          <span role="status" style={{ fontSize: 12, color: "var(--accent-brand)" }}>
+          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
             Saved
           </span>
         )}
@@ -213,7 +216,14 @@ export function CompanionRow({ companion }: CompanionRowProps) {
               style={INPUT_STYLE}
               autoComplete="off"
             />
-            <span style={{ fontSize: 11, color: "var(--fg-4)", marginTop: 3, display: "block" }}>
+            <span
+              style={{
+                fontSize: "calc(11px * var(--font-scale))",
+                color: "var(--fg-4)",
+                marginTop: 3,
+                display: "block",
+              }}
+            >
               Used for future trip sharing
             </span>
           </Field>

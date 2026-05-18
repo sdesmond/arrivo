@@ -58,17 +58,29 @@ const upcomingTrip: Trip = {
 
 describe("NowCard", () => {
   it("renders trip name for active trip", () => {
-    render(<NowCard trip={activeTrip} todayEvents={todayEvents} />, { wrapper: Wrapper });
+    render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("renders dates in MM/DD/YYYY format", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText(/May 10, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/May 20, 2026/)).toBeInTheDocument();
+  });
+
+  it("renders dates in DD/MM/YYYY format", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="DD/MM/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText(/10 May 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/20 May 2026/)).toBeInTheDocument();
+  });
+
   it("renders upcoming trip without crash", () => {
-    render(<NowCard trip={upcomingTrip} todayEvents={[]} />, { wrapper: Wrapper });
+    render(<NowCard trip={upcomingTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getAllByText("Paris Trip").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders edit button when onEditTrip is provided", () => {
-    render(<NowCard trip={activeTrip} todayEvents={[]} onEditTrip={vi.fn()} />, {
+    render(<NowCard trip={activeTrip} todayEvents={[]} onEditTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, {
       wrapper: Wrapper,
     });
     expect(screen.getByTitle("Edit trip")).toBeInTheDocument();
@@ -77,7 +89,7 @@ describe("NowCard", () => {
   it("calls onEditTrip when edit button is clicked", async () => {
     const user = userEvent.setup();
     const onEditTrip = vi.fn();
-    render(<NowCard trip={activeTrip} todayEvents={[]} onEditTrip={onEditTrip} />, {
+    render(<NowCard trip={activeTrip} todayEvents={[]} onEditTrip={onEditTrip} dateFormat="MM/DD/YYYY" />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByTitle("Edit trip"));
@@ -85,7 +97,7 @@ describe("NowCard", () => {
   });
 
   it("does not render edit button when onEditTrip is absent", () => {
-    render(<NowCard trip={activeTrip} todayEvents={[]} />, { wrapper: Wrapper });
+    render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.queryByTitle("Edit trip")).not.toBeInTheDocument();
   });
 
@@ -97,7 +109,7 @@ describe("NowCard", () => {
       startDate: "2026-04-01",
       endDate: "2026-04-10",
     };
-    render(<NowCard trip={pastTrip} todayEvents={[]} />, { wrapper: Wrapper });
+    render(<NowCard trip={pastTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getAllByText("PAST TRIP").length).toBeGreaterThanOrEqual(1);
   });
 
@@ -109,12 +121,12 @@ describe("NowCard", () => {
         { name: "Bob Jones", initials: "BJ", email: "bob@example.com", role: "viewer" },
       ],
     };
-    render(<NowCard trip={tripWithCollaborators} todayEvents={[]} />, { wrapper: Wrapper });
+    render(<NowCard trip={tripWithCollaborators} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByLabelText("Alice Smith, Bob Jones")).toBeInTheDocument();
   });
 
   it("renders current event when todayEvents has a past event", () => {
-    render(<NowCard trip={activeTrip} todayEvents={todayEvents} />, { wrapper: Wrapper });
+    render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByText("Museum Visit")).toBeInTheDocument();
   });
 });

@@ -19,8 +19,10 @@ export function TripDetailCrumb({ tripName }: TripDetailCrumbProps) {
         <ChevronLeft size={14} strokeWidth={1.5} />
         Trips
       </Link>
-      <span style={{ color: "var(--fg-4)", fontSize: 13 }}>/</span>
-      <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>{tripName}</span>
+      <span style={{ color: "var(--fg-4)", fontSize: "calc(13px * var(--font-scale))" }}>/</span>
+      <span style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
+        {tripName}
+      </span>
       <span className="flex-1" />
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm">

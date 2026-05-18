@@ -76,7 +76,7 @@ describe("ProfilePageClient", () => {
     const user = userEvent.setup();
     render(<ProfilePageClient user={baseUser} />);
     await user.click(screen.getByRole("tab", { name: "Preferences" }));
-    expect(screen.getByLabelText("Date format")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Month/Day" })).toBeInTheDocument();
     expect(screen.queryByDisplayValue("Test User")).not.toBeInTheDocument();
   });
 

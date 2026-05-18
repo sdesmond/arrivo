@@ -49,14 +49,18 @@ export function AddDocDialog({ eventName, open, onOpenChange, onAdd }: AddDocDia
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Attach document</DialogTitle>
-          {eventName && <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: -4 }}>{eventName}</p>}
+          {eventName && (
+            <p style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)", marginTop: -4 }}>
+              {eventName}
+            </p>
+          )}
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div>
             <div
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10,
+                fontSize: "calc(10px * var(--font-scale))",
                 fontWeight: 600,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
@@ -76,7 +80,7 @@ export function AddDocDialog({ eventName, open, onOpenChange, onAdd }: AddDocDia
                     flex: 1,
                     padding: "4px 0",
                     borderRadius: 6,
-                    fontSize: 11,
+                    fontSize: "calc(11px * var(--font-scale))",
                     fontWeight: 600,
                     letterSpacing: "0.05em",
                     textTransform: "uppercase",
@@ -98,7 +102,7 @@ export function AddDocDialog({ eventName, open, onOpenChange, onAdd }: AddDocDia
               htmlFor="add-doc-name"
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10,
+                fontSize: "calc(10px * var(--font-scale))",
                 fontWeight: 600,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
@@ -126,7 +130,7 @@ export function AddDocDialog({ eventName, open, onOpenChange, onAdd }: AddDocDia
                 htmlFor="add-doc-url"
                 style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: 10,
+                  fontSize: "calc(10px * var(--font-scale))",
                   fontWeight: 600,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",

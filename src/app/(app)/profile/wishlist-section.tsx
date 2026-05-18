@@ -36,7 +36,9 @@ export function WishlistSection({ wishlistDestinations }: WishlistSectionProps) 
         <div className="flex flex-col gap-2">
           {wishlistDestinations.map((dest) => (
             <div key={dest.id} className="flex items-center gap-2">
-              <span style={{ flex: 1, fontSize: 13, color: "var(--fg)" }}>{dest.name}</span>
+              <span style={{ flex: 1, fontSize: "calc(13px * var(--font-scale))", color: "var(--fg)" }}>
+                {dest.name}
+              </span>
               <button
                 type="button"
                 onClick={() => handleDelete(dest.id)}
@@ -59,11 +61,12 @@ export function WishlistSection({ wishlistDestinations }: WishlistSectionProps) 
           onKeyDown={(e) => {
             if (e.key === "Enter") handleAdd();
           }}
-          className="flex-1 rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+          className="flex-1 rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={{
             background: "var(--surface-2)",
             color: "var(--fg)",
             border: "1px solid var(--line)",
+            fontSize: "calc(13px * var(--font-scale))",
           }}
         />
         <Button size="sm" onClick={handleAdd} disabled={isAdding || !name.trim()}>

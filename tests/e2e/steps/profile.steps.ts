@@ -49,7 +49,7 @@ When("I set currency to {string}", async ({ page }, currency: string) => {
 
 When("I save the Preferences section", async ({ page }) => {
   await page.getByRole("button", { name: "Save" }).click();
-  await page.waitForTimeout(500);
+  await expect(page.getByRole("status")).toBeVisible({ timeout: 5000 });
 });
 
 Then("the currency preference should persist after reload", async ({ page }) => {

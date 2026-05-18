@@ -8,7 +8,7 @@ import { type Collaborator, type CollaboratorRole } from "@/data/types";
 
 const LABEL_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-mono-family, ui-monospace)",
-  fontSize: 9,
+  fontSize: "calc(9px * var(--font-scale))",
   fontWeight: 600,
   letterSpacing: "0.08em",
   textTransform: "uppercase",
@@ -20,7 +20,7 @@ const LABEL_STYLE: React.CSSProperties = {
 const SELECT_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "6px 8px",
-  fontSize: 13,
+  fontSize: "calc(13px * var(--font-scale))",
   background: "var(--bg)",
   border: "1px solid var(--line-strong)",
   borderRadius: 6,
@@ -65,7 +65,7 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
                 style={{
                   width: 28,
                   height: 28,
-                  fontSize: 10,
+                  fontSize: "calc(10px * var(--font-scale))",
                   fontWeight: 700,
                   letterSpacing: "0.04em",
                   background: c.tint?.bg ?? "var(--surface-3)",
@@ -75,11 +75,18 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
                 {c.initials}
               </span>
               <div className="flex-1 min-w-0">
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>{c.name}</div>
-                <div style={{ fontSize: 11.5, color: "var(--fg-3)" }}>{c.email}</div>
+                <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
+                  {c.name}
+                </div>
+                <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>{c.email}</div>
               </div>
               <select
-                style={{ ...SELECT_STYLE, width: "auto", fontSize: 11.5, padding: "3px 6px" }}
+                style={{
+                  ...SELECT_STYLE,
+                  width: "auto",
+                  fontSize: "calc(11.5px * var(--font-scale))",
+                  padding: "3px 6px",
+                }}
                 value={c.role}
                 disabled={c.role === "owner"}
                 onChange={(e) => onUpdateRole(i, e.target.value as CollaboratorRole)}
@@ -104,7 +111,7 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: 13, color: "var(--fg-4)" }}>No collaborators yet.</div>
+        <div style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-4)" }}>No collaborators yet.</div>
       )}
 
       <div

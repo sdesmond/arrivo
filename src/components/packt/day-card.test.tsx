@@ -181,6 +181,34 @@ describe("DayCard", () => {
     expect(screen.getByText(/Wed, May 13/i)).toBeInTheDocument();
   });
 
+  it("renders date header in MM/DD/YYYY format (month before day)", () => {
+    render(
+      <DayCard
+        day={baseDay}
+        dateFormat="MM/DD/YYYY"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByText(/Wed, May 13/i)).toBeInTheDocument();
+  });
+
+  it("renders date header in DD/MM/YYYY format (day before month)", () => {
+    render(
+      <DayCard
+        day={baseDay}
+        dateFormat="DD/MM/YYYY"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByText(/Wed, 13 May/i)).toBeInTheDocument();
+  });
+
   it("renders scheduled and unscheduled events in the expanded body", () => {
     render(
       <DayCard

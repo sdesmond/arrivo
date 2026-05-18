@@ -50,6 +50,21 @@ export function formatTripDate(dateStr: string): string {
   });
 }
 
+const MDY_LOCALES = new Set(["en-US", "en-PH"]);
+
+export function detectDefaultDateFormat(acceptLanguage: string): string {
+  const primary = acceptLanguage.split(",")[0]?.split(";")[0]?.trim() ?? "";
+  return MDY_LOCALES.has(primary) ? "MM/DD/YYYY" : "DD/MM/YYYY";
+}
+
+export function formatDate(dateStr: string, format: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  const day = date.getDate();
+  const month = date.toLocaleString("en-US", { month: "short" });
+  const year = date.getFullYear();
+  return format === "MM/DD/YYYY" ? `${month} ${day}, ${year}` : `${day} ${month} ${year}`;
+}
+
 export function getTripDays(startDate: string, endDate: string): number {
   const start = new Date(startDate + "T00:00:00");
   const end = new Date(endDate + "T00:00:00");

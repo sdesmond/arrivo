@@ -2,6 +2,7 @@
 
 import { Calendar, MapPin, FileText, Users } from "lucide-react";
 import { TripCover } from "./trip-cover";
+import { formatDate } from "@/lib/utils";
 
 interface TripHeroProps {
   name: string;
@@ -14,6 +15,7 @@ interface TripHeroProps {
   places: number;
   docs: number;
   collaborators: number;
+  dateFormat: string;
 }
 
 export function TripHero({
@@ -26,6 +28,7 @@ export function TripHero({
   places,
   docs,
   collaborators,
+  dateFormat,
 }: TripHeroProps) {
   return (
     <div className="relative overflow-hidden rounded-t-none">
@@ -52,7 +55,7 @@ export function TripHero({
               <div
                 style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: "10.5px",
+                  fontSize: "calc(10.5px * var(--font-scale))",
                   fontWeight: 500,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
@@ -60,12 +63,12 @@ export function TripHero({
                   marginBottom: 6,
                 }}
               >
-                {countryCode} · {startDate} — {endDate}
+                {countryCode} · {formatDate(startDate, dateFormat)} — {formatDate(endDate, dateFormat)}
               </div>
               <h1
                 style={{
                   fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                  fontSize: 36,
+                  fontSize: "calc(36px * var(--font-scale))",
                   fontWeight: 800,
                   letterSpacing: "-0.03em",
                   color: "#fff",
@@ -75,7 +78,10 @@ export function TripHero({
               >
                 {name}
               </h1>
-              <div className="flex items-center gap-4" style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>
+              <div
+                className="flex items-center gap-4"
+                style={{ color: "rgba(255,255,255,0.75)", fontSize: "calc(13px * var(--font-scale))" }}
+              >
                 <span className="flex items-center gap-1.5">
                   <Calendar size={13} strokeWidth={1.5} />
                   {dayTotal} days · day {dayN} today

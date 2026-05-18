@@ -36,7 +36,7 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
       <div
         style={{
           fontFamily: "var(--font-mono-family, ui-monospace)",
-          fontSize: "10px",
+          fontSize: "calc(10px * var(--font-scale))",
           fontWeight: 500,
           letterSpacing: "0.04em",
           color: isNow ? "var(--accent-brand)" : "var(--fg-3)",
@@ -50,7 +50,11 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
         {timeStr}
         {isNow ? " · NOW" : isPast ? " · DONE" : ""}
       </div>
-      <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}>{ev.name}</div>
+      <div
+        style={{ fontSize: "calc(12.5px * var(--font-scale))", fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}
+      >
+        {ev.name}
+      </div>
     </Link>
   );
 }

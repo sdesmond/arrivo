@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const mockSetProperty = vi.fn();
+const mockDataset: Record<string, string> = {};
 Object.defineProperty(document, "documentElement", {
-  value: { style: { setProperty: mockSetProperty } },
+  value: { style: { setProperty: mockSetProperty }, dataset: mockDataset },
   writable: true,
 });
 
@@ -28,6 +29,7 @@ describe("FontSizeSelect", () => {
   beforeEach(() => {
     localStorageMock.clear();
     mockSetProperty.mockClear();
+    Object.keys(mockDataset).forEach((k) => delete mockDataset[k]);
   });
 
   it("renders Small, Medium, and Large options", async () => {
@@ -51,12 +53,13 @@ describe("FontSizeSelect", () => {
     await waitFor(() => expect((select as HTMLSelectElement).value).toBe("large"));
   });
 
-  it("saves selection to localStorage and applies CSS variable on change", async () => {
+  it("saves selection to localStorage, applies CSS variable, and sets data attribute on change", async () => {
     render(<FontSizeSelect />);
     const select = await screen.findByRole("combobox", { name: /font size/i });
     fireEvent.change(select, { target: { value: "small" } });
     expect(localStorageMock.getItem("packt-font-size")).toBe("small");
     expect(mockSetProperty).toHaveBeenCalledWith("--font-size-base", "13px");
+    expect(mockDataset.fontSize).toBe("small");
   });
 
   it("is disabled before hydration (useSyncExternalStore server snapshot)", () => {

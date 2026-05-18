@@ -11,11 +11,12 @@ interface PassportSectionProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-const INPUT_CLASS = "w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors";
+const INPUT_CLASS = "w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors";
 const INPUT_STYLE: React.CSSProperties = {
   background: "var(--surface-2)",
   color: "var(--fg)",
   border: "1px solid var(--line)",
+  fontSize: "calc(13px * var(--font-scale))",
 };
 
 export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
@@ -116,7 +117,7 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
 
       <div className="flex items-center justify-end gap-3">
         {justSaved && (
-          <span role="status" style={{ fontSize: "12px", color: "var(--accent-brand)" }}>
+          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
             Saved
           </span>
         )}

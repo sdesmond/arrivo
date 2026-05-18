@@ -15,6 +15,7 @@ const INPUT_STYLE: React.CSSProperties = {
   background: "var(--surface-2)",
   color: "var(--fg)",
   border: "1px solid var(--line)",
+  fontSize: "calc(13px * var(--font-scale))",
 };
 
 export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
@@ -52,10 +53,12 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
         <div className="flex flex-col gap-2">
           {loyaltyNumbers.map((ln) => (
             <div key={ln.id} className="flex items-center gap-2">
-              <span style={{ flex: 1, fontSize: 13, color: "var(--fg)" }}>{ln.programName}</span>
+              <span style={{ flex: 1, fontSize: "calc(13px * var(--font-scale))", color: "var(--fg)" }}>
+                {ln.programName}
+              </span>
               <span
                 style={{
-                  fontSize: 13,
+                  fontSize: "calc(13px * var(--font-scale))",
                   fontFamily: "var(--font-mono-family, ui-monospace)",
                   color: "var(--fg-2)",
                 }}
@@ -92,7 +95,7 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
           placeholder="Program name"
           value={program}
           onChange={(e) => setProgram(e.target.value)}
-          className="flex-1 rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+          className="flex-1 rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={INPUT_STYLE}
         />
         <input
@@ -103,7 +106,7 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
           onKeyDown={(e) => {
             if (e.key === "Enter") handleAdd();
           }}
-          className="w-28 rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+          className="w-28 rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={INPUT_STYLE}
         />
         <Button size="sm" onClick={handleAdd} disabled={isAdding || !program.trim() || !memberNum.trim()}>

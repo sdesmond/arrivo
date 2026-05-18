@@ -16,6 +16,7 @@ const INPUT_STYLE: React.CSSProperties = {
   background: "var(--surface-2)",
   color: "var(--fg)",
   border: "1px solid var(--line)",
+  fontSize: "calc(13px * var(--font-scale))",
 };
 
 export function CompanionsSection({ companions }: CompanionsSectionProps) {
@@ -34,7 +35,7 @@ export function CompanionsSection({ companions }: CompanionsSectionProps) {
   return (
     <Section>
       {companions.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--fg-3)" }}>No companions saved yet.</p>
+        <p style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-3)" }}>No companions saved yet.</p>
       ) : (
         <div className="flex flex-col">
           {companions.map((companion) => (
@@ -58,7 +59,7 @@ export function CompanionsSection({ companions }: CompanionsSectionProps) {
               if (e.key === "Enter") handleAdd();
             }}
             aria-describedby="companion-name-hint"
-            className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+            className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
             style={INPUT_STYLE}
           />
           <span id="companion-name-hint" className="sr-only">

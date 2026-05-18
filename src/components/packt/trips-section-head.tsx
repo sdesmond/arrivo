@@ -12,7 +12,7 @@ export function SectionHead({ title, count, children }: SectionHeadProps) {
       <h2
         style={{
           fontFamily: "var(--font-heading-family, ui-sans-serif)",
-          fontSize: 18,
+          fontSize: "calc(18px * var(--font-scale))",
           fontWeight: 600,
           letterSpacing: "-0.01em",
           color: "var(--fg)",
@@ -24,7 +24,7 @@ export function SectionHead({ title, count, children }: SectionHeadProps) {
         <span
           style={{
             fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: "10.5px",
+            fontSize: "calc(10.5px * var(--font-scale))",
             fontWeight: 500,
             letterSpacing: "0.06em",
             textTransform: "uppercase",

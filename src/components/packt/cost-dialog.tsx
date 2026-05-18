@@ -34,10 +34,14 @@ export function CostDialog({ cost, eventName, open, onOpenChange, onSave }: Cost
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Cost</DialogTitle>
-          {eventName && <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: -4 }}>{eventName}</p>}
+          {eventName && (
+            <p style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)", marginTop: -4 }}>
+              {eventName}
+            </p>
+          )}
         </DialogHeader>
         <div className="flex items-center gap-2">
-          <span style={{ fontSize: 18, fontWeight: 500, color: "var(--fg-3)" }}>$</span>
+          <span style={{ fontSize: "calc(18px * var(--font-scale))", fontWeight: 500, color: "var(--fg-3)" }}>$</span>
           <Input
             type="number"
             min="0"

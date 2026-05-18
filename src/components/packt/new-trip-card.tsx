@@ -36,7 +36,7 @@ export function NewTripCard() {
       </span>
       <span
         style={{
-          fontSize: 14,
+          fontSize: "calc(14px * var(--font-scale))",
           fontWeight: 600,
           color: "var(--fg-2)",
           fontFamily: "var(--font-heading-family, ui-sans-serif)",
@@ -45,7 +45,14 @@ export function NewTripCard() {
       >
         Start a new trip
       </span>
-      <span style={{ fontSize: 12.5, color: "var(--fg-4)", textAlign: "center", lineHeight: 1.5 }}>
+      <span
+        style={{
+          fontSize: "calc(12.5px * var(--font-scale))",
+          color: "var(--fg-4)",
+          textAlign: "center",
+          lineHeight: 1.5,
+        }}
+      >
         A blank itinerary, ready when you are.
       </span>
     </button>

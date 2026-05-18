@@ -115,13 +115,13 @@ describe("MobileActiveTab", () => {
 
 describe("MobileUpcomingTab", () => {
   it("renders upcoming trip names", () => {
-    render(<MobileUpcomingTab trips={upcomingTrips} now={NOW} />);
+    render(<MobileUpcomingTab trips={upcomingTrips} now={NOW} dateFormat="MM/DD/YYYY" />);
     expect(screen.getByText("Paris Trip")).toBeInTheDocument();
     expect(screen.getByText("Rome Tour")).toBeInTheDocument();
   });
 
   it("shows 'no docs' badge for trips without documents", () => {
-    render(<MobileUpcomingTab trips={upcomingTrips} now={NOW} />);
+    render(<MobileUpcomingTab trips={upcomingTrips} now={NOW} dateFormat="MM/DD/YYYY" />);
     expect(screen.getAllByText("no docs").length).toBeGreaterThan(0);
   });
 
@@ -137,14 +137,14 @@ describe("MobileUpcomingTab", () => {
         { id: "d2", name: "Hotel.pdf", kind: "pdf", scope: "trip", offline: false },
       ],
     };
-    render(<MobileUpcomingTab trips={[tripWithDocs]} now={NOW} />);
+    render(<MobileUpcomingTab trips={[tripWithDocs]} now={NOW} dateFormat="MM/DD/YYYY" />);
     expect(screen.getByText("2 docs")).toBeInTheDocument();
   });
 });
 
 describe("MobilePastTab", () => {
   it("renders past trip names", () => {
-    render(<MobilePastTab trips={pastTrips} />);
+    render(<MobilePastTab trips={pastTrips} dateFormat="MM/DD/YYYY" />);
     expect(screen.getByText("Lisbon Escape")).toBeInTheDocument();
     expect(screen.getByText("NYC Visit")).toBeInTheDocument();
   });

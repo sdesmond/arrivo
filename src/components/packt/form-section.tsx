@@ -1,6 +1,6 @@
 const LABEL_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-mono-family, ui-monospace)",
-  fontSize: 9,
+  fontSize: "calc(9px * var(--font-scale))",
   fontWeight: 600,
   letterSpacing: "0.08em",
   textTransform: "uppercase",
@@ -21,7 +21,7 @@ export function Section({ title, children }: SectionProps) {
         <div
           style={{
             fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: 9,
+            fontSize: "calc(9px * var(--font-scale))",
             fontWeight: 700,
             letterSpacing: "0.1em",
             textTransform: "uppercase",
