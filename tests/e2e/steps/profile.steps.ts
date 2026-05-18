@@ -14,6 +14,18 @@ Then("I should be on the profile page", async ({ page }) => {
   await expect(page).toHaveURL(/\/profile/);
 });
 
+When("I navigate to the Identity section", async ({ page }) => {
+  await page.getByRole("tab", { name: "Identity" }).click();
+});
+
+When("I navigate to the Traveler section", async ({ page }) => {
+  await page.getByRole("tab", { name: "Traveler" }).click();
+});
+
+When("I navigate to the Preferences section", async ({ page }) => {
+  await page.getByRole("tab", { name: "Preferences" }).click();
+});
+
 When("I update my name to {string}", async ({ page }, name: string) => {
   const nameInput = page.locator("#profile-name");
   await nameInput.clear();
@@ -21,7 +33,7 @@ When("I update my name to {string}", async ({ page }, name: string) => {
 });
 
 When("I save the Identity section", async ({ page }) => {
-  await page.getByRole("button", { name: "Save" }).first().click();
+  await page.getByRole("button", { name: "Save" }).click();
   await page.waitForTimeout(500);
 });
 
@@ -36,11 +48,28 @@ When("I set currency to {string}", async ({ page }, currency: string) => {
 });
 
 When("I save the Preferences section", async ({ page }) => {
-  await page.getByRole("button", { name: "Save" }).last().click();
+  await page.getByRole("button", { name: "Save" }).click();
   await page.waitForTimeout(500);
 });
 
 Then("the currency preference should persist after reload", async ({ page }) => {
   await page.reload();
+  await page.getByRole("tab", { name: "Preferences" }).click();
   await expect(page.locator("#pref-currency")).toHaveValue("EUR");
+});
+
+Then("the Identity section should be active", async ({ page }) => {
+  await expect(page.getByRole("tab", { name: "Identity" })).toHaveAttribute("aria-selected", "true");
+});
+
+Then("the Identity content should be visible", async ({ page }) => {
+  await expect(page.locator("#profile-name")).toBeVisible();
+});
+
+Then("the Traveler content should be visible", async ({ page }) => {
+  await expect(page.getByText("Loyalty Numbers")).toBeVisible();
+});
+
+Then("the Identity content should not be visible", async ({ page }) => {
+  await expect(page.locator("#profile-name")).not.toBeVisible();
 });

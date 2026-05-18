@@ -99,6 +99,15 @@ export interface AddWishlistDestinationInput {
   name: string;
 }
 
+export const ProfileSection = {
+  identity: "identity",
+  traveler: "traveler",
+  preferences: "preferences",
+  appearance: "appearance",
+  account: "account",
+} as const;
+export type ProfileSection = (typeof ProfileSection)[keyof typeof ProfileSection];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT
 // ─────────────────────────────────────────────────────────────────────────────
