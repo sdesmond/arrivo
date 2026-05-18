@@ -140,9 +140,10 @@ Pass the original request as context so scope and test checks have what they nee
    - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create `*.test.ts` / `*.test.tsx` alongside it
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend a `.feature` + step file in `tests/e2e/`
 2. Run `build-validator` to catch lint/tsc/build/test errors
-3. Run the relevant focused reviewer(s) for what changed
-4. Fix any flagged issues, then re-validate
-5. Run `standards-check` before the final commit
+3. Run `npm run test:e2e` — required after every component or app code change, not just when E2E files change
+4. Run the relevant focused reviewer(s) for what changed
+5. Fix any flagged issues, then re-validate
+6. Run `standards-check` before the final commit
 
 ## Key Conventions
 
