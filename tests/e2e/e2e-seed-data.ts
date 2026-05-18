@@ -15,3 +15,15 @@ export const E2E_DAYS = [
   { dayNumber: 2, date: "2026-07-02", label: "Day 2" },
   { dayNumber: 3, date: "2026-07-03", label: "Day 3" },
 ];
+
+export const E2E_LOYALTY_NUMBER = {
+  programName: "Test Airlines",
+  memberNumber: "TA-123456",
+  position: 0,
+};
+
+export const E2E_COMPANION = {
+  name: "Alex Companion",
+  age: 30,
+  position: 0,
+};

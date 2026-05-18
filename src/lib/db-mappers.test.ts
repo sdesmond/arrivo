@@ -6,6 +6,9 @@ import {
   dbCollabToType,
   dbNoteToType,
   dbChecklistToType,
+  dbLoyaltyToType,
+  dbWishlistToType,
+  dbCompanionToType,
 } from "@/lib/db-mappers";
 import type {
   trips,
@@ -15,6 +18,9 @@ import type {
   itineraryNotes,
   itineraryChecklists,
   checklistItems,
+  userLoyaltyNumbers,
+  userWishlistDestinations,
+  userCompanions,
 } from "@/db/schema";
 
 type TripRow = typeof trips.$inferSelect;
@@ -370,6 +376,58 @@ describe("dbChecklistToType", () => {
   });
 });
 
+// ── dbLoyaltyToType ───────────────────────────────────────────────────────────
+
+type LoyaltyRow = typeof userLoyaltyNumbers.$inferSelect;
+
+const BASE_LOYALTY: LoyaltyRow = {
+  id: "loyalty-1",
+  userId: "user-1",
+  programName: "United MileagePlus",
+  memberNumber: "MUA-12345",
+  position: 0,
+};
+
+describe("dbLoyaltyToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbLoyaltyToType(BASE_LOYALTY);
+    expect(result.id).toBe("loyalty-1");
+    expect(result.programName).toBe("United MileagePlus");
+    expect(result.memberNumber).toBe("MUA-12345");
+    expect(result.position).toBe(0);
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbLoyaltyToType({ ...BASE_LOYALTY, position: 3 });
+    expect(result.position).toBe(3);
+  });
+});
+
+// ── dbWishlistToType ──────────────────────────────────────────────────────────
+
+type WishlistRow = typeof userWishlistDestinations.$inferSelect;
+
+const BASE_WISHLIST: WishlistRow = {
+  id: "wish-1",
+  userId: "user-1",
+  name: "Kyoto, Japan",
+  position: 0,
+};
+
+describe("dbWishlistToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbWishlistToType(BASE_WISHLIST);
+    expect(result.id).toBe("wish-1");
+    expect(result.name).toBe("Kyoto, Japan");
+    expect(result.position).toBe(0);
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbWishlistToType({ ...BASE_WISHLIST, position: 2 });
+    expect(result.position).toBe(2);
+  });
+});
+
 // ── dbNoteToType ──────────────────────────────────────────────────────────────
 
 type NoteRow = typeof itineraryNotes.$inferSelect;
@@ -418,5 +476,65 @@ describe("dbNoteToType", () => {
   it("maps content string exactly", () => {
     const result = dbNoteToType({ ...BASE_NOTE, content: "Gate B22 – boarding at 14:30" });
     expect(result.content).toBe("Gate B22 – boarding at 14:30");
+  });
+});
+
+// ── dbCompanionToType ─────────────────────────────────────────────────────────
+
+type CompanionRow = typeof userCompanions.$inferSelect;
+
+const BASE_COMPANION: CompanionRow = {
+  id: "companion-1",
+  userId: "user-1",
+  name: "Alex Smith",
+  age: null,
+  passportNumber: null,
+  passportExpiry: null,
+  passportNationality: null,
+  knownTravelerNumber: null,
+  packtUsername: null,
+  position: 0,
+  createdAt: null,
+};
+
+describe("dbCompanionToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbCompanionToType(BASE_COMPANION);
+    expect(result.id).toBe("companion-1");
+    expect(result.name).toBe("Alex Smith");
+    expect(result.position).toBe(0);
+  });
+
+  it("null optional fields become undefined", () => {
+    const result = dbCompanionToType(BASE_COMPANION);
+    expect(result.age).toBeUndefined();
+    expect(result.passportNumber).toBeUndefined();
+    expect(result.passportExpiry).toBeUndefined();
+    expect(result.passportNationality).toBeUndefined();
+    expect(result.knownTravelerNumber).toBeUndefined();
+    expect(result.packtUsername).toBeUndefined();
+  });
+
+  it("maps all travel-doc fields when present", () => {
+    const result = dbCompanionToType({
+      ...BASE_COMPANION,
+      age: 30,
+      passportNumber: "P12345678",
+      passportExpiry: "2030-06-15",
+      passportNationality: "United States",
+      knownTravelerNumber: "KTN-9876",
+      packtUsername: "alex.smith",
+    });
+    expect(result.age).toBe(30);
+    expect(result.passportNumber).toBe("P12345678");
+    expect(result.passportExpiry).toBe("2030-06-15");
+    expect(result.passportNationality).toBe("United States");
+    expect(result.knownTravelerNumber).toBe("KTN-9876");
+    expect(result.packtUsername).toBe("alex.smith");
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbCompanionToType({ ...BASE_COMPANION, position: 2 });
+    expect(result.position).toBe(2);
   });
 });

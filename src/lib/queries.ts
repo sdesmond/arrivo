@@ -10,11 +10,65 @@ import {
   itineraryNotes,
   itineraryChecklists,
   checklistItems,
+  users,
+  userLoyaltyNumbers,
+  userWishlistDestinations,
+  userCompanions,
 } from "@/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, asc } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
-import { dbTripToType, dbEventToType, dbDocToType, dbCollabToType, dbChecklistToType } from "@/lib/db-mappers";
-import type { TripListEntry, TripDetailPayload } from "@/data/types";
+import {
+  dbTripToType,
+  dbEventToType,
+  dbDocToType,
+  dbCollabToType,
+  dbChecklistToType,
+  dbLoyaltyToType,
+  dbWishlistToType,
+  dbCompanionToType,
+} from "@/lib/db-mappers";
+import type { TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
+
+export async function getUserById(id: string): Promise<UserProfile | null> {
+  const [user] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      dateFormat: users.dateFormat,
+      currency: users.currency,
+      distanceUnit: users.distanceUnit,
+      passportNumber: users.passportNumber,
+      passportExpiry: users.passportExpiry,
+      passportNationality: users.passportNationality,
+      knownTravelerNumber: users.knownTravelerNumber,
+    })
+    .from(users)
+    .where(eq(users.id, id));
+  if (!user || !user.email) return null;
+
+  const [loyaltyRows, wishlistRows, companionRows] = await Promise.all([
+    db
+      .select()
+      .from(userLoyaltyNumbers)
+      .where(eq(userLoyaltyNumbers.userId, id))
+      .orderBy(asc(userLoyaltyNumbers.position)),
+    db
+      .select()
+      .from(userWishlistDestinations)
+      .where(eq(userWishlistDestinations.userId, id))
+      .orderBy(asc(userWishlistDestinations.position)),
+    db.select().from(userCompanions).where(eq(userCompanions.userId, id)).orderBy(asc(userCompanions.position)),
+  ]);
+
+  return {
+    ...user,
+    email: user.email,
+    loyaltyNumbers: loyaltyRows.map(dbLoyaltyToType),
+    wishlistDestinations: wishlistRows.map(dbWishlistToType),
+    companions: companionRows.map(dbCompanionToType),
+  };
+}
 
 export async function listTripsForUser(userId: string, now: Date): Promise<TripListEntry[]> {
   const rows = await db

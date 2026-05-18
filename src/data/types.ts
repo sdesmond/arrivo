@@ -48,6 +48,103 @@ export const DocKind = {
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LoyaltyNumber {
+  id: string;
+  programName: string;
+  memberNumber: string;
+  position: number;
+}
+
+export interface WishlistDestination {
+  id: string;
+  name: string;
+  position: number;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string | null;
+  email: string;
+  dateFormat: string | null;
+  currency: string | null;
+  distanceUnit: string | null;
+  passportNumber: string | null;
+  passportExpiry: string | null;
+  passportNationality: string | null;
+  knownTravelerNumber: string | null;
+  loyaltyNumbers: LoyaltyNumber[];
+  wishlistDestinations: WishlistDestination[];
+  companions: Companion[];
+}
+
+export interface UpdateUserProfilePatch {
+  name?: string;
+  dateFormat?: string;
+  currency?: string;
+  distanceUnit?: string;
+  passportNumber?: string;
+  passportExpiry?: string;
+  passportNationality?: string;
+  knownTravelerNumber?: string;
+}
+
+export interface AddLoyaltyNumberInput {
+  programName: string;
+  memberNumber: string;
+}
+
+export interface AddWishlistDestinationInput {
+  name: string;
+}
+
+export interface Companion {
+  id: string;
+  name: string;
+  age?: number;
+  passportNumber?: string;
+  passportExpiry?: string;
+  passportNationality?: string;
+  knownTravelerNumber?: string;
+  packtUsername?: string;
+  position: number;
+}
+
+export interface AddCompanionInput {
+  name: string;
+  age?: number;
+}
+
+export interface UpdateCompanionPatch {
+  name?: string;
+  age?: number;
+  passportNumber?: string;
+  passportExpiry?: string;
+  passportNationality?: string;
+  knownTravelerNumber?: string;
+  packtUsername?: string;
+}
+
+export const ProfileSection = {
+  identity: "identity",
+  traveler: "traveler",
+  companions: "companions",
+  preferences: "preferences",
+  appearance: "appearance",
+  account: "account",
+} as const;
+export type ProfileSection = (typeof ProfileSection)[keyof typeof ProfileSection];
+
+export const FontSize = {
+  small: "small",
+  medium: "medium",
+  large: "large",
+} as const;
+export type FontSizeValue = (typeof FontSize)[keyof typeof FontSize];
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT
 // ─────────────────────────────────────────────────────────────────────────────
 

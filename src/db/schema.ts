@@ -25,6 +25,13 @@ export const users = pgTable("users", {
   emailVerified: timestamp("email_verified", { withTimezone: true }),
   image: text("image"),
   passwordHash: text("password_hash"),
+  dateFormat: text("date_format"),
+  currency: text("currency"),
+  distanceUnit: text("distance_unit"),
+  passportNumber: text("passport_number"),
+  passportExpiry: date("passport_expiry"),
+  passportNationality: text("passport_nationality"),
+  knownTravelerNumber: text("known_traveler_number"),
 });
 
 export const accounts = pgTable(
@@ -172,6 +179,37 @@ export const collaborators = pgTable(
   (t) => [unique().on(t.tripId, t.email)]
 );
 
+export const userLoyaltyNumbers = pgTable(
+  "user_loyalty_numbers",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    programName: text("program_name").notNull(),
+    memberNumber: text("member_number").notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [index().on(t.userId, t.position)]
+);
+
+export const userWishlistDestinations = pgTable(
+  "user_wishlist_destinations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [index().on(t.userId, t.position)]
+);
+
 export const packingItems = pgTable("packing_items", {
   id: uuid("id")
     .primaryKey()
@@ -232,4 +270,26 @@ export const itineraryNotes = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
   },
   (t) => [index().on(t.dayId, t.position)]
+);
+
+export const userCompanions = pgTable(
+  "user_companions",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    age: integer("age"),
+    passportNumber: text("passport_number"),
+    passportExpiry: date("passport_expiry"),
+    passportNationality: text("passport_nationality"),
+    knownTravelerNumber: text("known_traveler_number"),
+    packtUsername: text("packt_username"),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+  },
+  (t) => [index().on(t.userId, t.position)]
 );
