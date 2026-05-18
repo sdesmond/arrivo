@@ -42,6 +42,12 @@ const baseUser: UserProfile = {
   dateFormat: null,
   currency: null,
   distanceUnit: null,
+  passportNumber: null,
+  passportExpiry: null,
+  passportNationality: null,
+  knownTravelerNumber: null,
+  loyaltyNumbers: [],
+  wishlistDestinations: [],
 };
 
 describe("SidebarNav", () => {

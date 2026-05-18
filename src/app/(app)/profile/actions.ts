@@ -2,16 +2,59 @@
 
 import { requireUser } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { users, collaborators, trips } from "@/db/schema";
-import { eq, and, not, exists } from "drizzle-orm";
+import { users, collaborators, trips, userLoyaltyNumbers, userWishlistDestinations } from "@/db/schema";
+import { eq, and, not, exists, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import type { UpdateUserProfilePatch } from "@/data/types";
+import type { UpdateUserProfilePatch, AddLoyaltyNumberInput, AddWishlistDestinationInput } from "@/data/types";
 
 export async function updateProfile(patch: UpdateUserProfilePatch): Promise<void> {
   const session = await requireUser();
   await db.update(users).set(patch).where(eq(users.id, session.id!));
+  revalidatePath("/profile");
+}
+
+export async function addLoyaltyNumber(input: AddLoyaltyNumberInput): Promise<void> {
+  const session = await requireUser();
+  const userId = session.id!;
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(userLoyaltyNumbers)
+    .where(eq(userLoyaltyNumbers.userId, userId));
+  await db.insert(userLoyaltyNumbers).values({
+    userId,
+    programName: input.programName,
+    memberNumber: input.memberNumber,
+    position: count,
+  });
+  revalidatePath("/profile");
+}
+
+export async function deleteLoyaltyNumber(id: string): Promise<void> {
+  const session = await requireUser();
+  await db
+    .delete(userLoyaltyNumbers)
+    .where(and(eq(userLoyaltyNumbers.id, id), eq(userLoyaltyNumbers.userId, session.id!)));
+  revalidatePath("/profile");
+}
+
+export async function addWishlistDestination(input: AddWishlistDestinationInput): Promise<void> {
+  const session = await requireUser();
+  const userId = session.id!;
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(userWishlistDestinations)
+    .where(eq(userWishlistDestinations.userId, userId));
+  await db.insert(userWishlistDestinations).values({ userId, name: input.name, position: count });
+  revalidatePath("/profile");
+}
+
+export async function deleteWishlistDestination(id: string): Promise<void> {
+  const session = await requireUser();
+  await db
+    .delete(userWishlistDestinations)
+    .where(and(eq(userWishlistDestinations.id, id), eq(userWishlistDestinations.userId, session.id!)));
   revalidatePath("/profile");
 }
 

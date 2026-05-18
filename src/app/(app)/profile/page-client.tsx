@@ -3,6 +3,9 @@
 import { Section } from "@/components/packt/form-section";
 import { ThemeSelect } from "@/components/packt/theme-select";
 import { ProfileIdentitySection } from "./identity-section";
+import { LoyaltySection } from "./loyalty-section";
+import { PassportSection } from "./passport-section";
+import { WishlistSection } from "./wishlist-section";
 import { ProfilePreferencesSection } from "./preferences-section";
 import { ProfileAccountSection } from "./account-section";
 import type { UserProfile } from "@/data/types";
@@ -30,6 +33,9 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
 
         <div className="flex flex-col gap-8">
           <ProfileIdentitySection user={user} />
+          <LoyaltySection loyaltyNumbers={user.loyaltyNumbers} />
+          <PassportSection user={user} />
+          <WishlistSection wishlistDestinations={user.wishlistDestinations} />
           <ProfilePreferencesSection user={user} />
 
           <Section title="Appearance">

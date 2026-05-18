@@ -51,6 +51,19 @@ export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 // USER
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface LoyaltyNumber {
+  id: string;
+  programName: string;
+  memberNumber: string;
+  position: number;
+}
+
+export interface WishlistDestination {
+  id: string;
+  name: string;
+  position: number;
+}
+
 export interface UserProfile {
   id: string;
   name: string | null;
@@ -58,6 +71,12 @@ export interface UserProfile {
   dateFormat: string | null;
   currency: string | null;
   distanceUnit: string | null;
+  passportNumber: string | null;
+  passportExpiry: string | null;
+  passportNationality: string | null;
+  knownTravelerNumber: string | null;
+  loyaltyNumbers: LoyaltyNumber[];
+  wishlistDestinations: WishlistDestination[];
 }
 
 export interface UpdateUserProfilePatch {
@@ -65,6 +84,19 @@ export interface UpdateUserProfilePatch {
   dateFormat?: string;
   currency?: string;
   distanceUnit?: string;
+  passportNumber?: string;
+  passportExpiry?: string;
+  passportNationality?: string;
+  knownTravelerNumber?: string;
+}
+
+export interface AddLoyaltyNumberInput {
+  programName: string;
+  memberNumber: string;
+}
+
+export interface AddWishlistDestinationInput {
+  name: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

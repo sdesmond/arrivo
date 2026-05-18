@@ -28,6 +28,10 @@ export const users = pgTable("users", {
   dateFormat: text("date_format"),
   currency: text("currency"),
   distanceUnit: text("distance_unit"),
+  passportNumber: text("passport_number"),
+  passportExpiry: date("passport_expiry"),
+  passportNationality: text("passport_nationality"),
+  knownTravelerNumber: text("known_traveler_number"),
 });
 
 export const accounts = pgTable(
@@ -173,6 +177,37 @@ export const collaborators = pgTable(
     tintFg: text("tint_fg"),
   },
   (t) => [unique().on(t.tripId, t.email)]
+);
+
+export const userLoyaltyNumbers = pgTable(
+  "user_loyalty_numbers",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    programName: text("program_name").notNull(),
+    memberNumber: text("member_number").notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [index().on(t.userId, t.position)]
+);
+
+export const userWishlistDestinations = pgTable(
+  "user_wishlist_destinations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [index().on(t.userId, t.position)]
 );
 
 export const packingItems = pgTable("packing_items", {

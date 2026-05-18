@@ -6,6 +6,8 @@ import {
   itineraryChecklists,
   checklistItems,
   itineraryNotes,
+  userLoyaltyNumbers,
+  userWishlistDestinations,
 } from "@/db/schema";
 import { getTripStatus } from "@/lib/utils";
 import type {
@@ -17,6 +19,8 @@ import type {
   Checklist,
   ChecklistItem,
   Note,
+  LoyaltyNumber,
+  WishlistDestination,
 } from "@/data/types";
 
 export function dbTripToType(row: typeof trips.$inferSelect): Trip {
@@ -104,6 +108,23 @@ export function dbChecklistToType(
     items: itemRows.map(dbChecklistItemToType),
     createdAt: row.createdAt?.toISOString() ?? undefined,
     updatedAt: row.updatedAt?.toISOString() ?? undefined,
+  };
+}
+
+export function dbLoyaltyToType(row: typeof userLoyaltyNumbers.$inferSelect): LoyaltyNumber {
+  return {
+    id: row.id,
+    programName: row.programName,
+    memberNumber: row.memberNumber,
+    position: row.position,
+  };
+}
+
+export function dbWishlistToType(row: typeof userWishlistDestinations.$inferSelect): WishlistDestination {
+  return {
+    id: row.id,
+    name: row.name,
+    position: row.position,
   };
 }
 

@@ -6,6 +6,8 @@ import {
   dbCollabToType,
   dbNoteToType,
   dbChecklistToType,
+  dbLoyaltyToType,
+  dbWishlistToType,
 } from "@/lib/db-mappers";
 import type {
   trips,
@@ -15,6 +17,8 @@ import type {
   itineraryNotes,
   itineraryChecklists,
   checklistItems,
+  userLoyaltyNumbers,
+  userWishlistDestinations,
 } from "@/db/schema";
 
 type TripRow = typeof trips.$inferSelect;
@@ -367,6 +371,58 @@ describe("dbChecklistToType", () => {
   it("maps non-zero position", () => {
     const result = dbChecklistToType({ ...BASE_CHECKLIST, position: 4 }, []);
     expect(result.position).toBe(4);
+  });
+});
+
+// ── dbLoyaltyToType ───────────────────────────────────────────────────────────
+
+type LoyaltyRow = typeof userLoyaltyNumbers.$inferSelect;
+
+const BASE_LOYALTY: LoyaltyRow = {
+  id: "loyalty-1",
+  userId: "user-1",
+  programName: "United MileagePlus",
+  memberNumber: "MUA-12345",
+  position: 0,
+};
+
+describe("dbLoyaltyToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbLoyaltyToType(BASE_LOYALTY);
+    expect(result.id).toBe("loyalty-1");
+    expect(result.programName).toBe("United MileagePlus");
+    expect(result.memberNumber).toBe("MUA-12345");
+    expect(result.position).toBe(0);
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbLoyaltyToType({ ...BASE_LOYALTY, position: 3 });
+    expect(result.position).toBe(3);
+  });
+});
+
+// ── dbWishlistToType ──────────────────────────────────────────────────────────
+
+type WishlistRow = typeof userWishlistDestinations.$inferSelect;
+
+const BASE_WISHLIST: WishlistRow = {
+  id: "wish-1",
+  userId: "user-1",
+  name: "Kyoto, Japan",
+  position: 0,
+};
+
+describe("dbWishlistToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbWishlistToType(BASE_WISHLIST);
+    expect(result.id).toBe("wish-1");
+    expect(result.name).toBe("Kyoto, Japan");
+    expect(result.position).toBe(0);
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbWishlistToType({ ...BASE_WISHLIST, position: 2 });
+    expect(result.position).toBe(2);
   });
 });
 
