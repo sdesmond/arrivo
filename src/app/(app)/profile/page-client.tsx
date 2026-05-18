@@ -48,8 +48,9 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto max-w-3xl py-6 sm:py-8">
       <h1
+        className="px-4 sm:px-6"
         style={{
           fontFamily: "var(--font-heading-family, ui-sans-serif)",
           fontSize: 22,
@@ -68,12 +69,12 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
         orientation="vertical"
         className="profile-tabs w-full"
       >
-        <div className="flex flex-col sm:flex-row items-start sm:gap-8">
+        <div className="w-full flex flex-col sm:flex-row sm:items-start sm:gap-8 sm:px-6">
           <TabsList
             variant="line"
             aria-label="Profile sections"
             style={{ height: "auto" }}
-            className="w-full overflow-x-auto overflow-y-hidden justify-start sm:w-36 sm:shrink-0 sm:items-start sm:overflow-x-visible sm:rounded-none sm:bg-transparent sm:gap-0 sm:p-0"
+            className="w-full overflow-x-auto overflow-y-hidden justify-start pl-4 sm:pl-0 sm:w-40 sm:shrink-0 sm:items-start sm:overflow-x-visible sm:overflow-y-visible sm:rounded-none sm:bg-transparent sm:gap-0 sm:p-0"
           >
             {NAV_ITEMS.map(({ value, label }) => (
               <TabsTrigger
@@ -86,7 +87,7 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
             ))}
           </TabsList>
 
-          <div className="flex-1 min-w-0 mt-4 sm:mt-0">
+          <div className="flex-1 min-w-0 mt-4 sm:mt-0 px-4 sm:px-0">
             <TabsContent value="identity" className="w-full">
               <ProfileIdentitySection
                 key={resetKeys.identity ?? 0}
@@ -121,13 +122,15 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
 
             <TabsContent value="appearance" className="w-full">
               <Section>
-                <div className="flex items-center justify-between gap-4">
-                  <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Theme</span>
-                  <ThemeSelect />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Font size</span>
-                  <FontSizeSelect />
+                <div className="max-w-xs flex flex-col gap-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Theme</span>
+                    <ThemeSelect />
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Font size</span>
+                    <FontSizeSelect />
+                  </div>
                 </div>
               </Section>
             </TabsContent>

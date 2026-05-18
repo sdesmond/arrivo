@@ -34,7 +34,7 @@ export function Section({ title, children }: SectionProps) {
           {title}
         </div>
       )}
-      <div className="flex flex-col gap-3">{children}</div>
+      <div className="flex flex-col gap-4">{children}</div>
     </div>
   );
 }

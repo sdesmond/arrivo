@@ -20,5 +20,3 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 # Preference issues
 
 !!!!! Most preferences are still ignored !!!!!
-
-## Bugs
