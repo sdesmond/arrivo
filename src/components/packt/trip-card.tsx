@@ -54,6 +54,7 @@ export function TripCard({ trip, onEditTrip, dateFormat }: TripCardProps) {
               {trip.name}
             </div>
             <div
+              data-testid="trip-card-date-range"
               style={{
                 fontSize: "calc(12.5px * var(--font-scale))",
                 color: "var(--fg-3)",
