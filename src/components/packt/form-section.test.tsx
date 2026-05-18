@@ -13,6 +13,14 @@ describe("Section", () => {
     render(<Section title="Test">child content</Section>);
     expect(screen.getByText("child content")).toBeInTheDocument();
   });
+
+  it("does not render a title header when title is omitted", () => {
+    const { container } = render(<Section>child content</Section>);
+    expect(screen.getByText("child content")).toBeInTheDocument();
+    // With no title, the Section root div should contain only the content wrapper
+    const sectionRoot = container.firstChild as HTMLElement;
+    expect(sectionRoot.children).toHaveLength(1);
+  });
 });
 
 describe("Field", () => {

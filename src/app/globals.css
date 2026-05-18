@@ -64,6 +64,9 @@
 
 /* ─── Light theme ─── */
 :root {
+  /* Font size preference — overridden by FontSizeSelect via JS */
+  --font-size-base: 15px;
+
   /* Packt design tokens — light */
   --bg: #ffffff;
   --surface: #f6f6f4;
@@ -196,7 +199,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-size: 15px;
+    font-size: var(--font-size-base);
     line-height: 1.55;
     min-height: 100vh;
   }
@@ -327,4 +330,27 @@
 :focus-visible {
   outline: 2px solid var(--accent-brand);
   outline-offset: 2px;
+}
+
+/* ─── Profile page tab nav — mobile override ─── */
+/* orientation="vertical" is always set (correct keyboard nav on desktop, no SSR flash).
+   On mobile we override every vertical-only style back to a horizontal layout.
+   !important is required to beat the data-vertical group variants from the tabs primitive. */
+@media (max-width: 639px) {
+  .profile-tabs [data-slot="tabs-list"] {
+    flex-direction: row !important;
+    height: auto !important;
+  }
+  .profile-tabs [data-slot="tabs-trigger"] {
+    width: auto !important;
+    justify-content: center !important;
+  }
+  .profile-tabs [data-slot="tabs-trigger"]::after {
+    top: auto !important;
+    bottom: -5px !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 0.125rem !important;
+    width: auto !important;
+  }
 }

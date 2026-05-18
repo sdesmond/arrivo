@@ -29,3 +29,34 @@ Feature: User profile page
     When I navigate to the Traveler section
     Then the Traveler content should be visible
     And the Identity content should not be visible
+
+  Scenario: Font size preference persists across reload
+    Given I am on the profile page
+    When I navigate to the Appearance section
+    And I select "Large" as the font size
+    Then the font size select should show "Large"
+    When I reload the page
+    And I navigate to the Appearance section
+    Then the font size select should show "Large"
+
+  Scenario: Dirty-state warning appears when navigating away with unsaved changes
+    Given I am on the profile page
+    When I navigate to the Identity section
+    And I type in the name field
+    And I accept the unsaved-changes dialog when switching to the Preferences section
+    Then I should be on the Preferences section
+
+  Scenario: No dirty-state warning after discarding changes and returning to section
+    Given I am on the profile page
+    When I navigate to the Identity section
+    And I type in the name field
+    And I accept the unsaved-changes dialog when switching to the Traveler section
+    And I navigate to the Identity section
+    Then switching to the Traveler section should not show a warning
+
+  Scenario: Loyalty number copy button changes to check icon after click
+    Given I am on the profile page
+    When I navigate to the Traveler section
+    Then I should see the loyalty number "TA-123456"
+    When I click the copy button for the loyalty number
+    Then the copy button should show the copied state

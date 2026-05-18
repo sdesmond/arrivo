@@ -108,6 +108,13 @@ export const ProfileSection = {
 } as const;
 export type ProfileSection = (typeof ProfileSection)[keyof typeof ProfileSection];
 
+export const FontSize = {
+  small: "small",
+  medium: "medium",
+  large: "large",
+} as const;
+export type FontSizeValue = (typeof FontSize)[keyof typeof FontSize];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT
 // ─────────────────────────────────────────────────────────────────────────────

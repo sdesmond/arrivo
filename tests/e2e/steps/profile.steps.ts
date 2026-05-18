@@ -38,7 +38,7 @@ When("I save the Identity section", async ({ page }) => {
 });
 
 Then("my name {string} should appear in the sidebar", async ({ page }, name: string) => {
-  await expect(page.locator('a[href="/profile"]')).toContainText(name);
+  await expect(page.locator('a[href="/profile"][aria-label="View profile"]')).toContainText(name);
 });
 
 When("I set currency to {string}", async ({ page }, currency: string) => {
@@ -72,4 +72,64 @@ Then("the Traveler content should be visible", async ({ page }) => {
 
 Then("the Identity content should not be visible", async ({ page }) => {
   await expect(page.locator("#profile-name")).not.toBeVisible();
+});
+
+When("I navigate to the Appearance section", async ({ page }) => {
+  await page.getByRole("tab", { name: "Appearance" }).click();
+});
+
+When("I select {string} as the font size", async ({ page }, size: string) => {
+  const select = page.getByRole("combobox", { name: /font size/i });
+  await select.selectOption({ label: size });
+});
+
+Then("the font size select should show {string}", async ({ page }, size: string) => {
+  const select = page.getByRole("combobox", { name: /font size/i });
+  await expect(select).toHaveValue(size.toLowerCase());
+});
+
+When("I reload the page", async ({ page }) => {
+  await page.reload();
+});
+
+When("I type in the name field", async ({ page }) => {
+  const nameInput = page.locator("#profile-name");
+  await nameInput.fill("Dirty Name");
+});
+
+When("I accept the unsaved-changes dialog when switching to the Preferences section", async ({ page }) => {
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("tab", { name: "Preferences" }).click();
+});
+
+Then("I should be on the Preferences section", async ({ page }) => {
+  await expect(page.getByRole("tab", { name: "Preferences" })).toHaveAttribute("aria-selected", "true");
+});
+
+When("I accept the unsaved-changes dialog when switching to the Traveler section", async ({ page }) => {
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("tab", { name: "Traveler" }).click();
+});
+
+Then("switching to the Traveler section should not show a warning", async ({ page }) => {
+  let dialogFired = false;
+  page.once("dialog", () => {
+    dialogFired = true;
+  });
+  await page.getByRole("tab", { name: "Traveler" }).click();
+  await expect(page.getByText("Loyalty Numbers")).toBeVisible();
+  expect(dialogFired).toBe(false);
+});
+
+Then("I should see the loyalty number {string}", async ({ page }, memberNumber: string) => {
+  await expect(page.getByText(memberNumber)).toBeVisible();
+});
+
+When("I click the copy button for the loyalty number", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy member number" }).click();
+});
+
+Then("the copy button should show the copied state", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Copied!" })).toBeVisible();
 });

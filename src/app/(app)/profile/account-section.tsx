@@ -15,18 +15,42 @@ import {
 } from "@/components/ui/dialog";
 import { changePassword, deleteAccount } from "./actions";
 
-export function ProfileAccountSection() {
+interface ProfileAccountSectionProps {
+  onDirtyChange?: (dirty: boolean) => void;
+}
+
+export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionProps) {
   const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [isPwPending, startPwTransition] = useTransition();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeletePending, startDeleteTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
+
+  function computeDirty(cp: string, np: string, conf: string) {
+    return cp.length > 0 || np.length > 0 || conf.length > 0;
+  }
+
+  function handleCurrentPasswordChange(next: string) {
+    setCurrentPassword(next);
+    onDirtyChange?.(computeDirty(next, newPassword, confirmPassword));
+  }
+
+  function handleNewPasswordChange(next: string) {
+    setNewPassword(next);
+    onDirtyChange?.(computeDirty(currentPassword, next, confirmPassword));
+  }
+
+  function handleConfirmPasswordChange(next: string) {
+    setConfirmPassword(next);
+    onDirtyChange?.(computeDirty(currentPassword, newPassword, next));
+  }
 
   function handlePasswordSave() {
     setPasswordError(null);
@@ -41,9 +65,12 @@ export function ProfileAccountSection() {
         setPasswordError(result.error);
       } else {
         setPasswordSuccess(true);
+        setJustSaved(true);
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
+        onDirtyChange?.(false);
+        setTimeout(() => setJustSaved(false), 2000);
       }
     });
   }
@@ -55,6 +82,8 @@ export function ProfileAccountSection() {
     });
   }
 
+  const isDirty = computeDirty(currentPassword, newPassword, confirmPassword);
+
   const inputStyle = {
     background: "var(--surface-2)",
     color: "var(--fg)",
@@ -64,13 +93,13 @@ export function ProfileAccountSection() {
   return (
     <>
       <div style={{ borderTop: "1px solid var(--line)", paddingTop: 24 }}>
-        <Section title="Account">
+        <Section>
           <Field label="Current password" htmlFor="pw-current">
             <input
               id="pw-current"
               type="password"
               value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
+              onChange={(e) => handleCurrentPasswordChange(e.target.value)}
               className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
               style={inputStyle}
               autoComplete="current-password"
@@ -82,7 +111,7 @@ export function ProfileAccountSection() {
               id="pw-new"
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e) => handleNewPasswordChange(e.target.value)}
               className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
               style={inputStyle}
               autoComplete="new-password"
@@ -94,7 +123,7 @@ export function ProfileAccountSection() {
               id="pw-confirm"
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => handleConfirmPasswordChange(e.target.value)}
               className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
               style={inputStyle}
               autoComplete="new-password"
@@ -112,8 +141,13 @@ export function ProfileAccountSection() {
             </p>
           )}
 
-          <div>
-            <Button size="sm" onClick={handlePasswordSave} disabled={isPwPending}>
+          <div className="flex items-center justify-end gap-3">
+            {justSaved && (
+              <span role="status" style={{ fontSize: "12px", color: "var(--accent-brand)" }}>
+                Saved
+              </span>
+            )}
+            <Button size="sm" onClick={handlePasswordSave} disabled={isPwPending || !isDirty}>
               {isPwPending ? "Updating…" : "Update password"}
             </Button>
           </div>

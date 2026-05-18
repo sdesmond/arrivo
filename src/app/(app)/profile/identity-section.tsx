@@ -8,6 +8,7 @@ import type { UserProfile } from "@/data/types";
 
 interface ProfileIdentitySectionProps {
   user: UserProfile;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function getInitials(user: UserProfile): string {
@@ -19,19 +20,31 @@ function getInitials(user: UserProfile): string {
   return user.email[0].toUpperCase();
 }
 
-export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
+export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentitySectionProps) {
   const [name, setName] = useState(user.name ?? "");
   const [isPending, startTransition] = useTransition();
+  const [justSaved, setJustSaved] = useState(false);
   const initials = getInitials({ ...user, name: name || null });
+
+  function handleNameChange(next: string) {
+    setName(next);
+    const dirty = next !== (user.name ?? "");
+    onDirtyChange?.(dirty);
+  }
 
   function handleSave() {
     startTransition(async () => {
       await updateProfile({ name });
+      setJustSaved(true);
+      onDirtyChange?.(false);
+      setTimeout(() => setJustSaved(false), 2000);
     });
   }
 
+  const isDirty = name !== (user.name ?? "");
+
   return (
-    <Section title="Identity">
+    <Section>
       <div className="flex items-center gap-4 mb-1">
         <div
           className="shrink-0 rounded-full flex items-center justify-center font-semibold"
@@ -54,7 +67,7 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
           id="profile-name"
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => handleNameChange(e.target.value)}
           className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
           style={{
             background: "var(--surface-2)",
@@ -81,8 +94,13 @@ export function ProfileIdentitySection({ user }: ProfileIdentitySectionProps) {
         />
       </Field>
 
-      <div>
-        <Button size="sm" onClick={handleSave} disabled={isPending}>
+      <div className="flex items-center justify-end gap-3">
+        {justSaved && (
+          <span role="status" style={{ fontSize: "12px", color: "var(--accent-brand)" }}>
+            Saved
+          </span>
+        )}
+        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </div>

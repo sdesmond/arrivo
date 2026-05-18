@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Copy, Check } from "lucide-react";
 import { Section } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { addLoyaltyNumber, deleteLoyaltyNumber } from "./actions";
@@ -21,6 +21,7 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
   const [program, setProgram] = useState("");
   const [memberNum, setMemberNum] = useState("");
   const [isAdding, startAdd] = useTransition();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   function handleAdd() {
     if (!program.trim() || !memberNum.trim()) return;
@@ -37,6 +38,12 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
     startAdd(async () => {
       await deleteLoyaltyNumber(id);
     });
+  }
+
+  function handleCopy(ln: LoyaltyNumber) {
+    navigator.clipboard.writeText(ln.memberNumber);
+    setCopiedId(ln.id);
+    setTimeout(() => setCopiedId(null), 1500);
   }
 
   return (
@@ -57,8 +64,19 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
               </span>
               <button
                 type="button"
+                onClick={() => handleCopy(ln)}
+                title={copiedId === ln.id ? "Copied!" : "Copy member number"}
+                aria-label={copiedId === ln.id ? "Copied!" : "Copy member number"}
+                className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
+                style={{ color: "var(--fg-4)" }}
+              >
+                {copiedId === ln.id ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
+              </button>
+              <button
+                type="button"
                 onClick={() => handleDelete(ln.id)}
                 title="Remove"
+                aria-label={`Remove ${ln.programName}`}
                 className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
                 style={{ color: "var(--fg-4)" }}
               >

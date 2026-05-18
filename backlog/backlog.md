@@ -17,10 +17,8 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 
 ## New Features
 
-### Profile
+# Preference issues
 
-The user displayed at the bottom of the sidenav bar does not match the logged in user. The hard-coded data there should be removed in favor of using the correct user who is logged in.
+!!!!! Most preferences are still ignored !!!!!
 
-Clicking on the profile picture/name area should direct to a new page where the profile information is displayed and can be changed, along with a section for settings that allow for app customization.
-
-This settings/profile page needs to be fleshed out
+## Bugs

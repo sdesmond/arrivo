@@ -133,6 +133,7 @@ export function PlaceRow({
             {isEditingName ? (
               <input
                 autoFocus
+                placeholder={isDraft ? "Event name" : undefined}
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 onBlur={saveName}
