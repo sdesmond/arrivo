@@ -41,7 +41,7 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
         <div
           style={{
             fontFamily: "var(--font-heading-family, ui-sans-serif)",
-            fontSize: 28,
+            fontSize: "calc(28px * var(--font-scale))",
             fontWeight: 700,
             lineHeight: 1,
             color: "var(--accent-brand)",
@@ -52,7 +52,7 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
         <div
           style={{
             fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: "10px",
+            fontSize: "calc(10px * var(--font-scale))",
             fontWeight: 500,
             letterSpacing: "0.04em",
             textTransform: "uppercase",

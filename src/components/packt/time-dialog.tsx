@@ -37,13 +37,17 @@ export function TimeDialog({ time, endTime, eventName, open, onOpenChange, onSav
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Time</DialogTitle>
-          {eventName && <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: -4 }}>{eventName}</p>}
+          {eventName && (
+            <p style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)", marginTop: -4 }}>
+              {eventName}
+            </p>
+          )}
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div
               style={{
-                fontSize: 10,
+                fontSize: "calc(10px * var(--font-scale))",
                 fontWeight: 600,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
@@ -58,7 +62,7 @@ export function TimeDialog({ time, endTime, eventName, open, onOpenChange, onSav
           <div>
             <div
               style={{
-                fontSize: 10,
+                fontSize: "calc(10px * var(--font-scale))",
                 fontWeight: 600,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",

@@ -65,7 +65,7 @@ const pastTrips: Trip[] = [
 
 describe("PastTripsList", () => {
   it("renders trip names", () => {
-    render(<PastTripsList trips={pastTrips} onEditTrip={vi.fn()} />);
+    render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
     expect(screen.getByText("Lisbon Escape")).toBeInTheDocument();
     expect(screen.getByText("NYC Visit")).toBeInTheDocument();
     expect(screen.getByText("Berlin Trip")).toBeInTheDocument();
@@ -77,14 +77,14 @@ describe("PastTripsList", () => {
   });
 
   it("renders trip options trigger button", () => {
-    render(<PastTripsList trips={pastTrips} onEditTrip={vi.fn()} />);
+    render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
     expect(screen.getAllByTitle("Trip options").length).toBeGreaterThan(0);
   });
 
   it("clicking Edit trip calls onEditTrip with the correct trip", async () => {
     const user = userEvent.setup();
     const onEditTrip = vi.fn();
-    render(<PastTripsList trips={pastTrips} onEditTrip={onEditTrip} />);
+    render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={onEditTrip} />);
     const editBtns = screen.getAllByRole("button", { name: /edit trip/i });
     await user.click(editBtns[0]);
     expect(onEditTrip).toHaveBeenCalledOnce();
@@ -92,8 +92,8 @@ describe("PastTripsList", () => {
   });
 
   it("renders date and day count for each trip", () => {
-    render(<PastTripsList trips={[pastTrips[0]]} onEditTrip={vi.fn()} />);
-    expect(screen.getByText("2025-09-01")).toBeInTheDocument();
+    render(<PastTripsList trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.getByText("Sep 1, 2025")).toBeInTheDocument();
     expect(screen.getByText(/7 DAYS/)).toBeInTheDocument();
   });
 });

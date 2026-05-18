@@ -23,19 +23,21 @@ export function CollaboratorsRail({ collaborators }: CollaboratorsRailProps) {
                 background: c.tint?.bg,
                 color: c.tint?.fg,
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--font-scale))",
               }}
             >
               {c.initials}
             </span>
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{c.name}</div>
-              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{c.email}</div>
+              <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
+                {c.name}
+              </div>
+              <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>{c.email}</div>
             </div>
             <span
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10,
+                fontSize: "calc(10px * var(--font-scale))",
                 fontWeight: 500,
                 color: "var(--fg-3)",
                 letterSpacing: "0.04em",

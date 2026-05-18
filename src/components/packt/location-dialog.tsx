@@ -33,7 +33,11 @@ export function LocationDialog({ address, eventName, open, onOpenChange, onSave 
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Location</DialogTitle>
-          {eventName && <p style={{ fontSize: 11, color: "var(--fg-4)", marginTop: -4 }}>{eventName}</p>}
+          {eventName && (
+            <p style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)", marginTop: -4 }}>
+              {eventName}
+            </p>
+          )}
         </DialogHeader>
         <Input
           placeholder="Enter address or place name"

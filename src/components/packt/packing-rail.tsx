@@ -35,7 +35,7 @@ export function PackingRail({ items }: PackingRailProps) {
             <span
               style={{
                 flex: 1,
-                fontSize: 12.5,
+                fontSize: "calc(12.5px * var(--font-scale))",
                 fontWeight: 500,
                 color: "var(--fg)",
                 textDecoration: p.done ? "line-through" : "none",
@@ -46,7 +46,7 @@ export function PackingRail({ items }: PackingRailProps) {
             <span
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 10,
+                fontSize: "calc(10px * var(--font-scale))",
                 color: "var(--fg-4)",
               }}
             >

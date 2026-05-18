@@ -52,7 +52,7 @@ export function SidebarNav({ user }: SidebarNavProps) {
         style={{
           fontFamily: "var(--font-heading-family, ui-sans-serif)",
           fontWeight: 700,
-          fontSize: 16,
+          fontSize: "calc(16px * var(--font-scale))",
           letterSpacing: "-0.02em",
         }}
       >
@@ -96,7 +96,8 @@ export function SidebarNav({ user }: SidebarNavProps) {
           <Link
             key={trip.name}
             href={`/trips`}
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-[13px] font-medium text-fg-2 hover:bg-surface-2 transition-colors"
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] font-medium text-fg-2 hover:bg-surface-2 transition-colors"
+            style={{ fontSize: "calc(13px * var(--font-scale))" }}
           >
             <span
               className="shrink-0 rounded-[3px]"
@@ -111,7 +112,7 @@ export function SidebarNav({ user }: SidebarNavProps) {
               className="ml-auto"
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "10.5px",
+                fontSize: "calc(10.5px * var(--font-scale))",
                 fontWeight: 500,
                 letterSpacing: "0.04em",
                 color: "var(--fg-3)",
@@ -134,20 +135,25 @@ export function SidebarNav({ user }: SidebarNavProps) {
           aria-label="View profile"
         >
           <div
-            className="shrink-0 rounded-full flex items-center justify-center font-semibold text-[12px]"
+            className="shrink-0 rounded-full flex items-center justify-center font-semibold"
             style={{
               width: 28,
               height: 28,
               background: avatarTint.bg,
               color: avatarTint.color,
               fontFamily: "var(--font-body, ui-sans-serif)",
+              fontSize: "calc(12px * var(--font-scale))",
             }}
           >
             {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-fg truncate">{user?.name ?? user?.email ?? "—"}</div>
-            <div className="text-[11px] text-fg-3 truncate">{user?.email ?? ""}</div>
+            <div className="font-medium text-fg truncate" style={{ fontSize: "calc(13px * var(--font-scale))" }}>
+              {user?.name ?? user?.email ?? "—"}
+            </div>
+            <div className="text-fg-3 truncate" style={{ fontSize: "calc(11px * var(--font-scale))" }}>
+              {user?.email ?? ""}
+            </div>
           </div>
         </Link>
         <form action={signOutAction}>

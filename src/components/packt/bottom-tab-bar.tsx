@@ -32,8 +32,11 @@ export function BottomTabBar() {
           <Link
             key={tab.id}
             href={tab.href}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-medium transition-colors"
-            style={{ color: active ? "var(--accent-brand)" : "var(--fg-3)" }}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 font-medium transition-colors"
+            style={{
+              color: active ? "var(--accent-brand)" : "var(--fg-3)",
+              fontSize: "calc(10.5px * var(--font-scale))",
+            }}
             aria-current={active ? "page" : undefined}
             aria-label={tab.label}
           >

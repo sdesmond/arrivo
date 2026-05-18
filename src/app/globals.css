@@ -66,6 +66,7 @@
 :root {
   /* Font size preference — overridden by FontSizeSelect via JS */
   --font-size-base: 15px;
+  --font-scale: 1;
 
   /* Packt design tokens — light */
   --bg: #ffffff;
@@ -126,6 +127,17 @@
   --sidebar-accent-foreground: #131311;
   --sidebar-border: rgba(20, 20, 18, 0.08);
   --sidebar-ring: #0e8b80;
+}
+
+/* ─── Font size scale overrides ─── */
+html[data-font-size="small"] {
+  --font-size-base: 13px;
+  --font-scale: 0.867;
+}
+
+html[data-font-size="large"] {
+  --font-size-base: 17px;
+  --font-scale: 1.133;
 }
 
 /* ─── Dark theme ─── */

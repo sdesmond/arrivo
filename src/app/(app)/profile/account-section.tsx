@@ -88,6 +88,7 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
     background: "var(--surface-2)",
     color: "var(--fg)",
     border: "1px solid var(--line)",
+    fontSize: "calc(13px * var(--font-scale))",
   };
 
   return (
@@ -100,7 +101,7 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
               type="password"
               value={currentPassword}
               onChange={(e) => handleCurrentPasswordChange(e.target.value)}
-              className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+              className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
               style={inputStyle}
               autoComplete="current-password"
             />
@@ -112,7 +113,7 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
               type="password"
               value={newPassword}
               onChange={(e) => handleNewPasswordChange(e.target.value)}
-              className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+              className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
               style={inputStyle}
               autoComplete="new-password"
             />
@@ -124,26 +125,26 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
               type="password"
               value={confirmPassword}
               onChange={(e) => handleConfirmPasswordChange(e.target.value)}
-              className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+              className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
               style={inputStyle}
               autoComplete="new-password"
             />
           </Field>
 
           {passwordError && (
-            <p style={{ fontSize: 12, color: "var(--destructive)" }} role="alert">
+            <p style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--destructive)" }} role="alert">
               {passwordError}
             </p>
           )}
           {passwordSuccess && (
-            <p style={{ fontSize: 12, color: "var(--fg-2)" }} role="status">
+            <p style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-2)" }} role="status">
               Password updated.
             </p>
           )}
 
           <div className="flex items-center justify-end gap-3">
             {justSaved && (
-              <span role="status" style={{ fontSize: "12px", color: "var(--accent-brand)" }}>
+              <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
                 Saved
               </span>
             )}
@@ -157,8 +158,12 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
               ref={deleteTriggerRef}
               type="button"
               onClick={() => setDeleteOpen(true)}
-              className="flex items-center gap-2 rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition-colors"
-              style={{ color: "var(--destructive)", background: "transparent" }}
+              className="flex items-center gap-2 rounded-[6px] px-3 py-1.5 font-medium transition-colors"
+              style={{
+                color: "var(--destructive)",
+                background: "transparent",
+                fontSize: "calc(13px * var(--font-scale))",
+              }}
               onMouseEnter={(e) =>
                 (e.currentTarget.style.background = "color-mix(in srgb, var(--destructive) 10%, transparent)")
               }

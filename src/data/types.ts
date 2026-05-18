@@ -144,6 +144,12 @@ export const FontSize = {
 } as const;
 export type FontSizeValue = (typeof FontSize)[keyof typeof FontSize];
 
+export const DateFormat = {
+  MDY: "MM/DD/YYYY",
+  DMY: "DD/MM/YYYY",
+} as const;
+export type DateFormat = (typeof DateFormat)[keyof typeof DateFormat];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT
 // ─────────────────────────────────────────────────────────────────────────────

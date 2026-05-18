@@ -45,7 +45,10 @@ export function MiniMapRail() {
           ))}
         </svg>
       </div>
-      <div className="flex items-center justify-between mt-2.5" style={{ fontSize: 12, color: "var(--fg-3)" }}>
+      <div
+        className="flex items-center justify-between mt-2.5"
+        style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)" }}
+      >
         <span>
           {"You're at"} <span style={{ fontWeight: 600, color: "var(--fg)" }}>Hamarikyu</span>
         </span>

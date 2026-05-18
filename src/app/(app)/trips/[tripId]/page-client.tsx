@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
-import { DayCard } from "@/components/packt/day-card";
+import { TripItineraryView } from "./trip-itinerary-view";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import {
   type TripDetailPayload,
@@ -14,7 +14,7 @@ import {
   type UpdateTripPatch,
   type DayItemType,
 } from "@/data/types";
-import { getTripStatus, getTripDays } from "@/lib/utils";
+import { getTripStatus, getTripDays, formatDate } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { updateTripMetadata } from "../actions";
 import {
@@ -38,13 +38,6 @@ import {
   toggleChecklistItem,
 } from "./actions";
 
-function formatTripHeader(start: string, end: string): string {
-  const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-  const [, startMonth, startDay] = start.split("-").map(Number);
-  const [endYear, endMonth, endDay] = end.split("-").map(Number);
-  return `${MONTHS[startMonth - 1]} ${startDay} — ${MONTHS[endMonth - 1]} ${endDay}, ${endYear}`;
-}
-
 const TABS = [
   { id: "itin", label: "Itinerary" },
   { id: "map", label: "Map" },
@@ -56,9 +49,10 @@ const TABS = [
 interface TripDetailClientProps {
   detail: TripDetailPayload;
   nowISO: string;
+  dateFormat: string;
 }
 
-export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
+export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClientProps) {
   const now = new Date(nowISO);
   useFocusScroll();
 
@@ -215,7 +209,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
   const eventCount = days.reduce((count, day) => count + day.events.length, 0);
   const dayTotal = getTripDays(trip.startDate, trip.endDate);
   const status = getTripStatus(trip.startDate, trip.endDate, now);
-  const heroDateLine = formatTripHeader(trip.startDate, trip.endDate);
+  const heroDateLine = `${formatDate(trip.startDate, dateFormat)} — ${formatDate(trip.endDate, dateFormat)}`;
 
   return (
     <div className="flex flex-col min-h-full">
@@ -232,8 +226,10 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
           <ChevronLeft size={14} strokeWidth={1.5} />
           Trips
         </Link>
-        <span style={{ color: "var(--fg-4)", fontSize: 13 }}>/</span>
-        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>{trip.name}</span>
+        <span style={{ color: "var(--fg-4)", fontSize: "calc(13px * var(--font-scale))" }}>/</span>
+        <span style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
+          {trip.name}
+        </span>
         <span className="flex-1" />
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setEditingTrip(true)}>
@@ -268,7 +264,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
           <div
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "10.5px",
+              fontSize: "calc(10.5px * var(--font-scale))",
               fontWeight: 500,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
@@ -291,7 +287,10 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
           >
             {trip.name}
           </h1>
-          <div className="flex items-center gap-4 flex-wrap" style={{ color: "var(--cover-text-sub)", fontSize: 12.5 }}>
+          <div
+            className="flex items-center gap-4 flex-wrap"
+            style={{ color: "var(--cover-text-sub)", fontSize: "calc(12.5px * var(--font-scale))" }}
+          >
             <span className="flex items-center gap-1.5">
               <Calendar size={13} strokeWidth={1.5} />
               {dayTotal} days
@@ -323,7 +322,7 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
               key={tabItem.id}
               className="shrink-0 px-3.5 py-3 transition-colors relative"
               style={{
-                fontSize: 13,
+                fontSize: "calc(13px * var(--font-scale))",
                 fontWeight: activeTab === tabItem.id ? 600 : 400,
                 color: activeTab === tabItem.id ? "var(--fg)" : "var(--fg-3)",
                 background: "none",
@@ -343,43 +342,47 @@ export function TripDetailClient({ detail, nowISO }: TripDetailClientProps) {
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           {activeTab === "itin" && (
-            <div>
-              {days.length > 0 ? (
-                days.map((day) => (
-                  <DayCard
-                    key={day.dayNumber}
-                    day={day}
-                    onUpdateEvent={handleEventUpdate}
-                    onDeleteEvent={handleEventDelete}
-                    onReorderDayItems={handleDayItemsReorder}
-                    onUpdateDay={handleDayUpdate}
-                    onAddEvent={handleAddEvent}
-                    onAddNote={handleAddNote}
-                    onUpdateNote={handleUpdateNote}
-                    onDeleteNote={handleDeleteNote}
-                    onAddDoc={handleAddDoc}
-                    onDeleteDoc={handleDeleteDoc}
-                    onAddChecklist={handleAddChecklist}
-                    newlyCreatedChecklistId={newlyCreatedChecklistId ?? undefined}
-                    onUpdateChecklistTitle={handleUpdateChecklistTitle}
-                    onDeleteChecklist={handleDeleteChecklist}
-                    onAddChecklistItem={handleAddChecklistItem}
-                    onUpdateChecklistItem={handleUpdateChecklistItem}
-                    onDeleteChecklistItem={handleDeleteChecklistItem}
-                    onToggleChecklistItem={handleToggleChecklistItem}
-                  />
-                ))
-              ) : (
-                <div style={{ fontSize: 14, color: "var(--fg-2)" }}>No itinerary yet.</div>
-              )}
+            <TripItineraryView
+              days={days}
+              dateFormat={dateFormat}
+              onUpdateEvent={handleEventUpdate}
+              onDeleteEvent={handleEventDelete}
+              onReorderDayItems={handleDayItemsReorder}
+              onUpdateDay={handleDayUpdate}
+              onAddEvent={handleAddEvent}
+              onAddNote={handleAddNote}
+              onUpdateNote={handleUpdateNote}
+              onDeleteNote={handleDeleteNote}
+              onAddDoc={handleAddDoc}
+              onDeleteDoc={handleDeleteDoc}
+              onAddChecklist={handleAddChecklist}
+              newlyCreatedChecklistId={newlyCreatedChecklistId ?? undefined}
+              onUpdateChecklistTitle={handleUpdateChecklistTitle}
+              onDeleteChecklist={handleDeleteChecklist}
+              onAddChecklistItem={handleAddChecklistItem}
+              onUpdateChecklistItem={handleUpdateChecklistItem}
+              onDeleteChecklistItem={handleDeleteChecklistItem}
+              onToggleChecklistItem={handleToggleChecklistItem}
+            />
+          )}
+          {activeTab === "docs" && (
+            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
+              Document view coming soon.
             </div>
           )}
-          {activeTab === "docs" && <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Document view coming soon.</div>}
-          {activeTab === "map" && <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Map view coming soon.</div>}
-          {activeTab === "pack" && (
-            <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Packing list view coming soon.</div>
+          {activeTab === "map" && (
+            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
+              Map view coming soon.
+            </div>
           )}
-          {activeTab === "notes" && <div style={{ fontSize: 14, color: "var(--fg-2)" }}>Notes coming soon.</div>}
+          {activeTab === "pack" && (
+            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
+              Packing list view coming soon.
+            </div>
+          )}
+          {activeTab === "notes" && (
+            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Notes coming soon.</div>
+          )}
         </div>
       </div>
 

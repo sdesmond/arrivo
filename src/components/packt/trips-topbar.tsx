@@ -26,7 +26,7 @@ export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
         <div
           style={{
             fontFamily: "var(--font-heading-family, ui-sans-serif)",
-            fontSize: 16,
+            fontSize: "calc(16px * var(--font-scale))",
             fontWeight: 600,
             letterSpacing: "-0.01em",
             color: "var(--fg)",
@@ -37,7 +37,7 @@ export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
         <div
           style={{
             fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: "10.5px",
+            fontSize: "calc(10.5px * var(--font-scale))",
             color: "var(--fg-3)",
             letterSpacing: "0.04em",
             marginTop: 2,
@@ -56,7 +56,11 @@ export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
           className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
           style={{ color: "var(--fg-3)" }}
         />
-        <Input placeholder="Search trips, places, docs…" className="pl-8" style={{ height: 34, fontSize: 13 }} />
+        <Input
+          placeholder="Search trips, places, docs…"
+          className="pl-8"
+          style={{ height: 34, fontSize: "calc(13px * var(--font-scale))" }}
+        />
       </div>
 
       <ThemeToggle />

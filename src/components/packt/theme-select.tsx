@@ -24,12 +24,13 @@ export function ThemeSelect() {
       onChange={(e) => setTheme(e.target.value)}
       disabled={!mounted}
       aria-label="Theme"
-      className="rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+      className="rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
       style={{
         background: "var(--surface-2)",
         color: "var(--fg)",
         border: "1px solid var(--line)",
         minWidth: 120,
+        fontSize: "calc(13px * var(--font-scale))",
       }}
     >
       {THEME_OPTIONS.map((opt) => (

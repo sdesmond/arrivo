@@ -20,7 +20,7 @@ export function DocKindBadge({ kind }: DocKindBadgeProps) {
       className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 shrink-0"
       style={{
         fontFamily: "var(--font-mono-family, ui-monospace)",
-        fontSize: 9,
+        fontSize: "calc(9px * var(--font-scale))",
         fontWeight: 600,
         letterSpacing: "0.06em",
         color,

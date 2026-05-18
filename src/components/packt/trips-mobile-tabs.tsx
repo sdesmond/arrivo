@@ -5,7 +5,15 @@ import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "@/components/packt/trip-cover";
 import { type Trip, type TripEvent } from "@/data/types";
-import { isEventNow, isEventPast, getTripStatus, getActiveDayNumber, getTodayDisplay, getTripDays } from "@/lib/utils";
+import {
+  isEventNow,
+  isEventPast,
+  getTripStatus,
+  getActiveDayNumber,
+  getTodayDisplay,
+  getTripDays,
+  formatDate,
+} from "@/lib/utils";
 
 // ─── Active tab ───────────────────────────────────────────────────────────────
 
@@ -18,7 +26,10 @@ interface MobileActiveTabProps {
 export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps) {
   if (!trip) {
     return (
-      <div className="flex items-center justify-center" style={{ paddingTop: 64, color: "var(--fg-3)", fontSize: 14 }}>
+      <div
+        className="flex items-center justify-center"
+        style={{ paddingTop: 64, color: "var(--fg-3)", fontSize: "calc(14px * var(--font-scale))" }}
+      >
         No active trip right now
       </div>
     );
@@ -50,7 +61,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
             className="flex items-center gap-1.5 mb-1"
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "10.5px",
+              fontSize: "calc(10.5px * var(--font-scale))",
               fontWeight: 500,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
@@ -71,7 +82,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
           <h2
             style={{
               fontFamily: "var(--font-heading-family, ui-sans-serif)",
-              fontSize: 22,
+              fontSize: "calc(22px * var(--font-scale))",
               fontWeight: 700,
               letterSpacing: "-0.02em",
               color: "var(--fg)",
@@ -96,7 +107,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
           <div
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "10.5px",
+              fontSize: "calc(10.5px * var(--font-scale))",
               fontWeight: 500,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
@@ -109,7 +120,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
             <span
               style={{
                 fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                fontSize: 18,
+                fontSize: "calc(18px * var(--font-scale))",
                 fontWeight: 700,
                 color: "var(--fg)",
                 letterSpacing: "-0.01em",
@@ -127,7 +138,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
           <div
             style={{
               fontFamily: "var(--font-body, ui-sans-serif)",
-              fontSize: 13,
+              fontSize: "calc(13px * var(--font-scale))",
               color: "var(--fg-3)",
               marginTop: 4,
             }}
@@ -156,7 +167,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
             <span
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "10.5px",
+                fontSize: "calc(10.5px * var(--font-scale))",
                 fontWeight: 500,
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
@@ -165,7 +176,9 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
             >
               TODAY · {todayMonth.toUpperCase()} {todayDate}
             </span>
-            <span style={{ fontSize: 12.5, color: "var(--fg-3)" }}>{todayEvents.length} stops</span>
+            <span style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+              {todayEvents.length} stops
+            </span>
           </div>
           {todayEvents.map((ev) => (
             <Link
@@ -181,7 +194,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
               <span
                 style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: "10.5px",
+                  fontSize: "calc(10.5px * var(--font-scale))",
                   color: "var(--fg-3)",
                   letterSpacing: "0.04em",
                   width: 42,
@@ -198,7 +211,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
               <span
                 style={{
                   flex: 1,
-                  fontSize: 13.5,
+                  fontSize: "calc(13.5px * var(--font-scale))",
                   fontWeight: 500,
                   color: "var(--fg)",
                   textDecoration: isEventPast(ev, now) ? "line-through" : undefined,
@@ -227,9 +240,10 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
 interface MobileUpcomingTabProps {
   trips: Trip[];
   now: Date;
+  dateFormat: string;
 }
 
-export function MobileUpcomingTab({ trips, now }: MobileUpcomingTabProps) {
+export function MobileUpcomingTab({ trips, now, dateFormat }: MobileUpcomingTabProps) {
   return (
     <div className="flex flex-col gap-3">
       {trips.map((trip) => {
@@ -247,11 +261,13 @@ export function MobileUpcomingTab({ trips, now }: MobileUpcomingTabProps) {
           >
             <TripCover name={trip.name} showCity={false} style={{ width: 100, minHeight: 100 }} />
             <div className="flex flex-col gap-1.5 p-3 flex-1 min-w-0">
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{trip.name}</div>
+              <div style={{ fontSize: "calc(14px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
+                {trip.name}
+              </div>
               <div
                 style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: "10.5px",
+                  fontSize: "calc(10.5px * var(--font-scale))",
                   color: "var(--fg-3)",
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
@@ -259,8 +275,8 @@ export function MobileUpcomingTab({ trips, now }: MobileUpcomingTabProps) {
               >
                 {getTripDays(trip.startDate, trip.endDate)} DAYS
               </div>
-              <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>
-                {trip.startDate} — {trip.endDate}
+              <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+                {formatDate(trip.startDate, dateFormat)} — {formatDate(trip.endDate, dateFormat)}
               </div>
               <div className="flex items-center gap-1.5 mt-1">
                 <Badge variant="soft">in {inDays}d</Badge>
@@ -282,9 +298,10 @@ export function MobileUpcomingTab({ trips, now }: MobileUpcomingTabProps) {
 
 interface MobilePastTabProps {
   trips: Trip[];
+  dateFormat: string;
 }
 
-export function MobilePastTab({ trips }: MobilePastTabProps) {
+export function MobilePastTab({ trips, dateFormat }: MobilePastTabProps) {
   return (
     <div className="flex flex-col gap-3">
       {trips.map((trip) => (
@@ -296,9 +313,11 @@ export function MobilePastTab({ trips }: MobilePastTabProps) {
         >
           <TripCover name={trip.name} showCity={false} style={{ width: 80, minHeight: 80 }} />
           <div className="flex flex-col gap-1 p-3 flex-1 min-w-0">
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{trip.name}</div>
-            <div style={{ fontSize: 12.5, color: "var(--fg-3)" }}>
-              {trip.startDate} · {getTripDays(trip.startDate, trip.endDate)} days
+            <div style={{ fontSize: "calc(14px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
+              {trip.name}
+            </div>
+            <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+              {formatDate(trip.startDate, dateFormat)} · {getTripDays(trip.startDate, trip.endDate)} days
             </div>
             <Badge variant="outline" className="w-fit mt-1">
               Past

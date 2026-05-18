@@ -58,7 +58,7 @@ export function NoteItem({
     <div
       id={displayOnly ? undefined : `note-${note.id}`}
       className={cn("group flex items-start gap-3 px-3 py-2.5 relative", dragHandle && "pr-16")}
-      style={{ fontSize: 13, color: "var(--fg-2)" }}
+      style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}
     >
       <span
         className="flex items-center justify-center shrink-0 mt-0.5"
@@ -93,7 +93,7 @@ export function NoteItem({
           rows={Math.max(1, draft.split("\n").length)}
           style={{
             flex: 1,
-            fontSize: 13,
+            fontSize: "calc(13px * var(--font-scale))",
             color: "var(--fg-2)",
             background: "transparent",
             border: "none",

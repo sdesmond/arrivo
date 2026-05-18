@@ -11,14 +11,15 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { type Trip } from "@/data/types";
-import { getTripDays } from "@/lib/utils";
+import { getTripDays, formatDate } from "@/lib/utils";
 
 interface PastTripsListProps {
   trips: Trip[];
+  dateFormat: string;
   onEditTrip: (trip: Trip) => void;
 }
 
-export function PastTripsList({ trips, onEditTrip }: PastTripsListProps) {
+export function PastTripsList({ trips, dateFormat, onEditTrip }: PastTripsListProps) {
   return (
     <div className="rounded-[14px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
       {trips.map((trip, i) => (
@@ -36,15 +37,23 @@ export function PastTripsList({ trips, onEditTrip }: PastTripsListProps) {
             style={{ width: 52, height: 40, borderRadius: 6, flexShrink: 0 }}
           />
           <div className="flex-1 min-w-0">
-            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--fg)" }}>{trip.name}</div>
+            <div style={{ fontSize: "calc(14px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
+              {trip.name}
+            </div>
           </div>
-          <span style={{ fontSize: 12.5, color: "var(--fg-3)", fontVariantNumeric: "tabular-nums" }}>
-            {trip.startDate}
+          <span
+            style={{
+              fontSize: "calc(12.5px * var(--font-scale))",
+              color: "var(--fg-3)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {formatDate(trip.startDate, dateFormat)}
           </span>
           <span
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "10.5px",
+              fontSize: "calc(10.5px * var(--font-scale))",
               color: "var(--fg-4)",
               letterSpacing: "0.04em",
               textTransform: "uppercase",

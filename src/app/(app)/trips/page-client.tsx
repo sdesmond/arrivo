@@ -21,9 +21,10 @@ type MobileTab = "Active" | "Upcoming" | "Past";
 interface TripsPageClientProps {
   initialEntries: TripListEntry[];
   nowISO: string;
+  dateFormat: string;
 }
 
-export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps) {
+export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPageClientProps) {
   const now = new Date(nowISO);
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
 
@@ -74,6 +75,7 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
                   trip={activeEntry.trip}
                   todayEvents={activeEntry.todayEvents}
                   onEditTrip={(t) => setEditingTrip(t.id)}
+                  dateFormat={dateFormat}
                 />
                 <DayRibbon trip={activeEntry.trip} todayEvents={activeEntry.todayEvents} />
               </>
@@ -96,7 +98,12 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
               </SectionHead>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {upcomingTrips.map((trip) => (
-                  <TripCard key={trip.id} trip={trip} onEditTrip={(t) => setEditingTrip(t.id)} />
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    onEditTrip={(t) => setEditingTrip(t.id)}
+                    dateFormat={dateFormat}
+                  />
                 ))}
                 <NewTripCard />
               </div>
@@ -110,7 +117,7 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
                   Filter
                 </Button>
               </SectionHead>
-              <PastTripsList trips={pastTrips} onEditTrip={(t) => setEditingTrip(t.id)} />
+              <PastTripsList trips={pastTrips} dateFormat={dateFormat} onEditTrip={(t) => setEditingTrip(t.id)} />
             </div>
           </div>
         </div>
@@ -124,7 +131,7 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
               <h1
                 style={{
                   fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                  fontSize: 26,
+                  fontSize: "calc(26px * var(--font-scale))",
                   fontWeight: 700,
                   letterSpacing: "-0.02em",
                   color: "var(--fg)",
@@ -135,7 +142,7 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
               <div
                 style={{
                   fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: "10.5px",
+                  fontSize: "calc(10.5px * var(--font-scale))",
                   color: "var(--fg-3)",
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
@@ -175,7 +182,7 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
                   onClick={() => setMobileTab(tab)}
                   className="px-4 py-2 font-medium transition-colors"
                   style={{
-                    fontSize: 13,
+                    fontSize: "calc(13px * var(--font-scale))",
                     minHeight: 44,
                     color: mobileTab === tab ? "var(--accent-brand)" : "var(--fg-3)",
                     borderBottom: mobileTab === tab ? "2px solid var(--accent-brand)" : "2px solid transparent",
@@ -195,8 +202,8 @@ export function TripsPageClient({ initialEntries, nowISO }: TripsPageClientProps
           {mobileTab === "Active" && (
             <MobileActiveTab trip={activeEntry?.trip ?? null} todayEvents={activeEntry?.todayEvents ?? []} now={now} />
           )}
-          {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} now={now} />}
-          {mobileTab === "Past" && <MobilePastTab trips={pastTrips} />}
+          {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} now={now} dateFormat={dateFormat} />}
+          {mobileTab === "Past" && <MobilePastTab trips={pastTrips} dateFormat={dateFormat} />}
         </div>
       </div>
 

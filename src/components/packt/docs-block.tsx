@@ -16,7 +16,7 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
       <div
         style={{
           fontFamily: "var(--font-mono-family, ui-monospace)",
-          fontSize: "9.5px",
+          fontSize: "calc(9.5px * var(--font-scale))",
           fontWeight: 600,
           letterSpacing: "0.08em",
           textTransform: "uppercase",
@@ -35,16 +35,24 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
           >
             <DocKindBadge kind={d.kind} />
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }} className="truncate">
+              <div
+                style={{
+                  fontSize: "calc(12px * var(--font-scale))",
+                  fontWeight: 500,
+                  color: "var(--fg)",
+                  lineHeight: 1.2,
+                }}
+                className="truncate"
+              >
                 {d.name}
               </div>
-              <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{d.size}</div>
+              <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>{d.size}</div>
             </div>
             {d.offline ? (
               <span
                 className="shrink-0 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
                 style={{
-                  fontSize: 10,
+                  fontSize: "calc(10px * var(--font-scale))",
                   color: "var(--accent-ink)",
                   background: "var(--accent-soft)",
                 }}
@@ -52,7 +60,7 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
                 <Check size={9} strokeWidth={2} /> Offline
               </span>
             ) : (
-              <span style={{ fontSize: 11, color: "var(--fg-4)" }}>↓</span>
+              <span style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>↓</span>
             )}
             <button
               onClick={() => onDelete(d.id)}
@@ -80,7 +88,7 @@ export function DocsBlock({ docs, onDelete, onAdd }: DocsBlockProps) {
           onClick={onAdd}
           className="flex items-center gap-1.5 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-surface-2 w-full"
           style={{
-            fontSize: 12,
+            fontSize: "calc(12px * var(--font-scale))",
             color: "var(--fg-4)",
             background: "none",
             border: "none",

@@ -6,15 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/types";
-import { getTripDays } from "@/lib/utils";
+import { getTripDays, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 interface TripCardProps {
   trip: Trip;
   onEditTrip?: (trip: Trip) => void;
+  dateFormat: string;
 }
 
-export function TripCard({ trip, onEditTrip }: TripCardProps) {
+export function TripCard({ trip, onEditTrip, dateFormat }: TripCardProps) {
   const now = useNow();
   const sub = `${getTripDays(trip.startDate, trip.endDate)} DAYS`;
   const today = new Date(now);
@@ -42,7 +43,7 @@ export function TripCard({ trip, onEditTrip }: TripCardProps) {
           <div>
             <div
               style={{
-                fontSize: 15,
+                fontSize: "calc(15px * var(--font-scale))",
                 fontWeight: 600,
                 fontFamily: "var(--font-heading-family, ui-sans-serif)",
                 letterSpacing: "-0.01em",
@@ -54,13 +55,13 @@ export function TripCard({ trip, onEditTrip }: TripCardProps) {
             </div>
             <div
               style={{
-                fontSize: 12.5,
+                fontSize: "calc(12.5px * var(--font-scale))",
                 color: "var(--fg-3)",
                 marginTop: 3,
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {trip.startDate} — {trip.endDate}
+              {formatDate(trip.startDate, dateFormat)} — {formatDate(trip.endDate, dateFormat)}
             </div>
           </div>
           <Badge variant="soft" className="shrink-0 mt-0.5">
@@ -69,7 +70,10 @@ export function TripCard({ trip, onEditTrip }: TripCardProps) {
         </div>
 
         {/* Meta row */}
-        <div className="flex items-center gap-3" style={{ fontSize: 12.5, color: "var(--fg-3)" }}>
+        <div
+          className="flex items-center gap-3"
+          style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}
+        >
           <span className="flex items-center gap-1">
             <Calendar size={13} strokeWidth={1.5} />
             {getTripDays(trip.startDate, trip.endDate)} days
@@ -104,7 +108,7 @@ export function TripCard({ trip, onEditTrip }: TripCardProps) {
             <span
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--font-scale))",
                 color: "var(--fg-4)",
               }}
             >

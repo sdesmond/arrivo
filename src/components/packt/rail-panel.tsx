@@ -16,12 +16,14 @@ export function RailPanel({ header, meta, children }: RailPanelProps) {
         className="flex items-center justify-between px-4 py-2.5"
         style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}
       >
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{header}</span>
+        <span style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
+          {header}
+        </span>
         {meta && (
           <span
             style={{
               fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "9.5px",
+              fontSize: "calc(9.5px * var(--font-scale))",
               fontWeight: 500,
               letterSpacing: "0.08em",
               textTransform: "uppercase",

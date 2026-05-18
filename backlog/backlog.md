@@ -17,6 +17,9 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 
 ## New Features
 
-# Preference issues
+# Preferences
 
-!!!!! Most preferences are still ignored !!!!!
+These preferences are captured and need to be wired into the application
+
+1. font size
+2. date format

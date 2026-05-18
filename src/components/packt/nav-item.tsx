@@ -16,10 +16,11 @@ export function NavItem({ icon: Icon, label, href, count, active }: NavItemProps
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors",
+        "flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] font-medium transition-colors",
         "hover:bg-surface",
         active ? "bg-surface-2 text-fg" : "text-fg-2"
       )}
+      style={{ fontSize: "calc(13px * var(--font-scale))" }}
     >
       <Icon size={16} strokeWidth={1.5} className={cn("shrink-0", active ? "text-accent-brand" : "text-fg-3")} />
       <span>{label}</span>
@@ -28,7 +29,7 @@ export function NavItem({ icon: Icon, label, href, count, active }: NavItemProps
           className="ml-auto"
           style={{
             fontFamily: "var(--font-mono-family, ui-monospace)",
-            fontSize: "10.5px",
+            fontSize: "calc(10.5px * var(--font-scale))",
             fontWeight: 500,
             letterSpacing: "0.04em",
             color: "var(--fg-3)",

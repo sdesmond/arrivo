@@ -8,6 +8,8 @@ import {
   getActiveDayNumber,
   getTodayDisplay,
   formatTripDate,
+  detectDefaultDateFormat,
+  formatDate,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -142,5 +144,45 @@ describe("formatTripDate", () => {
 
   it("handles first of the month", () => {
     expect(formatTripDate("2026-01-01")).toBe("Jan 1, 2026");
+  });
+});
+
+describe("detectDefaultDateFormat", () => {
+  it("returns MM/DD/YYYY for en-US", () => {
+    expect(detectDefaultDateFormat("en-US,en;q=0.9")).toBe("MM/DD/YYYY");
+  });
+
+  it("returns MM/DD/YYYY for en-PH", () => {
+    expect(detectDefaultDateFormat("en-PH")).toBe("MM/DD/YYYY");
+  });
+
+  it("returns DD/MM/YYYY for en-GB", () => {
+    expect(detectDefaultDateFormat("en-GB,en;q=0.9")).toBe("DD/MM/YYYY");
+  });
+
+  it("returns DD/MM/YYYY for fr-FR", () => {
+    expect(detectDefaultDateFormat("fr-FR")).toBe("DD/MM/YYYY");
+  });
+
+  it("returns DD/MM/YYYY for plain en (no region)", () => {
+    expect(detectDefaultDateFormat("en")).toBe("DD/MM/YYYY");
+  });
+
+  it("returns DD/MM/YYYY for empty string", () => {
+    expect(detectDefaultDateFormat("")).toBe("DD/MM/YYYY");
+  });
+});
+
+describe("formatDate", () => {
+  it("formats as MM/DD/YYYY (month-first readable)", () => {
+    expect(formatDate("2026-04-24", "MM/DD/YYYY")).toBe("Apr 24, 2026");
+  });
+
+  it("formats as DD/MM/YYYY (day-first readable)", () => {
+    expect(formatDate("2026-04-24", "DD/MM/YYYY")).toBe("24 Apr 2026");
+  });
+
+  it("handles single-digit day without leading zero", () => {
+    expect(formatDate("2026-01-05", "DD/MM/YYYY")).toBe("5 Jan 2026");
   });
 });

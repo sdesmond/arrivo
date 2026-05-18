@@ -30,12 +30,19 @@ export function DocsRail({ docs }: DocsRailProps) {
             </span>
             <div className="flex-1 min-w-0">
               <div
-                style={{ fontSize: 12.5, fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}
+                style={{
+                  fontSize: "calc(12.5px * var(--font-scale))",
+                  fontWeight: 500,
+                  color: "var(--fg)",
+                  lineHeight: 1.2,
+                }}
                 className="truncate"
               >
                 {d.name}
               </div>
-              {d.subtitle && <div style={{ fontSize: 11, color: "var(--fg-4)" }}>{d.subtitle}</div>}
+              {d.subtitle && (
+                <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>{d.subtitle}</div>
+              )}
             </div>
             {d.cached ? (
               <span style={{ color: "var(--accent-brand)", flexShrink: 0 }}>

@@ -53,7 +53,7 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
         className="px-4 sm:px-6"
         style={{
           fontFamily: "var(--font-heading-family, ui-sans-serif)",
-          fontSize: 22,
+          fontSize: "calc(22px * var(--font-scale))",
           fontWeight: 700,
           letterSpacing: "-0.02em",
           color: "var(--fg)",
@@ -124,11 +124,11 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
               <Section>
                 <div className="max-w-xs flex flex-col gap-4">
                   <div className="flex items-center justify-between gap-4">
-                    <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Theme</span>
+                    <span style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>Theme</span>
                     <ThemeSelect />
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Font size</span>
+                    <span style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>Font size</span>
                     <FontSizeSelect />
                   </div>
                 </div>

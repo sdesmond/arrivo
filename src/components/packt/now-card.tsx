@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip, type TripEvent } from "@/data/types";
-import { cn, getTripStatus, formatTripDate } from "@/lib/utils";
+import { cn, getTripStatus, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 function fmtTime(iso: string): string {
@@ -18,9 +18,10 @@ interface NowCardProps {
   trip: Trip;
   todayEvents: TripEvent[];
   onEditTrip?: (trip: Trip) => void;
+  dateFormat: string;
 }
 
-export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
+export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardProps) {
   const now = useNow();
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
@@ -62,7 +63,7 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
               className="flex items-center gap-1.5 mb-1"
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "10.5px",
+                fontSize: "calc(10.5px * var(--font-scale))",
                 fontWeight: 500,
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
@@ -83,7 +84,7 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
             <h2
               style={{
                 fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                fontSize: 28,
+                fontSize: "calc(28px * var(--font-scale))",
                 fontWeight: 700,
                 letterSpacing: "-0.02em",
                 color: "var(--fg)",
@@ -92,8 +93,8 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
             >
               {trip.name}
             </h2>
-            <div style={{ color: "var(--fg-3)", fontSize: 13.5, marginTop: 4 }}>
-              {formatTripDate(trip.startDate)} – {formatTripDate(trip.endDate)}
+            <div style={{ color: "var(--fg-3)", fontSize: "calc(13.5px * var(--font-scale))", marginTop: 4 }}>
+              {formatDate(trip.startDate, dateFormat)} – {formatDate(trip.endDate, dateFormat)}
             </div>
           </div>
 
@@ -141,7 +142,7 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
           <span
             className="inline-flex items-center gap-1.5 rounded-full"
             style={{
-              fontSize: 12,
+              fontSize: "calc(12px * var(--font-scale))",
               fontWeight: 500,
               color: "var(--accent-brand)",
               padding: "4px 9px",
@@ -177,7 +178,7 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
             <div
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "10.5px",
+                fontSize: "calc(10.5px * var(--font-scale))",
                 fontWeight: 500,
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
@@ -191,7 +192,7 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
               <span
                 style={{
                   fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                  fontSize: 20,
+                  fontSize: "calc(20px * var(--font-scale))",
                   fontWeight: 700,
                   color: "var(--fg)",
                   letterSpacing: "-0.01em",
@@ -210,7 +211,7 @@ export function NowCard({ trip, todayEvents, onEditTrip }: NowCardProps) {
             <div
               style={{
                 fontFamily: "var(--font-body, ui-sans-serif)",
-                fontSize: 13,
+                fontSize: "calc(13px * var(--font-scale))",
                 color: "var(--fg-3)",
                 marginTop: 4,
               }}

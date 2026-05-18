@@ -54,12 +54,14 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
             background: "var(--surface-2)",
             color: "var(--fg)",
             fontFamily: "var(--font-body, ui-sans-serif)",
-            fontSize: 20,
+            fontSize: "calc(20px * var(--font-scale))",
           }}
         >
           {initials}
         </div>
-        <div style={{ fontSize: 12, color: "var(--fg-3)", lineHeight: 1.4 }}>Profile photo upload coming soon.</div>
+        <div style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)", lineHeight: 1.4 }}>
+          Profile photo upload coming soon.
+        </div>
       </div>
 
       <Field label="Name" htmlFor="profile-name">
@@ -68,11 +70,12 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
           type="text"
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
-          className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none transition-colors"
+          className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={{
             background: "var(--surface-2)",
             color: "var(--fg)",
             border: "1px solid var(--line)",
+            fontSize: "calc(13px * var(--font-scale))",
           }}
           placeholder="Your name"
         />
@@ -84,19 +87,20 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
           type="email"
           value={user.email}
           readOnly
-          className="w-full rounded-[6px] px-2.5 py-1.5 text-[13px]"
+          className="w-full rounded-[6px] px-2.5 py-1.5"
           style={{
             background: "var(--surface)",
             color: "var(--fg-3)",
             border: "1px solid var(--line)",
             cursor: "default",
+            fontSize: "calc(13px * var(--font-scale))",
           }}
         />
       </Field>
 
       <div className="flex items-center justify-end gap-3">
         {justSaved && (
-          <span role="status" style={{ fontSize: "12px", color: "var(--accent-brand)" }}>
+          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
             Saved
           </span>
         )}

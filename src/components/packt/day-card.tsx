@@ -32,6 +32,7 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-ki
 
 interface DayCardProps {
   day: DayItinerary;
+  dateFormat?: string;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -69,6 +70,7 @@ type TimelineItem =
 
 export function DayCard({
   day: d,
+  dateFormat = "MM/DD/YYYY",
   onUpdateEvent,
   onDeleteEvent,
   onReorderDayItems,
@@ -106,11 +108,14 @@ export function DayCard({
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const dateDisplay = d.date
-    ? new Date(d.date + "T12:00:00").toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      })
+    ? (() => {
+        const date = new Date(d.date + "T12:00:00");
+        const weekday = date.toLocaleString("en-US", { weekday: "short" });
+        const day = date.getDate();
+        const month = date.toLocaleString("en-US", { month: "short" });
+        const datePart = dateFormat === "DD/MM/YYYY" ? `${day} ${month}` : `${month} ${day}`;
+        return `${weekday}, ${datePart}`;
+      })()
     : d.label.replace(" · ", ", ");
 
   const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
@@ -359,7 +364,12 @@ export function DayCard({
             <button
               onClick={() => openGap("bottom")}
               className="flex items-center gap-2 px-3 py-2 mt-1 rounded-[6px] transition-colors hover:bg-surface"
-              style={{ fontSize: 12.5, color: "var(--fg-4)", border: "none", background: "none" }}
+              style={{
+                fontSize: "calc(12.5px * var(--font-scale))",
+                color: "var(--fg-4)",
+                border: "none",
+                background: "none",
+              }}
             >
               <span
                 className="flex items-center justify-center rounded-full"
