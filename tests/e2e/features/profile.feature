@@ -60,3 +60,20 @@ Feature: User profile page
     Then I should see the loyalty number "TA-123456"
     When I click the copy button for the loyalty number
     Then the copy button should show the copied state
+
+  Scenario: Companions tab shows seeded companion
+    Given I am on the profile page
+    When I navigate to the Companions section
+    Then I should see the companion "Alex Companion"
+
+  Scenario: Add a new companion
+    Given I am on the profile page
+    When I navigate to the Companions section
+    And I add a companion named "Jordan Travel"
+    Then I should see the companion "Jordan Travel"
+
+  Scenario: Delete a companion
+    Given I am on the profile page
+    When I navigate to the Companions section
+    And I remove the companion "Alex Companion"
+    Then the companion "Alex Companion" should not be visible

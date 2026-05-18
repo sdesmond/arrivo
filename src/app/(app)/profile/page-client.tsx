@@ -9,6 +9,7 @@ import { ProfileIdentitySection } from "./identity-section";
 import { LoyaltySection } from "./loyalty-section";
 import { PassportSection } from "./passport-section";
 import { WishlistSection } from "./wishlist-section";
+import { CompanionsSection } from "./companions-section";
 import { ProfilePreferencesSection } from "./preferences-section";
 import { ProfileAccountSection } from "./account-section";
 import type { UserProfile, ProfileSection } from "@/data/types";
@@ -16,6 +17,7 @@ import type { UserProfile, ProfileSection } from "@/data/types";
 const NAV_ITEMS: { value: ProfileSection; label: string }[] = [
   { value: "identity", label: "Identity" },
   { value: "traveler", label: "Traveler" },
+  { value: "companions", label: "Companions" },
   { value: "preferences", label: "Preferences" },
   { value: "appearance", label: "Appearance" },
   { value: "account", label: "Account" },
@@ -103,6 +105,10 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
                 />
                 <WishlistSection wishlistDestinations={user.wishlistDestinations} />
               </div>
+            </TabsContent>
+
+            <TabsContent value="companions" className="w-full">
+              <CompanionsSection companions={user.companions} />
             </TabsContent>
 
             <TabsContent value="preferences" className="w-full">

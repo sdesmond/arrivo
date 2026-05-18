@@ -8,6 +8,7 @@ import {
   itineraryNotes,
   userLoyaltyNumbers,
   userWishlistDestinations,
+  userCompanions,
 } from "@/db/schema";
 import { getTripStatus } from "@/lib/utils";
 import type {
@@ -21,6 +22,7 @@ import type {
   Note,
   LoyaltyNumber,
   WishlistDestination,
+  Companion,
 } from "@/data/types";
 
 export function dbTripToType(row: typeof trips.$inferSelect): Trip {
@@ -124,6 +126,20 @@ export function dbWishlistToType(row: typeof userWishlistDestinations.$inferSele
   return {
     id: row.id,
     name: row.name,
+    position: row.position,
+  };
+}
+
+export function dbCompanionToType(row: typeof userCompanions.$inferSelect): Companion {
+  return {
+    id: row.id,
+    name: row.name,
+    age: row.age ?? undefined,
+    passportNumber: row.passportNumber ?? undefined,
+    passportExpiry: row.passportExpiry ?? undefined,
+    passportNationality: row.passportNationality ?? undefined,
+    knownTravelerNumber: row.knownTravelerNumber ?? undefined,
+    packtUsername: row.packtUsername ?? undefined,
     position: row.position,
   };
 }

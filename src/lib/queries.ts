@@ -13,6 +13,7 @@ import {
   users,
   userLoyaltyNumbers,
   userWishlistDestinations,
+  userCompanions,
 } from "@/db/schema";
 import { eq, and, sql, inArray, asc } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
@@ -24,6 +25,7 @@ import {
   dbChecklistToType,
   dbLoyaltyToType,
   dbWishlistToType,
+  dbCompanionToType,
 } from "@/lib/db-mappers";
 import type { TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
 
@@ -45,7 +47,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
     .where(eq(users.id, id));
   if (!user || !user.email) return null;
 
-  const [loyaltyRows, wishlistRows] = await Promise.all([
+  const [loyaltyRows, wishlistRows, companionRows] = await Promise.all([
     db
       .select()
       .from(userLoyaltyNumbers)
@@ -56,6 +58,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
       .from(userWishlistDestinations)
       .where(eq(userWishlistDestinations.userId, id))
       .orderBy(asc(userWishlistDestinations.position)),
+    db.select().from(userCompanions).where(eq(userCompanions.userId, id)).orderBy(asc(userCompanions.position)),
   ]);
 
   return {
@@ -63,6 +66,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
     email: user.email,
     loyaltyNumbers: loyaltyRows.map(dbLoyaltyToType),
     wishlistDestinations: wishlistRows.map(dbWishlistToType),
+    companions: companionRows.map(dbCompanionToType),
   };
 }
 

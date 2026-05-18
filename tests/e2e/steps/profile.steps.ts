@@ -133,3 +133,26 @@ When("I click the copy button for the loyalty number", async ({ page }) => {
 Then("the copy button should show the copied state", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Copied!" })).toBeVisible();
 });
+
+When("I navigate to the Companions section", async ({ page }) => {
+  await page.getByRole("tab", { name: "Companions" }).click();
+});
+
+Then("I should see the companion {string}", async ({ page }, name: string) => {
+  await expect(page.getByText(name)).toBeVisible();
+});
+
+When("I add a companion named {string}", async ({ page }, name: string) => {
+  await page.locator("#companion-name").fill(name);
+  await page.getByRole("button", { name: "Add" }).click();
+  await page.waitForTimeout(500);
+});
+
+When("I remove the companion {string}", async ({ page }, name: string) => {
+  await page.getByRole("button", { name: `Remove ${name}` }).click();
+  await page.waitForTimeout(500);
+});
+
+Then("the companion {string} should not be visible", async ({ page }, name: string) => {
+  await expect(page.getByText(name)).not.toBeVisible();
+});

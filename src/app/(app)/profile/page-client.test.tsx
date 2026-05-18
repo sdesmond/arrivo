@@ -37,6 +37,7 @@ const baseUser: UserProfile = {
   knownTravelerNumber: null,
   loyaltyNumbers: [],
   wishlistDestinations: [],
+  companions: [],
 };
 
 describe("ProfilePageClient", () => {

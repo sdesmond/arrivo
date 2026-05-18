@@ -271,3 +271,25 @@ export const itineraryNotes = pgTable(
   },
   (t) => [index().on(t.dayId, t.position)]
 );
+
+export const userCompanions = pgTable(
+  "user_companions",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    age: integer("age"),
+    passportNumber: text("passport_number"),
+    passportExpiry: date("passport_expiry"),
+    passportNationality: text("passport_nationality"),
+    knownTravelerNumber: text("known_traveler_number"),
+    packtUsername: text("packt_username"),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+  },
+  (t) => [index().on(t.userId, t.position)]
+);

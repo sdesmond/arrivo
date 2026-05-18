@@ -2,12 +2,18 @@
 
 import { requireUser } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { users, collaborators, trips, userLoyaltyNumbers, userWishlistDestinations } from "@/db/schema";
+import { users, collaborators, trips, userLoyaltyNumbers, userWishlistDestinations, userCompanions } from "@/db/schema";
 import { eq, and, not, exists, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import type { UpdateUserProfilePatch, AddLoyaltyNumberInput, AddWishlistDestinationInput } from "@/data/types";
+import type {
+  UpdateUserProfilePatch,
+  AddLoyaltyNumberInput,
+  AddWishlistDestinationInput,
+  AddCompanionInput,
+  UpdateCompanionPatch,
+} from "@/data/types";
 
 export async function updateProfile(patch: UpdateUserProfilePatch): Promise<void> {
   const session = await requireUser();
@@ -78,6 +84,45 @@ export async function changePassword({
   const hash = await bcrypt.hash(newPassword, 10);
   await db.update(users).set({ passwordHash: hash }).where(eq(users.id, session.id!));
   return {};
+}
+
+export async function addCompanion(input: AddCompanionInput): Promise<void> {
+  const session = await requireUser();
+  const userId = session.id!;
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(userCompanions)
+    .where(eq(userCompanions.userId, userId));
+  await db.insert(userCompanions).values({
+    userId,
+    name: input.name,
+    age: input.age ?? null,
+    position: count,
+  });
+  revalidatePath("/profile");
+}
+
+export async function updateCompanion(id: string, patch: UpdateCompanionPatch): Promise<void> {
+  const session = await requireUser();
+  await db
+    .update(userCompanions)
+    .set({
+      name: patch.name,
+      age: patch.age ?? null,
+      passportNumber: patch.passportNumber ?? null,
+      passportExpiry: patch.passportExpiry ?? null,
+      passportNationality: patch.passportNationality ?? null,
+      knownTravelerNumber: patch.knownTravelerNumber ?? null,
+      packtUsername: patch.packtUsername ?? null,
+    })
+    .where(and(eq(userCompanions.id, id), eq(userCompanions.userId, session.id!)));
+  revalidatePath("/profile");
+}
+
+export async function deleteCompanion(id: string): Promise<void> {
+  const session = await requireUser();
+  await db.delete(userCompanions).where(and(eq(userCompanions.id, id), eq(userCompanions.userId, session.id!)));
+  revalidatePath("/profile");
 }
 
 export async function deleteAccount(): Promise<void> {

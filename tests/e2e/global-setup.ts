@@ -3,8 +3,8 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { users, trips, days, collaborators, userLoyaltyNumbers } from "../../src/db/schema";
-import { E2E_USER, E2E_TRIP, E2E_DAYS, E2E_LOYALTY_NUMBER } from "./e2e-seed-data";
+import { users, trips, days, collaborators, userLoyaltyNumbers, userCompanions } from "../../src/db/schema";
+import { E2E_USER, E2E_TRIP, E2E_DAYS, E2E_LOYALTY_NUMBER, E2E_COMPANION } from "./e2e-seed-data";
 
 export default async function globalSetup() {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -47,6 +47,9 @@ export default async function globalSetup() {
 
   // Insert a loyalty number so Traveler section tests have data to work with
   await db.insert(userLoyaltyNumbers).values({ userId: user.id, ...E2E_LOYALTY_NUMBER });
+
+  // Insert a companion so Companions section tests have data to work with
+  await db.insert(userCompanions).values({ userId: user.id, ...E2E_COMPANION });
 
   await client.end();
 }

@@ -20,3 +20,18 @@ Surfaced during step-04 review of `spec-add-itinerary-drag-reorder.md`. Real but
 ### No optimistic rollback / no error surfacing on reorder failure
 `handleDayItemsReorder` in `page-client.tsx` calls `reorderDayItems` inside `React.startTransition` with no try/catch and no local snapshot. On network failure or auth loss the dropped order persists in the DOM until `revalidatePath` returns server state — no toast, no rollback, no signal to the user. Fix path: optimistic local state with rollback, or a try/catch + toast.
 
+---
+
+## Follow-ups from companions feature review (2026-05-18)
+
+Surfaced during step-04 review of `spec-profile-companions.md`. Pre-existing patterns applied consistently; real but out of scope.
+
+### No server-side input validation on companion actions
+`addCompanion` and `updateCompanion` in `profile/actions.ts` pass field values straight to the DB with no length cap, no age bounds check (negative integers are accepted), no date format validation on `passportExpiry`, and no sanitization on `passportNumber` or `packtUsername`. This matches the existing pattern for `addLoyaltyNumber`, `addWishlistDestination`, etc. Fix path: add a Zod schema validation layer at the server action boundary for all profile mutation actions.
+
+### Position gaps after companion delete
+`deleteCompanion` removes the row but does not recompact `position` values for remaining companions. Gaps (e.g. positions [0, 1, 3]) cause `addCompanion`'s `count(*)`-based position assignment to produce duplicates when any intermediate position was deleted. Same issue exists in `userLoyaltyNumbers` and `userWishlistDestinations`. Fix path: recompact positions in a transaction after delete, or switch to a sparse-safe ordering scheme.
+
+### No max companions limit
+`addCompanion` has no guard on how many companions a user can add — unlimited inserts are accepted. Same pattern as loyalty numbers. Fix path: add a per-user cap (e.g. 20) enforced at the server action level.
+

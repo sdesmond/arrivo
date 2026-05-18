@@ -21,3 +21,9 @@ export const E2E_LOYALTY_NUMBER = {
   memberNumber: "TA-123456",
   position: 0,
 };
+
+export const E2E_COMPANION = {
+  name: "Alex Companion",
+  age: 30,
+  position: 0,
+};
