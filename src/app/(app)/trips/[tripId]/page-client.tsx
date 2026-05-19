@@ -330,6 +330,7 @@ export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClien
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           <TripDetailTabBody
+            tripId={trip.id}
             activeTab={activeTab}
             days={days}
             docs={docs}

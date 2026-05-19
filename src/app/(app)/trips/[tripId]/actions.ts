@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
 import { eq, and, max, gte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { inferDocKind, formatFileSize } from "@/lib/utils";
 import type {
   CreateEventInput,
   UpdateEventPatch,
@@ -185,6 +186,30 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch) {
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(days).set(patch).where(eq(days.id, dayId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function uploadDocument(tripId: string, formData: FormData) {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const file = formData.get("file") as File;
+  if (!(file instanceof File)) throw new Error("No file provided");
+
+  const name = file.name;
+  const kind = inferDocKind(file.type);
+  const size = formatFileSize(file.size);
+
+  let url: string;
+  if (process.env.UPLOAD_STUB === "true") {
+    url = "https://example.com/stub-upload.pdf";
+  } else {
+    const { put } = await import("@vercel/blob");
+    const result = await put(name, file, { access: "public" });
+    url = result.url;
+  }
+
+  await db.insert(documents).values({ tripId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
 }
 

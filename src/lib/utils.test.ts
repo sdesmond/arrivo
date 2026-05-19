@@ -10,6 +10,9 @@ import {
   formatTripDate,
   detectDefaultDateFormat,
   formatDate,
+  toHHMM,
+  inferDocKind,
+  formatFileSize,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -184,5 +187,76 @@ describe("formatDate", () => {
 
   it("handles single-digit day without leading zero", () => {
     expect(formatDate("2026-01-05", "DD/MM/YYYY")).toBe("5 Jan 2026");
+  });
+});
+
+describe("toHHMM", () => {
+  it("formats an ISO datetime to HH:mm format", () => {
+    const d = new Date(2026, 4, 19, 9, 5); // May 19, 09:05 local
+    expect(toHHMM(d.toISOString())).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it("zero-pads single-digit hours and minutes", () => {
+    const d = new Date(2026, 0, 1, 3, 7); // 03:07 local
+    const result = toHHMM(d.toISOString());
+    const [hh, mm] = result.split(":");
+    expect(hh).toHaveLength(2);
+    expect(mm).toHaveLength(2);
+  });
+});
+
+describe("inferDocKind", () => {
+  it("returns pdf for application/pdf", () => {
+    expect(inferDocKind("application/pdf")).toBe("pdf");
+  });
+
+  it("returns image for image/jpeg", () => {
+    expect(inferDocKind("image/jpeg")).toBe("image");
+  });
+
+  it("returns image for image/png", () => {
+    expect(inferDocKind("image/png")).toBe("image");
+  });
+
+  it("returns image for image/webp", () => {
+    expect(inferDocKind("image/webp")).toBe("image");
+  });
+
+  it("returns image for image/heic", () => {
+    expect(inferDocKind("image/heic")).toBe("image");
+  });
+
+  it("returns doc for unknown mime type", () => {
+    expect(inferDocKind("application/msword")).toBe("doc");
+  });
+
+  it("returns doc for text/plain", () => {
+    expect(inferDocKind("text/plain")).toBe("doc");
+  });
+
+  it("returns doc for empty string", () => {
+    expect(inferDocKind("")).toBe("doc");
+  });
+});
+
+describe("formatFileSize", () => {
+  it("formats bytes under 1 MB as KB", () => {
+    expect(formatFileSize(1024)).toBe("1.0 KB");
+  });
+
+  it("formats 1.5 KB correctly", () => {
+    expect(formatFileSize(1536)).toBe("1.5 KB");
+  });
+
+  it("formats exactly 1 MB as 1.0 MB", () => {
+    expect(formatFileSize(1024 * 1024)).toBe("1.0 MB");
+  });
+
+  it("formats 1.2 MB correctly", () => {
+    expect(formatFileSize(Math.round(1024 * 1024 * 1.2))).toBe("1.2 MB");
+  });
+
+  it("formats large files in MB", () => {
+    expect(formatFileSize(1024 * 1024 * 5)).toBe("5.0 MB");
   });
 });

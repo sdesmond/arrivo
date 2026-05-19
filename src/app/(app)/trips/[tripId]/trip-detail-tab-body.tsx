@@ -5,6 +5,7 @@ import { TripDocsTab } from "@/components/packt/trip-docs-tab";
 import { type DayItinerary, type TripEvent, type DayItemType, type Document, type TripDetailTab } from "@/data/types";
 
 export interface TripDetailTabBodyProps {
+  tripId: string;
   activeTab: TripDetailTab;
   days: DayItinerary[];
   docs: Document[];
@@ -29,6 +30,7 @@ export interface TripDetailTabBodyProps {
 }
 
 export function TripDetailTabBody({
+  tripId,
   activeTab,
   days,
   docs,
@@ -76,7 +78,7 @@ export function TripDetailTabBody({
           onToggleChecklistItem={onToggleChecklistItem}
         />
       )}
-      {activeTab === "docs" && <TripDocsTab docs={docs.filter((d) => d.scope === "trip")} />}
+      {activeTab === "docs" && <TripDocsTab tripId={tripId} docs={docs.filter((d) => d.scope === "trip")} />}
       {activeTab === "map" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
       )}
