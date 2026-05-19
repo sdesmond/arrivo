@@ -23,6 +23,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: process.env.E2E_DATABASE_URL!,
       NEXT_DISTDIR: ".next-e2e",
+      UPLOAD_STUB: "true",
     },
   },
   projects: [

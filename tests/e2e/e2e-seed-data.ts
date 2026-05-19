@@ -27,3 +27,10 @@ export const E2E_COMPANION = {
   age: 30,
   position: 0,
 };
+
+export const E2E_DOCUMENT = {
+  name: "E2E Boarding Pass",
+  kind: "pdf",
+  size: "1.2 MB",
+  url: "https://example.com/boarding-pass.pdf",
+};
