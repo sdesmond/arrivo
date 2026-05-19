@@ -56,3 +56,33 @@ The "N docs" toggle in `place-row-action-bar.tsx:94-115` is a disclosure trigger
 ### E2E coverage for TripDocsTab empty state (deferred to Story 1.2)
 Story 1.1 ships an empty `TripDocsTab` rendered when the Documents tab is active, but adds no E2E scenario for it. Defer reason: scaffold-only, no flow yet — the empty state has no user interaction, the unit test already asserts the copy, and Story 1.2 introduces the real upload flow which will cover both empty and populated states in one feature. Reconsider if Story 1.2 is delayed and 1.1 ships standalone.
 
+---
+
+## Deferred from: code review of 1-3-browse-and-delete-documents (2026-05-19)
+
+Surfaced during step-04 review of `1-3-browse-and-delete-documents.md`. Real but out of scope for story 1.3.
+
+### Event/trip cascade leaks Vercel blobs
+Story 1.3 added `del(doc.url)` to `removeDocument` only. `deleteEvent` and the trip-level cascade in `src/db/schema.ts` wipe `documents` rows via SQL `ON DELETE CASCADE`, which cannot call the Blob API — every event or trip deletion silently orphans the attached blobs. Fix path: fetch attached documents before the cascade, iterate `del()` calls, then cascade. Apply to `removeEvent` and any trip-deletion path.
+
+### `removeDocument` silently returns on orphan rows
+`actions.ts:356-357` returns `undefined` when neither `tripId` nor `eventId` is set on a document row. Schema permits this state (`src/db/schema.ts` has no `.notNull()` and no CHECK constraint on either FK). Function does nothing — no log, no error — so the button is permanently dead for that row. Pre-existing; fix path: add a CHECK constraint requiring at least one FK, or log/throw on the orphan case.
+
+### Server-action import path coupling in client components
+`DocRow` and `TripDocsTab` both import server actions via the literal `@/app/(app)/trips/[tripId]/actions` path, which couples each leaf component to a single route. Refactoring to an `onDelete` / `onUpload` prop would decouple them and simplify unit tests (no need to mock route-specific paths). Established pattern across the codebase; would be a broader refactor.
+
+### Dynamic `import("@vercel/blob")` in `removeDocument`
+Action uses `await import("@vercel/blob")` per call. Functional, but `put` at `actions.ts:207` is statically imported — asymmetric and adds first-call latency. Fix path: hoist the import to the top of the file.
+
+### Missing DB index on `documents.added_at`
+`getTripDetail` now sorts by `desc(addedAt)`. Acceptable at current scale; revisit when per-trip document volume grows or the column is used for cross-trip queries.
+
+### E2E scenario ordering hazard if Playwright `fullyParallel` is ever enabled
+`documents.feature` relies on file-order execution (Delete before Upload) for empty-state assertions to hold. `global-setup.ts` reseeds only once per suite, not per scenario. If a future config change parallelizes or shuffles scenarios, the empty-state assertion will flake. Fix path: a `Before` hook that reseeds, or a Background that resets to a known document count.
+
+### AC4 blob-cleanup path has no automated test
+`actions.ts` is excluded from coverage and E2E runs with `UPLOAD_STUB=true`, so the `del(doc.url)` branch is never executed by any test. The spec explicitly authorizes this exclusion. Defer reason: verifying it requires real Blob storage or an integration test layer that does not yet exist.
+
+### `getByText(docName).not.toBeVisible()` is a substring match
+The "no longer visible" step in `documents.steps.ts:30-32` would also resolve to the delete button's accessible name (`Delete <name>`) on strict matching, since both contain the doc name. Works today because the seed name is unique. Tightening to `getByRole("button", { name: \`Delete ${name}\` }).not.toBeVisible()` would be more precise.
+

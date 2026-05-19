@@ -107,7 +107,11 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
 
   const tripEvents = await db.select().from(events).where(eq(events.tripId, tripId)).orderBy(events.position);
 
-  const tripDocs = await db.select().from(documents).where(eq(documents.tripId, tripId));
+  const tripDocs = await db
+    .select()
+    .from(documents)
+    .where(eq(documents.tripId, tripId))
+    .orderBy(sql`${documents.addedAt} desc nulls last`, asc(documents.id));
   const tripCollaborators = await db.select().from(collaborators).where(eq(collaborators.tripId, tripId));
   const tripPackingItems = await db
     .select()

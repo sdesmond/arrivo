@@ -1,8 +1,39 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { DocRow } from "./doc-row";
+import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
+
+vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
+  removeDocument: vi.fn().mockResolvedValue(undefined),
+  uploadDocument: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open: boolean;
+    onOpenChange?: (o: boolean) => void;
+  }) =>
+    open ? (
+      <>
+        {children}
+        <button data-testid="dialog-backdrop-close" onClick={() => onOpenChange?.(false)} />
+      </>
+    ) : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+import { DocRow } from "./doc-row";
+import { removeDocument } from "@/app/(app)/trips/[tripId]/actions";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   id: "doc-1",
@@ -14,6 +45,10 @@ const makeDoc = (overrides: Partial<Document> = {}): Document => ({
 });
 
 describe("DocRow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders the document name", () => {
     render(<DocRow doc={makeDoc()} />);
     expect(screen.getByText("Boarding Pass.pdf")).toBeInTheDocument();
@@ -42,5 +77,87 @@ describe("DocRow", () => {
   it("renders document name for image doc", () => {
     render(<DocRow doc={makeDoc({ kind: "image", name: "vacation-photo.png" })} />);
     expect(screen.getByText("vacation-photo.png")).toBeInTheDocument();
+  });
+
+  it("renders a delete button with title and aria-label", () => {
+    render(<DocRow doc={makeDoc()} />);
+    const btn = screen.getByRole("button", { name: "Delete Boarding Pass.pdf" });
+    expect(btn).toHaveAttribute("title", "Delete Boarding Pass.pdf");
+    expect(btn).toHaveAttribute("aria-label", "Delete Boarding Pass.pdf");
+  });
+
+  it("delete button uses doc name in title/aria-label", () => {
+    render(<DocRow doc={makeDoc({ name: "insurance.pdf" })} />);
+    expect(screen.getByRole("button", { name: "Delete insurance.pdf" })).toBeInTheDocument();
+  });
+
+  it("delete button has min 44px touch target via minWidth/minHeight", () => {
+    render(<DocRow doc={makeDoc()} />);
+    const btn = screen.getByRole("button", { name: "Delete Boarding Pass.pdf" });
+    expect(btn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+  });
+
+  it("does not open the confirm dialog on initial render", () => {
+    render(<DocRow doc={makeDoc()} />);
+    expect(screen.queryByText("This cannot be undone.")).not.toBeInTheDocument();
+  });
+
+  it("opens the confirm dialog when the delete button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("does not call removeDocument when only the trash icon is clicked", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    expect(removeDocument).not.toHaveBeenCalled();
+  });
+
+  it("calls removeDocument with doc id after the dialog Delete button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-42" })} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(removeDocument).toHaveBeenCalledWith("doc-42");
+  });
+
+  it("does not call removeDocument when Cancel is clicked", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(removeDocument).not.toHaveBeenCalled();
+  });
+
+  it("shows an error message when removeDocument rejects", async () => {
+    vi.mocked(removeDocument).mockRejectedValueOnce(new Error("boom"));
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
+  });
+
+  it("guards against rapid double-click submitting twice", async () => {
+    let resolveCall: (() => void) | undefined;
+    vi.mocked(removeDocument).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCall = () => resolve();
+        })
+    );
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-99" })} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    const confirm = screen.getByRole("button", { name: "Delete" });
+    await user.click(confirm);
+    await user.click(confirm);
+    expect(removeDocument).toHaveBeenCalledTimes(1);
+    resolveCall?.();
   });
 });

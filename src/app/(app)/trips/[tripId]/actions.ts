@@ -356,6 +356,14 @@ export async function removeDocument(docId: string) {
   const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
+  if (doc.url && process.env.UPLOAD_STUB !== "true") {
+    try {
+      const { del } = await import("@vercel/blob");
+      await del(doc.url);
+    } catch (err) {
+      console.warn(`Blob cleanup failed for doc ${docId} (${doc.url}); continuing with DB delete`, err);
+    }
+  }
   await db.delete(documents).where(eq(documents.id, docId));
   revalidatePath(`/trips/${tripId}`);
 }
