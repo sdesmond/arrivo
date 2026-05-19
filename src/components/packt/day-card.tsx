@@ -41,7 +41,6 @@ interface DayCardProps {
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
-  onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
   onDeleteDoc?: (docId: string) => void;
   onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   newlyCreatedChecklistId?: string;
@@ -79,7 +78,6 @@ export function DayCard({
   onAddNote,
   onUpdateNote,
   onDeleteNote,
-  onAddDoc,
   onDeleteDoc,
   onAddChecklist,
   newlyCreatedChecklistId,
@@ -325,7 +323,6 @@ export function DayCard({
                         isLast={isLast}
                         onUpdate={onUpdateEvent}
                         onDelete={onDeleteEvent}
-                        onAddDoc={onAddDoc}
                         onDeleteDoc={onDeleteDoc}
                       />
                     ) : (
