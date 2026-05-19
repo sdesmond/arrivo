@@ -70,3 +70,8 @@ export function getTripDays(startDate: string, endDate: string): number {
   const end = new Date(endDate + "T00:00:00");
   return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
 }
+
+export function toHHMM(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}

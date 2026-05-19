@@ -47,6 +47,15 @@ export const DocKind = {
 } as const;
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 
+export const TripDetailTab = {
+  Itinerary: "itin",
+  Map: "map",
+  Documents: "docs",
+  Packing: "pack",
+  Notes: "notes",
+} as const;
+export type TripDetailTab = (typeof TripDetailTab)[keyof typeof TripDetailTab];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // USER
 // ─────────────────────────────────────────────────────────────────────────────

@@ -72,7 +72,7 @@ describe("PastTripsList", () => {
   });
 
   it("renders without error for empty array", () => {
-    const { container } = render(<PastTripsList trips={[]} onEditTrip={vi.fn()} />);
+    const { container } = render(<PastTripsList trips={[]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
     expect(container.firstChild).not.toBeNull();
   });
 
