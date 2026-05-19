@@ -5,16 +5,15 @@ import { Paperclip } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { type Document, DocKind } from "@/data/types";
+import { DocKind } from "@/data/types";
 
 export interface AddDocDialogProps {
   eventName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdd: (doc: Document) => void;
 }
 
-export function AddDocDialog({ eventName, open, onOpenChange, onAdd }: AddDocDialogProps) {
+export function AddDocDialog({ eventName, open, onOpenChange }: AddDocDialogProps) {
   const [draftName, setDraftName] = useState("");
   const [draftKind, setDraftKind] = useState<DocKind>(DocKind.PDF);
   const [draftUrl, setDraftUrl] = useState("");
@@ -31,15 +30,7 @@ export function AddDocDialog({ eventName, open, onOpenChange, onAdd }: AddDocDia
   function handleAdd() {
     const name = draftName.trim();
     if (!name) return;
-    onAdd({
-      id: crypto.randomUUID(),
-      name,
-      kind: draftKind,
-      scope: "event",
-      offline: false,
-      url: draftKind === DocKind.Link ? draftUrl.trim() || undefined : undefined,
-    });
-    handleClose(false);
+    handleClose(false); // no-op until Story 3.1 adds real attachment
   }
 
   const kinds = [DocKind.PDF, DocKind.Image, DocKind.Doc, DocKind.Link] as const;

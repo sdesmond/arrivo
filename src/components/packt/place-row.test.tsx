@@ -102,20 +102,9 @@ vi.mock("./location-dialog", () => ({
     ) : null,
 }));
 vi.mock("./add-doc-dialog", () => ({
-  AddDocDialog: ({
-    open,
-    onAdd,
-    onOpenChange,
-  }: {
-    open: boolean;
-    onAdd: (doc: { id: string; name: string; kind: string; scope: string; offline: boolean }) => void;
-    onOpenChange: (v: boolean) => void;
-  }) =>
+  AddDocDialog: ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) =>
     open ? (
       <div data-testid="add-doc-dialog">
-        <button onClick={() => onAdd({ id: "d99", name: "New.pdf", kind: "pdf", scope: "event", offline: false })}>
-          doc-add
-        </button>
         <button onClick={() => onOpenChange(false)}>doc-close</button>
       </div>
     ) : null,
@@ -425,17 +414,6 @@ describe("PlaceRow", () => {
     });
     await user.click(screen.getByTitle("Attach document"));
     expect(screen.getByTestId("add-doc-dialog")).toBeInTheDocument();
-  });
-
-  it("add-doc dialog onAdd calls onAddDoc with event id and doc data", async () => {
-    const user = userEvent.setup();
-    const onAddDoc = vi.fn();
-    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} onAddDoc={onAddDoc} />, {
-      wrapper: Wrapper,
-    });
-    await user.click(screen.getByTitle("Attach document"));
-    await user.click(screen.getByRole("button", { name: "doc-add" }));
-    expect(onAddDoc).toHaveBeenCalledWith(basePlace.id, expect.objectContaining({ name: "New.pdf", kind: "pdf" }));
   });
 
   it("docs block onDelete calls onDeleteDoc with docId", async () => {
