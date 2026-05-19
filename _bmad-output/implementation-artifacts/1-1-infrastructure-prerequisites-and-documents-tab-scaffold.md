@@ -4,7 +4,7 @@ story_key: "1-1-infrastructure-prerequisites-and-documents-tab-scaffold"
 epic: 1
 story: 1
 title: "Infrastructure Prerequisites & Documents Tab Scaffold"
-status: "ready-for-dev"
+status: "done"
 created: "2026-05-19"
 ---
 
@@ -406,3 +406,66 @@ The Documents tab itself will get E2E scenarios in Stories 1.2 and 1.3.
 ---
 
 *Completion note: Ultimate context engine analysis completed — comprehensive developer guide created*
+
+---
+
+## Dev Agent Record
+
+### Completion Notes
+
+Implemented 2026-05-19 by Amelia (bmad-dev-story).
+
+**All ACs satisfied:**
+- `@vercel/blob` installed; `BLOB_READ_WRITE_TOKEN=` added to `.env.example` and `.env`
+- `dbDocToType` mapper fixed: `scope: row.eventId ? "event" : "trip"` — tests updated to reflect correct semantics
+- `place-row.tsx` split: `PlaceRowNameField` → `place-row-name-field.tsx`, `PlaceRowActionBar` → `place-row-action-bar.tsx`; all existing place-row tests pass
+- `onAdd`/`onAddDoc` chain fully removed from `AddDocDialog`, `PlaceRow`, `DayCard`, `TripItineraryView`, `page-client.tsx`; `add-doc-dialog.test.tsx` and `place-row.test.tsx` updated
+- `TripDocsTab` component created; `page-client.tsx` split into `TripDetailTabBody` (new) + leaner `page-client.tsx`; docs tab wired with `scope === "trip"` filter
+- E2E seed document added (`E2E_DOCUMENT`), `global-setup.ts` updated, `playwright.config.ts` gets `UPLOAD_STUB: "true"`
+- Pre-existing TSC error in `trips-past-list.test.tsx` fixed (missing `dateFormat` prop)
+
+**Test results:** 606 unit tests pass (55 files). E2E: 27/28 pass — 1 pre-existing flaky test (`preferences-date-format` date order dependency, confirmed failing before this branch).
+
+### Review Findings
+
+_Code review run 2026-05-19 (Blind Hunter + Edge Case Hunter + Acceptance Auditor)._
+
+- [x] [Review][Defer] E2E coverage for new TripDocsTab user-facing flow — deferred to Story 1.2: scaffold-only, no flow yet (empty state has no user interaction; unit test asserts the copy; Story 1.2 introduces the real upload flow and will cover both empty and populated states)
+- [x] [Review][Patch] Hero badge now filters to `scope === "trip"` so its count matches the Documents tab [src/app/(app)/trips/[tripId]/page-client.tsx:291]
+- [x] [Review][Patch] Removed duplicate "exact text matches" test in `trip-docs-tab.test.tsx` [src/components/packt/trip-docs-tab.test.tsx]
+- [x] [Review][Patch] Replaced `p.docs!` non-null assertions with a narrowed local `const docs = p.docs ?? []` [src/components/packt/place-row-action-bar.tsx]
+- [x] [Review][Patch] Moved `toHHMM` to `@/lib/utils`; `place-row.tsx` and `place-row-action-bar.tsx` both import the shared helper [src/lib/utils.ts]
+- [x] [Review][Patch] Extracted `TripDetailTab` const-object + union to `@/data/types`; both `page-client.tsx` and `trip-detail-tab-body.tsx` consume it [src/data/types.ts]
+- [x] [Review][Defer] PlaceRowActionBar doc-count pill missing aria-expanded/aria-label/title [src/components/packt/place-row-action-bar.tsx:94-115] — deferred, pre-existing
+- [x] [Review][Defer] Cost pill renders bare `cost.toFixed(2)` with no currency symbol or locale formatting [src/components/packt/place-row-action-bar.tsx:90] — deferred, pre-existing
+- [x] [Review][Defer] `toHHMM` / `formatTime` produce `NaN:NaN` on malformed ISO or `HH:MM` strings [src/components/packt/place-row-action-bar.tsx:6-16] — deferred, pre-existing utility behavior
+- [x] [Review][Defer] `dbDocToType` returns `"trip"` when both `tripId` and `eventId` are null (orphan doc surfaces in Trip Documents tab) [src/lib/db-mappers.ts:73] — deferred, pre-existing schema gap
+
+### File List
+
+| File | Change |
+|------|--------|
+| `src/lib/db-mappers.ts` | Fix scope logic |
+| `src/lib/db-mappers.test.ts` | Update two scope tests |
+| `src/components/packt/place-row.tsx` | Split sub-components; remove onAddDoc |
+| `src/components/packt/place-row-name-field.tsx` | New (split from place-row) |
+| `src/components/packt/place-row-name-field.test.tsx` | New unit tests |
+| `src/components/packt/place-row-action-bar.tsx` | New (split from place-row) |
+| `src/components/packt/place-row-action-bar.test.tsx` | New unit tests |
+| `src/components/packt/place-row.test.tsx` | Remove onAddDoc test; update AddDocDialog mock |
+| `src/components/packt/add-doc-dialog.tsx` | Remove onAdd prop; handleAdd → no-op close |
+| `src/components/packt/add-doc-dialog.test.tsx` | Updated for onAdd removal |
+| `src/components/packt/day-card.tsx` | Remove onAddDoc from interface and passthrough |
+| `src/components/packt/trip-docs-tab.tsx` | New component |
+| `src/components/packt/trip-docs-tab.test.tsx` | New unit tests |
+| `src/components/packt/trips-past-list.test.tsx` | Fix pre-existing TSC error |
+| `src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx` | Remove onAddDoc |
+| `src/app/(app)/trips/[tripId]/page-client.tsx` | Remove handleAddDoc; use TripDetailTabBody |
+| `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx` | New (split from page-client) |
+| `tests/e2e/e2e-seed-data.ts` | Add E2E_DOCUMENT |
+| `tests/e2e/global-setup.ts` | Seed document; import documents table |
+| `playwright.config.ts` | Add UPLOAD_STUB env |
+| `.env.example` | Add BLOB_READ_WRITE_TOKEN= |
+| `.env` | Add BLOB_READ_WRITE_TOKEN= |
+| `_bmad-output/implementation-artifacts/sprint-status.yaml` | Updated to review |
+| `package.json` / `package-lock.json` | @vercel/blob installed |
