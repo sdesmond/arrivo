@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { type Trip, type Collaborator, type CollaboratorRole, type Budget, type UpdateTripPatch } from "@/data/types";
 import { Section, Field } from "@/components/packt/form-section";
 import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 interface TripEditSheetProps {
   trip: Trip | null;
@@ -88,18 +88,14 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
           </Section>
 
           <Section title="Dates">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Start date">
-                <DatePicker
-                  value={draft.startDate}
-                  onChange={(v) => set("startDate", v ?? "")}
-                  placeholder="Start date"
-                />
-              </Field>
-              <Field label="End date">
-                <DatePicker value={draft.endDate} onChange={(v) => set("endDate", v ?? "")} placeholder="End date" />
-              </Field>
-            </div>
+            <DateRangePicker
+              from={draft.startDate || undefined}
+              to={draft.endDate || undefined}
+              onChange={(from, to) => {
+                set("startDate", from ?? "");
+                set("endDate", to ?? "");
+              }}
+            />
           </Section>
 
           <Section title="Cover image">

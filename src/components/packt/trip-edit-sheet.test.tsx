@@ -3,22 +3,28 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("@/components/ui/date-picker", () => ({
-  DatePicker: ({
-    value,
+vi.mock("@/components/ui/date-range-picker", () => ({
+  DateRangePicker: ({
+    from,
+    to,
     onChange,
-    placeholder = "Pick a date",
   }: {
-    value?: string;
-    onChange: (v: string | undefined) => void;
-    placeholder?: string;
+    from?: string;
+    to?: string;
+    onChange: (from: string | undefined, to: string | undefined) => void;
   }) => (
-    <input
-      type="text"
-      value={value ?? ""}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value || undefined)}
-    />
+    <>
+      <input
+        data-testid="date-range-start"
+        value={from ?? ""}
+        onChange={(e) => onChange(e.target.value || undefined, to)}
+      />
+      <input
+        data-testid="date-range-end"
+        value={to ?? ""}
+        onChange={(e) => onChange(from, e.target.value || undefined)}
+      />
+    </>
   ),
 }));
 
@@ -96,8 +102,8 @@ describe("TripEditSheet", () => {
 
   it("renders pre-filled start and end dates", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    expect(screen.getByDisplayValue("2026-06-01")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("2026-06-10")).toBeInTheDocument();
+    expect(screen.getByTestId("date-range-start")).toHaveValue("2026-06-01");
+    expect(screen.getByTestId("date-range-end")).toHaveValue("2026-06-10");
   });
 
   it("renders budget total and per-person inputs with pre-filled values", () => {
@@ -154,7 +160,7 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    const startInput = screen.getByDisplayValue("2026-06-01");
+    const startInput = screen.getByTestId("date-range-start");
     await user.clear(startInput);
     await user.type(startInput, "2026-07-01");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
@@ -256,7 +262,7 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    const endInput = screen.getByDisplayValue("2026-06-10");
+    const endInput = screen.getByTestId("date-range-end");
     await user.clear(endInput);
     await user.type(endInput, "2026-07-10");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
