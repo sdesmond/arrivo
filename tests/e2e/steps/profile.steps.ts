@@ -79,13 +79,12 @@ When("I navigate to the Appearance section", async ({ page }) => {
 });
 
 When("I select {string} as the font size", async ({ page }, size: string) => {
-  const select = page.getByRole("combobox", { name: /font size/i });
-  await select.selectOption({ label: size });
+  await page.getByRole("combobox", { name: /font size/i }).click();
+  await page.getByRole("option", { name: size }).click();
 });
 
 Then("the font size select should show {string}", async ({ page }, size: string) => {
-  const select = page.getByRole("combobox", { name: /font size/i });
-  await expect(select).toHaveValue(size.toLowerCase());
+  await expect(page.getByRole("combobox", { name: /font size/i })).toContainText(size, { ignoreCase: true });
 });
 
 When("I reload the page", async ({ page }) => {

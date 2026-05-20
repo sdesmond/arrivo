@@ -21,7 +21,7 @@ export default async function globalSetup() {
   const passwordHash = await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
   const [user] = await db
     .insert(users)
-    .values({ email: E2E_USER.email, name: E2E_USER.name, passwordHash })
+    .values({ email: E2E_USER.email, name: E2E_USER.name, passwordHash, dateFormat: "MM/DD/YYYY" })
     .returning();
 
   // Insert seed trip

@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Section, Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Input } from "@/components/ui/input";
 import { updateProfile } from "./actions";
 import type { UserProfile } from "@/data/types";
 
@@ -60,61 +62,42 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   return (
     <Section>
       <Field label="Date format">
-        <div className="flex rounded-[6px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
+        <ToggleGroup
+          aria-label="Date format"
+          value={[dateFormat]}
+          onValueChange={(arr) => arr[0] && handleDateFormatChange(arr[0])}
+        >
           {DATE_FORMAT_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => handleDateFormatChange(opt.value)}
-              className="flex-1 px-3 py-1.5 font-medium transition-colors"
-              style={{
-                background: dateFormat === opt.value ? "var(--accent-brand)" : "var(--surface-2)",
-                color: dateFormat === opt.value ? "var(--accent-fg)" : "var(--fg-2)",
-                fontSize: "calc(13px * var(--font-scale))",
-              }}
-            >
+            <ToggleGroupItem key={opt.value} value={opt.value}>
               {opt.label}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </Field>
 
       <Field label="Currency" htmlFor="pref-currency">
-        <input
+        <Input
           id="pref-currency"
           type="text"
           value={currency}
           onChange={(e) => handleCurrencyChange(e.target.value.toUpperCase().slice(0, 3))}
-          className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
-          style={{
-            background: "var(--surface-2)",
-            color: "var(--fg)",
-            border: "1px solid var(--line)",
-            fontSize: "calc(13px * var(--font-scale))",
-          }}
           placeholder="USD"
           maxLength={3}
         />
       </Field>
 
       <Field label="Distance units">
-        <div className="flex rounded-[6px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
+        <ToggleGroup
+          aria-label="Distance units"
+          value={[distanceUnit]}
+          onValueChange={(arr) => arr[0] && handleDistanceUnitChange(arr[0])}
+        >
           {(["imperial", "metric"] as const).map((unit) => (
-            <button
-              key={unit}
-              type="button"
-              onClick={() => handleDistanceUnitChange(unit)}
-              className="flex-1 px-3 py-1.5 font-medium transition-colors capitalize"
-              style={{
-                background: distanceUnit === unit ? "var(--accent-brand)" : "var(--surface-2)",
-                color: distanceUnit === unit ? "var(--accent-fg)" : "var(--fg-2)",
-                fontSize: "calc(13px * var(--font-scale))",
-              }}
-            >
+            <ToggleGroupItem key={unit} value={unit} className="capitalize">
               {unit}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </Field>
 
       <div className="flex items-center justify-end gap-3">

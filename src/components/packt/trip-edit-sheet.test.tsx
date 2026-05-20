@@ -3,6 +3,31 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("@/components/ui/date-range-picker", () => ({
+  DateRangePicker: ({
+    from,
+    to,
+    onChange,
+  }: {
+    from?: string;
+    to?: string;
+    onChange: (from: string | undefined, to: string | undefined) => void;
+  }) => (
+    <>
+      <input
+        data-testid="date-range-start"
+        value={from ?? ""}
+        onChange={(e) => onChange(e.target.value || undefined, to)}
+      />
+      <input
+        data-testid="date-range-end"
+        value={to ?? ""}
+        onChange={(e) => onChange(from, e.target.value || undefined)}
+      />
+    </>
+  ),
+}));
+
 vi.mock("next/image", () => ({
   default: ({
     src,
@@ -38,8 +63,8 @@ vi.mock("./trip-edit-collaborators", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/sheet", () => ({
-  Sheet: (props: { children: React.ReactNode; open: boolean; onOpenChange?: (o: boolean) => void }) =>
+vi.mock("@/components/ui/drawer", () => ({
+  Drawer: (props: { children: React.ReactNode; open: boolean; onOpenChange?: (o: boolean) => void }) =>
     props.open ? (
       <>
         {props.children}
@@ -47,10 +72,10 @@ vi.mock("@/components/ui/sheet", () => ({
         <button data-testid="sheet-open-trigger" onClick={() => props.onOpenChange?.(true)} />
       </>
     ) : null,
-  SheetContent: (props: { children: React.ReactNode }) => <>{props.children}</>,
-  SheetHeader: (props: { children: React.ReactNode }) => <>{props.children}</>,
-  SheetFooter: (props: { children: React.ReactNode }) => <>{props.children}</>,
-  SheetTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerContent: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerHeader: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerFooter: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
 }));
 
 import { TripEditSheet } from "./trip-edit-sheet";
@@ -77,8 +102,8 @@ describe("TripEditSheet", () => {
 
   it("renders pre-filled start and end dates", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    expect(screen.getByDisplayValue("2026-06-01")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("2026-06-10")).toBeInTheDocument();
+    expect(screen.getByTestId("date-range-start")).toHaveValue("2026-06-01");
+    expect(screen.getByTestId("date-range-end")).toHaveValue("2026-06-10");
   });
 
   it("renders budget total and per-person inputs with pre-filled values", () => {
@@ -135,7 +160,7 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    const startInput = screen.getByDisplayValue("2026-06-01");
+    const startInput = screen.getByTestId("date-range-start");
     await user.clear(startInput);
     await user.type(startInput, "2026-07-01");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
@@ -237,14 +262,14 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    const endInput = screen.getByDisplayValue("2026-06-10");
+    const endInput = screen.getByTestId("date-range-end");
     await user.clear(endInput);
     await user.type(endInput, "2026-07-10");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ endDate: "2026-07-10" }));
   });
 
-  it("Sheet onOpenChange(false) calls onClose", async () => {
+  it("Drawer onOpenChange(false) calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
@@ -252,7 +277,7 @@ describe("TripEditSheet", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("Sheet onOpenChange(true) does not call onClose", async () => {
+  it("Drawer onOpenChange(true) does not call onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);

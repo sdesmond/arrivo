@@ -19,6 +19,7 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<void
   const session = await requireUser();
   await db.update(users).set(patch).where(eq(users.id, session.id!));
   revalidatePath("/profile");
+  revalidatePath("/trips");
 }
 
 export async function addLoyaltyNumber(input: AddLoyaltyNumberInput): Promise<void> {

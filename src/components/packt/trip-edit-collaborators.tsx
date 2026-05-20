@@ -4,29 +4,8 @@ import { useState } from "react";
 import { Trash2, UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type Collaborator, type CollaboratorRole } from "@/data/types";
-
-const LABEL_STYLE: React.CSSProperties = {
-  fontFamily: "var(--font-mono-family, ui-monospace)",
-  fontSize: "calc(9px * var(--font-scale))",
-  fontWeight: 600,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  color: "var(--fg-4)",
-  marginBottom: 4,
-  display: "block",
-};
-
-const SELECT_STYLE: React.CSSProperties = {
-  width: "100%",
-  padding: "6px 8px",
-  fontSize: "calc(13px * var(--font-scale))",
-  background: "var(--bg)",
-  border: "1px solid var(--line-strong)",
-  borderRadius: 6,
-  color: "var(--fg)",
-  outline: "none",
-};
 
 interface TripEditCollaboratorsProps {
   collaborators: Collaborator[];
@@ -80,21 +59,16 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
                 </div>
                 <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>{c.email}</div>
               </div>
-              <select
-                style={{
-                  ...SELECT_STYLE,
-                  width: "auto",
-                  fontSize: "calc(11.5px * var(--font-scale))",
-                  padding: "3px 6px",
-                }}
-                value={c.role}
-                disabled={c.role === "owner"}
-                onChange={(e) => onUpdateRole(i, e.target.value as CollaboratorRole)}
-              >
-                <option value="owner">Owner</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
+              <Select value={c.role} onValueChange={(v) => onUpdateRole(i, v as CollaboratorRole)}>
+                <SelectTrigger disabled={c.role === "owner"} aria-label={`Role for ${c.name}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
               <button
                 disabled={c.role === "owner"}
                 onClick={() => onRemove(i)}
@@ -122,20 +96,21 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
           border: "1px dashed var(--line-strong)",
         }}
       >
-        <span style={{ ...LABEL_STYLE, marginBottom: 2 }}>Add person</span>
+        <span>Add person</span>
         <div className="grid grid-cols-2 gap-2">
           <Input placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
           <Input placeholder="Email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
         </div>
         <div className="flex items-center gap-2">
-          <select
-            style={{ ...SELECT_STYLE, flex: 1 }}
-            value={newRole}
-            onChange={(e) => setNewRole(e.target.value as CollaboratorRole)}
-          >
-            <option value="editor">Editor</option>
-            <option value="viewer">Viewer</option>
-          </select>
+          <Select value={newRole} onValueChange={(v) => setNewRole(v as CollaboratorRole)}>
+            <SelectTrigger aria-label="New person role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="editor">Editor</SelectItem>
+              <SelectItem value="viewer">Viewer</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={handleAdd} disabled={!newName.trim() || !newEmail.trim()}>
             <UserPlus size={13} strokeWidth={1.5} />
             Add
