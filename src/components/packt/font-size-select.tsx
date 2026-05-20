@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useSyncExternalStore } from "react";
 import type { FontSizeValue } from "@/data/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const SIZES: { value: FontSizeValue; label: string; px: string }[] = [
   { value: "small", label: "Small", px: "13px" },
@@ -48,8 +49,7 @@ export function FontSizeSelect() {
     applyFontSize(readStorage());
   }, []);
 
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const next = e.target.value as FontSizeValue;
+  function handleChange(next: FontSizeValue) {
     setValue(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
@@ -60,25 +60,17 @@ export function FontSizeSelect() {
   }
 
   return (
-    <select
-      value={value}
-      onChange={handleChange}
-      disabled={!mounted}
-      aria-label="Font size"
-      className="rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
-      style={{
-        background: "var(--surface-2)",
-        color: "var(--fg)",
-        border: "1px solid var(--line)",
-        minWidth: 120,
-        fontSize: "calc(13px * var(--font-scale))",
-      }}
-    >
-      {SIZES.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+    <Select value={value} onValueChange={(v) => handleChange(v as FontSizeValue)}>
+      <SelectTrigger aria-label="Font size" disabled={!mounted} className="w-full">
+        <SelectValue className="capitalize" />
+      </SelectTrigger>
+      <SelectContent>
+        {SIZES.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

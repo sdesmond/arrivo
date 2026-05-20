@@ -54,9 +54,10 @@ describe("TripEditCollaborators", () => {
         onAdd={vi.fn()}
       />
     );
-    const selects = screen.getAllByRole("combobox");
-    // First select is for the first collaborator (Alice - editor)
-    await user.selectOptions(selects[0], "viewer");
+    // Click the first role trigger (Alice = editor)
+    const triggers = screen.getAllByRole("combobox");
+    await user.click(triggers[0]);
+    await user.click(await screen.findByRole("option", { name: /viewer/i }));
     expect(onUpdateRole).toHaveBeenCalledWith(0, "viewer");
   });
 
@@ -81,9 +82,10 @@ describe("TripEditCollaborators", () => {
     render(<TripEditCollaborators collaborators={[]} onRemove={vi.fn()} onUpdateRole={vi.fn()} onAdd={onAdd} />);
     await user.type(screen.getByPlaceholderText("Name"), "Dana Blue");
     await user.type(screen.getByPlaceholderText("Email"), "dana@example.com");
-    const selects = screen.getAllByRole("combobox");
-    const newRoleSelect = selects[selects.length - 1];
-    await user.selectOptions(newRoleSelect, "viewer");
+    const triggers = screen.getAllByRole("combobox");
+    const newRoleSelect = triggers[triggers.length - 1];
+    await user.click(newRoleSelect);
+    await user.click(await screen.findByRole("option", { name: /viewer/i }));
     await user.click(screen.getByRole("button", { name: /add/i }));
     expect(onAdd).toHaveBeenCalledWith("Dana Blue", "dana@example.com", "viewer");
   });
@@ -102,5 +104,21 @@ describe("TripEditCollaborators", () => {
     );
     const removeButtons = screen.getAllByTitle(/Owner cannot be removed/i);
     expect(removeButtons[0]).toBeDisabled();
+  });
+
+  it("owner role select is disabled", () => {
+    const ownerCollaborator: Collaborator[] = [
+      { name: "Owner User", email: "owner@example.com", initials: "OU", role: "owner" },
+    ];
+    render(
+      <TripEditCollaborators
+        collaborators={ownerCollaborator}
+        onRemove={vi.fn()}
+        onUpdateRole={vi.fn()}
+        onAdd={vi.fn()}
+      />
+    );
+    const triggers = screen.getAllByRole("combobox");
+    expect(triggers[0]).toBeDisabled();
   });
 });

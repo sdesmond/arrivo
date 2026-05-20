@@ -122,14 +122,18 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
 
             <TabsContent value="appearance" className="w-full">
               <Section>
-                <div className="max-w-xs flex flex-col gap-4">
-                  <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
                     <span style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>Theme</span>
-                    <ThemeSelect />
+                    <div style={{ width: 130 }}>
+                      <ThemeSelect />
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
                     <span style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>Font size</span>
-                    <FontSizeSelect />
+                    <div style={{ width: 130 }}>
+                      <FontSizeSelect />
+                    </div>
                   </div>
                 </div>
               </Section>

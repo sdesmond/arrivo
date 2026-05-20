@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const mockSetTheme = vi.fn();
 vi.mock("next-themes", () => ({
@@ -10,19 +11,16 @@ vi.mock("next-themes", () => ({
 import { ThemeSelect } from "./theme-select";
 
 describe("ThemeSelect", () => {
-  it("renders all three theme options", () => {
+  it("renders a combobox trigger labelled Theme", () => {
     render(<ThemeSelect />);
     expect(screen.getByRole("combobox", { name: /theme/i })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "System" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Light" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Dark" })).toBeInTheDocument();
   });
 
-  it("calls setTheme when selection changes", () => {
+  it("calls setTheme when an option is selected", async () => {
+    const user = userEvent.setup();
     render(<ThemeSelect />);
-    fireEvent.change(screen.getByRole("combobox", { name: /theme/i }), {
-      target: { value: "dark" },
-    });
+    await user.click(screen.getByRole("combobox", { name: /theme/i }));
+    await user.click(await screen.findByRole("option", { name: /dark/i }));
     expect(mockSetTheme).toHaveBeenCalledWith("dark");
   });
 });
