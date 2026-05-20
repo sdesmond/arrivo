@@ -1,5 +1,19 @@
 # Backlog of items
 
+## shadcn updates
+
+### proper sidebar
+
+use https://ui.shadcn.com/docs/components/base/sidebar as an example. The current sidebar does not follow the proper pattern from shadcn. Update the sidebar to follow the pattern at the provided URL.
+
+### breadcrumb
+
+use proper breadcrumbs as shown at https://ui.shadcn.com/docs/components/base/breadcrumb
+
+### Empty state for docs
+
+use https://ui.shadcn.com/docs/components/base/empty as an example. Empty state should show a message like "No trip-level docs yet. Docs attached to an event don't show up here." There should also be a message directing the user to the "add" button to add their first doc.
+
 ## Bugs
 
 ### Trip Notes
