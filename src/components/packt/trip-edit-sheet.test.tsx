@@ -63,8 +63,8 @@ vi.mock("./trip-edit-collaborators", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/sheet", () => ({
-  Sheet: (props: { children: React.ReactNode; open: boolean; onOpenChange?: (o: boolean) => void }) =>
+vi.mock("@/components/ui/drawer", () => ({
+  Drawer: (props: { children: React.ReactNode; open: boolean; onOpenChange?: (o: boolean) => void }) =>
     props.open ? (
       <>
         {props.children}
@@ -72,10 +72,10 @@ vi.mock("@/components/ui/sheet", () => ({
         <button data-testid="sheet-open-trigger" onClick={() => props.onOpenChange?.(true)} />
       </>
     ) : null,
-  SheetContent: (props: { children: React.ReactNode }) => <>{props.children}</>,
-  SheetHeader: (props: { children: React.ReactNode }) => <>{props.children}</>,
-  SheetFooter: (props: { children: React.ReactNode }) => <>{props.children}</>,
-  SheetTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerContent: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerHeader: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerFooter: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  DrawerTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
 }));
 
 import { TripEditSheet } from "./trip-edit-sheet";
@@ -269,7 +269,7 @@ describe("TripEditSheet", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ endDate: "2026-07-10" }));
   });
 
-  it("Sheet onOpenChange(false) calls onClose", async () => {
+  it("Drawer onOpenChange(false) calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
@@ -277,7 +277,7 @@ describe("TripEditSheet", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("Sheet onOpenChange(true) does not call onClose", async () => {
+  it("Drawer onOpenChange(true) does not call onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);

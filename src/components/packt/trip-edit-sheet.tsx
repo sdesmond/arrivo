@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { type Trip, type Collaborator, type CollaboratorRole, type Budget, type UpdateTripPatch } from "@/data/types";
@@ -69,16 +69,17 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
   }
 
   return (
-    <Sheet
+    <Drawer
       open={open}
       onOpenChange={(isOpen) => {
         if (!isOpen) onClose();
       }}
+      direction="right"
     >
-      <SheetContent side="right" showCloseButton={false} className="flex flex-col p-0">
-        <SheetHeader className="px-5 pt-5 pb-4 shrink-0" style={{ borderBottom: "1px solid var(--line)" }}>
-          <SheetTitle>Edit Trip</SheetTitle>
-        </SheetHeader>
+      <DrawerContent className="flex flex-col p-0 rounded-none">
+        <DrawerHeader className="px-5 pt-5 pb-4 shrink-0" style={{ borderBottom: "1px solid var(--line)" }}>
+          <DrawerTitle>Edit Trip</DrawerTitle>
+        </DrawerHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
           <Section title="Basic">
@@ -162,7 +163,7 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
           </Section>
         </div>
 
-        <SheetFooter className="shrink-0" style={{ borderTop: "1px solid var(--line)" }}>
+        <DrawerFooter className="shrink-0" style={{ borderTop: "1px solid var(--line)" }}>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
@@ -182,8 +183,8 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
           >
             Save changes
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   );
 }

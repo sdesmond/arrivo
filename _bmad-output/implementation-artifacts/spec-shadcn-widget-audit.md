@@ -169,7 +169,8 @@ Currency field (lines ~83–98): replace raw `<input>` with shadcn `<Input>`.
 
 Run these in order after Story 6 completes:
 
-1. `npm run build-validator` — lint + tsc + build must pass
+1. `npm run build-validator` — 
+lint + tsc + build must pass
 2. `npm test` — all unit tests green
 3. `npm run test:e2e` — existing E2E suite still green
 4. Run `desktop-reviewer` agent — visual check at 1280px
