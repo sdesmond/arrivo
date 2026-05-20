@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { type Trip, type Collaborator, type CollaboratorRole, type Budget, type UpdateTripPatch } from "@/data/types";
 import { Section, Field } from "@/components/packt/form-section";
 import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface TripEditSheetProps {
   trip: Trip | null;
@@ -89,10 +90,14 @@ export function TripEditSheet({ trip, open, onClose, onSave }: TripEditSheetProp
           <Section title="Dates">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Start date">
-                <Input type="date" value={draft.startDate ?? ""} onChange={(e) => set("startDate", e.target.value)} />
+                <DatePicker
+                  value={draft.startDate}
+                  onChange={(v) => set("startDate", v ?? "")}
+                  placeholder="Start date"
+                />
               </Field>
               <Field label="End date">
-                <Input type="date" value={draft.endDate ?? ""} onChange={(e) => set("endDate", e.target.value)} />
+                <DatePicker value={draft.endDate} onChange={(v) => set("endDate", v ?? "")} placeholder="End date" />
               </Field>
             </div>
           </Section>

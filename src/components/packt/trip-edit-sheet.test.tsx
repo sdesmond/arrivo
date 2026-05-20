@@ -3,6 +3,25 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("@/components/ui/date-picker", () => ({
+  DatePicker: ({
+    value,
+    onChange,
+    placeholder = "Pick a date",
+  }: {
+    value?: string;
+    onChange: (v: string | undefined) => void;
+    placeholder?: string;
+  }) => (
+    <input
+      type="text"
+      value={value ?? ""}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value || undefined)}
+    />
+  ),
+}));
+
 vi.mock("next/image", () => ({
   default: ({
     src,
