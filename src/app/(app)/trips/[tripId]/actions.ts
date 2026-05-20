@@ -367,3 +367,14 @@ export async function removeDocument(docId: string) {
   await db.delete(documents).where(eq(documents.id, docId));
   revalidatePath(`/trips/${tripId}`);
 }
+
+export async function renameDocument(docId: string, newName: string) {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}

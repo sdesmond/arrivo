@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
@@ -14,6 +14,9 @@ export interface TripDocsTabProps {
 export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [query, setQuery] = useState("");
+
+  const visible = query.trim() ? docs.filter((d) => d.name.toLowerCase().includes(query.toLowerCase())) : docs;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -71,13 +74,50 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
         </label>
       </div>
 
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <label
+          htmlFor="doc-search"
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0,0,0,0)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+        >
+          Search documents
+        </label>
+        <input
+          id="doc-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search"
+          style={{
+            width: "100%",
+            padding: "5px 8px",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--line)",
+            background: "var(--surface)",
+            color: "var(--fg)",
+            fontFamily: "var(--font-body, ui-sans-serif)",
+            fontSize: "calc(12px * var(--font-scale))",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
       {docs.length === 0 ? (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
           Add your first trip document — boarding passes, insurance, visas, and more.
         </div>
       ) : (
         <div>
-          {docs.map((doc) => (
+          {visible.map((doc) => (
             <DocRow key={doc.id} doc={doc} />
           ))}
         </div>

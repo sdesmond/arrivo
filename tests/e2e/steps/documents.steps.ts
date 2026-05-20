@@ -39,3 +39,30 @@ Then("the empty state message is shown", async ({ page }) => {
     page.getByText("Add your first trip document — boarding passes, insurance, visas, and more.")
   ).toBeVisible({ timeout: 5_000 });
 });
+
+When("I type {string} in the search field", async ({ page }, query: string) => {
+  await page.getByRole("searchbox").fill(query);
+});
+
+When("I clear the search field", async ({ page }) => {
+  await page.getByRole("searchbox").fill("");
+});
+
+Then("the document {string} is visible in the list", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName)).toBeVisible({ timeout: 5_000 });
+});
+
+Then("the document {string} is not visible in the list", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName)).not.toBeVisible({ timeout: 5_000 });
+});
+
+Given("the document {string} is in the Documents tab", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName)).toBeVisible({ timeout: 5_000 });
+});
+
+When("I rename the document {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+  await page.getByText(oldName).click();
+  const input = page.getByRole("textbox");
+  await input.fill(newName);
+  await input.press("Enter");
+});

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TripDocsTab } from "./trip-docs-tab";
 import type { Document } from "@/data/types";
 import { uploadDocument } from "@/app/(app)/trips/[tripId]/actions";
@@ -13,15 +14,19 @@ vi.mock("./doc-row", () => ({
   DocRow: ({ doc }: { doc: Document }) => <div data-testid="doc-row">{doc.name}</div>,
 }));
 
-const makeDoc = (id: string): Document => ({
+const makeDoc = (id: string, name?: string): Document => ({
   id,
-  name: `Doc ${id}`,
+  name: name ?? `Doc ${id}`,
   kind: "pdf",
   scope: "trip",
   offline: false,
 });
 
 describe("TripDocsTab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders empty state message when docs array is empty", () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
     expect(
@@ -67,5 +72,32 @@ describe("TripDocsTab", () => {
     await waitFor(() => {
       expect(vi.mocked(uploadDocument)).toHaveBeenCalledWith("trip-1", expect.any(FormData));
     });
+  });
+
+  it("renders a visually hidden label 'Search documents' associated with the search input", () => {
+    render(<TripDocsTab tripId="trip-1" docs={[makeDoc("1")]} />);
+    const label = document.querySelector('label[for="doc-search"]');
+    expect(label).toBeInTheDocument();
+    expect(label?.textContent).toBe("Search documents");
+  });
+
+  it("filters docs to only those whose names contain the query (case-insensitive)", async () => {
+    const user = userEvent.setup();
+    const docs = [makeDoc("1", "boarding-pass.pdf"), makeDoc("2", "visa.pdf")];
+    render(<TripDocsTab tripId="trip-1" docs={docs} />);
+    await user.type(screen.getByRole("searchbox"), "BOARDING");
+    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("visa.pdf")).not.toBeInTheDocument();
+  });
+
+  it("restores all docs when search query is cleared", async () => {
+    const user = userEvent.setup();
+    const docs = [makeDoc("1", "boarding-pass.pdf"), makeDoc("2", "visa.pdf")];
+    render(<TripDocsTab tripId="trip-1" docs={docs} />);
+    const search = screen.getByRole("searchbox");
+    await user.type(search, "boarding");
+    await user.clear(search);
+    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
+    expect(screen.getByText("visa.pdf")).toBeInTheDocument();
   });
 });

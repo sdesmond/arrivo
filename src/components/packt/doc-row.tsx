@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
-import { removeDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,34 @@ export function DocRow({ doc }: DocRowProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [displayName, setDisplayName] = useState(doc.name);
+  const cancelRef = useRef(false);
+
+  function handleSave() {
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      return;
+    }
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== displayName) {
+      setDisplayName(trimmed);
+      void renameDocument(doc.id, trimmed);
+    }
+    setIsEditing(false);
+  }
+
+  function handleRenameKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelRef.current = true;
+      setIsEditing(false);
+    }
+  }
 
   function handleConfirm() {
     if (inFlightRef.current) return;
@@ -57,16 +85,42 @@ export function DocRow({ doc }: DocRowProps) {
       }}
     >
       <DocKindBadge kind={doc.kind} />
-      <span
-        className="flex-1 truncate"
-        style={{
-          fontFamily: "var(--font-body, ui-sans-serif)",
-          fontSize: "calc(14px * var(--font-scale))",
-          color: "var(--fg)",
-        }}
-      >
-        {doc.name}
-      </span>
+      {isEditing ? (
+        <input
+          autoFocus
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleRenameKeyDown}
+          style={{
+            flex: 1,
+            fontFamily: "var(--font-body, ui-sans-serif)",
+            fontSize: "calc(14px * var(--font-scale))",
+            color: "var(--fg)",
+            background: "transparent",
+            border: "none",
+            borderBottom: "1px solid var(--accent-brand)",
+            outline: "none",
+            padding: 0,
+          }}
+        />
+      ) : (
+        <span
+          className="flex-1 truncate"
+          onClick={() => {
+            setEditName(displayName);
+            setIsEditing(true);
+          }}
+          style={{
+            fontFamily: "var(--font-body, ui-sans-serif)",
+            fontSize: "calc(14px * var(--font-scale))",
+            color: "var(--fg)",
+            cursor: "text",
+          }}
+        >
+          {displayName}
+        </span>
+      )}
       <button
         onClick={() => setConfirmOpen(true)}
         disabled={isPending}

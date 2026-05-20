@@ -7,6 +7,7 @@ import type { Document } from "@/data/types";
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   removeDocument: vi.fn().mockResolvedValue(undefined),
   uploadDocument: vi.fn().mockResolvedValue(undefined),
+  renameDocument: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -33,7 +34,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { DocRow } from "./doc-row";
-import { removeDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   id: "doc-1",
@@ -159,5 +160,85 @@ describe("DocRow", () => {
     await user.click(confirm);
     expect(removeDocument).toHaveBeenCalledTimes(1);
     resolveCall?.();
+  });
+
+  it("clicking the name enters edit mode with input pre-filled", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    const input = screen.getByRole("textbox");
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveValue("Boarding Pass.pdf");
+  });
+
+  it("rename input has underline border using var(--accent-brand)", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    expect(screen.getByRole("textbox")).toHaveAttribute("style", expect.stringContaining("var(--accent-brand)"));
+  });
+
+  it("pressing Enter calls renameDocument with trimmed new name", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "New Name");
+    await user.keyboard("{Enter}");
+    expect(renameDocument).toHaveBeenCalledWith("doc-1", "New Name");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("blurring the input calls renameDocument", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "Renamed");
+    await user.tab();
+    expect(renameDocument).toHaveBeenCalledWith("doc-1", "Renamed");
+  });
+
+  it("pressing Escape cancels rename without calling renameDocument", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "Cancelled name");
+    await user.keyboard("{Escape}");
+    expect(renameDocument).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("does not call renameDocument when input is cleared to empty", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-1" })} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.keyboard("{Enter}");
+    expect(renameDocument).not.toHaveBeenCalled();
+  });
+
+  it("does not call renameDocument when input is whitespace only", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-1" })} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "   ");
+    await user.keyboard("{Enter}");
+    expect(renameDocument).not.toHaveBeenCalled();
+  });
+
+  it("does not call renameDocument when name is unchanged", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    await user.keyboard("{Enter}");
+    expect(renameDocument).not.toHaveBeenCalled();
   });
 });
