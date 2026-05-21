@@ -27,3 +27,20 @@ Feature: Document Upload
     When I rename the document "boarding-pass.pdf" to "My Boarding Pass"
     Then the document "My Boarding Pass" appears in the Documents list
     And the document "boarding-pass.pdf" is no longer visible
+
+  Scenario: View a document in the in-app viewer
+    When I upload a file named "view-test.pdf" with MIME type "application/pdf"
+    Then the document "view-test.pdf" appears in the Documents list
+    When I click the View button for "view-test.pdf"
+    Then the document viewer is open with title "view-test.pdf"
+    When I close the document viewer
+    Then the document viewer is closed
+
+  Scenario: Pressing Escape closes the viewer and returns focus to the View button
+    When I upload a file named "esc-test.pdf" with MIME type "application/pdf"
+    Then the document "esc-test.pdf" appears in the Documents list
+    When I click the View button for "esc-test.pdf"
+    Then the document viewer is open with title "esc-test.pdf"
+    When I press Escape
+    Then the document viewer is closed
+    And the View button for "esc-test.pdf" has focus

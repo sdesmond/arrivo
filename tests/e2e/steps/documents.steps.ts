@@ -66,3 +66,26 @@ When("I rename the document {string} to {string}", async ({ page }, oldName: str
   await input.fill(newName);
   await input.press("Enter");
 });
+
+When("I click the View button for {string}", async ({ page }, docName: string) => {
+  await page.getByRole("button", { name: `View ${docName}` }).click();
+});
+
+Then("the document viewer is open with title {string}", async ({ page }, docName: string) => {
+  await expect(page.getByRole("button", { name: "Close viewer" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("dialog").getByText(docName)).toBeVisible({ timeout: 10_000 });
+});
+
+When("I close the document viewer", async ({ page }) => {
+  await page.getByRole("button", { name: "Close viewer" }).click();
+});
+
+Then("the document viewer is closed", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Close viewer" })).toHaveCount(0, {
+    timeout: 5_000,
+  });
+});
+
+Then("the View button for {string} has focus", async ({ page }, docName: string) => {
+  await expect(page.getByRole("button", { name: `View ${docName}` })).toBeFocused({ timeout: 5_000 });
+});

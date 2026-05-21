@@ -16,13 +16,11 @@ export interface AddDocDialogProps {
 export function AddDocDialog({ eventName, open, onOpenChange }: AddDocDialogProps) {
   const [draftName, setDraftName] = useState("");
   const [draftKind, setDraftKind] = useState<DocKind>(DocKind.PDF);
-  const [draftUrl, setDraftUrl] = useState("");
 
   function handleClose(o: boolean) {
     if (!o) {
       setDraftName("");
       setDraftKind(DocKind.PDF);
-      setDraftUrl("");
     }
     onOpenChange(o);
   }
@@ -33,7 +31,7 @@ export function AddDocDialog({ eventName, open, onOpenChange }: AddDocDialogProp
     handleClose(false); // no-op until Story 3.1 adds real attachment
   }
 
-  const kinds = [DocKind.PDF, DocKind.Image, DocKind.Doc, DocKind.Link] as const;
+  const kinds = [DocKind.PDF, DocKind.Image, DocKind.Doc] as const;
 
   return (
     <Dialog open={open} onOpenChange={(o) => handleClose(o as boolean)}>
@@ -115,34 +113,6 @@ export function AddDocDialog({ eventName, open, onOpenChange }: AddDocDialogProp
               autoFocus
             />
           </div>
-          {draftKind === DocKind.Link && (
-            <div>
-              <label
-                htmlFor="add-doc-url"
-                style={{
-                  fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: "calc(10px * var(--font-scale))",
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "var(--fg-4)",
-                  display: "block",
-                  marginBottom: 4,
-                }}
-              >
-                URL
-              </label>
-              <Input
-                id="add-doc-url"
-                placeholder="https://…"
-                value={draftUrl}
-                onChange={(e) => setDraftUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAdd();
-                }}
-              />
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => handleClose(false)}>

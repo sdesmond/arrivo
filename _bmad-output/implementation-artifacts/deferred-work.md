@@ -86,3 +86,24 @@ Action uses `await import("@vercel/blob")` per call. Functional, but `put` at `a
 ### `getByText(docName).not.toBeVisible()` is a substring match
 The "no longer visible" step in `documents.steps.ts:30-32` would also resolve to the delete button's accessible name (`Delete <name>`) on strict matching, since both contain the doc name. Works today because the seed name is unique. Tightening to `getByRole("button", { name: \`Delete ${name}\` }).not.toBeVisible()` would be more precise.
 
+---
+
+## Deferred from: code review of 2-1 & 2-2 doc-viewer (2026-05-21)
+
+Surfaced during step-04 review of `2-1-open-document-in-the-in-app-viewer.md` and `2-2-render-document-content-in-the-viewer.md`. Real but out of scope for these stories.
+
+### DocViewer always mounted per DocRow
+`<DocViewer doc={doc} open={viewerOpen} onClose={...} />` is rendered for every row in the documents list. Even when `open=false`, the component's hooks run per row (UA sniff in `useState` initializer, `useIsMobile` listener). With a long document list this multiplies hook work and listener registrations. Fix path: wrap with `{viewerOpen && <DocViewer ... />}` or lift viewer state to a single instance at the list level.
+
+### Icon-button style duplication
+Three near-identical inline-style blocks (close, share in `doc-viewer.tsx`; view in `doc-row.tsx`). Future a11y/focus-ring/touch-target fixes have to touch every copy. Fix path: extract a small `IconButton` primitive or a shared style constant in `src/lib/`.
+
+### PDF rendering has no Android browser fallback
+Only mobile Safari is special-cased. Android Chrome and Firefox also often refuse to render PDFs inline and may show a download prompt instead. Out of Story 2.2 scope. Fix path: detect Android UA and treat similarly to mobile-Safari fallback.
+
+### Mobile full-screen popup ignores iOS safe-area insets
+`position: fixed; inset: 0` on mobile pushes the close button and header behind the iOS notch / home indicator. No `env(safe-area-inset-*)` padding applied. UX polish, not in AC. Fix path: add `paddingTop: env(safe-area-inset-top)` etc. to the mobile popup style.
+
+### `isMobileSafari` regex misses other iOS browsers
+Only excludes `CriOS|FxiOS|OPiOS|mercury` — Edge iOS (`EdgiOS`), DuckDuckGo, Brave, etc. all wrap WebKit and would incorrectly take the "mobile Safari" fallback branch. Spec's exclusion list was minimal; widen when those browsers are reported as broken.
+

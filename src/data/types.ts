@@ -43,7 +43,6 @@ export const DocKind = {
   PDF: "pdf",
   Image: "image",
   Doc: "doc",
-  Link: "link",
 } as const;
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 

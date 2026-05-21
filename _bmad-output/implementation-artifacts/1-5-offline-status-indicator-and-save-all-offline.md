@@ -4,7 +4,7 @@ story_key: "1-5-offline-status-indicator-and-save-all-offline"
 epic: 1
 story: 5
 title: "Offline Status Indicator & Save All Offline"
-status: "review"
+status: "done"
 created: "2026-05-20"
 ---
 

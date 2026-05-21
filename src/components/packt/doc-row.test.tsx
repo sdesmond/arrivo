@@ -16,6 +16,11 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipContent: () => null,
 }));
 
+vi.mock("./doc-viewer", () => ({
+  DocViewer: ({ open, doc }: { open: boolean; doc: { name: string } }) =>
+    open ? <div data-testid="doc-viewer">{doc.name}</div> : null,
+}));
+
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
     children,
@@ -74,11 +79,6 @@ describe("DocRow", () => {
   it("renders DOC badge for doc kind", () => {
     render(<DocRow doc={makeDoc({ kind: "doc", name: "contract.docx" })} />);
     expect(screen.getByText("DOC")).toBeInTheDocument();
-  });
-
-  it("renders LINK badge for link kind", () => {
-    render(<DocRow doc={makeDoc({ kind: "link", name: "Reference" })} />);
-    expect(screen.getByText("LINK")).toBeInTheDocument();
   });
 
   it("renders document name for image doc", () => {
@@ -258,5 +258,26 @@ describe("DocRow", () => {
     render(<DocRow doc={makeDoc({ offline: true })} />);
     const indicator = screen.getByRole("img", { name: "Cached offline" });
     expect(indicator).toBeInTheDocument();
+  });
+
+  it("renders a view button with correct title and aria-label", () => {
+    render(<DocRow doc={makeDoc()} />);
+    const btn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
+    expect(btn).toHaveAttribute("title", "View Boarding Pass.pdf");
+    expect(btn).toHaveAttribute("aria-label", "View Boarding Pass.pdf");
+  });
+
+  it("view button has min 44px touch target", () => {
+    render(<DocRow doc={makeDoc()} />);
+    const btn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
+    expect(btn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+  });
+
+  it("clicking the view button opens the DocViewer", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View Boarding Pass.pdf" }));
+    expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
   });
 });

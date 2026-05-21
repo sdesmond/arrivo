@@ -18,9 +18,4 @@ describe("DocKindBadge", () => {
     render(<DocKindBadge kind="doc" />);
     expect(screen.getByText("DOC")).toBeInTheDocument();
   });
-
-  it("renders LINK label", () => {
-    render(<DocKindBadge kind="link" />);
-    expect(screen.getByText("LINK")).toBeInTheDocument();
-  });
 });

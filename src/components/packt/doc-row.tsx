@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Trash2, Download } from "lucide-react";
+import { Trash2, Download, Eye } from "lucide-react";
+import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
@@ -29,6 +30,8 @@ export function DocRow({ doc }: DocRowProps) {
   const [editName, setEditName] = useState("");
   const [displayName, setDisplayName] = useState(doc.name);
   const cancelRef = useRef(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const viewButtonRef = useRef<HTMLButtonElement | null>(null);
 
   function handleSave() {
     if (cancelRef.current) {
@@ -142,6 +145,26 @@ export function DocRow({ doc }: DocRowProps) {
         </span>
       )}
       <button
+        ref={viewButtonRef}
+        onClick={() => setViewerOpen(true)}
+        title={`View ${doc.name}`}
+        aria-label={`View ${doc.name}`}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minWidth: 44,
+          minHeight: 44,
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--fg-3)",
+          padding: 0,
+        }}
+      >
+        <Eye size={15} strokeWidth={1.5} />
+      </button>
+      <button
         onClick={() => setConfirmOpen(true)}
         disabled={isPending}
         title={`Delete ${doc.name}`}
@@ -188,6 +211,7 @@ export function DocRow({ doc }: DocRowProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DocViewer doc={doc} open={viewerOpen} onClose={() => setViewerOpen(false)} finalFocusRef={viewButtonRef} />
     </div>
   );
 }

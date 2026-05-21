@@ -32,19 +32,13 @@ describe("AddDocDialog", () => {
     render(<AddDocDialog open onOpenChange={vi.fn()} />);
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /pdf/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /link/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /image/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /doc/i })).toBeInTheDocument();
   });
 
-  it("does not show URL field by default (PDF is selected)", () => {
+  it("does not render a Link type button", () => {
     render(<AddDocDialog open onOpenChange={vi.fn()} />);
-    expect(screen.queryByLabelText("URL")).not.toBeInTheDocument();
-  });
-
-  it("shows URL field when Link type is selected", async () => {
-    const user = userEvent.setup();
-    render(<AddDocDialog open onOpenChange={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: /link/i }));
-    expect(screen.getByLabelText("URL")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /link/i })).not.toBeInTheDocument();
   });
 
   it("calls onOpenChange(false) when Attach is clicked with a valid name", async () => {
@@ -76,16 +70,6 @@ describe("AddDocDialog", () => {
     screen.getByLabelText("Name").focus();
     await user.keyboard("{Enter}");
     expect(onOpenChange).not.toHaveBeenCalled();
-  });
-
-  it("Enter key in URL input closes dialog when name is filled", async () => {
-    const user = userEvent.setup();
-    const onOpenChange = vi.fn();
-    render(<AddDocDialog open onOpenChange={onOpenChange} />);
-    await user.click(screen.getByRole("button", { name: /link/i }));
-    await user.type(screen.getByLabelText("Name"), "My Link");
-    await user.type(screen.getByLabelText("URL"), "https://example.com{Enter}");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("Cancel button calls onOpenChange(false) and resets state", async () => {

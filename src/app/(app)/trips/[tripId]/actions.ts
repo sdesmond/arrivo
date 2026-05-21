@@ -200,9 +200,20 @@ export async function uploadDocument(tripId: string, formData: FormData) {
   const kind = inferDocKind(file.type);
   const size = formatFileSize(file.size);
 
+  const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File exceeds 25 MB limit");
+
   let url: string;
   if (process.env.UPLOAD_STUB === "true") {
-    url = "https://example.com/stub-upload.pdf";
+    const { writeFile, mkdir } = await import("fs/promises");
+    const { join, basename } = await import("path");
+    const uploadsDir = join(process.cwd(), "public", "uploads");
+    await mkdir(uploadsDir, { recursive: true });
+    const safeName = basename(name).replace(/[^\w.-]/g, "_");
+    const randomSuffix = Math.random().toString(36).slice(2, 8);
+    const uniqueName = `${Date.now()}-${randomSuffix}-${safeName}`;
+    await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
+    url = `/uploads/${encodeURIComponent(uniqueName)}`;
   } else {
     const { put } = await import("@vercel/blob");
     const result = await put(name, file, { access: "public" });
