@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-19
-last_updated: 2026-05-21  # story 2.1 and 2.2 → done after code review
+last_updated: 2026-05-21  # story 2.3 → ready-for-dev
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -55,7 +55,7 @@ development_status:
   epic-2: in-progress
   2-1-open-document-in-the-in-app-viewer: done
   2-2-render-document-content-in-the-viewer: done
-  2-3-share-document-and-keep-screen-on: backlog
+  2-3-share-document-and-keep-screen-on: ready-for-dev
   epic-2-retrospective: optional
 
   # Epic 3: Event Document Integration

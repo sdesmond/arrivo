@@ -89,3 +89,11 @@ Then("the document viewer is closed", async ({ page }) => {
 Then("the View button for {string} has focus", async ({ page }, docName: string) => {
   await expect(page.getByRole("button", { name: `View ${docName}` })).toBeFocused({ timeout: 5_000 });
 });
+
+Then("the share button for {string} is visible in the viewer", async ({ page }, docName: string) => {
+  await expect(page.getByRole("button", { name: `Share ${docName}` })).toBeVisible({ timeout: 5_000 });
+});
+
+When("I click the share button for {string}", async ({ page }, docName: string) => {
+  await page.getByRole("button", { name: `Share ${docName}` }).click();
+});

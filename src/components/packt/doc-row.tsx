@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Trash2, Download, Eye } from "lucide-react";
+import { Trash2, Download, Eye, Share2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { shareDoc } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -163,6 +164,27 @@ export function DocRow({ doc }: DocRowProps) {
         }}
       >
         <Eye size={15} strokeWidth={1.5} />
+      </button>
+      <button
+        title={`Share ${doc.name}`}
+        aria-label={`Share ${doc.name}`}
+        onClick={() => {
+          void shareDoc(doc);
+        }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minWidth: 44,
+          minHeight: 44,
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--fg-3)",
+          padding: 0,
+        }}
+      >
+        <Share2 size={15} strokeWidth={1.5} />
       </button>
       <button
         onClick={() => setConfirmOpen(true)}

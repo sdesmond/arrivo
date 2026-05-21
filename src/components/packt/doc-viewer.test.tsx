@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
 vi.mock("@/lib/use-is-mobile");
+
+vi.mock("@/lib/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils")>();
+  return { ...actual, shareDoc: vi.fn().mockResolvedValue(undefined) };
+});
 
 vi.mock("@base-ui/react/dialog", () => ({
   Dialog: {
@@ -56,6 +61,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { useIsMobile } from "@/lib/use-is-mobile";
+import { shareDoc } from "@/lib/utils";
 import { DocViewer } from "./doc-viewer";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
@@ -114,6 +120,14 @@ describe("DocViewer", () => {
     render(<DocViewer doc={makeDoc()} open={true} onClose={vi.fn()} />);
     const shareBtn = screen.getByRole("button", { name: "Share Boarding Pass.pdf" });
     expect(shareBtn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+  });
+
+  it("clicking the share button calls shareDoc with the doc", async () => {
+    const user = userEvent.setup();
+    const doc = makeDoc({ name: "My Doc.pdf", url: "https://example.com/my-doc.pdf" });
+    render(<DocViewer doc={doc} open={true} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Share My Doc.pdf" }));
+    expect(shareDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My Doc.pdf" }));
   });
 
   it("calls onClose when the backdrop close is triggered", async () => {
@@ -213,6 +227,61 @@ describe("DocViewer", () => {
     const link = screen.getByRole("link", { name: "Download" });
     expect(link).toHaveAttribute("href", "https://example.com/file.docx");
     expect(link).toHaveAttribute("download", "Itinerary.docx");
+  });
+
+  describe("Wake Lock", () => {
+    afterEach(() => {
+      try {
+        delete (navigator as unknown as Record<string, unknown>).wakeLock;
+      } catch {}
+    });
+
+    it("does not throw when navigator.wakeLock is unavailable", () => {
+      expect(() => {
+        render(<DocViewer doc={makeDoc()} open={true} onClose={vi.fn()} />);
+      }).not.toThrow();
+    });
+
+    it("requests a screen wake lock when viewer opens", async () => {
+      const mockRelease = vi.fn().mockResolvedValue(undefined);
+      const mockRequest = vi.fn().mockResolvedValue({ release: mockRelease, type: "screen" });
+      Object.defineProperty(navigator, "wakeLock", {
+        value: { request: mockRequest },
+        configurable: true,
+      });
+
+      render(<DocViewer doc={makeDoc()} open={true} onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(mockRequest).toHaveBeenCalledWith("screen");
+      });
+    });
+
+    it("releases wake lock when viewer closes (open → false)", async () => {
+      const mockRelease = vi.fn().mockResolvedValue(undefined);
+      const mockRequest = vi.fn().mockResolvedValue({ release: mockRelease, type: "screen" });
+      Object.defineProperty(navigator, "wakeLock", {
+        value: { request: mockRequest },
+        configurable: true,
+      });
+
+      const { rerender } = render(<DocViewer doc={makeDoc()} open={true} onClose={vi.fn()} />);
+      await waitFor(() => expect(mockRequest).toHaveBeenCalledWith("screen"));
+
+      rerender(<DocViewer doc={makeDoc()} open={false} onClose={vi.fn()} />);
+      await waitFor(() => expect(mockRelease).toHaveBeenCalled());
+    });
+
+    it("silently catches wake lock request errors", async () => {
+      Object.defineProperty(navigator, "wakeLock", {
+        value: { request: vi.fn().mockRejectedValue(new DOMException("NotAllowed")) },
+        configurable: true,
+      });
+
+      expect(() => {
+        render(<DocViewer doc={makeDoc()} open={true} onClose={vi.fn()} />);
+      }).not.toThrow();
+    });
   });
 
   it("shows fallback message when doc.url is undefined", () => {

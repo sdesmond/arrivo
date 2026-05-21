@@ -44,3 +44,18 @@ Feature: Document Upload
     When I press Escape
     Then the document viewer is closed
     And the View button for "esc-test.pdf" has focus
+
+  Scenario: Share button is accessible in the document viewer
+    When I upload a file named "share-doc.pdf" with MIME type "application/pdf"
+    Then the document "share-doc.pdf" appears in the Documents list
+    When I click the View button for "share-doc.pdf"
+    Then the document viewer is open with title "share-doc.pdf"
+    And the share button for "share-doc.pdf" is visible in the viewer
+
+  Scenario: Clicking the share button does not close the viewer
+    When I upload a file named "share-click.pdf" with MIME type "application/pdf"
+    Then the document "share-click.pdf" appears in the Documents list
+    When I click the View button for "share-click.pdf"
+    Then the document viewer is open with title "share-click.pdf"
+    When I click the share button for "share-click.pdf"
+    Then the document viewer is open with title "share-click.pdf"

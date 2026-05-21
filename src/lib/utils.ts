@@ -90,3 +90,16 @@ export function formatFileSize(bytes: number): string {
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+export async function shareDoc(doc: { name: string; url?: string }): Promise<void> {
+  const url = doc.url ?? "";
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      await navigator.share({ title: doc.name, url });
+    } else if (typeof navigator !== "undefined" && typeof navigator.clipboard?.writeText === "function") {
+      await navigator.clipboard.writeText(url);
+    }
+  } catch {
+    // Silently absorb AbortError (user cancelled) and permission errors
+  }
+}

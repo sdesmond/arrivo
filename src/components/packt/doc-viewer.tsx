@@ -6,6 +6,7 @@ import { Dialog, DialogPortal, DialogOverlay, DialogClose } from "@/components/u
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { X, Share2 } from "lucide-react";
 import type { Document } from "@/data/types";
+import { shareDoc } from "@/lib/utils";
 
 export interface DocViewerProps {
   doc: Document;
@@ -54,6 +55,23 @@ export function DocViewer({ doc, open, onClose, finalFocusRef }: DocViewerProps)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSandboxIframe(!!doc.url && isCrossOrigin(doc.url));
   }, [doc.url]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+
+    let sentinel: WakeLockSentinel | null = null;
+    navigator.wakeLock
+      .request("screen")
+      .then((s) => {
+        sentinel = s;
+      })
+      .catch(() => {});
+
+    return () => {
+      sentinel?.release().catch(() => {});
+    };
+  }, [open]);
 
   const url = safeHttpUrl(doc.url);
 
@@ -158,6 +176,9 @@ export function DocViewer({ doc, open, onClose, finalFocusRef }: DocViewerProps)
             <button
               title={`Share ${doc.name}`}
               aria-label={`Share ${doc.name}`}
+              onClick={() => {
+                void shareDoc(doc);
+              }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",

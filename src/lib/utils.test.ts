@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   cn,
   getTripStatus,
@@ -13,6 +14,7 @@ import {
   toHHMM,
   inferDocKind,
   formatFileSize,
+  shareDoc,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -258,5 +260,81 @@ describe("formatFileSize", () => {
 
   it("formats large files in MB", () => {
     expect(formatFileSize(1024 * 1024 * 5)).toBe("5.0 MB");
+  });
+});
+
+describe("shareDoc", () => {
+  const doc = { name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    try {
+      delete (navigator as unknown as Record<string, unknown>).clipboard;
+    } catch {}
+  });
+
+  it("calls navigator.share when available", async () => {
+    const mockShare = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", {
+      value: mockShare,
+      configurable: true,
+    });
+
+    await shareDoc(doc);
+
+    expect(mockShare).toHaveBeenCalledWith({
+      title: "Boarding Pass.pdf",
+      url: "https://example.com/doc.pdf",
+    });
+
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+  });
+
+  it("falls back to clipboard.writeText when navigator.share is unavailable", async () => {
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: mockWriteText },
+      configurable: true,
+    });
+
+    await shareDoc(doc);
+
+    expect(mockWriteText).toHaveBeenCalledWith("https://example.com/doc.pdf");
+  });
+
+  it("uses empty string for url when doc.url is undefined", async () => {
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: mockWriteText },
+      configurable: true,
+    });
+
+    await shareDoc({ name: "No URL Doc" });
+
+    expect(mockWriteText).toHaveBeenCalledWith("");
+  });
+
+  it("silently catches AbortError from navigator.share (user cancelled)", async () => {
+    const abortError = new DOMException("Cancelled", "AbortError");
+    Object.defineProperty(navigator, "share", {
+      value: vi.fn().mockRejectedValue(abortError),
+      configurable: true,
+    });
+
+    await expect(shareDoc(doc)).resolves.toBeUndefined();
+
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+  });
+
+  it("silently catches clipboard permission errors", async () => {
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockRejectedValue(new DOMException("Permission denied", "NotAllowedError")) },
+      configurable: true,
+    });
+
+    await expect(shareDoc(doc)).resolves.toBeUndefined();
   });
 });

@@ -17,9 +17,24 @@ vi.mock("@/components/ui/tooltip", () => ({
 }));
 
 vi.mock("./doc-viewer", () => ({
-  DocViewer: ({ open, doc }: { open: boolean; doc: { name: string } }) =>
-    open ? <div data-testid="doc-viewer">{doc.name}</div> : null,
+  DocViewer: ({ open, doc, onClose }: { open: boolean; doc: { name: string }; onClose: () => void }) =>
+    open ? (
+      <div data-testid="doc-viewer">
+        {doc.name}
+        <button data-testid="doc-viewer-close" onClick={onClose}>
+          close
+        </button>
+      </div>
+    ) : null,
 }));
+
+vi.mock("@/lib/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils")>();
+  return {
+    ...actual,
+    shareDoc: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
@@ -46,6 +61,7 @@ vi.mock("@/components/ui/dialog", () => ({
 
 import { DocRow } from "./doc-row";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { shareDoc } from "@/lib/utils";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   id: "doc-1",
@@ -279,5 +295,43 @@ describe("DocRow", () => {
     expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "View Boarding Pass.pdf" }));
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
+  });
+
+  it("closing the DocViewer hides it", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    await user.click(screen.getByRole("button", { name: "View Boarding Pass.pdf" }));
+    expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
+    await user.click(screen.getByTestId("doc-viewer-close"));
+    expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
+  });
+
+  describe("share button", () => {
+    it("renders a share button with correct title and aria-label", () => {
+      render(<DocRow doc={makeDoc()} />);
+      const btn = screen.getByRole("button", { name: "Share Boarding Pass.pdf" });
+      expect(btn).toHaveAttribute("title", "Share Boarding Pass.pdf");
+      expect(btn).toHaveAttribute("aria-label", "Share Boarding Pass.pdf");
+    });
+
+    it("share button uses doc name in title/aria-label", () => {
+      render(<DocRow doc={makeDoc({ name: "insurance.pdf" })} />);
+      expect(screen.getByRole("button", { name: "Share insurance.pdf" })).toBeInTheDocument();
+    });
+
+    it("share button has min 44px touch target", () => {
+      render(<DocRow doc={makeDoc()} />);
+      const btn = screen.getByRole("button", { name: "Share Boarding Pass.pdf" });
+      expect(btn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+    });
+
+    it("clicking share button calls shareDoc with the doc", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })} />);
+      await user.click(screen.getByRole("button", { name: "Share Boarding Pass.pdf" }));
+      expect(shareDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })
+      );
+    });
   });
 });
