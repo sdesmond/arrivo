@@ -1,10 +1,27 @@
 import "dotenv/config";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { sql } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { users, trips, days, collaborators, userLoyaltyNumbers, userCompanions, documents } from "../../src/db/schema";
-import { E2E_USER, E2E_TRIP, E2E_DAYS, E2E_LOYALTY_NUMBER, E2E_COMPANION, E2E_DOCUMENT } from "./e2e-seed-data";
+import {
+  users,
+  trips,
+  days,
+  events,
+  collaborators,
+  userLoyaltyNumbers,
+  userCompanions,
+  documents,
+} from "../../src/db/schema";
+import {
+  E2E_USER,
+  E2E_TRIP,
+  E2E_DAYS,
+  E2E_LOYALTY_NUMBER,
+  E2E_COMPANION,
+  E2E_DOCUMENT,
+  E2E_EVENT,
+} from "./e2e-seed-data";
 
 export default async function globalSetup() {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -49,6 +66,18 @@ export default async function globalSetup() {
   await db.insert(documents).values({
     tripId: trip.id,
     ...E2E_DOCUMENT,
+  });
+
+  // Seed an event on Day 1 for event-doc integration tests
+  const [day1] = await db
+    .select({ id: days.id })
+    .from(days)
+    .where(and(eq(days.tripId, trip.id), eq(days.dayNumber, 1)));
+  await db.insert(events).values({
+    dayId: day1.id,
+    tripId: trip.id,
+    name: E2E_EVENT.name,
+    position: E2E_EVENT.position,
   });
 
   // Insert a loyalty number so Traveler section tests have data to work with

@@ -16,6 +16,7 @@ import {
   type ItineraryNote,
   type Checklist,
   type DayItemType,
+  type Document,
   ItineraryItemType,
 } from "@/data/types";
 import {
@@ -33,6 +34,7 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-ki
 interface DayCardProps {
   day: DayItinerary;
   dateFormat?: string;
+  tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -70,6 +72,7 @@ type TimelineItem =
 export function DayCard({
   day: d,
   dateFormat = "MM/DD/YYYY",
+  tripDocs,
   onUpdateEvent,
   onDeleteEvent,
   onReorderDayItems,
@@ -324,6 +327,7 @@ export function DayCard({
                         onUpdate={onUpdateEvent}
                         onDelete={onDeleteEvent}
                         onDeleteDoc={onDeleteDoc}
+                        tripDocs={tripDocs}
                       />
                     ) : (
                       <SortableNoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />

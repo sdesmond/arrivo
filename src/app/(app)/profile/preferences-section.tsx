@@ -50,7 +50,11 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
 
   function handleSave() {
     startTransition(async () => {
-      await updateProfile({ dateFormat, currency, distanceUnit });
+      const patch: Parameters<typeof updateProfile>[0] = {};
+      if (dateFormat !== (user.dateFormat ?? "MM/DD/YYYY")) patch.dateFormat = dateFormat;
+      if (currency !== (user.currency ?? "")) patch.currency = currency;
+      if (distanceUnit !== (user.distanceUnit ?? "imperial")) patch.distanceUnit = distanceUnit;
+      await updateProfile(patch);
       setJustSaved(true);
       onDirtyChange?.(false);
       setTimeout(() => setJustSaved(false), 2000);

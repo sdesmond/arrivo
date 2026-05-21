@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ProfilePreferencesSection } from "./preferences-section";
 import type { UserProfile } from "@/data/types";
+import * as actions from "./actions";
 
 vi.mock("./actions", () => ({ updateProfile: vi.fn().mockResolvedValue(undefined) }));
 
@@ -24,6 +25,10 @@ const mockUser: UserProfile = {
 };
 
 describe("ProfilePreferencesSection", () => {
+  beforeEach(() => {
+    vi.mocked(actions.updateProfile).mockClear();
+  });
+
   it("renders with initial values", () => {
     render(<ProfilePreferencesSection user={mockUser} />);
     expect(screen.getByText("Date format")).toBeInTheDocument();
@@ -64,5 +69,23 @@ describe("ProfilePreferencesSection", () => {
     render(<ProfilePreferencesSection user={mockUser} />);
     await userEvent.click(screen.getByRole("button", { name: "Day/Month" }));
     expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+  });
+
+  it("only sends changed fields in the patch — unchanged fields are omitted", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    // mockUser has dateFormat="MM/DD/YYYY", currency="USD", distanceUnit="imperial"
+    // Change only the date format
+    await userEvent.click(screen.getByRole("button", { name: "Day/Month" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ dateFormat: "DD/MM/YYYY" });
+  });
+
+  it("sends only currency when only currency changes", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const input = screen.getByLabelText("Currency") as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, "EUR");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ currency: "EUR" });
   });
 });

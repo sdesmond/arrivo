@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MapPin, Trash2 } from "lucide-react";
-import { type TripEvent } from "@/data/types";
+import { type TripEvent, type Document } from "@/data/types";
 import { isEventNow, toHHMM } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
@@ -33,6 +33,7 @@ export interface PlaceRowProps {
   isDraft?: boolean;
   onCreate?: (name: string) => void;
   onCancelDraft?: () => void;
+  tripDocs?: Document[];
 }
 
 export function PlaceRow({
@@ -47,6 +48,7 @@ export function PlaceRow({
   isDraft,
   onCreate,
   onCancelDraft,
+  tripDocs,
 }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -270,7 +272,13 @@ export function PlaceRow({
         onOpenChange={setShowLocationDialog}
         onSave={(address) => onUpdate({ ...p, locationAddress: address })}
       />
-      <AddDocDialog eventName={p.name} open={showAddDocDialog} onOpenChange={setShowAddDocDialog} />
+      <AddDocDialog
+        eventId={p.id}
+        eventName={p.name}
+        open={showAddDocDialog}
+        onOpenChange={setShowAddDocDialog}
+        tripDocs={tripDocs}
+      />
     </div>
   );
 }

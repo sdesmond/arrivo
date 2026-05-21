@@ -59,6 +59,7 @@ export function TripDetailTabBody({
         <TripItineraryView
           days={days}
           dateFormat={dateFormat}
+          tripDocs={docs.filter((d) => d.scope === "trip")}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
           onReorderDayItems={onReorderDayItems}

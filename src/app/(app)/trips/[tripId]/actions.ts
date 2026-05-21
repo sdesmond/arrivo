@@ -398,3 +398,46 @@ export async function markAllDocsOffline(tripId: string) {
     .where(and(eq(documents.tripId, tripId), isNull(documents.eventId)));
   revalidatePath(`/trips/${tripId}`);
 }
+
+export async function attachTripDocToEvent(docId: string, eventId: string) {
+  const user = await requireUser();
+  const tripId = await getEventTripId(eventId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ eventId }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function uploadDocumentToEvent(eventId: string, formData: FormData) {
+  const user = await requireUser();
+  const tripId = await getEventTripId(eventId);
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const file = formData.get("file") as File;
+  if (!(file instanceof File)) throw new Error("No file provided");
+
+  const name = file.name;
+  const kind = inferDocKind(file.type);
+  const size = formatFileSize(file.size);
+
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File exceeds 25 MB limit");
+
+  let url: string;
+  if (process.env.UPLOAD_STUB === "true") {
+    const { writeFile, mkdir } = await import("fs/promises");
+    const { join, basename } = await import("path");
+    const uploadsDir = join(process.cwd(), "public", "uploads");
+    await mkdir(uploadsDir, { recursive: true });
+    const safeName = basename(name).replace(/[^\w.-]/g, "_");
+    const randomSuffix = Math.random().toString(36).slice(2, 8);
+    const uniqueName = `${Date.now()}-${randomSuffix}-${safeName}`;
+    await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
+    url = `/uploads/${encodeURIComponent(uniqueName)}`;
+  } else {
+    const { put } = await import("@vercel/blob");
+    const result = await put(name, file, { access: "public" });
+    url = result.url;
+  }
+
+  await db.insert(documents).values({ tripId, eventId, name, kind, size, url });
+  revalidatePath(`/trips/${tripId}`);
+}

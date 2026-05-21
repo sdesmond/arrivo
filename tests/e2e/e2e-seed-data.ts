@@ -34,3 +34,8 @@ export const E2E_DOCUMENT = {
   size: "1.2 MB",
   url: "https://example.com/boarding-pass.pdf",
 };
+
+export const E2E_EVENT = {
+  name: "E2E Event",
+  position: 0,
+};
