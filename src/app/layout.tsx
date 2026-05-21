@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { DevDatePicker } from "@/components/packt/dev-date-picker";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -50,6 +51,7 @@ export default async function RootLayout({
             <TooltipProvider>
               {children}
               <DevDatePicker />
+              <Toaster richColors position="bottom-center" />
             </TooltipProvider>
           </MockDateProvider>
         </ThemeProvider>

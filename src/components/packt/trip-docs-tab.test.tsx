@@ -5,6 +5,13 @@ import userEvent from "@testing-library/user-event";
 import { TripDocsTab } from "./trip-docs-tab";
 import type { Document } from "@/data/types";
 import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
+import { MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
+  Toaster: () => null,
+}));
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   uploadDocument: vi.fn().mockResolvedValue(undefined),
@@ -118,6 +125,58 @@ describe("TripDocsTab", () => {
     await user.click(screen.getByRole("button", { name: /save offline/i }));
     await waitFor(() => {
       expect(vi.mocked(markAllDocsOffline)).toHaveBeenCalledWith("trip-99");
+    });
+  });
+
+  it("shows file type and size hint text when there is no error", () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    expect(screen.getByText("PDF, JPG, PNG, WEBP, HEIC · max 25 MB")).toBeInTheDocument();
+  });
+
+  it("does not call uploadDocument when the selected file exceeds the size limit", async () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const input = document.getElementById("doc-upload") as HTMLInputElement;
+    const oversized = new File(["x".repeat(100)], "huge.pdf", { type: "application/pdf" });
+    Object.defineProperty(oversized, "size", { value: MAX_UPLOAD_BYTES + 1 });
+    Object.defineProperty(input, "files", { value: [oversized], writable: false });
+    fireEvent.change(input);
+    await waitFor(() => {
+      expect(vi.mocked(uploadDocument)).not.toHaveBeenCalled();
+    });
+  });
+
+  it("calls toast.error when the selected file exceeds the size limit", async () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const input = document.getElementById("doc-upload") as HTMLInputElement;
+    const oversized = new File(["x".repeat(100)], "huge.pdf", { type: "application/pdf" });
+    Object.defineProperty(oversized, "size", { value: MAX_UPLOAD_BYTES + 1 });
+    Object.defineProperty(input, "files", { value: [oversized], writable: false });
+    fireEvent.change(input);
+    await waitFor(() => {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("File is too large. Max 25 MB.");
+    });
+  });
+
+  it("always shows the hint text regardless of errors", async () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const input = document.getElementById("doc-upload") as HTMLInputElement;
+    const oversized = new File(["x".repeat(100)], "huge.pdf", { type: "application/pdf" });
+    Object.defineProperty(oversized, "size", { value: MAX_UPLOAD_BYTES + 1 });
+    Object.defineProperty(input, "files", { value: [oversized], writable: false });
+    fireEvent.change(input);
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled());
+    expect(screen.getByText("PDF, JPG, PNG, WEBP, HEIC · max 25 MB")).toBeInTheDocument();
+  });
+
+  it("calls toast.error when uploadDocument rejects", async () => {
+    vi.mocked(uploadDocument).mockRejectedValueOnce(new Error("server error"));
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const input = document.getElementById("doc-upload") as HTMLInputElement;
+    const file = new File(["pdf content"], "test.pdf", { type: "application/pdf" });
+    Object.defineProperty(input, "files", { value: [file], writable: false });
+    fireEvent.change(input);
+    await waitFor(() => {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Upload failed. Please try again.");
     });
   });
 });

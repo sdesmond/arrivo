@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
 import { eq, and, max, gte, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { inferDocKind, formatFileSize } from "@/lib/utils";
+import { inferDocKind, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/utils";
 import type {
   CreateEventInput,
   UpdateEventPatch,
@@ -200,7 +200,6 @@ export async function uploadDocument(tripId: string, formData: FormData) {
   const kind = inferDocKind(file.type);
   const size = formatFileSize(file.size);
 
-  const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
   if (file.size > MAX_UPLOAD_BYTES) throw new Error("File exceeds 25 MB limit");
 
   let url: string;

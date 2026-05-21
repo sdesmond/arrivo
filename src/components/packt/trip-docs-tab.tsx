@@ -2,9 +2,11 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
+import { toast } from "sonner";
 import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
 import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
+import { MAX_UPLOAD_BYTES } from "@/lib/utils";
 
 export interface TripDocsTabProps {
   tripId: string;
@@ -28,10 +30,19 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("File is too large. Max 25 MB.");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     const formData = new FormData();
     formData.append("file", file);
     startTransition(async () => {
-      await uploadDocument(tripId, formData);
+      try {
+        await uploadDocument(tripId, formData);
+      } catch {
+        toast.error("Upload failed. Please try again.");
+      }
     });
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -105,6 +116,17 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
           <Plus size={13} strokeWidth={1.5} />
           Add
         </label>
+      </div>
+
+      <div
+        style={{
+          textAlign: "right",
+          fontSize: "calc(11px * var(--font-scale))",
+          color: "var(--fg-2)",
+          marginBottom: 8,
+        }}
+      >
+        PDF, JPG, PNG, WEBP, HEIC · max 25 MB
       </div>
 
       <div style={{ position: "relative", marginBottom: 12 }}>

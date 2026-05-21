@@ -76,6 +76,8 @@ export function toHHMM(iso: string): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
 export function inferDocKind(mimeType: string): "pdf" | "image" | "doc" {
   if (mimeType === "application/pdf") return "pdf";
   if (mimeType.startsWith("image/")) return "image";
