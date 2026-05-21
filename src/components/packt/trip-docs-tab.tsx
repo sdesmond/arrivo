@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
-import { uploadDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
 
 export interface TripDocsTabProps {
   tripId: string;
@@ -14,9 +14,16 @@ export interface TripDocsTabProps {
 export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [isSavingOffline, startSaveOfflineTransition] = useTransition();
   const [query, setQuery] = useState("");
 
   const visible = query.trim() ? docs.filter((d) => d.name.toLowerCase().includes(query.toLowerCase())) : docs;
+
+  function handleSaveOffline() {
+    startSaveOfflineTransition(async () => {
+      await markAllDocsOffline(tripId);
+    });
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -31,7 +38,32 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
 
   return (
     <div>
-      <div className="flex justify-end mb-3">
+      <div className="flex items-center mb-3">
+        {docs.length > 0 && (
+          <button
+            onClick={handleSaveOffline}
+            disabled={isSavingOffline}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "5px 10px",
+              minHeight: 44,
+              minWidth: 44,
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              color: "var(--fg)",
+              fontFamily: "var(--font-body, ui-sans-serif)",
+              fontSize: "calc(12px * var(--font-scale))",
+              fontWeight: 500,
+              cursor: isSavingOffline ? "wait" : "pointer",
+              opacity: isSavingOffline ? 0.5 : 1,
+            }}
+          >
+            Save offline
+          </button>
+        )}
         <input
           id="doc-upload"
           ref={inputRef}
@@ -67,6 +99,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
             fontWeight: 500,
             cursor: isPending ? "wait" : "pointer",
             opacity: isPending ? 0.5 : 1,
+            marginLeft: "auto",
           }}
         >
           <Plus size={13} strokeWidth={1.5} />

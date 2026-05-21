@@ -3,7 +3,7 @@
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
-import { eq, and, max, gte, sql } from "drizzle-orm";
+import { eq, and, max, gte, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { inferDocKind, formatFileSize } from "@/lib/utils";
 import type {
@@ -376,5 +376,15 @@ export async function renameDocument(docId: string, newName: string) {
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function markAllDocsOffline(tripId: string) {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db
+    .update(documents)
+    .set({ offline: true })
+    .where(and(eq(documents.tripId, tripId), isNull(documents.eventId)));
   revalidatePath(`/trips/${tripId}`);
 }

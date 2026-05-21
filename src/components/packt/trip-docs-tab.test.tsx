@@ -4,10 +4,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripDocsTab } from "./trip-docs-tab";
 import type { Document } from "@/data/types";
-import { uploadDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   uploadDocument: vi.fn().mockResolvedValue(undefined),
+  markAllDocsOffline: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("./doc-row", () => ({
@@ -99,5 +100,24 @@ describe("TripDocsTab", () => {
     await user.clear(search);
     expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
     expect(screen.getByText("visa.pdf")).toBeInTheDocument();
+  });
+
+  it("does not render the Save offline button when docs array is empty", () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    expect(screen.queryByRole("button", { name: /save offline/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the Save offline button when at least one doc is present", () => {
+    render(<TripDocsTab tripId="trip-1" docs={[makeDoc("1")]} />);
+    expect(screen.getByRole("button", { name: /save offline/i })).toBeInTheDocument();
+  });
+
+  it("calls markAllDocsOffline with tripId when Save offline button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<TripDocsTab tripId="trip-99" docs={[makeDoc("1")]} />);
+    await user.click(screen.getByRole("button", { name: /save offline/i }));
+    await waitFor(() => {
+      expect(vi.mocked(markAllDocsOffline)).toHaveBeenCalledWith("trip-99");
+    });
   });
 });

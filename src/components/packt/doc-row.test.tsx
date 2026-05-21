@@ -10,6 +10,12 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   renameDocument: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ render }: { render?: React.ReactElement }) => render ?? null,
+  TooltipContent: () => null,
+}));
+
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
     children,
@@ -240,5 +246,17 @@ describe("DocRow", () => {
     await user.click(screen.getByText("Boarding Pass.pdf"));
     await user.keyboard("{Enter}");
     expect(renameDocument).not.toHaveBeenCalled();
+  });
+
+  it("renders a 'Not cached offline' indicator when doc.offline is false", () => {
+    render(<DocRow doc={makeDoc({ offline: false })} />);
+    const indicator = screen.getByRole("img", { name: "Not cached offline" });
+    expect(indicator).toBeInTheDocument();
+  });
+
+  it("renders a 'Cached offline' indicator when doc.offline is true", () => {
+    render(<DocRow doc={makeDoc({ offline: true })} />);
+    const indicator = screen.getByRole("img", { name: "Cached offline" });
+    expect(indicator).toBeInTheDocument();
   });
 });

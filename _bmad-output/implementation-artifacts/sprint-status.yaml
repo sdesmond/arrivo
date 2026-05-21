@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-19
-last_updated: 2026-05-20  # story 1.4 → ready-for-dev
+last_updated: 2026-05-20  # story 1.5 → review
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -47,8 +47,8 @@ development_status:
   1-1-infrastructure-prerequisites-and-documents-tab-scaffold: done
   1-2-upload-documents-to-the-trip-tab: done
   1-3-browse-and-delete-documents: done
-  1-4-search-and-inline-rename: ready-for-dev
-  1-5-offline-status-indicator-and-save-all-offline: backlog
+  1-4-search-and-inline-rename: done
+  1-5-offline-status-indicator-and-save-all-offline: review
   epic-1-retrospective: optional
 
   # Epic 2: In-App Document Viewer

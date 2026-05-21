@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, Download } from "lucide-react";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export interface DocRowProps {
   doc: Document;
@@ -85,6 +86,25 @@ export function DocRow({ doc }: DocRowProps) {
       }}
     >
       <DocKindBadge kind={doc.kind} />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              role="img"
+              aria-label={doc.offline ? "Cached offline" : "Not cached offline"}
+              style={{
+                display: "inline-flex",
+                color: doc.offline ? "var(--accent-brand)" : "var(--fg-3)",
+                flexShrink: 0,
+                cursor: "default",
+              }}
+            >
+              <Download size={13} strokeWidth={1.5} />
+            </span>
+          }
+        />
+        <TooltipContent>{doc.offline ? "Cached offline" : "Not cached offline"}</TooltipContent>
+      </Tooltip>
       {isEditing ? (
         <input
           autoFocus
