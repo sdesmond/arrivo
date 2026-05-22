@@ -19,7 +19,6 @@ export interface TripDetailTabBodyProps {
   onAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => void;
   onUpdateNote: (noteId: string, content: string) => void;
   onDeleteNote: (noteId: string) => void;
-  onDeleteDoc: (docId: string) => void;
   onAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   onUpdateChecklistTitle: (checklistId: string, title: string | undefined) => void;
   onDeleteChecklist: (checklistId: string) => void;
@@ -44,7 +43,6 @@ export function TripDetailTabBody({
   onAddNote,
   onUpdateNote,
   onDeleteNote,
-  onDeleteDoc,
   onAddChecklist,
   onUpdateChecklistTitle,
   onDeleteChecklist,
@@ -68,7 +66,6 @@ export function TripDetailTabBody({
           onAddNote={onAddNote}
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}
-          onDeleteDoc={onDeleteDoc}
           onAddChecklist={onAddChecklist}
           newlyCreatedChecklistId={newlyCreatedChecklistId}
           onUpdateChecklistTitle={onUpdateChecklistTitle}

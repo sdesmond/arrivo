@@ -27,6 +27,33 @@ Feature: Event Document Integration
 
   # Story 3.2: Delete event with attached documents
 
+  # Event doc management: view, rename, promote
+
+  Scenario: View an event-attached document in the in-app viewer
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I expand the docs for event "E2E Event Manage"
+    And I click the View button for "E2E Manage Doc"
+    Then the document viewer is open with title "E2E Manage Doc"
+    When I close the document viewer
+    Then the document viewer is closed
+
+  Scenario: Rename an event-attached document
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I expand the docs for event "E2E Event Manage"
+    And I rename the event doc "E2E Manage Doc" to "E2E Renamed Doc"
+    Then the event doc "E2E Renamed Doc" is visible
+
+  @reseed-manage-event
+  Scenario: Promote an event-attached document to trip level
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I expand the docs for event "E2E Event Manage"
+    And I promote the event doc "E2E Manage Doc" to trip level
+    Then the event doc "E2E Manage Doc" is no longer visible in the event
+    And the Documents tab shows "E2E Manage Doc"
+
   @reseed-delete-events
   Scenario: Delete event with attached docs shows confirmation dialog
     Given I am on the Itinerary tab

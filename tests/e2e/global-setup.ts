@@ -25,6 +25,8 @@ import {
   E2E_EVENT_ERASE,
   E2E_KEEP_DOC,
   E2E_ERASE_DOC,
+  E2E_EVENT_MANAGE,
+  E2E_MANAGE_DOC,
 } from "./e2e-seed-data";
 
 export default async function globalSetup() {
@@ -97,6 +99,13 @@ export default async function globalSetup() {
 
   await db.insert(documents).values({ tripId: trip.id, eventId: eKeep.id, ...E2E_KEEP_DOC });
   await db.insert(documents).values({ tripId: trip.id, eventId: eErase.id, ...E2E_ERASE_DOC });
+
+  // Seed event + doc for event-doc management tests (view, rename, promote)
+  const [eManage] = await db
+    .insert(events)
+    .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_MANAGE.name, position: E2E_EVENT_MANAGE.position })
+    .returning({ id: events.id });
+  await db.insert(documents).values({ tripId: trip.id, eventId: eManage.id, ...E2E_MANAGE_DOC });
 
   // Insert a loyalty number so Traveler section tests have data to work with
   await db.insert(userLoyaltyNumbers).values({ userId: user.id, ...E2E_LOYALTY_NUMBER });

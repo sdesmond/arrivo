@@ -24,7 +24,6 @@ export interface PlaceRowProps {
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
-  onDeleteDoc?: (docId: string) => void;
   dragHandle?: React.ReactNode;
   id?: string;
   isDraft?: boolean;
@@ -39,7 +38,6 @@ export function PlaceRow({
   isLast,
   onUpdate,
   onDelete,
-  onDeleteDoc,
   dragHandle,
   id,
   isDraft,
@@ -204,13 +202,7 @@ export function PlaceRow({
             onOpenAddDoc={() => setShowAddDocDialog(true)}
           />
 
-          {showDocs && hasDocs && (
-            <DocsBlock
-              docs={p.docs!}
-              onDelete={(docId) => onDeleteDoc?.(docId)}
-              onAdd={() => setShowAddDocDialog(true)}
-            />
-          )}
+          {showDocs && hasDocs && <DocsBlock docs={p.docs!} onAdd={() => setShowAddDocDialog(true)} />}
         </div>
 
         {/* Drag handle — always visible on mobile, hover-only on desktop */}

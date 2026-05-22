@@ -63,3 +63,15 @@ export const E2E_ERASE_DOC = {
   size: "0.5 MB",
   url: "https://example.com/erase-doc.pdf",
 };
+
+export const E2E_EVENT_MANAGE = {
+  name: "E2E Event Manage",
+  position: 3,
+};
+
+export const E2E_MANAGE_DOC = {
+  name: "E2E Manage Doc",
+  kind: "pdf",
+  size: "0.3 MB",
+  url: "https://example.com/manage-doc.pdf",
+};

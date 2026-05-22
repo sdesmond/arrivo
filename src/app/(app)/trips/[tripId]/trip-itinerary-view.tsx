@@ -15,7 +15,6 @@ export interface TripItineraryViewProps {
   onAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => void;
   onUpdateNote: (noteId: string, content: string) => void;
   onDeleteNote: (noteId: string) => void;
-  onDeleteDoc: (docId: string) => void;
   onAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   newlyCreatedChecklistId?: string;
   onUpdateChecklistTitle: (checklistId: string, title: string | undefined) => void;
@@ -38,7 +37,6 @@ export function TripItineraryView({
   onAddNote,
   onUpdateNote,
   onDeleteNote,
-  onDeleteDoc,
   onAddChecklist,
   newlyCreatedChecklistId,
   onUpdateChecklistTitle,
@@ -68,7 +66,6 @@ export function TripItineraryView({
           onAddNote={onAddNote}
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}
-          onDeleteDoc={onDeleteDoc}
           onAddChecklist={onAddChecklist}
           newlyCreatedChecklistId={newlyCreatedChecklistId}
           onUpdateChecklistTitle={onUpdateChecklistTitle}

@@ -27,7 +27,6 @@ import {
   createNote,
   updateNote,
   deleteNote,
-  removeDocument,
   createChecklist,
   createChecklistWithItem,
   updateChecklistTitle,
@@ -126,12 +125,6 @@ export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClien
   function handleDeleteNote(noteId: string): void {
     React.startTransition(() => {
       deleteNote(noteId);
-    });
-  }
-
-  function handleDeleteDoc(docId: string): void {
-    React.startTransition(() => {
-      removeDocument(docId);
     });
   }
 
@@ -344,7 +337,6 @@ export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClien
             onAddNote={handleAddNote}
             onUpdateNote={handleUpdateNote}
             onDeleteNote={handleDeleteNote}
-            onDeleteDoc={handleDeleteDoc}
             onAddChecklist={handleAddChecklist}
             onUpdateChecklistTitle={handleUpdateChecklistTitle}
             onDeleteChecklist={handleDeleteChecklist}

@@ -435,6 +435,17 @@ export async function attachTripDocToEvent(docId: string, eventId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function promoteEventDocToTrip(docId: string) {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ eventId: null }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
 export async function uploadDocumentToEvent(eventId: string, formData: FormData) {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);

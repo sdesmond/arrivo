@@ -14,20 +14,10 @@ vi.mock("lucide-react", async (importOriginal) => {
 });
 
 vi.mock("./docs-block", () => ({
-  DocsBlock: ({
-    docs,
-    onDelete,
-    onAdd,
-  }: {
-    docs: { id: string; name: string }[];
-    onDelete: (id: string) => void;
-    onAdd: () => void;
-  }) => (
+  DocsBlock: ({ docs, onAdd }: { docs: { id: string; name: string }[]; onAdd: () => void }) => (
     <div data-testid="docs-block">
       {docs.map((d) => (
-        <button key={d.id} onClick={() => onDelete(d.id)}>
-          del-{d.name}
-        </button>
+        <span key={d.id}>{d.name}</span>
       ))}
       <button onClick={onAdd}>add-doc-in-block</button>
     </div>
@@ -416,29 +406,6 @@ describe("PlaceRow", () => {
     });
     await user.click(screen.getByTitle("Attach document"));
     expect(screen.getByTestId("add-doc-dialog")).toBeInTheDocument();
-  });
-
-  it("docs block onDelete calls onDeleteDoc with docId", async () => {
-    const user = userEvent.setup();
-    const onDeleteDoc = vi.fn();
-    const place = {
-      ...basePlace,
-      docs: [
-        {
-          id: "d1",
-          name: "Plan.pdf",
-          kind: "pdf" as const,
-          scope: "event" as const,
-          offline: false,
-        },
-      ],
-    };
-    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} onDeleteDoc={onDeleteDoc} />, {
-      wrapper: Wrapper,
-    });
-    await user.click(screen.getByRole("button", { name: /1 doc/i }));
-    await user.click(screen.getByRole("button", { name: /del-Plan.pdf/i }));
-    expect(onDeleteDoc).toHaveBeenCalledWith("d1");
   });
 
   it("renders dragHandle when provided", () => {

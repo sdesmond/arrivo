@@ -4,7 +4,15 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
 import { Before, Given, When, Then } from "../fixtures";
 import { documents, events, days, trips, users } from "../../../src/db/schema";
-import { E2E_USER, E2E_EVENT_KEEP, E2E_EVENT_ERASE, E2E_KEEP_DOC, E2E_ERASE_DOC } from "../e2e-seed-data";
+import {
+  E2E_USER,
+  E2E_EVENT_KEEP,
+  E2E_EVENT_ERASE,
+  E2E_KEEP_DOC,
+  E2E_ERASE_DOC,
+  E2E_EVENT_MANAGE,
+  E2E_MANAGE_DOC,
+} from "../e2e-seed-data";
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -118,4 +126,61 @@ Then("the Documents tab shows {string}", async ({ page }, docName: string) => {
 Then("the Documents tab does not show {string}", async ({ page }, docName: string) => {
   await page.getByRole("button", { name: "Documents" }).click();
   await expect(page.getByText(docName, { exact: true })).not.toBeVisible({ timeout: 5_000 });
+});
+
+// ── Event doc management: view, rename, promote ───────────────────────────
+
+Before({ tags: "@reseed-manage-event" }, async () => {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client);
+  try {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
+    if (!user) return;
+    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    if (!trip) return;
+    const [day1] = await db
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, trip.id), eq(days.dayNumber, 1)));
+    if (!day1) return;
+
+    await db.delete(events).where(and(eq(events.tripId, trip.id), eq(events.name, E2E_EVENT_MANAGE.name)));
+
+    const [eManage] = await db
+      .insert(events)
+      .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_MANAGE.name, position: E2E_EVENT_MANAGE.position })
+      .returning({ id: events.id });
+    await db.insert(documents).values({ tripId: trip.id, eventId: eManage.id, ...E2E_MANAGE_DOC });
+  } finally {
+    await client.end();
+  }
+});
+
+When("I expand the docs for event {string}", async ({ page }, eventName: string) => {
+  await page
+    .locator("div")
+    .filter({ hasText: new RegExp(`^${escapeRegex(eventName)}`) })
+    .getByRole("button", { name: /doc/i })
+    .first()
+    .click();
+  await expect(page.getByRole("button", { name: `View ${E2E_MANAGE_DOC.name}` })).toBeVisible({ timeout: 5_000 });
+});
+
+When("I rename the event doc {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+  await page.getByText(oldName, { exact: true }).first().click();
+  const input = page.getByRole("textbox");
+  await input.fill(newName);
+  await input.press("Enter");
+});
+
+Then("the event doc {string} is visible", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
+});
+
+When("I promote the event doc {string} to trip level", async ({ page }, docName: string) => {
+  await page.getByRole("button", { name: `Move ${docName} to trip` }).click();
+});
+
+Then("the event doc {string} is no longer visible in the event", async ({ page }, docName: string) => {
+  await expect(page.getByRole("button", { name: `Move ${docName} to trip` })).not.toBeVisible({ timeout: 10_000 });
 });
