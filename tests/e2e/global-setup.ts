@@ -21,6 +21,10 @@ import {
   E2E_COMPANION,
   E2E_DOCUMENT,
   E2E_EVENT,
+  E2E_EVENT_KEEP,
+  E2E_EVENT_ERASE,
+  E2E_KEEP_DOC,
+  E2E_ERASE_DOC,
 } from "./e2e-seed-data";
 
 export default async function globalSetup() {
@@ -79,6 +83,20 @@ export default async function globalSetup() {
     name: E2E_EVENT.name,
     position: E2E_EVENT.position,
   });
+
+  // Seed two pre-configured events for Story 3.2 delete-with-docs tests
+  const [eKeep] = await db
+    .insert(events)
+    .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_KEEP.name, position: E2E_EVENT_KEEP.position })
+    .returning({ id: events.id });
+
+  const [eErase] = await db
+    .insert(events)
+    .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_ERASE.name, position: E2E_EVENT_ERASE.position })
+    .returning({ id: events.id });
+
+  await db.insert(documents).values({ tripId: trip.id, eventId: eKeep.id, ...E2E_KEEP_DOC });
+  await db.insert(documents).values({ tripId: trip.id, eventId: eErase.id, ...E2E_ERASE_DOC });
 
   // Insert a loyalty number so Traveler section tests have data to work with
   await db.insert(userLoyaltyNumbers).values({ userId: user.id, ...E2E_LOYALTY_NUMBER });

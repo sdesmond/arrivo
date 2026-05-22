@@ -24,3 +24,32 @@ Feature: Event Document Integration
     When I click the Attach button on "E2E Event"
     And I select "E2E Boarding Pass" from the pick list
     Then the AddDocDialog is closed
+
+  # Story 3.2: Delete event with attached documents
+
+  @reseed-delete-events
+  Scenario: Delete event with attached docs shows confirmation dialog
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I delete the event "E2E Event Keep"
+    Then the delete event dialog is shown
+    When I click "Cancel"
+    Then the delete event dialog is closed
+
+  @reseed-delete-events
+  Scenario: Keep documents promotes docs to trip-level
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I delete the event "E2E Event Keep"
+    And I click "Keep documents"
+    Then "E2E Event Keep" is no longer visible in the itinerary
+    And the Documents tab shows "E2E Keep Doc"
+
+  @reseed-delete-events
+  Scenario: Delete everything removes event and its attached documents
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I delete the event "E2E Event Erase"
+    And I click "Delete everything"
+    Then "E2E Event Erase" is no longer visible in the itinerary
+    And the Documents tab does not show "E2E Erase Doc"

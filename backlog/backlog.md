@@ -1,5 +1,13 @@
 # Backlog of items
 
+## The documents attached to an event
+
+### There is currently no way to view, rename, share docs attached to an event. There should be feature parity with the app-level docs
+
+### Add the ability to move any single event doc to the app level without deleting the event.
+
+### Deleting an event with docs produces an error
+
 ## shadcn updates
 
 ### proper sidebar

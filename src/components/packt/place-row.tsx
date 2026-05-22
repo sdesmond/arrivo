@@ -3,15 +3,12 @@
 import { useState } from "react";
 import { MapPin, Trash2 } from "lucide-react";
 import { type TripEvent, type Document } from "@/data/types";
-import { isEventNow, toHHMM } from "@/lib/utils";
+import { isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
-import { TimeDialog } from "./time-dialog";
-import { CostDialog } from "./cost-dialog";
-import { LocationDialog } from "./location-dialog";
-import { AddDocDialog } from "./add-doc-dialog";
 import { PlaceRowNameField } from "./place-row-name-field";
 import { PlaceRowActionBar } from "./place-row-action-bar";
+import { PlaceRowDialogs } from "./place-row-dialogs";
 
 function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHHMM: string) {
   if (!dayDate) return { startAt: undefined, endAt: undefined };
@@ -63,6 +60,7 @@ export function PlaceRow({
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const now = useNow();
   const hasDocs = (p.docs?.length ?? 0) > 0;
@@ -227,7 +225,13 @@ export function PlaceRow({
 
         {/* Trash icon — always visible on mobile, hover-only on desktop */}
         <button
-          onClick={() => onDelete(p.id)}
+          onClick={() => {
+            if (hasDocs) {
+              setShowDeleteDialog(true);
+            } else {
+              onDelete(p.id);
+            }
+          }}
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
           style={{
             color: "var(--fg-4)",
@@ -244,40 +248,28 @@ export function PlaceRow({
         </button>
       </div>
 
-      <TimeDialog
-        time={p.startAt ? toHHMM(p.startAt) : undefined}
-        endTime={p.endAt ? toHHMM(p.endAt) : undefined}
-        eventName={p.name}
-        open={showTimeDialog}
-        onOpenChange={setShowTimeDialog}
-        onSave={(t, et) => {
+      <PlaceRowDialogs
+        place={p}
+        tripDocs={tripDocs}
+        showTimeDialog={showTimeDialog}
+        onTimeOpenChange={setShowTimeDialog}
+        onTimeSave={(t, et) => {
           if (!t) {
             onUpdate({ ...p, startAt: undefined, endAt: undefined });
           } else {
             onUpdate({ ...p, ...composeStartEndAt(dayDate, t, et ?? t) });
           }
         }}
-      />
-      <CostDialog
-        cost={p.cost}
-        eventName={p.name}
-        open={showCostDialog}
-        onOpenChange={setShowCostDialog}
-        onSave={(cost) => onUpdate({ ...p, cost })}
-      />
-      <LocationDialog
-        address={p.locationAddress}
-        eventName={p.name}
-        open={showLocationDialog}
-        onOpenChange={setShowLocationDialog}
-        onSave={(address) => onUpdate({ ...p, locationAddress: address })}
-      />
-      <AddDocDialog
-        eventId={p.id}
-        eventName={p.name}
-        open={showAddDocDialog}
-        onOpenChange={setShowAddDocDialog}
-        tripDocs={tripDocs}
+        showCostDialog={showCostDialog}
+        onCostOpenChange={setShowCostDialog}
+        onCostSave={(cost) => onUpdate({ ...p, cost })}
+        showLocationDialog={showLocationDialog}
+        onLocationOpenChange={setShowLocationDialog}
+        onLocationSave={(address) => onUpdate({ ...p, locationAddress: address })}
+        showAddDocDialog={showAddDocDialog}
+        onAddDocOpenChange={setShowAddDocDialog}
+        showDeleteDialog={showDeleteDialog}
+        onDeleteOpenChange={setShowDeleteDialog}
       />
     </div>
   );

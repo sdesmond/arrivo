@@ -153,6 +153,34 @@ export async function deleteEvent(eventId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function deleteEventWithDocDecision(eventId: string, keepDocs: boolean) {
+  const user = await requireUser();
+  const tripId = await getEventTripId(eventId);
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  let urlsToCleanup: string[] = [];
+
+  await db.transaction(async (tx) => {
+    if (keepDocs) {
+      await tx.update(documents).set({ eventId: null }).where(eq(documents.eventId, eventId));
+    } else {
+      const eventDocs = await tx.select().from(documents).where(eq(documents.eventId, eventId));
+      urlsToCleanup = eventDocs.map((d) => d.url).filter((u): u is string => !!u);
+      await tx.delete(documents).where(eq(documents.eventId, eventId));
+    }
+    await tx.delete(events).where(eq(events.id, eventId));
+  });
+
+  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    const { del } = await import("@vercel/blob");
+    await Promise.all(
+      urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
+    );
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+}
+
 export async function reorderDayItems(input: ReorderDayItemsInput) {
   const user = await requireUser();
   const tripId = await getDayTripId(input.dayId);

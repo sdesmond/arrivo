@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of story-3-2-delete-an-event-with-attached-documents (2026-05-21)
+
+- **`hasDocs` decision uses stale client-side data** [src/components/packt/place-row.tsx:229] — Spec explicitly approved the client-side check, but if a collaborator attaches a doc concurrently, the local user bypasses the confirmation dialog and the cascade FK silently deletes the new doc. Revisit if multi-editor concurrency becomes real.
+
+---
+
 ## Checklist drag handle
 
 ---

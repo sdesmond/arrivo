@@ -39,3 +39,27 @@ export const E2E_EVENT = {
   name: "E2E Event",
   position: 0,
 };
+
+export const E2E_EVENT_KEEP = {
+  name: "E2E Event Keep",
+  position: 1,
+};
+
+export const E2E_EVENT_ERASE = {
+  name: "E2E Event Erase",
+  position: 2,
+};
+
+export const E2E_KEEP_DOC = {
+  name: "E2E Keep Doc",
+  kind: "pdf",
+  size: "0.5 MB",
+  url: "https://example.com/keep-doc.pdf",
+};
+
+export const E2E_ERASE_DOC = {
+  name: "E2E Erase Doc",
+  kind: "pdf",
+  size: "0.5 MB",
+  url: "https://example.com/erase-doc.pdf",
+};
