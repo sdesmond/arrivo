@@ -28,6 +28,7 @@ import {
   E2E_ERASE_DOC,
   E2E_EVENT_MANAGE,
   E2E_MANAGE_DOC,
+  E2E_EVENT_DELETE,
 } from "./e2e-seed-data";
 
 export default async function globalSetup() {
@@ -114,6 +115,10 @@ export default async function globalSetup() {
     .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_MANAGE.name, position: E2E_EVENT_MANAGE.position })
     .returning({ id: events.id });
   await db.insert(documents).values({ tripId: trip.id, eventId: eManage.id, ...E2E_MANAGE_DOC });
+
+  // Seed event for the day-planning "User deletes an event" scenario — reseeded
+  // before the test via @reseed-day-delete so it never depends on createEvent first.
+  await db.insert(events).values({ dayId: day1.id, tripId: trip.id, ...E2E_EVENT_DELETE });
 
   // Insert a loyalty number so Traveler section tests have data to work with
   await db.insert(userLoyaltyNumbers).values({ userId: user.id, ...E2E_LOYALTY_NUMBER });

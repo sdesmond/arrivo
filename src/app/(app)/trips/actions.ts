@@ -3,7 +3,7 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { trips, collaborators, packingItems } from "@/db/schema";
+import { trips, collaborators, packingItems, documents } from "@/db/schema";
 import { eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type { CreateTripInput, UpdateTripPatch, AddCollaboratorInput, AddPackingItemInput } from "@/data/types";
@@ -56,7 +56,19 @@ export async function updateTripMetadata(tripId: string, patch: UpdateTripPatch)
 export async function deleteTrip(tripId: string) {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "owner");
+
+  const tripDocs = await db.select({ url: documents.url }).from(documents).where(eq(documents.tripId, tripId));
+
   await db.delete(trips).where(eq(trips.id, tripId));
+
+  const urlsToCleanup = tripDocs.map((d) => d.url).filter((u): u is string => !!u);
+  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    const { del } = await import("@vercel/blob");
+    await Promise.all(
+      urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
+    );
+  }
+
   revalidatePath("/trips");
 }
 

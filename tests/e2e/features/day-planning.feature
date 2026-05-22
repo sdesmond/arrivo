@@ -18,9 +18,9 @@ Feature: Day Planning
     When I open the time picker and set a start time
     Then the event should display the time
 
+  @reseed-day-delete
   Scenario: User deletes an event
-    Given a day has an event named "Event to Remove"
-    When I delete that event
+    When I delete the event named "Event to Remove"
     Then the day should not contain "Event to Remove"
 
   Scenario: User reorders events by dragging

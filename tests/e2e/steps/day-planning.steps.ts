@@ -1,4 +1,9 @@
 import { expect, type Page } from "@playwright/test";
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { and, eq } from "drizzle-orm";
+import { events, days, trips, users, itineraryNotes, itineraryChecklists } from "../../../src/db/schema";
+import { E2E_USER, E2E_EVENT_DELETE } from "../e2e-seed-data";
 import { Given, When, Then, Before, After } from "../fixtures";
 
 let lastEventName: string | undefined;
@@ -55,37 +60,57 @@ Before(async () => {
   lastChecklistId = undefined;
 });
 
-After(async ({ page }) => {
-  for (const rowId of [...createdEventIds]) {
-    const row = page.locator(`#${rowId}`);
-    if (await row.isVisible()) {
-      await row.hover();
-      await row.getByTitle("Delete event").click();
-      await expect(row).not.toBeVisible({ timeout: 5000 });
-    }
+Before({ tags: "@reseed-day-delete" }, async () => {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client);
+  try {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
+    if (!user) return;
+    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    if (!trip) return;
+    const [day1] = await db
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, trip.id), eq(days.dayNumber, 1)));
+    if (!day1) return;
+    await db.delete(events).where(and(eq(events.tripId, trip.id), eq(events.name, E2E_EVENT_DELETE.name)));
+    await db
+      .insert(events)
+      .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_DELETE.name, position: E2E_EVENT_DELETE.position });
+  } finally {
+    await client.end();
   }
-  for (const noteId of [...createdNoteIds]) {
-    const noteEl = page.locator(`#${noteId}`);
-    if (await noteEl.isVisible()) {
-      await noteEl.hover();
-      await noteEl.getByTitle("Delete note").click();
-      await expect(noteEl).not.toBeVisible({ timeout: 5000 });
-    }
-  }
-  for (const checklistId of [...createdChecklistIds]) {
-    const clEl = page.locator(`#${checklistId}`);
-    if (await clEl.isVisible()) {
-      await clEl.hover();
-      await clEl.getByTitle("Delete checklist").click();
-      await expect(clEl).not.toBeVisible({ timeout: 5000 });
-    }
-  }
+});
+
+After(async () => {
+  const eventUuids = createdEventIds.map((id) => id.replace(/^event-/, ""));
+  const noteUuids = createdNoteIds.map((id) => id.replace(/^note-/, ""));
+  const checklistUuids = createdChecklistIds.map((id) => id.replace(/^checklist-/, ""));
+
   createdEventIds = [];
   createdNoteIds = [];
   createdChecklistIds = [];
   lastChecklistId = undefined;
   lastEventName = undefined;
   eventIdByName = new Map();
+
+  if (eventUuids.length === 0 && noteUuids.length === 0 && checklistUuids.length === 0) return;
+
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client);
+  try {
+    for (const uuid of eventUuids) {
+      await db.delete(events).where(eq(events.id, uuid));
+    }
+    for (const uuid of noteUuids) {
+      await db.delete(itineraryNotes).where(eq(itineraryNotes.id, uuid));
+    }
+    for (const uuid of checklistUuids) {
+      await db.delete(itineraryChecklists).where(eq(itineraryChecklists.id, uuid));
+    }
+  } finally {
+    await client.end();
+  }
 });
 
 Given("I have an existing trip with days", async ({ page }) => {
@@ -158,11 +183,19 @@ When("I delete that event", async ({ page }) => {
   const row = id ? page.locator(`#${id}`) : page.locator('[id^="event-"]').filter({ hasText: lastEventName! }).first();
   await row.hover();
   await row.getByTitle("Delete event").click();
+  await row.waitFor({ state: "detached", timeout: 10000 });
   // Remove from tracking — deleted, no need for After cleanup
   if (id) {
     createdEventIds = createdEventIds.filter((eid) => eid !== id);
     eventIdByName.delete(lastEventName!);
   }
+});
+
+When("I delete the event named {string}", async ({ page }, name: string) => {
+  const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
+  await row.hover();
+  await row.getByTitle("Delete event").click();
+  await row.waitFor({ state: "detached", timeout: 10000 });
 });
 
 Then("the day should not contain {string}", async ({ page }, name: string) => {

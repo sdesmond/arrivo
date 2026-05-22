@@ -149,7 +149,19 @@ export async function deleteEvent(eventId: string) {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
+
+  const eventDocs = await db.select({ url: documents.url }).from(documents).where(eq(documents.eventId, eventId));
+
   await db.delete(events).where(eq(events.id, eventId));
+
+  const urlsToCleanup = eventDocs.map((d) => d.url).filter((u): u is string => !!u);
+  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    const { del } = await import("@vercel/blob");
+    await Promise.all(
+      urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
+    );
+  }
+
   revalidatePath(`/trips/${tripId}`);
 }
 

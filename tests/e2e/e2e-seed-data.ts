@@ -78,6 +78,13 @@ export const E2E_EVENT_MANAGE = {
   position: 3,
 };
 
+// Dedicated event for the "User deletes an event" day-planning scenario.
+// Reseeded before the test so it doesn't depend on createEvent being called first.
+export const E2E_EVENT_DELETE = {
+  name: "Event to Remove",
+  position: 9,
+};
+
 export const E2E_MANAGE_DOC = {
   name: "E2E Manage Doc",
   kind: "pdf",

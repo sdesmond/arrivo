@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-19
-last_updated: 2026-05-22  # stories 2.3 & 3.1 → done (merged in PR #20)
+last_updated: 2026-05-22  # stories 2.3 & 3.1 → done (merged in PR #20); 4-1 created & done
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -63,3 +63,7 @@ development_status:
   3-1-attach-an-existing-trip-document-to-an-event: done
   3-2-delete-an-event-with-attached-documents: done
   epic-3-retrospective: optional
+
+  # Epic 4: Bug Fixes & Deferred Work
+  epic-4: in-progress
+  4-1-fix-blob-cascade-leak: done
