@@ -4,7 +4,7 @@ story_key: "4-1-fix-blob-cascade-leak"
 epic: 4
 story: 1
 title: "Fix Blob Cascade Leak in deleteEvent and deleteTrip"
-status: "done"
+status: "ready-for-dev"
 created: "2026-05-22"
 ---
 
@@ -225,11 +225,20 @@ No new unit tests are required. Both action files live in `src/app/**`, which is
   - [x] Add `documents` to the schema import
   - [x] Fetch `{ url }` from `documents` where `tripId = tripId` before the delete
   - [x] Filter non-null URLs, run `del()` with `Promise.all` + per-URL catch, gated on `UPLOAD_STUB !== "true"`
-- [x] Task 3: Run `build-validator`; fix any issues
-- [x] Task 4: Run `npm run test:e2e`; confirm no regressions
+- [x] Task 3: Run `build-validator`; fix any issues — clean (lint/tsc/tests/build all pass)
+- [x] Task 4: Run `npm run test:e2e`; confirm no regressions — 45/45 passed
 
 ---
 
 ## Dev Agent Record
 
-_(populated during implementation)_
+### Implementation complete — 2026-05-22
+
+**Action changes (committed dd04285):**
+- `src/app/(app)/trips/[tripId]/actions.ts` — `deleteEvent` now pre-fetches doc URLs and calls `del()` post-cascade
+- `src/app/(app)/trips/actions.ts` — `deleteTrip` now pre-fetches doc URLs and calls `del()` post-cascade; `documents` added to schema import
+
+**E2E independence fixes (follow-up session):**
+- `tests/e2e/steps/trips.steps.ts` — added `tripNameMutated` flag + DB After hook: resets trip name to "E2E Test Trip" after the rename scenario so state never leaks to parallel workers
+- `tests/e2e/steps/common.steps.ts` — increased redirect assertion timeout from default 5 s to 15 s to handle bcrypt latency under parallel cold-start load
+- `tests/e2e/steps/day-planning.steps.ts` — drag target Y changed from `targetBox.y + 2` to `targetBox.y + Math.round(targetBox.height * 0.3)`; steps increased from 10 → 25 for more reliable dnd-kit collision detection

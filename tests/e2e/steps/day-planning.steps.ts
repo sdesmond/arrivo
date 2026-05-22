@@ -229,14 +229,14 @@ When("I drag {string} above {string}", async ({ page }, source: string, target: 
   const srcX = handleBox.x + handleBox.width / 2;
   const srcY = handleBox.y + handleBox.height / 2;
   const dstX = targetBox.x + targetBox.width / 2;
-  const dstY = targetBox.y + 2; // just above the target's center
+  const dstY = targetBox.y + Math.round(targetBox.height * 0.3);
 
   await page.mouse.move(srcX, srcY);
   await page.mouse.down();
   // Move past the 5px activation threshold
   await page.mouse.move(srcX, srcY + 7, { steps: 3 });
-  // Move to target position
-  await page.mouse.move(dstX, dstY, { steps: 10 });
+  // Move to target position with enough steps for dnd-kit collision detection
+  await page.mouse.move(dstX, dstY, { steps: 25 });
   await page.mouse.up();
 });
 

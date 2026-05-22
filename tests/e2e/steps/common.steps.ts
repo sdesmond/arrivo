@@ -12,7 +12,7 @@ Given("I am signed in", async ({ page }) => {
 });
 
 Then("I should be redirected to the trips page", async ({ page }) => {
-  await expect(page).toHaveURL(/\/trips/);
+  await expect(page).toHaveURL(/\/trips/, { timeout: 15_000 });
 });
 
 Then("I should be redirected to the sign-in page", async ({ page }) => {

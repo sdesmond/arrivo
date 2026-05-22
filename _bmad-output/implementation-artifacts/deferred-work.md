@@ -68,8 +68,7 @@ Story 1.1 ships an empty `TripDocsTab` rendered when the Documents tab is active
 
 Surfaced during step-04 review of `1-3-browse-and-delete-documents.md`. Real but out of scope for story 1.3.
 
-### Event/trip cascade leaks Vercel blobs
-Story 1.3 added `del(doc.url)` to `removeDocument` only. `deleteEvent` and the trip-level cascade in `src/db/schema.ts` wipe `documents` rows via SQL `ON DELETE CASCADE`, which cannot call the Blob API — every event or trip deletion silently orphans the attached blobs. Fix path: fetch attached documents before the cascade, iterate `del()` calls, then cascade. Apply to `removeEvent` and any trip-deletion path.
+### ~~Event/trip cascade leaks Vercel blobs~~ ✓ Fixed in Story 4.1 (2026-05-22)
 
 ### `removeDocument` silently returns on orphan rows
 `actions.ts:356-357` returns `undefined` when neither `tripId` nor `eventId` is set on a document row. Schema permits this state (`src/db/schema.ts` has no `.notNull()` and no CHECK constraint on either FK). Function does nothing — no log, no error — so the button is permanently dead for that row. Pre-existing; fix path: add a CHECK constraint requiring at least one FK, or log/throw on the orphan case.
