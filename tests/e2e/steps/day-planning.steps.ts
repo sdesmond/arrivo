@@ -3,8 +3,37 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
 import { events, days, trips, users, itineraryNotes, itineraryChecklists } from "../../../src/db/schema";
-import { E2E_USER, E2E_EVENT_DELETE } from "../e2e-seed-data";
+import {
+  E2E_USER,
+  E2E_EVENT_DELETE,
+  E2E_EVENT_UNTIMED,
+  E2E_EVENT_REORDER_FIRST,
+  E2E_EVENT_REORDER_SECOND,
+} from "../e2e-seed-data";
 import { Given, When, Then, Before, After } from "../fixtures";
+
+async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client);
+  try {
+    return await fn(db);
+  } finally {
+    await client.end();
+  }
+}
+
+async function getDay1Context(db: ReturnType<typeof drizzle>) {
+  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
+  if (!user) return null;
+  const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+  if (!trip) return null;
+  const [day1] = await db
+    .select({ id: days.id })
+    .from(days)
+    .where(and(eq(days.tripId, trip.id), eq(days.dayNumber, 1)));
+  if (!day1) return null;
+  return { tripId: trip.id, dayId: day1.id };
+}
 
 let lastEventName: string | undefined;
 let createdEventIds: string[] = [];
@@ -61,25 +90,44 @@ Before(async () => {
 });
 
 Before({ tags: "@reseed-day-delete" }, async () => {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-  try {
-    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
-    if (!user) return;
-    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
-    if (!trip) return;
-    const [day1] = await db
-      .select({ id: days.id })
-      .from(days)
-      .where(and(eq(days.tripId, trip.id), eq(days.dayNumber, 1)));
-    if (!day1) return;
-    await db.delete(events).where(and(eq(events.tripId, trip.id), eq(events.name, E2E_EVENT_DELETE.name)));
-    await db
-      .insert(events)
-      .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_DELETE.name, position: E2E_EVENT_DELETE.position });
-  } finally {
-    await client.end();
-  }
+  await withE2EDb(async (db) => {
+    const ctx = await getDay1Context(db);
+    if (!ctx) return;
+    await db.delete(events).where(and(eq(events.tripId, ctx.tripId), eq(events.name, E2E_EVENT_DELETE.name)));
+    await db.insert(events).values({
+      dayId: ctx.dayId,
+      tripId: ctx.tripId,
+      name: E2E_EVENT_DELETE.name,
+      position: E2E_EVENT_DELETE.position,
+    });
+  });
+});
+
+Before({ tags: "@seed-untimed-event" }, async () => {
+  await withE2EDb(async (db) => {
+    const ctx = await getDay1Context(db);
+    if (!ctx) return;
+    await db.delete(events).where(and(eq(events.tripId, ctx.tripId), eq(events.name, E2E_EVENT_UNTIMED.name)));
+    await db.insert(events).values({
+      dayId: ctx.dayId,
+      tripId: ctx.tripId,
+      name: E2E_EVENT_UNTIMED.name,
+      position: E2E_EVENT_UNTIMED.position,
+    });
+  });
+});
+
+Before({ tags: "@seed-reorder-events" }, async () => {
+  await withE2EDb(async (db) => {
+    const ctx = await getDay1Context(db);
+    if (!ctx) return;
+    for (const seed of [E2E_EVENT_REORDER_FIRST, E2E_EVENT_REORDER_SECOND]) {
+      await db.delete(events).where(and(eq(events.tripId, ctx.tripId), eq(events.name, seed.name)));
+      await db
+        .insert(events)
+        .values({ dayId: ctx.dayId, tripId: ctx.tripId, name: seed.name, position: seed.position });
+    }
+  });
 });
 
 After(async () => {
@@ -157,9 +205,15 @@ Then("the day should show {string}", async ({ page }, name: string) => {
 });
 
 Given("a day has an event without a time", async ({ page }) => {
-  const name = "Untimed Event";
+  // Event is seeded directly in the DB via the @seed-untimed-event Before hook,
+  // so the page rendered by the Background already contains it. Looking it up
+  // here avoids racing the create-event server action against the time-picker flow.
+  const name = E2E_EVENT_UNTIMED.name;
   lastEventName = name;
-  await addEvent(page, name);
+  const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
+  await expect(row).toBeVisible();
+  const rowId = await row.getAttribute("id");
+  if (rowId) eventIdByName.set(name, rowId);
 });
 
 When("I open the time picker and set a start time", async ({ page }) => {
@@ -203,8 +257,16 @@ Then("the day should not contain {string}", async ({ page }, name: string) => {
 });
 
 Given("a day has events {string} and {string} in order", async ({ page }, first: string, second: string) => {
-  await addEvent(page, first);
-  await addEvent(page, second);
+  // Events are seeded at fixed positions in the DB via the @seed-reorder-events
+  // Before hook, so the Background's navigation already rendered them in order.
+  // Looking them up here avoids racing two create-event server actions before
+  // the drag operation begins.
+  for (const name of [first, second]) {
+    const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
+    await expect(row).toBeVisible();
+    const rowId = await row.getAttribute("id");
+    if (rowId) eventIdByName.set(name, rowId);
+  }
 });
 
 When("I drag {string} above {string}", async ({ page }, source: string, target: string) => {

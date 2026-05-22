@@ -85,6 +85,29 @@ export const E2E_EVENT_DELETE = {
   position: 9,
 };
 
+// Dedicated event for the "User sets a time on an event" scenario.
+// Reseeded before the test (with null startAt/endAt) so the test only exercises
+// the time-picker flow — not the create-event + chained server-action revalidation
+// race that previously caused intermittent failures.
+export const E2E_EVENT_UNTIMED = {
+  name: "Untimed Event",
+  position: 10,
+};
+
+// Dedicated events for the "User reorders events by dragging" scenario.
+// Reseeded at fixed positions so the test starts from a known order regardless
+// of prior reorders, and doesn't depend on UI-driven event creation racing
+// against revalidation before the drag begins.
+export const E2E_EVENT_REORDER_FIRST = {
+  name: "Drag First",
+  position: 11,
+};
+
+export const E2E_EVENT_REORDER_SECOND = {
+  name: "Drag Second",
+  position: 12,
+};
+
 export const E2E_MANAGE_DOC = {
   name: "E2E Manage Doc",
   kind: "pdf",
