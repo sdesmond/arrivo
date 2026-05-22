@@ -1,12 +1,14 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
 import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
-import { MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { cn, MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 export interface TripDocsTabProps {
   tripId: string;
@@ -49,133 +51,125 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
 
   return (
     <div>
-      <div className="flex items-center mb-3">
-        {docs.length > 0 && (
-          <button
-            onClick={handleSaveOffline}
-            disabled={isSavingOffline}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "5px 10px",
-              minHeight: 44,
-              minWidth: 44,
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--line)",
-              background: "var(--surface)",
-              color: "var(--fg)",
-              fontFamily: "var(--font-body, ui-sans-serif)",
-              fontSize: "calc(12px * var(--font-scale))",
-              fontWeight: 500,
-              cursor: isSavingOffline ? "wait" : "pointer",
-              opacity: isSavingOffline ? 0.5 : 1,
-            }}
-          >
-            Save offline
-          </button>
-        )}
-        <input
-          id="doc-upload"
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
-          style={{
-            position: "absolute",
-            width: 1,
-            height: 1,
-            padding: 0,
-            margin: -1,
-            overflow: "hidden",
-            clip: "rect(0,0,0,0)",
-            whiteSpace: "nowrap",
-            border: 0,
-          }}
-          onChange={handleFileChange}
-        />
-        <label
-          htmlFor="doc-upload"
-          title="Add document"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "5px 10px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--line)",
-            background: "var(--surface)",
-            color: "var(--fg)",
-            fontFamily: "var(--font-body, ui-sans-serif)",
-            fontSize: "calc(12px * var(--font-scale))",
-            fontWeight: 500,
-            cursor: isPending ? "wait" : "pointer",
-            opacity: isPending ? 0.5 : 1,
-            marginLeft: "auto",
-          }}
-        >
-          <Plus size={13} strokeWidth={1.5} />
-          Add
-        </label>
-      </div>
-
-      <div
+      <input
+        id="doc-upload"
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
         style={{
-          textAlign: "right",
-          fontSize: "calc(11px * var(--font-scale))",
-          color: "var(--fg-2)",
-          marginBottom: 8,
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0,0,0,0)",
+          whiteSpace: "nowrap",
+          border: 0,
         }}
-      >
-        PDF, JPG, PNG, WEBP, HEIC · max 25 MB
-      </div>
-
-      <div style={{ position: "relative", marginBottom: 12 }}>
-        <label
-          htmlFor="doc-search"
-          style={{
-            position: "absolute",
-            width: 1,
-            height: 1,
-            padding: 0,
-            margin: -1,
-            overflow: "hidden",
-            clip: "rect(0,0,0,0)",
-            whiteSpace: "nowrap",
-            border: 0,
-          }}
-        >
-          Search documents
-        </label>
-        <input
-          id="doc-search"
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search"
-          style={{
-            width: "100%",
-            padding: "5px 8px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--line)",
-            background: "var(--surface)",
-            color: "var(--fg)",
-            fontFamily: "var(--font-body, ui-sans-serif)",
-            fontSize: "calc(12px * var(--font-scale))",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>
+        onChange={handleFileChange}
+      />
 
       {docs.length === 0 ? (
-        <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
-          Add your first trip document — boarding passes, insurance, visas, and more.
-        </div>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FileText strokeWidth={1.5} />
+            </EmptyMedia>
+            <EmptyTitle>No documents yet</EmptyTitle>
+            <EmptyDescription>
+              Add your first trip document — boarding passes, insurance, visas, and more.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <label
+              htmlFor="doc-upload"
+              title="Add document"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+              style={{ cursor: isPending ? "wait" : "pointer", opacity: isPending ? 0.5 : undefined }}
+            >
+              <Plus strokeWidth={1.5} />
+              Add document
+            </label>
+            <div
+              style={{
+                fontSize: "calc(11px * var(--font-scale))",
+                color: "var(--fg-2)",
+                marginTop: 8,
+              }}
+            >
+              PDF, JPG, PNG, WEBP, HEIC · max 25 MB
+            </div>
+          </EmptyContent>
+        </Empty>
       ) : (
-        <div>
-          {visible.map((doc) => (
-            <DocRow key={doc.id} doc={doc} />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center mb-3">
+            <Button variant="outline" size="sm" onClick={handleSaveOffline} disabled={isSavingOffline}>
+              Save offline
+            </Button>
+            <label
+              htmlFor="doc-upload"
+              title="Add document"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "ml-auto")}
+              style={{ cursor: isPending ? "wait" : "pointer", opacity: isPending ? 0.5 : undefined }}
+            >
+              <Plus strokeWidth={1.5} />
+              Add
+            </label>
+          </div>
+          <div
+            style={{
+              textAlign: "right",
+              fontSize: "calc(11px * var(--font-scale))",
+              color: "var(--fg-2)",
+              marginBottom: 8,
+            }}
+          >
+            PDF, JPG, PNG, WEBP, HEIC · max 25 MB
+          </div>
+          <div style={{ position: "relative", marginBottom: 12 }}>
+            <label
+              htmlFor="doc-search"
+              style={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                padding: 0,
+                margin: -1,
+                overflow: "hidden",
+                clip: "rect(0,0,0,0)",
+                whiteSpace: "nowrap",
+                border: 0,
+              }}
+            >
+              Search documents
+            </label>
+            <input
+              id="doc-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              style={{
+                width: "100%",
+                padding: "5px 8px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--line)",
+                background: "var(--surface)",
+                color: "var(--fg)",
+                fontFamily: "var(--font-body, ui-sans-serif)",
+                fontSize: "calc(12px * var(--font-scale))",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div>
+            {visible.map((doc) => (
+              <DocRow key={doc.id} doc={doc} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

@@ -40,6 +40,7 @@ describe("TripDocsTab", () => {
     expect(
       screen.getByText("Add your first trip document — boarding passes, insurance, visas, and more.")
     ).toBeInTheDocument();
+    expect(screen.getByText("No documents yet")).toBeInTheDocument();
   });
 
   it("does not render empty state when docs are present", () => {
@@ -47,6 +48,7 @@ describe("TripDocsTab", () => {
     expect(
       screen.queryByText("Add your first trip document — boarding passes, insurance, visas, and more.")
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("No documents yet")).not.toBeInTheDocument();
   });
 
   it("renders a DocRow for each document", () => {
@@ -56,7 +58,7 @@ describe("TripDocsTab", () => {
 
   it("renders the Add label with visible text", () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
-    expect(screen.getByText("Add")).toBeInTheDocument();
+    expect(screen.getByText("Add document")).toBeInTheDocument();
   });
 
   it("file input accepts the correct file types", () => {
@@ -67,7 +69,7 @@ describe("TripDocsTab", () => {
 
   it("file input is associated with the label via htmlFor", () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
-    const label = screen.getByText("Add").closest("label");
+    const label = screen.getByText("Add document").closest("label");
     expect(label).toHaveAttribute("for", "doc-upload");
   });
 

@@ -1,6 +1,9 @@
 "use client";
 
+import { CalendarDays, MapPin, FileText, ListChecks } from "lucide-react";
 import { DayCard } from "@/components/packt/day-card";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { type DayItinerary, type TripEvent, type DayItemType, type Document } from "@/data/types";
 
 export interface TripItineraryViewProps {
@@ -47,7 +50,28 @@ export function TripItineraryView({
   onToggleChecklistItem,
 }: TripItineraryViewProps) {
   if (days.length === 0) {
-    return <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>No itinerary yet.</div>;
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CalendarDays strokeWidth={1.5} />
+          </EmptyMedia>
+          <EmptyTitle>No itinerary yet</EmptyTitle>
+          <EmptyDescription>Start building your plan — add events, notes, or checklists.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="outline" onClick={() => onAddEvent(1, "")} title="Add event">
+            <MapPin strokeWidth={1.5} /> Add event
+          </Button>
+          <Button variant="outline" onClick={() => onAddNote(1, "")} title="Add note">
+            <FileText strokeWidth={1.5} /> Add note
+          </Button>
+          <Button variant="outline" onClick={() => onAddChecklist(1, 0)} title="Add checklist">
+            <ListChecks strokeWidth={1.5} /> Add checklist
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
   }
 
   return (
