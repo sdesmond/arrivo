@@ -73,6 +73,7 @@ export function getTripDays(startDate: string, endDate: string): number {
 
 export function toHHMM(iso: string): string {
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 

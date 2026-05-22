@@ -44,8 +44,8 @@ const activeTrip: Trip = {
 };
 
 const todayEvents: TripEvent[] = [
-  { id: "ev-1", name: "Museum Visit", startAt: "2026-05-13T10:00:00Z" },
-  { id: "ev-2", name: "Dinner", startAt: "2026-05-13T19:00:00Z" },
+  { id: "ev-1", name: "Museum Visit", startAt: "2026-05-13T10:00:00Z", position: 0 },
+  { id: "ev-2", name: "Dinner", startAt: "2026-05-13T19:00:00Z", position: 1 },
 ];
 
 const upcomingTrip: Trip = {

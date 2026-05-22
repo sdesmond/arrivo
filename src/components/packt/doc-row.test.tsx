@@ -306,6 +306,21 @@ describe("DocRow", () => {
     expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
   });
 
+  it("DocViewer is not in the DOM when viewerOpen is false (initial state)", () => {
+    render(<DocRow doc={makeDoc()} />);
+    expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
+  });
+
+  it("focus returns to the view button after the DocViewer is closed", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    const viewBtn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
+    await user.click(viewBtn);
+    expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
+    await user.click(screen.getByTestId("doc-viewer-close"));
+    expect(viewBtn).toHaveFocus();
+  });
+
   describe("share button", () => {
     it("renders a share button with correct title and aria-label", () => {
       render(<DocRow doc={makeDoc()} />);

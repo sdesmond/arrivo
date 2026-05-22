@@ -87,6 +87,7 @@ const place: TripEvent = {
   id: "ev-1",
   name: "Museum",
   docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf", scope: "event", offline: false }],
+  position: 0,
 };
 
 const defaultProps = {

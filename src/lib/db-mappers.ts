@@ -63,6 +63,9 @@ export function dbEventToType(row: typeof events.$inferSelect): TripEvent {
 }
 
 export function dbDocToType(row: typeof documents.$inferSelect): Document {
+  if (!row.tripId && !row.eventId) {
+    throw new Error(`Orphan document id=${row.id}: both tripId and eventId are null`);
+  }
   return {
     id: row.id,
     name: row.name,

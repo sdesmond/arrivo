@@ -37,7 +37,7 @@ const activeTrip: Trip = {
   endDate: "2026-05-20",
 };
 
-const events: TripEvent[] = [{ id: "ev-1", name: "Museum Visit", startAt: "2026-05-13T10:00:00Z" }];
+const events: TripEvent[] = [{ id: "ev-1", name: "Museum Visit", startAt: "2026-05-13T10:00:00Z", position: 0 }];
 
 const upcomingTrips: Trip[] = [
   {
@@ -91,7 +91,7 @@ describe("MobileActiveTab", () => {
   });
 
   it("renders event without startAt gracefully", () => {
-    const eventNoTime: TripEvent = { id: "ev-x", name: "Unscheduled Visit" };
+    const eventNoTime: TripEvent = { id: "ev-x", name: "Unscheduled Visit", position: 0 };
     render(<MobileActiveTab trip={activeTrip} todayEvents={[eventNoTime]} now={NOW} />);
     expect(screen.getByText("Unscheduled Visit")).toBeInTheDocument();
   });
@@ -101,6 +101,7 @@ describe("MobileActiveTab", () => {
       id: "ev-f",
       name: "Late Dinner",
       startAt: "2026-05-13T20:00:00Z",
+      position: 0,
     };
     render(<MobileActiveTab trip={activeTrip} todayEvents={[futureEvent]} now={NOW} />);
     expect(screen.getByText("Next Event")).toBeInTheDocument();

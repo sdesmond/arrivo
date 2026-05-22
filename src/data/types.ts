@@ -229,7 +229,7 @@ export interface TripEvent {
   // ── Attached documents ────────────────────────────────────────────────────
   docs?: Document[];
 
-  position?: number;
+  position: number;
   createdAt?: string;
   updatedAt?: string;
 }

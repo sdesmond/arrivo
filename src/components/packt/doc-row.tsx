@@ -233,7 +233,16 @@ export function DocRow({ doc }: DocRowProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <DocViewer doc={doc} open={viewerOpen} onClose={() => setViewerOpen(false)} finalFocusRef={viewButtonRef} />
+      {viewerOpen && (
+        <DocViewer
+          doc={doc}
+          open={true}
+          onClose={() => {
+            setViewerOpen(false);
+            viewButtonRef.current?.focus();
+          }}
+        />
+      )}
     </div>
   );
 }
