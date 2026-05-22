@@ -13,6 +13,7 @@ Feature: Day Planning
     When I edit the event name to "New Event Name"
     Then the day should show "New Event Name"
 
+  @seed-untimed-event
   Scenario: User sets a time on an event
     Given a day has an event without a time
     When I open the time picker and set a start time
@@ -23,10 +24,11 @@ Feature: Day Planning
     When I delete the event named "Event to Remove"
     Then the day should not contain "Event to Remove"
 
+  @seed-reorder-events
   Scenario: User reorders events by dragging
-    Given a day has events "First" and "Second" in order
-    When I drag "Second" above "First"
-    Then the order should be "Second" then "First"
+    Given a day has events "Drag First" and "Drag Second" in order
+    When I drag "Drag Second" above "Drag First"
+    Then the order should be "Drag Second" then "Drag First"
 
   Scenario: User adds, edits, and deletes a note
     Given I am on the trip detail page

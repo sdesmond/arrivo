@@ -205,6 +205,14 @@ describe("toHHMM", () => {
     expect(hh).toHaveLength(2);
     expect(mm).toHaveLength(2);
   });
+
+  it("returns empty string for an invalid date string", () => {
+    expect(toHHMM("not-a-date")).toBe("");
+  });
+
+  it("returns empty string for an empty string", () => {
+    expect(toHHMM("")).toBe("");
+  });
 });
 
 describe("inferDocKind", () => {

@@ -189,6 +189,12 @@ const BASE_DOC: DocRow = {
 };
 
 describe("dbDocToType", () => {
+  it("throws for an orphan document (both tripId and eventId are null)", () => {
+    expect(() => dbDocToType({ ...BASE_DOC, tripId: null, eventId: null })).toThrow(
+      "Orphan document id=doc-1: both tripId and eventId are null"
+    );
+  });
+
   it("maps core fields correctly", () => {
     const result = dbDocToType(BASE_DOC);
     expect(result.id).toBe("doc-1");

@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
 import { eq, and, max, gte, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { del, put } from "@vercel/blob";
 import { inferDocKind, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/utils";
 import type {
   CreateEventInput,
@@ -156,7 +157,6 @@ export async function deleteEvent(eventId: string) {
 
   const urlsToCleanup = eventDocs.map((d) => d.url).filter((u): u is string => !!u);
   if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
-    const { del } = await import("@vercel/blob");
     await Promise.all(
       urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
     );
@@ -184,7 +184,6 @@ export async function deleteEventWithDocDecision(eventId: string, keepDocs: bool
   });
 
   if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
-    const { del } = await import("@vercel/blob");
     await Promise.all(
       urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
     );
@@ -254,7 +253,6 @@ export async function uploadDocument(tripId: string, formData: FormData) {
     await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
     url = `/uploads/${encodeURIComponent(uniqueName)}`;
   } else {
-    const { put } = await import("@vercel/blob");
     const result = await put(name, file, { access: "public" });
     url = result.url;
   }
@@ -408,7 +406,6 @@ export async function removeDocument(docId: string) {
   await assertTripAccess(tripId, user.id!, "editor");
   if (doc.url && process.env.UPLOAD_STUB !== "true") {
     try {
-      const { del } = await import("@vercel/blob");
       await del(doc.url);
     } catch (err) {
       console.warn(`Blob cleanup failed for doc ${docId} (${doc.url}); continuing with DB delete`, err);
@@ -484,7 +481,6 @@ export async function uploadDocumentToEvent(eventId: string, formData: FormData)
     await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
     url = `/uploads/${encodeURIComponent(uniqueName)}`;
   } else {
-    const { put } = await import("@vercel/blob");
     const result = await put(name, file, { access: "public" });
     url = result.url;
   }

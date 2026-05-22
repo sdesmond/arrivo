@@ -117,6 +117,7 @@ const basePlace: TripEvent = {
   name: "Tokyo Tower",
   startAt: "2026-05-13T10:00:00Z",
   endAt: "2026-05-13T11:00:00Z",
+  position: 0,
 };
 
 describe("PlaceRow", () => {
@@ -140,7 +141,7 @@ describe("PlaceRow", () => {
   });
 
   it("shows 'Add time' when no startAt", () => {
-    const place: TripEvent = { id: "ev-2", name: "Free Time" };
+    const place: TripEvent = { id: "ev-2", name: "Free Time", position: 1 };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.getByRole("button", { name: /add time/i })).toBeInTheDocument();
   });
@@ -516,7 +517,7 @@ describe("PlaceRow", () => {
   });
 
   it("renders with only startAt (no endAt) — single-time label", () => {
-    const place: TripEvent = { id: "ev-3", name: "Solo Event", startAt: "2026-05-13T14:00:00Z" };
+    const place: TripEvent = { id: "ev-3", name: "Solo Event", startAt: "2026-05-13T14:00:00Z", position: 0 };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     const allButtons = screen.getAllByRole("button");
     const timeBtn = allButtons.find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""));
@@ -542,7 +543,7 @@ describe("PlaceRow", () => {
   // ── isDraft mode ──────────────────────────────────────────────────────────
 
   it("isDraft renders name input focused with empty placeholder", () => {
-    const draftPlace: TripEvent = { id: "draft", name: "" };
+    const draftPlace: TripEvent = { id: "draft", name: "", position: 0 };
     render(
       <PlaceRow
         place={draftPlace}
@@ -561,7 +562,7 @@ describe("PlaceRow", () => {
     const user = userEvent.setup();
     const onCreate = vi.fn();
     const onUpdate = vi.fn();
-    const draftPlace: TripEvent = { id: "draft", name: "" };
+    const draftPlace: TripEvent = { id: "draft", name: "", position: 0 };
     render(
       <PlaceRow
         place={draftPlace}
@@ -583,7 +584,7 @@ describe("PlaceRow", () => {
   it("isDraft Escape calls onCancelDraft", async () => {
     const user = userEvent.setup();
     const onCancelDraft = vi.fn();
-    const draftPlace: TripEvent = { id: "draft", name: "" };
+    const draftPlace: TripEvent = { id: "draft", name: "", position: 0 };
     render(
       <PlaceRow
         place={draftPlace}
@@ -601,7 +602,7 @@ describe("PlaceRow", () => {
 
   it("isDraft blur with empty content calls onCancelDraft", () => {
     const onCancelDraft = vi.fn();
-    const draftPlace: TripEvent = { id: "draft", name: "" };
+    const draftPlace: TripEvent = { id: "draft", name: "", position: 0 };
     render(
       <PlaceRow
         place={draftPlace}
@@ -620,7 +621,7 @@ describe("PlaceRow", () => {
   it("isDraft blur with content calls onCreate", async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn();
-    const draftPlace: TripEvent = { id: "draft", name: "" };
+    const draftPlace: TripEvent = { id: "draft", name: "", position: 0 };
     render(
       <PlaceRow
         place={draftPlace}

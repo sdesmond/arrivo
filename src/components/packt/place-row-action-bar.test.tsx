@@ -8,6 +8,7 @@ import type { TripEvent } from "@/data/types";
 const basePlace: TripEvent = {
   id: "ev-1",
   name: "Tokyo Tower",
+  position: 0,
 };
 
 const defaultProps = {
@@ -101,5 +102,38 @@ describe("PlaceRowActionBar", () => {
     render(<PlaceRowActionBar {...defaultProps} place={place} onToggleDocs={onToggleDocs} />);
     await user.click(screen.getByRole("button", { name: /1 doc/i }));
     expect(onToggleDocs).toHaveBeenCalledOnce();
+  });
+
+  it("docs toggle has aria-expanded=false when showDocs is false", () => {
+    const place: TripEvent = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+    };
+    render(<PlaceRowActionBar {...defaultProps} place={place} showDocs={false} />);
+    expect(screen.getByRole("button", { name: /1 doc/i })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("docs toggle has aria-expanded=true when showDocs is true", () => {
+    const place: TripEvent = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+    };
+    render(<PlaceRowActionBar {...defaultProps} place={place} showDocs={true} />);
+    expect(screen.getByRole("button", { name: /1 doc/i })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("docs toggle has title 'Show attached documents'", () => {
+    const place: TripEvent = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+    };
+    render(<PlaceRowActionBar {...defaultProps} place={place} />);
+    expect(screen.getByRole("button", { name: /1 doc/i })).toHaveAttribute("title", "Show attached documents");
+  });
+
+  it("cost displays formatted value with comma separators", () => {
+    const place: TripEvent = { ...basePlace, cost: 1234567.89 };
+    render(<PlaceRowActionBar {...defaultProps} place={place} />);
+    expect(screen.getByText("1,234,567.89")).toBeInTheDocument();
   });
 });

@@ -124,7 +124,7 @@ export function DayCard({
   const checklists = d.checklists ?? [];
 
   const propTimelineItems: TimelineItem[] = [
-    ...allEvents.map((e, i) => ({ kind: "event" as const, data: e, position: e.position ?? i })),
+    ...allEvents.map((e) => ({ kind: "event" as const, data: e, position: e.position })),
     ...notes.map((n) => ({ kind: "note" as const, data: n, position: n.position })),
     ...checklists.map((c) => ({ kind: "checklist" as const, data: c, position: c.position })),
   ].sort((a, b) => a.position - b.position);
@@ -296,7 +296,7 @@ export function DayCard({
                         />
                       ) : (
                         <PlaceRow
-                          place={{ id: "draft", name: "" }}
+                          place={{ id: "draft", name: "", position: 0 }}
                           dayDate={d.date}
                           isDraft
                           onCreate={commitDraft}

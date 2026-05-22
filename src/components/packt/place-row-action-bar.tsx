@@ -4,8 +4,10 @@ import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "luc
 import type { TripEvent } from "@/data/types";
 import { toHHMM } from "@/lib/utils";
 
-function formatTime(t: string) {
+function formatTime(t: string): string {
+  if (!t) return "—";
   const [h, m] = t.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return "—";
   const suffix = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
@@ -84,13 +86,17 @@ export function PlaceRowActionBar({
         }}
       >
         <DollarSign size={11} strokeWidth={1.5} />
-        {p.cost !== undefined ? p.cost.toFixed(2) : "Add cost"}
+        {p.cost !== undefined
+          ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(p.cost)
+          : "Add cost"}
       </button>
 
       {/* Docs toggle */}
       {hasDocs && (
         <button
           onClick={onToggleDocs}
+          aria-expanded={showDocs}
+          title="Show attached documents"
           className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(11px * var(--font-scale))",

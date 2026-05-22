@@ -40,6 +40,7 @@ const baseEvent: TripEvent = {
   name: "Lunch at Cafe",
   startAt: "2026-05-13T10:00:00Z",
   endAt: "2026-05-13T13:00:00Z",
+  position: 0,
 };
 
 describe("EventChip", () => {
@@ -75,7 +76,7 @@ describe("EventChip", () => {
 
   it("renders no time string when startAt is absent", () => {
     const now = new Date("2026-05-13T09:00:00Z");
-    const ev: TripEvent = { id: "ev-2", name: "Free time" };
+    const ev: TripEvent = { id: "ev-2", name: "Free time", position: 0 };
     render(<EventChip ev={ev} tripId={TRIP_ID} now={now} />);
     expect(screen.getByText("Free time")).toBeInTheDocument();
   });

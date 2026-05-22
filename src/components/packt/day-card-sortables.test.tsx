@@ -46,7 +46,7 @@ beforeEach(() => {
 
 describe("day-card-sortables", () => {
   it("passes animateLayoutChanges that always returns false to useSortable", () => {
-    render(<SortablePlaceRow place={{ id: "ev-x", name: "X" }} onUpdate={vi.fn()} onDelete={vi.fn()} />);
+    render(<SortablePlaceRow place={{ id: "ev-x", name: "X", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />);
     render(<SortableNoteItem note={{ id: "n-x", content: "", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />);
     render(<SortableChecklistItem checklist={{ id: "cl-x", tripDayId: "d", position: 0, items: [] }} />);
     expect(sortableCalls).toHaveLength(3);
@@ -60,7 +60,7 @@ describe("day-card-sortables", () => {
     it("renders the wrapping div at opacity 0 when isDragging is true", () => {
       isDraggingById["ev-1"] = true;
       const { container } = render(
-        <SortablePlaceRow place={{ id: "ev-1", name: "Museum" }} onUpdate={vi.fn()} onDelete={vi.fn()} />
+        <SortablePlaceRow place={{ id: "ev-1", name: "Museum", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />
       );
       const wrapper = container.firstElementChild as HTMLElement;
       expect(wrapper.style.opacity).toBe("0");
@@ -68,7 +68,7 @@ describe("day-card-sortables", () => {
 
     it("renders the wrapping div at opacity 1 when isDragging is false", () => {
       const { container } = render(
-        <SortablePlaceRow place={{ id: "ev-2", name: "Park" }} onUpdate={vi.fn()} onDelete={vi.fn()} />
+        <SortablePlaceRow place={{ id: "ev-2", name: "Park", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />
       );
       const wrapper = container.firstElementChild as HTMLElement;
       expect(wrapper.style.opacity).toBe("1");
@@ -76,7 +76,7 @@ describe("day-card-sortables", () => {
 
     it("renders the wrapped PlaceRow", () => {
       const { getByTestId } = render(
-        <SortablePlaceRow place={{ id: "ev-3", name: "Cafe" }} onUpdate={vi.fn()} onDelete={vi.fn()} />
+        <SortablePlaceRow place={{ id: "ev-3", name: "Cafe", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />
       );
       expect(getByTestId("place-row-ev-3")).toBeInTheDocument();
     });
