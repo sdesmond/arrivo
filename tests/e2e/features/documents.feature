@@ -23,10 +23,11 @@ Feature: Document Upload
     Then the document "boarding-pass.pdf" appears in the Documents list
 
   Scenario: Rename a document from the Documents tab
-    Given the document "boarding-pass.pdf" is in the Documents tab
-    When I rename the document "boarding-pass.pdf" to "My Boarding Pass"
+    When I upload a file named "rename-me.pdf" with MIME type "application/pdf"
+    Then the document "rename-me.pdf" appears in the Documents list
+    When I rename the document "rename-me.pdf" to "My Boarding Pass"
     Then the document "My Boarding Pass" appears in the Documents list
-    And the document "boarding-pass.pdf" is no longer visible
+    And the document "rename-me.pdf" is no longer visible
 
   Scenario: View a document in the in-app viewer
     When I upload a file named "view-test.pdf" with MIME type "application/pdf"

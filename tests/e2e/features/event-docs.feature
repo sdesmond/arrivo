@@ -4,31 +4,35 @@ Feature: Event Document Integration
     Given I am signed in
     And I have an existing trip
 
+  @reseed-pick-list
   Scenario: Pick list appears when attaching a doc to an event
     Given I am on the Itinerary tab
     And I expand Day 1
     When I click the Attach button on "E2E Event"
-    Then the pick list panel shows "E2E Boarding Pass"
+    Then the pick list panel shows "E2E Pick Doc"
 
+  @reseed-pick-list
   Scenario: Upload new instead switches to file upload panel
     Given I am on the Itinerary tab
     And I expand Day 1
     When I click the Attach button on "E2E Event"
-    Then the pick list panel shows "E2E Boarding Pass"
+    Then the pick list panel shows "E2E Pick Doc"
     When I click "Upload new instead"
     Then the upload panel is shown with the Attach button
 
+  @reseed-pick-list
   Scenario: Selecting a doc from pick list attaches it and closes the dialog
     Given I am on the Itinerary tab
     And I expand Day 1
     When I click the Attach button on "E2E Event"
-    And I select "E2E Boarding Pass" from the pick list
+    And I select "E2E Pick Doc" from the pick list
     Then the AddDocDialog is closed
 
   # Story 3.2: Delete event with attached documents
 
   # Event doc management: view, rename, promote
 
+  @reseed-manage-event
   Scenario: View an event-attached document in the in-app viewer
     Given I am on the Itinerary tab
     And I expand Day 1
@@ -38,6 +42,7 @@ Feature: Event Document Integration
     When I close the document viewer
     Then the document viewer is closed
 
+  @reseed-manage-event
   Scenario: Rename an event-attached document
     Given I am on the Itinerary tab
     And I expand Day 1

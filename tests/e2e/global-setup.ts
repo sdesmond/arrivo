@@ -20,6 +20,7 @@ import {
   E2E_LOYALTY_NUMBER,
   E2E_COMPANION,
   E2E_DOCUMENT,
+  E2E_PICK_DOC,
   E2E_EVENT,
   E2E_EVENT_KEEP,
   E2E_EVENT_ERASE,
@@ -72,6 +73,13 @@ export default async function globalSetup() {
   await db.insert(documents).values({
     tripId: trip.id,
     ...E2E_DOCUMENT,
+  });
+
+  // Seed dedicated pick-list document — isolated from E2E_DOCUMENT so
+  // pick-list scenarios can attach/reset it without affecting Documents-tab tests.
+  await db.insert(documents).values({
+    tripId: trip.id,
+    ...E2E_PICK_DOC,
   });
 
   // Seed an event on Day 1 for event-doc integration tests

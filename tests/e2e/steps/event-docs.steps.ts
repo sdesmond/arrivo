@@ -6,6 +6,7 @@ import { Before, Given, When, Then } from "../fixtures";
 import { documents, events, days, trips, users } from "../../../src/db/schema";
 import {
   E2E_USER,
+  E2E_PICK_DOC,
   E2E_EVENT_KEEP,
   E2E_EVENT_ERASE,
   E2E_KEEP_DOC,
@@ -48,6 +49,26 @@ Before({ tags: "@reseed-delete-events" }, async () => {
 
     await db.insert(documents).values({ tripId: trip.id, eventId: eKeep.id, ...E2E_KEEP_DOC });
     await db.insert(documents).values({ tripId: trip.id, eventId: eErase.id, ...E2E_ERASE_DOC });
+  } finally {
+    await client.end();
+  }
+});
+
+// Resets E2E Pick Doc to trip-level (eventId = null) before each pick-list scenario.
+// E2E_PICK_DOC is a dedicated document for pick-list tests; E2E_DOCUMENT ("E2E Boarding Pass")
+// is never mutated by pick-list scenarios, keeping Documents-tab tests race-free in parallel runs.
+Before({ tags: "@reseed-pick-list" }, async () => {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client);
+  try {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
+    if (!user) return;
+    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    if (!trip) return;
+    await db
+      .update(documents)
+      .set({ eventId: null })
+      .where(and(eq(documents.tripId, trip.id), eq(documents.name, E2E_PICK_DOC.name)));
   } finally {
     await client.end();
   }

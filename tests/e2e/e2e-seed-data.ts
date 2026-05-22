@@ -35,6 +35,15 @@ export const E2E_DOCUMENT = {
   url: "https://example.com/boarding-pass.pdf",
 };
 
+// Dedicated document for pick-list tests — keeps "E2E Boarding Pass" read-only
+// so documents.feature and event-docs.feature can run in parallel without races.
+export const E2E_PICK_DOC = {
+  name: "E2E Pick Doc",
+  kind: "pdf",
+  size: "0.5 MB",
+  url: "https://example.com/pick-doc.pdf",
+};
+
 export const E2E_EVENT = {
   name: "E2E Event",
   position: 0,
