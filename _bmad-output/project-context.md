@@ -1,10 +1,10 @@
 ---
 project_name: 'Packt'
 user_name: 'Spencer'
-date: '2026-05-14'
+date: '2026-05-22'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules', 'anti_patterns']
 status: 'complete'
-rule_count: 42
+rule_count: 51
 optimized_for_llm: true
 ---
 
@@ -23,12 +23,17 @@ _Critical rules and patterns that AI agents must follow when implementing code i
 | Language | TypeScript | 5.x, `strict: true` |
 | Styling | Tailwind CSS | v4 (not v3 — different config syntax) |
 | UI Primitives | @base-ui/react | ^1.4.1 |
+| UI Components | shadcn (+ CVA) | ^4.6.0 / ^0.7.1 — components in `src/components/ui/` |
+| Date Utilities | date-fns + react-day-picker | ^4.2.1 / ^10.0.1 |
 | ORM | Drizzle ORM | ^0.45.2 |
 | Database | PostgreSQL via postgres.js | ^3.4.9 |
 | Auth | Auth.js (next-auth) | v5.0.0-beta.31 |
 | Auth Adapter | @auth/drizzle-adapter | ^1.11.2 |
 | Drag & Drop | @dnd-kit/core + @dnd-kit/sortable | ^6.3.1 / ^10.0.0 |
 | Icons | lucide-react | ^1.14.0 |
+| File Storage | @vercel/blob | ^2.4.0 |
+| Notifications | sonner | ^2.0.7 |
+| Theme | next-themes | ^0.4.6 |
 | Unit Tests | Vitest + @testing-library/react | ^4.1.6 / ^16.3.2 |
 | E2E Tests | Playwright BDD (playwright-bdd) | ^8.5.1 |
 | CSS Utils | clsx + tailwind-merge | — |
@@ -64,6 +69,7 @@ _Critical rules and patterns that AI agents must follow when implementing code i
 - Every component must define an explicit `ComponentNameProps` interface before the function.
 - Destructure all props in the function signature.
 - Use `cn()` from `@/lib/utils` for className merging — never string concatenation.
+- **UI primitives**: `src/components/ui/` holds both `@base-ui/react`-backed and shadcn components. Use whichever the existing component file already uses; don't mix within a single component.
 
 ### Styling
 
@@ -76,6 +82,11 @@ _Critical rules and patterns that AI agents must follow when implementing code i
 - Lucide icons: always `strokeWidth={1.5}`; icon-only buttons must have a `title` attribute.
 - Font variables need fallbacks: `var(--font-body, ui-sans-serif)`, `var(--font-heading-family, ui-serif)`.
 
+### Theme
+
+- `ThemeProvider` from `next-themes` wraps the entire app in `layout.tsx`. The `<html>` element must have `suppressHydrationWarning` to prevent theme-class mismatch errors.
+- Never call `document.documentElement.classList` directly to toggle dark mode — use `next-themes` APIs.
+
 ### Database & ORM (Drizzle)
 
 - Schema defined in `src/db/schema.ts` using `drizzle-orm/pg-core`. All tables use `uuid().primaryKey().default(sql\`gen_random_uuid()\`)`.
@@ -83,6 +94,18 @@ _Critical rules and patterns that AI agents must follow when implementing code i
 - **Numeric DB fields** (cost, budget): stored as `numeric` string in Postgres. Convert with `.toString()` on insert/update; parse back to `number` in `db-mappers.ts`.
 - `position: integer` field orders events within a day — always maintain this when creating/reordering.
 - **DB mapper layer** in `src/lib/db-mappers.ts`: `dbTripToType()`, `dbEventToType()`, `dbDocToType()`, `dbCollabToType()` — always use these when reading from DB; never map raw DB rows directly in queries or actions.
+
+### File Storage (Vercel Blob)
+
+- Use `put(name, file, { access: "public" })` from `@vercel/blob` to upload; `del(url)` to delete.
+- **E2E stub**: guard every `put()` and `del()` call with `process.env.UPLOAD_STUB !== "true"`. When `UPLOAD_STUB=true`, skip the real Blob call and return a placeholder URL. This env var is set automatically in `playwright.config.ts` webServer env.
+- `del()` calls must also be guarded in cascade paths — `deleteEvent` and trip deletions that remove `documents` rows via SQL cascade do NOT call `del()`; blob cleanup must be done explicitly before the cascade.
+
+### Notifications (Sonner)
+
+- Toast notifications use `sonner`. Import: `import { toast } from "sonner"`. Use `toast.error(message)` for failures, `toast.success(message)` for confirmations.
+- `<Toaster richColors position="bottom-center" />` is mounted once in `layout.tsx` — never add another `<Toaster>`.
+- **In unit tests**: mock the module: `vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))`. Import the mock after: `const { toast } = await import("sonner")`.
 
 ### Server Actions
 
@@ -133,7 +156,8 @@ _Critical rules and patterns that AI agents must follow when implementing code i
 - All E2E goes in `tests/e2e/` only: Gherkin `.feature` files in `features/`, step implementations in `steps/`.
 - E2E runs via `bddgen && playwright test` — `bddgen` must run first to generate test files from `.feature` files.
 - Playwright uses a `setup` project for auth state (`tests/e2e/auth.setup.ts`) which must complete before the `chromium` project runs. Auth state stored at `tests/e2e/.auth/user.json`.
-- Base URL: `http://localhost:3000` — dev server must be running for E2E.
+- Base URL: `http://localhost:3001` — E2E dev server runs on port 3001 (not 3000).
+- E2E webServer env includes `UPLOAD_STUB=true` — Vercel Blob calls are bypassed automatically in all E2E runs.
 
 ### Development Workflow
 
@@ -164,4 +188,4 @@ _Critical rules and patterns that AI agents must follow when implementing code i
 
 **For Humans:** Keep this lean — add rules only when a pattern is non-obvious or an agent has gotten it wrong. Remove rules that become obvious over time. Update when the stack changes.
 
-_Last Updated: 2026-05-14_
+_Last Updated: 2026-05-22_
