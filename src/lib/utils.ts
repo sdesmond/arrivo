@@ -70,3 +70,36 @@ export function getTripDays(startDate: string, endDate: string): number {
   const end = new Date(endDate + "T00:00:00");
   return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
 }
+
+export function toHHMM(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+export function inferDocKind(mimeType: string): "pdf" | "image" | "doc" {
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType.startsWith("image/")) return "image";
+  return "doc";
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export async function shareDoc(doc: { name: string; url?: string }): Promise<void> {
+  const url = doc.url ?? "";
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      await navigator.share({ title: doc.name, url });
+    } else if (typeof navigator !== "undefined" && typeof navigator.clipboard?.writeText === "function") {
+      await navigator.clipboard.writeText(url);
+    }
+  } catch {
+    // Silently absorb AbortError (user cancelled) and permission errors
+  }
+}

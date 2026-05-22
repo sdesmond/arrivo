@@ -16,6 +16,7 @@ import {
   type ItineraryNote,
   type Checklist,
   type DayItemType,
+  type Document,
   ItineraryItemType,
 } from "@/data/types";
 import {
@@ -33,6 +34,7 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-ki
 interface DayCardProps {
   day: DayItinerary;
   dateFormat?: string;
+  tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -41,8 +43,6 @@ interface DayCardProps {
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
-  onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
-  onDeleteDoc?: (docId: string) => void;
   onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   newlyCreatedChecklistId?: string;
   onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
@@ -71,6 +71,7 @@ type TimelineItem =
 export function DayCard({
   day: d,
   dateFormat = "MM/DD/YYYY",
+  tripDocs,
   onUpdateEvent,
   onDeleteEvent,
   onReorderDayItems,
@@ -79,8 +80,6 @@ export function DayCard({
   onAddNote,
   onUpdateNote,
   onDeleteNote,
-  onAddDoc,
-  onDeleteDoc,
   onAddChecklist,
   newlyCreatedChecklistId,
   onUpdateChecklistTitle,
@@ -325,8 +324,7 @@ export function DayCard({
                         isLast={isLast}
                         onUpdate={onUpdateEvent}
                         onDelete={onDeleteEvent}
-                        onAddDoc={onAddDoc}
-                        onDeleteDoc={onDeleteDoc}
+                        tripDocs={tripDocs}
                       />
                     ) : (
                       <SortableNoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />

@@ -51,3 +51,6 @@ next-env.d.ts
 .ui-review-screenshots
 .claude/settings.local.json
 
+# dev upload stubs
+/public/uploads/
+

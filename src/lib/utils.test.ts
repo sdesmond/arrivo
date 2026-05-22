@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   cn,
   getTripStatus,
@@ -10,6 +11,10 @@ import {
   formatTripDate,
   detectDefaultDateFormat,
   formatDate,
+  toHHMM,
+  inferDocKind,
+  formatFileSize,
+  shareDoc,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -184,5 +189,152 @@ describe("formatDate", () => {
 
   it("handles single-digit day without leading zero", () => {
     expect(formatDate("2026-01-05", "DD/MM/YYYY")).toBe("5 Jan 2026");
+  });
+});
+
+describe("toHHMM", () => {
+  it("formats an ISO datetime to HH:mm format", () => {
+    const d = new Date(2026, 4, 19, 9, 5); // May 19, 09:05 local
+    expect(toHHMM(d.toISOString())).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it("zero-pads single-digit hours and minutes", () => {
+    const d = new Date(2026, 0, 1, 3, 7); // 03:07 local
+    const result = toHHMM(d.toISOString());
+    const [hh, mm] = result.split(":");
+    expect(hh).toHaveLength(2);
+    expect(mm).toHaveLength(2);
+  });
+});
+
+describe("inferDocKind", () => {
+  it("returns pdf for application/pdf", () => {
+    expect(inferDocKind("application/pdf")).toBe("pdf");
+  });
+
+  it("returns image for image/jpeg", () => {
+    expect(inferDocKind("image/jpeg")).toBe("image");
+  });
+
+  it("returns image for image/png", () => {
+    expect(inferDocKind("image/png")).toBe("image");
+  });
+
+  it("returns image for image/webp", () => {
+    expect(inferDocKind("image/webp")).toBe("image");
+  });
+
+  it("returns image for image/heic", () => {
+    expect(inferDocKind("image/heic")).toBe("image");
+  });
+
+  it("returns doc for unknown mime type", () => {
+    expect(inferDocKind("application/msword")).toBe("doc");
+  });
+
+  it("returns doc for text/plain", () => {
+    expect(inferDocKind("text/plain")).toBe("doc");
+  });
+
+  it("returns doc for empty string", () => {
+    expect(inferDocKind("")).toBe("doc");
+  });
+});
+
+describe("formatFileSize", () => {
+  it("formats bytes under 1 MB as KB", () => {
+    expect(formatFileSize(1024)).toBe("1.0 KB");
+  });
+
+  it("formats 1.5 KB correctly", () => {
+    expect(formatFileSize(1536)).toBe("1.5 KB");
+  });
+
+  it("formats exactly 1 MB as 1.0 MB", () => {
+    expect(formatFileSize(1024 * 1024)).toBe("1.0 MB");
+  });
+
+  it("formats 1.2 MB correctly", () => {
+    expect(formatFileSize(Math.round(1024 * 1024 * 1.2))).toBe("1.2 MB");
+  });
+
+  it("formats large files in MB", () => {
+    expect(formatFileSize(1024 * 1024 * 5)).toBe("5.0 MB");
+  });
+});
+
+describe("shareDoc", () => {
+  const doc = { name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    try {
+      delete (navigator as unknown as Record<string, unknown>).clipboard;
+    } catch {}
+  });
+
+  it("calls navigator.share when available", async () => {
+    const mockShare = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", {
+      value: mockShare,
+      configurable: true,
+    });
+
+    await shareDoc(doc);
+
+    expect(mockShare).toHaveBeenCalledWith({
+      title: "Boarding Pass.pdf",
+      url: "https://example.com/doc.pdf",
+    });
+
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+  });
+
+  it("falls back to clipboard.writeText when navigator.share is unavailable", async () => {
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: mockWriteText },
+      configurable: true,
+    });
+
+    await shareDoc(doc);
+
+    expect(mockWriteText).toHaveBeenCalledWith("https://example.com/doc.pdf");
+  });
+
+  it("uses empty string for url when doc.url is undefined", async () => {
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: mockWriteText },
+      configurable: true,
+    });
+
+    await shareDoc({ name: "No URL Doc" });
+
+    expect(mockWriteText).toHaveBeenCalledWith("");
+  });
+
+  it("silently catches AbortError from navigator.share (user cancelled)", async () => {
+    const abortError = new DOMException("Cancelled", "AbortError");
+    Object.defineProperty(navigator, "share", {
+      value: vi.fn().mockRejectedValue(abortError),
+      configurable: true,
+    });
+
+    await expect(shareDoc(doc)).resolves.toBeUndefined();
+
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+  });
+
+  it("silently catches clipboard permission errors", async () => {
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockRejectedValue(new DOMException("Permission denied", "NotAllowedError")) },
+      configurable: true,
+    });
+
+    await expect(shareDoc(doc)).resolves.toBeUndefined();
   });
 });

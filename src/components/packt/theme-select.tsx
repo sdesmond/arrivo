@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const THEME_OPTIONS = [
   { value: "system", label: "System" },
@@ -19,25 +20,17 @@ export function ThemeSelect() {
   );
 
   return (
-    <select
-      value={mounted ? (theme ?? "system") : "system"}
-      onChange={(e) => setTheme(e.target.value)}
-      disabled={!mounted}
-      aria-label="Theme"
-      className="rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
-      style={{
-        background: "var(--surface-2)",
-        color: "var(--fg)",
-        border: "1px solid var(--line)",
-        minWidth: 120,
-        fontSize: "calc(13px * var(--font-scale))",
-      }}
-    >
-      {THEME_OPTIONS.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+    <Select value={mounted ? (theme ?? "system") : "system"} onValueChange={(v) => setTheme(v ?? "system")}>
+      <SelectTrigger aria-label="Theme" disabled={!mounted} className="w-full">
+        <SelectValue className="capitalize" />
+      </SelectTrigger>
+      <SelectContent>
+        {THEME_OPTIONS.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

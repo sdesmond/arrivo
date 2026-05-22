@@ -1,11 +1,12 @@
 "use client";
 
 import { DayCard } from "@/components/packt/day-card";
-import { type DayItinerary, type TripEvent, type DayItemType } from "@/data/types";
+import { type DayItinerary, type TripEvent, type DayItemType, type Document } from "@/data/types";
 
 export interface TripItineraryViewProps {
   days: DayItinerary[];
   dateFormat?: string;
+  tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -14,8 +15,6 @@ export interface TripItineraryViewProps {
   onAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => void;
   onUpdateNote: (noteId: string, content: string) => void;
   onDeleteNote: (noteId: string) => void;
-  onAddDoc: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
-  onDeleteDoc: (docId: string) => void;
   onAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   newlyCreatedChecklistId?: string;
   onUpdateChecklistTitle: (checklistId: string, title: string | undefined) => void;
@@ -29,6 +28,7 @@ export interface TripItineraryViewProps {
 export function TripItineraryView({
   days,
   dateFormat,
+  tripDocs,
   onUpdateEvent,
   onDeleteEvent,
   onReorderDayItems,
@@ -37,8 +37,6 @@ export function TripItineraryView({
   onAddNote,
   onUpdateNote,
   onDeleteNote,
-  onAddDoc,
-  onDeleteDoc,
   onAddChecklist,
   newlyCreatedChecklistId,
   onUpdateChecklistTitle,
@@ -59,6 +57,7 @@ export function TripItineraryView({
           key={day.dayNumber}
           day={day}
           dateFormat={dateFormat}
+          tripDocs={tripDocs}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
           onReorderDayItems={onReorderDayItems}
@@ -67,8 +66,6 @@ export function TripItineraryView({
           onAddNote={onAddNote}
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}
-          onAddDoc={onAddDoc}
-          onDeleteDoc={onDeleteDoc}
           onAddChecklist={onAddChecklist}
           newlyCreatedChecklistId={newlyCreatedChecklistId}
           onUpdateChecklistTitle={onUpdateChecklistTitle}

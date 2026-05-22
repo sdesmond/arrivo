@@ -70,7 +70,7 @@ export function dbDocToType(row: typeof documents.$inferSelect): Document {
     size: row.size ?? undefined,
     offline: row.offline ?? false,
     url: row.url ?? undefined,
-    scope: row.tripId ? "trip" : "event",
+    scope: row.eventId ? "event" : "trip",
     previewLines: (row.previewLines as DocPreviewLine[] | null) ?? undefined,
     addedAt: row.addedAt?.toISOString() ?? new Date().toISOString(),
   };

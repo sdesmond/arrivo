@@ -3,6 +3,12 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("@/components/ui/time-picker", () => ({
+  TimePicker: ({ value, onChange }: { value?: string; onChange: (v: string | undefined) => void }) => (
+    <input data-testid="time-picker" value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)} />
+  ),
+}));
+
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
     children,
@@ -36,12 +42,12 @@ describe("TimeDialog", () => {
 
   it("pre-fills start time input from time prop", () => {
     render(<TimeDialog open time="10:30" onOpenChange={vi.fn()} onSave={vi.fn()} />);
-    expect(screen.getByDisplayValue("10:30")).toBeInTheDocument();
+    expect(screen.getAllByTestId("time-picker")[0]).toHaveValue("10:30");
   });
 
   it("pre-fills end time input from endTime prop", () => {
     render(<TimeDialog open time="10:00" endTime="11:45" onOpenChange={vi.fn()} onSave={vi.fn()} />);
-    expect(screen.getByDisplayValue("11:45")).toBeInTheDocument();
+    expect(screen.getAllByTestId("time-picker")[1]).toHaveValue("11:45");
   });
 
   it("does not show Remove button when no time is set", () => {
@@ -101,6 +107,6 @@ describe("TimeDialog", () => {
   it("syncs draft from time prop when dialog transitions from closed to open", () => {
     const { rerender } = render(<TimeDialog open={false} time="08:00" onOpenChange={vi.fn()} onSave={vi.fn()} />);
     rerender(<TimeDialog open time="08:00" onOpenChange={vi.fn()} onSave={vi.fn()} />);
-    expect(screen.getByDisplayValue("08:00")).toBeInTheDocument();
+    expect(screen.getAllByTestId("time-picker")[0]).toHaveValue("08:00");
   });
 });

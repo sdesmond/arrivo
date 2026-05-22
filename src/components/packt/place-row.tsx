@@ -1,22 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, ChevronDown, FileText, Clock, DollarSign, Pencil, Trash2, Paperclip } from "lucide-react";
-import { type TripEvent } from "@/data/types";
+import { MapPin, Trash2 } from "lucide-react";
+import { type TripEvent, type Document } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
-import { TimeDialog } from "./time-dialog";
-import { CostDialog } from "./cost-dialog";
-import { LocationDialog } from "./location-dialog";
-import { AddDocDialog } from "./add-doc-dialog";
-
-function formatTime(t: string) {
-  const [h, m] = t.split(":").map(Number);
-  const suffix = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
-}
+import { PlaceRowNameField } from "./place-row-name-field";
+import { PlaceRowActionBar } from "./place-row-action-bar";
+import { PlaceRowDialogs } from "./place-row-dialogs";
 
 function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHHMM: string) {
   if (!dayDate) return { startAt: undefined, endAt: undefined };
@@ -26,24 +18,18 @@ function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHH
   };
 }
 
-function toHHMM(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
 export interface PlaceRowProps {
   place: TripEvent;
   dayDate?: string;
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
-  onAddDoc?: (eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }) => void;
-  onDeleteDoc?: (docId: string) => void;
   dragHandle?: React.ReactNode;
   id?: string;
   isDraft?: boolean;
   onCreate?: (name: string) => void;
   onCancelDraft?: () => void;
+  tripDocs?: Document[];
 }
 
 export function PlaceRow({
@@ -52,13 +38,12 @@ export function PlaceRow({
   isLast,
   onUpdate,
   onDelete,
-  onAddDoc,
-  onDeleteDoc,
   dragHandle,
   id,
   isDraft,
   onCreate,
   onCancelDraft,
+  tripDocs,
 }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -73,6 +58,7 @@ export function PlaceRow({
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const now = useNow();
   const hasDocs = (p.docs?.length ?? 0) > 0;
@@ -95,12 +81,6 @@ export function PlaceRow({
     if (val !== p.note) onUpdate({ ...p, note: val });
     setIsEditingNote(false);
   }
-
-  const timeLabel = p.startAt
-    ? p.endAt
-      ? `${formatTime(toHHMM(p.startAt))} – ${formatTime(toHHMM(p.endAt))}`
-      : formatTime(toHHMM(p.startAt))
-    : null;
 
   return (
     <div
@@ -128,76 +108,30 @@ export function PlaceRow({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Name row */}
-          <div className="flex items-center gap-1.5 min-w-0">
-            {isEditingName ? (
-              <input
-                autoFocus
-                placeholder={isDraft ? "Event name" : undefined}
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                onBlur={saveName}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveName();
-                  if (e.key === "Escape") {
-                    if (isDraft) {
-                      onCancelDraft?.();
-                      return;
-                    }
-                    setDraftName(p.name);
-                    setIsEditingName(false);
-                  }
-                }}
-                style={{
-                  fontSize: "calc(14px * var(--font-scale))",
-                  fontWeight: 600,
-                  color: "var(--fg)",
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--accent-brand)",
-                  borderRadius: 4,
-                  padding: "1px 6px",
-                  outline: "none",
-                  width: "100%",
-                  fontFamily: "inherit",
-                }}
-              />
-            ) : (
-              <>
-                <span
-                  style={{
-                    fontSize: "calc(14px * var(--font-scale))",
-                    fontWeight: 600,
-                    color: "var(--fg)",
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {p.name}
-                </span>
-                <button
-                  onClick={() => {
-                    setDraftName(p.name);
-                    setIsEditingName(true);
-                  }}
-                  style={{
-                    color: "var(--fg-4)",
-                    opacity: isHovered ? 1 : 0.25,
-                    transition: "opacity 0.1s",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: 2,
-                    borderRadius: 3,
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  }}
-                  title="Edit name"
-                >
-                  <Pencil size={11} strokeWidth={1.5} />
-                </button>
-              </>
-            )}
-          </div>
+          <PlaceRowNameField
+            isEditingName={isEditingName}
+            draftName={draftName}
+            onDraftChange={setDraftName}
+            onBlur={saveName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveName();
+              if (e.key === "Escape") {
+                if (isDraft) {
+                  onCancelDraft?.();
+                  return;
+                }
+                setDraftName(p.name);
+                setIsEditingName(false);
+              }
+            }}
+            displayName={p.name}
+            isHovered={isHovered}
+            isDraft={isDraft}
+            onStartEdit={() => {
+              setDraftName(p.name);
+              setIsEditingName(true);
+            }}
+          />
 
           {/* Note area */}
           <div className="mt-1.5">
@@ -258,103 +192,17 @@ export function PlaceRow({
             )}
           </div>
 
-          {/* Action bar */}
-          <div className="flex items-center gap-1 flex-wrap mt-2">
-            {/* Time */}
-            <button
-              onClick={() => setShowTimeDialog(true)}
-              className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-              style={{
-                fontSize: "calc(11px * var(--font-scale))",
-                color: p.startAt ? "var(--accent-ink)" : "var(--fg-4)",
-                background: p.startAt ? "var(--accent-soft)" : "none",
-                border: "1px solid transparent",
-              }}
-            >
-              <Clock size={11} strokeWidth={1.5} />
-              {timeLabel ?? "Add time"}
-            </button>
+          <PlaceRowActionBar
+            place={p}
+            showDocs={showDocs}
+            onToggleDocs={() => setShowDocs((v) => !v)}
+            onOpenTime={() => setShowTimeDialog(true)}
+            onOpenLocation={() => setShowLocationDialog(true)}
+            onOpenCost={() => setShowCostDialog(true)}
+            onOpenAddDoc={() => setShowAddDocDialog(true)}
+          />
 
-            {/* Location */}
-            <button
-              onClick={() => setShowLocationDialog(true)}
-              className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-              style={{
-                fontSize: "calc(11px * var(--font-scale))",
-                color: p.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
-                background: p.locationAddress ? "var(--accent-soft)" : "none",
-                border: "1px solid transparent",
-                maxWidth: 160,
-              }}
-            >
-              <MapPin size={11} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-              <span className="truncate">{p.locationAddress ?? "Add location"}</span>
-            </button>
-
-            {/* Cost */}
-            <button
-              onClick={() => setShowCostDialog(true)}
-              className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-              style={{
-                fontSize: "calc(11px * var(--font-scale))",
-                color: p.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
-                background: p.cost !== undefined ? "var(--accent-soft)" : "none",
-                border: "1px solid transparent",
-              }}
-            >
-              <DollarSign size={11} strokeWidth={1.5} />
-              {p.cost !== undefined ? p.cost.toFixed(2) : "Add cost"}
-            </button>
-
-            {/* Docs toggle */}
-            {hasDocs && (
-              <button
-                onClick={() => setShowDocs((v) => !v)}
-                className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-                style={{
-                  fontSize: "calc(11px * var(--font-scale))",
-                  color: "var(--accent-ink)",
-                  background: "var(--accent-soft)",
-                  border: "1px solid transparent",
-                }}
-              >
-                <FileText size={11} strokeWidth={1.5} />
-                {p.docs!.length} doc{p.docs!.length !== 1 ? "s" : ""}
-                <ChevronDown
-                  size={10}
-                  style={{
-                    transform: showDocs ? "rotate(180deg)" : undefined,
-                    transition: "transform 0.15s",
-                  }}
-                />
-              </button>
-            )}
-
-            {/* Attach button — only when no docs */}
-            {!hasDocs && (
-              <button
-                onClick={() => setShowAddDocDialog(true)}
-                className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-                style={{
-                  fontSize: "calc(11px * var(--font-scale))",
-                  color: "var(--fg-4)",
-                  border: "1px solid transparent",
-                }}
-                title="Attach document"
-              >
-                <Paperclip size={11} strokeWidth={1.5} />
-                Attach
-              </button>
-            )}
-          </div>
-
-          {showDocs && hasDocs && (
-            <DocsBlock
-              docs={p.docs!}
-              onDelete={(docId) => onDeleteDoc?.(docId)}
-              onAdd={() => setShowAddDocDialog(true)}
-            />
-          )}
+          {showDocs && hasDocs && <DocsBlock docs={p.docs!} onAdd={() => setShowAddDocDialog(true)} />}
         </div>
 
         {/* Drag handle — always visible on mobile, hover-only on desktop */}
@@ -369,7 +217,13 @@ export function PlaceRow({
 
         {/* Trash icon — always visible on mobile, hover-only on desktop */}
         <button
-          onClick={() => onDelete(p.id)}
+          onClick={() => {
+            if (hasDocs) {
+              setShowDeleteDialog(true);
+            } else {
+              onDelete(p.id);
+            }
+          }}
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
           style={{
             color: "var(--fg-4)",
@@ -386,39 +240,28 @@ export function PlaceRow({
         </button>
       </div>
 
-      <TimeDialog
-        time={p.startAt ? toHHMM(p.startAt) : undefined}
-        endTime={p.endAt ? toHHMM(p.endAt) : undefined}
-        eventName={p.name}
-        open={showTimeDialog}
-        onOpenChange={setShowTimeDialog}
-        onSave={(t, et) => {
+      <PlaceRowDialogs
+        place={p}
+        tripDocs={tripDocs}
+        showTimeDialog={showTimeDialog}
+        onTimeOpenChange={setShowTimeDialog}
+        onTimeSave={(t, et) => {
           if (!t) {
             onUpdate({ ...p, startAt: undefined, endAt: undefined });
           } else {
             onUpdate({ ...p, ...composeStartEndAt(dayDate, t, et ?? t) });
           }
         }}
-      />
-      <CostDialog
-        cost={p.cost}
-        eventName={p.name}
-        open={showCostDialog}
-        onOpenChange={setShowCostDialog}
-        onSave={(cost) => onUpdate({ ...p, cost })}
-      />
-      <LocationDialog
-        address={p.locationAddress}
-        eventName={p.name}
-        open={showLocationDialog}
-        onOpenChange={setShowLocationDialog}
-        onSave={(address) => onUpdate({ ...p, locationAddress: address })}
-      />
-      <AddDocDialog
-        eventName={p.name}
-        open={showAddDocDialog}
-        onOpenChange={setShowAddDocDialog}
-        onAdd={(doc) => onAddDoc?.(p.id, { name: doc.name, kind: doc.kind, url: doc.url, offline: doc.offline })}
+        showCostDialog={showCostDialog}
+        onCostOpenChange={setShowCostDialog}
+        onCostSave={(cost) => onUpdate({ ...p, cost })}
+        showLocationDialog={showLocationDialog}
+        onLocationOpenChange={setShowLocationDialog}
+        onLocationSave={(address) => onUpdate({ ...p, locationAddress: address })}
+        showAddDocDialog={showAddDocDialog}
+        onAddDocOpenChange={setShowAddDocDialog}
+        showDeleteDialog={showDeleteDialog}
+        onDeleteOpenChange={setShowDeleteDialog}
       />
     </div>
   );

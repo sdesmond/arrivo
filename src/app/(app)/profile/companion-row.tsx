@@ -4,20 +4,14 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { updateCompanion, deleteCompanion } from "./actions";
 import type { Companion, UpdateCompanionPatch } from "@/data/types";
 
 export interface CompanionRowProps {
   companion: Companion;
 }
-
-const INPUT_CLASS = "w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors";
-const INPUT_STYLE: React.CSSProperties = {
-  background: "var(--surface-2)",
-  color: "var(--fg)",
-  border: "1px solid var(--line)",
-  fontSize: "calc(13px * var(--font-scale))",
-};
 
 export function CompanionRow({ companion }: CompanionRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -27,7 +21,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
   const [name, setName] = useState(companion.name);
   const [age, setAge] = useState(companion.age?.toString() ?? "");
   const [passportNumber, setPassportNumber] = useState(companion.passportNumber ?? "");
-  const [passportExpiry, setPassportExpiry] = useState(companion.passportExpiry ?? "");
+  const [passportExpiry, setPassportExpiry] = useState<string | undefined>(companion.passportExpiry ?? undefined);
   const [passportNationality, setPassportNationality] = useState(companion.passportNationality ?? "");
   const [knownTravelerNumber, setKnownTravelerNumber] = useState(companion.knownTravelerNumber ?? "");
   const [packtUsername, setPacktUsername] = useState(companion.packtUsername ?? "");
@@ -62,7 +56,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
         name: name.trim() || companion.name,
         age: age ? parseInt(age, 10) : undefined,
         passportNumber: passportNumber || undefined,
-        passportExpiry: passportExpiry || undefined,
+        passportExpiry: passportExpiry,
         passportNationality: passportNationality || undefined,
         knownTravelerNumber: knownTravelerNumber || undefined,
         packtUsername: packtUsername || undefined,
@@ -127,64 +121,49 @@ export function CompanionRow({ companion }: CompanionRowProps) {
         <div className="pb-3 flex flex-col gap-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Name" htmlFor={`companion-name-${companion.id}`}>
-              <input
+              <Input
                 ref={firstFieldRef}
                 id={`companion-name-${companion.id}`}
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
                 autoComplete="off"
               />
             </Field>
 
             <Field label="Age" htmlFor={`companion-age-${companion.id}`}>
-              <input
+              <Input
                 id={`companion-age-${companion.id}`}
                 type="number"
                 min={0}
                 max={120}
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
               />
             </Field>
 
             <Field label="Passport number" htmlFor={`companion-passport-${companion.id}`}>
-              <input
+              <Input
                 id={`companion-passport-${companion.id}`}
                 type="text"
                 value={passportNumber}
                 onChange={(e) => setPassportNumber(e.target.value)}
                 placeholder="e.g. A12345678"
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
                 autoComplete="off"
               />
             </Field>
 
-            <Field label="Passport expiry" htmlFor={`companion-expiry-${companion.id}`}>
-              <input
-                id={`companion-expiry-${companion.id}`}
-                type="date"
-                value={passportExpiry}
-                onChange={(e) => setPassportExpiry(e.target.value)}
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
-              />
+            <Field label="Passport expiry">
+              <DatePicker value={passportExpiry} onChange={(v) => setPassportExpiry(v)} placeholder="Passport expiry" />
             </Field>
 
             <Field label="Nationality" htmlFor={`companion-nationality-${companion.id}`}>
-              <input
+              <Input
                 id={`companion-nationality-${companion.id}`}
                 type="text"
                 value={passportNationality}
                 onChange={(e) => setPassportNationality(e.target.value)}
                 placeholder="e.g. American"
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
               />
             </Field>
 
@@ -192,28 +171,24 @@ export function CompanionRow({ companion }: CompanionRowProps) {
               label="Known traveler number (TSA PreCheck / Global Entry)"
               htmlFor={`companion-ktn-${companion.id}`}
             >
-              <input
+              <Input
                 id={`companion-ktn-${companion.id}`}
                 type="text"
                 value={knownTravelerNumber}
                 onChange={(e) => setKnownTravelerNumber(e.target.value)}
                 placeholder="e.g. 123456789"
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
                 autoComplete="off"
               />
             </Field>
           </div>
 
           <Field label="Packt username (optional)" htmlFor={`companion-packt-${companion.id}`}>
-            <input
+            <Input
               id={`companion-packt-${companion.id}`}
               type="text"
               value={packtUsername}
               onChange={(e) => setPacktUsername(e.target.value)}
               placeholder="@username"
-              className={INPUT_CLASS}
-              style={INPUT_STYLE}
               autoComplete="off"
             />
             <span

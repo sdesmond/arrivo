@@ -1,0 +1,105 @@
+// @vitest-environment jsdom
+import * as React from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+vi.mock("./actions", () => ({
+  updateProfile: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/components/ui/date-picker", () => ({
+  DatePicker: ({
+    value,
+    onChange,
+    placeholder = "Pick a date",
+  }: {
+    value?: string;
+    onChange: (v: string | undefined) => void;
+    placeholder?: string;
+  }) => (
+    <input
+      data-testid="date-picker"
+      type="text"
+      value={value ?? ""}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value || undefined)}
+    />
+  ),
+}));
+
+vi.mock("@/components/packt/form-section", () => ({
+  Section: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Field: ({ children, label }: { children: React.ReactNode; label: string; htmlFor?: string }) => (
+    <div>
+      <label>{label}</label>
+      {children}
+    </div>
+  ),
+}));
+
+import { PassportSection } from "./passport-section";
+import type { UserProfile } from "@/data/types";
+
+const baseUser: UserProfile = {
+  id: "u1",
+  name: "Test",
+  email: "t@t.com",
+  dateFormat: "MM/DD/YYYY",
+  currency: "USD",
+  distanceUnit: "imperial",
+  passportNumber: null,
+  passportExpiry: null,
+  passportNationality: null,
+  knownTravelerNumber: null,
+  loyaltyNumbers: [],
+  wishlistDestinations: [],
+  companions: [],
+};
+
+describe("PassportSection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders empty fields when user has no passport data", () => {
+    render(<PassportSection user={baseUser} />);
+    expect(screen.getByPlaceholderText("e.g. A12345678")).toBeInTheDocument();
+    expect(screen.getByTestId("date-picker")).toBeInTheDocument();
+  });
+
+  it("renders pre-filled passport number and expiry when set", () => {
+    const user = { ...baseUser, passportNumber: "AB123456", passportExpiry: "2030-01-01" };
+    render(<PassportSection user={user} />);
+    expect(screen.getByDisplayValue("AB123456")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2030-01-01")).toBeInTheDocument();
+  });
+
+  it("Save button is disabled when no fields are dirty", () => {
+    render(<PassportSection user={baseUser} />);
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+  });
+
+  it("Save button enables when a text field is changed", async () => {
+    const user = userEvent.setup();
+    render(<PassportSection user={baseUser} />);
+    await user.type(screen.getByPlaceholderText("e.g. A12345678"), "X12345");
+    expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
+  });
+
+  it("Save button enables when expiry date is changed via DatePicker", async () => {
+    const user = userEvent.setup();
+    render(<PassportSection user={baseUser} />);
+    await user.type(screen.getByTestId("date-picker"), "2030-06-01");
+    expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
+  });
+
+  it("calls updateProfile with updated passport number on save", async () => {
+    const { updateProfile } = await import("./actions");
+    const user = userEvent.setup();
+    render(<PassportSection user={baseUser} />);
+    await user.type(screen.getByPlaceholderText("e.g. A12345678"), "CD999");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateProfile).toHaveBeenCalledWith(expect.objectContaining({ passportNumber: "CD999" }));
+  });
+});

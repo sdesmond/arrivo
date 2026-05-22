@@ -196,12 +196,14 @@ describe("dbDocToType", () => {
     expect(result.kind).toBe("pdf");
   });
 
-  it("scope is trip when tripId is set", () => {
+  it("scope is trip when eventId is null", () => {
+    // tripId set, eventId null → trip-scoped
     expect(dbDocToType(BASE_DOC).scope).toBe("trip");
   });
 
-  it("scope is event when tripId is null", () => {
-    expect(dbDocToType({ ...BASE_DOC, tripId: null }).scope).toBe("event");
+  it("scope is event when eventId is set", () => {
+    // both tripId and eventId set → event-scoped (eventId takes precedence)
+    expect(dbDocToType({ ...BASE_DOC, eventId: "event-1" }).scope).toBe("event");
   });
 
   it("null optional fields become undefined", () => {

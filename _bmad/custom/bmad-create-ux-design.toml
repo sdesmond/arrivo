@@ -1,0 +1,2 @@
+[workflow]
+on_complete = "Before presenting the artifact to the user, run /packt-plan-reviewer with the path of the artifact you just saved — inline, do NOT spawn a subagent. Pass the original user request as context for scope and test checks. Address any BLOCKING findings by editing the artifact in place; do not move or recreate it. Only present the artifact to the user after all BLOCKING findings are resolved."

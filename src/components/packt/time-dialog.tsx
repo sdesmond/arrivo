@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
+import { TimePicker } from "@/components/ui/time-picker";
+import { Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
@@ -44,36 +45,12 @@ export function TimeDialog({ time, endTime, eventName, open, onOpenChange, onSav
           )}
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div
-              style={{
-                fontSize: "calc(10px * var(--font-scale))",
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "var(--fg-4)",
-                marginBottom: 4,
-              }}
-            >
-              Start time
-            </div>
-            <Input type="time" value={draftTime} onChange={(e) => setDraftTime(e.target.value)} />
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: "calc(10px * var(--font-scale))",
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "var(--fg-4)",
-                marginBottom: 4,
-              }}
-            >
-              End time
-            </div>
-            <Input type="time" value={draftEnd} onChange={(e) => setDraftEnd(e.target.value)} />
-          </div>
+          <Field label="Start time">
+            <TimePicker value={draftTime || undefined} onChange={(v) => setDraftTime(v ?? "")} />
+          </Field>
+          <Field label="End time">
+            <TimePicker value={draftEnd || undefined} onChange={(v) => setDraftEnd(v ?? "")} />
+          </Field>
         </div>
         <DialogFooter>
           {(time || endTime) && (

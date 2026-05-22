@@ -14,111 +14,92 @@ vi.mock("lucide-react", async (importOriginal) => {
 });
 
 vi.mock("./docs-block", () => ({
-  DocsBlock: ({
-    docs,
-    onDelete,
-    onAdd,
-  }: {
-    docs: { id: string; name: string }[];
-    onDelete: (id: string) => void;
-    onAdd: () => void;
-  }) => (
+  DocsBlock: ({ docs, onAdd }: { docs: { id: string; name: string }[]; onAdd: () => void }) => (
     <div data-testid="docs-block">
       {docs.map((d) => (
-        <button key={d.id} onClick={() => onDelete(d.id)}>
-          del-{d.name}
-        </button>
+        <span key={d.id}>{d.name}</span>
       ))}
       <button onClick={onAdd}>add-doc-in-block</button>
     </div>
   ),
 }));
-vi.mock("./time-dialog", () => ({
-  TimeDialog: ({
-    open,
-    onSave,
-    onOpenChange,
+vi.mock("./place-row-dialogs", () => ({
+  PlaceRowDialogs: ({
+    showTimeDialog,
+    onTimeOpenChange,
+    onTimeSave,
+    showCostDialog,
+    onCostOpenChange,
+    onCostSave,
+    showLocationDialog,
+    onLocationOpenChange,
+    onLocationSave,
+    showAddDocDialog,
+    onAddDocOpenChange,
+    showDeleteDialog,
+    onDeleteOpenChange,
   }: {
-    open: boolean;
-    onSave: (t?: string, et?: string) => void;
-    onOpenChange: (v: boolean) => void;
-  }) =>
-    open ? (
-      <div data-testid="time-dialog">
-        <button
-          onClick={() => {
-            onSave("10:00", "11:00");
-            onOpenChange(false);
-          }}
-        >
-          picker-save
-        </button>
-        <button
-          onClick={() => {
-            onSave(undefined, undefined);
-            onOpenChange(false);
-          }}
-        >
-          picker-clear
-        </button>
-        <button onClick={() => onOpenChange(false)}>picker-close</button>
-      </div>
-    ) : null,
-}));
-vi.mock("./cost-dialog", () => ({
-  CostDialog: ({
-    open,
-    onSave,
-    onOpenChange,
-  }: {
-    open: boolean;
-    cost?: number;
-    onSave: (c?: number) => void;
-    onOpenChange: (v: boolean) => void;
-  }) =>
-    open ? (
-      <div data-testid="cost-dialog">
-        <button onClick={() => onSave(99)}>cost-save</button>
-        <button onClick={() => onOpenChange(false)}>cost-close</button>
-      </div>
-    ) : null,
-}));
-vi.mock("./location-dialog", () => ({
-  LocationDialog: ({
-    open,
-    onSave,
-    onOpenChange,
-  }: {
-    open: boolean;
-    address?: string;
-    onSave: (a?: string) => void;
-    onOpenChange: (v: boolean) => void;
-  }) =>
-    open ? (
-      <div data-testid="location-dialog">
-        <button onClick={() => onSave("Tokyo")}>loc-save</button>
-        <button onClick={() => onOpenChange(false)}>loc-close</button>
-      </div>
-    ) : null,
-}));
-vi.mock("./add-doc-dialog", () => ({
-  AddDocDialog: ({
-    open,
-    onAdd,
-    onOpenChange,
-  }: {
-    open: boolean;
-    onAdd: (doc: { id: string; name: string; kind: string; scope: string; offline: boolean }) => void;
-    onOpenChange: (v: boolean) => void;
-  }) =>
-    open ? (
-      <div data-testid="add-doc-dialog">
-        <button onClick={() => onAdd({ id: "d99", name: "New.pdf", kind: "pdf", scope: "event", offline: false })}>
-          doc-add
-        </button>
-        <button onClick={() => onOpenChange(false)}>doc-close</button>
-      </div>
-    ) : null,
+    showTimeDialog: boolean;
+    onTimeOpenChange: (v: boolean) => void;
+    onTimeSave: (t?: string, et?: string) => void;
+    showCostDialog: boolean;
+    onCostOpenChange: (v: boolean) => void;
+    onCostSave: (cost?: number) => void;
+    showLocationDialog: boolean;
+    onLocationOpenChange: (v: boolean) => void;
+    onLocationSave: (a?: string) => void;
+    showAddDocDialog: boolean;
+    onAddDocOpenChange: (v: boolean) => void;
+    showDeleteDialog: boolean;
+    onDeleteOpenChange: (v: boolean) => void;
+  }) => (
+    <>
+      {showTimeDialog && (
+        <div data-testid="time-dialog">
+          <button
+            onClick={() => {
+              onTimeSave("10:00", "11:00");
+              onTimeOpenChange(false);
+            }}
+          >
+            picker-save
+          </button>
+          <button
+            onClick={() => {
+              onTimeSave(undefined, undefined);
+              onTimeOpenChange(false);
+            }}
+          >
+            picker-clear
+          </button>
+          <button onClick={() => onTimeOpenChange(false)}>picker-close</button>
+        </div>
+      )}
+      {showCostDialog && (
+        <div data-testid="cost-dialog">
+          <button onClick={() => onCostSave(99)}>cost-save</button>
+          <button onClick={() => onCostOpenChange(false)}>cost-close</button>
+        </div>
+      )}
+      {showLocationDialog && (
+        <div data-testid="location-dialog">
+          <button onClick={() => onLocationSave("Tokyo")}>loc-save</button>
+          <button onClick={() => onLocationOpenChange(false)}>loc-close</button>
+        </div>
+      )}
+      {showAddDocDialog && (
+        <div data-testid="add-doc-dialog">
+          <button onClick={() => onAddDocOpenChange(false)}>doc-close</button>
+        </div>
+      )}
+      {showDeleteDialog && (
+        <div data-testid="delete-event-dialog">
+          <button onClick={() => onDeleteOpenChange(false)}>confirm-delete</button>
+          <button onClick={() => onDeleteOpenChange(false)}>cancel-delete</button>
+        </div>
+      )}
+    </>
+  ),
 }));
 
 import { PlaceRow } from "./place-row";
@@ -427,40 +408,6 @@ describe("PlaceRow", () => {
     expect(screen.getByTestId("add-doc-dialog")).toBeInTheDocument();
   });
 
-  it("add-doc dialog onAdd calls onAddDoc with event id and doc data", async () => {
-    const user = userEvent.setup();
-    const onAddDoc = vi.fn();
-    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} onAddDoc={onAddDoc} />, {
-      wrapper: Wrapper,
-    });
-    await user.click(screen.getByTitle("Attach document"));
-    await user.click(screen.getByRole("button", { name: "doc-add" }));
-    expect(onAddDoc).toHaveBeenCalledWith(basePlace.id, expect.objectContaining({ name: "New.pdf", kind: "pdf" }));
-  });
-
-  it("docs block onDelete calls onDeleteDoc with docId", async () => {
-    const user = userEvent.setup();
-    const onDeleteDoc = vi.fn();
-    const place = {
-      ...basePlace,
-      docs: [
-        {
-          id: "d1",
-          name: "Plan.pdf",
-          kind: "pdf" as const,
-          scope: "event" as const,
-          offline: false,
-        },
-      ],
-    };
-    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} onDeleteDoc={onDeleteDoc} />, {
-      wrapper: Wrapper,
-    });
-    await user.click(screen.getByRole("button", { name: /1 doc/i }));
-    await user.click(screen.getByRole("button", { name: /del-Plan.pdf/i }));
-    expect(onDeleteDoc).toHaveBeenCalledWith("d1");
-  });
-
   it("renders dragHandle when provided", () => {
     render(
       <PlaceRow
@@ -688,5 +635,55 @@ describe("PlaceRow", () => {
     await user.type(screen.getByRole("textbox"), "Tokyo Museum");
     fireEvent.blur(screen.getByRole("textbox"));
     expect(onCreate).toHaveBeenCalledWith("Tokyo Museum");
+  });
+
+  it("clicking delete button on event WITH docs shows DeleteEventDialog, not onDelete", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const place = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const, offline: false }],
+    };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={onDelete} />, { wrapper: Wrapper });
+    await user.click(screen.getByTitle("Delete event"));
+    expect(screen.getByTestId("delete-event-dialog")).toBeInTheDocument();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("clicking delete button on event WITHOUT docs calls onDelete directly without dialog", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={onDelete} />, { wrapper: Wrapper });
+    await user.click(screen.getByTitle("Delete event"));
+    expect(onDelete).toHaveBeenCalledWith(basePlace.id);
+    expect(screen.queryByTestId("delete-event-dialog")).not.toBeInTheDocument();
+  });
+
+  it("confirming delete from DeleteEventDialog does NOT call parent's onDelete (dialog owns the server action)", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const place = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const, offline: false }],
+    };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={onDelete} />, { wrapper: Wrapper });
+    await user.click(screen.getByTitle("Delete event"));
+    await user.click(screen.getByRole("button", { name: "confirm-delete" }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("delete-event-dialog")).not.toBeInTheDocument();
+  });
+
+  it("canceling DeleteEventDialog does not call onDelete", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const place = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const, offline: false }],
+    };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={onDelete} />, { wrapper: Wrapper });
+    await user.click(screen.getByTitle("Delete event"));
+    await user.click(screen.getByRole("button", { name: "cancel-delete" }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("delete-event-dialog")).not.toBeInTheDocument();
   });
 });

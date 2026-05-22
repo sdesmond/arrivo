@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
-import { TripItineraryView } from "./trip-itinerary-view";
+import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import {
   type TripDetailPayload,
@@ -13,6 +13,7 @@ import {
   type DayItinerary,
   type UpdateTripPatch,
   type DayItemType,
+  type TripDetailTab,
 } from "@/data/types";
 import { getTripStatus, getTripDays, formatDate } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
@@ -26,8 +27,6 @@ import {
   createNote,
   updateNote,
   deleteNote,
-  addDocument,
-  removeDocument,
   createChecklist,
   createChecklistWithItem,
   updateChecklistTitle,
@@ -56,7 +55,7 @@ export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClien
   const now = new Date(nowISO);
   useFocusScroll();
 
-  const [activeTab, setActiveTab] = useState<"itin" | "map" | "docs" | "pack" | "notes">("itin");
+  const [activeTab, setActiveTab] = useState<TripDetailTab>("itin");
   const [editingTrip, setEditingTrip] = useState(false);
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
 
@@ -126,24 +125,6 @@ export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClien
   function handleDeleteNote(noteId: string): void {
     React.startTransition(() => {
       deleteNote(noteId);
-    });
-  }
-
-  function handleAddDoc(eventId: string, input: { name: string; kind: string; url?: string; offline?: boolean }): void {
-    React.startTransition(() => {
-      addDocument({
-        eventId,
-        name: input.name,
-        kind: input.kind,
-        url: input.url,
-        offline: input.offline,
-      });
-    });
-  }
-
-  function handleDeleteDoc(docId: string): void {
-    React.startTransition(() => {
-      removeDocument(docId);
     });
   }
 
@@ -301,7 +282,7 @@ export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClien
             </span>
             <span className="flex items-center gap-1.5">
               <FileText size={13} strokeWidth={1.5} />
-              {docs.length} docs
+              {docs.filter((d) => d.scope === "trip").length} docs
             </span>
             <span className="flex items-center gap-1.5">
               <Users size={13} strokeWidth={1.5} />
@@ -341,48 +322,29 @@ export function TripDetailClient({ detail, nowISO, dateFormat }: TripDetailClien
       {/* Body */}
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
-          {activeTab === "itin" && (
-            <TripItineraryView
-              days={days}
-              dateFormat={dateFormat}
-              onUpdateEvent={handleEventUpdate}
-              onDeleteEvent={handleEventDelete}
-              onReorderDayItems={handleDayItemsReorder}
-              onUpdateDay={handleDayUpdate}
-              onAddEvent={handleAddEvent}
-              onAddNote={handleAddNote}
-              onUpdateNote={handleUpdateNote}
-              onDeleteNote={handleDeleteNote}
-              onAddDoc={handleAddDoc}
-              onDeleteDoc={handleDeleteDoc}
-              onAddChecklist={handleAddChecklist}
-              newlyCreatedChecklistId={newlyCreatedChecklistId ?? undefined}
-              onUpdateChecklistTitle={handleUpdateChecklistTitle}
-              onDeleteChecklist={handleDeleteChecklist}
-              onAddChecklistItem={handleAddChecklistItem}
-              onUpdateChecklistItem={handleUpdateChecklistItem}
-              onDeleteChecklistItem={handleDeleteChecklistItem}
-              onToggleChecklistItem={handleToggleChecklistItem}
-            />
-          )}
-          {activeTab === "docs" && (
-            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
-              Document view coming soon.
-            </div>
-          )}
-          {activeTab === "map" && (
-            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
-              Map view coming soon.
-            </div>
-          )}
-          {activeTab === "pack" && (
-            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
-              Packing list view coming soon.
-            </div>
-          )}
-          {activeTab === "notes" && (
-            <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Notes coming soon.</div>
-          )}
+          <TripDetailTabBody
+            tripId={trip.id}
+            activeTab={activeTab}
+            days={days}
+            docs={docs}
+            dateFormat={dateFormat}
+            newlyCreatedChecklistId={newlyCreatedChecklistId ?? undefined}
+            onUpdateEvent={handleEventUpdate}
+            onDeleteEvent={handleEventDelete}
+            onReorderDayItems={handleDayItemsReorder}
+            onUpdateDay={handleDayUpdate}
+            onAddEvent={handleAddEvent}
+            onAddNote={handleAddNote}
+            onUpdateNote={handleUpdateNote}
+            onDeleteNote={handleDeleteNote}
+            onAddChecklist={handleAddChecklist}
+            onUpdateChecklistTitle={handleUpdateChecklistTitle}
+            onDeleteChecklist={handleDeleteChecklist}
+            onAddChecklistItem={handleAddChecklistItem}
+            onUpdateChecklistItem={handleUpdateChecklistItem}
+            onDeleteChecklistItem={handleDeleteChecklistItem}
+            onToggleChecklistItem={handleToggleChecklistItem}
+          />
         </div>
       </div>
 

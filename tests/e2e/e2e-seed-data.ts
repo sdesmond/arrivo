@@ -27,3 +27,60 @@ export const E2E_COMPANION = {
   age: 30,
   position: 0,
 };
+
+export const E2E_DOCUMENT = {
+  name: "E2E Boarding Pass",
+  kind: "pdf",
+  size: "1.2 MB",
+  url: "https://example.com/boarding-pass.pdf",
+};
+
+// Dedicated document for pick-list tests — keeps "E2E Boarding Pass" read-only
+// so documents.feature and event-docs.feature can run in parallel without races.
+export const E2E_PICK_DOC = {
+  name: "E2E Pick Doc",
+  kind: "pdf",
+  size: "0.5 MB",
+  url: "https://example.com/pick-doc.pdf",
+};
+
+export const E2E_EVENT = {
+  name: "E2E Event",
+  position: 0,
+};
+
+export const E2E_EVENT_KEEP = {
+  name: "E2E Event Keep",
+  position: 1,
+};
+
+export const E2E_EVENT_ERASE = {
+  name: "E2E Event Erase",
+  position: 2,
+};
+
+export const E2E_KEEP_DOC = {
+  name: "E2E Keep Doc",
+  kind: "pdf",
+  size: "0.5 MB",
+  url: "https://example.com/keep-doc.pdf",
+};
+
+export const E2E_ERASE_DOC = {
+  name: "E2E Erase Doc",
+  kind: "pdf",
+  size: "0.5 MB",
+  url: "https://example.com/erase-doc.pdf",
+};
+
+export const E2E_EVENT_MANAGE = {
+  name: "E2E Event Manage",
+  position: 3,
+};
+
+export const E2E_MANAGE_DOC = {
+  name: "E2E Manage Doc",
+  kind: "pdf",
+  size: "0.3 MB",
+  url: "https://example.com/manage-doc.pdf",
+};

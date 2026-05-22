@@ -3,8 +3,9 @@
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
-import { eq, and, max, gte, sql } from "drizzle-orm";
+import { eq, and, max, gte, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { inferDocKind, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/utils";
 import type {
   CreateEventInput,
   UpdateEventPatch,
@@ -152,6 +153,34 @@ export async function deleteEvent(eventId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function deleteEventWithDocDecision(eventId: string, keepDocs: boolean) {
+  const user = await requireUser();
+  const tripId = await getEventTripId(eventId);
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  let urlsToCleanup: string[] = [];
+
+  await db.transaction(async (tx) => {
+    if (keepDocs) {
+      await tx.update(documents).set({ eventId: null }).where(eq(documents.eventId, eventId));
+    } else {
+      const eventDocs = await tx.select().from(documents).where(eq(documents.eventId, eventId));
+      urlsToCleanup = eventDocs.map((d) => d.url).filter((u): u is string => !!u);
+      await tx.delete(documents).where(eq(documents.eventId, eventId));
+    }
+    await tx.delete(events).where(eq(events.id, eventId));
+  });
+
+  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    const { del } = await import("@vercel/blob");
+    await Promise.all(
+      urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
+    );
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+}
+
 export async function reorderDayItems(input: ReorderDayItemsInput) {
   const user = await requireUser();
   const tripId = await getDayTripId(input.dayId);
@@ -185,6 +214,40 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch) {
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(days).set(patch).where(eq(days.id, dayId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function uploadDocument(tripId: string, formData: FormData) {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const file = formData.get("file") as File;
+  if (!(file instanceof File)) throw new Error("No file provided");
+
+  const name = file.name;
+  const kind = inferDocKind(file.type);
+  const size = formatFileSize(file.size);
+
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File exceeds 25 MB limit");
+
+  let url: string;
+  if (process.env.UPLOAD_STUB === "true") {
+    const { writeFile, mkdir } = await import("fs/promises");
+    const { join, basename } = await import("path");
+    const uploadsDir = join(process.cwd(), "public", "uploads");
+    await mkdir(uploadsDir, { recursive: true });
+    const safeName = basename(name).replace(/[^\w.-]/g, "_");
+    const randomSuffix = Math.random().toString(36).slice(2, 8);
+    const uniqueName = `${Date.now()}-${randomSuffix}-${safeName}`;
+    await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
+    url = `/uploads/${encodeURIComponent(uniqueName)}`;
+  } else {
+    const { put } = await import("@vercel/blob");
+    const result = await put(name, file, { access: "public" });
+    url = result.url;
+  }
+
+  await db.insert(documents).values({ tripId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -331,6 +394,89 @@ export async function removeDocument(docId: string) {
   const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
+  if (doc.url && process.env.UPLOAD_STUB !== "true") {
+    try {
+      const { del } = await import("@vercel/blob");
+      await del(doc.url);
+    } catch (err) {
+      console.warn(`Blob cleanup failed for doc ${docId} (${doc.url}); continuing with DB delete`, err);
+    }
+  }
   await db.delete(documents).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function renameDocument(docId: string, newName: string) {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function markAllDocsOffline(tripId: string) {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db
+    .update(documents)
+    .set({ offline: true })
+    .where(and(eq(documents.tripId, tripId), isNull(documents.eventId)));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function attachTripDocToEvent(docId: string, eventId: string) {
+  const user = await requireUser();
+  const tripId = await getEventTripId(eventId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ eventId }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function promoteEventDocToTrip(docId: string) {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ eventId: null }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function uploadDocumentToEvent(eventId: string, formData: FormData) {
+  const user = await requireUser();
+  const tripId = await getEventTripId(eventId);
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const file = formData.get("file") as File;
+  if (!(file instanceof File)) throw new Error("No file provided");
+
+  const name = file.name;
+  const kind = inferDocKind(file.type);
+  const size = formatFileSize(file.size);
+
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File exceeds 25 MB limit");
+
+  let url: string;
+  if (process.env.UPLOAD_STUB === "true") {
+    const { writeFile, mkdir } = await import("fs/promises");
+    const { join, basename } = await import("path");
+    const uploadsDir = join(process.cwd(), "public", "uploads");
+    await mkdir(uploadsDir, { recursive: true });
+    const safeName = basename(name).replace(/[^\w.-]/g, "_");
+    const randomSuffix = Math.random().toString(36).slice(2, 8);
+    const uniqueName = `${Date.now()}-${randomSuffix}-${safeName}`;
+    await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
+    url = `/uploads/${encodeURIComponent(uniqueName)}`;
+  } else {
+    const { put } = await import("@vercel/blob");
+    const result = await put(name, file, { access: "public" });
+    url = result.url;
+  }
+
+  await db.insert(documents).values({ tripId, eventId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
 }

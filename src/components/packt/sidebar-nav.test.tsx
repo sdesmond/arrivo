@@ -92,6 +92,17 @@ describe("SidebarNav", () => {
     expect(screen.getByText("J")).toBeInTheDocument();
   });
 
+  it("derives initials from a single-word name", () => {
+    render(<SidebarNav user={{ ...baseUser, name: "Jane" }} />);
+    expect(screen.getByText("J")).toBeInTheDocument();
+  });
+
+  it("renders placeholder initials and fallback name when user is null", () => {
+    render(<SidebarNav user={null} />);
+    expect(screen.getByText("?")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
   it("footer user block links to /profile", () => {
     render(<SidebarNav user={baseUser} />);
     const profileLink = screen.getByRole("link", { name: /view profile/i });
