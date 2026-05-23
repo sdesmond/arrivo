@@ -24,6 +24,8 @@ export function CompanionsSection({ companions }: CompanionsSectionProps) {
   const [name, setName] = useState("");
   const [isAdding, startAdd] = useTransition();
 
+  const nameError = name.trim().length > 50 ? "Companion name must be 50 characters or fewer." : null;
+
   function handleAdd() {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -63,15 +65,27 @@ export function CompanionsSection({ companions }: CompanionsSectionProps) {
             onKeyDown={(e) => {
               if (e.key === "Enter") handleAdd();
             }}
-            aria-describedby="companion-name-hint"
+            aria-describedby={nameError ? "companion-name-error" : "companion-name-hint"}
+            aria-invalid={!!nameError || undefined}
             className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
             style={INPUT_STYLE}
           />
-          <span id="companion-name-hint" className="sr-only">
-            Enter a name to add a companion
-          </span>
+          {nameError ? (
+            <p
+              id="companion-name-error"
+              role="status"
+              aria-live="polite"
+              style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--destructive)", marginTop: 4 }}
+            >
+              {nameError}
+            </p>
+          ) : (
+            <span id="companion-name-hint" className="sr-only">
+              Enter a name to add a companion
+            </span>
+          )}
         </div>
-        <Button size="sm" onClick={handleAdd} disabled={isAdding || !name.trim()}>
+        <Button size="sm" onClick={handleAdd} disabled={isAdding || !name.trim() || !!nameError}>
           <Plus size={14} strokeWidth={1.5} aria-hidden="true" />
           Add
         </Button>

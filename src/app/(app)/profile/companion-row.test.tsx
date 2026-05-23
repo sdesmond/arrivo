@@ -32,10 +32,20 @@ vi.mock("@/components/ui/date-picker", () => ({
 }));
 
 vi.mock("@/components/packt/form-section", () => ({
-  Field: ({ children, label }: { children: React.ReactNode; label: string; htmlFor?: string }) => (
+  Field: ({
+    children,
+    label,
+    error,
+  }: {
+    children: React.ReactNode;
+    label: string;
+    htmlFor?: string;
+    error?: string;
+  }) => (
     <div>
       <label>{label}</label>
       {children}
+      {error && <p role="alert">{error}</p>}
     </div>
   ),
 }));
@@ -140,5 +150,75 @@ describe("CompanionRow", () => {
     await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(toast.error).toHaveBeenCalledWith("Companion name must be 50 characters or fewer.");
+  });
+
+  it("shows name error and disables Save when name exceeds 50 chars (AC2)", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    const nameInput = screen.getByDisplayValue("Alice Travel");
+    await user.clear(nameInput);
+    await user.type(nameInput, "A".repeat(51));
+    expect(screen.getByRole("alert")).toHaveTextContent("Companion name must be 50 characters or fewer.");
+    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+  });
+
+  it("clears name error when name is corrected (AC2)", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    const nameInput = screen.getByDisplayValue("Alice Travel");
+    await user.clear(nameInput);
+    await user.type(nameInput, "A".repeat(51));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await user.clear(nameInput);
+    await user.type(nameInput, "Alice");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows age error when age is out of range (AC3)", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    const ageInput = screen.getByDisplayValue("30");
+    await user.clear(ageInput);
+    await user.type(ageInput, "999");
+    expect(screen.getByRole("alert")).toHaveTextContent("Age must be between 0 and 120.");
+  });
+
+  it("clears age error when age field is cleared (AC3)", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    const ageInput = screen.getByDisplayValue("30");
+    await user.clear(ageInput);
+    await user.type(ageInput, "999");
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await user.clear(ageInput);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows passport number error when passport exceeds 20 chars (AC4)", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    const passportInput = screen.getByDisplayValue("PA001");
+    await user.clear(passportInput);
+    await user.type(passportInput, "A".repeat(21));
+    expect(screen.getByRole("alert")).toHaveTextContent("Passport number must be 20 characters or fewer.");
+    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+  });
+
+  it("clears passport error when corrected (AC4)", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    const passportInput = screen.getByDisplayValue("PA001");
+    await user.clear(passportInput);
+    await user.type(passportInput, "A".repeat(21));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await user.clear(passportInput);
+    await user.type(passportInput, "A12345678");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

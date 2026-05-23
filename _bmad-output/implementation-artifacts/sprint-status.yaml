@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-19
-last_updated: 2026-05-22  # stories 2.3 & 3.1 → done (merged in PR #20); 4-1, 4-2 → done (merged in PR #21)
+last_updated: 2026-05-22  # stories 2.3 & 3.1 → done (merged in PR #20); 4-1, 4-2 → done (merged in PR #21); 4-3 → done (code review); 4-4 → done (code review)
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -68,4 +68,5 @@ development_status:
   epic-4: in-progress
   4-1-fix-blob-cascade-leak: done
   4-2-empty-state-placeholders: done
-  4-3-companion-data-integrity: review
+  4-3-companion-data-integrity: done
+  4-4-client-side-field-validation: done

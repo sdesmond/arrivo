@@ -15,11 +15,36 @@ import type {
   UpdateCompanionPatch,
 } from "@/data/types";
 
-export async function updateProfile(patch: UpdateUserProfilePatch): Promise<void> {
+export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ error?: string }> {
   const session = await requireUser();
+
+  if (patch.name !== undefined && patch.name !== null) {
+    if (patch.name.length > 100) return { error: "Name must be 100 characters or fewer." };
+  }
+  if (patch.passportNumber !== undefined && patch.passportNumber !== null) {
+    if (patch.passportNumber.length > 20) return { error: "Passport number must be 20 characters or fewer." };
+  }
+  if (patch.passportNationality !== undefined && patch.passportNationality !== null) {
+    if (patch.passportNationality.length > 50) return { error: "Nationality must be 50 characters or fewer." };
+  }
+  if (patch.knownTravelerNumber !== undefined && patch.knownTravelerNumber !== null) {
+    if (patch.knownTravelerNumber.length > 20)
+      return { error: "Known traveler number must be 20 characters or fewer." };
+  }
+  if (patch.currency !== undefined && patch.currency !== "") {
+    if (!/^[A-Z]{3}$/.test(patch.currency)) return { error: "Currency must be a 3-letter ISO code." };
+  }
+  if (patch.dateFormat !== undefined) {
+    if (!["MM/DD/YYYY", "DD/MM/YYYY"].includes(patch.dateFormat)) return { error: "Invalid date format." };
+  }
+  if (patch.distanceUnit !== undefined) {
+    if (!["imperial", "metric"].includes(patch.distanceUnit)) return { error: "Invalid distance unit." };
+  }
+
   await db.update(users).set(patch).where(eq(users.id, session.id!));
   revalidatePath("/profile");
   revalidatePath("/trips");
+  return {};
 }
 
 export async function addLoyaltyNumber(input: AddLoyaltyNumberInput): Promise<void> {

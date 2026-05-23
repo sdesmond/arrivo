@@ -5,7 +5,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({
-  updateProfile: vi.fn().mockResolvedValue(undefined),
+  updateProfile: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }));
 
 vi.mock("@/components/ui/date-picker", () => ({
@@ -30,10 +34,20 @@ vi.mock("@/components/ui/date-picker", () => ({
 
 vi.mock("@/components/packt/form-section", () => ({
   Section: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Field: ({ children, label }: { children: React.ReactNode; label: string; htmlFor?: string }) => (
+  Field: ({
+    children,
+    label,
+    error,
+  }: {
+    children: React.ReactNode;
+    label: string;
+    htmlFor?: string;
+    error?: string;
+  }) => (
     <div>
       <label>{label}</label>
       {children}
+      {error && <p role="alert">{error}</p>}
     </div>
   ),
 }));
@@ -101,5 +115,25 @@ describe("PassportSection", () => {
     await user.type(screen.getByPlaceholderText("e.g. A12345678"), "CD999");
     await user.click(screen.getByRole("button", { name: /save/i }));
     expect(updateProfile).toHaveBeenCalledWith(expect.objectContaining({ passportNumber: "CD999" }));
+  });
+
+  it("shows error and disables Save when passport number exceeds 20 chars (AC8)", async () => {
+    const user = userEvent.setup();
+    render(<PassportSection user={baseUser} />);
+    await user.type(screen.getByPlaceholderText("e.g. A12345678"), "A".repeat(21));
+    expect(screen.getByRole("alert")).toHaveTextContent("Passport number must be 20 characters or fewer.");
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+  });
+
+  it("clears passport error when corrected to 20 chars or fewer (AC8)", async () => {
+    const user = userEvent.setup();
+    render(<PassportSection user={baseUser} />);
+    const input = screen.getByPlaceholderText("e.g. A12345678");
+    await user.type(input, "A".repeat(21));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, "A12345678");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
   });
 });

@@ -5,6 +5,7 @@ import { Section, Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { updateProfile } from "./actions";
 import type { UserProfile } from "@/data/types";
 
@@ -48,13 +49,20 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     onDirtyChange?.(computeDirty(dateFormat, currency, next));
   }
 
+  const currencyError =
+    currency.length > 0 && !/^[A-Z]{3}$/.test(currency) ? "Currency must be a 3-letter ISO code (e.g. USD)." : null;
+
   function handleSave() {
     startTransition(async () => {
       const patch: Parameters<typeof updateProfile>[0] = {};
       if (dateFormat !== (user.dateFormat ?? "MM/DD/YYYY")) patch.dateFormat = dateFormat;
       if (currency !== (user.currency ?? "")) patch.currency = currency;
       if (distanceUnit !== (user.distanceUnit ?? "imperial")) patch.distanceUnit = distanceUnit;
-      await updateProfile(patch);
+      const result = await updateProfile(patch);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
       setJustSaved(true);
       onDirtyChange?.(false);
       setTimeout(() => setJustSaved(false), 2000);
@@ -79,7 +87,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         </ToggleGroup>
       </Field>
 
-      <Field label="Currency" htmlFor="pref-currency">
+      <Field label="Currency" htmlFor="pref-currency" error={currencyError ?? undefined}>
         <Input
           id="pref-currency"
           type="text"
@@ -87,6 +95,8 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
           onChange={(e) => handleCurrencyChange(e.target.value.toUpperCase().slice(0, 3))}
           placeholder="USD"
           maxLength={3}
+          aria-invalid={!!currencyError || undefined}
+          aria-describedby={currencyError ? "pref-currency-error" : undefined}
         />
       </Field>
 
@@ -110,7 +120,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
             Saved
           </span>
         )}
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty}>
+        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!currencyError}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </div>

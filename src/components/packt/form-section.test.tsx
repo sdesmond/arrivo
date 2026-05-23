@@ -54,4 +54,34 @@ describe("Field", () => {
     render(<Field label="Notes">child</Field>);
     expect(screen.getByText("child")).toBeInTheDocument();
   });
+
+  it("renders <p role='status'> with error text when error and htmlFor are set", () => {
+    render(
+      <Field label="Name" htmlFor="name-input" error="Name is required.">
+        <input id="name-input" />
+      </Field>
+    );
+    const status = screen.getByRole("status");
+    expect(status).toBeInTheDocument();
+    expect(status).toHaveTextContent("Name is required.");
+    expect(status).toHaveAttribute("id", "name-input-error");
+  });
+
+  it("does not render error when htmlFor is absent even if error is set", () => {
+    render(
+      <Field label="Notes" error="Some error">
+        child
+      </Field>
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("does not render error element when error is empty string", () => {
+    render(
+      <Field label="Name" htmlFor="name-input" error="">
+        <input id="name-input" />
+      </Field>
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

@@ -42,10 +42,12 @@ export function Section({ title, children }: SectionProps) {
 export interface FieldProps {
   label: string;
   htmlFor?: string;
+  error?: string;
   children: React.ReactNode;
 }
 
-export function Field({ label, htmlFor, children }: FieldProps) {
+export function Field({ label, htmlFor, error, children }: FieldProps) {
+  const errorId = htmlFor ? `${htmlFor}-error` : undefined;
   return (
     <div>
       {htmlFor ? (
@@ -56,6 +58,16 @@ export function Field({ label, htmlFor, children }: FieldProps) {
         <span style={LABEL_STYLE}>{label}</span>
       )}
       {children}
+      {error && errorId && (
+        <p
+          id={errorId}
+          role="status"
+          aria-live="polite"
+          style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--destructive)", marginTop: 4 }}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }

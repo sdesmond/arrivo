@@ -1,5 +1,19 @@
 # Deferred Work
 
+## Deferred from: code review of 4-4-client-side-field-validation (2026-05-22)
+
+- **`Field` silently drops `error` when `htmlFor` absent** — spec-compliant (AC1 says "if htmlFor is absent, the error is not rendered") but a future footgun: a developer who adds `error` to a `Field` without `htmlFor` sees nothing and ships broken UX. Fix path: add a dev-only `console.warn` or tighten the prop type to require both together.
+
+- **`name` writes untrimmed value and empty string to DB** — identity-section validates `name.length > 100` (not `.trim()`) and sends the raw value; the server stores it untrimmed including trailing spaces. An empty name clears to `""` not `null`. Fix path: trim before validation and normalize `""` to `null` in the server action, consistent with how `updateCompanion` normalizes optional fields.
+
+- **Age `parseInt` accepts decimals and trailing garbage** — `"25.7"` parses to `25`, `"25abc"` parses to `25`. Mostly prevented by `<input type="number">` in most browsers. Fix path: replace `parseInt(age, 10)` + `isNaN` with `Number.isInteger(Number(age))`.
+
+- **`passportExpiry` unvalidated server-side** — a malformed date string hits Postgres and throws an exception rather than returning `{ error: "..." }`. Fix path: add a date-format guard in `updateProfile` or wrap the DB call in try/catch.
+
+- **Server action DB exceptions uncaught** — any Postgres error (constraint violation, connection drop) in `db.update(...)` propagates as an unhandled rejection instead of `{ error: "..." }`, breaking the `Promise<{error?}>` contract. Same gap exists in companion actions from story 4.3. Fix path: wrap `db.update` in try/catch and return `{ error: "Something went wrong." }`.
+
+---
+
 ## Deferred from: code review of 4-3-companion-data-integrity (2026-05-22)
 
 - **Non-atomic cap + position in `addCompanion`** — cap check and `nextPos` query are two separate SELECTs with no wrapping transaction. Concurrent inserts from the same `userId` could bypass the 20-cap or produce duplicate `position` values. Low-risk for a single-user personal planner; fix path: merge into a CTE or wrap in a serializable transaction.
