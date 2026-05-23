@@ -92,15 +92,15 @@ These agents enforce project standards. Use them as described below — don't sk
 
 ### Post-implementation agents
 
-| Agent                 | When to invoke                                                                                                                               |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `typescript-reviewer` | After adding or modifying types, interfaces, or any `.ts`/`.tsx` file                                                                        |
-| `component-reviewer`  | After creating or significantly modifying a component in `src/components/`                                                                   |
-| `ui-reviewer`         | After visual/styling changes — static code review only (design tokens, a11y, spacing, etc.)                                                  |
-| `desktop-reviewer`    | After visual changes — browser test at 1280px; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser) |
-| `mobile-reviewer`     | After visual changes — browser test at 390px; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser) |
-| `build-validator`     | Before considering any task complete                                                                                                         |
-| `standards-check`     | Before committing — this is the pre-commit gate                                                                                              |
+| Agent                         | When to invoke                                                                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `standards-check --ts`        | After adding or modifying types, interfaces, or any `.ts`/`.tsx` file                                                                        |
+| `standards-check --component` | After creating or significantly modifying a component in `src/components/`                                                                   |
+| `standards-check --ui`        | After visual/styling changes — static code review only (design tokens, a11y, spacing, etc.)                                                  |
+| `desktop-reviewer`            | After visual changes — browser test at 1280px; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser) |
+| `mobile-reviewer`             | After visual changes — browser test at 390px; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser) |
+| `build-validator`             | Before considering any task complete                                                                                                         |
+| `standards-check`             | Before committing — this is the pre-commit gate                                                                                              |
 
 **Default workflow for planning:**
 After any planning skill (BMad architect, PM, UX, etc.) saves its artifact, run the plan reviewer **inline** before presenting the artifact to the user — do NOT spawn a subagent:
@@ -118,7 +118,7 @@ Pass the original request as context so scope and test checks have what they nee
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend a `.feature` + step file in `tests/e2e/`
 2. Run `build-validator` to catch lint/tsc/build/test errors
 3. Run `npm run test:e2e` — required after every component or app code change, not just when E2E files change
-4. Run the relevant focused reviewer(s) for what changed
+4. Run `standards-check --ts` / `--component` / `--ui` as appropriate for what changed
 5. Fix any flagged issues, then re-validate
 6. Run `standards-check` before the final commit
 

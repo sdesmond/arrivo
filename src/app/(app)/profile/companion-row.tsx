@@ -6,6 +6,7 @@ import { Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
+import { toast } from "sonner";
 import { updateCompanion, deleteCompanion } from "./actions";
 import type { Companion, UpdateCompanionPatch } from "@/data/types";
 
@@ -50,6 +51,21 @@ export function CompanionRow({ companion }: CompanionRowProps) {
     }
   }
 
+  const nameError = name.trim().length > 50 ? "Companion name must be 50 characters or fewer." : null;
+
+  const parsedAge = age ? parseInt(age, 10) : null;
+  const ageError =
+    age !== "" && (parsedAge === null || isNaN(parsedAge) || parsedAge < 0 || parsedAge > 120)
+      ? "Age must be between 0 and 120."
+      : null;
+
+  const passportNumberError = passportNumber.length > 20 ? "Passport number must be 20 characters or fewer." : null;
+  const passportNationalityError =
+    passportNationality.length > 50 ? "Nationality must be 50 characters or fewer." : null;
+  const ktnError = knownTravelerNumber.length > 20 ? "Known traveler number must be 20 characters or fewer." : null;
+
+  const hasError = !!(nameError || ageError || passportNumberError || passportNationalityError || ktnError);
+
   function handleSave() {
     startTransition(async () => {
       const patch: UpdateCompanionPatch = {
@@ -61,7 +77,11 @@ export function CompanionRow({ companion }: CompanionRowProps) {
         knownTravelerNumber: knownTravelerNumber || undefined,
         packtUsername: packtUsername || undefined,
       };
-      await updateCompanion(companion.id, patch);
+      const result = await updateCompanion(companion.id, patch);
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
       setIsExpanded(false);
@@ -120,7 +140,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
       {isExpanded && (
         <div className="pb-3 flex flex-col gap-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Name" htmlFor={`companion-name-${companion.id}`}>
+            <Field label="Name" htmlFor={`companion-name-${companion.id}`} error={nameError ?? undefined}>
               <Input
                 ref={firstFieldRef}
                 id={`companion-name-${companion.id}`}
@@ -128,10 +148,12 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="off"
+                aria-invalid={!!nameError || undefined}
+                aria-describedby={nameError ? `companion-name-${companion.id}-error` : undefined}
               />
             </Field>
 
-            <Field label="Age" htmlFor={`companion-age-${companion.id}`}>
+            <Field label="Age" htmlFor={`companion-age-${companion.id}`} error={ageError ?? undefined}>
               <Input
                 id={`companion-age-${companion.id}`}
                 type="number"
@@ -139,10 +161,16 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 max={120}
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
+                aria-invalid={!!ageError || undefined}
+                aria-describedby={ageError ? `companion-age-${companion.id}-error` : undefined}
               />
             </Field>
 
-            <Field label="Passport number" htmlFor={`companion-passport-${companion.id}`}>
+            <Field
+              label="Passport number"
+              htmlFor={`companion-passport-${companion.id}`}
+              error={passportNumberError ?? undefined}
+            >
               <Input
                 id={`companion-passport-${companion.id}`}
                 type="text"
@@ -150,6 +178,8 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 onChange={(e) => setPassportNumber(e.target.value)}
                 placeholder="e.g. A12345678"
                 autoComplete="off"
+                aria-invalid={!!passportNumberError || undefined}
+                aria-describedby={passportNumberError ? `companion-passport-${companion.id}-error` : undefined}
               />
             </Field>
 
@@ -157,19 +187,26 @@ export function CompanionRow({ companion }: CompanionRowProps) {
               <DatePicker value={passportExpiry} onChange={(v) => setPassportExpiry(v)} placeholder="Passport expiry" />
             </Field>
 
-            <Field label="Nationality" htmlFor={`companion-nationality-${companion.id}`}>
+            <Field
+              label="Nationality"
+              htmlFor={`companion-nationality-${companion.id}`}
+              error={passportNationalityError ?? undefined}
+            >
               <Input
                 id={`companion-nationality-${companion.id}`}
                 type="text"
                 value={passportNationality}
                 onChange={(e) => setPassportNationality(e.target.value)}
                 placeholder="e.g. American"
+                aria-invalid={!!passportNationalityError || undefined}
+                aria-describedby={passportNationalityError ? `companion-nationality-${companion.id}-error` : undefined}
               />
             </Field>
 
             <Field
               label="Known traveler number (TSA PreCheck / Global Entry)"
               htmlFor={`companion-ktn-${companion.id}`}
+              error={ktnError ?? undefined}
             >
               <Input
                 id={`companion-ktn-${companion.id}`}
@@ -178,6 +215,8 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 onChange={(e) => setKnownTravelerNumber(e.target.value)}
                 placeholder="e.g. 123456789"
                 autoComplete="off"
+                aria-invalid={!!ktnError || undefined}
+                aria-describedby={ktnError ? `companion-ktn-${companion.id}-error` : undefined}
               />
             </Field>
           </div>
@@ -207,7 +246,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
             <Button size="sm" variant="ghost" onClick={handleCollapse} disabled={isPending}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={isPending || !name.trim()}>
+            <Button size="sm" onClick={handleSave} disabled={isPending || !name.trim() || hasError}>
               {isPending ? "Saving…" : "Save"}
             </Button>
           </div>

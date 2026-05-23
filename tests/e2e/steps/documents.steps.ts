@@ -1,9 +1,39 @@
 import { expect } from "@playwright/test";
-import { Given, When, Then } from "../fixtures";
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { and, eq, isNull } from "drizzle-orm";
+import { documents, trips, users } from "../../../src/db/schema";
+import { E2E_USER } from "../e2e-seed-data";
+import { Given, When, Then, Before } from "../fixtures";
+
+async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client);
+  try {
+    return await fn(db);
+  } finally {
+    await client.end();
+  }
+}
+
+Before({ tags: "@docs-empty" }, async () => {
+  await withE2EDb(async (db) => {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
+    if (!user) return;
+    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    if (!trip) return;
+    await db.delete(documents).where(and(eq(documents.tripId, trip.id), isNull(documents.eventId)));
+  });
+});
 
 Given("I am on the Documents tab", async ({ page }) => {
   await page.getByRole("button", { name: "Documents" }).click();
-  await expect(page.getByText("Add", { exact: true })).toBeVisible({ timeout: 10_000 });
+  // #doc-upload is always in the DOM regardless of empty/populated state (per Story 4.2 AC3)
+  await expect(page.locator("#doc-upload")).toBeAttached({ timeout: 10_000 });
+});
+
+Given("the Documents tab shows the empty state", async ({ page }) => {
+  await expect(page.getByText("No documents yet")).toBeVisible({ timeout: 5_000 });
 });
 
 When("I upload a file named {string} with MIME type {string}", async ({ page }, filename: string, mimeType: string) => {

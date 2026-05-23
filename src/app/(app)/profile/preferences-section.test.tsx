@@ -6,7 +6,11 @@ import { ProfilePreferencesSection } from "./preferences-section";
 import type { UserProfile } from "@/data/types";
 import * as actions from "./actions";
 
-vi.mock("./actions", () => ({ updateProfile: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("./actions", () => ({ updateProfile: vi.fn().mockResolvedValue({}) }));
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
 const mockUser: UserProfile = {
   id: "u1",

@@ -93,10 +93,10 @@ export interface UpdateUserProfilePatch {
   dateFormat?: string;
   currency?: string;
   distanceUnit?: string;
-  passportNumber?: string;
+  passportNumber?: string | null;
   passportExpiry?: string;
-  passportNationality?: string;
-  knownTravelerNumber?: string;
+  passportNationality?: string | null;
+  knownTravelerNumber?: string | null;
 }
 
 export interface AddLoyaltyNumberInput {

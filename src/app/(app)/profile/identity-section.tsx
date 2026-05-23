@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Section, Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { updateProfile } from "./actions";
 import type { UserProfile } from "@/data/types";
 
@@ -32,9 +34,15 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
     onDirtyChange?.(dirty);
   }
 
+  const nameError = name.length > 100 ? "Name must be 100 characters or fewer." : null;
+
   function handleSave() {
     startTransition(async () => {
-      await updateProfile({ name });
+      const result = await updateProfile({ name });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
       setJustSaved(true);
       onDirtyChange?.(false);
       setTimeout(() => setJustSaved(false), 2000);
@@ -64,20 +72,15 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
         </div>
       </div>
 
-      <Field label="Name" htmlFor="profile-name">
-        <input
+      <Field label="Name" htmlFor="profile-name" error={nameError ?? undefined}>
+        <Input
           id="profile-name"
           type="text"
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
-          className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
-          style={{
-            background: "var(--surface-2)",
-            color: "var(--fg)",
-            border: "1px solid var(--line)",
-            fontSize: "calc(13px * var(--font-scale))",
-          }}
           placeholder="Your name"
+          aria-invalid={!!nameError || undefined}
+          aria-describedby={nameError ? "profile-name-error" : undefined}
         />
       </Field>
 
@@ -104,7 +107,7 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
             Saved
           </span>
         )}
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty}>
+        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!nameError}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </div>

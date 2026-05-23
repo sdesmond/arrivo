@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Section, Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,11 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
   const [isDeletePending, startDeleteTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
 
+  const newPasswordError =
+    newPassword.length > 0 && newPassword.length < 8 ? "Password must be at least 8 characters." : null;
+  const confirmPasswordError =
+    confirmPassword.length > 0 && confirmPassword !== newPassword ? "Passwords do not match." : null;
+
   function computeDirty(cp: string, np: string, conf: string) {
     return cp.length > 0 || np.length > 0 || conf.length > 0;
   }
@@ -55,10 +61,6 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
   function handlePasswordSave() {
     setPasswordError(null);
     setPasswordSuccess(false);
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords do not match.");
-      return;
-    }
     startPwTransition(async () => {
       const result = await changePassword({ currentPassword, newPassword });
       if (result.error) {
@@ -84,50 +86,41 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
 
   const isDirty = computeDirty(currentPassword, newPassword, confirmPassword);
 
-  const inputStyle = {
-    background: "var(--surface-2)",
-    color: "var(--fg)",
-    border: "1px solid var(--line)",
-    fontSize: "calc(13px * var(--font-scale))",
-  };
-
   return (
     <>
       <div style={{ borderTop: "1px solid var(--line)", paddingTop: 24 }}>
         <Section>
           <Field label="Current password" htmlFor="pw-current">
-            <input
+            <Input
               id="pw-current"
               type="password"
               value={currentPassword}
               onChange={(e) => handleCurrentPasswordChange(e.target.value)}
-              className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
-              style={inputStyle}
               autoComplete="current-password"
             />
           </Field>
 
-          <Field label="New password" htmlFor="pw-new">
-            <input
+          <Field label="New password" htmlFor="pw-new" error={newPasswordError ?? undefined}>
+            <Input
               id="pw-new"
               type="password"
               value={newPassword}
               onChange={(e) => handleNewPasswordChange(e.target.value)}
-              className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
-              style={inputStyle}
               autoComplete="new-password"
+              aria-invalid={!!newPasswordError || undefined}
+              aria-describedby={newPasswordError ? "pw-new-error" : undefined}
             />
           </Field>
 
-          <Field label="Confirm new password" htmlFor="pw-confirm">
-            <input
+          <Field label="Confirm new password" htmlFor="pw-confirm" error={confirmPasswordError ?? undefined}>
+            <Input
               id="pw-confirm"
               type="password"
               value={confirmPassword}
               onChange={(e) => handleConfirmPasswordChange(e.target.value)}
-              className="w-full rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
-              style={inputStyle}
               autoComplete="new-password"
+              aria-invalid={!!confirmPasswordError || undefined}
+              aria-describedby={confirmPasswordError ? "pw-confirm-error" : undefined}
             />
           </Field>
 
@@ -148,7 +141,11 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
                 Saved
               </span>
             )}
-            <Button size="sm" onClick={handlePasswordSave} disabled={isPwPending || !isDirty}>
+            <Button
+              size="sm"
+              onClick={handlePasswordSave}
+              disabled={isPwPending || !isDirty || !!newPasswordError || !!confirmPasswordError}
+            >
               {isPwPending ? "Updating…" : "Update password"}
             </Button>
           </div>

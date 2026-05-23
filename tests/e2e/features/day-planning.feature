@@ -49,3 +49,8 @@ Feature: Day Planning
     Then the checklist should be collapsed
     When I delete the checklist
     Then the checklist should not be visible on the timeline
+
+  @itinerary-empty
+  Scenario: Empty state shows Add event, Add note, and Add checklist buttons when a trip has no scheduled days
+    Given I navigate to the trip with no itinerary
+    Then the itinerary empty state shows buttons for adding events, notes, and checklists
