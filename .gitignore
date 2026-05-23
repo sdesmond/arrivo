@@ -54,3 +54,8 @@ next-env.d.ts
 # dev upload stubs
 /public/uploads/
 
+# bmad framework installation (reinstallable from manifest)
+_bmad/**
+!_bmad/_config/
+!_bmad/_config/manifest.yaml
+
