@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockWhere, mockSet, mockUpdate, mockRequireUser } = vi.hoisted(() => {
+const { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser } = vi.hoisted(() => {
+  const mockReturning = vi.fn().mockResolvedValue([{ id: "companion-1" }]);
   const mockWhere = vi.fn().mockResolvedValue(undefined);
   const mockSet = vi.fn().mockReturnValue({ where: mockWhere });
   const mockUpdate = vi.fn().mockReturnValue({ set: mockSet });
   const mockRequireUser = vi.fn().mockResolvedValue({ id: "user-1" });
-  return { mockWhere, mockSet, mockUpdate, mockRequireUser };
+  return { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser };
 });
 
 vi.mock("@/lib/auth-helpers", () => ({
@@ -45,7 +46,7 @@ vi.mock("bcryptjs", () => ({
   default: { compare: vi.fn(), hash: vi.fn() },
 }));
 
-import { updateProfile } from "./actions";
+import { updateProfile, updateCompanion } from "./actions";
 
 describe("updateProfile — server-side validation (AC10)", () => {
   beforeEach(() => {
@@ -63,6 +64,17 @@ describe("updateProfile — server-side validation (AC10)", () => {
 
   it("returns {} when name is exactly 100 chars", async () => {
     const result = await updateProfile({ name: "x".repeat(100) });
+    expect(result).toEqual({});
+  });
+
+  it("trims name before validating length", async () => {
+    // 100 x's surrounded by spaces → trimmed length is 100, should pass
+    const result = await updateProfile({ name: "  " + "x".repeat(100) + "  " });
+    expect(result).toEqual({});
+  });
+
+  it("returns {} when name is empty string (normalizes to null)", async () => {
+    const result = await updateProfile({ name: "" });
     expect(result).toEqual({});
   });
 
@@ -124,5 +136,79 @@ describe("updateProfile — server-side validation (AC10)", () => {
   it("returns {} when knownTravelerNumber is null (clearing the field)", async () => {
     const result = await updateProfile({ knownTravelerNumber: null });
     expect(result).toEqual({});
+  });
+
+  it("returns {} when passportExpiry is a valid YYYY-MM-DD date", async () => {
+    const result = await updateProfile({ passportExpiry: "2028-06-15" });
+    expect(result).toEqual({});
+  });
+
+  it("returns error when passportExpiry is not in YYYY-MM-DD format", async () => {
+    const result = await updateProfile({ passportExpiry: "06/15/2028" });
+    expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
+  });
+
+  it("returns error when passportExpiry is a free-form string", async () => {
+    const result = await updateProfile({ passportExpiry: "not-a-date" });
+    expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
+  });
+
+  it("returns error when db.update throws", async () => {
+    mockWhere.mockRejectedValue(new Error("connection lost"));
+    const result = await updateProfile({ name: "Alice" });
+    expect(result).toEqual({ error: "Something went wrong." });
+  });
+});
+
+describe("updateCompanion — passportExpiry validation, zero-row detection, exception safety", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdate.mockReturnValue({ set: mockSet });
+    mockSet.mockReturnValue({ where: mockWhere });
+    mockWhere.mockReturnValue({ returning: mockReturning });
+    mockReturning.mockResolvedValue([{ id: "companion-1" }]);
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  it("returns {} on successful update", async () => {
+    const result = await updateCompanion("companion-1", { name: "Alice" });
+    expect(result).toEqual({});
+  });
+
+  it("returns {} when passportExpiry is a valid YYYY-MM-DD date", async () => {
+    const result = await updateCompanion("companion-1", { passportExpiry: "2030-01-01" });
+    expect(result).toEqual({});
+  });
+
+  it("returns error when passportExpiry is not in YYYY-MM-DD format", async () => {
+    const result = await updateCompanion("companion-1", { passportExpiry: "01/01/2030" });
+    expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
+  });
+
+  it("returns error when passportExpiry is a free-form string", async () => {
+    const result = await updateCompanion("companion-1", { passportExpiry: "next year" });
+    expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
+  });
+
+  it("returns not-found error when update affects zero rows", async () => {
+    mockReturning.mockResolvedValue([]);
+    const result = await updateCompanion("unknown-id", { name: "Alice" });
+    expect(result).toEqual({ error: "Companion not found." });
+  });
+
+  it("returns error when db.update throws", async () => {
+    mockReturning.mockRejectedValue(new Error("constraint violation"));
+    const result = await updateCompanion("companion-1", { name: "Alice" });
+    expect(result).toEqual({ error: "Something went wrong." });
+  });
+
+  it("returns error when companion name is empty", async () => {
+    const result = await updateCompanion("companion-1", { name: "" });
+    expect(result).toEqual({ error: "Companion name is required." });
+  });
+
+  it("returns error when companion name exceeds 50 chars", async () => {
+    const result = await updateCompanion("companion-1", { name: "x".repeat(51) });
+    expect(result).toEqual({ error: "Companion name must be 50 characters or fewer." });
   });
 });

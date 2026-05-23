@@ -4,13 +4,7 @@
 
 - **`Field` silently drops `error` when `htmlFor` absent** — spec-compliant (AC1 says "if htmlFor is absent, the error is not rendered") but a future footgun: a developer who adds `error` to a `Field` without `htmlFor` sees nothing and ships broken UX. Fix path: add a dev-only `console.warn` or tighten the prop type to require both together.
 
-- **`name` writes untrimmed value and empty string to DB** — identity-section validates `name.length > 100` (not `.trim()`) and sends the raw value; the server stores it untrimmed including trailing spaces. An empty name clears to `""` not `null`. Fix path: trim before validation and normalize `""` to `null` in the server action, consistent with how `updateCompanion` normalizes optional fields.
-
 - **Age `parseInt` accepts decimals and trailing garbage** — `"25.7"` parses to `25`, `"25abc"` parses to `25`. Mostly prevented by `<input type="number">` in most browsers. Fix path: replace `parseInt(age, 10)` + `isNaN` with `Number.isInteger(Number(age))`.
-
-- **`passportExpiry` unvalidated server-side** — a malformed date string hits Postgres and throws an exception rather than returning `{ error: "..." }`. Fix path: add a date-format guard in `updateProfile` or wrap the DB call in try/catch.
-
-- **Server action DB exceptions uncaught** — any Postgres error (constraint violation, connection drop) in `db.update(...)` propagates as an unhandled rejection instead of `{ error: "..." }`, breaking the `Promise<{error?}>` contract. Same gap exists in companion actions from story 4.3. Fix path: wrap `db.update` in try/catch and return `{ error: "Something went wrong." }`.
 
 ---
 
@@ -19,10 +13,6 @@
 - **Non-atomic cap + position in `addCompanion`** — cap check and `nextPos` query are two separate SELECTs with no wrapping transaction. Concurrent inserts from the same `userId` could bypass the 20-cap or produce duplicate `position` values. Low-risk for a single-user personal planner; fix path: merge into a CTE or wrap in a serializable transaction.
 
 - **Same atomicity gap in `addLoyaltyNumber` / `addWishlistDestination`** — the position formula was fixed from COUNT to MAX+1 but the SELECT+INSERT pair remains non-atomic, same as companions.
-
-- **No input validation on `addLoyaltyNumber` / `addWishlistDestination`** — companions now have name/age validation but these two actions still accept arbitrary-length inputs with no server-side guard. Fix path: add Zod validation or inline length checks at the server action boundary.
-
-- **`updateCompanion` returns `{}` on zero-row UPDATE** — the WHERE clause enforces ownership (`userId`) but if `id` doesn't belong to the user, Drizzle silently updates zero rows and the function returns `{}` (success). No security bypass, but debugging is harder. Fix path: check affected rows count and return a not-found error.
 
 - **No E2E coverage for 20-companion cap or validation error toasts** — excluded per dev notes as server-side correctness fixes with no new user-facing flow. Add scenarios if a regression occurs.
 
@@ -37,10 +27,6 @@ Fields with existing server-side validation rules have no inline client-side fee
 ## Deferred from: code review of story-3-2-delete-an-event-with-attached-documents (2026-05-21)
 
 - **`hasDocs` decision uses stale client-side data** [src/components/packt/place-row.tsx:229] — Spec explicitly approved the client-side check, but if a collaborator attaches a doc concurrently, the local user bypasses the confirmation dialog and the cascade FK silently deletes the new doc. Revisit if multi-editor concurrency becomes real.
-
----
-
-## Checklist drag handle
 
 ---
 
@@ -63,14 +49,8 @@ Surfaced during step-04 review of `spec-add-itinerary-drag-reorder.md`. Real but
 
 Surfaced during step-04 review of `spec-profile-companions.md`. Pre-existing patterns applied consistently; real but out of scope.
 
-### No server-side input validation on companion actions
-`addCompanion` and `updateCompanion` in `profile/actions.ts` pass field values straight to the DB with no length cap, no age bounds check (negative integers are accepted), no date format validation on `passportExpiry`, and no sanitization on `passportNumber` or `packtUsername`. This matches the existing pattern for `addLoyaltyNumber`, `addWishlistDestination`, etc. Fix path: add a Zod schema validation layer at the server action boundary for all profile mutation actions.
-
 ### Position gaps after companion delete
 `deleteCompanion` removes the row but does not recompact `position` values for remaining companions. Gaps (e.g. positions [0, 1, 3]) cause `addCompanion`'s `count(*)`-based position assignment to produce duplicates when any intermediate position was deleted. Same issue exists in `userLoyaltyNumbers` and `userWishlistDestinations`. Fix path: recompact positions in a transaction after delete, or switch to a sparse-safe ordering scheme.
-
-### No max companions limit
-`addCompanion` has no guard on how many companions a user can add — unlimited inserts are accepted. Same pattern as loyalty numbers. Fix path: add a per-user cap (e.g. 20) enforced at the server action level.
 
 ---
 
