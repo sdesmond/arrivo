@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
-import { events, days, trips, users, itineraryNotes, itineraryChecklists } from "../../../src/db/schema";
+import { events, days, trips, users, collaborators, itineraryNotes, itineraryChecklists } from "../../../src/db/schema";
 import {
   E2E_USER,
   E2E_EVENT_DELETE,
@@ -41,6 +41,7 @@ let eventIdByName: Map<string, string> = new Map();
 let createdNoteIds: string[] = [];
 let createdChecklistIds: string[] = [];
 let lastChecklistId: string | undefined;
+let emptyItineraryTripId: string | undefined;
 
 async function openFirstDay(page: Page) {
   // Wait for day cards to render (unique to trip detail — toggle buttons contain "X stops")
@@ -128,6 +129,34 @@ Before({ tags: "@seed-reorder-events" }, async () => {
         .values({ dayId: ctx.dayId, tripId: ctx.tripId, name: seed.name, position: seed.position });
     }
   });
+});
+
+Before({ tags: "@itinerary-empty" }, async () => {
+  await withE2EDb(async (db) => {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
+    if (!user) return;
+    const [trip] = await db
+      .insert(trips)
+      .values({ ownerId: user.id, name: "Empty Itinerary Trip", startDate: "2026-08-01", endDate: "2026-08-03" })
+      .returning();
+    await db.insert(collaborators).values({
+      tripId: trip.id,
+      userId: user.id,
+      email: E2E_USER.email,
+      name: E2E_USER.name,
+      initials: E2E_USER.initials,
+      role: "owner",
+    });
+    emptyItineraryTripId = trip.id;
+  });
+});
+
+After({ tags: "@itinerary-empty" }, async () => {
+  if (!emptyItineraryTripId) return;
+  await withE2EDb(async (db) => {
+    await db.delete(trips).where(eq(trips.id, emptyItineraryTripId!));
+  });
+  emptyItineraryTripId = undefined;
 });
 
 After(async () => {
@@ -440,4 +469,15 @@ Then("the checklist should not be visible on the timeline", async ({ page }) => 
   } else {
     await expect(page.locator('[id^="checklist-"]')).toHaveCount(0);
   }
+});
+
+Given("I navigate to the trip with no itinerary", async ({ page }) => {
+  await page.goto(`/trips/${emptyItineraryTripId}`);
+  await expect(page.getByText("No itinerary yet")).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the itinerary empty state shows buttons for adding events, notes, and checklists", async ({ page }) => {
+  await expect(page.getByTitle("Add event")).toBeVisible();
+  await expect(page.getByTitle("Add note")).toBeVisible();
+  await expect(page.getByTitle("Add checklist")).toBeVisible();
 });
