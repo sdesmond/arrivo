@@ -25,15 +25,15 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<void
 export async function addLoyaltyNumber(input: AddLoyaltyNumberInput): Promise<void> {
   const session = await requireUser();
   const userId = session.id!;
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const [{ nextPos }] = await db
+    .select({ nextPos: sql<number>`coalesce(max(${userLoyaltyNumbers.position}), -1) + 1` })
     .from(userLoyaltyNumbers)
     .where(eq(userLoyaltyNumbers.userId, userId));
   await db.insert(userLoyaltyNumbers).values({
     userId,
     programName: input.programName,
     memberNumber: input.memberNumber,
-    position: count,
+    position: nextPos,
   });
   revalidatePath("/profile");
 }
@@ -49,11 +49,11 @@ export async function deleteLoyaltyNumber(id: string): Promise<void> {
 export async function addWishlistDestination(input: AddWishlistDestinationInput): Promise<void> {
   const session = await requireUser();
   const userId = session.id!;
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const [{ nextPos }] = await db
+    .select({ nextPos: sql<number>`coalesce(max(${userWishlistDestinations.position}), -1) + 1` })
     .from(userWishlistDestinations)
     .where(eq(userWishlistDestinations.userId, userId));
-  await db.insert(userWishlistDestinations).values({ userId, name: input.name, position: count });
+  await db.insert(userWishlistDestinations).values({ userId, name: input.name, position: nextPos });
   revalidatePath("/profile");
 }
 
@@ -87,24 +87,48 @@ export async function changePassword({
   return {};
 }
 
-export async function addCompanion(input: AddCompanionInput): Promise<void> {
+export async function addCompanion(input: AddCompanionInput): Promise<{ error?: string }> {
   const session = await requireUser();
   const userId = session.id!;
+
+  const trimmedName = input.name?.trim() ?? "";
+  if (!trimmedName) return { error: "Companion name is required." };
+  if (trimmedName.length > 100) return { error: "Companion name must be 100 characters or fewer." };
+
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(userCompanions)
     .where(eq(userCompanions.userId, userId));
+  if (count >= 20) return { error: "Companion limit reached (20 maximum)." };
+
+  const [{ nextPos }] = await db
+    .select({ nextPos: sql<number>`coalesce(max(${userCompanions.position}), -1) + 1` })
+    .from(userCompanions)
+    .where(eq(userCompanions.userId, userId));
+
   await db.insert(userCompanions).values({
     userId,
-    name: input.name,
+    name: trimmedName,
     age: input.age ?? null,
-    position: count,
+    position: nextPos,
   });
   revalidatePath("/profile");
+  return {};
 }
 
-export async function updateCompanion(id: string, patch: UpdateCompanionPatch): Promise<void> {
+export async function updateCompanion(id: string, patch: UpdateCompanionPatch): Promise<{ error?: string }> {
   const session = await requireUser();
+
+  if (patch.name !== undefined) {
+    const trimmedName = patch.name.trim();
+    if (trimmedName.length > 100) return { error: "Companion name must be 100 characters or fewer." };
+  }
+  if (patch.age !== undefined && patch.age !== null) {
+    if (!Number.isInteger(patch.age) || patch.age < 0 || patch.age > 120) {
+      return { error: "Age must be between 0 and 120." };
+    }
+  }
+
   await db
     .update(userCompanions)
     .set({
@@ -118,6 +142,7 @@ export async function updateCompanion(id: string, patch: UpdateCompanionPatch): 
     })
     .where(and(eq(userCompanions.id, id), eq(userCompanions.userId, session.id!)));
   revalidatePath("/profile");
+  return {};
 }
 
 export async function deleteCompanion(id: string): Promise<void> {

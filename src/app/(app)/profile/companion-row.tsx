@@ -6,6 +6,7 @@ import { Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
+import { toast } from "sonner";
 import { updateCompanion, deleteCompanion } from "./actions";
 import type { Companion, UpdateCompanionPatch } from "@/data/types";
 
@@ -61,7 +62,11 @@ export function CompanionRow({ companion }: CompanionRowProps) {
         knownTravelerNumber: knownTravelerNumber || undefined,
         packtUsername: packtUsername || undefined,
       };
-      await updateCompanion(companion.id, patch);
+      const result = await updateCompanion(companion.id, patch);
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
       setIsExpanded(false);

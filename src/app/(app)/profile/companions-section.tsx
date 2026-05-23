@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { Section } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { addCompanion } from "./actions";
 import { CompanionRow } from "./companion-row";
 import type { Companion } from "@/data/types";
@@ -27,7 +28,11 @@ export function CompanionsSection({ companions }: CompanionsSectionProps) {
     const trimmed = name.trim();
     if (!trimmed) return;
     startAdd(async () => {
-      await addCompanion({ name: trimmed });
+      const result = await addCompanion({ name: trimmed });
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
       setName("");
     });
   }

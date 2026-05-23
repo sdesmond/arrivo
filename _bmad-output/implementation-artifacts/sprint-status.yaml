@@ -68,3 +68,4 @@ development_status:
   epic-4: in-progress
   4-1-fix-blob-cascade-leak: done
   4-2-empty-state-placeholders: done
+  4-3-companion-data-integrity: review
