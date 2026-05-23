@@ -4,7 +4,7 @@ story_key: "4-3-companion-data-integrity"
 epic: 4
 story: 3
 title: "Companion Data Integrity — Position Fix, Input Validation, and Insert Cap"
-status: "review"
+status: "done"
 created: "2026-05-22"
 ---
 
@@ -31,14 +31,14 @@ Then the action returns `{ error: "Companion limit reached (20 maximum)." }` and
 The caller (`CompanionsSection`) shows the error via `toast.error`.
 
 **AC3 — `addCompanion` validates name input:**
-Given `addCompanion` is called with an empty/whitespace-only name or a name longer than 100 characters,
+Given `addCompanion` is called with an empty/whitespace-only name or a name longer than 50 characters,
 When the action runs,
-Then it returns `{ error: "Companion name is required." }` or `{ error: "Companion name must be 100 characters or fewer." }` respectively, and no row is inserted.
+Then it returns `{ error: "Companion name is required." }` or `{ error: "Companion name must be 50 characters or fewer." }` respectively, and no row is inserted.
 
 **AC4 — `updateCompanion` validates name and age:**
-Given `updateCompanion` is called with a name longer than 100 characters, or an age outside 0–120,
+Given `updateCompanion` is called with a name longer than 50 characters, or an age outside 0–120,
 When the action runs,
-Then it returns `{ error: "Companion name must be 100 characters or fewer." }` or `{ error: "Age must be between 0 and 120." }` respectively, and no row is updated.
+Then it returns `{ error: "Companion name must be 50 characters or fewer." }` or `{ error: "Age must be between 0 and 120." }` respectively, and no row is updated.
 The caller (`CompanionRow`) shows the error via `toast.error`.
 
 **AC5 — Happy paths are unchanged:**
@@ -109,7 +109,7 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
   // Input validation
   const trimmedName = input.name?.trim() ?? "";
   if (!trimmedName) return { error: "Companion name is required." };
-  if (trimmedName.length > 100) return { error: "Companion name must be 100 characters or fewer." };
+  if (trimmedName.length > 50) return { error: "Companion name must be 50 characters or fewer." };
 
   // Cap enforcement
   const [{ count }] = await db
@@ -145,7 +145,7 @@ export async function updateCompanion(id: string, patch: UpdateCompanionPatch): 
 
   if (patch.name !== undefined) {
     const trimmedName = patch.name.trim();
-    if (trimmedName.length > 100) return { error: "Companion name must be 100 characters or fewer." };
+    if (trimmedName.length > 50) return { error: "Companion name must be 50 characters or fewer." };
   }
   if (patch.age !== undefined && patch.age !== null) {
     if (!Number.isInteger(patch.age) || patch.age < 0 || patch.age > 120) {
@@ -266,3 +266,27 @@ None — implementation was clean on first pass. Removed the `max` drizzle-orm i
 - `src/app/(app)/profile/companion-row.test.tsx`
 - `_bmad-output/implementation-artifacts/4-3-companion-data-integrity.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+---
+
+## Review Findings
+
+_Code review conducted 2026-05-22. Layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor. 1 decision-needed · 3 patch · 5 deferred · 6 dismissed._
+
+- [x] [Review][Decision] AC3/AC4 character limit — resolved: 50 chars is canonical. AC3/AC4 Given clauses updated to say "longer than 50 characters"; code already correct.
+
+- [x] [Review][Patch] `updateCompanion` stores untrimmed name — fixed: restructured name validation to hoist `trimmedName = patch.name.trim()` before the `.set()` call; DB update now uses `trimmedName`. [src/app/(app)/profile/actions.ts:~122]
+
+- [x] [Review][Patch] `updateCompanion` allows empty/whitespace-only name patch — fixed: added `if (!trimmedName) return { error: "Companion name is required." }` guard alongside the length check, matching the `addCompanion` pattern. [src/app/(app)/profile/actions.ts:~124]
+
+- [x] [Review][Patch] `companion-row.test.tsx` error path untested — fixed: added test "shows toast error when updateCompanion returns an error" using `mockResolvedValueOnce({ error: ... })` and asserting `toast.error` was called. [src/app/(app)/profile/companion-row.test.tsx]
+
+- [x] [Review][Defer] Non-atomic cap + position in `addCompanion` — cap check and `nextPos` query are separate SELECTs with no transaction; concurrent inserts could bypass the 20-cap or produce duplicate positions. [src/app/(app)/profile/actions.ts:~98-110] — deferred, pre-existing pattern; low-risk for single-user personal planner
+
+- [x] [Review][Defer] Same atomicity gap in `addLoyaltyNumber` / `addWishlistDestination` after position fix — not in scope, pre-existing pattern
+
+- [x] [Review][Defer] No input validation on `addLoyaltyNumber` / `addWishlistDestination` — out of scope for this story; lower-risk inputs
+
+- [x] [Review][Defer] `updateCompanion` returns `{}` even when WHERE matches zero rows — silent no-op on invalid `id`; pre-existing, not introduced by this change
+
+- [x] [Review][Defer] No E2E coverage for 20-companion cap or validation error toasts — explicitly excluded by dev notes ("no new user-facing flow")

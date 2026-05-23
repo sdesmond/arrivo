@@ -93,7 +93,7 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
 
   const trimmedName = input.name?.trim() ?? "";
   if (!trimmedName) return { error: "Companion name is required." };
-  if (trimmedName.length > 100) return { error: "Companion name must be 100 characters or fewer." };
+  if (trimmedName.length > 50) return { error: "Companion name must be 50 characters or fewer." };
 
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -119,9 +119,10 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
 export async function updateCompanion(id: string, patch: UpdateCompanionPatch): Promise<{ error?: string }> {
   const session = await requireUser();
 
-  if (patch.name !== undefined) {
-    const trimmedName = patch.name.trim();
-    if (trimmedName.length > 100) return { error: "Companion name must be 100 characters or fewer." };
+  const trimmedName = patch.name !== undefined ? patch.name.trim() : undefined;
+  if (trimmedName !== undefined) {
+    if (!trimmedName) return { error: "Companion name is required." };
+    if (trimmedName.length > 50) return { error: "Companion name must be 50 characters or fewer." };
   }
   if (patch.age !== undefined && patch.age !== null) {
     if (!Number.isInteger(patch.age) || patch.age < 0 || patch.age > 120) {
@@ -132,7 +133,7 @@ export async function updateCompanion(id: string, patch: UpdateCompanionPatch): 
   await db
     .update(userCompanions)
     .set({
-      name: patch.name,
+      name: trimmedName,
       age: patch.age ?? null,
       passportNumber: patch.passportNumber ?? null,
       passportExpiry: patch.passportExpiry ?? null,

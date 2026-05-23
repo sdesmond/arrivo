@@ -130,4 +130,15 @@ describe("CompanionRow", () => {
     await user.clear(nameInput);
     expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
   });
+
+  it("shows toast error when updateCompanion returns an error", async () => {
+    const { updateCompanion } = await import("./actions");
+    const { toast } = await import("sonner");
+    vi.mocked(updateCompanion).mockResolvedValueOnce({ error: "Companion name must be 50 characters or fewer." });
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(toast.error).toHaveBeenCalledWith("Companion name must be 50 characters or fewer.");
+  });
 });

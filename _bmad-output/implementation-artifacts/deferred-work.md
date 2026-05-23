@@ -1,5 +1,25 @@
 # Deferred Work
 
+## Deferred from: code review of 4-3-companion-data-integrity (2026-05-22)
+
+- **Non-atomic cap + position in `addCompanion`** — cap check and `nextPos` query are two separate SELECTs with no wrapping transaction. Concurrent inserts from the same `userId` could bypass the 20-cap or produce duplicate `position` values. Low-risk for a single-user personal planner; fix path: merge into a CTE or wrap in a serializable transaction.
+
+- **Same atomicity gap in `addLoyaltyNumber` / `addWishlistDestination`** — the position formula was fixed from COUNT to MAX+1 but the SELECT+INSERT pair remains non-atomic, same as companions.
+
+- **No input validation on `addLoyaltyNumber` / `addWishlistDestination`** — companions now have name/age validation but these two actions still accept arbitrary-length inputs with no server-side guard. Fix path: add Zod validation or inline length checks at the server action boundary.
+
+- **`updateCompanion` returns `{}` on zero-row UPDATE** — the WHERE clause enforces ownership (`userId`) but if `id` doesn't belong to the user, Drizzle silently updates zero rows and the function returns `{}` (success). No security bypass, but debugging is harder. Fix path: check affected rows count and return a not-found error.
+
+- **No E2E coverage for 20-companion cap or validation error toasts** — excluded per dev notes as server-side correctness fixes with no new user-facing flow. Add scenarios if a regression occurs.
+
+---
+
+## Promoted to story: 4-4-client-side-field-validation (2026-05-22)
+
+Fields with existing server-side validation rules have no inline client-side feedback. `Field` in `form-section.tsx` needs an `error` prop; companion name/age fields, the companion add input, and the password change form should validate client-side and show inline errors. Auth forms are intentionally excluded (form-level error is correct for sign-in/sign-up security). See `4-4-client-side-field-validation.md`.
+
+---
+
 ## Deferred from: code review of story-3-2-delete-an-event-with-attached-documents (2026-05-21)
 
 - **`hasDocs` decision uses stale client-side data** [src/components/packt/place-row.tsx:229] — Spec explicitly approved the client-side check, but if a collaborator attaches a doc concurrently, the local user bypasses the confirmation dialog and the cascade FK silently deletes the new doc. Revisit if multi-editor concurrency becomes real.
