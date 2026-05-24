@@ -32,4 +32,8 @@ describe("buildDayRows", () => {
   it("generates no rows when no start date is provided", () => {
     expect(buildDayRows("trip-1", undefined, undefined)).toEqual([]);
   });
+
+  it("throws for 46+ days", () => {
+    expect(() => buildDayRows("trip-1", "2026-06-01", "2026-07-16")).toThrow(/45 days/i);
+  });
 });

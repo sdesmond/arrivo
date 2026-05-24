@@ -13,9 +13,20 @@ import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
 import { PastTripsList } from "@/components/packt/trips-past-list";
 import { MobileActiveTab, MobileUpcomingTab, MobilePastTab } from "@/components/packt/trips-mobile-tabs";
+import { toast } from "sonner";
 import { type NewTripDraft, type TripListEntry, type UpdateTripPatch } from "@/data/types";
-import { getTripStatus } from "@/lib/utils";
+import { getTripStatus, getTripDays } from "@/lib/utils";
 import { createTrip, updateTripMetadata } from "./actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type MobileTab = "Active" | "Upcoming" | "Past";
 
@@ -30,6 +41,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [isCreating, startCreation] = useTransition();
+  const [pendingDraft, setPendingDraft] = useState<{ draft: NewTripDraft; dayCount: number } | null>(null);
 
   const activeEntries = initialEntries.filter((e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "active");
   const upcomingEntries = initialEntries.filter(
@@ -56,13 +68,33 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
       : null;
 
   function handleCreate(draft: NewTripDraft) {
+    const dayCount = draft.startDate ? getTripDays(draft.startDate, draft.endDate ?? draft.startDate) : 0;
+
+    if (dayCount >= 45) {
+      toast.error("Max trip length is 45 days. Please shorten your date range.");
+      return;
+    }
+
+    if (dayCount >= 30) {
+      setPendingDraft({ draft, dayCount });
+      return;
+    }
+
+    submitCreateTrip(draft);
+  }
+
+  async function submitCreateTrip(draft: NewTripDraft) {
     startCreation(async () => {
-      await createTrip({
-        name: draft.title,
-        startDate: draft.startDate,
-        endDate: draft.endDate,
-        budgetTotal: draft.budgetAmount ? parseFloat(draft.budgetAmount) : undefined,
-      });
+      try {
+        await createTrip({
+          name: draft.title,
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          budgetTotal: draft.budgetAmount ? parseFloat(draft.budgetAmount) : undefined,
+        });
+      } catch {
+        toast.error("Failed to create trip. Please try again.");
+      }
     });
   }
 
@@ -238,6 +270,29 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
         onSave={(patch) => editingTrip && handleTripSave(editingTrip, patch)}
       />
       <NewTripDialog open={newTripOpen} onOpenChange={setNewTripOpen} onCreate={handleCreate} isPending={isCreating} />
+      <AlertDialog open={pendingDraft !== null} onOpenChange={() => setPendingDraft(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Long trip</AlertDialogTitle>
+            <AlertDialogDescription>
+              This trip spans {pendingDraft?.dayCount} days. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDraft) {
+                  submitCreateTrip(pendingDraft.draft);
+                  setPendingDraft(null);
+                }
+              }}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

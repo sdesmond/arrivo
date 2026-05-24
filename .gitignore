@@ -59,3 +59,5 @@ _bmad/**
 !_bmad/_config/
 !_bmad/_config/manifest.yaml
 
+.opencode/plans/
+

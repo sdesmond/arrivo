@@ -1,6 +1,6 @@
 # Story 1.2: Create Trip Server Action & Initial Trip Page
 
-Status: review
+Status: done
 
 ## Story
 
@@ -389,6 +389,18 @@ Steps notes:
 
 All new `*.test.ts(x)` files targeting DOM interaction need `// @vitest-environment jsdom` as the first line, following project convention.
 
+## Review Findings
+
+- [x] [Review][Decision] **No transaction wrapping for trip + days insert** — Resolved: wrap in `db.transaction()`.
+- [x] [Review][Decision] **Unbounded loop in buildDayRows** — Resolved: warn at 30 days, cap at 45 days.
+- [x] [Review][Patch] **Budget "$0" silently dropped** — Fixed: both locations use explicit undefined/empty checks instead of falsy `||`.
+- [x] [Review][Patch] **Missing `revalidatePath("/trips")` before redirect** — Fixed: `revalidatePath("/trips")` added before `redirect()`.
+- [x] [Review][Patch] **Unhandled errors in useTransition handleCreate** — Fixed: wrapped in try/catch with `toast.error()`.
+- [x] [Review][Patch] **Reversed dates silently produce zero days** — Fixed: start/end swapped if reversed.
+- [x] [Review][Defer] **No assertTripAccess in createTrip** — Creation of non-existent resource; can't assert. Pre-existing pattern.
+- [x] [Review][Defer] **DST-safe date arithmetic concern** — False positive. `Date.getTime()` uses UTC ms, DST-independent.
+- [x] [Review][Defer] **Timezone shift in T00:00:00 parsing** — Follows same `"T00:00:00"` convention as `getTripStatus`/`getTripDays`. Consistent.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -454,3 +466,4 @@ GPT-5 Codex
 ### Change Log
 
 - 2026-05-24 — Implemented Story 1.2 create-trip server action, optional dates, initial trip page expansion, tests, and migrations.
+- 2026-05-23 — Code review: wrapped inserts in transaction, capped day loop at 45 with warning at 30, reversed date guard, revalidatePath before redirect, error handling in useTransition.

@@ -93,3 +93,11 @@ Only mobile Safari is special-cased. Android Chrome and Firefox also often refus
 
 ### `isMobileSafari` regex misses other iOS browsers
 Only excludes `CriOS|FxiOS|OPiOS|mercury` — Edge iOS (`EdgiOS`), DuckDuckGo, Brave, etc. all wrap WebKit and would incorrectly take the "mobile Safari" fallback branch. Spec's exclusion list was minimal; widen when those browsers are reported as broken.
+
+---
+
+## Deferred from: code review of 1-2-create-trip-server-action-initial-trip-page (2026-05-23)
+
+- **No `assertTripAccess` in `createTrip`** — Creation of non-existent resource; can't assert. Pre-existing pattern across all create actions.
+- **DST-safe date arithmetic concern** — False positive finding. `Date.getTime()` uses UTC ms, unaffected by DST transitions.
+- **Timezone shift in `T00:00:00` parsing** — Follows same `"T00:00:00"` convention as `getTripStatus`/`getTripDays` in utils.ts. Consistent with codebase pattern; pre-existing.

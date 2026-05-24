@@ -12,34 +12,39 @@ import { buildDayRows } from "./create-trip-days";
 
 export async function createTrip(input: CreateTripInput) {
   const user = await requireUser();
-  const [trip] = await db
-    .insert(trips)
-    .values({
-      ownerId: user.id!,
-      name: input.name,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      coverImageUrl: input.coverImageUrl,
-      notes: input.notes,
-      budgetCurrency: input.budgetCurrency,
-      budgetTotal: input.budgetTotal?.toString(),
-      budgetPerPerson: input.budgetPerPerson?.toString(),
-      tags: input.tags ?? [],
-    })
-    .returning();
-  await db.insert(collaborators).values({
-    tripId: trip.id,
-    userId: user.id!,
-    email: user.email!,
-    name: user.name ?? user.email!,
-    initials: (user.name ?? user.email!).slice(0, 2).toUpperCase(),
-    role: "owner",
+  let tripId = "";
+  await db.transaction(async (tx) => {
+    const [trip] = await tx
+      .insert(trips)
+      .values({
+        ownerId: user.id!,
+        name: input.name,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        coverImageUrl: input.coverImageUrl,
+        notes: input.notes,
+        budgetCurrency: input.budgetCurrency,
+        budgetTotal: input.budgetTotal?.toString(),
+        budgetPerPerson: input.budgetPerPerson?.toString(),
+        tags: input.tags ?? [],
+      })
+      .returning();
+    tripId = trip.id;
+    await tx.insert(collaborators).values({
+      tripId: trip.id,
+      userId: user.id!,
+      email: user.email!,
+      name: user.name ?? user.email!,
+      initials: (user.name ?? user.email!).slice(0, 2).toUpperCase(),
+      role: "owner",
+    });
+    const dayRows = buildDayRows(trip.id, input.startDate, input.endDate);
+    if (dayRows.length > 0) {
+      await tx.insert(days).values(dayRows);
+    }
   });
-  const dayRows = buildDayRows(trip.id, input.startDate, input.endDate);
-  if (dayRows.length > 0) {
-    await db.insert(days).values(dayRows);
-  }
-  redirect(`/trips/${trip.id}?new=1`);
+  revalidatePath("/trips");
+  redirect(`/trips/${tripId}?new=1`);
 }
 
 export async function updateTripMetadata(tripId: string, patch: UpdateTripPatch) {
