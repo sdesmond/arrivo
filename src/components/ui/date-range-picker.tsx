@@ -71,6 +71,18 @@ export function DateRangePicker({
       return;
     }
 
+    if (
+      interacted &&
+      selecting?.from &&
+      !selecting.to &&
+      range?.from &&
+      range.to &&
+      range.from.getTime() < selecting.from.getTime() &&
+      range.to.getTime() === selecting.from.getTime()
+    ) {
+      return;
+    }
+
     setInteracted(true);
 
     const nextFrom = range?.from ? format(range.from, "yyyy-MM-dd") : undefined;

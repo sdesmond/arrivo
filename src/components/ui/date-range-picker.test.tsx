@@ -35,6 +35,12 @@ vi.mock("@/components/ui/calendar", () => ({
       >
         Click Jul 1 with Jun range visible (from changed)
       </button>
+      <button
+        data-testid="calendar-invalid-end"
+        onClick={() => onSelect({ from: new Date(2026, 4, 25), to: new Date(2026, 5, 1) })}
+      >
+        Click May 25 after Jun 1 start
+      </button>
     </>
   ),
 }));
@@ -109,5 +115,14 @@ describe("DateRangePicker", () => {
     render(<DateRangePicker from="2026-06-01" to="2026-06-10" onChange={onChange} />);
     await user.click(screen.getByTestId("calendar-prefilled-click"));
     expect(onChange).toHaveBeenCalledWith("2026-07-01", undefined);
+  });
+
+  it("rejects an end date earlier than the in-progress start date", async () => {
+    const user = userEvent.setup();
+    render(<DateRangePicker onChange={onChange} />);
+    await user.click(screen.getByTestId("calendar-from-only"));
+    await user.click(screen.getByTestId("calendar-invalid-end"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("2026-06-01", undefined);
   });
 });

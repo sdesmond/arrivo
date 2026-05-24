@@ -9,9 +9,10 @@ interface TopbarProps {
   tripCount: number;
   pastCount: number;
   now: Date;
+  onNewTrip: () => void;
 }
 
-export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
+export function Topbar({ tripCount, pastCount, now, onNewTrip }: TopbarProps) {
   const todayFormatted = now
     .toLocaleDateString("en-US", {
       month: "2-digit",
@@ -68,7 +69,7 @@ export function Topbar({ tripCount, pastCount, now }: TopbarProps) {
       <Button variant="outline" size="icon-sm" title="Notifications">
         <Bell size={14} strokeWidth={1.5} />
       </Button>
-      <Button size="sm">
+      <Button size="sm" onClick={onNewTrip}>
         <Plus size={14} strokeWidth={1.5} />
         New trip
       </Button>

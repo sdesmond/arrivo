@@ -7,6 +7,7 @@ import { NowCard } from "@/components/packt/now-card";
 import { DayRibbon } from "@/components/packt/day-ribbon";
 import { TripCard } from "@/components/packt/trip-card";
 import { NewTripCard } from "@/components/packt/new-trip-card";
+import { NewTripDialog } from "@/components/packt/new-trip-dialog";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
@@ -27,6 +28,7 @@ interface TripsPageClientProps {
 export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPageClientProps) {
   const now = new Date(nowISO);
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
+  const [newTripOpen, setNewTripOpen] = useState(false);
 
   const activeEntries = initialEntries.filter((e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "active");
   const upcomingEntries = initialEntries.filter(
@@ -66,7 +68,12 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
     <>
       {/* ── Desktop layout ── */}
       <div className="hidden lg:flex lg:flex-col h-full">
-        <Topbar tripCount={activeEntries.length + upcomingEntries.length} pastCount={pastEntries.length} now={now} />
+        <Topbar
+          tripCount={activeEntries.length + upcomingEntries.length}
+          pastCount={pastEntries.length}
+          now={now}
+          onNewTrip={() => setNewTripOpen(true)}
+        />
         <div className="flex-1 overflow-y-auto scroll-thin">
           <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
             {activeEntry !== null && (
@@ -105,7 +112,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
                     dateFormat={dateFormat}
                   />
                 ))}
-                <NewTripCard />
+                <NewTripCard onNewTrip={() => setNewTripOpen(true)} />
               </div>
             </div>
 
@@ -167,7 +174,12 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
               <Button variant="ghost" size="icon-sm" title="Search trips" style={{ minHeight: 44, minWidth: 44 }}>
                 <Search size={15} strokeWidth={1.5} />
               </Button>
-              <Button size="icon-sm" title="New trip" style={{ minHeight: 44, minWidth: 44 }}>
+              <Button
+                size="icon-sm"
+                title="New trip"
+                style={{ minHeight: 44, minWidth: 44 }}
+                onClick={() => setNewTripOpen(true)}
+              >
                 <Plus size={15} strokeWidth={1.5} />
               </Button>
             </div>
@@ -214,6 +226,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
         onClose={() => setEditingTrip(null)}
         onSave={(patch) => editingTrip && handleTripSave(editingTrip, patch)}
       />
+      <NewTripDialog open={newTripOpen} onOpenChange={setNewTripOpen} />
     </>
   );
 }
