@@ -16,26 +16,55 @@ Sign in at [http://localhost:3000](http://localhost:3000) with `demo@packt.local
 
 For full setup instructions (database creation, environment variables, migration options, reset steps) see **[SETUP.md](./SETUP.md)**.
 
+## AI Skills & Agents Setup
+
+AI assistant workflows live in one shared source of truth: `.claude/skills/`.
+The `.agents/skills` path is a Git-tracked symbolic link to `../.claude/skills`, which lets Claude Code and Codex use the same skills without duplicating files.
+
+Changing a skill from either path updates it for both assistants.
+
+```text
+.claude/
+└── skills/          # Shared AI skills and workflows
+
+.agents/
+└── skills -> ../.claude/skills
+```
+
+> **⚠️ Important Note for Windows Users:**
+> Windows handles symlinks strictly. Before cloning this repository, enable **Developer Mode** in Windows System Settings and configure Git to preserve symlinks:
+>
+> ```bash
+> git config --global core.symlinks true
+> ```
+>
+> This must be set before cloning so Git resolves `.agents/skills` as a symbolic link instead of a regular directory or shortcut.
+
 ## Self-hosting
 
 **Prerequisites:** Docker, Docker Compose, `openssl`
 
 1. Copy the env file and fill in a secret:
+
    ```sh
    cp .env.example .env
    echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)" >> .env
    ```
 
 2. Build and start:
+
    ```sh
    docker compose up -d --build
    ```
+
    The app runs migrations automatically at boot.
 
 3. (Optional) Seed demo data:
+
    ```sh
    docker compose exec app npm run db:seed
    ```
+
    Signs in as `demo@packt.local` / `demo1234`.
 
 4. Open [http://localhost:3000](http://localhost:3000).
