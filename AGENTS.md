@@ -55,7 +55,11 @@ E2E specifics (from `playwright.config.ts`):
 ## QA gate
 
 Before committing, run `build-validator` agent (or `npx tsc --noEmit && npm run lint && npm run test:coverage && npm run build`).
-`standards-check` agent does a full code quality sweep. Plan-reviewer (`packt-plan-reviewer`) runs inline after any BMad planning skill artifact.
+`standards-check` agent does a full code quality sweep.
+
+## Mandatory plan review
+
+The `packt-plan-reviewer` **must** run after any BMad planning skill that produces a file (`create-story`, `create-prd`, `create-epics-and-stories`, etc.). It is not optional — the artifact is not final until reviewed. The reviewer is automatically invoked via the skill's `on_complete` hook when the resolver script at `_bmad/scripts/resolve_customization.py` is present (it exists). If for any reason the auto-invocation does not fire, run it manually: load the `packt-plan-reviewer` skill and pass the artifact path. Apply every BLOCKING fix found. Only WARNING-only or clean artifacts may proceed to implementation.
 
 ## Key files
 
