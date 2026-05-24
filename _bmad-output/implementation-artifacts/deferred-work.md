@@ -101,3 +101,13 @@ Only excludes `CriOS|FxiOS|OPiOS|mercury` — Edge iOS (`EdgiOS`), DuckDuckGo, B
 - **No `assertTripAccess` in `createTrip`** — Creation of non-existent resource; can't assert. Pre-existing pattern across all create actions.
 - **DST-safe date arithmetic concern** — False positive finding. `Date.getTime()` uses UTC ms, unaffected by DST transitions.
 - **Timezone shift in `T00:00:00` parsing** — Follows same `"T00:00:00"` convention as `getTripStatus`/`getTripDays` in utils.ts. Consistent with codebase pattern; pre-existing.
+
+---
+
+## Deferred from: code review of 1-3-unscheduled-trips-section-on-trips-list (2026-05-24)
+
+- **Half-dated trip silently routed to Upcoming with "0 DAYS" display** — A trip with `startDate` but no `endDate` (or vice versa) fails the `!startDate && !endDate` guard and lands in `datedEntries`, displaying "0 DAYS" in mobile upcoming tab. Pre-existing data model gap; story 1.3 intentionally does not address partial-date entries.
+- **`nextInDays` can render as `Infinity`** — If the only entries in `upcomingTrips` are half-dated (no `startDate`), `Math.min(...Infinity)` = `Infinity` and the desktop SectionHead renders "· NEXT IN Infinity DAYS". Same root as above.
+- **Multiple simultaneous active trips: only first shown** — `activeEntries[0]` is kept; overlapping active trips are silently dropped. Pre-existing behavior, unchanged by this story.
+- **`updateTripMetadata` fire-and-forget drops server errors** — `React.startTransition(() => { updateTripMetadata(...) })` has no await or catch; failures show no feedback. Pre-existing pattern.
+- **`submitCreateTrip` exposed in hook return value** — Callers could bypass the 30/45-day guards in `handleCreate`. The only current external caller (AlertDialog) is safe; design concern for future callers.

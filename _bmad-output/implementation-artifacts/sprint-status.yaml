@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review
 
 generated: 2026-05-23
-last_updated: 2026-05-23
+last_updated: 2026-05-24  # updated by code-review
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
   epic-1: in-progress
   1-1-new-trip-modal: done
   1-2-create-trip-server-action-initial-trip-page: done
-  1-3-unscheduled-trips-section-on-trips-list: backlog
+  1-3-unscheduled-trips-section-on-trips-list: done
   epic-1-retrospective: optional
   epic-2: backlog
   2-1-add-day-remove-last-day: backlog

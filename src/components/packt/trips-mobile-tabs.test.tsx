@@ -24,7 +24,7 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn() }),
 }));
 
-import { MobileActiveTab, MobileUpcomingTab, MobilePastTab } from "./trips-mobile-tabs";
+import { MobileActiveTab, MobileUpcomingTab, MobilePastTab, MobileUnscheduledTab } from "./trips-mobile-tabs";
 import type { Trip, TripEvent } from "@/data/types";
 
 const NOW = new Date("2026-05-13T12:00:00.000Z");
@@ -112,6 +112,30 @@ describe("MobileActiveTab", () => {
     expect(screen.queryByText("Now")).not.toBeInTheDocument();
     expect(screen.queryByText("Next Event")).not.toBeInTheDocument();
   });
+
+  it("shows past event with line-through style (isEventPast)", () => {
+    const pastEvent: TripEvent = {
+      id: "ev-past",
+      name: "Past Museum",
+      startAt: "2026-05-13T08:00:00Z",
+      endAt: "2026-05-13T09:00:00Z",
+      position: 0,
+    };
+    render(<MobileActiveTab trip={activeTrip} todayEvents={[pastEvent]} now={NOW} />);
+    expect(screen.getAllByText("Past Museum").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("highlights current event (isEventNow)", () => {
+    const nowEvent: TripEvent = {
+      id: "ev-now",
+      name: "Current Tour",
+      startAt: "2026-05-13T11:00:00Z",
+      endAt: "2026-05-13T13:00:00Z",
+      position: 0,
+    };
+    render(<MobileActiveTab trip={activeTrip} todayEvents={[nowEvent]} now={NOW} />);
+    expect(screen.getAllByText("Current Tour").length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("MobileUpcomingTab", () => {
@@ -141,6 +165,12 @@ describe("MobileUpcomingTab", () => {
     render(<MobileUpcomingTab trips={[tripWithDocs]} now={NOW} dateFormat="MM/DD/YYYY" />);
     expect(screen.getByText("2 docs")).toBeInTheDocument();
   });
+
+  it("shows unscheduled badge for a trip without startDate", () => {
+    const noDateTrip: Trip = { id: "t-nd", name: "Dateless Upcoming", status: "upcoming" };
+    render(<MobileUpcomingTab trips={[noDateTrip]} now={NOW} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getByText("unscheduled")).toBeInTheDocument();
+  });
 });
 
 describe("MobilePastTab", () => {
@@ -148,5 +178,63 @@ describe("MobilePastTab", () => {
     render(<MobilePastTab trips={pastTrips} dateFormat="MM/DD/YYYY" />);
     expect(screen.getByText("Lisbon Escape")).toBeInTheDocument();
     expect(screen.getByText("NYC Visit")).toBeInTheDocument();
+  });
+
+  it("shows No dates for a past trip without startDate", () => {
+    const tripNoDate: Trip = { id: "t-nd", name: "Undated Past", status: "past" };
+    render(<MobilePastTab trips={[tripNoDate]} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getByText(/No dates/)).toBeInTheDocument();
+  });
+});
+
+describe("MobileUnscheduledTab", () => {
+  const unscheduledTrips: Trip[] = [
+    { id: "u1", name: "Dream Trip", status: "upcoming" },
+    { id: "u2", name: "Bucket List", status: "upcoming" },
+  ];
+
+  it("renders dateless trip names", () => {
+    render(<MobileUnscheduledTab trips={unscheduledTrips} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getByText("Dream Trip")).toBeInTheDocument();
+    expect(screen.getByText("Bucket List")).toBeInTheDocument();
+  });
+
+  it("shows unscheduled badge for each trip", () => {
+    render(<MobileUnscheduledTab trips={unscheduledTrips} dateFormat="MM/DD/YYYY" />);
+    const badges = screen.getAllByText("unscheduled");
+    expect(badges).toHaveLength(2);
+  });
+
+  it("shows no docs badge when docs absent", () => {
+    render(<MobileUnscheduledTab trips={unscheduledTrips} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getAllByText("no docs").length).toBeGreaterThan(0);
+  });
+
+  it("shows docs count badge when docs present", () => {
+    const tripWithDocs: Trip = {
+      id: "u3",
+      name: "Berlin Trip",
+      status: "upcoming",
+      docs: [{ id: "d1", name: "Ticket.pdf", kind: "pdf", scope: "trip", offline: false }],
+    };
+    render(<MobileUnscheduledTab trips={[tripWithDocs]} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getByText("1 docs")).toBeInTheDocument();
+  });
+
+  it("shows 'No dates' for unscheduled trips", () => {
+    render(<MobileUnscheduledTab trips={unscheduledTrips} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getAllByText("No dates").length).toBeGreaterThan(0);
+  });
+
+  it("shows formatted date range when trip has both dates", () => {
+    const datedTrip: Trip = {
+      id: "u4",
+      name: "Dated Unsched",
+      status: "upcoming",
+      startDate: "2026-07-01",
+      endDate: "2026-07-07",
+    };
+    render(<MobileUnscheduledTab trips={[datedTrip]} dateFormat="MM/DD/YYYY" />);
+    expect(screen.queryByText("No dates")).not.toBeInTheDocument();
   });
 });

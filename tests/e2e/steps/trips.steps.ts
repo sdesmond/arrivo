@@ -53,6 +53,15 @@ Then("the sheet should close and focus should return to the edit button", async 
   await expect(page.getByRole("button", { name: "Edit" })).toBeFocused();
 });
 
+When("I navigate to the trips list", async ({ page }) => {
+  await page.goto("/trips");
+});
+
+Then("I see an {string} section with {string}", async ({ page }, sectionTitle: string, tripName: string) => {
+  await expect(page.getByRole("heading", { name: sectionTitle })).toBeVisible();
+  await expect(page.getByText(tripName)).toBeVisible();
+});
+
 After(async () => {
   if (!tripNameMutated) return;
   tripNameMutated = false;

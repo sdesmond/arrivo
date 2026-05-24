@@ -75,7 +75,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     .select({ trip: trips })
     .from(trips)
     .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
-    .orderBy(trips.startDate);
+    .orderBy(sql`${trips.startDate} NULLS FIRST`, trips.name);
 
   const todayISO = now.toISOString().slice(0, 10);
 
