@@ -250,6 +250,21 @@ describe("DayCard", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("starts expanded when initialOpen=true", () => {
+    render(
+      <DayCard
+        day={{ ...baseDay, today: false, date: "2026-06-01" }}
+        initialOpen
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByRole("button", { name: /Mon, Jun 1/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Museum Visit")).toBeInTheDocument();
+  });
+
   it("clicking toggle button collapses the card", async () => {
     const user = userEvent.setup();
     render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {

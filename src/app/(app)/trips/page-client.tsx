@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import { ArrowUpDown, Filter, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NowCard } from "@/components/packt/now-card";
@@ -13,9 +13,9 @@ import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
 import { PastTripsList } from "@/components/packt/trips-past-list";
 import { MobileActiveTab, MobileUpcomingTab, MobilePastTab } from "@/components/packt/trips-mobile-tabs";
-import { type TripListEntry, type UpdateTripPatch } from "@/data/types";
+import { type NewTripDraft, type TripListEntry, type UpdateTripPatch } from "@/data/types";
 import { getTripStatus } from "@/lib/utils";
-import { updateTripMetadata } from "./actions";
+import { createTrip, updateTripMetadata } from "./actions";
 
 type MobileTab = "Active" | "Upcoming" | "Past";
 
@@ -29,6 +29,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
   const now = new Date(nowISO);
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
   const [newTripOpen, setNewTripOpen] = useState(false);
+  const [isCreating, startCreation] = useTransition();
 
   const activeEntries = initialEntries.filter((e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "active");
   const upcomingEntries = initialEntries.filter(
@@ -48,12 +49,22 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
           ...upcomingTrips.map((trip) => {
             const today = new Date(now);
             today.setHours(0, 0, 0, 0);
-            return Math.ceil(
-              (new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-            );
+            const startTime = trip.startDate ? new Date(trip.startDate + "T00:00:00").getTime() : Infinity;
+            return Math.ceil((startTime - today.getTime()) / (1000 * 60 * 60 * 24));
           })
         )
       : null;
+
+  function handleCreate(draft: NewTripDraft) {
+    startCreation(async () => {
+      await createTrip({
+        name: draft.title,
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+        budgetTotal: draft.budgetAmount ? parseFloat(draft.budgetAmount) : undefined,
+      });
+    });
+  }
 
   function handleTripSave(tripId: string, patch: UpdateTripPatch) {
     React.startTransition(() => {
@@ -226,7 +237,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
         onClose={() => setEditingTrip(null)}
         onSave={(patch) => editingTrip && handleTripSave(editingTrip, patch)}
       />
-      <NewTripDialog open={newTripOpen} onOpenChange={setNewTripOpen} />
+      <NewTripDialog open={newTripOpen} onOpenChange={setNewTripOpen} onCreate={handleCreate} isPending={isCreating} />
     </>
   );
 }

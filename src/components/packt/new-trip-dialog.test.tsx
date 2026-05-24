@@ -78,6 +78,20 @@ describe("NewTripDialog", () => {
     expect(create).toBeEnabled();
   });
 
+  it("disables Create button when isPending=true", async () => {
+    const user = userEvent.setup();
+    render(<NewTripDialog open onOpenChange={vi.fn()} isPending />);
+    await user.type(screen.getByLabelText(/title/i), "Paris");
+    expect(screen.getByRole("button", { name: /creating/i })).toBeDisabled();
+  });
+
+  it("shows Creating text on Create button when isPending=true", async () => {
+    const user = userEvent.setup();
+    render(<NewTripDialog open onOpenChange={vi.fn()} isPending />);
+    await user.type(screen.getByLabelText(/title/i), "Paris");
+    expect(screen.getByRole("button", { name: /creating/i })).toBeInTheDocument();
+  });
+
   it("shows inline validation when form is submitted with a whitespace-only title", async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn();

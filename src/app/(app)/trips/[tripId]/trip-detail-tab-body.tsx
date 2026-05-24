@@ -10,6 +10,7 @@ export interface TripDetailTabBodyProps {
   days: DayItinerary[];
   docs: Document[];
   dateFormat: string;
+  initialExpandedDayNumber?: number;
   newlyCreatedChecklistId?: string;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -34,6 +35,7 @@ export function TripDetailTabBody({
   days,
   docs,
   dateFormat,
+  initialExpandedDayNumber,
   newlyCreatedChecklistId,
   onUpdateEvent,
   onDeleteEvent,
@@ -57,6 +59,7 @@ export function TripDetailTabBody({
         <TripItineraryView
           days={days}
           dateFormat={dateFormat}
+          initialExpandedDayNumber={initialExpandedDayNumber}
           tripDocs={docs.filter((d) => d.scope === "trip")}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}

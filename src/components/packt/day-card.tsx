@@ -2,39 +2,16 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useNow } from "@/components/providers/mock-date-provider";
-import { Plus } from "lucide-react";
-import { PlaceRow } from "./place-row";
-import { NoteItem } from "./note-item";
-import { ChecklistItem } from "./checklist-item";
-import { TypePicker } from "./type-picker";
-import { SortablePlaceRow, SortableNoteItem, SortableChecklistItem } from "./day-card-sortables";
-import { GapZone, type GapZoneProps } from "./gap-zone";
+import { type GapZoneProps } from "./gap-zone";
 import { DayCardHeader } from "./day-card-header";
-import {
-  type DayItinerary,
-  type TripEvent,
-  type ItineraryNote,
-  type Checklist,
-  type DayItemType,
-  type Document,
-  ItineraryItemType,
-} from "@/data/types";
-import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { DayCardBottomAdd, DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
+import { type DayItinerary, type TripEvent, type DayItemType, type Document, ItineraryItemType } from "@/data/types";
 
 interface DayCardProps {
   day: DayItinerary;
   dateFormat?: string;
   tripDocs?: Document[];
+  initialOpen?: boolean;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -61,17 +38,13 @@ interface DraftState {
 
 // ── Timeline types ────────────────────────────────────────────────────────────
 
-type TimelineItem =
-  | { kind: "event"; data: TripEvent; position: number }
-  | { kind: "note"; data: ItineraryNote; position: number }
-  | { kind: "checklist"; data: Checklist; position: number };
-
 // ── DayCard ───────────────────────────────────────────────────────────────────
 
 export function DayCard({
   day: d,
   dateFormat = "MM/DD/YYYY",
   tripDocs,
+  initialOpen,
   onUpdateEvent,
   onDeleteEvent,
   onReorderDayItems,
@@ -101,10 +74,9 @@ export function DayCard({
       })()
     : !!d.today;
 
-  const [open, setOpen] = useState(isToday);
+  const [open, setOpen] = useState(initialOpen ?? isToday);
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
 
   const dateDisplay = d.date
     ? (() => {
@@ -152,10 +124,6 @@ export function DayCard({
   const bottomInsertPosition = maxTimelinePos + 1;
 
   // Build render list, injecting the draft at the right index
-  type RenderEntry =
-    | { type: "timeline"; item: TimelineItem; idx: number }
-    | { type: "draft"; draftKind: ItineraryItemType };
-
   const renderEntries: RenderEntry[] = timelineItems.map((item, idx) => ({
     type: "timeline" as const,
     item,
@@ -208,32 +176,6 @@ export function DayCard({
     };
   }
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  function handleDragStart({ active }: DragStartEvent) {
-    setActiveId(String(active.id));
-  }
-
-  function handleDragCancel() {
-    setActiveId(null);
-  }
-
-  function handleDragEnd({ active, over }: DragEndEvent) {
-    setActiveId(null);
-    if (!over || active.id === over.id) return;
-    const oldIdx = timelineItems.findIndex((it) => it.data.id === active.id);
-    const newIdx = timelineItems.findIndex((it) => it.data.id === over.id);
-    if (oldIdx === -1 || newIdx === -1) return;
-    const reordered = arrayMove(timelineItems, oldIdx, newIdx);
-    setOptimisticOrder(reordered.map((it) => it.data.id));
-    onReorderDayItems(
-      d.dayNumber,
-      reordered.map((it) => ({ type: it.kind, id: it.data.id }))
-    );
-  }
-
-  const activeItem = activeId !== null ? timelineItems.find((it) => it.data.id === activeId) : undefined;
-
   return (
     <div
       className="rounded-[10px] mb-4"
@@ -256,128 +198,41 @@ export function DayCard({
       {/* Collapsible body */}
       {open && (
         <div className="p-3 flex flex-col">
-          <DndContext
-            id={`day-${d.dayNumber}`}
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragCancel={handleDragCancel}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={timelineItems.map((it) => it.data.id)} strategy={verticalListSortingStrategy}>
-              {renderEntries.map((entry, renderIdx) => {
-                const isLast = renderIdx === renderEntries.length - 1;
-                const key = entry.type === "draft" ? "draft" : entry.item.data.id;
+          <DayCardDnd
+            dayNumber={d.dayNumber}
+            dayId={d.id}
+            dayDate={d.date}
+            timelineItems={timelineItems}
+            renderEntries={renderEntries}
+            tripDocs={tripDocs}
+            newlyCreatedChecklistId={newlyCreatedChecklistId}
+            draftInsertAtPosition={draft?.insertAtPosition}
+            makeGapProps={makeGapProps}
+            commitDraft={commitDraft}
+            cancelDraft={cancelDraft}
+            setOptimisticOrder={setOptimisticOrder}
+            onReorderDayItems={onReorderDayItems}
+            onUpdateEvent={onUpdateEvent}
+            onDeleteEvent={onDeleteEvent}
+            onAddChecklist={onAddChecklist}
+            onUpdateNote={onUpdateNote}
+            onDeleteNote={onDeleteNote}
+            onUpdateChecklistTitle={onUpdateChecklistTitle}
+            onDeleteChecklist={onDeleteChecklist}
+            onAddChecklistItem={onAddChecklistItem}
+            onUpdateChecklistItem={onUpdateChecklistItem}
+            onDeleteChecklistItem={onDeleteChecklistItem}
+            onToggleChecklistItem={onToggleChecklistItem}
+          />
 
-                return (
-                  <div key={key}>
-                    {entry.type === "draft" ? (
-                      entry.draftKind === ItineraryItemType.Checklist ? (
-                        <ChecklistItem
-                          checklist={{
-                            id: "draft",
-                            tripDayId: d.id ?? "",
-                            position: draft!.insertAtPosition,
-                            items: [],
-                          }}
-                          isDraft
-                          onCommitDraft={(firstItemContent) => {
-                            onAddChecklist?.(d.dayNumber, draft!.insertAtPosition, firstItemContent);
-                            setDraft(null);
-                          }}
-                          onCancelDraft={cancelDraft}
-                        />
-                      ) : entry.draftKind === ItineraryItemType.Note ? (
-                        <NoteItem
-                          note={{ id: "draft", content: "", position: draft!.insertAtPosition }}
-                          isDraft
-                          onCreate={commitDraft}
-                          onCancelDraft={cancelDraft}
-                        />
-                      ) : (
-                        <PlaceRow
-                          place={{ id: "draft", name: "", position: 0 }}
-                          dayDate={d.date}
-                          isDraft
-                          onCreate={commitDraft}
-                          onCancelDraft={cancelDraft}
-                          onUpdate={() => {}}
-                          onDelete={cancelDraft}
-                        />
-                      )
-                    ) : entry.item.kind === "checklist" ? (
-                      <SortableChecklistItem
-                        checklist={entry.item.data}
-                        initiallyExpanded={entry.item.data.id === newlyCreatedChecklistId}
-                        onTitleUpdate={onUpdateChecklistTitle}
-                        onDelete={onDeleteChecklist}
-                        onAddItem={onAddChecklistItem}
-                        onUpdateItem={onUpdateChecklistItem}
-                        onDeleteItem={onDeleteChecklistItem}
-                        onToggleItem={onToggleChecklistItem}
-                      />
-                    ) : entry.item.kind === "event" ? (
-                      <SortablePlaceRow
-                        id={`event-${entry.item.data.id}`}
-                        place={entry.item.data}
-                        dayDate={d.date}
-                        isLast={isLast}
-                        onUpdate={onUpdateEvent}
-                        onDelete={onDeleteEvent}
-                        tripDocs={tripDocs}
-                      />
-                    ) : (
-                      <SortableNoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />
-                    )}
-                    {!isLast && entry.type === "timeline" && (
-                      <GapZone {...makeGapProps(`ti-${entry.idx}`, entry.item.position + 1)} />
-                    )}
-                    {!isLast && entry.type === "draft" && <div style={{ height: 28 }} />}
-                  </div>
-                );
-              })}
-            </SortableContext>
-            <DragOverlay dropAnimation={null}>
-              {activeItem ? (
-                activeItem.kind === "event" ? (
-                  <PlaceRow place={activeItem.data} dayDate={d.date} onUpdate={() => {}} onDelete={() => {}} />
-                ) : activeItem.kind === "note" ? (
-                  <NoteItem note={activeItem.data} displayOnly />
-                ) : (
-                  <ChecklistItem checklist={activeItem.data} displayOnly />
-                )
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-
-          {/* Bottom add */}
-          {openGapKey === "bottom" ? (
-            <div className="flex items-center mt-1" style={{ paddingLeft: 12, paddingTop: 4, paddingBottom: 4 }}>
-              <TypePicker
-                onSelect={(type) => activateDraft(type, bottomInsertPosition, "bottom")}
-                onDismiss={() => setOpenGapKey(null)}
-              />
-            </div>
-          ) : (
-            <button
-              onClick={() => openGap("bottom")}
-              className="flex items-center gap-2 px-3 py-2 mt-1 rounded-[6px] transition-colors hover:bg-surface"
-              style={{
-                fontSize: "calc(12.5px * var(--font-scale))",
-                color: "var(--fg-4)",
-                border: "none",
-                background: "none",
-              }}
-            >
-              <span
-                className="flex items-center justify-center rounded-full"
-                style={{ width: 18, height: 18, background: "var(--surface-2)" }}
-              >
-                <Plus size={11} strokeWidth={2} />
-              </span>
-              Add a place to day {d.dayNumber}
-            </button>
-          )}
+          <DayCardBottomAdd
+            dayNumber={d.dayNumber}
+            openGapKey={openGapKey}
+            bottomInsertPosition={bottomInsertPosition}
+            openGap={openGap}
+            activateDraft={activateDraft}
+            closeGap={() => setOpenGapKey(null)}
+          />
         </div>
       )}
     </div>

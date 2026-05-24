@@ -9,6 +9,7 @@ import { type DayItinerary, type TripEvent, type DayItemType, type Document } fr
 export interface TripItineraryViewProps {
   days: DayItinerary[];
   dateFormat?: string;
+  initialExpandedDayNumber?: number;
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -31,6 +32,7 @@ export interface TripItineraryViewProps {
 export function TripItineraryView({
   days,
   dateFormat,
+  initialExpandedDayNumber,
   tripDocs,
   onUpdateEvent,
   onDeleteEvent,
@@ -81,6 +83,7 @@ export function TripItineraryView({
           key={day.dayNumber}
           day={day}
           dateFormat={dateFormat}
+          initialOpen={initialExpandedDayNumber === day.dayNumber}
           tripDocs={tripDocs}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}

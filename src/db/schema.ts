@@ -82,8 +82,8 @@ export const trips = pgTable("trips", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  startDate: date("start_date").notNull(),
-  endDate: date("end_date").notNull(),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
   coverImageUrl: text("cover_image_url"),
   notes: text("notes"),
   budgetCurrency: text("budget_currency"),

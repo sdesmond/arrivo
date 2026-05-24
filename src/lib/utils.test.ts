@@ -54,6 +54,14 @@ describe("getTripStatus", () => {
   it("active on endDate boundary", () => {
     expect(getTripStatus("2026-05-01", "2026-05-13", NOW)).toBe("active");
   });
+
+  it("upcoming when dates are undefined", () => {
+    expect(getTripStatus(undefined, undefined, NOW)).toBe("upcoming");
+  });
+
+  it("upcoming when dates are null", () => {
+    expect(getTripStatus(null, null, NOW)).toBe("upcoming");
+  });
 });
 
 describe("isEventPast", () => {
@@ -107,6 +115,10 @@ describe("getTripDays", () => {
 
   it("multi-day trip returns correct count", () => {
     expect(getTripDays("2026-05-01", "2026-05-03")).toBe(3);
+  });
+
+  it("returns 0 when dates are undefined", () => {
+    expect(getTripDays(undefined, undefined)).toBe(0);
   });
 });
 

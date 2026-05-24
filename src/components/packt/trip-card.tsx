@@ -20,9 +20,13 @@ export function TripCard({ trip, onEditTrip, dateFormat }: TripCardProps) {
   const sub = `${getTripDays(trip.startDate, trip.endDate)} DAYS`;
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  const inDays = Math.ceil(
-    (new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const inDays = trip.startDate
+    ? Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  const dateLine =
+    trip.startDate && trip.endDate
+      ? `${formatDate(trip.startDate, dateFormat)} — ${formatDate(trip.endDate, dateFormat)}`
+      : "No dates";
 
   return (
     <Link
@@ -62,11 +66,11 @@ export function TripCard({ trip, onEditTrip, dateFormat }: TripCardProps) {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {formatDate(trip.startDate, dateFormat)} — {formatDate(trip.endDate, dateFormat)}
+              {dateLine}
             </div>
           </div>
           <Badge variant="soft" className="shrink-0 mt-0.5">
-            in {inDays}d
+            {inDays === null ? "unscheduled" : `in ${inDays}d`}
           </Badge>
         </div>
 

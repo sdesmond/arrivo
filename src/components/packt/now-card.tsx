@@ -25,7 +25,11 @@ export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardPr
   const now = useNow();
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
-  const sub = status === "upcoming" ? trip.startDate : status === "past" ? trip.endDate : "";
+  const sub = status === "upcoming" ? (trip.startDate ?? "") : status === "past" ? (trip.endDate ?? "") : "";
+  const dateLine =
+    trip.startDate && trip.endDate
+      ? `${formatDate(trip.startDate, dateFormat)} – ${formatDate(trip.endDate, dateFormat)}`
+      : "No dates";
 
   const currentEvent =
     [...todayEvents].reverse().find((ev) => {
@@ -94,7 +98,7 @@ export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardPr
               {trip.name}
             </h2>
             <div style={{ color: "var(--fg-3)", fontSize: "calc(13.5px * var(--font-scale))", marginTop: 4 }}>
-              {formatDate(trip.startDate, dateFormat)} – {formatDate(trip.endDate, dateFormat)}
+              {dateLine}
             </div>
           </div>
 

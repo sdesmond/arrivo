@@ -15,7 +15,7 @@ interface DayRibbonProps {
 export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
   const now = useNow();
   const status = getTripStatus(trip.startDate, trip.endDate, now);
-  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate, now) : null;
+  const activeDayNum = status === "active" && trip.startDate ? getActiveDayNumber(trip.startDate, now) : null;
   const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
 
   return (

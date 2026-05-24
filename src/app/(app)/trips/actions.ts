@@ -3,10 +3,12 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { trips, collaborators, packingItems, documents } from "@/db/schema";
+import { trips, collaborators, packingItems, documents, days } from "@/db/schema";
 import { eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { CreateTripInput, UpdateTripPatch, AddCollaboratorInput, AddPackingItemInput } from "@/data/types";
+import { buildDayRows } from "./create-trip-days";
 
 export async function createTrip(input: CreateTripInput) {
   const user = await requireUser();
@@ -33,8 +35,11 @@ export async function createTrip(input: CreateTripInput) {
     initials: (user.name ?? user.email!).slice(0, 2).toUpperCase(),
     role: "owner",
   });
-  revalidatePath("/trips");
-  return trip;
+  const dayRows = buildDayRows(trip.id, input.startDate, input.endDate);
+  if (dayRows.length > 0) {
+    await db.insert(days).values(dayRows);
+  }
+  redirect(`/trips/${trip.id}?new=1`);
 }
 
 export async function updateTripMetadata(tripId: string, patch: UpdateTripPatch) {

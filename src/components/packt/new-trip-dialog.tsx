@@ -6,18 +6,13 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Field, Section } from "@/components/packt/form-section";
-
-export interface NewTripDraft {
-  title: string;
-  startDate?: string;
-  endDate?: string;
-  budgetAmount?: string;
-}
+import type { NewTripDraft } from "@/data/types";
 
 export interface NewTripDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate?: (draft: NewTripDraft) => void;
+  isPending?: boolean;
 }
 
 const EMPTY_DRAFT: NewTripDraft = {
@@ -34,7 +29,7 @@ function sanitizeBudget(value: string) {
   return decimalParts.length > 0 ? `${whole}.${decimal.slice(0, 2)}` : whole;
 }
 
-export function NewTripDialog({ open, onOpenChange, onCreate }: NewTripDialogProps) {
+export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false }: NewTripDialogProps) {
   const titleRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<NewTripDraft>(EMPTY_DRAFT);
   const [titleError, setTitleError] = useState("");
@@ -61,12 +56,16 @@ export function NewTripDialog({ open, onOpenChange, onCreate }: NewTripDialogPro
       return;
     }
 
-    onCreate?.({
-      title,
-      startDate: draft.startDate,
-      endDate: draft.endDate,
-      budgetAmount: draft.budgetAmount?.replace(/\.$/, "") || undefined,
-    });
+    if (onCreate) {
+      onCreate({
+        title,
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+        budgetAmount: draft.budgetAmount?.replace(/\.$/, "") || undefined,
+      });
+      return;
+    }
+
     closeDialog();
   }
 
@@ -128,8 +127,8 @@ export function NewTripDialog({ open, onOpenChange, onCreate }: NewTripDialogPro
             <Button type="button" variant="ghost" onClick={closeDialog}>
               Cancel
             </Button>
-            <Button type="submit" disabled={draft.title.trim().length === 0}>
-              Create
+            <Button type="submit" disabled={draft.title.trim().length === 0 || isPending}>
+              {isPending ? "Creating..." : "Create"}
             </Button>
           </DialogFooter>
         </form>

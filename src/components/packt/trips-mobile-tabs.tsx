@@ -35,7 +35,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
     );
   }
   const status = getTripStatus(trip.startDate, trip.endDate, now);
-  const activeDayNum = status === "active" ? getActiveDayNumber(trip.startDate, now) : null;
+  const activeDayNum = status === "active" && trip.startDate ? getActiveDayNumber(trip.startDate, now) : null;
   const statusLabel = status === "active" ? "ACTIVE" : status === "upcoming" ? "UPCOMING" : "PAST";
   const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
 
@@ -249,9 +249,13 @@ export function MobileUpcomingTab({ trips, now, dateFormat }: MobileUpcomingTabP
       {trips.map((trip) => {
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
-        const inDays = Math.ceil(
-          (new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        const inDays = trip.startDate
+          ? Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        const dateLine =
+          trip.startDate && trip.endDate
+            ? `${formatDate(trip.startDate, dateFormat)} — ${formatDate(trip.endDate, dateFormat)}`
+            : "No dates";
         return (
           <Link
             key={trip.id}
@@ -275,11 +279,9 @@ export function MobileUpcomingTab({ trips, now, dateFormat }: MobileUpcomingTabP
               >
                 {getTripDays(trip.startDate, trip.endDate)} DAYS
               </div>
-              <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>
-                {formatDate(trip.startDate, dateFormat)} — {formatDate(trip.endDate, dateFormat)}
-              </div>
+              <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>{dateLine}</div>
               <div className="flex items-center gap-1.5 mt-1">
-                <Badge variant="soft">in {inDays}d</Badge>
+                <Badge variant="soft">{inDays === null ? "unscheduled" : `in ${inDays}d`}</Badge>
                 {(trip.docs?.length ?? 0) > 0 ? (
                   <Badge variant="success">{trip.docs!.length} docs</Badge>
                 ) : (
@@ -317,7 +319,8 @@ export function MobilePastTab({ trips, dateFormat }: MobilePastTabProps) {
               {trip.name}
             </div>
             <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>
-              {formatDate(trip.startDate, dateFormat)} · {getTripDays(trip.startDate, trip.endDate)} days
+              {trip.startDate ? formatDate(trip.startDate, dateFormat) : "No dates"} ·{" "}
+              {getTripDays(trip.startDate, trip.endDate)} days
             </div>
             <Badge variant="outline" className="w-fit mt-1">
               Past

@@ -55,6 +55,13 @@ describe("dbTripToType", () => {
     expect(result.endDate).toBe("2020-01-10");
   });
 
+  it("maps null dates to undefined and upcoming status", () => {
+    const result = dbTripToType({ ...BASE_TRIP, startDate: null, endDate: null });
+    expect(result.startDate).toBeUndefined();
+    expect(result.endDate).toBeUndefined();
+    expect(result.status).toBe("upcoming");
+  });
+
   it("null optional fields become undefined", () => {
     const result = dbTripToType(BASE_TRIP);
     expect(result.coverImageUrl).toBeUndefined();

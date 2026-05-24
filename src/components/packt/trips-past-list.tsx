@@ -48,7 +48,7 @@ export function PastTripsList({ trips, dateFormat, onEditTrip }: PastTripsListPr
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            {formatDate(trip.startDate, dateFormat)}
+            {trip.startDate ? formatDate(trip.startDate, dateFormat) : "No dates"}
           </span>
           <span
             style={{

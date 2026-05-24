@@ -14,6 +14,7 @@ if (typeof window !== "undefined") {
 }
 
 vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
