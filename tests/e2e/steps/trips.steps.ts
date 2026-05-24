@@ -3,14 +3,18 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
 import { Given, When, Then, After } from "../fixtures";
-import { trips, users } from "../../../src/db/schema";
-import { E2E_USER, E2E_TRIP } from "../e2e-seed-data";
+import { trips } from "../../../src/db/schema";
+import { E2E_TRIP } from "../e2e-seed-data";
 
 let tripNameMutated = false;
 
 Given("I have an existing trip", async ({ page }) => {
-  await page.goto("/trips");
-  await page.locator('a[href*="/trips/"]').first().click();
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client);
+  const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.startDate, E2E_TRIP.startDate));
+  await client.end();
+  if (!trip) throw new Error("Seeded E2E trip not found");
+  await page.goto(`/trips/${trip.id}`);
   await page.waitForURL(/\/trips\/.+/);
 });
 
@@ -59,7 +63,7 @@ When("I navigate to the trips list", async ({ page }) => {
 
 Then("I see an {string} section with {string}", async ({ page }, sectionTitle: string, tripName: string) => {
   await expect(page.getByRole("heading", { name: sectionTitle })).toBeVisible();
-  await expect(page.getByText(tripName)).toBeVisible();
+  await expect(page.getByText(tripName).first()).toBeVisible();
 });
 
 After(async () => {
@@ -68,9 +72,7 @@ After(async () => {
   const client = postgres(process.env.E2E_DATABASE_URL!);
   const db = drizzle(client);
   try {
-    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
-    if (!user) return;
-    await db.update(trips).set({ name: E2E_TRIP.name }).where(eq(trips.ownerId, user.id));
+    await db.update(trips).set({ name: E2E_TRIP.name }).where(eq(trips.startDate, E2E_TRIP.startDate));
   } finally {
     await client.end();
   }

@@ -94,4 +94,20 @@ describe("DayCardHeader", () => {
     render(<DayCardHeader {...baseProps} subtitle={undefined} />);
     expect(screen.getByText("Add a note")).toBeInTheDocument();
   });
+
+  it("renders an accessible removal control only when supplied", async () => {
+    const user = userEvent.setup();
+    const onRemove = vi.fn();
+    const { rerender } = render(<DayCardHeader {...baseProps} />);
+    expect(screen.queryByRole("button", { name: "Remove day" })).not.toBeInTheDocument();
+
+    rerender(<DayCardHeader {...baseProps} onRemove={onRemove} removeDisabled={false} />);
+    await user.click(screen.getByRole("button", { name: "Remove day" }));
+    expect(onRemove).toHaveBeenCalledOnce();
+  });
+
+  it("disables the removal control while a removal is pending", () => {
+    render(<DayCardHeader {...baseProps} onRemove={vi.fn()} removeDisabled={true} />);
+    expect(screen.getByRole("button", { name: "Remove day" })).toBeDisabled();
+  });
 });

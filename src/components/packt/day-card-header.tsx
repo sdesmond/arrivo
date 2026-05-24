@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, ChevronDown } from "lucide-react";
+import type { ReactElement } from "react";
+import { MapPin, ChevronDown, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { type DayItinerary } from "@/data/types";
-import { cn } from "@/lib/utils";
+import type { DayItinerary } from "@/data/types";
 
 export interface DayCardHeaderProps {
   dateDisplay: string;
@@ -15,6 +16,8 @@ export interface DayCardHeaderProps {
   onToggle: () => void;
   dayNumber: number;
   onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
 }
 
 export function DayCardHeader({
@@ -26,11 +29,13 @@ export function DayCardHeader({
   onToggle,
   dayNumber,
   onUpdateDay,
-}: DayCardHeaderProps) {
+  onRemove,
+  removeDisabled = false,
+}: DayCardHeaderProps): ReactElement {
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
   const [draftSubtitle, setDraftSubtitle] = useState(subtitle ?? "");
 
-  function saveSubtitle() {
+  function saveSubtitle(): void {
     const val = draftSubtitle.trim() || undefined;
     if (val !== subtitle) onUpdateDay?.(dayNumber, { subtitle: val });
     setIsEditingSubtitle(false);
@@ -38,49 +43,67 @@ export function DayCardHeader({
 
   return (
     <div
-      className={cn("rounded-t-[10px]", !open && "rounded-b-[10px]")}
       style={{
+        borderTopLeftRadius: 14,
+        borderTopRightRadius: 14,
+        borderBottomLeftRadius: open ? undefined : 14,
+        borderBottomRightRadius: open ? undefined : 14,
         background: isToday ? "var(--accent-soft)" : "var(--surface)",
         borderBottom: open ? "1px solid var(--line)" : "none",
       }}
     >
-      <button
-        className="w-full flex items-center justify-between gap-3 px-4 pt-3 pb-1.5 text-left transition-colors hover:opacity-90"
-        style={{ cursor: "pointer", background: "none", border: "none" }}
-        onClick={onToggle}
-        aria-expanded={open}
-      >
-        <div
-          style={{
-            fontFamily: "var(--font-heading-family, ui-sans-serif)",
-            fontSize: "calc(14px * var(--font-scale))",
-            fontWeight: 600,
-            color: "var(--fg)",
-          }}
+      <div className="flex items-center pr-2">
+        <button
+          className="flex flex-1 items-center justify-between gap-3 px-4 pt-3 pb-1.5 text-left transition-colors hover:opacity-90"
+          style={{ cursor: "pointer", background: "none", border: "none" }}
+          onClick={onToggle}
+          aria-expanded={open}
         >
-          {dateDisplay}
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            className="flex items-center gap-1"
-            style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)" }}
-          >
-            <MapPin size={12} strokeWidth={1.5} />
-            {stopsCount} stops
-          </span>
-          {isToday && <Badge variant="soft">Active</Badge>}
-          <ChevronDown
-            size={14}
-            strokeWidth={1.5}
+          <div
             style={{
-              color: "var(--fg-4)",
-              transform: open ? "rotate(180deg)" : undefined,
-              transition: "transform 0.15s",
-              flexShrink: 0,
+              fontFamily: "var(--font-heading-family, ui-sans-serif)",
+              fontSize: "calc(14px * var(--font-scale))",
+              fontWeight: 600,
+              color: "var(--fg)",
             }}
-          />
-        </div>
-      </button>
+          >
+            {dateDisplay}
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="flex items-center gap-1"
+              style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)" }}
+            >
+              <MapPin size={12} strokeWidth={1.5} />
+              {stopsCount} stops
+            </span>
+            {isToday && <Badge variant="soft">Active</Badge>}
+            <ChevronDown
+              size={14}
+              strokeWidth={1.5}
+              style={{
+                color: "var(--fg-4)",
+                transform: open ? "rotate(180deg)" : undefined,
+                transition: "transform 0.15s",
+                flexShrink: 0,
+              }}
+            />
+          </div>
+        </button>
+        {onRemove && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-11 shrink-0"
+            title="Remove day"
+            aria-label="Remove day"
+            disabled={removeDisabled}
+            onClick={onRemove}
+          >
+            <Trash2 strokeWidth={1.5} />
+          </Button>
+        )}
+      </div>
 
       <div className="px-4 pb-2.5">
         {isEditingSubtitle ? (
@@ -88,11 +111,11 @@ export function DayCardHeader({
             autoFocus
             value={draftSubtitle}
             placeholder="Add a note"
-            onChange={(e) => setDraftSubtitle(e.target.value)}
+            onChange={(event) => setDraftSubtitle(event.target.value)}
             onBlur={saveSubtitle}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveSubtitle();
-              if (e.key === "Escape") {
+            onKeyDown={(event) => {
+              if (event.key === "Enter") saveSubtitle();
+              if (event.key === "Escape") {
                 setDraftSubtitle(subtitle ?? "");
                 setIsEditingSubtitle(false);
               }
@@ -103,24 +126,23 @@ export function DayCardHeader({
               background: "transparent",
               border: "none",
               borderBottom: "1px solid var(--accent-brand)",
-              outline: "none",
               width: "100%",
               fontFamily: "inherit",
               padding: "1px 0",
             }}
           />
         ) : (
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
+          <button
+            type="button"
+            className="text-left"
+            onClick={(event) => {
+              event.stopPropagation();
               setDraftSubtitle(subtitle ?? "");
               setIsEditingSubtitle(true);
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.stopPropagation();
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.stopPropagation();
                 setDraftSubtitle(subtitle ?? "");
                 setIsEditingSubtitle(true);
               }
@@ -138,7 +160,7 @@ export function DayCardHeader({
             }}
           >
             {subtitle ?? "Add a note"}
-          </div>
+          </button>
         )}
       </div>
     </div>

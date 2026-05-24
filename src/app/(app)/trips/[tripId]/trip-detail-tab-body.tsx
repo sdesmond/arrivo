@@ -1,8 +1,9 @@
 "use client";
 
+import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
 import { TripDocsTab } from "@/components/packt/trip-docs-tab";
-import { type DayItinerary, type TripEvent, type DayItemType, type Document, type TripDetailTab } from "@/data/types";
+import type { DayItinerary, TripEvent, DayItemType, Document, TripDetailTab } from "@/data/types";
 
 export interface TripDetailTabBodyProps {
   tripId: string;
@@ -27,6 +28,13 @@ export interface TripDetailTabBodyProps {
   onUpdateChecklistItem: (itemId: string, content: string) => void;
   onDeleteChecklistItem: (itemId: string) => void;
   onToggleChecklistItem: (itemId: string) => void;
+  onAddDay: () => void;
+  onRemoveLastDay: (
+    confirmedDestructiveRemoval: boolean,
+    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+  ) => void;
+  addingDay: boolean;
+  removingDay: boolean;
 }
 
 export function TripDetailTabBody({
@@ -52,7 +60,11 @@ export function TripDetailTabBody({
   onUpdateChecklistItem,
   onDeleteChecklistItem,
   onToggleChecklistItem,
-}: TripDetailTabBodyProps) {
+  onAddDay,
+  onRemoveLastDay,
+  addingDay,
+  removingDay,
+}: TripDetailTabBodyProps): ReactElement {
   return (
     <>
       {activeTab === "itin" && (
@@ -60,7 +72,7 @@ export function TripDetailTabBody({
           days={days}
           dateFormat={dateFormat}
           initialExpandedDayNumber={initialExpandedDayNumber}
-          tripDocs={docs.filter((d) => d.scope === "trip")}
+          tripDocs={docs.filter((document) => document.scope === "trip")}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
           onReorderDayItems={onReorderDayItems}
@@ -77,9 +89,15 @@ export function TripDetailTabBody({
           onUpdateChecklistItem={onUpdateChecklistItem}
           onDeleteChecklistItem={onDeleteChecklistItem}
           onToggleChecklistItem={onToggleChecklistItem}
+          onAddDay={onAddDay}
+          onRemoveLastDay={onRemoveLastDay}
+          addingDay={addingDay}
+          removingDay={removingDay}
         />
       )}
-      {activeTab === "docs" && <TripDocsTab tripId={tripId} docs={docs.filter((d) => d.scope === "trip")} />}
+      {activeTab === "docs" && (
+        <TripDocsTab tripId={tripId} docs={docs.filter((document) => document.scope === "trip")} />
+      )}
       {activeTab === "map" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
       )}

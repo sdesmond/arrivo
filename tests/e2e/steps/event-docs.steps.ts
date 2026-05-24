@@ -6,6 +6,7 @@ import { Before, Given, When, Then } from "../fixtures";
 import { documents, events, days, trips, users } from "../../../src/db/schema";
 import {
   E2E_USER,
+  E2E_TRIP,
   E2E_PICK_DOC,
   E2E_EVENT_KEEP,
   E2E_EVENT_ERASE,
@@ -15,8 +16,8 @@ import {
   E2E_MANAGE_DOC,
 } from "../e2e-seed-data";
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function escapeRegex(source: string): string {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 Before({ tags: "@reseed-delete-events" }, async () => {
@@ -25,7 +26,10 @@ Before({ tags: "@reseed-delete-events" }, async () => {
   try {
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
     if (!user) return;
-    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    const [trip] = await db
+      .select({ id: trips.id })
+      .from(trips)
+      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
     if (!trip) return;
     const [day1] = await db
       .select({ id: days.id })
@@ -63,7 +67,10 @@ Before({ tags: "@reseed-pick-list" }, async () => {
   try {
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
     if (!user) return;
-    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    const [trip] = await db
+      .select({ id: trips.id })
+      .from(trips)
+      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
     if (!trip) return;
     await db
       .update(documents)
@@ -157,7 +164,10 @@ Before({ tags: "@reseed-manage-event" }, async () => {
   try {
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
     if (!user) return;
-    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    const [trip] = await db
+      .select({ id: trips.id })
+      .from(trips)
+      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
     if (!trip) return;
     const [day1] = await db
       .select({ id: days.id })

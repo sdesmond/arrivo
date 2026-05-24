@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactElement } from "react";
 import Link from "next/link";
 import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { type TripDetailPayload, type UpdateTripPatch, type TripDetailTab } from "@/data/types";
+import type { TripDetailPayload, UpdateTripPatch, TripDetailTab } from "@/data/types";
 import { getTripStatus, getTripDays, formatDate } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 
-const TABS = [
+const TABS: { id: TripDetailTab; label: string }[] = [
   { id: "itin", label: "Itinerary" },
   { id: "map", label: "Map" },
   { id: "docs", label: "Documents" },
@@ -27,7 +28,12 @@ interface TripDetailClientProps {
   initialExpandedDayNumber?: number;
 }
 
-export function TripDetailClient({ detail, nowISO, dateFormat, initialExpandedDayNumber }: TripDetailClientProps) {
+export function TripDetailClient({
+  detail,
+  nowISO,
+  dateFormat,
+  initialExpandedDayNumber,
+}: TripDetailClientProps): ReactElement {
   const now = new Date(nowISO);
   useFocusScroll();
 
@@ -45,6 +51,8 @@ export function TripDetailClient({ detail, nowISO, dateFormat, initialExpandedDa
   const eventCount = days.reduce((count, day) => count + day.events.length, 0);
   const dayTotal = getTripDays(trip.startDate, trip.endDate);
   const status = getTripStatus(trip.startDate, trip.endDate, now);
+  const heroStatusLabel =
+    trip.startDate && trip.endDate ? `${status.toUpperCase()} TRIP · OFFLINE` : "UNSCHEDULED TRIP · OFFLINE";
   const heroDateLine =
     trip.startDate && trip.endDate
       ? `${formatDate(trip.startDate, dateFormat)} — ${formatDate(trip.endDate, dateFormat)}`
@@ -59,7 +67,7 @@ export function TripDetailClient({ detail, nowISO, dateFormat, initialExpandedDa
       >
         <Link
           href="/trips"
-          className="inline-flex shrink-0 items-center gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 font-medium h-7 transition-colors hover:bg-surface"
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 font-medium h-7 transition-colors hover:bg-surface"
           style={{ fontSize: "0.8rem", color: "var(--fg)" }}
         >
           <ChevronLeft size={14} strokeWidth={1.5} />
@@ -91,13 +99,7 @@ export function TripDetailClient({ detail, nowISO, dateFormat, initialExpandedDa
 
       {/* Hero */}
       <div className="relative shrink-0" style={{ minHeight: 260 }}>
-        <TripCover
-          name={trip.name}
-          country=""
-          metaTag={`${status.toUpperCase()} TRIP · OFFLINE`}
-          showCity={false}
-          style={{ minHeight: 260 }}
-        />
+        <TripCover name={trip.name} country="" metaTag={heroStatusLabel} showCity={false} style={{ minHeight: 260 }} />
         <div className="absolute inset-0 pointer-events-none" style={{ background: "var(--cover-scrim)" }} />
         <div className="absolute bottom-0 left-0 right-0 p-5 lg:p-6">
           <div
@@ -140,7 +142,7 @@ export function TripDetailClient({ detail, nowISO, dateFormat, initialExpandedDa
             </span>
             <span className="flex items-center gap-1.5">
               <FileText size={13} strokeWidth={1.5} />
-              {docs.filter((d) => d.scope === "trip").length} docs
+              {docs.filter((document) => document.scope === "trip").length} docs
             </span>
             <span className="flex items-center gap-1.5">
               <Users size={13} strokeWidth={1.5} />
@@ -169,7 +171,7 @@ export function TripDetailClient({ detail, nowISO, dateFormat, initialExpandedDa
                 borderBottom: activeTab === tabItem.id ? "2px solid var(--accent-brand)" : "2px solid transparent",
                 marginBottom: -1,
               }}
-              onClick={() => setActiveTab(tabItem.id as typeof activeTab)}
+              onClick={() => setActiveTab(tabItem.id)}
             >
               {tabItem.label}
             </button>
@@ -203,6 +205,10 @@ export function TripDetailClient({ detail, nowISO, dateFormat, initialExpandedDa
             onUpdateChecklistItem={handlers.handleUpdateChecklistItem}
             onDeleteChecklistItem={handlers.handleDeleteChecklistItem}
             onToggleChecklistItem={handlers.handleToggleChecklistItem}
+            onAddDay={handlers.handleAddDay}
+            onRemoveLastDay={handlers.handleRemoveLastDay}
+            addingDay={handlers.addingDay}
+            removingDay={handlers.removingDay}
           />
         </div>
       </div>

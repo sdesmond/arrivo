@@ -1,18 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  type DayItemType,
-  type DayItinerary,
-  type TripDetailPayload,
-  type TripEvent,
-  type UpdateTripPatch,
-} from "@/data/types";
+import { toast } from "sonner";
+import type { DayItemType, DayItinerary, TripDetailPayload, TripEvent, UpdateTripPatch } from "@/data/types";
 import { updateTripMetadata } from "../actions";
 import {
   createChecklist,
   createChecklistItem,
   createChecklistWithItem,
+  addDay,
   createEvent,
   createNote,
   deleteChecklist,
@@ -20,6 +16,7 @@ import {
   deleteEvent,
   deleteNote,
   reorderDayItems,
+  removeLastDay,
   toggleChecklistItem,
   updateChecklistItem,
   updateChecklistTitle,
@@ -28,9 +25,38 @@ import {
   updateNote,
 } from "./actions";
 
-export function useTripDetailHandlers(detail: TripDetailPayload) {
+export interface TripDetailHandlers {
+  newlyCreatedChecklistId: string | null;
+  addingDay: boolean;
+  removingDay: boolean;
+  handleEventUpdate: (updated: TripEvent) => void;
+  handleEventDelete: (id: string) => void;
+  handleDayItemsReorder: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
+  handleDayUpdate: (dayNumber: number, updates: Partial<DayItinerary>) => void;
+  handleAddEvent: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
+  handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => void;
+  handleUpdateNote: (noteId: string, content: string) => void;
+  handleDeleteNote: (noteId: string) => void;
+  handleAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
+  handleUpdateChecklistTitle: (checklistId: string, title: string | undefined) => void;
+  handleDeleteChecklist: (checklistId: string) => void;
+  handleAddChecklistItem: (checklistId: string, content: string) => void;
+  handleUpdateChecklistItem: (itemId: string, content: string) => void;
+  handleDeleteChecklistItem: (itemId: string) => void;
+  handleToggleChecklistItem: (itemId: string) => void;
+  handleTripSave: (patch: UpdateTripPatch) => void;
+  handleAddDay: () => void;
+  handleRemoveLastDay: (
+    confirmedDestructiveRemoval: boolean,
+    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+  ) => void;
+}
+
+export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHandlers {
   const { trip, days } = detail;
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
+  const [addingDay, startAddDayTransition] = React.useTransition();
+  const [removingDay, startRemoveDayTransition] = React.useTransition();
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
@@ -158,8 +184,36 @@ export function useTripDetailHandlers(detail: TripDetailPayload) {
     });
   }
 
+  function handleAddDay(): void {
+    startAddDayTransition(async () => {
+      try {
+        await addDay(trip.id);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to add day. Please try again.");
+      }
+    });
+  }
+
+  function handleRemoveLastDay(
+    confirmedDestructiveRemoval: boolean,
+    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+  ): void {
+    startRemoveDayTransition(async () => {
+      try {
+        const result = await removeLastDay(trip.id, confirmedDestructiveRemoval);
+        if (result.status === "confirmation-required") {
+          onConfirmationRequired(result.hasPlannedContent ?? false, result.removesOnlyDay ?? false);
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to remove day. Please try again.");
+      }
+    });
+  }
+
   return {
     newlyCreatedChecklistId,
+    addingDay,
+    removingDay,
     handleEventUpdate,
     handleEventDelete,
     handleDayItemsReorder,
@@ -176,5 +230,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload) {
     handleDeleteChecklistItem,
     handleToggleChecklistItem,
     handleTripSave,
+    handleAddDay,
+    handleRemoveLastDay,
   };
 }

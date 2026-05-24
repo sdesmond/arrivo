@@ -469,6 +469,12 @@ export interface UpdateDayPatch {
   travelSummary?: string;
 }
 
+export interface RemoveLastDayResult {
+  status: "removed" | "confirmation-required";
+  hasPlannedContent?: boolean;
+  removesOnlyDay?: boolean;
+}
+
 export interface AddCollaboratorInput {
   email: string;
   name: string;

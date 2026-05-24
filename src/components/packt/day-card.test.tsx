@@ -2,29 +2,48 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { FocusEvent, KeyboardEvent, ReactNode } from "react";
 
 type MockDndEvent = { active: { id: string }; over: { id: string } | null };
-const dndHandlers = vi.hoisted(() => ({}) as Record<string, ((e: MockDndEvent) => void) | undefined>);
-const dndStartHandlers = vi.hoisted(
-  () => ({}) as Record<string, ((e: { active: { id: string } }) => void) | undefined>
-);
-const dndCancelHandlers = vi.hoisted(() => ({}) as Record<string, (() => void) | undefined>);
-const dragOverlayCapture = vi.hoisted(() => ({ lastProps: undefined as Record<string, unknown> | undefined }));
+type MockDragStartEvent = { active: { id: string } };
+type DndHandlerMap = Record<string, ((event: MockDndEvent) => void) | undefined>;
+type DndStartHandlerMap = Record<string, ((event: MockDragStartEvent) => void) | undefined>;
+type DndCancelHandlerMap = Record<string, (() => void) | undefined>;
+interface DragOverlayState {
+  lastProps?: Record<string, unknown>;
+}
+interface MockDndContextProps {
+  children: ReactNode;
+  onDragEnd?: (event: MockDndEvent) => void;
+  onDragStart?: (event: MockDragStartEvent) => void;
+  onDragCancel?: () => void;
+  id?: string;
+}
+interface MockDragOverlayProps extends Record<string, unknown> {
+  children: ReactNode;
+}
+interface MockChecklistItemProps {
+  checklist: { id: string; items: unknown[] };
+  isDraft?: boolean;
+  onCommitDraft?: (firstItemContent?: string) => void;
+  onCancelDraft?: () => void;
+}
+interface MockPlaceRowProps {
+  place: { id: string; name: string };
+  isDraft?: boolean;
+  onCreate?: (name: string) => void;
+  onCancelDraft?: () => void;
+}
+interface MockChildrenProps {
+  children: ReactNode;
+}
+const dndHandlers = vi.hoisted((): DndHandlerMap => ({}));
+const dndStartHandlers = vi.hoisted((): DndStartHandlerMap => ({}));
+const dndCancelHandlers = vi.hoisted((): DndCancelHandlerMap => ({}));
+const dragOverlayCapture = vi.hoisted((): DragOverlayState => ({}));
 
 vi.mock("@dnd-kit/core", () => ({
-  DndContext: ({
-    children,
-    onDragEnd,
-    onDragStart,
-    onDragCancel,
-    id,
-  }: {
-    children: React.ReactNode;
-    onDragEnd?: (e: MockDndEvent) => void;
-    onDragStart?: (e: { active: { id: string } }) => void;
-    onDragCancel?: () => void;
-    id?: string;
-  }) => {
+  DndContext: ({ children, onDragEnd, onDragStart, onDragCancel, id }: MockDndContextProps) => {
     if (id) {
       dndHandlers[id] = onDragEnd;
       dndStartHandlers[id] = onDragStart;
@@ -32,7 +51,7 @@ vi.mock("@dnd-kit/core", () => ({
     }
     return <>{children}</>;
   },
-  DragOverlay: ({ children, ...rest }: { children: React.ReactNode } & Record<string, unknown>) => {
+  DragOverlay: ({ children, ...rest }: MockDragOverlayProps) => {
     dragOverlayCapture.lastProps = rest;
     return <>{children}</>;
   },
@@ -43,7 +62,7 @@ vi.mock("@dnd-kit/core", () => ({
 }));
 
 vi.mock("@dnd-kit/sortable", () => ({
-  SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SortableContext: ({ children }: MockChildrenProps) => <>{children}</>,
   verticalListSortingStrategy: {},
   useSortable: vi.fn(() => ({
     attributes: {},
@@ -66,33 +85,23 @@ vi.mock("@dnd-kit/utilities", () => ({
 }));
 
 vi.mock("./checklist-item", () => ({
-  ChecklistItem: ({
-    checklist,
-    isDraft,
-    onCommitDraft,
-    onCancelDraft,
-  }: {
-    checklist: { id: string; items: unknown[] };
-    isDraft?: boolean;
-    onCommitDraft?: (firstItemContent?: string) => void;
-    onCancelDraft?: () => void;
-  }) => {
+  ChecklistItem: ({ checklist, isDraft, onCommitDraft, onCancelDraft }: MockChecklistItemProps) => {
     if (isDraft) {
       return (
         <input
           autoFocus
           data-testid="checklist-draft-input"
           placeholder="Add an item…"
-          onKeyDown={(e) => {
-            const val = (e.target as HTMLInputElement).value.trim();
-            if (e.key === "Enter") {
+          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+            const val = event.currentTarget.value.trim();
+            if (event.key === "Enter") {
               if (val) onCommitDraft?.(val);
               else onCancelDraft?.();
             }
-            if (e.key === "Escape") onCancelDraft?.();
+            if (event.key === "Escape") onCancelDraft?.();
           }}
-          onBlur={(e) => {
-            const val = e.target.value.trim();
+          onBlur={(event: FocusEvent<HTMLInputElement>) => {
+            const val = event.currentTarget.value.trim();
             if (val) onCommitDraft?.(val);
             else onCancelDraft?.();
           }}
@@ -104,32 +113,22 @@ vi.mock("./checklist-item", () => ({
 }));
 
 vi.mock("./place-row", () => ({
-  PlaceRow: ({
-    place,
-    isDraft,
-    onCreate,
-    onCancelDraft,
-  }: {
-    place: { id: string; name: string };
-    isDraft?: boolean;
-    onCreate?: (name: string) => void;
-    onCancelDraft?: () => void;
-  }) => {
+  PlaceRow: ({ place, isDraft, onCreate, onCancelDraft }: MockPlaceRowProps) => {
     if (isDraft) {
       return (
         <input
           autoFocus
           placeholder="Event name"
-          onKeyDown={(e) => {
-            const val = (e.target as HTMLInputElement).value.trim();
-            if (e.key === "Enter") {
+          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+            const val = event.currentTarget.value.trim();
+            if (event.key === "Enter") {
               if (val) onCreate?.(val);
               else onCancelDraft?.();
             }
-            if (e.key === "Escape") onCancelDraft?.();
+            if (event.key === "Escape") onCancelDraft?.();
           }}
-          onBlur={(e) => {
-            const val = e.target.value.trim();
+          onBlur={(event: FocusEvent<HTMLInputElement>) => {
+            const val = event.currentTarget.value.trim();
             if (val) onCreate?.(val);
             else onCancelDraft?.();
           }}
@@ -146,7 +145,7 @@ import type { DayItinerary, TripEvent } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: MockChildrenProps) {
   return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
 }
 
@@ -174,6 +173,23 @@ const baseDay: DayItinerary = {
 };
 
 describe("DayCard", () => {
+  it("threads a final-day removal callback to the header", async () => {
+    const user = userEvent.setup();
+    const onRemove = vi.fn();
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onRemove={onRemove}
+      />,
+      { wrapper: Wrapper }
+    );
+    await user.click(screen.getByRole("button", { name: "Remove day" }));
+    expect(onRemove).toHaveBeenCalledOnce();
+  });
+
   it("renders the day label and date", () => {
     render(<DayCard day={baseDay} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
       wrapper: Wrapper,

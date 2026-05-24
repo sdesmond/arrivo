@@ -2,8 +2,8 @@
 
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems } from "@/db/schema";
-import { eq, and, max, gte, sql, isNull } from "drizzle-orm";
+import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems, trips } from "@/db/schema";
+import { eq, and, max, gte, sql, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { del, put } from "@vercel/blob";
 import { inferDocKind, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/utils";
@@ -13,7 +13,16 @@ import type {
   ReorderDayItemsInput,
   UpdateDayPatch,
   AddDocumentInput,
+  RemoveLastDayResult,
 } from "@/data/types";
+
+const MAX_TRIP_DAYS = 45;
+
+function nextCalendarDate(date: string): string {
+  const nextDate = new Date(`${date}T00:00:00Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  return nextDate.toISOString().slice(0, 10);
+}
 
 async function getDayTripId(dayId: string): Promise<string> {
   const [day] = await db.select({ tripId: days.tripId }).from(days).where(eq(days.id, dayId));
@@ -78,7 +87,7 @@ async function getChecklistItemIds(itemId: string): Promise<{ checklistId: strin
   return { checklistId: item.checklistId, tripId };
 }
 
-export async function createEvent(dayId: string, input: CreateEventInput) {
+export async function createEvent(dayId: string, input: CreateEventInput): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -125,7 +134,7 @@ export async function createEvent(dayId: string, input: CreateEventInput) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateEvent(eventId: string, patch: UpdateEventPatch) {
+export async function updateEvent(eventId: string, patch: UpdateEventPatch): Promise<void> {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -146,7 +155,7 @@ export async function updateEvent(eventId: string, patch: UpdateEventPatch) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function deleteEvent(eventId: string) {
+export async function deleteEvent(eventId: string): Promise<void> {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -155,7 +164,7 @@ export async function deleteEvent(eventId: string) {
 
   await db.delete(events).where(eq(events.id, eventId));
 
-  const urlsToCleanup = eventDocs.map((d) => d.url).filter((u): u is string => !!u);
+  const urlsToCleanup = eventDocs.map((document) => document.url).filter((url): url is string => !!url);
   if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
     await Promise.all(
       urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
@@ -165,7 +174,7 @@ export async function deleteEvent(eventId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function deleteEventWithDocDecision(eventId: string, keepDocs: boolean) {
+export async function deleteEventWithDocDecision(eventId: string, keepDocs: boolean): Promise<void> {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -177,7 +186,7 @@ export async function deleteEventWithDocDecision(eventId: string, keepDocs: bool
       await tx.update(documents).set({ eventId: null }).where(eq(documents.eventId, eventId));
     } else {
       const eventDocs = await tx.select().from(documents).where(eq(documents.eventId, eventId));
-      urlsToCleanup = eventDocs.map((d) => d.url).filter((u): u is string => !!u);
+      urlsToCleanup = eventDocs.map((document) => document.url).filter((url): url is string => !!url);
       await tx.delete(documents).where(eq(documents.eventId, eventId));
     }
     await tx.delete(events).where(eq(events.id, eventId));
@@ -192,7 +201,7 @@ export async function deleteEventWithDocDecision(eventId: string, keepDocs: bool
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function reorderDayItems(input: ReorderDayItemsInput) {
+export async function reorderDayItems(input: ReorderDayItemsInput): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(input.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -220,7 +229,7 @@ export async function reorderDayItems(input: ReorderDayItemsInput) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateDay(dayId: string, patch: UpdateDayPatch) {
+export async function updateDay(dayId: string, patch: UpdateDayPatch): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -228,11 +237,114 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function uploadDocument(tripId: string, formData: FormData) {
+export async function addDay(tripId: string): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
 
-  const file = formData.get("file") as File;
+  await db.transaction(async (transaction) => {
+    const [trip] = await transaction.select({ startDate: trips.startDate }).from(trips).where(eq(trips.id, tripId));
+    const scheduledDays = await transaction
+      .select()
+      .from(days)
+      .where(eq(days.tripId, tripId))
+      .orderBy(asc(days.dayNumber));
+    const lastDay = scheduledDays.at(-1);
+    if (!trip?.startDate || !lastDay?.date) {
+      throw new Error("Unable to add a day because this itinerary is not scheduled correctly.");
+    }
+    if (scheduledDays.length >= MAX_TRIP_DAYS) {
+      throw new Error("Max trip length is 45 days. Please shorten your date range.");
+    }
+    if (scheduledDays.some((day, index) => day.dayNumber !== index + 1)) {
+      throw new Error("Unable to add a day because the itinerary day order is inconsistent.");
+    }
+    const appendedDate = nextCalendarDate(lastDay.date);
+    const appendedDayNumber = lastDay.dayNumber + 1;
+    await transaction.insert(days).values({
+      tripId,
+      dayNumber: appendedDayNumber,
+      date: appendedDate,
+      label: `Day ${appendedDayNumber}`,
+    });
+    await transaction.update(trips).set({ endDate: appendedDate, updatedAt: new Date() }).where(eq(trips.id, tripId));
+  });
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+}
+
+export async function removeLastDay(tripId: string, confirmedDestructiveRemoval = false): Promise<RemoveLastDayResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  let eventDocuments: { url: string | null }[] = [];
+  let result: RemoveLastDayResult = { status: "removed" };
+  await db.transaction(async (transaction) => {
+    const scheduledDays = await transaction
+      .select()
+      .from(days)
+      .where(eq(days.tripId, tripId))
+      .orderBy(asc(days.dayNumber));
+    const lastDay = scheduledDays.at(-1);
+    if (!lastDay) {
+      throw new Error("Unable to remove a day because this itinerary has no scheduled days.");
+    }
+    const dayEvents = await transaction.select({ id: events.id }).from(events).where(eq(events.dayId, lastDay.id));
+    const dayNotes = await transaction
+      .select({ id: itineraryNotes.id })
+      .from(itineraryNotes)
+      .where(eq(itineraryNotes.dayId, lastDay.id));
+    const dayChecklists = await transaction
+      .select({ id: itineraryChecklists.id })
+      .from(itineraryChecklists)
+      .where(eq(itineraryChecklists.dayId, lastDay.id));
+    eventDocuments =
+      dayEvents.length > 0
+        ? await transaction
+            .select({ url: documents.url })
+            .from(documents)
+            .where(
+              inArray(
+                documents.eventId,
+                dayEvents.map((event) => event.id)
+              )
+            )
+        : [];
+    const hasPlannedContent = dayEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0;
+    const removesOnlyDay = scheduledDays.length === 1;
+    if (!confirmedDestructiveRemoval && (removesOnlyDay || hasPlannedContent)) {
+      result = { status: "confirmation-required", hasPlannedContent, removesOnlyDay };
+      return;
+    }
+    const precedingDay = scheduledDays.at(-2);
+    if (!removesOnlyDay && !precedingDay?.date) {
+      throw new Error("Unable to remove a day because the itinerary dates are inconsistent.");
+    }
+    await transaction.delete(days).where(eq(days.id, lastDay.id));
+    const dateUpdates = removesOnlyDay
+      ? { startDate: null, endDate: null, updatedAt: new Date() }
+      : { endDate: precedingDay!.date!, updatedAt: new Date() };
+    await transaction.update(trips).set(dateUpdates).where(eq(trips.id, tripId));
+  });
+  if (result.status === "confirmation-required") return result;
+
+  const urlsToCleanup = eventDocuments.map((document) => document.url).filter((url): url is string => !!url);
+  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    await Promise.all(
+      urlsToCleanup.map((url) => del(url).catch((error) => console.warn(`Blob cleanup failed for ${url}`, error)))
+    );
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+  return result;
+}
+
+export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided");
 
   const name = file.name;
@@ -261,7 +373,7 @@ export async function uploadDocument(tripId: string, formData: FormData) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function addDocument(input: AddDocumentInput) {
+export async function addDocument(input: AddDocumentInput): Promise<void> {
   const user = await requireUser();
   const tripId = input.tripId ?? (input.eventId ? await getEventTripId(input.eventId) : null);
   if (!tripId) throw new Error("tripId or eventId required");
@@ -278,7 +390,7 @@ export async function addDocument(input: AddDocumentInput) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createNote(dayId: string, content: string, insertAtPosition?: number) {
+export async function createNote(dayId: string, content: string, insertAtPosition?: number): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -293,7 +405,7 @@ export async function createNote(dayId: string, content: string, insertAtPositio
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateNote(noteId: string, content: string) {
+export async function updateNote(noteId: string, content: string): Promise<void> {
   const user = await requireUser();
   const [note] = await db.select().from(itineraryNotes).where(eq(itineraryNotes.id, noteId));
   if (!note) return;
@@ -303,7 +415,7 @@ export async function updateNote(noteId: string, content: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function deleteNote(noteId: string) {
+export async function deleteNote(noteId: string): Promise<void> {
   const user = await requireUser();
   const [note] = await db.select().from(itineraryNotes).where(eq(itineraryNotes.id, noteId));
   if (!note) return;
@@ -313,7 +425,7 @@ export async function deleteNote(noteId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createChecklist(dayId: string, insertAtPosition: number) {
+export async function createChecklist(dayId: string, insertAtPosition: number): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -340,7 +452,7 @@ export async function createChecklistWithItem(
   return newChecklist.id;
 }
 
-export async function updateChecklistTitle(checklistId: string, title: string | undefined) {
+export async function updateChecklistTitle(checklistId: string, title: string | undefined): Promise<void> {
   const user = await requireUser();
   const dayId = await getChecklistDayId(checklistId);
   const tripId = await getDayTripId(dayId);
@@ -352,7 +464,7 @@ export async function updateChecklistTitle(checklistId: string, title: string | 
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function deleteChecklist(checklistId: string) {
+export async function deleteChecklist(checklistId: string): Promise<void> {
   const user = await requireUser();
   const dayId = await getChecklistDayId(checklistId);
   const tripId = await getDayTripId(dayId);
@@ -361,7 +473,7 @@ export async function deleteChecklist(checklistId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createChecklistItem(checklistId: string, content: string) {
+export async function createChecklistItem(checklistId: string, content: string): Promise<void> {
   const user = await requireUser();
   const dayId = await getChecklistDayId(checklistId);
   const tripId = await getDayTripId(dayId);
@@ -370,7 +482,7 @@ export async function createChecklistItem(checklistId: string, content: string) 
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateChecklistItem(itemId: string, content: string) {
+export async function updateChecklistItem(itemId: string, content: string): Promise<void> {
   const user = await requireUser();
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -378,7 +490,7 @@ export async function updateChecklistItem(itemId: string, content: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function toggleChecklistItem(itemId: string) {
+export async function toggleChecklistItem(itemId: string): Promise<void> {
   const user = await requireUser();
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -389,7 +501,7 @@ export async function toggleChecklistItem(itemId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function deleteChecklistItem(itemId: string) {
+export async function deleteChecklistItem(itemId: string): Promise<void> {
   const user = await requireUser();
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -397,7 +509,7 @@ export async function deleteChecklistItem(itemId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function removeDocument(docId: string) {
+export async function removeDocument(docId: string): Promise<void> {
   const user = await requireUser();
   const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
   if (!doc) return;
@@ -415,7 +527,7 @@ export async function removeDocument(docId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function renameDocument(docId: string, newName: string) {
+export async function renameDocument(docId: string, newName: string): Promise<void> {
   const user = await requireUser();
   const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
   if (!doc) return;
@@ -426,7 +538,7 @@ export async function renameDocument(docId: string, newName: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function markAllDocsOffline(tripId: string) {
+export async function markAllDocsOffline(tripId: string): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
   await db
@@ -436,7 +548,7 @@ export async function markAllDocsOffline(tripId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function attachTripDocToEvent(docId: string, eventId: string) {
+export async function attachTripDocToEvent(docId: string, eventId: string): Promise<void> {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -444,7 +556,7 @@ export async function attachTripDocToEvent(docId: string, eventId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function promoteEventDocToTrip(docId: string) {
+export async function promoteEventDocToTrip(docId: string): Promise<void> {
   const user = await requireUser();
   const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
   if (!doc) return;
@@ -455,12 +567,12 @@ export async function promoteEventDocToTrip(docId: string) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function uploadDocumentToEvent(eventId: string, formData: FormData) {
+export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
 
-  const file = formData.get("file") as File;
+  const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided");
 
   const name = file.name;

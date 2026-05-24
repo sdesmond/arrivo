@@ -111,3 +111,11 @@ Only excludes `CriOS|FxiOS|OPiOS|mercury` — Edge iOS (`EdgiOS`), DuckDuckGo, B
 - **Multiple simultaneous active trips: only first shown** — `activeEntries[0]` is kept; overlapping active trips are silently dropped. Pre-existing behavior, unchanged by this story.
 - **`updateTripMetadata` fire-and-forget drops server errors** — `React.startTransition(() => { updateTripMetadata(...) })` has no await or catch; failures show no feedback. Pre-existing pattern.
 - **`submitCreateTrip` exposed in hook return value** — Callers could bypass the 30/45-day guards in `handleCreate`. The only current external caller (AlertDialog) is safe; design concern for future callers.
+
+---
+
+## Deferred from: code review of 2-1-add-day-remove-last-day (2026-05-24)
+
+- **Client-side destructive confirmation is not bound to the server-authoritative last day** — A stale tab or concurrent collaborator change can cause `removeLastDay(true)` to delete a different final day than the one the user confirmed. Deferred reason: acceptable concurrency edge case for now.
+
+- **Removing the only day leaves the empty itinerary action buttons as silent no-ops** — After the trip becomes unscheduled, the empty-state Add event/note/checklist buttons call handlers for day 1 and immediately return because no day row exists. Deferred reason: button functionality will come later.

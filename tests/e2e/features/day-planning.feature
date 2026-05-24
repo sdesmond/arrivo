@@ -54,3 +54,27 @@ Feature: Day Planning
   Scenario: Empty state shows Add event, Add note, and Add checklist buttons when a trip has no scheduled days
     Given I navigate to the trip with no itinerary
     Then the itinerary empty state shows buttons for adding events, notes, and checklists
+
+  @day-append
+  Scenario: User appends a day to a single-day scheduled trip
+    When I add a day to the itinerary
+    Then the appended day and advanced end date are persisted
+
+  @day-remove-empty
+  Scenario: User removes an empty final day
+    When I remove the final empty day
+    Then only the preceding day remains scheduled
+
+  @day-remove-only
+  Scenario: User cancels and then confirms removal of the only day
+    When I request removal of the only day and cancel
+    Then no day or date changes are persisted
+    When I confirm removal of the only day
+    Then the trip is persisted and displayed as unscheduled
+
+  @day-remove-populated
+  Scenario: User explicitly confirms removing a populated final day
+    When I request removal of the populated final day
+    Then planned content deletion is disclosed
+    When I confirm destructive day removal
+    Then the populated final day and its content are deleted
