@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { events, days, trips, users, collaborators, itineraryNotes, itineraryChecklists } from "../../../src/db/schema";
 import {
   E2E_USER,
+  E2E_TRIP,
   E2E_EVENT_DELETE,
   E2E_EVENT_UNTIMED,
   E2E_EVENT_REORDER_FIRST,
@@ -22,10 +23,13 @@ async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>):
   }
 }
 
-async function getDay1Context(db: ReturnType<typeof drizzle>) {
+async function getDay1Context(db: ReturnType<typeof drizzle>): Promise<{ tripId: string; dayId: string } | null> {
   const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
   if (!user) return null;
-  const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+  const [trip] = await db
+    .select({ id: trips.id })
+    .from(trips)
+    .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
   if (!trip) return null;
   const [day1] = await db
     .select({ id: days.id })
@@ -42,8 +46,49 @@ let createdNoteIds: string[] = [];
 let createdChecklistIds: string[] = [];
 let lastChecklistId: string | undefined;
 let emptyItineraryTripId: string | undefined;
+let structuralTripId: string | undefined;
 
-async function openFirstDay(page: Page) {
+async function createStructuralTrip(
+  tripName: string,
+  tripDates: { startDate: string; endDate?: string },
+  dayRows: { dayNumber: number; date: string; label: string }[],
+  finalDayEventName?: string
+): Promise<string | undefined> {
+  return withE2EDb(async (db) => {
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
+    if (!user) return undefined;
+    const [trip] = await db
+      .insert(trips)
+      .values({ ownerId: user.id, name: tripName, ...tripDates })
+      .returning();
+    await db.insert(collaborators).values({
+      tripId: trip.id,
+      userId: user.id,
+      email: E2E_USER.email,
+      name: E2E_USER.name,
+      initials: E2E_USER.initials,
+      role: "owner",
+    });
+    const insertedDays = await db
+      .insert(days)
+      .values(dayRows.map((day) => ({ tripId: trip.id, ...day })))
+      .returning({ id: days.id, dayNumber: days.dayNumber });
+    if (finalDayEventName) {
+      const finalDay = insertedDays.find((day) => day.dayNumber === dayRows.length);
+      if (finalDay) {
+        await db.insert(events).values({
+          dayId: finalDay.id,
+          tripId: trip.id,
+          name: finalDayEventName,
+          position: 0,
+        });
+      }
+    }
+    return trip.id;
+  });
+}
+
+async function openFirstDay(page: Page): Promise<void> {
   // Wait for day cards to render (unique to trip detail — toggle buttons contain "X stops")
   const firstDayToggle = page
     .locator("button")
@@ -60,7 +105,7 @@ async function openFirstDay(page: Page) {
   await expect(page.getByRole("button", { name: /add a place/i }).first()).toBeVisible();
 }
 
-async function addEvent(page: Page, name: string) {
+async function addEvent(page: Page, name: string): Promise<void> {
   const idsBefore = new Set(
     await page.locator('[id^="event-"]').evaluateAll((els: Element[]) => els.map((el) => el.id))
   );
@@ -88,6 +133,7 @@ Before(async () => {
   createdNoteIds = [];
   createdChecklistIds = [];
   lastChecklistId = undefined;
+  structuralTripId = undefined;
 });
 
 Before({ tags: "@reseed-day-delete" }, async () => {
@@ -151,6 +197,41 @@ Before({ tags: "@itinerary-empty" }, async () => {
   });
 });
 
+Before({ tags: "@day-append" }, async () => {
+  structuralTripId = await createStructuralTrip("Append Day Trip", { startDate: "2026-08-01" }, [
+    { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+  ]);
+});
+
+Before({ tags: "@day-remove-empty" }, async () => {
+  structuralTripId = await createStructuralTrip(
+    "Remove Empty Day Trip",
+    { startDate: "2026-08-01", endDate: "2026-08-02" },
+    [
+      { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+      { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+    ]
+  );
+});
+
+Before({ tags: "@day-remove-only" }, async () => {
+  structuralTripId = await createStructuralTrip("Only Day Trip", { startDate: "2026-08-01" }, [
+    { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+  ]);
+});
+
+Before({ tags: "@day-remove-populated" }, async () => {
+  structuralTripId = await createStructuralTrip(
+    "Populated Final Day Trip",
+    { startDate: "2026-08-01", endDate: "2026-08-02" },
+    [
+      { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+      { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+    ],
+    "Final day booking"
+  );
+});
+
 After({ tags: "@itinerary-empty" }, async () => {
   if (!emptyItineraryTripId) return;
   await withE2EDb(async (db) => {
@@ -171,8 +252,6 @@ After(async () => {
   lastEventName = undefined;
   eventIdByName = new Map();
 
-  if (eventUuids.length === 0 && noteUuids.length === 0 && checklistUuids.length === 0) return;
-
   const client = postgres(process.env.E2E_DATABASE_URL!);
   const db = drizzle(client);
   try {
@@ -185,14 +264,23 @@ After(async () => {
     for (const uuid of checklistUuids) {
       await db.delete(itineraryChecklists).where(eq(itineraryChecklists.id, uuid));
     }
+    if (structuralTripId) {
+      await db.delete(trips).where(eq(trips.id, structuralTripId));
+      structuralTripId = undefined;
+    }
   } finally {
     await client.end();
   }
 });
 
 Given("I have an existing trip with days", async ({ page }) => {
-  await page.goto("/trips");
-  await page.locator('a[href*="/trips/"]').first().click();
+  if (structuralTripId) {
+    await page.goto(`/trips/${structuralTripId}`);
+  } else {
+    const context = await withE2EDb(getDay1Context);
+    if (!context) throw new Error("Seeded E2E trip not found");
+    await page.goto(`/trips/${context.tripId}`);
+  }
   await page.waitForURL(/\/trips\/.+/);
   await openFirstDay(page);
 });
@@ -480,4 +568,94 @@ Then("the itinerary empty state shows buttons for adding events, notes, and chec
   await expect(page.getByTitle("Add event")).toBeVisible();
   await expect(page.getByTitle("Add note")).toBeVisible();
   await expect(page.getByTitle("Add checklist")).toBeVisible();
+});
+
+When("I add a day to the itinerary", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Day" }).click();
+  await expect(page.getByText("Sun, Aug 2")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("2 days")).toBeVisible();
+  await expect(page.getByText("Aug 1, 2026 — Aug 2, 2026")).toBeVisible();
+});
+
+Then("the appended day and advanced end date are persisted", async () => {
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(2);
+    expect(tripDays.find((day) => day.dayNumber === 2)?.date).toBe("2026-08-02");
+    expect(trip.endDate).toBe("2026-08-02");
+  });
+});
+
+When("I remove the final empty day", async ({ page }) => {
+  await page.getByTitle("Remove day").last().click();
+  await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("1 days")).toBeVisible();
+});
+
+Then("only the preceding day remains scheduled", async () => {
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(1);
+    expect(trip.endDate).toBe("2026-08-01");
+  });
+});
+
+When("I request removal of the only day and cancel", async ({ page }) => {
+  await page.getByTitle("Remove day").click();
+  await expect(page.getByText(/marks this trip as unscheduled/i)).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+});
+
+Then("no day or date changes are persisted", async () => {
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(1);
+    expect(trip.startDate).toBe("2026-08-01");
+  });
+});
+
+When("I confirm removal of the only day", async ({ page }) => {
+  await page.getByTitle("Remove day").click();
+  await page.getByRole("button", { name: "Remove Day", exact: true }).click();
+  await expect(page.getByText("No itinerary yet")).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the trip is persisted and displayed as unscheduled", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(0);
+    expect(trip.startDate).toBeNull();
+    expect(trip.endDate).toBeNull();
+  });
+  await page.goto("/trips");
+  await expect(page.getByRole("heading", { name: "Unscheduled" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Only Day Trip.*No dates.*unscheduled/i })).toBeVisible();
+});
+
+When("I request removal of the populated final day", async ({ page }) => {
+  await page.getByTitle("Remove day").last().click();
+});
+
+Then("planned content deletion is disclosed", async ({ page }) => {
+  await expect(page.getByText(/planned content will be deleted/i)).toBeVisible();
+});
+
+When("I confirm destructive day removal", async ({ page }) => {
+  await page.getByRole("button", { name: "Remove Day", exact: true }).click();
+  await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
+});
+
+Then("the populated final day and its content are deleted", async () => {
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const remainingEvents = await db.select().from(events).where(eq(events.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(1);
+    expect(remainingEvents).toHaveLength(0);
+    expect(trip.endDate).toBe("2026-08-01");
+  });
 });

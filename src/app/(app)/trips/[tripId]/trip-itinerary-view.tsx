@@ -1,14 +1,27 @@
 "use client";
 
-import { CalendarDays, MapPin, FileText, ListChecks } from "lucide-react";
+import { useState } from "react";
+import type { ReactElement } from "react";
+import { CalendarDays, MapPin, FileText, ListChecks, Plus } from "lucide-react";
 import { DayCard } from "@/components/packt/day-card";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { type DayItinerary, type TripEvent, type DayItemType, type Document } from "@/data/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/types";
 
 export interface TripItineraryViewProps {
   days: DayItinerary[];
   dateFormat?: string;
+  initialExpandedDayNumber?: number;
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -26,11 +39,24 @@ export interface TripItineraryViewProps {
   onUpdateChecklistItem: (itemId: string, content: string) => void;
   onDeleteChecklistItem: (itemId: string) => void;
   onToggleChecklistItem: (itemId: string) => void;
+  onAddDay: () => void;
+  onRemoveLastDay: (
+    confirmedDestructiveRemoval: boolean,
+    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+  ) => void;
+  addingDay: boolean;
+  removingDay: boolean;
+}
+
+interface RemovalConfirmation {
+  hasPlannedContent: boolean;
+  removesOnlyDay: boolean;
 }
 
 export function TripItineraryView({
   days,
   dateFormat,
+  initialExpandedDayNumber,
   tripDocs,
   onUpdateEvent,
   onDeleteEvent,
@@ -48,7 +74,13 @@ export function TripItineraryView({
   onUpdateChecklistItem,
   onDeleteChecklistItem,
   onToggleChecklistItem,
-}: TripItineraryViewProps) {
+  onAddDay,
+  onRemoveLastDay,
+  addingDay,
+  removingDay,
+}: TripItineraryViewProps): ReactElement {
+  const [removalConfirmation, setRemovalConfirmation] = useState<RemovalConfirmation | null>(null);
+
   if (days.length === 0) {
     return (
       <Empty>
@@ -74,32 +106,87 @@ export function TripItineraryView({
     );
   }
 
+  const lastDay = days[days.length - 1];
+  const lastDayHasPlannedContent =
+    lastDay.events.length > 0 || (lastDay.notes?.length ?? 0) > 0 || (lastDay.checklists?.length ?? 0) > 0;
+
+  function requireRemovalConfirmation(hasPlannedContent: boolean, removesOnlyDay: boolean): void {
+    setRemovalConfirmation({ hasPlannedContent, removesOnlyDay });
+  }
+
+  function requestLastDayRemoval(): void {
+    if (days.length === 1 || lastDayHasPlannedContent) {
+      requireRemovalConfirmation(lastDayHasPlannedContent, days.length === 1);
+      return;
+    }
+    onRemoveLastDay(false, requireRemovalConfirmation);
+  }
+
+  function confirmLastDayRemoval(): void {
+    onRemoveLastDay(true, requireRemovalConfirmation);
+    setRemovalConfirmation(null);
+  }
+
   return (
-    <div>
-      {days.map((day) => (
-        <DayCard
-          key={day.dayNumber}
-          day={day}
-          dateFormat={dateFormat}
-          tripDocs={tripDocs}
-          onUpdateEvent={onUpdateEvent}
-          onDeleteEvent={onDeleteEvent}
-          onReorderDayItems={onReorderDayItems}
-          onUpdateDay={onUpdateDay}
-          onAddEvent={onAddEvent}
-          onAddNote={onAddNote}
-          onUpdateNote={onUpdateNote}
-          onDeleteNote={onDeleteNote}
-          onAddChecklist={onAddChecklist}
-          newlyCreatedChecklistId={newlyCreatedChecklistId}
-          onUpdateChecklistTitle={onUpdateChecklistTitle}
-          onDeleteChecklist={onDeleteChecklist}
-          onAddChecklistItem={onAddChecklistItem}
-          onUpdateChecklistItem={onUpdateChecklistItem}
-          onDeleteChecklistItem={onDeleteChecklistItem}
-          onToggleChecklistItem={onToggleChecklistItem}
-        />
-      ))}
-    </div>
+    <>
+      <div>
+        {days.map((day) => (
+          <DayCard
+            key={day.dayNumber}
+            day={day}
+            dateFormat={dateFormat}
+            initialOpen={initialExpandedDayNumber === day.dayNumber}
+            tripDocs={tripDocs}
+            onUpdateEvent={onUpdateEvent}
+            onDeleteEvent={onDeleteEvent}
+            onReorderDayItems={onReorderDayItems}
+            onUpdateDay={onUpdateDay}
+            onAddEvent={onAddEvent}
+            onAddNote={onAddNote}
+            onUpdateNote={onUpdateNote}
+            onDeleteNote={onDeleteNote}
+            onAddChecklist={onAddChecklist}
+            newlyCreatedChecklistId={newlyCreatedChecklistId}
+            onUpdateChecklistTitle={onUpdateChecklistTitle}
+            onDeleteChecklist={onDeleteChecklist}
+            onAddChecklistItem={onAddChecklistItem}
+            onUpdateChecklistItem={onUpdateChecklistItem}
+            onDeleteChecklistItem={onDeleteChecklistItem}
+            onToggleChecklistItem={onToggleChecklistItem}
+            onRemove={day.dayNumber === lastDay.dayNumber ? requestLastDayRemoval : undefined}
+            removeDisabled={removingDay || addingDay}
+          />
+        ))}
+        <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
+          <Plus data-icon="inline-start" strokeWidth={1.5} />
+          {addingDay ? "Adding Day..." : "Add Day"}
+        </Button>
+      </div>
+      <AlertDialog
+        open={removalConfirmation !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemovalConfirmation(null);
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Day</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removalConfirmation?.hasPlannedContent
+                ? `Planned content will be deleted from this day.${
+                    removalConfirmation.removesOnlyDay ? " Removing it also marks this trip as unscheduled." : ""
+                  }`
+                : "Removing the only day marks this trip as unscheduled and clears its dates."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingDay}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={removingDay} onClick={confirmLastDayRemoval}>
+              {removingDay ? "Removing Day..." : "Remove Day"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

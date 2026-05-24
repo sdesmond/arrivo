@@ -331,8 +331,8 @@ export interface Trip {
 
   // Canonical ISO dates. Prototype data still stores display strings
   // ("Apr 24", "May 1, 2026"); those will move to a UI formatting layer.
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
 
   // Prototype-era computed/display fields — derive from dates in the UI eventually.
   activeDayNumber?: number;
@@ -396,10 +396,17 @@ export interface TripDetailPayload {
   packingItems: PackingItem[];
 }
 
+export interface NewTripDraft {
+  title: string;
+  startDate?: string;
+  endDate?: string;
+  budgetAmount?: string;
+}
+
 export interface CreateTripInput {
   name: string;
-  startDate: string; // ISO date "YYYY-MM-DD"
-  endDate: string;
+  startDate?: string; // ISO date "YYYY-MM-DD"
+  endDate?: string;
   coverImageUrl?: string;
   notes?: string;
   budgetCurrency?: string;
@@ -460,6 +467,12 @@ export interface UpdateDayPatch {
   subtitle?: string;
   weather?: string;
   travelSummary?: string;
+}
+
+export interface RemoveLastDayResult {
+  status: "removed" | "confirmation-required";
+  hasPlannedContent?: boolean;
+  removesOnlyDay?: boolean;
 }
 
 export interface AddCollaboratorInput {

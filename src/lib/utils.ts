@@ -18,7 +18,12 @@ export function isEventNow(event: { startAt?: string; endAt?: string }, now: Dat
   return start <= now && now <= end;
 }
 
-export function getTripStatus(startDate: string, endDate: string, now = getNow()): "upcoming" | "active" | "past" {
+export function getTripStatus(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  now = getNow()
+): "upcoming" | "active" | "past" {
+  if (!startDate || !endDate) return "upcoming";
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const start = new Date(startDate + "T00:00:00");
@@ -65,7 +70,8 @@ export function formatDate(dateStr: string, format: string): string {
   return format === "MM/DD/YYYY" ? `${month} ${day}, ${year}` : `${day} ${month} ${year}`;
 }
 
-export function getTripDays(startDate: string, endDate: string): number {
+export function getTripDays(startDate: string | null | undefined, endDate: string | null | undefined): number {
+  if (!startDate || !endDate) return 0;
   const start = new Date(startDate + "T00:00:00");
   const end = new Date(endDate + "T00:00:00");
   return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;

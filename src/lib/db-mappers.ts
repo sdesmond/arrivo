@@ -29,8 +29,8 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
   return {
     id: row.id,
     name: row.name,
-    startDate: row.startDate,
-    endDate: row.endDate,
+    startDate: row.startDate ?? undefined,
+    endDate: row.endDate ?? undefined,
     status: getTripStatus(row.startDate, row.endDate),
     coverImageUrl: row.coverImageUrl ?? undefined,
     notes: row.notes ?? undefined,

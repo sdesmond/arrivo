@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq, isNull } from "drizzle-orm";
 import { documents, trips, users } from "../../../src/db/schema";
-import { E2E_USER } from "../e2e-seed-data";
+import { E2E_TRIP, E2E_USER } from "../e2e-seed-data";
 import { Given, When, Then, Before } from "../fixtures";
 
 async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
@@ -20,7 +20,10 @@ Before({ tags: "@docs-empty" }, async () => {
   await withE2EDb(async (db) => {
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
     if (!user) return;
-    const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.ownerId, user.id));
+    const [trip] = await db
+      .select({ id: trips.id })
+      .from(trips)
+      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
     if (!trip) return;
     await db.delete(documents).where(and(eq(documents.tripId, trip.id), isNull(documents.eventId)));
   });

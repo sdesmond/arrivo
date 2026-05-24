@@ -4,9 +4,10 @@ interface SectionHeadProps {
   title: string;
   count?: string;
   children?: React.ReactNode;
+  titleColor?: string;
 }
 
-export function SectionHead({ title, count, children }: SectionHeadProps) {
+export function SectionHead({ title, count, children, titleColor }: SectionHeadProps) {
   return (
     <div className="flex items-center gap-3 mb-4">
       <h2
@@ -15,7 +16,7 @@ export function SectionHead({ title, count, children }: SectionHeadProps) {
           fontSize: "calc(18px * var(--font-scale))",
           fontWeight: 600,
           letterSpacing: "-0.01em",
-          color: "var(--fg)",
+          color: titleColor ?? "var(--fg)",
         }}
       >
         {title}

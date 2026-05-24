@@ -2,9 +2,15 @@
 
 import { Plus } from "lucide-react";
 
-export function NewTripCard() {
+interface NewTripCardProps {
+  onNewTrip: () => void;
+}
+
+export function NewTripCard({ onNewTrip }: NewTripCardProps) {
   return (
     <button
+      type="button"
+      onClick={onNewTrip}
       className="flex flex-col items-center justify-center gap-2 rounded-[14px] p-6 transition-colors"
       style={{
         border: "1.5px dashed var(--line-strong)",
