@@ -121,9 +121,7 @@ export const events = pgTable(
     id: uuid("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    dayId: uuid("day_id")
-      .notNull()
-      .references(() => days.id, { onDelete: "cascade" }),
+    dayId: uuid("day_id").references(() => days.id, { onDelete: "cascade" }),
     tripId: uuid("trip_id")
       .notNull()
       .references(() => trips.id, { onDelete: "cascade" }),
@@ -131,6 +129,7 @@ export const events = pgTable(
     note: text("note"),
     startAt: timestamp("start_at", { withTimezone: true }),
     endAt: timestamp("end_at", { withTimezone: true }),
+    displacedDate: date("displaced_date"),
     locationName: text("location_name"),
     locationAddress: text("location_address"),
     locationLat: doublePrecision("location_lat"),

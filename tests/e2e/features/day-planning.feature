@@ -78,3 +78,42 @@ Feature: Day Planning
     Then planned content deletion is disclosed
     When I confirm destructive day removal
     Then the populated final day and its content are deleted
+
+  @date-edit-extend-end
+  Scenario: User extends a trip date range from the edit sheet
+    When I open the trip edit sheet
+    And I change the trip date range to "2026-08-01" through "2026-08-03"
+    And I save the trip date change
+    Then the edited trip includes the appended scheduled days
+
+  @date-edit-extend-start
+  Scenario: User extends a trip date range earlier from the edit sheet
+    When I open the trip edit sheet
+    And I change the trip date range to "2026-08-01" through "2026-08-03"
+    And I save the trip date change
+    Then the edited trip includes the prepended scheduled days
+
+  @date-edit-shorten-empty
+  Scenario: User shortens empty removed days without confirmation
+    When I open the trip edit sheet
+    And I change the trip date range to "2026-08-01" through "2026-08-01"
+    And I save the trip date change
+    Then the empty removed days are deleted without a warning
+
+  @date-edit-keep-unscheduled
+  Scenario: User shortens a populated date range and keeps displaced events unscheduled
+    When I open the trip edit sheet
+    And I change the trip date range to "2026-08-01" through "2026-08-01"
+    And I save the trip date change
+    Then the trip edit warning lists the displaced events
+    When I keep the displaced events as unscheduled
+    Then the removed day's events are persisted as unscheduled
+
+  @date-edit-delete-events
+  Scenario: User shortens a populated date range and deletes displaced events
+    When I open the trip edit sheet
+    And I change the trip date range to "2026-08-01" through "2026-08-01"
+    And I save the trip date change
+    Then the trip edit warning lists the displaced events
+    When I delete the displaced events
+    Then the removed day's events are deleted after the date change

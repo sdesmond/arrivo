@@ -10,10 +10,6 @@ interface TripCoverProps {
   name: string;
 }
 
-interface TripDetailTabBodyProps {
-  children?: ReactNode;
-}
-
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
@@ -28,7 +24,7 @@ vi.mock("@/components/packt/trip-cover", () => ({
 }));
 
 vi.mock("./trip-detail-tab-body", () => ({
-  TripDetailTabBody: (_props: TripDetailTabBodyProps) => <div>Itinerary body</div>,
+  TripDetailTabBody: () => <div>Itinerary body</div>,
 }));
 
 vi.mock("@/components/packt/trip-edit-sheet", () => ({
@@ -44,6 +40,7 @@ vi.mock("./use-trip-detail-handlers", () => ({
     newlyCreatedChecklistId: null,
     addingDay: false,
     removingDay: false,
+    savingTrip: false,
     handleEventUpdate: vi.fn(),
     handleEventDelete: vi.fn(),
     handleDayItemsReorder: vi.fn(),
@@ -60,6 +57,7 @@ vi.mock("./use-trip-detail-handlers", () => ({
     handleDeleteChecklistItem: vi.fn(),
     handleToggleChecklistItem: vi.fn(),
     handleTripSave: vi.fn(),
+    handleTripSaveResolution: vi.fn(),
     handleAddDay: vi.fn(),
     handleRemoveLastDay: vi.fn(),
   }),
@@ -72,6 +70,7 @@ const baseDetail: TripDetailPayload = {
     status: "upcoming",
   },
   days: [],
+  unscheduledEvents: [],
   docs: [],
   collaborators: [],
   packingItems: [],
@@ -82,5 +81,20 @@ describe("TripDetailClient", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(screen.getByText("UNSCHEDULED TRIP · OFFLINE")).toBeInTheDocument();
+  });
+
+  it("counts unscheduled events in the hero summary", () => {
+    render(
+      <TripDetailClient
+        detail={{
+          ...baseDetail,
+          unscheduledEvents: [{ id: "event-1", name: "Displaced dinner", position: 0 }],
+        }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByText("1 places")).toBeInTheDocument();
   });
 });

@@ -9,6 +9,7 @@ export interface TripDetailTabBodyProps {
   tripId: string;
   activeTab: TripDetailTab;
   days: DayItinerary[];
+  unscheduledEvents: TripEvent[];
   docs: Document[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
@@ -41,6 +42,7 @@ export function TripDetailTabBody({
   tripId,
   activeTab,
   days,
+  unscheduledEvents,
   docs,
   dateFormat,
   initialExpandedDayNumber,
@@ -70,6 +72,7 @@ export function TripDetailTabBody({
       {activeTab === "itin" && (
         <TripItineraryView
           days={days}
+          unscheduledEvents={unscheduledEvents}
           dateFormat={dateFormat}
           initialExpandedDayNumber={initialExpandedDayNumber}
           tripDocs={docs.filter((document) => document.scope === "trip")}

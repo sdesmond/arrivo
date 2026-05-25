@@ -48,9 +48,12 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
 export function dbEventToType(row: typeof events.$inferSelect): TripEvent {
   return {
     id: row.id,
+    tripId: row.tripId,
+    dayId: row.dayId ?? undefined,
     name: row.name,
     startAt: row.startAt?.toISOString() ?? undefined,
     endAt: row.endAt?.toISOString() ?? undefined,
+    displacedDate: row.displacedDate ?? undefined,
     locationName: row.locationName ?? undefined,
     locationAddress: row.locationAddress ?? undefined,
     locationLat: row.locationLat ?? undefined,

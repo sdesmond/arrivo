@@ -55,8 +55,18 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
         key={h.editingTrip ?? "none"}
         trip={h.editingEntry?.trip ?? null}
         open={h.editingTrip !== null}
-        onClose={() => h.setEditingTrip(null)}
-        onSave={(patch) => h.editingTrip && h.handleTripSave(h.editingTrip, patch)}
+        onClose={h.closeTripEditSheet}
+        onSave={async (patch) => {
+          if (!h.editingTrip) return;
+          await h.handleTripSave(h.editingTrip, patch);
+        }}
+        saving={h.savingTrip}
+        dateFormat={dateFormat}
+        dateChangeConfirmation={h.tripDateConfirmation}
+        onResolveDateChange={async (resolution) => {
+          await h.handleTripSaveResolution(resolution);
+        }}
+        onCancelDateChange={h.cancelTripDateChange}
       />
       <NewTripDialog
         open={h.newTripOpen}

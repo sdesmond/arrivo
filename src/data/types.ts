@@ -203,6 +203,7 @@ export interface TripEvent {
   // ── Identity ──────────────────────────────────────────────────────────────
   id: string;
   tripId?: string;
+  dayId?: string;
 
   // ── Names & descriptions ──────────────────────────────────────────────────
   name: string;
@@ -211,6 +212,7 @@ export interface TripEvent {
   // ── Scheduling ────────────────────────────────────────────────────────────
   startAt?: string;
   endAt?: string;
+  displacedDate?: string;
 
   // ── Location ──────────────────────────────────────────────────────────────
   location?: EventLocation;
@@ -391,6 +393,7 @@ export interface TripListEntry {
 export interface TripDetailPayload {
   trip: Trip;
   days: DayItinerary[];
+  unscheduledEvents: TripEvent[];
   docs: Document[];
   collaborators: Collaborator[];
   packingItems: PackingItem[];
@@ -426,6 +429,31 @@ export interface UpdateTripPatch {
   budgetPerPerson?: number;
   tags?: string[];
 }
+
+export const TripDateConflictResolution = {
+  DeleteEvents: "delete-events",
+  KeepAsUnscheduled: "keep-as-unscheduled",
+} as const;
+export type TripDateConflictResolution = (typeof TripDateConflictResolution)[keyof typeof TripDateConflictResolution];
+
+export interface TripDateChangePreviewEvent {
+  id: string;
+  name: string;
+  displacedDate?: string;
+  docCount: number;
+}
+
+export interface TripDateChangeConfirmation {
+  removedDates: string[];
+  events: TripDateChangePreviewEvent[];
+  noteCount: number;
+  checklistCount: number;
+  eventDocumentCount: number;
+}
+
+export type UpdateTripMetadataResult =
+  | { status: "saved" }
+  | { status: "confirmation-required"; confirmation: TripDateChangeConfirmation };
 
 export interface CreateEventInput {
   name: string;

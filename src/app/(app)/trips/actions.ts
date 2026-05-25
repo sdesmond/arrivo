@@ -3,12 +3,143 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { trips, collaborators, packingItems, documents, days } from "@/db/schema";
-import { eq, max } from "drizzle-orm";
+import {
+  trips,
+  collaborators,
+  packingItems,
+  documents,
+  days,
+  events,
+  itineraryNotes,
+  itineraryChecklists,
+} from "@/db/schema";
+import { asc, eq, inArray, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { CreateTripInput, UpdateTripPatch, AddCollaboratorInput, AddPackingItemInput } from "@/data/types";
+import type {
+  CreateTripInput,
+  UpdateTripPatch,
+  AddCollaboratorInput,
+  AddPackingItemInput,
+  TripDateChangeConfirmation,
+  TripDateConflictResolution,
+  UpdateTripMetadataResult,
+} from "@/data/types";
 import { buildDayRows } from "./create-trip-days";
+import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
+
+const DAY_NUMBER_TEMP_OFFSET = 1000;
+
+interface RemovedDayContentSummary {
+  confirmation: TripDateChangeConfirmation;
+  events: {
+    id: string;
+    name: string;
+    dayId: string;
+    displacedDate?: string;
+    position: number;
+  }[];
+  eventDocumentUrls: string[];
+  requiresConfirmation: boolean;
+}
+
+async function summarizeRemovedDayContent(
+  transaction: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  removedDays: (typeof days.$inferSelect)[]
+): Promise<RemovedDayContentSummary> {
+  const removedDayIds = removedDays.map((day) => day.id);
+  const removedDateByDayId = new Map(removedDays.map((day) => [day.id, day.date ?? undefined]));
+  const removedDateOrder = new Map(removedDays.map((day, index) => [day.id, index]));
+
+  const removedEvents =
+    removedDayIds.length === 0
+      ? []
+      : await transaction
+          .select({
+            id: events.id,
+            name: events.name,
+            dayId: events.dayId,
+            position: events.position,
+          })
+          .from(events)
+          .where(inArray(events.dayId, removedDayIds));
+
+  const eventIds = removedEvents.map((event) => event.id);
+  const eventDocs =
+    eventIds.length === 0
+      ? []
+      : await transaction
+          .select({
+            eventId: documents.eventId,
+            url: documents.url,
+          })
+          .from(documents)
+          .where(inArray(documents.eventId, eventIds));
+
+  const dayNotes =
+    removedDayIds.length === 0
+      ? []
+      : await transaction
+          .select({ id: itineraryNotes.id })
+          .from(itineraryNotes)
+          .where(inArray(itineraryNotes.dayId, removedDayIds));
+
+  const dayChecklists =
+    removedDayIds.length === 0
+      ? []
+      : await transaction
+          .select({ id: itineraryChecklists.id })
+          .from(itineraryChecklists)
+          .where(inArray(itineraryChecklists.dayId, removedDayIds));
+
+  const docCountByEventId = new Map<string, number>();
+  for (const eventDoc of eventDocs) {
+    if (!eventDoc.eventId) continue;
+    docCountByEventId.set(eventDoc.eventId, (docCountByEventId.get(eventDoc.eventId) ?? 0) + 1);
+  }
+
+  const previewEvents = removedEvents
+    .filter((event) => !!event.dayId)
+    .map((event) => ({
+      id: event.id,
+      name: event.name,
+      displacedDate: event.dayId ? removedDateByDayId.get(event.dayId) : undefined,
+      docCount: docCountByEventId.get(event.id) ?? 0,
+    }))
+    .sort((first, second) => {
+      const firstOrder = removedDays.findIndex((day) => day.date === first.displacedDate);
+      const secondOrder = removedDays.findIndex((day) => day.date === second.displacedDate);
+      if (firstOrder !== secondOrder) return firstOrder - secondOrder;
+      return first.name.localeCompare(second.name);
+    });
+
+  return {
+    confirmation: buildTripDateChangeConfirmation(
+      removedDays.map((day) => day.date!).filter(Boolean),
+      previewEvents,
+      dayNotes.length,
+      dayChecklists.length,
+      eventDocs.length
+    ),
+    events: removedEvents
+      .filter((event): event is { id: string; name: string; dayId: string; position: number } => !!event.dayId)
+      .map((event) => ({
+        id: event.id,
+        name: event.name,
+        dayId: event.dayId,
+        displacedDate: removedDateByDayId.get(event.dayId),
+        position: event.position,
+      }))
+      .sort((first, second) => {
+        const firstOrder = removedDateOrder.get(first.dayId) ?? 0;
+        const secondOrder = removedDateOrder.get(second.dayId) ?? 0;
+        if (firstOrder !== secondOrder) return firstOrder - secondOrder;
+        return first.position - second.position;
+      }),
+    eventDocumentUrls: eventDocs.map((eventDoc) => eventDoc.url).filter((url): url is string => !!url),
+    requiresConfirmation: removedEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0,
+  };
+}
 
 export async function createTrip(input: CreateTripInput) {
   const user = await requireUser();
@@ -47,20 +178,165 @@ export async function createTrip(input: CreateTripInput) {
   redirect(`/trips/${tripId}?new=1`);
 }
 
-export async function updateTripMetadata(tripId: string, patch: UpdateTripPatch) {
+export async function updateTripMetadata(
+  tripId: string,
+  patch: UpdateTripPatch,
+  resolution?: TripDateConflictResolution,
+  expectedConfirmation?: TripDateChangeConfirmation
+): Promise<UpdateTripMetadataResult> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
-  await db
-    .update(trips)
-    .set({
-      ...patch,
-      budgetTotal: patch.budgetTotal?.toString(),
-      budgetPerPerson: patch.budgetPerPerson?.toString(),
-      updatedAt: new Date(),
-    })
-    .where(eq(trips.id, tripId));
+
+  let eventDocumentUrlsToCleanup: string[] = [];
+  let confirmation: TripDateChangeConfirmation | null = null;
+
+  await db.transaction(async (transaction) => {
+    const [trip] = await transaction.select().from(trips).where(eq(trips.id, tripId));
+    if (!trip) {
+      throw new Error("Trip not found.");
+    }
+
+    const existingDays = await transaction
+      .select()
+      .from(days)
+      .where(eq(days.tripId, tripId))
+      .orderBy(asc(days.dayNumber));
+    if (existingDays.some((day) => !day.date)) {
+      throw new Error("Unable to update trip dates because one or more scheduled days are missing dates.");
+    }
+
+    const desiredRange = resolveTripDateRange(
+      {
+        startDate: trip.startDate ?? undefined,
+        endDate: trip.endDate ?? undefined,
+      },
+      patch
+    );
+    const desiredDayRows = buildDayRows(tripId, desiredRange.startDate, desiredRange.endDate);
+    const currentDates = existingDays.map((day) => day.date!).filter(Boolean);
+    const syncPlan = buildTripDateSyncPlan(
+      currentDates,
+      desiredDayRows.map((day) => day.date!)
+    );
+    const desiredDateSet = new Set(syncPlan.desiredDates);
+    const currentDayByDate = new Map(existingDays.map((day) => [day.date!, day]));
+    const removedDays = existingDays.filter((day) => syncPlan.removedDates.includes(day.date!));
+    const survivingDays = existingDays.filter((day) => desiredDateSet.has(day.date!));
+    const removedContent = await summarizeRemovedDayContent(transaction, removedDays);
+
+    if (removedContent.requiresConfirmation && !resolution) {
+      confirmation = removedContent.confirmation;
+      return;
+    }
+
+    if (
+      resolution &&
+      expectedConfirmation &&
+      JSON.stringify(removedContent.confirmation) !== JSON.stringify(expectedConfirmation)
+    ) {
+      throw new Error("Trip dates changed before this confirmation was applied. Review the date change again.");
+    }
+
+    if (resolution === "keep-as-unscheduled") {
+      for (const event of removedContent.events) {
+        await transaction
+          .update(events)
+          .set({
+            dayId: null,
+            displacedDate: event.displacedDate ?? null,
+            updatedAt: new Date(),
+          })
+          .where(eq(events.id, event.id));
+      }
+    }
+
+    if (resolution === "delete-events" && removedContent.events.length > 0) {
+      eventDocumentUrlsToCleanup = removedContent.eventDocumentUrls;
+      await transaction.delete(events).where(
+        inArray(
+          events.id,
+          removedContent.events.map((event) => event.id)
+        )
+      );
+    }
+
+    if (removedDays.length > 0) {
+      await transaction.delete(days).where(
+        inArray(
+          days.id,
+          removedDays.map((day) => day.id)
+        )
+      );
+    }
+
+    for (const day of survivingDays) {
+      await transaction
+        .update(days)
+        .set({
+          dayNumber: day.dayNumber + DAY_NUMBER_TEMP_OFFSET,
+          label: `Temp Day ${day.dayNumber}`,
+        })
+        .where(eq(days.id, day.id));
+    }
+
+    const addedDayRows = desiredDayRows.filter((day) => syncPlan.addedDates.includes(day.date!));
+    if (addedDayRows.length > 0) {
+      await transaction.insert(days).values(addedDayRows);
+    }
+
+    for (let index = 0; index < desiredDayRows.length; index++) {
+      const desiredDay = desiredDayRows[index];
+      const existingDay = currentDayByDate.get(desiredDay.date!);
+      if (!existingDay || syncPlan.removedDates.includes(desiredDay.date!)) {
+        continue;
+      }
+
+      await transaction
+        .update(days)
+        .set({
+          dayNumber: index + 1,
+          label: `Day ${index + 1}`,
+        })
+        .where(eq(days.id, existingDay.id));
+    }
+
+    await transaction
+      .update(trips)
+      .set({
+        name: patch.name,
+        startDate: desiredDayRows[0]?.date ?? null,
+        endDate: desiredDayRows.at(-1)?.date ?? null,
+        coverImageUrl: patch.coverImageUrl,
+        notes: patch.notes,
+        budgetCurrency: patch.budgetCurrency,
+        budgetTotal: patch.budgetTotal?.toString(),
+        budgetPerPerson: patch.budgetPerPerson?.toString(),
+        tags: patch.tags,
+        updatedAt: new Date(),
+      })
+      .where(eq(trips.id, tripId));
+  });
+
+  if (confirmation) {
+    return { status: "confirmation-required", confirmation };
+  }
+
+  if (eventDocumentUrlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    try {
+      const { del } = await import("@vercel/blob");
+      await Promise.all(
+        eventDocumentUrlsToCleanup.map((url) =>
+          del(url).catch((error) => console.warn(`Blob cleanup failed for ${url}`, error))
+        )
+      );
+    } catch (error) {
+      console.warn("Blob cleanup import failed after trip date update", error);
+    }
+  }
+
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
+  return { status: "saved" };
 }
 
 export async function deleteTrip(tripId: string) {

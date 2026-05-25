@@ -161,8 +161,19 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
   const eventDocs =
     eventIds.length > 0 ? await db.select().from(documents).where(inArray(documents.eventId, eventIds)) : [];
 
-  const eventsByDay = new Map<string, typeof tripEvents>();
-  for (const event of tripEvents) {
+  const scheduledEvents = tripEvents.filter((event) => !!event.dayId);
+  const unscheduledEvents = tripEvents
+    .filter((event) => !event.dayId)
+    .sort((first, second) => {
+      const firstDate = first.displacedDate ?? first.startAt?.toISOString().slice(0, 10) ?? "";
+      const secondDate = second.displacedDate ?? second.startAt?.toISOString().slice(0, 10) ?? "";
+      if (firstDate !== secondDate) return firstDate.localeCompare(secondDate);
+      return first.position - second.position;
+    });
+
+  const eventsByDay = new Map<string, typeof scheduledEvents>();
+  for (const event of scheduledEvents) {
+    if (!event.dayId) continue;
     const arr = eventsByDay.get(event.dayId) ?? [];
     arr.push(event);
     eventsByDay.set(event.dayId, arr);
@@ -220,6 +231,10 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
       checklists: (checklistsByDay.get(d.id) ?? []).map((cl) =>
         dbChecklistToType(cl, itemsByChecklistId.get(cl.id) ?? [])
       ),
+    })),
+    unscheduledEvents: unscheduledEvents.map((event) => ({
+      ...dbEventToType(event),
+      docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
     })),
     docs: tripDocs.map(dbDocToType),
     collaborators: tripCollaborators.map(dbCollabToType),
