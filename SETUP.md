@@ -1,6 +1,8 @@
 # Local Development Setup
 
 > For Docker / self-hosting setup, see the **Self-hosting** section in [README.md](./README.md).
+>
+> For the current pre-release Drizzle policy and the later migration cutover, see [docs/drizzle-workflow.md](./docs/drizzle-workflow.md).
 
 ## Prerequisites
 
@@ -23,12 +25,12 @@ npm install
 cp .env.example .env
 ```
 
-| Variable | Description | Example default |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://packt:packt@localhost:5432/packt` |
-| `NEXTAUTH_URL` | Full URL of the app | `http://localhost:3000` |
-| `NEXTAUTH_SECRET` | Random secret ≥ 32 bytes | run `openssl rand -base64 32` |
-| `ALLOW_SIGNUP` | Expose the sign-up page | `true` |
+| Variable          | Description                  | Example default                               |
+| ----------------- | ---------------------------- | --------------------------------------------- |
+| `DATABASE_URL`    | PostgreSQL connection string | `postgres://packt:packt@localhost:5432/packt` |
+| `NEXTAUTH_URL`    | Full URL of the app          | `http://localhost:3000`                       |
+| `NEXTAUTH_SECRET` | Random secret ≥ 32 bytes     | run `openssl rand -base64 32`                 |
+| `ALLOW_SIGNUP`    | Expose the sign-up page      | `true`                                        |
 
 ---
 
@@ -51,12 +53,8 @@ Push the Drizzle schema directly to the database (recommended for local dev):
 npm run db:push
 ```
 
-For tracked migration files (recommended for production or team environments):
-
-```bash
-npm run db:generate   # generates SQL files into ./drizzle/
-npm run db:migrate    # applies pending migrations
-```
+This repo is intentionally using a pre-release `push` workflow right now.
+Tracked `drizzle/` migrations return at production cutover, not during day-to-day local setup.
 
 ---
 
@@ -91,13 +89,12 @@ Visit [http://localhost:3000](http://localhost:3000) and sign in with the demo c
 
 ## Database scripts
 
-| Script | What it does |
-|---|---|
-| `npm run db:push` | Push schema to DB (no migration files, dev shortcut) |
-| `npm run db:generate` | Generate SQL migration files from schema changes |
-| `npm run db:migrate` | Apply pending migration files |
-| `npm run db:seed` | Insert demo user and sample trip data |
-| `npm run db:studio` | Open Drizzle Studio GUI at port 4983 |
+| Script               | What it does                                                  |
+| -------------------- | ------------------------------------------------------------- |
+| `npm run db:push`    | Push schema to DB from `src/db/schema.ts`                     |
+| `npm run db:migrate` | Temporary alias for `db:push` until tracked migrations return |
+| `npm run db:seed`    | Insert demo user and sample trip data                         |
+| `npm run db:studio`  | Open Drizzle Studio GUI at port 4983                          |
 
 ---
 

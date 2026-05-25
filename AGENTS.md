@@ -35,13 +35,13 @@ Packt is a travel itinerary planning app built with Next.js (App Router), TypeSc
 
 ## Test Commands
 
-| Command                  | What it runs                                                     |
-| ------------------------ | ---------------------------------------------------------------- |
-| `npm test`               | Vitest unit tests (watch mode)                                   |
-| `npm run test:coverage`  | Vitest with Istanbul coverage report                             |
-| `npm run test:e2e`       | Playwright BDD E2E tests (headless)                              |
-| `npm run test:e2e:ui`    | Playwright E2E with interactive UI                               |
-| `npm run db:migrate:e2e` | Apply schema to the E2E database (run once after schema changes) |
+| Command                  | What it runs                                                    |
+| ------------------------ | --------------------------------------------------------------- |
+| `npm test`               | Vitest unit tests (watch mode)                                  |
+| `npm run test:coverage`  | Vitest with Istanbul coverage report                            |
+| `npm run test:e2e`       | Playwright BDD E2E tests (headless)                             |
+| `npm run test:e2e:ui`    | Playwright E2E with interactive UI                              |
+| `npm run db:migrate:e2e` | Push schema to the E2E database (run once after schema changes) |
 
 Coverage thresholds: 95% lines/functions, 90% branches (enforced in CI).
 
@@ -50,7 +50,7 @@ Coverage thresholds: 95% lines/functions, 90% branches (enforced in CI).
 E2E tests run against a dedicated `packt_e2e` database (isolated from dev). One-time setup:
 
 1. Create the database: `createdb packt_e2e` (or equivalent)
-2. Apply the schema: `npm run db:migrate:e2e`
+2. Push the schema: `npm run db:migrate:e2e`
 3. Ensure `.env` contains `E2E_DATABASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD` — see `.env.example`
 
 `tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and re-seeds with fixed data from `e2e-seed-data.ts` (user `e2e@packt.local`, one trip, three days). Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
