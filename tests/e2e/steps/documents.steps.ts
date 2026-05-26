@@ -1,10 +1,13 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { and, eq, isNull } from "drizzle-orm";
-import { documents, trips, users } from "../../../src/db/schema";
+import { eq } from "drizzle-orm";
+import { collaborators, trips, users } from "../../../src/db/schema";
 import { E2E_TRIP, E2E_USER } from "../e2e-seed-data";
-import { Given, When, Then, Before } from "../fixtures";
+import { Given, When, Then, Before, After } from "../fixtures";
+import { clearTripIdOverride, setTripIdOverride } from "./scenario-state";
+
+let docsEmptyTripId: string | undefined;
 
 async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -21,12 +24,34 @@ Before({ tags: "@docs-empty" }, async () => {
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
     if (!user) return;
     const [trip] = await db
-      .select({ id: trips.id })
-      .from(trips)
-      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
-    if (!trip) return;
-    await db.delete(documents).where(and(eq(documents.tripId, trip.id), isNull(documents.eventId)));
+      .insert(trips)
+      .values({
+        ownerId: user.id,
+        name: "E2E Docs Empty Trip",
+        startDate: E2E_TRIP.startDate,
+        endDate: E2E_TRIP.endDate,
+      })
+      .returning({ id: trips.id });
+    await db.insert(collaborators).values({
+      tripId: trip.id,
+      userId: user.id,
+      email: E2E_USER.email,
+      name: E2E_USER.name,
+      initials: E2E_USER.initials,
+      role: "owner",
+    });
+    docsEmptyTripId = trip.id;
+    setTripIdOverride(trip.id);
   });
+});
+
+After({ tags: "@docs-empty" }, async () => {
+  clearTripIdOverride();
+  if (!docsEmptyTripId) return;
+  await withE2EDb(async (db) => {
+    await db.delete(trips).where(eq(trips.id, docsEmptyTripId!));
+  });
+  docsEmptyTripId = undefined;
 });
 
 Given("I am on the Documents tab", async ({ page }) => {

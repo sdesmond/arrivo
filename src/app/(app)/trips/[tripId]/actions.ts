@@ -17,6 +17,11 @@ import type {
 } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
+const CONCURRENT_MODIFICATION_ERROR = "CONCURRENT_MODIFICATION";
+
+function buildDayItemKey(type: "event" | "note" | "checklist", id: string): string {
+  return `${type}:${id}`;
+}
 
 function nextCalendarDate(date: string): string {
   const nextDate = new Date(`${date}T00:00:00Z`);
@@ -206,6 +211,29 @@ export async function reorderDayItems(input: ReorderDayItemsInput): Promise<void
   const tripId = await getDayTripId(input.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.transaction(async (tx) => {
+    const [currentEvents, currentNotes, currentChecklists] = await Promise.all([
+      tx.select({ id: events.id }).from(events).where(eq(events.dayId, input.dayId)),
+      tx.select({ id: itineraryNotes.id }).from(itineraryNotes).where(eq(itineraryNotes.dayId, input.dayId)),
+      tx
+        .select({ id: itineraryChecklists.id })
+        .from(itineraryChecklists)
+        .where(eq(itineraryChecklists.dayId, input.dayId)),
+    ]);
+
+    const currentItemKeys = new Set([
+      ...currentEvents.map((event) => buildDayItemKey("event", event.id)),
+      ...currentNotes.map((note) => buildDayItemKey("note", note.id)),
+      ...currentChecklists.map((checklist) => buildDayItemKey("checklist", checklist.id)),
+    ]);
+    const submittedItemKeys = new Set(input.orderedItems.map((item) => buildDayItemKey(item.type, item.id)));
+
+    if (
+      currentItemKeys.size !== submittedItemKeys.size ||
+      [...currentItemKeys].some((itemKey) => !submittedItemKeys.has(itemKey))
+    ) {
+      throw new Error(CONCURRENT_MODIFICATION_ERROR);
+    }
+
     for (let i = 0; i < input.orderedItems.length; i++) {
       const item = input.orderedItems[i];
       if (item.type === "event") {

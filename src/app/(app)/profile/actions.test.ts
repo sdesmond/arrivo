@@ -1,24 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser } = vi.hoisted(() => {
-  const mockReturning = vi.fn().mockResolvedValue([{ id: "companion-1" }]);
-  const mockWhere = vi.fn().mockResolvedValue(undefined);
-  const mockSet = vi.fn().mockReturnValue({ where: mockWhere });
-  const mockUpdate = vi.fn().mockReturnValue({ set: mockSet });
-  const mockRequireUser = vi.fn().mockResolvedValue({ id: "user-1" });
-  return { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser };
-});
+const { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser, mockTransaction, mockRevalidatePath } =
+  vi.hoisted(() => {
+    const mockReturning = vi.fn().mockResolvedValue([{ id: "companion-1" }]);
+    const mockWhere = vi.fn().mockResolvedValue(undefined);
+    const mockSet = vi.fn().mockReturnValue({ where: mockWhere });
+    const mockUpdate = vi.fn().mockReturnValue({ set: mockSet });
+    const mockRequireUser = vi.fn().mockResolvedValue({ id: "user-1" });
+    const mockTransaction = vi.fn();
+    const mockRevalidatePath = vi.fn();
+    return { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser, mockTransaction, mockRevalidatePath };
+  });
 
 vi.mock("@/lib/auth-helpers", () => ({
   requireUser: mockRequireUser,
 }));
 
 vi.mock("@/db", () => ({
-  db: { update: mockUpdate },
+  db: { update: mockUpdate, transaction: mockTransaction },
 }));
 
 vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
+  revalidatePath: mockRevalidatePath,
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -46,7 +49,32 @@ vi.mock("bcryptjs", () => ({
   default: { compare: vi.fn(), hash: vi.fn() },
 }));
 
-import { updateProfile, updateCompanion } from "./actions";
+import { addCompanion, addLoyaltyNumber, addWishlistDestination, updateProfile, updateCompanion } from "./actions";
+
+interface RecordedInsert {
+  table: unknown;
+  values: unknown;
+}
+
+function createTransactionMock(selectResults: unknown[][]) {
+  const recordedInserts: RecordedInsert[] = [];
+  let selectIndex = 0;
+
+  const transaction = {
+    insert: vi.fn((table: unknown) => ({
+      values: vi.fn(async (values: unknown) => {
+        recordedInserts.push({ table, values });
+      }),
+    })),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => selectResults[selectIndex++] ?? []),
+      })),
+    })),
+  };
+
+  return { recordedInserts, transaction };
+}
 
 describe("updateProfile — server-side validation (AC10)", () => {
   beforeEach(() => {
@@ -210,5 +238,76 @@ describe("updateCompanion — passportExpiry validation, zero-row detection, exc
   it("returns error when companion name exceeds 50 chars", async () => {
     const result = await updateCompanion("companion-1", { name: "x".repeat(51) });
     expect(result).toEqual({ error: "Companion name must be 50 characters or fewer." });
+  });
+});
+
+describe("profile action transactions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  it("adds loyalty numbers inside a transaction and revalidates the profile route", async () => {
+    const { recordedInserts, transaction } = createTransactionMock([[{ nextPos: 4 }]]);
+    mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await addLoyaltyNumber({ programName: "SkyMiles", memberNumber: "12345" });
+
+    expect(recordedInserts).toEqual([
+      {
+        table: expect.anything(),
+        values: { userId: "user-1", programName: "SkyMiles", memberNumber: "12345", position: 4 },
+      },
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/profile");
+  });
+
+  it("adds wishlist destinations inside a transaction and revalidates the profile route", async () => {
+    const { recordedInserts, transaction } = createTransactionMock([[{ nextPos: 2 }]]);
+    mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await addWishlistDestination({ name: "Kyoto" });
+
+    expect(recordedInserts).toEqual([
+      {
+        table: expect.anything(),
+        values: { userId: "user-1", name: "Kyoto", position: 2 },
+      },
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/profile");
+  });
+
+  it("adds companions inside a transaction and returns success", async () => {
+    const { recordedInserts, transaction } = createTransactionMock([[{ count: 3 }], [{ nextPos: 7 }]]);
+    mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await addCompanion({ name: "Alice", age: 29 });
+
+    expect(result).toEqual({});
+    expect(recordedInserts).toEqual([
+      {
+        table: expect.anything(),
+        values: { userId: "user-1", name: "Alice", age: 29, position: 7 },
+      },
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/profile");
+  });
+
+  it("returns the companion cap error when the transaction detects 20 existing rows", async () => {
+    const { transaction } = createTransactionMock([[{ count: 20 }]]);
+    mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await addCompanion({ name: "Alice" });
+
+    expect(result).toEqual({ error: "Companion limit reached (20 maximum)." });
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });

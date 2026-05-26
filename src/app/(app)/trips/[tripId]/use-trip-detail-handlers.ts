@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import type {
   DayItemType,
   DayItinerary,
@@ -69,6 +70,7 @@ export interface TripDetailHandlers {
 
 export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHandlers {
   const { trip, days } = detail;
+  const router = useRouter();
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
   const [addingDay, startAddDayTransition] = React.useTransition();
   const [removingDay, startRemoveDayTransition] = React.useTransition();
@@ -100,8 +102,17 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
-    React.startTransition(() => {
-      reorderDayItems({ dayId: day.id!, orderedItems });
+    React.startTransition(async () => {
+      try {
+        await reorderDayItems({ dayId: day.id!, orderedItems });
+      } catch (error) {
+        if (error instanceof Error && error.message === "CONCURRENT_MODIFICATION") {
+          toast.error("This day changed elsewhere. Refreshing the itinerary.");
+        } else {
+          toast.error("Failed to reorder items. Refreshing the itinerary.");
+        }
+        router.refresh();
+      }
     });
   }
 

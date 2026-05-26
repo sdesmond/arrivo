@@ -1,11 +1,11 @@
 import { expect, type Page } from "@playwright/test";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { trips } from "../../../src/db/schema";
 import { When, Then, After } from "../fixtures";
 
-const CREATED_TRIP_NAMES = ["E2E Date Trip", "E2E Animated Trip", "E2E Dateless Trip", "E2E Pending Trip"];
+let createdTripName: string | undefined;
 
 async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -33,10 +33,21 @@ async function clickDate(page: Page, isoDate: string) {
   throw new Error(`Could not find calendar date ${isoDate}`);
 }
 
-After({ tags: "@cleanup-created-trip" }, async () => {
-  await withE2EDb(async (db) => {
-    await db.delete(trips).where(inArray(trips.name, CREATED_TRIP_NAMES));
+function formatRangeLabel(isoDate: string): string {
+  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
   });
+}
+
+After({ tags: "@cleanup-created-trip" }, async () => {
+  if (!createdTripName) return;
+  await withE2EDb(async (db) => {
+    await db.delete(trips).where(eq(trips.name, createdTripName!));
+  });
+  createdTripName = undefined;
 });
 
 When("I open the New Trip dialog", async ({ page }) => {
@@ -44,6 +55,7 @@ When("I open the New Trip dialog", async ({ page }) => {
 });
 
 When("I type {string} in the title field", async ({ page }, title: string) => {
+  createdTripName = title;
   await page.getByRole("dialog").getByLabel("Title").fill(title);
 });
 
@@ -51,6 +63,11 @@ When("I select dates {string} to {string}", async ({ page }, startDate: string, 
   await page.getByRole("button", { name: /optional date range/i }).click();
   await clickDate(page, startDate);
   await clickDate(page, endDate);
+  await expect(
+    page.getByRole("button", {
+      name: `${formatRangeLabel(startDate)} – ${formatRangeLabel(endDate)}`,
+    })
+  ).toBeVisible();
 });
 
 When("I click the Create button", async ({ page }) => {
@@ -68,8 +85,9 @@ Then("I am on the trip detail page for {string}", async ({ page }, title: string
 Then("Day 1 is expanded", async ({ page }) => {
   const dayOneToggle = page
     .locator("button[aria-expanded]")
-    .filter({ hasText: /Day 1|Aug 1/i })
+    .filter({ hasText: /Day 1|Aug 1|1 Aug/i })
     .first();
+  await expect(dayOneToggle).toBeVisible({ timeout: 10_000 });
   await expect(dayOneToggle).toHaveAttribute("aria-expanded", "true");
 });
 

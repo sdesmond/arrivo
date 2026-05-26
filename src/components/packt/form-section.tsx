@@ -48,6 +48,13 @@ export interface FieldProps {
 
 export function Field({ label, htmlFor, error, children }: FieldProps) {
   const errorId = htmlFor ? `${htmlFor}-error` : undefined;
+
+  if (process.env.NODE_ENV === "development" && error && !htmlFor) {
+    console.warn(
+      "Field: error prop provided but htmlFor is absent. Errors are only rendered when htmlFor is specified."
+    );
+  }
+
   return (
     <div>
       {htmlFor ? (
