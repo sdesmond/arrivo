@@ -8,7 +8,7 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
     environment: "node",
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{test,spec}.mjs"],
     setupFiles: ["./vitest.setup.mts"],
     coverage: {
       provider: "istanbul",

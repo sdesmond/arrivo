@@ -5,21 +5,29 @@ A travel itinerary planning app built with Next.js (App Router), TypeScript, Tai
 ## Quick start
 
 ```bash
-npm install
-cp .env.example .env   # fill in DATABASE_URL and NEXTAUTH_SECRET
-npm run db:push        # apply schema
-npm run db:seed        # load demo data
+npm run setup:dev
 npm run dev
 ```
 
 Sign in at [http://localhost:3000](http://localhost:3000) with `demo@packt.local` / `demo1234`.
 
-For full setup instructions (database creation, environment variables, and reset steps) see **[SETUP.md](./SETUP.md)**.
+`npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the schema, seeds demo data, and installs the Playwright Chromium browser.
+
+To force a database mode:
+
+```bash
+npm run setup:dev -- --db=docker
+npm run setup:dev -- --db=local
+```
+
+Native wrappers are also available as `./setup-dev.sh [auto|docker|local]` and `./setup-dev.ps1 -Db auto|docker|local`.
+
+For prerequisites, manual fallback steps, and reset instructions see **[SETUP.md](./SETUP.md)**.
 For the current Drizzle schema workflow and the planned migration cutover, see **[docs/drizzle-workflow.md](./docs/drizzle-workflow.md)**.
 
 ## AI Skills & Agents Setup
 
-AI skills are at `.agents/skills`. See [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) for instructions on ensuring Claude Code can see the provided skills without duplicating them.
+AI skills are at `.agents/skills`. `npm run setup:dev` also configures the `.claude/skills` and `.claude/agents` links described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
 
 ## Self-hosting
 

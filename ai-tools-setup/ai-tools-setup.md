@@ -16,6 +16,16 @@ your-project-repo/
 
 ### 🚀 Quick Setup
 
+The main repo bootstrap also performs this step:
+
+```bash
+npm run setup:dev
+```
+
+That command installs dependencies, prepares the databases, and configures the shared AI workspace links below.
+
+If you only want to refresh the AI workspace links without running the full app bootstrap, use the platform-specific scripts here.
+
 Run the command matching your operating system from the repository root to automatically link your AI workspace folders:
 
 #### 🍏 macOS & 🐧 Linux

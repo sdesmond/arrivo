@@ -96,15 +96,11 @@ These agents enforce project standards. Use them as described below — don't sk
 
 ### Post-implementation agents
 
-| Agent                         | When to invoke                                                                                                                               |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `standards-check --ts`        | After adding or modifying types, interfaces, or any `.ts`/`.tsx` file                                                                        |
-| `standards-check --component` | After creating or significantly modifying a component in `src/components/`                                                                   |
-| `standards-check --ui`        | After visual/styling changes — static code review only (design tokens, a11y, spacing, etc.)                                                  |
-| `desktop-reviewer`            | After visual changes — browser test at 1280px; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser) |
-| `mobile-reviewer`             | After visual changes — browser test at 390px; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser) |
-| `build-validator`             | Before considering any task complete                                                                                                         |
-| `standards-check`             | Before committing — this is the pre-commit gate                                                                                              |
+| Agent                   | When to invoke                                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packt-build-validator` | After any code change and again before committing; runs ESLint, TypeScript checking, Vitest coverage, the production build, and Playwright E2E validation |
+| `desktop-reviewer`      | After visual changes when browser validation is needed; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser)     |
+| `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)    |
 
 **Default workflow for planning:**
 After any planning skill (BMad architect, PM, UX, etc.) saves its artifact, run the plan reviewer **inline** before presenting the artifact to the user — do NOT spawn a subagent:
@@ -120,11 +116,8 @@ Pass the original request as context so scope and test checks have what they nee
 1. Implement the change **and write/update the colocated test file** — tests are part of the same step, not an afterthought
    - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create `*.test.ts` / `*.test.tsx` alongside it
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend a `.feature` + step file in `tests/e2e/`
-2. Run `build-validator` to catch lint/tsc/build/test errors
-3. Run `npm run test:e2e` — required after every component or app code change, not just when E2E files change
-4. Run `standards-check --ts` / `--component` / `--ui` as appropriate for what changed
-5. Fix any flagged issues, then re-validate
-6. Run `standards-check` before the final commit
+2. Run `packt-build-validator` to catch lint, TypeScript, coverage, build, and E2E failures
+3. Fix any flagged issues, then re-run `packt-build-validator` again before the final commit
 
 ## Key Conventions
 
