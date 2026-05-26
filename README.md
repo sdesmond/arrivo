@@ -11,7 +11,7 @@ npm run dev
 
 Sign in at [http://localhost:3000](http://localhost:3000) with `demo@packt.local` / `demo1234`.
 
-`npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the schema, seeds demo data, and installs the Playwright Chromium browser.
+`npm run setup:dev` installs dependencies, restores the repo's BMad install from `_bmad/_config/manifest.yaml`, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the schema, seeds demo data, and installs the Playwright Chromium browser.
 
 To force a database mode:
 
