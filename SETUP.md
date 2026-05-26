@@ -6,8 +6,10 @@
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 20.12+
 - npm
+- Git
+- Internet access for `npm`/`npx` package downloads and BMad module fetches
 - One of:
   - Docker with `docker compose`
   - PostgreSQL 15+ with `psql`
@@ -23,6 +25,7 @@ npm run setup:dev
 The script:
 
 - installs npm dependencies
+- restores the repo's BMad modules and tool integration from `_bmad/_config/manifest.yaml`
 - installs the Playwright Chromium browser used by E2E
 - creates or updates `.env`
 - configures `.claude/skills` and `.claude/agents` to point at `.agents/*`
@@ -99,13 +102,29 @@ If `BLOB_READ_WRITE_TOKEN` is blank, local uploads are written under `public/upl
 
 ---
 
-## 4. Manual fallback
+## 4. BMad setup
+
+This repo tracks its BMad installation manifest at `_bmad/_config/manifest.yaml`.
+
+`npm run setup:dev` uses that manifest to reconstruct the installed BMad state by:
+
+- using the recorded installer version for bundled `core` and `bmm`
+- installing the recorded module set
+- pinning external modules to the exact versions from the manifest
+- applying the recorded IDE/tool integration, currently `claude-code`
+
+That keeps bootstrap reproducible instead of floating to newer stable BMad module releases.
+
+---
+
+## 5. Manual fallback
 
 If you prefer to run the steps yourself instead of using the bootstrap script:
 
 ```bash
 npm install
 cp .env.example .env
+npx -y bmad-method@6.6.0 install --yes --action update --modules bmm,bmb,tea,baut,cis --tools claude-code --pin bmb=v1.8.0 --pin tea=v1.17.0 --pin baut=v1.14.2 --pin cis=v0.2.0
 ```
 
 If using local PostgreSQL and the default connection string:

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 describe("setup-dev helpers", async () => {
-  const { buildSetupPlan, mergeEnvForSetup } = await import("./setup-dev.mjs");
+  const { buildBMadInstallArgsForTest, buildSetupPlan, mergeEnvForSetup, readBMadManifestForTest } =
+    await import("./setup-dev.mjs");
 
   it("defaults to auto database mode", () => {
     expect(buildSetupPlan([])).toEqual({
@@ -55,5 +56,84 @@ describe("setup-dev helpers", async () => {
 
     expect(merged).toContain("BLOB_READ_WRITE_TOKEN=token-123");
     expect(merged).toContain("UPLOAD_STUB=false");
+  });
+
+  it("parses the repo-style BMad manifest structure", () => {
+    const manifest = readBMadManifestForTest(
+      [
+        "installation:",
+        "  version: 6.6.0",
+        "modules:",
+        "  - name: core",
+        "    version: 6.6.0",
+        "    source: built-in",
+        "  - name: bmm",
+        "    version: 6.6.0",
+        "    source: built-in",
+        "  - name: bmb",
+        "    version: v1.8.0",
+        "    source: external",
+        "    channel: stable",
+        "  - name: tea",
+        "    version: v1.17.0",
+        "    source: external",
+        "    channel: stable",
+        "ides:",
+        "  - claude-code",
+        "",
+      ].join("\n")
+    );
+
+    expect(manifest.installation.version).toBe("6.6.0");
+    expect(manifest.modules).toHaveLength(4);
+    expect(manifest.modules[2]).toMatchObject({
+      name: "bmb",
+      version: "v1.8.0",
+      source: "external",
+      channel: "stable",
+    });
+    expect(manifest.ides).toEqual(["claude-code"]);
+  });
+
+  it("builds a pinned BMad install command from the manifest", () => {
+    const args = buildBMadInstallArgsForTest(
+      [
+        "installation:",
+        "  version: 6.6.0",
+        "modules:",
+        "  - name: core",
+        "    version: 6.6.0",
+        "  - name: bmm",
+        "    version: 6.6.0",
+        "  - name: bmb",
+        "    version: v1.8.0",
+        "  - name: tea",
+        "    version: v1.17.0",
+        "  - name: cis",
+        "    version: v0.2.0",
+        "ides:",
+        "  - claude-code",
+        "",
+      ].join("\n")
+    );
+
+    expect(args).toEqual([
+      "-y",
+      "bmad-method@6.6.0",
+      "install",
+      "--yes",
+      "--action",
+      "update",
+      "--modules",
+      "bmm,bmb,tea,cis",
+      "--tools",
+      "claude-code",
+      "--pin",
+      "bmb=v1.8.0",
+      "--pin",
+      "tea=v1.17.0",
+      "--pin",
+      "cis=v0.2.0",
+    ]);
   });
 });
