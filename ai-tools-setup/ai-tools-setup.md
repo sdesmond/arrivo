@@ -16,7 +16,7 @@ your-project-repo/
 
 ### 🚀 Quick Setup
 
-The main repo bootstrap also performs this step and restores the repo's tracked BMad install from `_bmad/_config/manifest.yaml`:
+The main repo bootstrap also performs this step:
 
 ```bash
 npm run setup:dev

@@ -28,8 +28,6 @@ const DEFAULT_ENV_VALUES = {
 
 const LOCAL_DATABASE_URL = "postgres://packt:packt@localhost:5432/packt";
 const LOCAL_E2E_DATABASE_URL = "postgres://packt:packt@localhost:5432/packt_e2e";
-const MIN_BMAD_NODE_MAJOR = 20;
-const MIN_BMAD_NODE_MINOR = 12;
 
 function log(message) {
   console.log(`[setup-dev] ${message}`);
@@ -93,31 +91,6 @@ function commandExists(command, args = ["--version"]) {
   }
 }
 
-function parseSemver(version) {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version);
-  if (!match) return null;
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-  };
-}
-
-function ensureBMadNodeVersion() {
-  const current = parseSemver(process.version);
-  if (!current) return;
-
-  const tooOld =
-    current.major < MIN_BMAD_NODE_MAJOR ||
-    (current.major === MIN_BMAD_NODE_MAJOR && current.minor < MIN_BMAD_NODE_MINOR);
-
-  if (tooOld) {
-    fail(
-      `BMad installation requires Node.js ${MIN_BMAD_NODE_MAJOR}.${MIN_BMAD_NODE_MINOR}+; current version is ${process.version}.`
-    );
-  }
-}
-
 function dockerComposeAvailable() {
   if (!commandExists("docker", ["compose", "version"])) {
     return false;
@@ -178,132 +151,6 @@ function resolveDatabaseMode(requestedMode) {
   fail(
     "Neither a reachable Docker daemon nor a reachable local PostgreSQL admin connection is available. Start Docker Desktop, or start PostgreSQL and set PGUSER/PGPASSWORD if needed."
   );
-}
-
-function parseYamlScalar(value) {
-  const trimmed = value.trim();
-  if (trimmed === "null") return null;
-  if (trimmed === "true") return true;
-  if (trimmed === "false") return false;
-  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed);
-  return stripWrappingQuotes(trimmed);
-}
-
-function parseBMadManifest(content) {
-  const manifest = {
-    installation: {},
-    modules: [],
-    ides: [],
-  };
-
-  let section = "";
-  let currentModule = null;
-
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.replace(/\t/g, "    ");
-
-    if (!line.trim()) continue;
-
-    if (line.startsWith("installation:")) {
-      if (currentModule) {
-        manifest.modules.push(currentModule);
-        currentModule = null;
-      }
-      section = "installation";
-      continue;
-    }
-
-    if (line.startsWith("modules:")) {
-      if (currentModule) {
-        manifest.modules.push(currentModule);
-        currentModule = null;
-      }
-      section = "modules";
-      continue;
-    }
-
-    if (line.startsWith("ides:")) {
-      if (currentModule) {
-        manifest.modules.push(currentModule);
-        currentModule = null;
-      }
-      section = "ides";
-      continue;
-    }
-
-    if (section === "installation") {
-      const installationMatch = /^  ([A-Za-z]+):\s*(.+)$/.exec(line);
-      if (installationMatch) {
-        manifest.installation[installationMatch[1]] = parseYamlScalar(installationMatch[2]);
-      }
-      continue;
-    }
-
-    if (section === "modules") {
-      const moduleStartMatch = /^  - name:\s*(.+)$/.exec(line);
-      if (moduleStartMatch) {
-        if (currentModule) {
-          manifest.modules.push(currentModule);
-        }
-        currentModule = { name: parseYamlScalar(moduleStartMatch[1]) };
-        continue;
-      }
-
-      const moduleFieldMatch = /^    ([A-Za-z]+):\s*(.+)$/.exec(line);
-      if (moduleFieldMatch && currentModule) {
-        currentModule[moduleFieldMatch[1]] = parseYamlScalar(moduleFieldMatch[2]);
-      }
-      continue;
-    }
-
-    if (section === "ides") {
-      const idMatch = /^  -\s*(.+)$/.exec(line);
-      if (idMatch) {
-        manifest.ides.push(parseYamlScalar(idMatch[1]));
-      }
-    }
-  }
-
-  if (currentModule) {
-    manifest.modules.push(currentModule);
-  }
-
-  return manifest;
-}
-
-function buildBMadInstallArgs(manifest) {
-  const installerVersion = manifest.installation.version;
-  const toolIds = manifest.ides.filter(Boolean);
-  const moduleNames = manifest.modules.map((moduleInfo) => moduleInfo.name).filter((name) => name && name !== "core");
-
-  if (!installerVersion) {
-    fail("BMad manifest is missing installation.version.");
-  }
-
-  if (toolIds.length === 0) {
-    fail("BMad manifest is missing IDE/tool identifiers.");
-  }
-
-  const args = [
-    "-y",
-    `bmad-method@${installerVersion}`,
-    "install",
-    "--yes",
-    "--action",
-    "update",
-    "--modules",
-    moduleNames.join(","),
-    "--tools",
-    toolIds.join(","),
-  ];
-
-  for (const moduleInfo of manifest.modules) {
-    if (!moduleInfo.name || moduleInfo.name === "core" || moduleInfo.name === "bmm") continue;
-    if (!moduleInfo.version) continue;
-    args.push("--pin", `${moduleInfo.name}=${moduleInfo.version}`);
-  }
-
-  return args;
 }
 
 function parseEnv(content) {
@@ -390,12 +237,6 @@ function ensureEnvFile(rootDir) {
   return mergedValues;
 }
 
-function ensureGitAvailable() {
-  if (!commandExists("git", ["--version"])) {
-    fail("Git is required for BMad installation.");
-  }
-}
-
 function ensureDirectory(path) {
   mkdirSync(path, { recursive: true });
 }
@@ -427,21 +268,6 @@ function ensureAiToolLinks(rootDir) {
     const symlinkTarget = process.platform === "win32" ? mapping.targetPath : relative(claudeDir, mapping.targetPath);
     symlinkSync(symlinkTarget, mapping.linkPath, process.platform === "win32" ? "junction" : "dir");
   }
-}
-
-function ensureBMadInstall(rootDir) {
-  const manifestPath = join(rootDir, "_bmad", "_config", "manifest.yaml");
-  if (!existsSync(manifestPath)) {
-    log("Skipping BMad install because _bmad/_config/manifest.yaml is not present");
-    return;
-  }
-
-  ensureBMadNodeVersion();
-  ensureGitAvailable();
-
-  const manifest = parseBMadManifest(readFileSync(manifestPath, "utf8"));
-  const args = buildBMadInstallArgs(manifest);
-  runPackageCommand("npx", args, { cwd: rootDir });
 }
 
 function ensureLocalPostgresDatabases() {
@@ -534,14 +360,6 @@ export function mergeEnvForSetup(exampleContent, currentContent) {
   return serializeEnv(createEnvValues({ ...exampleValues, ...currentValues }));
 }
 
-export function readBMadManifestForTest(content) {
-  return parseBMadManifest(content);
-}
-
-export function buildBMadInstallArgsForTest(manifestContent) {
-  return buildBMadInstallArgs(parseBMadManifest(manifestContent));
-}
-
 export async function main(argv = process.argv.slice(2)) {
   const __filename = fileURLToPath(import.meta.url);
   const rootDir = join(dirname(__filename), "..");
@@ -550,9 +368,8 @@ export async function main(argv = process.argv.slice(2)) {
 
   log(`Using ${databaseMode} database setup`);
   installDependencies(rootDir);
-  ensureAiToolLinks(rootDir);
-  ensureBMadInstall(rootDir);
   installPlaywrightBrowser(rootDir);
+  ensureAiToolLinks(rootDir);
 
   if (databaseMode === "docker") {
     ensureDockerDatabase(rootDir);
