@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
@@ -53,8 +53,16 @@ export function TripEditSheet({
   onResolveDateChange,
   onCancelDateChange,
 }: TripEditSheetProps) {
-  const [draft, setDraft] = useState<Trip | null>(trip);
+  const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (!open) {
+      setDraft(createTripDraft(trip));
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [open, trip]);
 
   if (!draft) return null;
 
@@ -135,6 +143,28 @@ export function TripEditSheet({
 
   async function handleResolution(resolution: TripDateConflictResolutionValue): Promise<void> {
     await onResolveDateChange?.(resolution);
+  }
+
+  function formatRemovedDates(removedDates: string[]): string {
+    if (removedDates.length === 0) return "";
+    if (removedDates.length === 1) return formatDate(removedDates[0], dateFormat);
+
+    const isContiguous = removedDates.every((date, index) => {
+      if (index === 0) return true;
+
+      const current = new Date(date + "T00:00:00");
+      const previous = new Date(removedDates[index - 1] + "T00:00:00");
+      return current.getTime() - previous.getTime() === 86_400_000;
+    });
+
+    if (isContiguous) {
+      return `${formatDate(removedDates[0], dateFormat)} - ${formatDate(
+        removedDates[removedDates.length - 1],
+        dateFormat
+      )}`;
+    }
+
+    return removedDates.map((date) => formatDate(date, dateFormat)).join(", ");
   }
 
   return (
@@ -255,75 +285,50 @@ export function TripEditSheet({
           if (!isOpen) closeDateChangeDialog();
         }}
       >
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
+        <AlertDialogContent size="default" className="sm:max-w-md">
+          <AlertDialogHeader className="place-items-start text-left">
             <AlertDialogTitle>Confirm Date Change</AlertDialogTitle>
-            <AlertDialogDescription>
-              This date change removes scheduled days on{" "}
-              {dateChangeConfirmation?.removedDates.map((date) => formatDate(date, dateFormat)).join(", ")}.
+            <AlertDialogDescription className="text-left">
+              Your new trip dates will remove events (along with their notes and documents) you had planned for{" "}
+              <strong className="font-semibold text-foreground">
+                {formatRemovedDates(dateChangeConfirmation?.removedDates ?? [])}
+              </strong>
+              . Do you want to move those events to unscheduled or just remove them entirely?
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          {dateChangeConfirmation && (
-            <div className="space-y-3" style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>
-              {dateChangeConfirmation.events.length > 0 && (
-                <div className="space-y-2">
-                  <p>These events will be displaced:</p>
-                  <ul className="space-y-1" style={{ color: "var(--fg)" }}>
-                    {dateChangeConfirmation.events.map((event) => (
-                      <li key={event.id}>
-                        {event.name}
-                        {event.displacedDate ? ` · ${formatDate(event.displacedDate, dateFormat)}` : ""}
-                        {event.docCount > 0 ? ` · ${event.docCount} doc${event.docCount === 1 ? "" : "s"}` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {dateChangeConfirmation.noteCount > 0 && (
-                <p>
-                  {dateChangeConfirmation.noteCount} note{dateChangeConfirmation.noteCount === 1 ? "" : "s"} on the
-                  removed days will be deleted.
-                </p>
-              )}
-              {dateChangeConfirmation.checklistCount > 0 && (
-                <p>
-                  {dateChangeConfirmation.checklistCount} checklist
-                  {dateChangeConfirmation.checklistCount === 1 ? "" : "s"} on the removed days will be deleted.
-                </p>
-              )}
-              {dateChangeConfirmation.eventDocumentCount > 0 && (
-                <p>
-                  Choosing Delete events also deletes {dateChangeConfirmation.eventDocumentCount} attached event
-                  document{dateChangeConfirmation.eventDocumentCount === 1 ? "" : "s"}.
-                </p>
-              )}
-            </div>
-          )}
-
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving} onClick={closeDateChangeDialog}>
-              Cancel
-            </AlertDialogCancel>
-            {dateChangeConfirmation?.events.length ? (
-              <Button
-                variant="outline"
-                disabled={saving}
-                onClick={() => handleResolution(TripDateConflictResolution.KeepAsUnscheduled)}
-              >
-                Keep as unscheduled
-              </Button>
-            ) : null}
+          <AlertDialogFooter className="grid-cols-1 gap-2 sm:flex sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between">
             <AlertDialogAction
-              variant="destructive"
+              variant="ghost"
+              className="justify-center text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20"
               disabled={saving}
               onClick={() => handleResolution(TripDateConflictResolution.DeleteEvents)}
             >
-              Delete events
+              Remove Events
             </AlertDialogAction>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <AlertDialogCancel variant="ghost" disabled={saving} onClick={closeDateChangeDialog}>
+                Cancel
+              </AlertDialogCancel>
+              <Button disabled={saving} onClick={() => handleResolution(TripDateConflictResolution.KeepAsUnscheduled)}>
+                Keep Events
+              </Button>
+            </div>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
   );
+}
+
+function createTripDraft(trip: Trip | null): Trip | null {
+  if (!trip) return null;
+
+  return {
+    ...trip,
+    tags: trip.tags ? [...trip.tags] : undefined,
+    budget: trip.budget ? { ...trip.budget } : undefined,
+    collaborators: trip.collaborators ? trip.collaborators.map((collaborator) => ({ ...collaborator })) : undefined,
+    docs: trip.docs ? [...trip.docs] : undefined,
+  };
 }

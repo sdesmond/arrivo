@@ -105,7 +105,7 @@ Feature: Day Planning
     When I open the trip edit sheet
     And I change the trip date range to "2026-08-01" through "2026-08-01"
     And I save the trip date change
-    Then the trip edit warning lists the displaced events
+    Then the trip edit warning explains the removed trip dates
     When I keep the displaced events as unscheduled
     Then the removed day's events are persisted as unscheduled
 
@@ -114,6 +114,6 @@ Feature: Day Planning
     When I open the trip edit sheet
     And I change the trip date range to "2026-08-01" through "2026-08-01"
     And I save the trip date change
-    Then the trip edit warning lists the displaced events
+    Then the trip edit warning explains the removed trip dates
     When I delete the displaced events
     Then the removed day's events are deleted after the date change

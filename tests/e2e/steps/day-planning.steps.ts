@@ -786,13 +786,17 @@ Then("the empty removed days are deleted without a warning", async ({ page }) =>
   });
 });
 
-Then("the trip edit warning lists the displaced events", async ({ page }) => {
+Then("the trip edit warning explains the removed trip dates", async ({ page }) => {
   await expect(page.getByRole("alertdialog")).toBeVisible();
-  await expect(page.getByText("Final day booking")).toBeVisible();
+  await expect(
+    page.getByText(
+      /Your new trip dates will remove events \(along with their notes and documents\) you had planned for/i
+    )
+  ).toBeVisible();
 });
 
 When("I keep the displaced events as unscheduled", async ({ page }) => {
-  await page.getByRole("button", { name: "Keep as unscheduled" }).click();
+  await page.getByRole("button", { name: "Keep Events" }).click();
   await expect(page.getByRole("alertdialog")).not.toBeVisible({ timeout: 10_000 });
 });
 
@@ -810,7 +814,7 @@ Then("the removed day's events are persisted as unscheduled", async ({ page }) =
 });
 
 When("I delete the displaced events", async ({ page }) => {
-  await page.getByRole("button", { name: "Delete events" }).click();
+  await page.getByRole("button", { name: "Remove Events" }).click();
   await expect(page.getByRole("alertdialog")).not.toBeVisible({ timeout: 10_000 });
 });
 
