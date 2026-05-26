@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/components/ui/date-range-picker", () => ({
@@ -29,19 +29,7 @@ vi.mock("@/components/ui/date-range-picker", () => ({
 }));
 
 vi.mock("next/image", () => ({
-  default: ({
-    src,
-    alt,
-    width,
-    height,
-    style,
-  }: {
-    src: string;
-    alt: string;
-    width?: number;
-    height?: number;
-    style?: React.CSSProperties;
-  }) => <img src={src} alt={alt} width={width} height={height} style={style} />,
+  default: ({ alt }: { alt: string }) => <div role="img" aria-label={alt} />,
 }));
 
 vi.mock("./trip-edit-collaborators", () => ({
@@ -78,8 +66,43 @@ vi.mock("@/components/ui/drawer", () => ({
   DrawerTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
 }));
 
+vi.mock("@/components/ui/alert-dialog", () => ({
+  AlertDialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <>{children}</> : null),
+  AlertDialogContent: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogHeader: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogDescription: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogFooter: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogCancel: ({
+    children,
+    onClick,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
+  ),
+  AlertDialogAction: ({
+    children,
+    onClick,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
+  ),
+}));
+
 import { TripEditSheet } from "./trip-edit-sheet";
-import type { Trip, UpdateTripPatch } from "@/data/types";
+import { TripDateConflictResolution, type Trip, type UpdateTripPatch } from "@/data/types";
 
 const baseTrip: Trip = {
   id: "trip-1",
@@ -95,6 +118,12 @@ const baseTrip: Trip = {
 };
 
 describe("TripEditSheet", () => {
+  const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+
+  afterEach(() => {
+    globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+  });
+
   it("renders pre-filled trip name", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByDisplayValue("Tokyo Adventure")).toBeInTheDocument();
@@ -122,7 +151,7 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    await user.click(screen.getAllByRole("button", { name: /cancel/i })[0]);
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -149,6 +178,36 @@ describe("TripEditSheet", () => {
     await user.type(nameInput, "Kyoto Journey");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "Kyoto Journey" }));
+  });
+
+  it("resets the trip dates after closing and reopening without saving", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+
+    await user.clear(screen.getByTestId("date-range-start"));
+    await user.type(screen.getByTestId("date-range-start"), "2026-07-01");
+    await user.clear(screen.getByTestId("date-range-end"));
+    await user.type(screen.getByTestId("date-range-end"), "2026-07-10");
+
+    rerender(<TripEditSheet trip={baseTrip} open={false} onClose={vi.fn()} onSave={vi.fn()} />);
+    rerender(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+
+    expect(screen.getByTestId("date-range-start")).toHaveValue("2026-06-01");
+    expect(screen.getByTestId("date-range-end")).toHaveValue("2026-06-10");
+  });
+
+  it("resets the trip name after closing and reopening without saving", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+
+    const nameInput = screen.getByDisplayValue("Tokyo Adventure");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Kyoto Journey");
+
+    rerender(<TripEditSheet trip={baseTrip} open={false} onClose={vi.fn()} onSave={vi.fn()} />);
+    rerender(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+
+    expect(screen.getByDisplayValue("Tokyo Adventure")).toBeInTheDocument();
   });
 
   it("renders nothing when trip is null", () => {
@@ -269,6 +328,23 @@ describe("TripEditSheet", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ endDate: "2026-07-10" }));
   });
 
+  it("normalizes a one-day selection by saving the same start and end date", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+
+    const endInput = screen.getByTestId("date-range-end");
+    await user.clear(endInput);
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: "2026-06-01",
+        endDate: "2026-06-01",
+      })
+    );
+  });
+
   it("Drawer onOpenChange(false) calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -283,5 +359,127 @@ describe("TripEditSheet", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
     await user.click(screen.getByTestId("sheet-open-trigger"));
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("disables save controls and shows Saving... while the trip save is pending", () => {
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} saving />);
+
+    expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Cancel" })[0]).toBeDisabled();
+  });
+
+  it("renders the date-change confirmation dialog and resolves the keep-unscheduled path", async () => {
+    const user = userEvent.setup();
+    const onResolveDateChange = vi.fn();
+    render(
+      <TripEditSheet
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onResolveDateChange={onResolveDateChange}
+        dateChangeConfirmation={{
+          removedDates: ["2026-06-09", "2026-06-10"],
+          events: [{ id: "event-1", name: "Tea ceremony", displacedDate: "2026-06-09", docCount: 1 }],
+          noteCount: 1,
+          checklistCount: 1,
+          eventDocumentCount: 1,
+        }}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        /Your new trip dates will remove events \(along with their notes and documents\) you had planned for/i
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Jun 9, 2026 - Jun 10, 2026", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keep Events" })).toBeInTheDocument();
+    expect(screen.queryByText(/tea ceremony/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/attached event document/i)).not.toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("button")
+        .slice(-3)
+        .map((button) => button.textContent)
+    ).toEqual(["Remove Events", "Cancel", "Keep Events"]);
+
+    await user.click(screen.getByRole("button", { name: "Keep Events" }));
+    expect(onResolveDateChange).toHaveBeenCalledWith(TripDateConflictResolution.KeepAsUnscheduled);
+  });
+
+  it("calls onCancelDateChange when the confirmation dialog is canceled", async () => {
+    const user = userEvent.setup();
+    const onCancelDateChange = vi.fn();
+    globalThis.requestAnimationFrame = (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    };
+    render(
+      <TripEditSheet
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onCancelDateChange={onCancelDateChange}
+        dateChangeConfirmation={{
+          removedDates: ["2026-06-09"],
+          events: [],
+          noteCount: 0,
+          checklistCount: 0,
+          eventDocumentCount: 0,
+        }}
+      />
+    );
+
+    const cancelButtons = screen.getAllByRole("button", { name: "Cancel" });
+    await user.click(cancelButtons[cancelButtons.length - 1]);
+    expect(onCancelDateChange).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toHaveFocus());
+  });
+
+  it("keeps the keep-events action visible when the dialog only warns about removed content", () => {
+    render(
+      <TripEditSheet
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        dateChangeConfirmation={{
+          removedDates: ["2026-06-09"],
+          events: [],
+          noteCount: 1,
+          checklistCount: 0,
+          eventDocumentCount: 0,
+        }}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Keep Events" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Events" })).toBeInTheDocument();
+  });
+
+  it("resolves the delete-events confirmation path", async () => {
+    const user = userEvent.setup();
+    const onResolveDateChange = vi.fn();
+    render(
+      <TripEditSheet
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onResolveDateChange={onResolveDateChange}
+        dateChangeConfirmation={{
+          removedDates: ["2026-06-09"],
+          events: [{ id: "event-1", name: "Tea ceremony", displacedDate: "2026-06-09", docCount: 1 }],
+          noteCount: 1,
+          checklistCount: 1,
+          eventDocumentCount: 1,
+        }}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Events" }));
+    expect(onResolveDateChange).toHaveBeenCalledWith(TripDateConflictResolution.DeleteEvents);
   });
 });

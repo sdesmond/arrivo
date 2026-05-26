@@ -27,6 +27,7 @@ export default async function TripDetailPage({
       nowISO={now.toISOString()}
       dateFormat={dateFormat}
       initialExpandedDayNumber={sp.new === "1" ? 1 : undefined}
+      isNew={sp.new === "1"}
     />
   );
 }

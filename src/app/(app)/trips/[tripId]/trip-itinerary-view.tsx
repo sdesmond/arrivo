@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { CalendarDays, MapPin, FileText, ListChecks, Plus } from "lucide-react";
+import { CalendarDays, FileText, ListChecks, MapPin, Plus } from "lucide-react";
 import { DayCard } from "@/components/packt/day-card";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -17,11 +17,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/types";
+import { UnscheduledEventsSection } from "./unscheduled-events-section";
 
 export interface TripItineraryViewProps {
   days: DayItinerary[];
+  unscheduledEvents: TripEvent[];
   dateFormat?: string;
   initialExpandedDayNumber?: number;
+  isNew?: boolean;
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -55,8 +58,10 @@ interface RemovalConfirmation {
 
 export function TripItineraryView({
   days,
+  unscheduledEvents,
   dateFormat,
   initialExpandedDayNumber,
+  isNew,
   tripDocs,
   onUpdateEvent,
   onDeleteEvent,
@@ -80,8 +85,9 @@ export function TripItineraryView({
   removingDay,
 }: TripItineraryViewProps): ReactElement {
   const [removalConfirmation, setRemovalConfirmation] = useState<RemovalConfirmation | null>(null);
+  const [initialRenderDayCount] = useState(() => days.length);
 
-  if (days.length === 0) {
+  if (days.length === 0 && unscheduledEvents.length === 0) {
     return (
       <Empty>
         <EmptyHeader>
@@ -106,15 +112,17 @@ export function TripItineraryView({
     );
   }
 
-  const lastDay = days[days.length - 1];
+  const lastDay = days.at(-1);
   const lastDayHasPlannedContent =
-    lastDay.events.length > 0 || (lastDay.notes?.length ?? 0) > 0 || (lastDay.checklists?.length ?? 0) > 0;
+    lastDay !== undefined &&
+    (lastDay.events.length > 0 || (lastDay.notes?.length ?? 0) > 0 || (lastDay.checklists?.length ?? 0) > 0);
 
   function requireRemovalConfirmation(hasPlannedContent: boolean, removesOnlyDay: boolean): void {
     setRemovalConfirmation({ hasPlannedContent, removesOnlyDay });
   }
 
   function requestLastDayRemoval(): void {
+    if (!lastDay) return;
     if (days.length === 1 || lastDayHasPlannedContent) {
       requireRemovalConfirmation(lastDayHasPlannedContent, days.length === 1);
       return;
@@ -130,37 +138,63 @@ export function TripItineraryView({
   return (
     <>
       <div>
-        {days.map((day) => (
-          <DayCard
-            key={day.dayNumber}
-            day={day}
-            dateFormat={dateFormat}
-            initialOpen={initialExpandedDayNumber === day.dayNumber}
-            tripDocs={tripDocs}
-            onUpdateEvent={onUpdateEvent}
-            onDeleteEvent={onDeleteEvent}
-            onReorderDayItems={onReorderDayItems}
-            onUpdateDay={onUpdateDay}
-            onAddEvent={onAddEvent}
-            onAddNote={onAddNote}
-            onUpdateNote={onUpdateNote}
-            onDeleteNote={onDeleteNote}
-            onAddChecklist={onAddChecklist}
-            newlyCreatedChecklistId={newlyCreatedChecklistId}
-            onUpdateChecklistTitle={onUpdateChecklistTitle}
-            onDeleteChecklist={onDeleteChecklist}
-            onAddChecklistItem={onAddChecklistItem}
-            onUpdateChecklistItem={onUpdateChecklistItem}
-            onDeleteChecklistItem={onDeleteChecklistItem}
-            onToggleChecklistItem={onToggleChecklistItem}
-            onRemove={day.dayNumber === lastDay.dayNumber ? requestLastDayRemoval : undefined}
-            removeDisabled={removingDay || addingDay}
-          />
-        ))}
-        <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
-          <Plus data-icon="inline-start" strokeWidth={1.5} />
-          {addingDay ? "Adding Day..." : "Add Day"}
-        </Button>
+        <UnscheduledEventsSection
+          unscheduledEvents={unscheduledEvents}
+          dateFormat={dateFormat}
+          tripDocs={tripDocs}
+          onUpdateEvent={onUpdateEvent}
+          onDeleteEvent={onDeleteEvent}
+        />
+        {days.map((day, index) => {
+          const dayCard = (
+            <DayCard
+              key={day.dayNumber}
+              day={day}
+              dateFormat={dateFormat}
+              initialOpen={initialExpandedDayNumber === day.dayNumber}
+              tripDocs={tripDocs}
+              onUpdateEvent={onUpdateEvent}
+              onDeleteEvent={onDeleteEvent}
+              onReorderDayItems={onReorderDayItems}
+              onUpdateDay={onUpdateDay}
+              onAddEvent={onAddEvent}
+              onAddNote={onAddNote}
+              onUpdateNote={onUpdateNote}
+              onDeleteNote={onDeleteNote}
+              onAddChecklist={onAddChecklist}
+              newlyCreatedChecklistId={newlyCreatedChecklistId}
+              onUpdateChecklistTitle={onUpdateChecklistTitle}
+              onDeleteChecklist={onDeleteChecklist}
+              onAddChecklistItem={onAddChecklistItem}
+              onUpdateChecklistItem={onUpdateChecklistItem}
+              onDeleteChecklistItem={onDeleteChecklistItem}
+              onToggleChecklistItem={onToggleChecklistItem}
+              onRemove={day.dayNumber === lastDay?.dayNumber ? requestLastDayRemoval : undefined}
+              removeDisabled={removingDay || addingDay}
+            />
+          );
+
+          if (!(isNew === true && index < initialRenderDayCount)) {
+            return dayCard;
+          }
+
+          return (
+            <div
+              key={day.dayNumber}
+              data-testid={`day-card-stagger-${day.dayNumber}`}
+              className="animate-in fade-in slide-in-from-bottom-4 fill-mode-backwards duration-300"
+              style={{ animationDelay: `${index * 160}ms` }}
+            >
+              {dayCard}
+            </div>
+          );
+        })}
+        {days.length > 0 && (
+          <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
+            <Plus data-icon="inline-start" strokeWidth={1.5} />
+            {addingDay ? "Adding Day..." : "Add Day"}
+          </Button>
+        )}
       </div>
       <AlertDialog
         open={removalConfirmation !== null}

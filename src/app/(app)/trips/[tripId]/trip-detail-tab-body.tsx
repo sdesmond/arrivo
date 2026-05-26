@@ -9,9 +9,11 @@ export interface TripDetailTabBodyProps {
   tripId: string;
   activeTab: TripDetailTab;
   days: DayItinerary[];
+  unscheduledEvents: TripEvent[];
   docs: Document[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
+  isNew?: boolean;
   newlyCreatedChecklistId?: string;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -41,9 +43,11 @@ export function TripDetailTabBody({
   tripId,
   activeTab,
   days,
+  unscheduledEvents,
   docs,
   dateFormat,
   initialExpandedDayNumber,
+  isNew,
   newlyCreatedChecklistId,
   onUpdateEvent,
   onDeleteEvent,
@@ -70,8 +74,10 @@ export function TripDetailTabBody({
       {activeTab === "itin" && (
         <TripItineraryView
           days={days}
+          unscheduledEvents={unscheduledEvents}
           dateFormat={dateFormat}
           initialExpandedDayNumber={initialExpandedDayNumber}
+          isNew={isNew}
           tripDocs={docs.filter((document) => document.scope === "trip")}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}

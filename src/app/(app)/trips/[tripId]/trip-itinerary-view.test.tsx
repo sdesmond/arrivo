@@ -10,13 +10,21 @@ interface MockDayCardProps {
   onRemove?: () => void;
 }
 
+interface MockPlaceRowProps {
+  place: { id: string; name: string };
+}
+
 vi.mock("@/components/packt/day-card", () => ({
   DayCard: ({ day, onRemove }: MockDayCardProps) => (
-    <section>
+    <section data-testid={`day-card-${day.dayNumber}`}>
       <span>{day.label}</span>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
     </section>
   ),
+}));
+
+vi.mock("@/components/packt/place-row", () => ({
+  PlaceRow: ({ place }: MockPlaceRowProps) => <div>{place.name}</div>,
 }));
 
 const dayOne: DayItinerary = {
@@ -38,6 +46,7 @@ const dayTwo: DayItinerary = {
 function buildProps(days: DayItinerary[]): TripItineraryViewProps {
   return {
     days,
+    unscheduledEvents: [],
     onUpdateEvent: vi.fn(),
     onDeleteEvent: vi.fn(),
     onReorderDayItems: vi.fn(),
@@ -111,5 +120,59 @@ describe("TripItineraryView", () => {
     await user.click(screen.getByRole("button", { name: "Remove Day 2" }));
     expect(screen.getByText(/planned content will be deleted/i)).toBeInTheDocument();
     expect(props.onRemoveLastDay).not.toHaveBeenCalled();
+  });
+
+  it("renders unscheduled events above the day stack and hides them when collapsed", async () => {
+    const user = userEvent.setup();
+    const props = buildProps([dayOne]);
+    props.unscheduledEvents = [
+      { id: "event-1", name: "Displaced museum", displacedDate: "2026-06-03", position: 0 },
+      { id: "event-2", name: "Displaced dinner", displacedDate: "2026-06-03", position: 1 },
+    ];
+    render(<TripItineraryView {...props} />);
+
+    expect(screen.getByText("Unscheduled Events")).toBeInTheDocument();
+    expect(screen.getByText("Displaced museum")).toBeInTheDocument();
+    expect(screen.getByText("Day 1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /unscheduled events/i }));
+    expect(screen.queryByText("Displaced museum")).not.toBeInTheDocument();
+  });
+
+  it("does not render the unscheduled section when no unscheduled events exist", () => {
+    const props = buildProps([dayOne]);
+    render(<TripItineraryView {...props} />);
+
+    expect(screen.queryByText("Unscheduled Events")).not.toBeInTheDocument();
+  });
+
+  it("wraps each day card in a stagger animation container for new trips", () => {
+    const props = buildProps([dayOne, dayTwo]);
+    render(<TripItineraryView {...props} isNew />);
+
+    const firstWrapper = screen.getByTestId("day-card-1").parentElement;
+    const secondWrapper = screen.getByTestId("day-card-2").parentElement;
+
+    expect(firstWrapper).toHaveClass("animate-in");
+    expect(secondWrapper).toHaveClass("animate-in");
+  });
+
+  it("renders day cards without stagger animation when the trip is not new", () => {
+    const props = buildProps([dayOne, dayTwo]);
+    render(<TripItineraryView {...props} isNew={false} />);
+
+    const firstWrapper = screen.getByTestId("day-card-1").parentElement;
+    const secondWrapper = screen.getByTestId("day-card-2").parentElement;
+
+    expect(firstWrapper).not.toHaveClass("animate-in");
+    expect(secondWrapper).not.toHaveClass("animate-in");
+  });
+
+  it("renders the empty state without stagger wrappers when there are no days", () => {
+    const props = buildProps([]);
+    render(<TripItineraryView {...props} isNew />);
+
+    expect(screen.getByText("No itinerary yet")).toBeInTheDocument();
+    expect(screen.queryByTestId("day-card-stagger-1")).not.toBeInTheDocument();
   });
 });

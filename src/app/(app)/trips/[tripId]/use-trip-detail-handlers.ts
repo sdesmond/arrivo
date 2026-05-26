@@ -2,7 +2,16 @@
 
 import React, { useState } from "react";
 import { toast } from "sonner";
-import type { DayItemType, DayItinerary, TripDetailPayload, TripEvent, UpdateTripPatch } from "@/data/types";
+import type {
+  DayItemType,
+  DayItinerary,
+  TripDetailPayload,
+  TripEvent,
+  TripDateChangeConfirmation,
+  TripDateConflictResolution,
+  UpdateTripMetadataResult,
+  UpdateTripPatch,
+} from "@/data/types";
 import { updateTripMetadata } from "../actions";
 import {
   createChecklist,
@@ -29,6 +38,7 @@ export interface TripDetailHandlers {
   newlyCreatedChecklistId: string | null;
   addingDay: boolean;
   removingDay: boolean;
+  savingTrip: boolean;
   handleEventUpdate: (updated: TripEvent) => void;
   handleEventDelete: (id: string) => void;
   handleDayItemsReorder: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -44,7 +54,12 @@ export interface TripDetailHandlers {
   handleUpdateChecklistItem: (itemId: string, content: string) => void;
   handleDeleteChecklistItem: (itemId: string) => void;
   handleToggleChecklistItem: (itemId: string) => void;
-  handleTripSave: (patch: UpdateTripPatch) => void;
+  handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
+  handleTripSaveResolution: (
+    patch: UpdateTripPatch,
+    resolution: TripDateConflictResolution,
+    confirmation: TripDateChangeConfirmation
+  ) => Promise<UpdateTripMetadataResult | undefined>;
   handleAddDay: () => void;
   handleRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -57,6 +72,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
   const [addingDay, startAddDayTransition] = React.useTransition();
   const [removingDay, startRemoveDayTransition] = React.useTransition();
+  const [savingTrip, startSaveTripTransition] = React.useTransition();
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
@@ -178,9 +194,20 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleTripSave(patch: UpdateTripPatch): void {
-    React.startTransition(() => {
-      updateTripMetadata(trip.id, patch);
+  function handleTripSave(
+    patch: UpdateTripPatch,
+    resolution?: TripDateConflictResolution,
+    confirmation?: TripDateChangeConfirmation
+  ): Promise<UpdateTripMetadataResult | undefined> {
+    return new Promise((resolve) => {
+      startSaveTripTransition(async () => {
+        try {
+          resolve(await updateTripMetadata(trip.id, patch, resolution, confirmation));
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Failed to save trip changes. Please try again.");
+          resolve(undefined);
+        }
+      });
     });
   }
 
@@ -214,6 +241,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     newlyCreatedChecklistId,
     addingDay,
     removingDay,
+    savingTrip,
     handleEventUpdate,
     handleEventDelete,
     handleDayItemsReorder,
@@ -229,7 +257,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleUpdateChecklistItem,
     handleDeleteChecklistItem,
     handleToggleChecklistItem,
-    handleTripSave,
+    handleTripSave: (patch) => handleTripSave(patch),
+    handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleAddDay,
     handleRemoveLastDay,
   };

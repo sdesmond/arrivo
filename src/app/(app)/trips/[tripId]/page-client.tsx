@@ -4,11 +4,18 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import Link from "next/link";
 import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
+import { TripConfetti } from "@/components/packt/trip-confetti";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import type { TripDetailPayload, UpdateTripPatch, TripDetailTab } from "@/data/types";
+import type {
+  TripDetailPayload,
+  TripDateChangeConfirmation,
+  TripDateConflictResolution,
+  UpdateTripPatch,
+  TripDetailTab,
+} from "@/data/types";
 import { getTripStatus, getTripDays, formatDate } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
@@ -26,6 +33,7 @@ interface TripDetailClientProps {
   nowISO: string;
   dateFormat: string;
   initialExpandedDayNumber?: number;
+  isNew?: boolean;
 }
 
 export function TripDetailClient({
@@ -33,22 +41,47 @@ export function TripDetailClient({
   nowISO,
   dateFormat,
   initialExpandedDayNumber,
+  isNew,
 }: TripDetailClientProps): ReactElement {
   const now = new Date(nowISO);
   useFocusScroll();
 
   const [activeTab, setActiveTab] = useState<TripDetailTab>("itin");
   const [editingTrip, setEditingTrip] = useState(false);
+  const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
+  const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, docs, collaborators } = detail;
+  const { trip, days, unscheduledEvents, docs, collaborators } = detail;
 
-  function handleTripSave(patch: UpdateTripPatch): void {
-    handlers.handleTripSave(patch);
+  async function handleTripSave(patch: UpdateTripPatch): Promise<void> {
+    const result = await handlers.handleTripSave(patch);
+    if (!result) return;
+    if (result.status === "saved") {
+      setTripDateConfirmation(null);
+      setPendingTripPatch(null);
+      setEditingTrip(false);
+      return;
+    }
+    setPendingTripPatch(patch);
+    setTripDateConfirmation(result.confirmation);
+  }
+
+  async function handleTripDateResolution(resolution: TripDateConflictResolution): Promise<void> {
+    if (!pendingTripPatch || !tripDateConfirmation) return;
+    const result = await handlers.handleTripSaveResolution(pendingTripPatch, resolution, tripDateConfirmation);
+    if (!result || result.status !== "saved") return;
+    setTripDateConfirmation(null);
+    setPendingTripPatch(null);
     setEditingTrip(false);
   }
 
-  const eventCount = days.reduce((count, day) => count + day.events.length, 0);
+  function handleTripDateResolutionCancel(): void {
+    setTripDateConfirmation(null);
+    setPendingTripPatch(null);
+  }
+
+  const eventCount = days.reduce((count, day) => count + day.events.length, 0) + unscheduledEvents.length;
   const dayTotal = getTripDays(trip.startDate, trip.endDate);
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const heroStatusLabel =
@@ -186,9 +219,11 @@ export function TripDetailClient({
             tripId={trip.id}
             activeTab={activeTab}
             days={days}
+            unscheduledEvents={unscheduledEvents}
             docs={docs}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}
+            isNew={isNew}
             newlyCreatedChecklistId={handlers.newlyCreatedChecklistId ?? undefined}
             onUpdateEvent={handlers.handleEventUpdate}
             onDeleteEvent={handlers.handleEventDelete}
@@ -219,7 +254,13 @@ export function TripDetailClient({
         open={editingTrip}
         onClose={() => setEditingTrip(false)}
         onSave={handleTripSave}
+        saving={handlers.savingTrip}
+        dateFormat={dateFormat}
+        dateChangeConfirmation={tripDateConfirmation}
+        onResolveDateChange={handleTripDateResolution}
+        onCancelDateChange={handleTripDateResolutionCancel}
       />
+      {isNew ? <TripConfetti tripId={trip.id} /> : null}
     </div>
   );
 }

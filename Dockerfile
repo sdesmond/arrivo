@@ -18,15 +18,14 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# Copy drizzle migrations so entrypoint can run them
-COPY --from=builder /app/drizzle ./drizzle
-
-# Copy the node_modules drizzle-kit and postgres need at runtime
+# Copy the node_modules drizzle-kit needs at runtime
 COPY --from=builder /app/node_modules/drizzle-kit ./node_modules/drizzle-kit
+COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
 COPY --from=builder /app/node_modules/postgres ./node_modules/postgres
 
-# Copy drizzle config (needed by drizzle-kit migrate)
+# Copy the Drizzle schema inputs needed by drizzle-kit push
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/src/db/schema.ts ./src/db/schema.ts
 
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh

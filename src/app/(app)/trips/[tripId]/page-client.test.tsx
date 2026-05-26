@@ -1,17 +1,20 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
 import type { TripDetailPayload } from "@/data/types";
 
+const { tripConfettiMock } = vi.hoisted(() => ({
+  tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
+    void tripId;
+    return null;
+  }),
+}));
+
 interface TripCoverProps {
   metaTag: string;
   name: string;
-}
-
-interface TripDetailTabBodyProps {
-  children?: ReactNode;
 }
 
 vi.mock("next/link", () => ({
@@ -28,7 +31,11 @@ vi.mock("@/components/packt/trip-cover", () => ({
 }));
 
 vi.mock("./trip-detail-tab-body", () => ({
-  TripDetailTabBody: (_props: TripDetailTabBodyProps) => <div>Itinerary body</div>,
+  TripDetailTabBody: () => <div>Itinerary body</div>,
+}));
+
+vi.mock("@/components/packt/trip-confetti", () => ({
+  TripConfetti: ({ tripId }: { tripId: string }) => tripConfettiMock({ tripId }),
 }));
 
 vi.mock("@/components/packt/trip-edit-sheet", () => ({
@@ -44,6 +51,7 @@ vi.mock("./use-trip-detail-handlers", () => ({
     newlyCreatedChecklistId: null,
     addingDay: false,
     removingDay: false,
+    savingTrip: false,
     handleEventUpdate: vi.fn(),
     handleEventDelete: vi.fn(),
     handleDayItemsReorder: vi.fn(),
@@ -60,6 +68,7 @@ vi.mock("./use-trip-detail-handlers", () => ({
     handleDeleteChecklistItem: vi.fn(),
     handleToggleChecklistItem: vi.fn(),
     handleTripSave: vi.fn(),
+    handleTripSaveResolution: vi.fn(),
     handleAddDay: vi.fn(),
     handleRemoveLastDay: vi.fn(),
   }),
@@ -72,15 +81,55 @@ const baseDetail: TripDetailPayload = {
     status: "upcoming",
   },
   days: [],
+  unscheduledEvents: [],
   docs: [],
   collaborators: [],
   packingItems: [],
 };
 
 describe("TripDetailClient", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders TripConfetti for newly created trips", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" isNew />);
+
+    expect(tripConfettiMock).toHaveBeenCalledWith({ tripId: "trip-1" });
+  });
+
+  it("does not render TripConfetti when the trip is not new", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(tripConfettiMock).not.toHaveBeenCalled();
+  });
+
+  it("does not render TripConfetti when isNew is explicitly false", () => {
+    render(
+      <TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" isNew={false} />
+    );
+
+    expect(tripConfettiMock).not.toHaveBeenCalled();
+  });
+
   it("shows an unscheduled hero label when the trip has no dates", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(screen.getByText("UNSCHEDULED TRIP · OFFLINE")).toBeInTheDocument();
+  });
+
+  it("counts unscheduled events in the hero summary", () => {
+    render(
+      <TripDetailClient
+        detail={{
+          ...baseDetail,
+          unscheduledEvents: [{ id: "event-1", name: "Displaced dinner", position: 0 }],
+        }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByText("1 places")).toBeInTheDocument();
   });
 });

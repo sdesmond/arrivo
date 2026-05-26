@@ -105,6 +105,26 @@ async function openFirstDay(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: /add a place/i }).first()).toBeVisible();
 }
 
+async function clickDate(page: Page, isoDate: string): Promise<void> {
+  const date = new Date(`${isoDate}T00:00:00`);
+  const dataDay = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+  const dateButton = page.locator(`button[data-day="${dataDay}"]`).first();
+
+  for (let attempt = 0; attempt < 12; attempt++) {
+    if ((await dateButton.count()) > 0 && (await dateButton.isVisible())) {
+      await dateButton.click();
+      return;
+    }
+
+    const nextMonthButton = page.locator(".rdp-button_next");
+    if (await nextMonthButton.count()) {
+      await nextMonthButton.click();
+    }
+  }
+
+  throw new Error(`Could not find calendar date ${isoDate}`);
+}
+
 async function addEvent(page: Page, name: string): Promise<void> {
   const idsBefore = new Set(
     await page.locator('[id^="event-"]').evaluateAll((els: Element[]) => els.map((el) => el.id))
@@ -116,14 +136,14 @@ async function addEvent(page: Page, name: string): Promise<void> {
   await page.getByTitle("Add event").click();
   await page.getByPlaceholder("Event name").fill(name);
   await page.keyboard.press("Enter");
-  // Wait for the new event row to appear
-  await expect(page.locator('[id^="event-"]')).toHaveCount(idsBefore.size + 1);
-  const idsAfter = await page.locator('[id^="event-"]').evaluateAll((els: Element[]) => els.map((el) => el.id));
-  const newId = idsAfter.find((id) => !idsBefore.has(id));
-  if (newId) {
+  const newEventRow = page.locator('[id^="event-"]').filter({ hasText: name }).first();
+  await expect(newEventRow).toBeVisible({ timeout: 10_000 });
+  const newId = await newEventRow.getAttribute("id");
+  if (!newId) throw new Error(`Could not capture the created event id for "${name}".`);
+  if (!idsBefore.has(newId)) {
     createdEventIds.push(newId);
-    eventIdByName.set(name, newId);
   }
+  eventIdByName.set(name, newId);
 }
 
 Before(async () => {
@@ -223,6 +243,59 @@ Before({ tags: "@day-remove-only" }, async () => {
 Before({ tags: "@day-remove-populated" }, async () => {
   structuralTripId = await createStructuralTrip(
     "Populated Final Day Trip",
+    { startDate: "2026-08-01", endDate: "2026-08-02" },
+    [
+      { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+      { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+    ],
+    "Final day booking"
+  );
+});
+
+Before({ tags: "@date-edit-extend-end" }, async () => {
+  structuralTripId = await createStructuralTrip("Edit Range Extend Trip", { startDate: "2026-08-01" }, [
+    { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+  ]);
+});
+
+Before({ tags: "@date-edit-extend-start" }, async () => {
+  structuralTripId = await createStructuralTrip(
+    "Edit Range Earlier Trip",
+    { startDate: "2026-08-02", endDate: "2026-08-03" },
+    [
+      { dayNumber: 1, date: "2026-08-02", label: "Day 1" },
+      { dayNumber: 2, date: "2026-08-03", label: "Day 2" },
+    ]
+  );
+});
+
+Before({ tags: "@date-edit-shorten-empty" }, async () => {
+  structuralTripId = await createStructuralTrip(
+    "Shorten Empty Range Trip",
+    { startDate: "2026-08-01", endDate: "2026-08-03" },
+    [
+      { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+      { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      { dayNumber: 3, date: "2026-08-03", label: "Day 3" },
+    ]
+  );
+});
+
+Before({ tags: "@date-edit-keep-unscheduled" }, async () => {
+  structuralTripId = await createStructuralTrip(
+    "Keep Unscheduled Edit Trip",
+    { startDate: "2026-08-01", endDate: "2026-08-02" },
+    [
+      { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+      { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+    ],
+    "Final day booking"
+  );
+});
+
+Before({ tags: "@date-edit-delete-events" }, async () => {
+  structuralTripId = await createStructuralTrip(
+    "Delete Displaced Events Trip",
     { startDate: "2026-08-01", endDate: "2026-08-02" },
     [
       { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
@@ -650,6 +723,103 @@ When("I confirm destructive day removal", async ({ page }) => {
 });
 
 Then("the populated final day and its content are deleted", async () => {
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const remainingEvents = await db.select().from(events).where(eq(events.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(1);
+    expect(remainingEvents).toHaveLength(0);
+    expect(trip.endDate).toBe("2026-08-01");
+  });
+});
+
+When(
+  "I change the trip date range to {string} through {string}",
+  async ({ page }, startDate: string, endDate: string) => {
+    const dialog = page.getByRole("dialog");
+    const dateTrigger = dialog
+      .getByRole("button")
+      .filter({ hasText: /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/ })
+      .first();
+    await dateTrigger.click();
+    await clickDate(page, startDate);
+    if (startDate !== endDate) {
+      await clickDate(page, endDate);
+    }
+  }
+);
+
+When("I save the trip date change", async ({ page }) => {
+  await page.getByRole("button", { name: "Save changes" }).click();
+});
+
+Then("the edited trip includes the appended scheduled days", async ({ page }) => {
+  await expect(page.getByText("Mon, Aug 3")).toBeVisible({ timeout: 10_000 });
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(3);
+    expect(trip.endDate).toBe("2026-08-03");
+  });
+});
+
+Then("the edited trip includes the prepended scheduled days", async ({ page }) => {
+  await expect(page.getByText("Sat, Aug 1")).toBeVisible({ timeout: 10_000 });
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(3);
+    expect(tripDays.find((day) => day.dayNumber === 1)?.date).toBe("2026-08-01");
+    expect(trip.startDate).toBe("2026-08-01");
+  });
+});
+
+Then("the empty removed days are deleted without a warning", async ({ page }) => {
+  await expect(page.getByRole("alertdialog")).not.toBeVisible();
+  await expect(page.getByText("Sun, Aug 3")).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("1 days")).toBeVisible({ timeout: 10_000 });
+  await withE2EDb(async (db) => {
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
+    expect(tripDays).toHaveLength(1);
+    expect(trip.endDate).toBe("2026-08-01");
+  });
+});
+
+Then("the trip edit warning explains the removed trip dates", async ({ page }) => {
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expect(
+    page.getByText(
+      /Your new trip dates will remove events \(along with their notes and documents\) you had planned for/i
+    )
+  ).toBeVisible();
+});
+
+When("I keep the displaced events as unscheduled", async ({ page }) => {
+  await page.getByRole("button", { name: "Keep Events" }).click();
+  await expect(page.getByRole("alertdialog")).not.toBeVisible({ timeout: 10_000 });
+});
+
+Then("the removed day's events are persisted as unscheduled", async ({ page }) => {
+  await expect(page.getByText("Unscheduled Events")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Final day booking")).toBeVisible();
+  await withE2EDb(async (db) => {
+    const remainingEvents = await db.select().from(events).where(eq(events.tripId, structuralTripId!));
+    const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
+    expect(tripDays).toHaveLength(1);
+    expect(remainingEvents).toHaveLength(1);
+    expect(remainingEvents[0].dayId).toBeNull();
+    expect(remainingEvents[0].displacedDate).toBe("2026-08-02");
+  });
+});
+
+When("I delete the displaced events", async ({ page }) => {
+  await page.getByRole("button", { name: "Remove Events" }).click();
+  await expect(page.getByRole("alertdialog")).not.toBeVisible({ timeout: 10_000 });
+});
+
+Then("the removed day's events are deleted after the date change", async ({ page }) => {
+  await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
     const remainingEvents = await db.select().from(events).where(eq(events.tripId, structuralTripId!));

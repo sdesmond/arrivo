@@ -53,12 +53,16 @@ next-env.d.ts
 
 # dev upload stubs
 /public/uploads/
+/drizzle/
 
 # bmad framework installation (reinstallable from manifest)
 _bmad/**
 !_bmad/_config/
 !_bmad/_config/manifest.yaml
 
+# AI Agents
 .opencode/plans/
+.claude/skills
+.claude/agents
 
 /coverage-out

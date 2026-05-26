@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { format, parseISO } from "date-fns";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
@@ -55,6 +56,19 @@ When("I press Escape", async ({ page }) => {
 Then("the sheet should close and focus should return to the edit button", async ({ page }) => {
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Edit" })).toBeFocused();
+});
+
+When("I close the trip edit sheet without saving", async ({ page }) => {
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+Then("the trip edit sheet shows the original dates", async ({ page }) => {
+  const originalRangeLabel = new RegExp(
+    `${format(parseISO(E2E_TRIP.startDate), "MMM d, yyyy")}.*${format(parseISO(E2E_TRIP.endDate), "MMM d, yyyy")}`
+  );
+
+  await expect(page.getByRole("dialog").getByRole("button", { name: originalRangeLabel }).first()).toBeVisible();
 });
 
 When("I navigate to the trips list", async ({ page }) => {

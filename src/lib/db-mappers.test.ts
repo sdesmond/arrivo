@@ -120,6 +120,7 @@ const BASE_EVENT: EventRow = {
   note: null,
   startAt: null,
   endAt: null,
+  displacedDate: null,
   locationName: null,
   locationAddress: null,
   locationLat: null,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Dialog as BaseUIDialog } from "@base-ui/react/dialog";
 import { Dialog, DialogPortal, DialogOverlay, DialogClose } from "@/components/ui/dialog";
 import { useIsMobile } from "@/lib/use-is-mobile";
@@ -211,16 +212,9 @@ export function DocViewer({ doc, open, onClose, finalFocusRef }: DocViewerProps)
               </div>
             )}
             {url && doc.kind === "image" && (
-              <img
-                src={url}
-                alt={doc.name}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  display: "block",
-                }}
-              />
+              <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                <Image src={url} alt={doc.name} fill unoptimized style={{ objectFit: "contain" }} />
+              </div>
             )}
             {url && doc.kind === "pdf" && !isMobileSafari && (
               <iframe

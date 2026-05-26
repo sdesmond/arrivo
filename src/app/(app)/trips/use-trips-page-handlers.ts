@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useTransition, startTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { type NewTripDraft, type TripListEntry, type UpdateTripPatch } from "@/data/types";
+import {
+  TripDateConflictResolution,
+  type NewTripDraft,
+  type TripDateChangeConfirmation,
+  type TripListEntry,
+  type UpdateTripMetadataResult,
+  type UpdateTripPatch,
+} from "@/data/types";
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { createTrip, updateTripMetadata } from "./actions";
 
@@ -12,7 +19,10 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [isCreating, startCreation] = useTransition();
+  const [savingTrip, startTripSave] = useTransition();
   const [pendingDraft, setPendingDraft] = useState<{ draft: NewTripDraft; dayCount: number } | null>(null);
+  const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
+  const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
 
   const unscheduledEntries: TripListEntry[] = [];
   const datedEntries: TripListEntry[] = [];
@@ -82,11 +92,47 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     });
   }
 
-  function handleTripSave(tripId: string, patch: UpdateTripPatch) {
-    startTransition(() => {
-      updateTripMetadata(tripId, patch);
-    });
+  function closeTripEditSheet(): void {
     setEditingTrip(null);
+    setPendingTripPatch(null);
+    setTripDateConfirmation(null);
+  }
+
+  function handleTripSave(
+    tripId: string,
+    patch: UpdateTripPatch,
+    resolution?: TripDateConflictResolution,
+    confirmation?: TripDateChangeConfirmation
+  ): Promise<UpdateTripMetadataResult | undefined> {
+    return new Promise((resolve) => {
+      startTripSave(async () => {
+        try {
+          const result = await updateTripMetadata(tripId, patch, resolution, confirmation);
+          if (result.status === "saved") {
+            closeTripEditSheet();
+          } else {
+            setPendingTripPatch(patch);
+            setTripDateConfirmation(result.confirmation);
+          }
+          resolve(result);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Failed to save trip changes. Please try again.");
+          resolve(undefined);
+        }
+      });
+    });
+  }
+
+  function handleTripSaveResolution(
+    resolution: TripDateConflictResolution
+  ): Promise<UpdateTripMetadataResult | undefined> | undefined {
+    if (!editingTrip || !pendingTripPatch || !tripDateConfirmation) return undefined;
+    return handleTripSave(editingTrip, pendingTripPatch, resolution, tripDateConfirmation);
+  }
+
+  function cancelTripDateChange(): void {
+    setPendingTripPatch(null);
+    setTripDateConfirmation(null);
   }
 
   const editingEntry = editingTrip ? (initialEntries.find((e) => e.trip.id === editingTrip) ?? null) : null;
@@ -100,15 +146,21 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     editingEntry,
     newTripOpen,
     isCreating,
+    savingTrip,
     pendingDraft,
+    pendingTripPatch,
+    tripDateConfirmation,
     mobileTab,
     nextInDays,
     setEditingTrip,
     setNewTripOpen,
     setPendingDraft,
     setMobileTab,
+    closeTripEditSheet,
+    cancelTripDateChange,
     handleCreate,
     handleTripSave,
+    handleTripSaveResolution,
     submitCreateTrip,
   };
 }
