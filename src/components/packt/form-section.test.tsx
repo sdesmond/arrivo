@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Section, Field } from "./form-section";
 
@@ -24,6 +24,10 @@ describe("Section", () => {
 });
 
 describe("Field", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders the label text as a span when no htmlFor", () => {
     render(<Field label="Name">input</Field>);
     const label = screen.getByText("Name");
@@ -74,6 +78,25 @@ describe("Field", () => {
       </Field>
     );
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("warns in development when error is set without htmlFor", () => {
+    try {
+      vi.stubEnv("NODE_ENV", "development");
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      render(
+        <Field label="Notes" error="Some error">
+          child
+        </Field>
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Field: error prop provided but htmlFor is absent. Errors are only rendered when htmlFor is specified."
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("does not render error element when error is empty string", () => {

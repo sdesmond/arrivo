@@ -16,6 +16,7 @@ import type {
 } from "@/data/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const COMPANION_LIMIT_EXCEEDED = "CAP_EXCEEDED";
 
 export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ error?: string }> {
   const session = await requireUser();
@@ -66,15 +67,17 @@ export async function addLoyaltyNumber(input: AddLoyaltyNumberInput): Promise<vo
   if (input.programName.length > 100) throw new Error("Program name must be 100 characters or fewer.");
   if (input.memberNumber.length > 50) throw new Error("Member number must be 50 characters or fewer.");
   const userId = session.id!;
-  const [{ nextPos }] = await db
-    .select({ nextPos: sql<number>`coalesce(max(${userLoyaltyNumbers.position}), -1) + 1` })
-    .from(userLoyaltyNumbers)
-    .where(eq(userLoyaltyNumbers.userId, userId));
-  await db.insert(userLoyaltyNumbers).values({
-    userId,
-    programName: input.programName,
-    memberNumber: input.memberNumber,
-    position: nextPos,
+  await db.transaction(async (transaction) => {
+    const [{ nextPos }] = await transaction
+      .select({ nextPos: sql<number>`coalesce(max(${userLoyaltyNumbers.position}), -1) + 1` })
+      .from(userLoyaltyNumbers)
+      .where(eq(userLoyaltyNumbers.userId, userId));
+    await transaction.insert(userLoyaltyNumbers).values({
+      userId,
+      programName: input.programName,
+      memberNumber: input.memberNumber,
+      position: nextPos,
+    });
   });
   revalidatePath("/profile");
 }
@@ -91,11 +94,13 @@ export async function addWishlistDestination(input: AddWishlistDestinationInput)
   const session = await requireUser();
   if (input.name.length > 100) throw new Error("Destination name must be 100 characters or fewer.");
   const userId = session.id!;
-  const [{ nextPos }] = await db
-    .select({ nextPos: sql<number>`coalesce(max(${userWishlistDestinations.position}), -1) + 1` })
-    .from(userWishlistDestinations)
-    .where(eq(userWishlistDestinations.userId, userId));
-  await db.insert(userWishlistDestinations).values({ userId, name: input.name, position: nextPos });
+  await db.transaction(async (transaction) => {
+    const [{ nextPos }] = await transaction
+      .select({ nextPos: sql<number>`coalesce(max(${userWishlistDestinations.position}), -1) + 1` })
+      .from(userWishlistDestinations)
+      .where(eq(userWishlistDestinations.userId, userId));
+    await transaction.insert(userWishlistDestinations).values({ userId, name: input.name, position: nextPos });
+  });
   revalidatePath("/profile");
 }
 
@@ -141,25 +146,32 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
   if (!trimmedName) return { error: "Companion name is required." };
   if (trimmedName.length > 50) return { error: "Companion name must be 50 characters or fewer." };
 
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(userCompanions)
-    .where(eq(userCompanions.userId, userId));
-  if (count >= 20) return { error: "Companion limit reached (20 maximum)." };
-
-  const [{ nextPos }] = await db
-    .select({ nextPos: sql<number>`coalesce(max(${userCompanions.position}), -1) + 1` })
-    .from(userCompanions)
-    .where(eq(userCompanions.userId, userId));
-
   try {
-    await db.insert(userCompanions).values({
-      userId,
-      name: trimmedName,
-      age: input.age ?? null,
-      position: nextPos,
+    await db.transaction(async (transaction) => {
+      const [{ count }] = await transaction
+        .select({ count: sql<number>`count(*)::int` })
+        .from(userCompanions)
+        .where(eq(userCompanions.userId, userId));
+      if (count >= 20) {
+        throw new Error(COMPANION_LIMIT_EXCEEDED);
+      }
+
+      const [{ nextPos }] = await transaction
+        .select({ nextPos: sql<number>`coalesce(max(${userCompanions.position}), -1) + 1` })
+        .from(userCompanions)
+        .where(eq(userCompanions.userId, userId));
+
+      await transaction.insert(userCompanions).values({
+        userId,
+        name: trimmedName,
+        age: input.age ?? null,
+        position: nextPos,
+      });
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === COMPANION_LIMIT_EXCEEDED) {
+      return { error: "Companion limit reached (20 maximum)." };
+    }
     return { error: "Something went wrong." };
   }
   revalidatePath("/profile");

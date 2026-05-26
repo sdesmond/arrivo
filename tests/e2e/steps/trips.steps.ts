@@ -6,10 +6,18 @@ import { eq } from "drizzle-orm";
 import { Given, When, Then, After } from "../fixtures";
 import { trips } from "../../../src/db/schema";
 import { E2E_TRIP } from "../e2e-seed-data";
+import { getTripIdOverride } from "./scenario-state";
 
 let tripNameMutated = false;
 
 Given("I have an existing trip", async ({ page }) => {
+  const overriddenTripId = getTripIdOverride();
+  if (overriddenTripId) {
+    await page.goto(`/trips/${overriddenTripId}`);
+    await page.waitForURL(/\/trips\/.+/);
+    return;
+  }
+
   const client = postgres(process.env.E2E_DATABASE_URL!);
   const db = drizzle(client);
   const [trip] = await db.select({ id: trips.id }).from(trips).where(eq(trips.startDate, E2E_TRIP.startDate));
