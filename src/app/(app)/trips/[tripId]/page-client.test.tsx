@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
 import type { TripDetailPayload } from "@/data/types";
+
+const { tripConfettiMock } = vi.hoisted(() => ({
+  tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
+    void tripId;
+    return null;
+  }),
+}));
 
 interface TripCoverProps {
   metaTag: string;
@@ -25,6 +32,10 @@ vi.mock("@/components/packt/trip-cover", () => ({
 
 vi.mock("./trip-detail-tab-body", () => ({
   TripDetailTabBody: () => <div>Itinerary body</div>,
+}));
+
+vi.mock("@/components/packt/trip-confetti", () => ({
+  TripConfetti: ({ tripId }: { tripId: string }) => tripConfettiMock({ tripId }),
 }));
 
 vi.mock("@/components/packt/trip-edit-sheet", () => ({
@@ -77,6 +88,30 @@ const baseDetail: TripDetailPayload = {
 };
 
 describe("TripDetailClient", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders TripConfetti for newly created trips", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" isNew />);
+
+    expect(tripConfettiMock).toHaveBeenCalledWith({ tripId: "trip-1" });
+  });
+
+  it("does not render TripConfetti when the trip is not new", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(tripConfettiMock).not.toHaveBeenCalled();
+  });
+
+  it("does not render TripConfetti when isNew is explicitly false", () => {
+    render(
+      <TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" isNew={false} />
+    );
+
+    expect(tripConfettiMock).not.toHaveBeenCalled();
+  });
+
   it("shows an unscheduled hero label when the trip has no dates", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 

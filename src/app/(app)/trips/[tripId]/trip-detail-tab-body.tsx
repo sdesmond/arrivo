@@ -13,6 +13,7 @@ export interface TripDetailTabBodyProps {
   docs: Document[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
+  isNew?: boolean;
   newlyCreatedChecklistId?: string;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -46,6 +47,7 @@ export function TripDetailTabBody({
   docs,
   dateFormat,
   initialExpandedDayNumber,
+  isNew,
   newlyCreatedChecklistId,
   onUpdateEvent,
   onDeleteEvent,
@@ -75,6 +77,7 @@ export function TripDetailTabBody({
           unscheduledEvents={unscheduledEvents}
           dateFormat={dateFormat}
           initialExpandedDayNumber={initialExpandedDayNumber}
+          isNew={isNew}
           tripDocs={docs.filter((document) => document.scope === "trip")}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import Link from "next/link";
 import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
+import { TripConfetti } from "@/components/packt/trip-confetti";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
@@ -32,6 +33,7 @@ interface TripDetailClientProps {
   nowISO: string;
   dateFormat: string;
   initialExpandedDayNumber?: number;
+  isNew?: boolean;
 }
 
 export function TripDetailClient({
@@ -39,6 +41,7 @@ export function TripDetailClient({
   nowISO,
   dateFormat,
   initialExpandedDayNumber,
+  isNew,
 }: TripDetailClientProps): ReactElement {
   const now = new Date(nowISO);
   useFocusScroll();
@@ -220,6 +223,7 @@ export function TripDetailClient({
             docs={docs}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}
+            isNew={isNew}
             newlyCreatedChecklistId={handlers.newlyCreatedChecklistId ?? undefined}
             onUpdateEvent={handlers.handleEventUpdate}
             onDeleteEvent={handlers.handleEventDelete}
@@ -256,6 +260,7 @@ export function TripDetailClient({
         onResolveDateChange={handleTripDateResolution}
         onCancelDateChange={handleTripDateResolutionCancel}
       />
+      {isNew ? <TripConfetti tripId={trip.id} /> : null}
     </div>
   );
 }

@@ -16,7 +16,7 @@ interface MockPlaceRowProps {
 
 vi.mock("@/components/packt/day-card", () => ({
   DayCard: ({ day, onRemove }: MockDayCardProps) => (
-    <section>
+    <section data-testid={`day-card-${day.dayNumber}`}>
       <span>{day.label}</span>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
     </section>
@@ -144,5 +144,35 @@ describe("TripItineraryView", () => {
     render(<TripItineraryView {...props} />);
 
     expect(screen.queryByText("Unscheduled Events")).not.toBeInTheDocument();
+  });
+
+  it("wraps each day card in a stagger animation container for new trips", () => {
+    const props = buildProps([dayOne, dayTwo]);
+    render(<TripItineraryView {...props} isNew />);
+
+    const firstWrapper = screen.getByTestId("day-card-1").parentElement;
+    const secondWrapper = screen.getByTestId("day-card-2").parentElement;
+
+    expect(firstWrapper).toHaveClass("animate-in");
+    expect(secondWrapper).toHaveClass("animate-in");
+  });
+
+  it("renders day cards without stagger animation when the trip is not new", () => {
+    const props = buildProps([dayOne, dayTwo]);
+    render(<TripItineraryView {...props} isNew={false} />);
+
+    const firstWrapper = screen.getByTestId("day-card-1").parentElement;
+    const secondWrapper = screen.getByTestId("day-card-2").parentElement;
+
+    expect(firstWrapper).not.toHaveClass("animate-in");
+    expect(secondWrapper).not.toHaveClass("animate-in");
+  });
+
+  it("renders the empty state without stagger wrappers when there are no days", () => {
+    const props = buildProps([]);
+    render(<TripItineraryView {...props} isNew />);
+
+    expect(screen.getByText("No itinerary yet")).toBeInTheDocument();
+    expect(screen.queryByTestId("day-card-stagger-1")).not.toBeInTheDocument();
   });
 });

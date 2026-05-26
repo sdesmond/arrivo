@@ -5,7 +5,7 @@ import { inArray } from "drizzle-orm";
 import { trips } from "../../../src/db/schema";
 import { When, Then, After } from "../fixtures";
 
-const CREATED_TRIP_NAMES = ["E2E Date Trip", "E2E Dateless Trip", "E2E Pending Trip"];
+const CREATED_TRIP_NAMES = ["E2E Date Trip", "E2E Animated Trip", "E2E Dateless Trip", "E2E Pending Trip"];
 
 async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -66,8 +66,16 @@ Then("I am on the trip detail page for {string}", async ({ page }, title: string
 });
 
 Then("Day 1 is expanded", async ({ page }) => {
-  const dayOneToggle = page.getByRole("button", { name: /Day 1|Aug 1/i }).first();
+  const dayOneToggle = page
+    .locator("button[aria-expanded]")
+    .filter({ hasText: /Day 1|Aug 1/i })
+    .first();
   await expect(dayOneToggle).toHaveAttribute("aria-expanded", "true");
+});
+
+Then("the day cards have the stagger animation class", async ({ page }) => {
+  const animatedCard = page.locator('[data-testid^="day-card-stagger"]').first();
+  await expect(animatedCard).toBeVisible({ timeout: 10_000 });
 });
 
 Then("the itinerary shows the empty state", async ({ page }) => {

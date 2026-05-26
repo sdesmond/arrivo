@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, FileText, ListChecks, MapPin, Plus } from "lucide-react";
+import { CalendarDays, FileText, ListChecks, MapPin, Plus } from "lucide-react";
 import { DayCard } from "@/components/packt/day-card";
-import { PlaceRow } from "@/components/packt/place-row";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import {
@@ -18,13 +17,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/types";
-import { formatDate } from "@/lib/utils";
+import { UnscheduledEventsSection } from "./unscheduled-events-section";
 
 export interface TripItineraryViewProps {
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
   dateFormat?: string;
   initialExpandedDayNumber?: number;
+  isNew?: boolean;
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -61,6 +61,7 @@ export function TripItineraryView({
   unscheduledEvents,
   dateFormat,
   initialExpandedDayNumber,
+  isNew,
   tripDocs,
   onUpdateEvent,
   onDeleteEvent,
@@ -84,22 +85,7 @@ export function TripItineraryView({
   removingDay,
 }: TripItineraryViewProps): ReactElement {
   const [removalConfirmation, setRemovalConfirmation] = useState<RemovalConfirmation | null>(null);
-  const [unscheduledOpen, setUnscheduledOpen] = useState(true);
-
-  const groupedUnscheduledEvents = unscheduledEvents.reduce<Record<string, TripEvent[]>>((groups, event) => {
-    const groupKey = event.displacedDate ?? "no-date";
-    groups[groupKey] = [...(groups[groupKey] ?? []), event];
-    groups[groupKey].sort((first, second) => first.position - second.position);
-    return groups;
-  }, {});
-
-  const groupedUnscheduledEntries: Array<[string, TripEvent[]]> = Object.entries(groupedUnscheduledEvents).sort(
-    ([firstDate], [secondDate]) => {
-      if (firstDate === "no-date") return 1;
-      if (secondDate === "no-date") return -1;
-      return firstDate.localeCompare(secondDate);
-    }
-  );
+  const [initialRenderDayCount] = useState(() => days.length);
 
   if (days.length === 0 && unscheduledEvents.length === 0) {
     return (
@@ -152,104 +138,57 @@ export function TripItineraryView({
   return (
     <>
       <div>
-        {unscheduledEvents.length > 0 && (
-          <div
-            className="mb-4 overflow-hidden"
-            style={{
-              borderRadius: 14,
-              border: "1px solid var(--line)",
-              background: "var(--surface)",
-            }}
-          >
-            <button
-              className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left"
-              onClick={() => setUnscheduledOpen((value) => !value)}
-              title={unscheduledOpen ? "Collapse unscheduled events" : "Expand unscheduled events"}
-              style={{ background: "none", border: "none" }}
-            >
-              <div>
-                <div style={{ fontSize: "calc(15px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
-                  Unscheduled Events
-                </div>
-                <div style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)" }}>
-                  Preserved from removed trip dates
-                </div>
-              </div>
-              <div className="flex items-center gap-3" style={{ color: "var(--fg-3)" }}>
-                <span style={{ fontSize: "calc(12px * var(--font-scale))" }}>
-                  {unscheduledEvents.length} event{unscheduledEvents.length === 1 ? "" : "s"}
-                </span>
-                {unscheduledOpen ? (
-                  <ChevronDown size={16} strokeWidth={1.5} />
-                ) : (
-                  <ChevronRight size={16} strokeWidth={1.5} />
-                )}
-              </div>
-            </button>
+        <UnscheduledEventsSection
+          unscheduledEvents={unscheduledEvents}
+          dateFormat={dateFormat}
+          tripDocs={tripDocs}
+          onUpdateEvent={onUpdateEvent}
+          onDeleteEvent={onDeleteEvent}
+        />
+        {days.map((day, index) => {
+          const dayCard = (
+            <DayCard
+              key={day.dayNumber}
+              day={day}
+              dateFormat={dateFormat}
+              initialOpen={initialExpandedDayNumber === day.dayNumber}
+              tripDocs={tripDocs}
+              onUpdateEvent={onUpdateEvent}
+              onDeleteEvent={onDeleteEvent}
+              onReorderDayItems={onReorderDayItems}
+              onUpdateDay={onUpdateDay}
+              onAddEvent={onAddEvent}
+              onAddNote={onAddNote}
+              onUpdateNote={onUpdateNote}
+              onDeleteNote={onDeleteNote}
+              onAddChecklist={onAddChecklist}
+              newlyCreatedChecklistId={newlyCreatedChecklistId}
+              onUpdateChecklistTitle={onUpdateChecklistTitle}
+              onDeleteChecklist={onDeleteChecklist}
+              onAddChecklistItem={onAddChecklistItem}
+              onUpdateChecklistItem={onUpdateChecklistItem}
+              onDeleteChecklistItem={onDeleteChecklistItem}
+              onToggleChecklistItem={onToggleChecklistItem}
+              onRemove={day.dayNumber === lastDay?.dayNumber ? requestLastDayRemoval : undefined}
+              removeDisabled={removingDay || addingDay}
+            />
+          );
 
-            {unscheduledOpen && (
-              <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--line)" }}>
-                {groupedUnscheduledEntries.map(([dateKey, eventsForDate]) => (
-                  <div key={dateKey} className="pt-3">
-                    <div
-                      className="px-3 pb-2"
-                      style={{
-                        fontSize: "calc(11px * var(--font-scale))",
-                        fontWeight: 600,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "var(--fg-3)",
-                      }}
-                    >
-                      {dateKey === "no-date"
-                        ? "Original date unavailable"
-                        : formatDate(dateKey, dateFormat ?? "MM/DD/YYYY")}
-                    </div>
-                    {eventsForDate.map((event, index) => (
-                      <PlaceRow
-                        key={event.id}
-                        id={`unscheduled-event-${event.id}`}
-                        place={event}
-                        dayDate={event.startAt?.slice(0, 10) ?? event.displacedDate}
-                        isLast={index === eventsForDate.length - 1}
-                        onUpdate={onUpdateEvent}
-                        onDelete={onDeleteEvent}
-                        tripDocs={tripDocs}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {days.map((day) => (
-          <DayCard
-            key={day.dayNumber}
-            day={day}
-            dateFormat={dateFormat}
-            initialOpen={initialExpandedDayNumber === day.dayNumber}
-            tripDocs={tripDocs}
-            onUpdateEvent={onUpdateEvent}
-            onDeleteEvent={onDeleteEvent}
-            onReorderDayItems={onReorderDayItems}
-            onUpdateDay={onUpdateDay}
-            onAddEvent={onAddEvent}
-            onAddNote={onAddNote}
-            onUpdateNote={onUpdateNote}
-            onDeleteNote={onDeleteNote}
-            onAddChecklist={onAddChecklist}
-            newlyCreatedChecklistId={newlyCreatedChecklistId}
-            onUpdateChecklistTitle={onUpdateChecklistTitle}
-            onDeleteChecklist={onDeleteChecklist}
-            onAddChecklistItem={onAddChecklistItem}
-            onUpdateChecklistItem={onUpdateChecklistItem}
-            onDeleteChecklistItem={onDeleteChecklistItem}
-            onToggleChecklistItem={onToggleChecklistItem}
-            onRemove={day.dayNumber === lastDay?.dayNumber ? requestLastDayRemoval : undefined}
-            removeDisabled={removingDay || addingDay}
-          />
-        ))}
+          if (!(isNew === true && index < initialRenderDayCount)) {
+            return dayCard;
+          }
+
+          return (
+            <div
+              key={day.dayNumber}
+              data-testid={`day-card-stagger-${day.dayNumber}`}
+              className="animate-in fade-in slide-in-from-bottom-4 fill-mode-backwards duration-300"
+              style={{ animationDelay: `${index * 160}ms` }}
+            >
+              {dayCard}
+            </div>
+          );
+        })}
         {days.length > 0 && (
           <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
             <Plus data-icon="inline-start" strokeWidth={1.5} />
