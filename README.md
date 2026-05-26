@@ -19,27 +19,7 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## AI Skills & Agents Setup
 
-AI assistant workflows live in one shared source of truth: `.claude/skills/`.
-The `.agents/skills` path is a Git-tracked symbolic link to `../.claude/skills`, which lets Claude Code and Codex use the same skills without duplicating files.
-
-Changing a skill from either path updates it for both assistants.
-
-```text
-.claude/
-└── skills/          # Shared AI skills and workflows
-
-.agents/
-└── skills -> ../.claude/skills
-```
-
-> **⚠️ Important Note for Windows Users:**
-> Windows handles symlinks strictly. Before cloning this repository, enable **Developer Mode** in Windows System Settings and configure Git to preserve symlinks:
->
-> ```bash
-> git config --global core.symlinks true
-> ```
->
-> This must be set before cloning so Git resolves `.agents/skills` as a symbolic link instead of a regular directory or shortcut.
+AI skills are at `.agents/skills`. See [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) for instructions on ensuring Claude Code can see the provided skills without duplicating them.
 
 ## Self-hosting
 
