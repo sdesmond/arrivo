@@ -7,62 +7,63 @@
 ## Prerequisites
 
 - Node.js 20+
-- PostgreSQL 15+ running locally (or a hosted connection string)
+- npm
+- One of:
+  - Docker with `docker compose`
+  - PostgreSQL 15+ with `psql`
 
 ---
 
-## 1. Install dependencies
+## 1. Bootstrap the repo
 
 ```bash
-npm install
+npm run setup:dev
+```
+
+The script:
+
+- installs npm dependencies
+- installs the Playwright Chromium browser used by E2E
+- creates or updates `.env`
+- configures `.claude/skills` and `.claude/agents` to point at `.agents/*`
+- prepares the main and E2E databases
+- runs `npm run db:push`
+- runs `npm run db:seed`
+- runs `npm run db:migrate:e2e`
+
+By default the script auto-detects the database backend:
+
+- prefers Docker when `docker compose` is available
+- otherwise uses local PostgreSQL when `psql` is available
+
+You can force the mode explicitly:
+
+```bash
+npm run setup:dev -- --db=docker
+npm run setup:dev -- --db=local
+```
+
+Native wrappers:
+
+```bash
+./setup-dev.sh docker
+./setup-dev.sh local
+```
+
+```powershell
+.\setup-dev.ps1 -Db docker
+.\setup-dev.ps1 -Db local
 ```
 
 ---
 
-## 2. Configure environment variables
+## 2. Start the dev server
 
 ```bash
-cp .env.example .env
+npm run dev
 ```
 
-| Variable          | Description                  | Example default                               |
-| ----------------- | ---------------------------- | --------------------------------------------- |
-| `DATABASE_URL`    | PostgreSQL connection string | `postgres://packt:packt@localhost:5432/packt` |
-| `NEXTAUTH_URL`    | Full URL of the app          | `http://localhost:3000`                       |
-| `NEXTAUTH_SECRET` | Random secret ≥ 32 bytes     | run `openssl rand -base64 32`                 |
-| `ALLOW_SIGNUP`    | Expose the sign-up page      | `true`                                        |
-
----
-
-## 3. Create the PostgreSQL database
-
-If using the default connection string, create the role and database first:
-
-```bash
-psql -U postgres -c "CREATE USER packt WITH PASSWORD 'packt';"
-psql -U postgres -c "CREATE DATABASE packt OWNER packt;"
-```
-
----
-
-## 4. Apply the schema
-
-Push the Drizzle schema directly to the database (recommended for local dev):
-
-```bash
-npm run db:push
-```
-
-This repo is intentionally using a pre-release `push` workflow right now.
-Tracked `drizzle/` migrations return at production cutover, not during day-to-day local setup.
-
----
-
-## 5. Seed demo data
-
-```bash
-npm run db:seed
-```
+Visit [http://localhost:3000](http://localhost:3000) and sign in with the demo credentials.
 
 Creates one demo user and two fully populated sample trips (Tokyo 2026, Lisbon 2026).
 
@@ -77,13 +78,60 @@ The seed is idempotent — safe to run multiple times; exits early if the demo u
 
 ---
 
-## 6. Start the dev server
+## 3. Environment variables
+
+`npm run setup:dev` creates `.env` from `.env.example`, preserves existing non-empty values, generates `NEXTAUTH_SECRET` when needed, and sets database URLs for the selected backend.
+
+| Variable                | Description                                      | Example default                                   |
+| ----------------------- | ------------------------------------------------ | ------------------------------------------------- |
+| `DATABASE_URL`          | PostgreSQL connection string                     | `postgres://packt:packt@localhost:5432/packt`     |
+| `E2E_DATABASE_URL`      | Dedicated PostgreSQL connection string for E2E   | `postgres://packt:packt@localhost:5432/packt_e2e` |
+| `NEXTAUTH_URL`          | Full URL of the app                              | `http://localhost:3000`                           |
+| `NEXTAUTH_SECRET`       | Random secret ≥ 32 bytes                         | generated automatically                           |
+| `ALLOW_SIGNUP`          | Expose the sign-up page                          | `true`                                            |
+| `E2E_EMAIL`             | E2E login email                                  | `e2e@packt.local`                                 |
+| `E2E_PASSWORD`          | E2E login password                               | `e2e1234`                                         |
+| `HIDE_OVERLAY`          | Hides the Next.js dev overlay indicator          | `true`                                            |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob token for real uploads               | blank                                             |
+| `UPLOAD_STUB`           | Local file upload fallback when blob token blank | `true`                                            |
+
+If `BLOB_READ_WRITE_TOKEN` is blank, local uploads are written under `public/uploads`.
+
+---
+
+## 4. Manual fallback
+
+If you prefer to run the steps yourself instead of using the bootstrap script:
 
 ```bash
-npm run dev
+npm install
+cp .env.example .env
 ```
 
-Visit [http://localhost:3000](http://localhost:3000) and sign in with the demo credentials.
+If using local PostgreSQL and the default connection string:
+
+```bash
+psql -d postgres -c "CREATE ROLE packt LOGIN PASSWORD 'packt';"
+psql -d postgres -c "CREATE DATABASE packt OWNER packt;"
+psql -d postgres -c "CREATE DATABASE packt_e2e OWNER packt;"
+```
+
+If using Docker:
+
+```bash
+docker compose up -d db
+```
+
+Then finish with:
+
+```bash
+npm run db:push
+npm run db:seed
+npm run db:migrate:e2e
+```
+
+This repo is intentionally using a pre-release `push` workflow right now.
+Tracked `drizzle/` migrations return at production cutover, not during day-to-day local setup.
 
 ---
 
@@ -113,8 +161,8 @@ All child tables cascade-delete from `trips`.
 ## Resetting to a clean state
 
 ```bash
-psql -U postgres -c "DROP DATABASE packt;"
-psql -U postgres -c "CREATE DATABASE packt OWNER packt;"
+psql -d postgres -c "DROP DATABASE packt;"
+psql -d postgres -c "CREATE DATABASE packt OWNER packt;"
 npm run db:push
 npm run db:seed
 ```

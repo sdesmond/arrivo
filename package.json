@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "setup:dev": "node scripts/setup-dev.mjs",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run db:reset:e2e && npm run db:migrate:e2e && bddgen && playwright test",
