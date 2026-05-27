@@ -1,5 +1,6 @@
 import {
   trips,
+  users,
   events,
   documents,
   collaborators,
@@ -13,6 +14,7 @@ import {
 import { getTripStatus } from "@/lib/utils";
 import type {
   Trip,
+  UserProfile,
   TripEvent,
   Document,
   Collaborator,
@@ -24,6 +26,9 @@ import type {
   WishlistDestination,
   Companion,
 } from "@/data/types";
+import { CoverType } from "@/data/types";
+
+const VALID_COVER_TYPES = Object.values(CoverType);
 
 export function dbTripToType(row: typeof trips.$inferSelect): Trip {
   return {
@@ -33,6 +38,9 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
     endDate: row.endDate ?? undefined,
     status: getTripStatus(row.startDate, row.endDate),
     coverImageUrl: row.coverImageUrl ?? undefined,
+    destinationName: row.destinationName ?? undefined,
+    destinationCountry: row.destinationCountry ?? undefined,
+    destinationCountryCode: row.destinationCountryCode ?? undefined,
     notes: row.notes ?? undefined,
     budget: row.budgetTotal
       ? {
@@ -42,6 +50,27 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
         }
       : undefined,
     tags: row.tags ?? [],
+  };
+}
+
+export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
+  return {
+    id: row.id,
+    name: row.name ?? null,
+    email: row.email ?? "",
+    dateFormat: row.dateFormat ?? null,
+    currency: row.currency ?? null,
+    distanceUnit: row.distanceUnit ?? null,
+    passportNumber: row.passportNumber ?? null,
+    passportExpiry: row.passportExpiry ?? null,
+    passportNationality: row.passportNationality ?? null,
+    knownTravelerNumber: row.knownTravelerNumber ?? null,
+    defaultCoverType: VALID_COVER_TYPES.includes(row.defaultCoverType ?? "")
+      ? (row.defaultCoverType as CoverType)
+      : undefined,
+    loyaltyNumbers: [],
+    wishlistDestinations: [],
+    companions: [],
   };
 }
 
