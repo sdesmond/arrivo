@@ -26,8 +26,8 @@ export function DocsBlock({ docs, onAdd }: DocsBlockProps) {
         DOCS
       </div>
       <div className="flex flex-col gap-1.5">
-        {docs.map((d) => (
-          <EventDocRow key={d.id} doc={d} />
+        {docs.map((doc) => (
+          <EventDocRow key={doc.id} doc={doc} />
         ))}
         <button
           onClick={onAdd}

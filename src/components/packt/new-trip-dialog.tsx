@@ -101,8 +101,8 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
 
             <Section title="Dates">
               <DateRangePicker
-                from={draft.startDate}
-                to={draft.endDate}
+                start={draft.startDate}
+                end={draft.endDate}
                 placeholder="Optional date range"
                 onChange={(startDate, endDate) => setDraft((prev) => ({ ...prev, startDate, endDate }))}
               />

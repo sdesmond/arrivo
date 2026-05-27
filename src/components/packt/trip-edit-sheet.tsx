@@ -166,12 +166,12 @@ export function TripEditSheet({
 
             <Section title="Dates">
               <DateRangePicker
-                from={draft.startDate || undefined}
-                to={draft.endDate || undefined}
+                start={draft.startDate || undefined}
+                end={draft.endDate || undefined}
                 disabled={isBusy}
-                onChange={(from, to) => {
-                  set("startDate", from);
-                  set("endDate", to);
+                onChange={(start, end) => {
+                  set("startDate", start);
+                  set("endDate", end);
                 }}
               />
             </Section>

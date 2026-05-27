@@ -26,87 +26,87 @@ interface TripsPageClientProps {
 
 export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPageClientProps) {
   const now = new Date(nowISO);
-  const h = useTripsPageHandlers(initialEntries, now);
-  const editingTripId = h.editingEntry?.trip.id;
+  const handlers = useTripsPageHandlers(initialEntries, now);
+  const editingTripId = handlers.editingEntry?.trip.id;
 
   return (
     <>
       <TripsDesktopLayout
-        activeEntry={h.activeEntry}
-        upcomingTrips={h.upcomingTrips}
-        pastTrips={h.pastTrips}
-        unscheduledEntries={h.unscheduledEntries}
+        activeEntry={handlers.activeEntry}
+        upcomingTrips={handlers.upcomingTrips}
+        pastTrips={handlers.pastTrips}
+        unscheduledEntries={handlers.unscheduledEntries}
         now={now}
         dateFormat={dateFormat}
-        nextInDays={h.nextInDays}
-        onNewTrip={() => h.setNewTripOpen(true)}
-        onEditTrip={h.setEditingTrip}
-        onDeleteTrip={(trip) => h.setDeletingTrip(trip)}
+        nextInDays={handlers.nextInDays}
+        onNewTrip={() => handlers.setNewTripOpen(true)}
+        onEditTrip={handlers.setEditingTrip}
+        onDeleteTrip={(trip) => handlers.setDeletingTrip(trip)}
       />
       <TripsMobileLayout
-        activeEntry={h.activeEntry}
-        upcomingTrips={h.upcomingTrips}
-        pastTrips={h.pastTrips}
-        unscheduledEntries={h.unscheduledEntries}
+        activeEntry={handlers.activeEntry}
+        upcomingTrips={handlers.upcomingTrips}
+        pastTrips={handlers.pastTrips}
+        unscheduledEntries={handlers.unscheduledEntries}
         now={now}
         dateFormat={dateFormat}
-        mobileTab={h.mobileTab}
-        onTabChange={h.setMobileTab}
-        onNewTrip={() => h.setNewTripOpen(true)}
-        onEditTrip={(trip) => h.setEditingTrip(trip.id)}
-        onDeleteTrip={(trip) => h.setDeletingTrip(trip)}
+        mobileTab={handlers.mobileTab}
+        onTabChange={handlers.setMobileTab}
+        onNewTrip={() => handlers.setNewTripOpen(true)}
+        onEditTrip={(trip) => handlers.setEditingTrip(trip.id)}
+        onDeleteTrip={(trip) => handlers.setDeletingTrip(trip)}
       />
       <TripEditSheet
-        key={h.editingTrip ?? "none"}
-        trip={h.editingEntry?.trip ?? null}
-        open={h.editingTrip !== null}
-        onClose={h.closeTripEditSheet}
+        key={handlers.editingTrip ?? "none"}
+        trip={handlers.editingEntry?.trip ?? null}
+        open={handlers.editingTrip !== null}
+        onClose={handlers.closeTripEditSheet}
         onSave={async (patch) => {
-          if (!h.editingTrip) return;
-          await h.handleTripSave(h.editingTrip, patch);
+          if (!handlers.editingTrip) return;
+          await handlers.handleTripSave(handlers.editingTrip, patch);
         }}
-        saving={h.savingTrip}
+        saving={handlers.savingTrip}
         dateFormat={dateFormat}
-        dateChangeConfirmation={h.tripDateConfirmation}
+        dateChangeConfirmation={handlers.tripDateConfirmation}
         onResolveDateChange={async (resolution) => {
-          await h.handleTripSaveResolution(resolution);
+          await handlers.handleTripSaveResolution(resolution);
         }}
-        onCancelDateChange={h.cancelTripDateChange}
-        onDelete={editingTripId ? () => h.handleConfirmDeleteTrip(editingTripId) : undefined}
-        isDeleting={h.isDeleting}
+        onCancelDateChange={handlers.cancelTripDateChange}
+        onDelete={editingTripId ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
+        isDeleting={handlers.isDeleting}
       />
       <DeleteTripAlertDialog
-        tripName={h.deletingTrip?.name ?? ""}
-        open={h.deletingTrip !== null}
+        tripName={handlers.deletingTrip?.name ?? ""}
+        open={handlers.deletingTrip !== null}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
-            h.setDeletingTrip(null);
+            handlers.setDeletingTrip(null);
           }
         }}
-        onConfirm={() => h.handleConfirmDeleteTrip(h.deletingTrip?.id)}
-        isDeleting={h.isDeleting}
+        onConfirm={() => handlers.handleConfirmDeleteTrip(handlers.deletingTrip?.id)}
+        isDeleting={handlers.isDeleting}
       />
       <NewTripDialog
-        open={h.newTripOpen}
-        onOpenChange={h.setNewTripOpen}
-        onCreate={h.handleCreate}
-        isPending={h.isCreating}
+        open={handlers.newTripOpen}
+        onOpenChange={handlers.setNewTripOpen}
+        onCreate={handlers.handleCreate}
+        isPending={handlers.isCreating}
       />
-      <AlertDialog open={h.pendingDraft !== null} onOpenChange={() => h.setPendingDraft(null)}>
+      <AlertDialog open={handlers.pendingDraft !== null} onOpenChange={() => handlers.setPendingDraft(null)}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>Long trip</AlertDialogTitle>
             <AlertDialogDescription>
-              This trip spans {h.pendingDraft?.dayCount} days. Are you sure you want to continue?
+              This trip spans {handlers.pendingDraft?.dayCount} days. Are you sure you want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (h.pendingDraft) {
-                  h.submitCreateTrip(h.pendingDraft.draft);
-                  h.setPendingDraft(null);
+                if (handlers.pendingDraft) {
+                  handlers.submitCreateTrip(handlers.pendingDraft.draft);
+                  handlers.setPendingDraft(null);
                 }
               }}
             >

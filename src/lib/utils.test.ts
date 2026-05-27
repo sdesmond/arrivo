@@ -206,13 +206,13 @@ describe("formatDate", () => {
 
 describe("toHHMM", () => {
   it("formats an ISO datetime to HH:mm format", () => {
-    const d = new Date(2026, 4, 19, 9, 5); // May 19, 09:05 local
-    expect(toHHMM(d.toISOString())).toMatch(/^\d{2}:\d{2}$/);
+    const date = new Date(2026, 4, 19, 9, 5); // May 19, 09:05 local
+    expect(toHHMM(date.toISOString())).toMatch(/^\d{2}:\d{2}$/);
   });
 
   it("zero-pads single-digit hours and minutes", () => {
-    const d = new Date(2026, 0, 1, 3, 7); // 03:07 local
-    const result = toHHMM(d.toISOString());
+    const date = new Date(2026, 0, 1, 3, 7); // 03:07 local
+    const result = toHHMM(date.toISOString());
     const [hh, mm] = result.split(":");
     expect(hh).toHaveLength(2);
     expect(mm).toHaveLength(2);

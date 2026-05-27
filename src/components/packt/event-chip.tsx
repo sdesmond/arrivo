@@ -7,16 +7,16 @@ import { IconSize } from "@/lib/size-tokens";
 import { type TripEvent } from "@/data/types";
 
 interface EventChipProps {
-  ev: TripEvent;
+  event: TripEvent;
   tripId: string;
   now: Date;
 }
 
-export function EventChip({ ev, tripId, now }: EventChipProps) {
-  const isNow = isEventNow(ev, now);
-  const isPast = isEventPast(ev, now);
-  const timeStr = ev.startAt
-    ? new Date(ev.startAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+export function EventChip({ event, tripId, now }: EventChipProps) {
+  const isNow = isEventNow(event, now);
+  const isPast = isEventPast(event, now);
+  const timeStr = event.startAt
+    ? new Date(event.startAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
     : "";
 
   return (
@@ -32,7 +32,7 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
         background: isNow ? "var(--accent-soft)" : undefined,
         borderColor: isNow ? "var(--accent-brand)" : undefined,
       }}
-      title={`Open ${ev.name} in day planner`}
+      title={`Open ${event.name} in day planner`}
     >
       <div
         style={{
@@ -59,7 +59,7 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
           lineHeight: 1.2,
         }}
       >
-        {ev.name}
+        {event.name}
       </div>
     </Link>
   );

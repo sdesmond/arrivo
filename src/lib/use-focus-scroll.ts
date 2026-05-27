@@ -9,8 +9,8 @@ export function useFocusScroll() {
 
   useEffect(() => {
     if (!focusId) return;
-    const el = document.getElementById(`event-${focusId}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    (el as HTMLElement | null)?.focus();
+    const element = document.getElementById(`event-${focusId}`);
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    (element as HTMLElement | null)?.focus();
   }, [focusId]);
 }

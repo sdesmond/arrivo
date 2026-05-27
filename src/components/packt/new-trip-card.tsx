@@ -19,14 +19,14 @@ export function NewTripCard({ onNewTrip }: NewTripCardProps) {
         cursor: "pointer",
       }}
       onMouseEnter={(e) => {
-        const el = e.currentTarget;
-        el.style.borderColor = "var(--accent-brand)";
-        el.style.background = "var(--accent-soft)";
+        const element = e.currentTarget;
+        element.style.borderColor = "var(--accent-brand)";
+        element.style.background = "var(--accent-soft)";
       }}
       onMouseLeave={(e) => {
-        const el = e.currentTarget;
-        el.style.borderColor = "var(--line-strong)";
-        el.style.background = "transparent";
+        const element = e.currentTarget;
+        element.style.borderColor = "var(--line-strong)";
+        element.style.background = "transparent";
       }}
     >
       <span

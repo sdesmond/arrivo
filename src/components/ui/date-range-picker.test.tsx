@@ -46,7 +46,7 @@ vi.mock("@/components/ui/calendar", () => ({
 }));
 
 describe("DateRangePicker", () => {
-  let onChange: (from: string | undefined, to: string | undefined) => void;
+  let onChange: (start: string | undefined, end: string | undefined) => void;
 
   beforeEach(() => {
     onChange = vi.fn();
@@ -60,29 +60,29 @@ describe("DateRangePicker", () => {
   });
 
   it("shows formatted range when both from and to are set", () => {
-    render(<DateRangePicker from="2026-06-01" to="2026-06-10" onChange={onChange} />);
+    render(<DateRangePicker start="2026-06-01" end="2026-06-10" onChange={onChange} />);
     expect(screen.getByText(/Jun 1, 2026/)).toBeInTheDocument();
     expect(screen.getByText(/Jun 10, 2026/)).toBeInTheDocument();
   });
 
   it("shows only from date when to is not set", () => {
-    render(<DateRangePicker from="2026-06-01" onChange={onChange} />);
+    render(<DateRangePicker start="2026-06-01" onChange={onChange} />);
     expect(screen.getByText("Jun 1, 2026")).toBeInTheDocument();
   });
 
   it("shows clear button when from is set", () => {
-    render(<DateRangePicker from="2026-06-01" onChange={onChange} />);
+    render(<DateRangePicker start="2026-06-01" onChange={onChange} />);
     expect(screen.getByRole("button", { name: /clear dates/i })).toBeInTheDocument();
   });
 
   it("shows clear button when to is set", () => {
-    render(<DateRangePicker to="2026-06-10" onChange={onChange} />);
+    render(<DateRangePicker end="2026-06-10" onChange={onChange} />);
     expect(screen.getByRole("button", { name: /clear dates/i })).toBeInTheDocument();
   });
 
   it("calls onChange(undefined, undefined) when clear is clicked", async () => {
     const user = userEvent.setup();
-    render(<DateRangePicker from="2026-06-01" to="2026-06-10" onChange={onChange} />);
+    render(<DateRangePicker start="2026-06-01" end="2026-06-10" onChange={onChange} />);
     await user.click(screen.getByRole("button", { name: /clear dates/i }));
     expect(onChange).toHaveBeenCalledWith(undefined, undefined);
   });
@@ -112,7 +112,7 @@ describe("DateRangePicker", () => {
     const user = userEvent.setup();
     // Props supply a complete range; mock simulates react-day-picker returning
     // { from: Jul1, to: Jun10 } — "from" changed, "to" stayed, so Jul1 was clicked.
-    render(<DateRangePicker from="2026-06-01" to="2026-06-10" onChange={onChange} />);
+    render(<DateRangePicker start="2026-06-01" end="2026-06-10" onChange={onChange} />);
     await user.click(screen.getByTestId("calendar-prefilled-click"));
     expect(onChange).toHaveBeenCalledWith("2026-07-01", undefined);
   });

@@ -22,12 +22,17 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
   const [isPending, startTransition] = useTransition();
   const [justSaved, setJustSaved] = useState(false);
 
-  function computeDirty(pn: string, pe: string | undefined, pnat: string, ktn: string) {
+  function computeDirty(
+    passportNumber: string,
+    passportExpiry: string | undefined,
+    passportNationality: string,
+    knownTravelerNumber: string
+  ) {
     return (
-      pn !== (user.passportNumber ?? "") ||
-      pe !== (user.passportExpiry ?? undefined) ||
-      pnat !== (user.passportNationality ?? "") ||
-      ktn !== (user.knownTravelerNumber ?? "")
+      passportNumber !== (user.passportNumber ?? "") ||
+      passportExpiry !== (user.passportExpiry ?? undefined) ||
+      passportNationality !== (user.passportNationality ?? "") ||
+      knownTravelerNumber !== (user.knownTravelerNumber ?? "")
     );
   }
 

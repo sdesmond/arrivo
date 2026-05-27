@@ -32,15 +32,15 @@ export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardPr
       : "No dates";
 
   const currentEvent =
-    [...todayEvents].reverse().find((ev) => {
-      if (!ev.startAt) return false;
-      return new Date(ev.startAt) <= now;
+    [...todayEvents].reverse().find((event) => {
+      if (!event.startAt) return false;
+      return new Date(event.startAt) <= now;
     }) ?? null;
 
   const nextEvent =
-    todayEvents.find((ev) => {
-      if (!ev.startAt) return false;
-      return new Date(ev.startAt) > now;
+    todayEvents.find((event) => {
+      if (!event.startAt) return false;
+      return new Date(event.startAt) > now;
     }) ?? null;
 
   const displayEvent = currentEvent ?? nextEvent;

@@ -31,8 +31,8 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
 
   useEffect(() => {
     if (open && mode === "pick") {
-      const t = setTimeout(() => firstItemRef.current?.focus(), 50);
-      return () => clearTimeout(t);
+      const timeoutId = setTimeout(() => firstItemRef.current?.focus(), 50);
+      return () => clearTimeout(timeoutId);
     }
   }, [open, mode]);
 
