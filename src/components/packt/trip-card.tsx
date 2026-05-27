@@ -17,8 +17,8 @@ import { useNow } from "@/components/providers/mock-date-provider";
 
 interface TripCardProps {
   trip: Trip;
-  onEditTrip?: (trip: Trip) => void;
-  onDeleteTrip?: (trip: Trip) => void;
+  onEditTrip: (trip: Trip) => void;
+  onDeleteTrip: (trip: Trip) => void;
   dateFormat: string;
 }
 
@@ -38,12 +38,51 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
   return (
     <Link
       href={`/trips/${trip.id}`}
-      className="flex flex-col rounded-[14px] overflow-hidden transition-shadow hover:shadow-2"
+      className="relative flex flex-col rounded-[14px] overflow-hidden transition-shadow hover:shadow-2"
       style={{
         border: "1px solid var(--line)",
         background: "var(--bg)",
       }}
     >
+      {/* Overflow menu — upper-right */}
+      <div className="absolute top-2 right-2 z-10">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            title="Trip options"
+            className="rounded-[6px] p-1 text-fg-4 transition-colors hover:bg-surface-2 hover:text-fg"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <MoreHorizontal size={13} strokeWidth={1.5} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="bottom" align="end">
+            <DropdownMenuItem
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onEditTrip(trip);
+              }}
+            >
+              <Pencil size={13} strokeWidth={1.5} />
+              Edit trip
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDeleteTrip(trip);
+              }}
+            >
+              <Trash2 size={13} strokeWidth={1.5} />
+              Delete trip
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       {/* Cover */}
       <TripCover name={trip.name} country={sub} metaTag="UPCOMING" showCity style={{ minHeight: 160 }} />
 
@@ -101,61 +140,11 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-0.5">
-          {trip.collaborators && <AvatarStack initials={trip.collaborators.map((c) => c.initials)} size="sm" />}
-          <div className="flex items-center gap-1.5">
-            {onEditTrip || onDeleteTrip ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  title="Trip options"
-                  className="rounded-[6px] p-1 text-fg-4 transition-colors hover:bg-surface-2 hover:text-fg"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                >
-                  <MoreHorizontal size={13} strokeWidth={1.5} />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="bottom" align="end">
-                  {onEditTrip ? (
-                    <DropdownMenuItem
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onEditTrip(trip);
-                      }}
-                    >
-                      <Pencil size={13} strokeWidth={1.5} />
-                      Edit trip
-                    </DropdownMenuItem>
-                  ) : null}
-                  {onDeleteTrip ? (
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onDeleteTrip(trip);
-                      }}
-                    >
-                      <Trash2 size={13} strokeWidth={1.5} />
-                      Delete trip
-                    </DropdownMenuItem>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-            <span
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "calc(11px * var(--font-scale))",
-                color: "var(--fg-4)",
-              }}
-            >
-              Open →
-            </span>
+        {trip.collaborators && (
+          <div className="mt-0.5">
+            <AvatarStack initials={trip.collaborators.map((c) => c.initials)} size="sm" />
           </div>
-        </div>
+        )}
       </div>
     </Link>
   );

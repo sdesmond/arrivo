@@ -8,7 +8,7 @@ import { type Trip } from "@/data/types";
 interface UnscheduledSectionProps {
   trips: Trip[];
   onEditTrip: (trip: Trip) => void;
-  onDeleteTrip?: (trip: Trip) => void;
+  onDeleteTrip: (trip: Trip) => void;
   dateFormat: string;
 }
 

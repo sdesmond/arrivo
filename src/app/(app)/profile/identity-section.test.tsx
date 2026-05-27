@@ -58,7 +58,7 @@ describe("ProfileIdentitySection — name validation (AC7)", () => {
   });
 
   it("shows error and disables Save when name exceeds 100 chars", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<ProfileIdentitySection user={baseUser} />);
     const nameInput = screen.getByDisplayValue("Alice");
     await user.clear(nameInput);
@@ -68,7 +68,7 @@ describe("ProfileIdentitySection — name validation (AC7)", () => {
   });
 
   it("clears error when name is corrected to 100 chars or fewer", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<ProfileIdentitySection user={baseUser} />);
     const nameInput = screen.getByDisplayValue("Alice");
     await user.clear(nameInput);
@@ -81,7 +81,7 @@ describe("ProfileIdentitySection — name validation (AC7)", () => {
   });
 
   it("no error shown when name is exactly 100 chars", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<ProfileIdentitySection user={baseUser} />);
     const nameInput = screen.getByDisplayValue("Alice");
     await user.clear(nameInput);
