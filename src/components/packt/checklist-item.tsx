@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
 import { ListChecks, Trash2, ChevronDown, Check, CheckCheck } from "lucide-react";
 import type { Checklist } from "@/data/types";
 
@@ -66,7 +66,7 @@ export function ChecklistItem({
     }
   }, [isComplete, isDraft]);
 
-  const genericLabel = `Checklist · ${itemCount} item${itemCount === 1 ? "" : "s"}`;
+  const genericLabel = `Checklist · ${pluralize(itemCount, "item")}`;
   const headerLabel = isExpanded && checklist.title ? genericLabel : (checklist.title ?? genericLabel);
 
   function saveTitle() {

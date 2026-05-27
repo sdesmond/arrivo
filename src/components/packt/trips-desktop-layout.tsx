@@ -10,6 +10,7 @@ import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
 import { PastTripsList } from "@/components/packt/trips-past-list";
 import { UnscheduledSection } from "@/components/packt/unscheduled-section";
+import { pluralize } from "@/lib/utils";
 import { type Trip, type TripListEntry } from "@/data/types";
 
 interface TripsDesktopLayoutProps {
@@ -71,7 +72,7 @@ export function TripsDesktopLayout({
           <div>
             <SectionHead
               title="Upcoming"
-              count={`${upcomingTrips.length} TRIP${upcomingTrips.length !== 1 ? "S" : ""}${nextInDays != null ? ` · NEXT IN ${nextInDays} DAYS` : ""}`}
+              count={`${pluralize(upcomingTrips.length, "TRIP")}${nextInDays != null ? ` · NEXT IN ${pluralize(nextInDays, "DAY")}` : ""}`}
             >
               <div className="seg">
                 <button className="seg-item active">Cards</button>

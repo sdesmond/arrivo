@@ -663,7 +663,7 @@ Then("the appended day and advanced end date are persisted", async () => {
 When("I remove the final empty day", async ({ page }) => {
   await page.getByTitle("Remove day").last().click();
   await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("1 days")).toBeVisible();
+  await expect(page.getByText("1 day")).toBeVisible();
 });
 
 Then("only the preceding day remains scheduled", async () => {
@@ -777,7 +777,7 @@ Then("the edited trip includes the prepended scheduled days", async ({ page }) =
 Then("the empty removed days are deleted without a warning", async ({ page }) => {
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await expect(page.getByText("Sun, Aug 3")).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("1 days")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("1 day")).toBeVisible({ timeout: 10_000 });
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
     const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));

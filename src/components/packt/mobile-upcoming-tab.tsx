@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "@/components/packt/trip-cover";
 import { type Trip } from "@/data/types";
-import { formatDate, getTripDays } from "@/lib/utils";
+import { formatDate, getTripDays, pluralize } from "@/lib/utils";
 
 interface MobileUpcomingTabProps {
   trips: Trip[];
@@ -47,13 +47,13 @@ export function MobileUpcomingTab({ trips, now, dateFormat }: MobileUpcomingTabP
                   textTransform: "uppercase",
                 }}
               >
-                {getTripDays(trip.startDate, trip.endDate)} DAYS
+                {pluralize(getTripDays(trip.startDate, trip.endDate), "DAY")}
               </div>
               <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>{dateLine}</div>
               <div className="mt-1 flex items-center gap-1.5">
                 <Badge variant="soft">{inDays === null ? "unscheduled" : `in ${inDays}d`}</Badge>
                 {(trip.docs?.length ?? 0) > 0 ? (
-                  <Badge variant="success">{trip.docs!.length} docs</Badge>
+                  <Badge variant="success">{pluralize(trip.docs!.length, "doc")}</Badge>
                 ) : (
                   <Badge variant="warning">no docs</Badge>
                 )}

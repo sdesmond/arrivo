@@ -2,7 +2,7 @@
 
 import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
 import type { TripEvent } from "@/data/types";
-import { toHHMM } from "@/lib/utils";
+import { toHHMM, pluralize } from "@/lib/utils";
 import { IconSize } from "@/lib/size-tokens";
 
 function formatTime(t: string): string {
@@ -107,7 +107,7 @@ export function PlaceRowActionBar({
           }}
         >
           <FileText size={IconSize.actionChip} strokeWidth={1.5} />
-          {docs.length} doc{docs.length !== 1 ? "s" : ""}
+          {pluralize(docs.length, "doc")}
           <ChevronDown
             size={10}
             style={{

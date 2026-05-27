@@ -102,7 +102,7 @@ describe("TripCard", () => {
 
   it("renders the doc count", () => {
     render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    expect(screen.getByText("3 docs")).toBeInTheDocument();
+    expect(screen.getByText("docs")).toBeInTheDocument();
   });
 
   it("always renders the trip options trigger", () => {

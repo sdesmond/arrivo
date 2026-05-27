@@ -16,7 +16,7 @@ import type {
   UpdateTripPatch,
   TripDetailTab,
 } from "@/data/types";
-import { getTripStatus, getTripDays, formatDate } from "@/lib/utils";
+import { getTripStatus, getTripDays, formatDate, pluralize } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 
@@ -167,19 +167,19 @@ export function TripDetailClient({
           >
             <span className="flex items-center gap-1.5">
               <Calendar size={13} strokeWidth={1.5} />
-              {dayTotal} days
+              {pluralize(dayTotal, "day")}
             </span>
             <span className="flex items-center gap-1.5">
               <MapPin size={13} strokeWidth={1.5} />
-              {eventCount} places
+              {pluralize(eventCount, "place")}
             </span>
             <span className="flex items-center gap-1.5">
               <FileText size={13} strokeWidth={1.5} />
-              {docs.filter((document) => document.scope === "trip").length} docs
+              {pluralize(docs.filter((document) => document.scope === "trip").length, "doc")}
             </span>
             <span className="flex items-center gap-1.5">
               <Users size={13} strokeWidth={1.5} />
-              {collaborators.length} collaborators
+              {pluralize(collaborators.length, "collaborator")}
             </span>
           </div>
         </div>

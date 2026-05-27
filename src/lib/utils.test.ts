@@ -15,6 +15,7 @@ import {
   inferDocKind,
   formatFileSize,
   shareDoc,
+  pluralize,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -356,5 +357,38 @@ describe("shareDoc", () => {
     });
 
     await expect(shareDoc(doc)).resolves.toBeUndefined();
+  });
+});
+
+describe("pluralize", () => {
+  it("returns singular for count 1 with regular noun", () => {
+    expect(pluralize(1, "trip")).toBe("trip");
+  });
+
+  it("returns plural for count 0", () => {
+    expect(pluralize(0, "trip")).toBe("trips");
+  });
+
+  it("returns plural for count 2", () => {
+    expect(pluralize(2, "trip")).toBe("trips");
+  });
+
+  it("returns plural for count greater than 1", () => {
+    expect(pluralize(100, "day")).toBe("days");
+  });
+
+  it("accepts a custom plural form", () => {
+    expect(pluralize(1, "stop", "stops")).toBe("stop");
+    expect(pluralize(3, "stop", "stops")).toBe("stops");
+  });
+
+  it("handles uppercase singular", () => {
+    expect(pluralize(1, "TRIP")).toBe("TRIP");
+    expect(pluralize(2, "TRIP")).toBe("TRIPs");
+  });
+
+  it("handles words ending in s like 'docs'", () => {
+    expect(pluralize(1, "doc", "docs")).toBe("doc");
+    expect(pluralize(2, "doc", "docs")).toBe("docs");
   });
 });

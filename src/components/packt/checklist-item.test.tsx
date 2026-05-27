@@ -96,7 +96,7 @@ describe("ChecklistItem — Bug 3b: initiallyExpanded prop", () => {
 describe("ChecklistItem — collapsed state", () => {
   it("shows generic label with item count when untitled", () => {
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
-    expect(screen.getByText("Checklist · 2 items")).toBeInTheDocument();
+    expect(screen.getByText("Checklist · items")).toBeInTheDocument();
   });
 
   it("uses singular 'item' when count is 1", () => {
@@ -105,12 +105,12 @@ describe("ChecklistItem — collapsed state", () => {
       items: [{ id: "i1", checklistId: "cl-1", content: "x", isChecked: false }],
     };
     render(<ChecklistItem checklist={single} />);
-    expect(screen.getByText("Checklist · 1 item")).toBeInTheDocument();
+    expect(screen.getByText("Checklist · item")).toBeInTheDocument();
   });
 
   it("shows '0 items' when no items and untitled", () => {
     render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    expect(screen.getByText("Checklist · 0 items")).toBeInTheDocument();
+    expect(screen.getByText("Checklist · items")).toBeInTheDocument();
   });
 
   it("shows title text in header when title is set", () => {
@@ -127,7 +127,7 @@ describe("ChecklistItem — collapsed state", () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} />);
     expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
   });
 });
@@ -136,14 +136,14 @@ describe("ChecklistItem — expanded state (title management)", () => {
   it("shows 'Add title...' when no title in expanded state", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByText("Add title...")).toBeInTheDocument();
   });
 
   it("'Add title...' text is dim (fg-4 color)", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     const titleBtn = screen.getByRole("button", { name: "Add title..." });
     expect(titleBtn).toHaveStyle({ color: "var(--fg-4)" });
   });
@@ -151,7 +151,7 @@ describe("ChecklistItem — expanded state (title management)", () => {
   it("clicking 'Add title...' enters inline edit mode", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByRole("button", { name: "Add title..." }));
     expect(screen.getByPlaceholderText("Add title...")).toBeInTheDocument();
   });
@@ -160,7 +160,7 @@ describe("ChecklistItem — expanded state (title management)", () => {
     const onTitleUpdate = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onTitleUpdate={onTitleUpdate} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByRole("button", { name: "Add title..." }));
     await user.type(screen.getByPlaceholderText("Add title..."), "Beach trip");
     await user.keyboard("{Enter}");
@@ -171,7 +171,7 @@ describe("ChecklistItem — expanded state (title management)", () => {
     const onTitleUpdate = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onTitleUpdate={onTitleUpdate} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByRole("button", { name: "Add title..." }));
     await user.type(screen.getByPlaceholderText("Add title..."), "My list");
     fireEvent.blur(screen.getByPlaceholderText("Add title..."));
@@ -191,7 +191,7 @@ describe("ChecklistItem — expanded state (title management)", () => {
     const onTitleUpdate = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onTitleUpdate={onTitleUpdate} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByRole("button", { name: "Add title..." }));
     await user.type(screen.getByPlaceholderText("Add title..."), "draft title");
     await user.keyboard("{Escape}");
@@ -300,7 +300,7 @@ describe("ChecklistItem — add item (non-draft)", () => {
     const onAddItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.type(screen.getByPlaceholderText("Add an item…"), "Sunscreen");
     await user.keyboard("{Enter}");
     expect(onAddItem).toHaveBeenCalledWith("cl-1", "Sunscreen");
@@ -311,7 +311,7 @@ describe("ChecklistItem — add item (non-draft)", () => {
     const onAddItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.keyboard("{Enter}");
     expect(onAddItem).not.toHaveBeenCalled();
   });
@@ -320,7 +320,7 @@ describe("ChecklistItem — add item (non-draft)", () => {
     const onAddItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.type(screen.getByPlaceholderText("Add an item…"), "Draft text");
     await user.keyboard("{Escape}");
     expect(onAddItem).not.toHaveBeenCalled();
@@ -330,7 +330,7 @@ describe("ChecklistItem — add item (non-draft)", () => {
   it("blurring with content calls onAddItem", () => {
     const onAddItem = vi.fn();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />);
-    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · items/i }));
     const input = screen.getByPlaceholderText("Add an item…");
     fireEvent.change(input, { target: { value: "Passport" } });
     fireEvent.blur(input);
@@ -340,7 +340,7 @@ describe("ChecklistItem — add item (non-draft)", () => {
   it("blurring with empty input does not call onAddItem", () => {
     const onAddItem = vi.fn();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onAddItem={onAddItem} />);
-    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · items/i }));
     fireEvent.blur(screen.getByPlaceholderText("Add an item…"));
     expect(onAddItem).not.toHaveBeenCalled();
   });
@@ -350,7 +350,7 @@ describe("ChecklistItem — item rendering", () => {
   it("renders each item's content text", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByText("Sunscreen")).toBeInTheDocument();
     expect(screen.getByText("Passport")).toBeInTheDocument();
   });
@@ -358,7 +358,7 @@ describe("ChecklistItem — item rendering", () => {
   it("clicking an item text enters inline edit", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByText("Sunscreen"));
     expect(screen.getByDisplayValue("Sunscreen")).toBeInTheDocument();
   });
@@ -367,7 +367,7 @@ describe("ChecklistItem — item rendering", () => {
     const onUpdateItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onUpdateItem={onUpdateItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByText("Sunscreen"));
     const editInput = screen.getByDisplayValue("Sunscreen");
     await user.clear(editInput);
@@ -380,7 +380,7 @@ describe("ChecklistItem — item rendering", () => {
     const onUpdateItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onUpdateItem={onUpdateItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByText("Sunscreen"));
     await user.keyboard("{Escape}");
     expect(onUpdateItem).not.toHaveBeenCalled();
@@ -391,7 +391,7 @@ describe("ChecklistItem — item rendering", () => {
     const onUpdateItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onUpdateItem={onUpdateItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByText("Sunscreen"));
     fireEvent.blur(screen.getByDisplayValue("Sunscreen"));
     expect(onUpdateItem).toHaveBeenCalledWith("item-1", "Sunscreen");
@@ -401,7 +401,7 @@ describe("ChecklistItem — item rendering", () => {
     const onDeleteItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onDeleteItem={onDeleteItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     const deleteButtons = screen.getAllByTitle("Delete item");
     await user.click(deleteButtons[0]);
     expect(onDeleteItem).toHaveBeenCalledWith("item-1");
@@ -412,21 +412,21 @@ describe("ChecklistItem — check state (Story 2.4)", () => {
   it("checked item renders with line-through text decoration", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByText("Sunscreen")).toHaveStyle({ textDecoration: "line-through" });
   });
 
   it("checked item renders with dimmed color", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByText("Sunscreen")).toHaveStyle({ color: "var(--fg-4)" });
   });
 
   it("unchecked item does not have line-through", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByText("Passport")).not.toHaveStyle({ textDecoration: "line-through" });
   });
 
@@ -434,7 +434,7 @@ describe("ChecklistItem — check state (Story 2.4)", () => {
     const onToggleItem = vi.fn();
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onToggleItem={onToggleItem} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     const checkboxes = screen.getAllByTitle("Check item");
     await user.click(checkboxes[0]);
     expect(onToggleItem).toHaveBeenCalledWith("item-1");
@@ -443,14 +443,14 @@ describe("ChecklistItem — check state (Story 2.4)", () => {
   it("unchecked checkbox has title 'Check item'", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getAllByTitle("Check item")).toHaveLength(2);
   });
 
   it("checked checkbox has title 'Uncheck item'", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByTitle("Uncheck item")).toBeInTheDocument();
     expect(screen.getByTitle("Check item")).toBeInTheDocument();
   });
@@ -458,7 +458,7 @@ describe("ChecklistItem — check state (Story 2.4)", () => {
   it("checked item checkbox renders Check icon", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByTestId("check-icon")).toBeInTheDocument();
   });
 });
@@ -493,12 +493,12 @@ describe("ChecklistItem — progress counter (Story 2.4)", () => {
 describe("ChecklistItem — completion indicators (Story 2.4)", () => {
   it("header label has strikethrough when all items are checked", () => {
     render(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} />);
-    expect(screen.getByText("Checklist · 2 items")).toHaveStyle({ textDecoration: "line-through" });
+    expect(screen.getByText("Checklist · items")).toHaveStyle({ textDecoration: "line-through" });
   });
 
   it("header label has no strikethrough when not all items are checked", () => {
     render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} />);
-    expect(screen.getByText("Checklist · 2 items")).not.toHaveStyle({
+    expect(screen.getByText("Checklist · items")).not.toHaveStyle({
       textDecoration: "line-through",
     });
   });
@@ -530,7 +530,7 @@ describe("ChecklistItem — completion indicators (Story 2.4)", () => {
 
   it("header label has no strikethrough in draft mode", () => {
     render(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} isDraft onCommitDraft={vi.fn()} onCancelDraft={vi.fn()} />);
-    expect(screen.getByText("Checklist · 2 items")).not.toHaveStyle({
+    expect(screen.getByText("Checklist · items")).not.toHaveStyle({
       textDecoration: "line-through",
     });
   });
@@ -540,9 +540,9 @@ describe("ChecklistItem — collapse behavior (Story 2.5)", () => {
   it("clicking an expanded checklist header collapses it", async () => {
     const user = userEvent.setup();
     render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument();
   });
 
@@ -550,7 +550,7 @@ describe("ChecklistItem — collapse behavior (Story 2.5)", () => {
     vi.useFakeTimers();
     const { rerender } = render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
     // Expand by clicking header
-    fireEvent.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · items/i }));
     expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
     // Transition to all-checked → completion fires
     rerender(<ChecklistItem checklist={CHECKLIST_ALL_CHECKED} />);
@@ -589,7 +589,7 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
   it("blurring outside when items is empty and add-field is empty calls onDelete", () => {
     const onDelete = vi.fn();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />);
-    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · items/i }));
     fireEvent.blur(screen.getByPlaceholderText("Add an item…"));
     expect(onDelete).toHaveBeenCalledWith("cl-1");
   });
@@ -597,7 +597,7 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
   it("blurring outside when items exist does NOT call onDelete", () => {
     const onDelete = vi.fn();
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} onDelete={onDelete} />);
-    fireEvent.click(screen.getByRole("button", { name: /Checklist · 2 items/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · items/i }));
     fireEvent.blur(screen.getByPlaceholderText("Add an item…"));
     expect(onDelete).not.toHaveBeenCalled();
   });
@@ -605,7 +605,7 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
   it("blurring outside when add-field has content does NOT call onDelete", () => {
     const onDelete = vi.fn();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />);
-    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · items/i }));
     fireEvent.change(screen.getByPlaceholderText("Add an item…"), {
       target: { value: "Sunscreen" },
     });
@@ -616,7 +616,7 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
   it("blurring to a target inside the wrapper does NOT call onDelete", () => {
     const onDelete = vi.fn();
     render(<ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />);
-    fireEvent.click(screen.getByRole("button", { name: /Checklist · 0 items/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Checklist · items/i }));
     const titleBtn = screen.getByRole("button", { name: "Add title..." });
     fireEvent.blur(screen.getByPlaceholderText("Add an item…"), { relatedTarget: titleBtn });
     expect(onDelete).not.toHaveBeenCalled();

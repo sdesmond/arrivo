@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { PlaceRow } from "@/components/packt/place-row";
 import type { Document, TripEvent } from "@/data/types";
-import { formatDate } from "@/lib/utils";
+import { formatDate, pluralize } from "@/lib/utils";
 
 export interface UnscheduledEventsSectionProps {
   unscheduledEvents: TripEvent[];
@@ -68,7 +68,7 @@ export function UnscheduledEventsSection({
         </div>
         <div className="flex items-center gap-3" style={{ color: "var(--fg-3)" }}>
           <span style={{ fontSize: "calc(12px * var(--font-scale))" }}>
-            {unscheduledEvents.length} event{unscheduledEvents.length === 1 ? "" : "s"}
+            {pluralize(unscheduledEvents.length, "event")}
           </span>
           {unscheduledOpen ? <ChevronDown size={16} strokeWidth={1.5} /> : <ChevronRight size={16} strokeWidth={1.5} />}
         </div>

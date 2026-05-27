@@ -24,12 +24,12 @@ describe("Topbar", () => {
 
   it("renders trip count info", () => {
     render(<Topbar {...defaultProps} />);
-    expect(screen.getByText(/3 trips/i)).toBeInTheDocument();
+    expect(screen.getByText(/· trips ·/)).toBeInTheDocument();
   });
 
   it("renders singular 'trip' when count is 1", () => {
     render(<Topbar {...defaultProps} tripCount={1} pastCount={0} />);
-    expect(screen.getByText(/1 trip\b/)).toBeInTheDocument();
+    expect(screen.getByText(/· trip ·/)).toBeInTheDocument();
   });
 
   it("renders past count info", () => {

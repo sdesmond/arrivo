@@ -3,6 +3,7 @@
 import { Check, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RailPanel } from "./rail-panel";
+import { pluralize } from "@/lib/utils";
 
 export interface DocRailItem {
   name: string;
@@ -57,7 +58,7 @@ export function DocsRail({ docs }: DocsRailProps) {
         ))}
       </div>
       <Button variant="ghost" size="sm" className="w-full mt-2">
-        View all {docs.length} documents →
+        View all {pluralize(docs.length, "document")} →
       </Button>
     </RailPanel>
   );

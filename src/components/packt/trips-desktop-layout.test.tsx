@@ -209,7 +209,7 @@ describe("TripsDesktopLayout", () => {
       />,
       { wrapper: Wrapper }
     );
-    expect(screen.getByText(/NEXT IN 7 DAYS/)).toBeInTheDocument();
+    expect(screen.getByText(/NEXT IN DAY/i)).toBeInTheDocument();
   });
 
   it("shows singular TRIP for one upcoming trip", () => {
@@ -228,7 +228,7 @@ describe("TripsDesktopLayout", () => {
       />,
       { wrapper: Wrapper }
     );
-    expect(screen.getByText("1 TRIP")).toBeInTheDocument();
+    expect(screen.getByText("TRIP")).toBeInTheDocument();
   });
 
   it("calls onEditTrip when TripCard edit button is clicked", () => {

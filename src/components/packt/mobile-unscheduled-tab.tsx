@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "@/components/packt/trip-cover";
 import { type Trip } from "@/data/types";
-import { formatDate } from "@/lib/utils";
+import { formatDate, pluralize } from "@/lib/utils";
 
 interface MobileUnscheduledTabProps {
   trips: Trip[];
@@ -36,7 +36,7 @@ export function MobileUnscheduledTab({ trips, dateFormat }: MobileUnscheduledTab
               <div className="mt-1 flex items-center gap-1.5">
                 <Badge variant="soft">unscheduled</Badge>
                 {(trip.docs?.length ?? 0) > 0 ? (
-                  <Badge variant="success">{trip.docs!.length} docs</Badge>
+                  <Badge variant="success">{pluralize(trip.docs!.length, "doc")}</Badge>
                 ) : (
                   <Badge variant="warning">no docs</Badge>
                 )}
