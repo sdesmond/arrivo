@@ -22,6 +22,8 @@ interface TripsMobileLayoutProps {
   mobileTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
   onNewTrip: () => void;
+  onEditTrip?: (trip: Trip) => void;
+  onDeleteTrip?: (trip: Trip) => void;
 }
 
 export function TripsMobileLayout({
@@ -34,6 +36,8 @@ export function TripsMobileLayout({
   mobileTab,
   onTabChange,
   onNewTrip,
+  onEditTrip,
+  onDeleteTrip,
 }: TripsMobileLayoutProps) {
   const tabs: MobileTab[] = [
     ...(unscheduledEntries.length > 0 ? (["Unscheduled"] as const) : []),
@@ -132,7 +136,14 @@ export function TripsMobileLayout({
           <MobileActiveTab trip={activeEntry?.trip ?? null} todayEvents={activeEntry?.todayEvents ?? []} now={now} />
         )}
         {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} now={now} dateFormat={dateFormat} />}
-        {mobileTab === "Past" && <MobilePastTab trips={pastTrips} dateFormat={dateFormat} />}
+        {mobileTab === "Past" && (
+          <MobilePastTab
+            trips={pastTrips}
+            dateFormat={dateFormat}
+            onEditTrip={onEditTrip}
+            onDeleteTrip={onDeleteTrip}
+          />
+        )}
       </div>
     </div>
   );

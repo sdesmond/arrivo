@@ -24,6 +24,29 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
 
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({
+    children,
+    onClick,
+    title,
+    className,
+  }: {
+    children: React.ReactNode;
+    onClick?: React.MouseEventHandler;
+    title?: string;
+    className?: string;
+  }) => (
+    <button onClick={onClick} title={title} className={className}>
+      {children}
+    </button>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: React.MouseEventHandler }) => (
+    <button onClick={onClick}>{children}</button>
+  ),
+}));
+
 import { TripsDesktopLayout } from "./trips-desktop-layout";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { Trip, TripListEntry } from "@/data/types";
@@ -66,6 +89,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -84,6 +108,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -102,6 +127,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -121,6 +147,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -139,6 +166,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -158,6 +186,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -176,6 +205,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={7}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -194,6 +224,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -213,10 +244,11 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
-    fireEvent.click(screen.getAllByTitle("Edit trip")[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /edit trip/i })[0]);
     expect(onEditTrip).toHaveBeenCalled();
   });
 
@@ -233,11 +265,11 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
-    fireEvent.click(screen.getByTitle("Trip options"));
-    fireEvent.click(screen.getByText("Edit trip"));
+    fireEvent.click(screen.getAllByRole("button", { name: /edit trip/i })[0]);
     expect(onEditTrip).toHaveBeenCalled();
   });
 
@@ -254,6 +286,7 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -274,10 +307,34 @@ describe("TripsDesktopLayout", () => {
         nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
-    fireEvent.click(screen.getAllByTitle("Edit trip")[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /edit trip/i })[0]);
     expect(onEditTrip).toHaveBeenCalled();
+  });
+
+  it("calls onDeleteTrip from the upcoming TripCard menu", () => {
+    const onDeleteTrip = vi.fn();
+
+    render(
+      <TripsDesktopLayout
+        activeEntry={null}
+        upcomingTrips={upcomingTrips}
+        pastTrips={[]}
+        unscheduledEntries={[]}
+        now={new Date(NOW_ISO)}
+        dateFormat="MM/DD/YYYY"
+        nextInDays={null}
+        onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={onDeleteTrip}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /delete trip/i })[0]);
+    expect(onDeleteTrip).toHaveBeenCalledWith(upcomingTrips[0]);
   });
 });

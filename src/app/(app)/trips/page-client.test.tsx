@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { toast } from "sonner";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
-import { updateTripMetadata } from "./actions";
+import { deleteTrip, updateTripMetadata } from "./actions";
 import { TripDateConflictResolution, type TripListEntry } from "@/data/types";
 
 vi.mock("sonner", () => ({
@@ -11,6 +12,7 @@ vi.mock("sonner", () => ({
 
 vi.mock("./actions", () => ({
   createTrip: vi.fn(),
+  deleteTrip: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
 
@@ -170,5 +172,39 @@ describe("useTripsPageHandlers", () => {
     expect(result.current.editingTrip).toBeNull();
     expect(result.current.tripDateConfirmation).toBeNull();
     expect(result.current.pendingTripPatch).toBeNull();
+  });
+
+  it("deletes the selected trip and clears delete state", async () => {
+    vi.mocked(deleteTrip).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripsPageHandlers([...datedEntries, unscheduledEntry], NOW));
+
+    act(() => {
+      result.current.setDeletingTrip(datedEntries[1].trip);
+    });
+
+    await act(async () => {
+      await result.current.handleConfirmDeleteTrip();
+    });
+
+    expect(deleteTrip).toHaveBeenCalledWith("trip-upcoming");
+    expect(result.current.deletingTrip).toBeNull();
+  });
+
+  it("shows a toast when trip deletion fails", async () => {
+    vi.mocked(deleteTrip).mockRejectedValueOnce(new Error("Delete failed"));
+
+    const { result } = renderHook(() => useTripsPageHandlers([...datedEntries, unscheduledEntry], NOW));
+
+    act(() => {
+      result.current.setDeletingTrip(datedEntries[2].trip);
+    });
+
+    await act(async () => {
+      await result.current.handleConfirmDeleteTrip();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Delete failed");
+    expect(result.current.deletingTrip?.id).toBe("trip-past");
   });
 });

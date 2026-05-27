@@ -1,5 +1,6 @@
 "use client";
 
+import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
 import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
 import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
@@ -26,6 +27,7 @@ interface TripsPageClientProps {
 export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPageClientProps) {
   const now = new Date(nowISO);
   const h = useTripsPageHandlers(initialEntries, now);
+  const editingTripId = h.editingEntry?.trip.id;
 
   return (
     <>
@@ -39,6 +41,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
         nextInDays={h.nextInDays}
         onNewTrip={() => h.setNewTripOpen(true)}
         onEditTrip={h.setEditingTrip}
+        onDeleteTrip={(trip) => h.setDeletingTrip(trip)}
       />
       <TripsMobileLayout
         activeEntry={h.activeEntry}
@@ -50,6 +53,8 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
         mobileTab={h.mobileTab}
         onTabChange={h.setMobileTab}
         onNewTrip={() => h.setNewTripOpen(true)}
+        onEditTrip={(trip) => h.setEditingTrip(trip.id)}
+        onDeleteTrip={(trip) => h.setDeletingTrip(trip)}
       />
       <TripEditSheet
         key={h.editingTrip ?? "none"}
@@ -67,6 +72,19 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
           await h.handleTripSaveResolution(resolution);
         }}
         onCancelDateChange={h.cancelTripDateChange}
+        onDelete={editingTripId ? () => h.handleConfirmDeleteTrip(editingTripId) : undefined}
+        isDeleting={h.isDeleting}
+      />
+      <DeleteTripAlertDialog
+        tripName={h.deletingTrip?.name ?? ""}
+        open={h.deletingTrip !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            h.setDeletingTrip(null);
+          }
+        }}
+        onConfirm={() => h.handleConfirmDeleteTrip(h.deletingTrip?.id)}
+        isDeleting={h.isDeleting}
       />
       <NewTripDialog
         open={h.newTripOpen}

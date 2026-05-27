@@ -24,6 +24,29 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
 
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({
+    children,
+    title,
+    className,
+    style,
+  }: {
+    children: React.ReactNode;
+    title?: string;
+    className?: string;
+    style?: React.CSSProperties;
+  }) => (
+    <button title={title} className={className} style={style}>
+      {children}
+    </button>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: React.MouseEventHandler }) => (
+    <button onClick={onClick}>{children}</button>
+  ),
+}));
+
 import { TripsMobileLayout } from "./trips-mobile-layout";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { Trip, TripListEntry } from "@/data/types";
@@ -64,6 +87,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Unscheduled"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -82,6 +107,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Active"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -100,6 +127,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Unscheduled"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -118,6 +147,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Active"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -136,6 +167,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Upcoming"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -154,6 +187,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Past"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -173,6 +208,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Upcoming"
         onTabChange={onTabChange}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -193,6 +230,8 @@ describe("TripsMobileLayout", () => {
         mobileTab="Unscheduled"
         onTabChange={onTabChange}
         onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -208,11 +247,37 @@ describe("TripsMobileLayout", () => {
           mobileTab="Unscheduled"
           onTabChange={onTabChange}
           onNewTrip={vi.fn()}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={vi.fn()}
         />
       );
     });
     await waitFor(() => {
       expect(onTabChange).toHaveBeenCalledWith("Upcoming");
     });
+  });
+
+  it("passes delete actions through to MobilePastTab", () => {
+    const onDeleteTrip = vi.fn();
+
+    render(
+      <TripsMobileLayout
+        activeEntry={null}
+        upcomingTrips={upcomingTrips}
+        pastTrips={pastTrips}
+        unscheduledEntries={[]}
+        now={new Date(NOW_ISO)}
+        dateFormat="MM/DD/YYYY"
+        mobileTab="Past"
+        onTabChange={vi.fn()}
+        onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={onDeleteTrip}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /delete trip/i }));
+    expect(onDeleteTrip).toHaveBeenCalledWith(pastTrips[0]);
   });
 });

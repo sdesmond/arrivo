@@ -259,6 +259,8 @@ export function TripDetailClient({
         dateChangeConfirmation={tripDateConfirmation}
         onResolveDateChange={handleTripDateResolution}
         onCancelDateChange={handleTripDateResolutionCancel}
+        onDelete={handlers.handleDeleteTrip}
+        isDeleting={handlers.isDeleting}
       />
       {isNew ? <TripConfetti tripId={trip.id} /> : null}
     </div>

@@ -5,21 +5,24 @@ import { toast } from "sonner";
 import {
   TripDateConflictResolution,
   type NewTripDraft,
+  type Trip,
   type TripDateChangeConfirmation,
   type TripListEntry,
   type UpdateTripMetadataResult,
   type UpdateTripPatch,
 } from "@/data/types";
 import { getTripStatus, getTripDays } from "@/lib/utils";
-import { createTrip, updateTripMetadata } from "./actions";
+import { createTrip, deleteTrip, updateTripMetadata } from "./actions";
 
 export type MobileTab = "Unscheduled" | "Active" | "Upcoming" | "Past";
 
 export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date) {
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
+  const [deletingTrip, setDeletingTrip] = useState<Trip | null>(null);
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [isCreating, startCreation] = useTransition();
   const [savingTrip, startTripSave] = useTransition();
+  const [isDeleting, startTripDelete] = useTransition();
   const [pendingDraft, setPendingDraft] = useState<{ draft: NewTripDraft; dayCount: number } | null>(null);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
@@ -94,6 +97,7 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
 
   function closeTripEditSheet(): void {
     setEditingTrip(null);
+    setDeletingTrip(null);
     setPendingTripPatch(null);
     setTripDateConfirmation(null);
   }
@@ -135,6 +139,30 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     setTripDateConfirmation(null);
   }
 
+  function handleConfirmDeleteTrip(tripId = deletingTrip?.id): Promise<void> {
+    return new Promise((resolve) => {
+      if (!tripId) {
+        resolve();
+        return;
+      }
+
+      startTripDelete(async () => {
+        try {
+          await deleteTrip(tripId);
+          if (editingTrip === tripId) {
+            closeTripEditSheet();
+          } else {
+            setDeletingTrip(null);
+          }
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Failed to delete trip. Please try again.");
+        } finally {
+          resolve();
+        }
+      });
+    });
+  }
+
   const editingEntry = editingTrip ? (initialEntries.find((e) => e.trip.id === editingTrip) ?? null) : null;
 
   return {
@@ -144,15 +172,18 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     pastTrips,
     editingTrip,
     editingEntry,
+    deletingTrip,
     newTripOpen,
     isCreating,
     savingTrip,
+    isDeleting,
     pendingDraft,
     pendingTripPatch,
     tripDateConfirmation,
     mobileTab,
     nextInDays,
     setEditingTrip,
+    setDeletingTrip,
     setNewTripOpen,
     setPendingDraft,
     setMobileTab,
@@ -161,6 +192,7 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     handleCreate,
     handleTripSave,
     handleTripSaveResolution,
+    handleConfirmDeleteTrip,
     submitCreateTrip,
   };
 }

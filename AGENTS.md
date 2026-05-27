@@ -102,14 +102,16 @@ These agents enforce project standards. Use them as described below — don't sk
 | `desktop-reviewer`      | After visual changes when browser validation is needed; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser)     |
 | `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)    |
 
-**Default workflow for planning:**
-After any planning skill (BMad architect, PM, UX, etc.) saves its artifact, run the plan reviewer **inline** before presenting the artifact to the user — do NOT spawn a subagent:
+**Pre-implementation gate — NON-NEGOTIABLE:**
+Before presenting any planning artifact (PRD, UX spec, architecture doc, story, plan file) to the user, you MUST run the packt-plan-reviewer.
 
 ```
 /packt-plan-reviewer <artifact-path>
 ```
 
-Pass the original request as context so scope and test checks have what they need. Address any BLOCKING findings by editing the artifact in place. Do not move or recreate the artifact — it stays wherever the planning skill saved it.
+Pass the original request as context so scope and test checks have what they need. Address every BLOCKING finding by editing the artifact in place. Do not move or recreate the artifact — it stays wherever the planning skill saved it.
+
+**This step is not optional.** Presenting an un-reviewed plan is a process failure — the same severity as shipping untested code. If you catch yourself about to present a planning artifact without having run the reviewer, stop and run it first.
 
 **Default workflow for any coding task:**
 

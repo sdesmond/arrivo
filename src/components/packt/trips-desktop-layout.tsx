@@ -22,6 +22,7 @@ interface TripsDesktopLayoutProps {
   nextInDays: number | null;
   onNewTrip: () => void;
   onEditTrip: (tripId: string) => void;
+  onDeleteTrip: (trip: Trip) => void;
 }
 
 export function TripsDesktopLayout({
@@ -34,6 +35,7 @@ export function TripsDesktopLayout({
   nextInDays,
   onNewTrip,
   onEditTrip,
+  onDeleteTrip,
 }: TripsDesktopLayoutProps) {
   return (
     <div className="hidden lg:flex lg:flex-col h-full">
@@ -49,6 +51,7 @@ export function TripsDesktopLayout({
           <UnscheduledSection
             trips={unscheduledEntries.map((e) => e.trip)}
             onEditTrip={(t) => onEditTrip(t.id)}
+            onDeleteTrip={onDeleteTrip}
             dateFormat={dateFormat}
           />
 
@@ -81,7 +84,13 @@ export function TripsDesktopLayout({
             </SectionHead>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {upcomingTrips.map((trip) => (
-                <TripCard key={trip.id} trip={trip} onEditTrip={(t) => onEditTrip(t.id)} dateFormat={dateFormat} />
+                <TripCard
+                  key={trip.id}
+                  trip={trip}
+                  onEditTrip={(t) => onEditTrip(t.id)}
+                  onDeleteTrip={onDeleteTrip}
+                  dateFormat={dateFormat}
+                />
               ))}
               <NewTripCard onNewTrip={onNewTrip} />
             </div>
@@ -95,7 +104,12 @@ export function TripsDesktopLayout({
                 Filter
               </Button>
             </SectionHead>
-            <PastTripsList trips={pastTrips} dateFormat={dateFormat} onEditTrip={(t) => onEditTrip(t.id)} />
+            <PastTripsList
+              trips={pastTrips}
+              dateFormat={dateFormat}
+              onEditTrip={(t) => onEditTrip(t.id)}
+              onDeleteTrip={onDeleteTrip}
+            />
           </div>
         </div>
       </div>
