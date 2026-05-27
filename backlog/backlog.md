@@ -2,8 +2,6 @@
 
 ## Style
 
-- No single-letter variables except in for loops
-
 ## shadcn updates
 
 ### proper sidebar
