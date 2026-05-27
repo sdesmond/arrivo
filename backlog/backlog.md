@@ -4,9 +4,6 @@
 
 - No single-letter variables except in for loops
 
-- No need for "Open →" text since the entire card is clickable
-- overflow menu should be upper-right, not lower-left
-
 ## shadcn updates
 
 ### proper sidebar
@@ -35,21 +32,3 @@ Needs full design and implementation: display in the Notes tab, editing UX (inli
 
 The icons for moving and deleting an event are too small and faint. Make them more visible.
 ?????????
-
-## Doc upload stuff
-
-The tests were ordered so that they pass because one test doesn't do its own setup. This needs to be fixed
-
-The empty state check fails because the "Upload" scenario adds a doc that persists through the "Delete" scenario. Fixing by reordering — put Delete before Upload so only the seeded doc exists.
-
-```
-Scenario: Upload a PDF to the Documents tab
-When I upload a file named "boarding-pass.pdf" with MIME type "application/pdf"
-Then the document "boarding-pass.pdf" appears in the Documents list
-
-Scenario: Delete a document from the Documents tab
-Given the Documents tab has one seeded document
-When I delete the document "E2E Boarding Pass"
-Then the document "E2E Boarding Pass" is no longer visible
-And the empty state message is shown
-```
