@@ -5,16 +5,7 @@ import Image from "next/image";
 import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Separator } from "@/components/ui/separator";
 import {
   type Trip,
   type Collaborator,
@@ -22,13 +13,13 @@ import {
   type Budget,
   type UpdateTripPatch,
   type TripDateChangeConfirmation,
-  TripDateConflictResolution,
   type TripDateConflictResolution as TripDateConflictResolutionValue,
 } from "@/data/types";
 import { Section, Field } from "@/components/packt/form-section";
 import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { formatDate } from "@/lib/utils";
+import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
+import { TripDateChangeConfirmationDialog } from "@/components/packt/trip-date-change-confirmation-dialog";
 
 interface TripEditSheetProps {
   trip: Trip | null;
@@ -40,6 +31,8 @@ interface TripEditSheetProps {
   dateChangeConfirmation?: TripDateChangeConfirmation | null;
   onResolveDateChange?: (resolution: TripDateConflictResolutionValue) => void | Promise<void>;
   onCancelDateChange?: () => void;
+  onDelete?: () => void | Promise<void>;
+  isDeleting?: boolean;
 }
 
 export function TripEditSheet({
@@ -52,14 +45,19 @@ export function TripEditSheet({
   dateChangeConfirmation,
   onResolveDateChange,
   onCancelDateChange,
+  onDelete,
+  isDeleting = false,
 }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
+  const isBusy = saving || isDeleting;
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (!open) {
       setDraft(createTripDraft(trip));
+      setDeleteDialogOpen(false);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, trip]);
@@ -145,34 +143,12 @@ export function TripEditSheet({
     await onResolveDateChange?.(resolution);
   }
 
-  function formatRemovedDates(removedDates: string[]): string {
-    if (removedDates.length === 0) return "";
-    if (removedDates.length === 1) return formatDate(removedDates[0], dateFormat);
-
-    const isContiguous = removedDates.every((date, index) => {
-      if (index === 0) return true;
-
-      const current = new Date(date + "T00:00:00");
-      const previous = new Date(removedDates[index - 1] + "T00:00:00");
-      return current.getTime() - previous.getTime() === 86_400_000;
-    });
-
-    if (isContiguous) {
-      return `${formatDate(removedDates[0], dateFormat)} - ${formatDate(
-        removedDates[removedDates.length - 1],
-        dateFormat
-      )}`;
-    }
-
-    return removedDates.map((date) => formatDate(date, dateFormat)).join(", ");
-  }
-
   return (
     <>
       <Drawer
         open={open}
         onOpenChange={(isOpen) => {
-          if (!isOpen && !saving) onClose();
+          if (!isOpen && !isBusy) onClose();
         }}
         direction="right"
       >
@@ -184,7 +160,7 @@ export function TripEditSheet({
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
             <Section title="Basic">
               <Field label="Trip name">
-                <Input disabled={saving} value={draft.name} onChange={(e) => set("name", e.target.value)} />
+                <Input disabled={isBusy} value={draft.name} onChange={(e) => set("name", e.target.value)} />
               </Field>
             </Section>
 
@@ -192,7 +168,7 @@ export function TripEditSheet({
               <DateRangePicker
                 from={draft.startDate || undefined}
                 to={draft.endDate || undefined}
-                disabled={saving}
+                disabled={isBusy}
                 onChange={(from, to) => {
                   set("startDate", from);
                   set("endDate", to);
@@ -203,7 +179,7 @@ export function TripEditSheet({
             <Section title="Cover image">
               <Field label="Image URL">
                 <Input
-                  disabled={saving}
+                  disabled={isBusy}
                   value={draft.coverImageUrl ?? ""}
                   placeholder="https://…"
                   onChange={(e) => set("coverImageUrl", e.target.value || undefined)}
@@ -230,7 +206,7 @@ export function TripEditSheet({
             <Section title="Budget">
               <Field label="Currency">
                 <Input
-                  disabled={saving}
+                  disabled={isBusy}
                   value={draft.budget?.currency ?? ""}
                   placeholder="USD"
                   onChange={(e) => setBudget("currency", e.target.value)}
@@ -239,7 +215,7 @@ export function TripEditSheet({
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Total">
                   <Input
-                    disabled={saving}
+                    disabled={isBusy}
                     type="number"
                     min={0}
                     value={draft.budget?.total ?? ""}
@@ -248,7 +224,7 @@ export function TripEditSheet({
                 </Field>
                 <Field label="Per person">
                   <Input
-                    disabled={saving}
+                    disabled={isBusy}
                     type="number"
                     min={0}
                     value={draft.budget?.perPerson ?? ""}
@@ -268,55 +244,45 @@ export function TripEditSheet({
             </Section>
           </div>
 
-          <DrawerFooter className="shrink-0" style={{ borderTop: "1px solid var(--line)" }}>
-            <Button variant="ghost" onClick={onClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button ref={saveButtonRef} disabled={saving} onClick={() => onSave(getPatch())}>
-              {saving ? "Saving..." : "Save changes"}
-            </Button>
+          <DrawerFooter className="shrink-0 gap-3" style={{ borderTop: "1px solid var(--line)" }}>
+            {onDelete ? (
+              <>
+                <Separator />
+                <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} disabled={isBusy}>
+                  Delete trip
+                </Button>
+              </>
+            ) : null}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="ghost" onClick={onClose} disabled={isBusy}>
+                Cancel
+              </Button>
+              <Button ref={saveButtonRef} disabled={isBusy} onClick={() => onSave(getPatch())}>
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
 
-      <AlertDialog
-        open={dateChangeConfirmation !== null}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) closeDateChangeDialog();
-        }}
-      >
-        <AlertDialogContent size="default" className="sm:max-w-md">
-          <AlertDialogHeader className="place-items-start text-left">
-            <AlertDialogTitle>Confirm Date Change</AlertDialogTitle>
-            <AlertDialogDescription className="text-left">
-              Your new trip dates will remove events (along with their notes and documents) you had planned for{" "}
-              <strong className="font-semibold text-foreground">
-                {formatRemovedDates(dateChangeConfirmation?.removedDates ?? [])}
-              </strong>
-              . Do you want to move those events to unscheduled or just remove them entirely?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <AlertDialogFooter className="grid-cols-1 gap-2 sm:flex sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between">
-            <AlertDialogAction
-              variant="ghost"
-              className="justify-center text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20"
-              disabled={saving}
-              onClick={() => handleResolution(TripDateConflictResolution.DeleteEvents)}
-            >
-              Remove Events
-            </AlertDialogAction>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
-              <AlertDialogCancel variant="ghost" disabled={saving} onClick={closeDateChangeDialog}>
-                Cancel
-              </AlertDialogCancel>
-              <Button disabled={saving} onClick={() => handleResolution(TripDateConflictResolution.KeepAsUnscheduled)}>
-                Keep Events
-              </Button>
-            </div>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {onDelete ? (
+        <DeleteTripAlertDialog
+          tripName={draft.name}
+          open={isDeleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={() => {
+            void onDelete();
+          }}
+          isDeleting={isDeleting}
+        />
+      ) : null}
+      <TripDateChangeConfirmationDialog
+        dateChangeConfirmation={dateChangeConfirmation ?? null}
+        dateFormat={dateFormat}
+        saving={saving}
+        onResolveDateChange={handleResolution}
+        onCancelDateChange={closeDateChangeDialog}
+      />
     </>
   );
 }

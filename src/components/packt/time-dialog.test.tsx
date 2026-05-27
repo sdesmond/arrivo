@@ -60,6 +60,11 @@ describe("TimeDialog", () => {
     expect(screen.getByRole("button", { name: /remove/i })).toBeInTheDocument();
   });
 
+  it("shows Remove button when only endTime is provided", () => {
+    render(<TimeDialog open endTime="11:00" onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /remove/i })).toBeInTheDocument();
+  });
+
   it("Remove button calls onSave(undefined, undefined) and closes", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
@@ -94,6 +99,14 @@ describe("TimeDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("backdrop close calls onOpenChange(false)", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TimeDialog open onOpenChange={onOpenChange} onSave={vi.fn()} />);
+    await user.click(screen.getByTestId("dialog-backdrop-close"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("shows eventName as subtitle when provided", () => {
     render(<TimeDialog open eventName="Dinner at Nobu" onOpenChange={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText("Dinner at Nobu")).toBeInTheDocument();
@@ -108,5 +121,24 @@ describe("TimeDialog", () => {
     const { rerender } = render(<TimeDialog open={false} time="08:00" onOpenChange={vi.fn()} onSave={vi.fn()} />);
     rerender(<TimeDialog open time="08:00" onOpenChange={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getAllByTestId("time-picker")[0]).toHaveValue("08:00");
+  });
+
+  it("resets edited draft values from props when the dialog reopens", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <TimeDialog open time="08:00" endTime="09:00" onOpenChange={vi.fn()} onSave={vi.fn()} />
+    );
+
+    const [startInput, endInput] = screen.getAllByTestId("time-picker");
+    await user.clear(startInput);
+    await user.type(startInput, "10:15");
+    await user.clear(endInput);
+    await user.type(endInput, "11:45");
+
+    rerender(<TimeDialog open={false} time="08:00" endTime="09:00" onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    rerender(<TimeDialog open time="07:30" endTime="08:30" onOpenChange={vi.fn()} onSave={vi.fn()} />);
+
+    expect(screen.getAllByTestId("time-picker")[0]).toHaveValue("07:30");
+    expect(screen.getAllByTestId("time-picker")[1]).toHaveValue("08:30");
   });
 });

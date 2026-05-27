@@ -43,8 +43,18 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
     </button>
   ),
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: React.MouseEventHandler }) => (
-    <button onClick={onClick}>{children}</button>
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    variant,
+  }: {
+    children: React.ReactNode;
+    onClick?: React.MouseEventHandler;
+    variant?: "default" | "destructive";
+  }) => (
+    <button data-variant={variant} onClick={onClick}>
+      {children}
+    </button>
   ),
 }));
 
@@ -95,5 +105,20 @@ describe("PastTripsList", () => {
     render(<PastTripsList trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
     expect(screen.getByText("Sep 1, 2025")).toBeInTheDocument();
     expect(screen.getByText(/7 DAYS/)).toBeInTheDocument();
+  });
+
+  it("renders and calls the destructive delete action", async () => {
+    const user = userEvent.setup();
+    const onDeleteTrip = vi.fn();
+
+    render(
+      <PastTripsList trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} onDeleteTrip={onDeleteTrip} />
+    );
+
+    const deleteButton = screen.getByRole("button", { name: /delete trip/i });
+    expect(deleteButton).toHaveAttribute("data-variant", "destructive");
+    await user.click(deleteButton);
+
+    expect(onDeleteTrip).toHaveBeenCalledWith(pastTrips[0]);
   });
 });

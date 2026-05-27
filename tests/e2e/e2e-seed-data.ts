@@ -10,6 +10,12 @@ export const E2E_TRIP = {
   endDate: "2026-07-03",
 };
 
+export const E2E_DELETE_TRIP = {
+  name: "E2E Delete Trip",
+  startDate: "2026-08-01",
+  endDate: "2026-08-03",
+};
+
 export const E2E_DAYS = [
   { dayNumber: 1, date: "2026-07-01", label: "Day 1" },
   { dayNumber: 2, date: "2026-07-02", label: "Day 2" },

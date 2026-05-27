@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("next/link", () => ({
   default: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
@@ -12,6 +13,29 @@ vi.mock("next/link", () => ({
 
 vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
+}));
+
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({
+    children,
+    onClick,
+    title,
+    className,
+  }: {
+    children: React.ReactNode;
+    onClick?: React.MouseEventHandler;
+    title?: string;
+    className?: string;
+  }) => (
+    <button onClick={onClick} title={title} className={className}>
+      {children}
+    </button>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: React.MouseEventHandler }) => (
+    <button onClick={onClick}>{children}</button>
+  ),
 }));
 
 import { UnscheduledSection } from "./unscheduled-section";
@@ -89,5 +113,23 @@ describe("UnscheduledSection", () => {
     });
     const svg = document.querySelector("svg");
     expect(svg).toBeInTheDocument();
+  });
+
+  it("forwards delete actions to TripCard", async () => {
+    const user = userEvent.setup();
+    const onDeleteTrip = vi.fn();
+
+    render(
+      <UnscheduledSection
+        trips={unscheduledTrips}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={onDeleteTrip}
+        dateFormat="MM/DD/YYYY"
+      />,
+      { wrapper: Wrapper }
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /delete trip/i })[0]);
+    expect(onDeleteTrip).toHaveBeenCalledWith(unscheduledTrips[0]);
   });
 });

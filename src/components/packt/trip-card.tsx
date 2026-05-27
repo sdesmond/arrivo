@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, FileText, Users, Pencil } from "lucide-react";
+import { Calendar, FileText, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/types";
@@ -12,10 +18,11 @@ import { useNow } from "@/components/providers/mock-date-provider";
 interface TripCardProps {
   trip: Trip;
   onEditTrip?: (trip: Trip) => void;
+  onDeleteTrip?: (trip: Trip) => void;
   dateFormat: string;
 }
 
-export function TripCard({ trip, onEditTrip, dateFormat }: TripCardProps) {
+export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCardProps) {
   const now = useNow();
   const sub = `${getTripDays(trip.startDate, trip.endDate)} DAYS`;
   const today = new Date(now);
@@ -97,19 +104,47 @@ export function TripCard({ trip, onEditTrip, dateFormat }: TripCardProps) {
         <div className="flex items-center justify-between mt-0.5">
           {trip.collaborators && <AvatarStack initials={trip.collaborators.map((c) => c.initials)} size="sm" />}
           <div className="flex items-center gap-1.5">
-            {onEditTrip && (
-              <button
-                className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
-                title="Edit trip"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onEditTrip(trip);
-                }}
-              >
-                <Pencil size={13} strokeWidth={1.5} />
-              </button>
-            )}
+            {onEditTrip || onDeleteTrip ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  title="Trip options"
+                  className="rounded-[6px] p-1 text-fg-4 transition-colors hover:bg-surface-2 hover:text-fg"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  <MoreHorizontal size={13} strokeWidth={1.5} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="bottom" align="end">
+                  {onEditTrip ? (
+                    <DropdownMenuItem
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onEditTrip(trip);
+                      }}
+                    >
+                      <Pencil size={13} strokeWidth={1.5} />
+                      Edit trip
+                    </DropdownMenuItem>
+                  ) : null}
+                  {onDeleteTrip ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onDeleteTrip(trip);
+                      }}
+                    >
+                      <Trash2 size={13} strokeWidth={1.5} />
+                      Delete trip
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <span
               style={{
                 fontFamily: "var(--font-mono-family, ui-monospace)",

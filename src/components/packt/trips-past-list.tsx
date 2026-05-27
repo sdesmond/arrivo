@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MoreHorizontal, Pencil } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "@/components/packt/trip-cover";
 import {
@@ -17,9 +17,10 @@ interface PastTripsListProps {
   trips: Trip[];
   dateFormat: string;
   onEditTrip: (trip: Trip) => void;
+  onDeleteTrip?: (trip: Trip) => void;
 }
 
-export function PastTripsList({ trips, dateFormat, onEditTrip }: PastTripsListProps) {
+export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip }: PastTripsListProps) {
   return (
     <div className="rounded-[14px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
       {trips.map((trip, i) => (
@@ -77,14 +78,28 @@ export function PastTripsList({ trips, dateFormat, onEditTrip }: PastTripsListPr
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end">
               <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
                   onEditTrip(trip);
                 }}
               >
                 <Pencil size={13} strokeWidth={1.5} />
                 Edit trip
               </DropdownMenuItem>
+              {onDeleteTrip ? (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDeleteTrip(trip);
+                  }}
+                >
+                  <Trash2 size={13} strokeWidth={1.5} />
+                  Delete trip
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </Link>

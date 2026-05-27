@@ -45,6 +45,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
     })
     .from(users)
     .where(eq(users.id, id));
+
   if (!user || !user.email) return null;
 
   const [loyaltyRows, wishlistRows, companionRows] = await Promise.all([

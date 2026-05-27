@@ -15,6 +15,39 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
 
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({
+    children,
+    onClick,
+    title,
+    className,
+  }: {
+    children: React.ReactNode;
+    onClick?: React.MouseEventHandler;
+    title?: string;
+    className?: string;
+  }) => (
+    <button onClick={onClick} title={title} className={className}>
+      {children}
+    </button>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    variant,
+  }: {
+    children: React.ReactNode;
+    onClick?: React.MouseEventHandler;
+    variant?: "default" | "destructive";
+  }) => (
+    <button data-variant={variant} onClick={onClick}>
+      {children}
+    </button>
+  ),
+}));
+
 import { TripCard } from "./trip-card";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { Trip } from "@/data/types";
@@ -70,23 +103,37 @@ describe("TripCard", () => {
     expect(screen.getByText("3 docs")).toBeInTheDocument();
   });
 
-  it("renders edit button when onEditTrip is provided", () => {
+  it("renders the trip options trigger when actions are provided", () => {
     render(<TripCard trip={baseTrip} onEditTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    expect(screen.getByRole("button", { name: /edit trip/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /trip options/i })).toBeInTheDocument();
   });
 
-  it("does not render edit button when onEditTrip is absent", () => {
+  it("does not render the trip options trigger when no actions are provided", () => {
     render(<TripCard trip={baseTrip} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /trip options/i })).not.toBeInTheDocument();
   });
 
-  it("calls onEditTrip with the trip when edit button is clicked", async () => {
+  it("calls onEditTrip with the trip when Edit trip is clicked", async () => {
     const user = userEvent.setup();
     const onEditTrip = vi.fn();
     render(<TripCard trip={baseTrip} onEditTrip={onEditTrip} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     await user.click(screen.getByRole("button", { name: /edit trip/i }));
     expect(onEditTrip).toHaveBeenCalledOnce();
     expect(onEditTrip).toHaveBeenCalledWith(baseTrip);
+  });
+
+  it("calls onDeleteTrip with the trip when Delete trip is clicked", async () => {
+    const user = userEvent.setup();
+    const onDeleteTrip = vi.fn();
+
+    render(<TripCard trip={baseTrip} onDeleteTrip={onDeleteTrip} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+
+    const deleteButton = screen.getByRole("button", { name: /delete trip/i });
+    expect(deleteButton).toHaveAttribute("data-variant", "destructive");
+    await user.click(deleteButton);
+
+    expect(onDeleteTrip).toHaveBeenCalledOnce();
+    expect(onDeleteTrip).toHaveBeenCalledWith(baseTrip);
   });
 
   it("links to the trip detail page", () => {

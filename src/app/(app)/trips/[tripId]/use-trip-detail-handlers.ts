@@ -13,7 +13,7 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { updateTripMetadata } from "../actions";
+import { deleteTrip, updateTripMetadata } from "../actions";
 import {
   createChecklist,
   createChecklistItem,
@@ -40,6 +40,7 @@ export interface TripDetailHandlers {
   addingDay: boolean;
   removingDay: boolean;
   savingTrip: boolean;
+  isDeleting: boolean;
   handleEventUpdate: (updated: TripEvent) => void;
   handleEventDelete: (id: string) => void;
   handleDayItemsReorder: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -61,6 +62,7 @@ export interface TripDetailHandlers {
     resolution: TripDateConflictResolution,
     confirmation: TripDateChangeConfirmation
   ) => Promise<UpdateTripMetadataResult | undefined>;
+  handleDeleteTrip: () => void;
   handleAddDay: () => void;
   handleRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -75,6 +77,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [addingDay, startAddDayTransition] = React.useTransition();
   const [removingDay, startRemoveDayTransition] = React.useTransition();
   const [savingTrip, startSaveTripTransition] = React.useTransition();
+  const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
@@ -222,6 +225,17 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
+  function handleDeleteTrip(): void {
+    startDeleteTripTransition(async () => {
+      try {
+        await deleteTrip(trip.id);
+        router.push("/trips");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete trip. Please try again.");
+      }
+    });
+  }
+
   function handleAddDay(): void {
     startAddDayTransition(async () => {
       try {
@@ -253,6 +267,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     addingDay,
     removingDay,
     savingTrip,
+    isDeleting,
     handleEventUpdate,
     handleEventDelete,
     handleDayItemsReorder,
@@ -270,6 +285,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleToggleChecklistItem,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
+    handleDeleteTrip,
     handleAddDay,
     handleRemoveLastDay,
   };

@@ -368,6 +368,24 @@ describe("TripEditSheet", () => {
     expect(screen.getAllByRole("button", { name: "Cancel" })[0]).toBeDisabled();
   });
 
+  it("renders a delete button when onDelete is provided", () => {
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Delete trip" })).toBeInTheDocument();
+  });
+
+  it("opens the delete confirmation dialog and calls onDelete", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} onDelete={onDelete} />);
+
+    await user.click(screen.getByRole("button", { name: "Delete trip" }));
+    expect(screen.getByText(/Delete\s+Tokyo Adventure\?/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledOnce();
+  });
+
   it("renders the date-change confirmation dialog and resolves the keep-unscheduled path", async () => {
     const user = userEvent.setup();
     const onResolveDateChange = vi.fn();

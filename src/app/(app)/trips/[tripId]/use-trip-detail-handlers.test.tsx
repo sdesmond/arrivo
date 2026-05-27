@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import { reorderDayItems } from "./actions";
+import { deleteTrip } from "../actions";
 import type { TripDetailPayload } from "@/data/types";
 
-const { mockRefresh } = vi.hoisted(() => ({
+const { mockPush, mockRefresh } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
   mockRefresh: vi.fn(),
 }));
 
@@ -15,10 +17,11 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: mockRefresh }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
 
 vi.mock("../actions", () => ({
+  deleteTrip: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
 
@@ -103,5 +106,31 @@ describe("useTripDetailHandlers", () => {
       expect(toast.error).toHaveBeenCalledWith("This day changed elsewhere. Refreshing the itinerary.")
     );
     expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("deletes the trip and returns to the trips list", async () => {
+    vi.mocked(deleteTrip).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleDeleteTrip();
+    });
+
+    await waitFor(() => expect(deleteTrip).toHaveBeenCalledWith("trip-1"));
+    expect(mockPush).toHaveBeenCalledWith("/trips");
+  });
+
+  it("surfaces a toast when trip deletion fails", async () => {
+    vi.mocked(deleteTrip).mockRejectedValueOnce(new Error("Delete failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleDeleteTrip();
+    });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Delete failed"));
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

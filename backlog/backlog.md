@@ -1,5 +1,12 @@
 # Backlog of items
 
+## Style
+
+- No single-letter variables except in for loops
+
+- No need for "Open →" text since the entire card is clickable
+- overflow menu should be upper-right, not lower-left
+
 ## shadcn updates
 
 ### proper sidebar
