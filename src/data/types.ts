@@ -46,6 +46,13 @@ export const DocKind = {
 } as const;
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 
+export const CoverType = {
+  Unsplash: "unsplash",
+  Mapbox: "mapbox",
+  Graphic: "graphic",
+} as const;
+export type CoverType = (typeof CoverType)[keyof typeof CoverType];
+
 export const TripDetailTab = {
   Itinerary: "itin",
   Map: "map",
@@ -83,6 +90,7 @@ export interface UserProfile {
   passportExpiry: string | null;
   passportNationality: string | null;
   knownTravelerNumber: string | null;
+  defaultCoverType?: CoverType;
   loyaltyNumbers: LoyaltyNumber[];
   wishlistDestinations: WishlistDestination[];
   companions: Companion[];
@@ -344,6 +352,9 @@ export interface Trip {
   todayMonth?: string;
 
   coverImageUrl?: string;
+  destinationName?: string;
+  destinationCountry?: string;
+  destinationCountryCode?: string;
   notes?: string;
   budget?: Budget;
 
@@ -404,6 +415,9 @@ export interface NewTripDraft {
   startDate?: string;
   endDate?: string;
   budgetAmount?: string;
+  destinationName?: string;
+  destinationCountry?: string;
+  destinationCountryCode?: string;
 }
 
 export interface CreateTripInput {
@@ -411,6 +425,9 @@ export interface CreateTripInput {
   startDate?: string; // ISO date "YYYY-MM-DD"
   endDate?: string;
   coverImageUrl?: string;
+  destinationName?: string;
+  destinationCountry?: string;
+  destinationCountryCode?: string;
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;
@@ -423,6 +440,9 @@ export interface UpdateTripPatch {
   startDate?: string;
   endDate?: string;
   coverImageUrl?: string;
+  destinationName?: string;
+  destinationCountry?: string;
+  destinationCountryCode?: string;
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;

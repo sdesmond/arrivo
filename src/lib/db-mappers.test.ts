@@ -9,12 +9,14 @@ import {
   dbLoyaltyToType,
   dbWishlistToType,
   dbCompanionToType,
+  dbUserToType,
 } from "@/lib/db-mappers";
 import type {
   trips,
   events,
   documents,
   collaborators,
+  users,
   itineraryNotes,
   itineraryChecklists,
   checklistItems,
@@ -27,6 +29,7 @@ type TripRow = typeof trips.$inferSelect;
 type EventRow = typeof events.$inferSelect;
 type DocRow = typeof documents.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
+type UserRow = typeof users.$inferSelect;
 
 // ── dbTripToType ──────────────────────────────────────────────────────────────
 
@@ -37,6 +40,9 @@ const BASE_TRIP: TripRow = {
   startDate: "2020-01-01",
   endDate: "2020-01-10",
   coverImageUrl: null,
+  destinationName: null,
+  destinationCountry: null,
+  destinationCountryCode: null,
   notes: null,
   budgetCurrency: null,
   budgetTotal: null,
@@ -87,6 +93,25 @@ describe("dbTripToType", () => {
     });
     expect(result.coverImageUrl).toBe("https://example.com/img.jpg");
     expect(result.notes).toBe("Pack light");
+  });
+
+  it("null destination fields become undefined", () => {
+    const result = dbTripToType(BASE_TRIP);
+    expect(result.destinationName).toBeUndefined();
+    expect(result.destinationCountry).toBeUndefined();
+    expect(result.destinationCountryCode).toBeUndefined();
+  });
+
+  it("maps destination fields when present", () => {
+    const result = dbTripToType({
+      ...BASE_TRIP,
+      destinationName: "Tokyo",
+      destinationCountry: "Japan",
+      destinationCountryCode: "JP",
+    });
+    expect(result.destinationName).toBe("Tokyo");
+    expect(result.destinationCountry).toBe("Japan");
+    expect(result.destinationCountryCode).toBe("JP");
   });
 
   it("constructs budget object from numeric strings", () => {
@@ -282,6 +307,73 @@ describe("dbCollabToType", () => {
     });
     expect(result.tintBg).toBe("oklch(0.86 0.07 30)");
     expect(result.tintFg).toBe("oklch(0.30 0.10 30)");
+  });
+});
+
+// ── dbUserToType ──────────────────────────────────────────────────────────────
+
+const BASE_USER: UserRow = {
+  id: "user-1",
+  name: "Spencer",
+  email: "spencer@example.com",
+  emailVerified: null,
+  image: null,
+  passwordHash: null,
+  dateFormat: null,
+  currency: null,
+  distanceUnit: null,
+  passportNumber: null,
+  passportExpiry: null,
+  passportNationality: null,
+  knownTravelerNumber: null,
+  defaultCoverType: null,
+};
+
+describe("dbUserToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbUserToType(BASE_USER);
+    expect(result.id).toBe("user-1");
+    expect(result.name).toBe("Spencer");
+    expect(result.email).toBe("spencer@example.com");
+    expect(result.dateFormat).toBeNull();
+    expect(result.currency).toBeNull();
+    expect(result.distanceUnit).toBeNull();
+    expect(result.passportNumber).toBeNull();
+    expect(result.passportExpiry).toBeNull();
+    expect(result.passportNationality).toBeNull();
+    expect(result.knownTravelerNumber).toBeNull();
+  });
+
+  it("null defaultCoverType becomes undefined", () => {
+    const result = dbUserToType(BASE_USER);
+    expect(result.defaultCoverType).toBeUndefined();
+  });
+
+  it('maps defaultCoverType "unsplash"', () => {
+    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "unsplash" });
+    expect(result.defaultCoverType).toBe("unsplash");
+  });
+
+  it('maps defaultCoverType "mapbox"', () => {
+    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "mapbox" });
+    expect(result.defaultCoverType).toBe("mapbox");
+  });
+
+  it('maps defaultCoverType "graphic"', () => {
+    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "graphic" });
+    expect(result.defaultCoverType).toBe("graphic");
+  });
+
+  it("invalid defaultCoverType value becomes undefined", () => {
+    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "other" });
+    expect(result.defaultCoverType).toBeUndefined();
+  });
+
+  it("loyaltyNumbers defaults to empty array", () => {
+    const result = dbUserToType(BASE_USER);
+    expect(result.loyaltyNumbers).toEqual([]);
+    expect(result.wishlistDestinations).toEqual([]);
+    expect(result.companions).toEqual([]);
   });
 });
 

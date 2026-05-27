@@ -32,6 +32,7 @@ export const users = pgTable("users", {
   passportExpiry: date("passport_expiry"),
   passportNationality: text("passport_nationality"),
   knownTravelerNumber: text("known_traveler_number"),
+  defaultCoverType: text("default_cover_type"),
 });
 
 export const accounts = pgTable(
@@ -85,6 +86,9 @@ export const trips = pgTable("trips", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   coverImageUrl: text("cover_image_url"),
+  destinationName: text("destination_name"),
+  destinationCountry: text("destination_country"),
+  destinationCountryCode: text("destination_country_code"),
   notes: text("notes"),
   budgetCurrency: text("budget_currency"),
   budgetTotal: numeric("budget_total", { precision: 12, scale: 2 }),

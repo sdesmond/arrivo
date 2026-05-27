@@ -102,6 +102,20 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function parseGraphicCover(url: string | null | undefined): { color: string; icon: string } | null {
+  if (!url || !url.startsWith("graphic:")) return null;
+  const rest = url.slice("graphic:".length);
+  const slashIndex = rest.indexOf("/");
+  if (slashIndex === -1) return null;
+
+  const color = rest.slice(0, slashIndex);
+  const icon = rest.slice(slashIndex + 1);
+  if (!color.trim() || !icon.trim()) return null;
+  if (icon.includes("/")) return null;
+
+  return { color, icon };
+}
+
 export async function shareDoc(doc: { name: string; url?: string }): Promise<void> {
   const url = doc.url ?? "";
   try {
