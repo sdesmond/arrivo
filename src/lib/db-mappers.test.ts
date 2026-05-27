@@ -369,6 +369,11 @@ describe("dbUserToType", () => {
     expect(result.defaultCoverType).toBeUndefined();
   });
 
+  it("empty-string defaultCoverType becomes undefined", () => {
+    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "" });
+    expect(result.defaultCoverType).toBeUndefined();
+  });
+
   it("loyaltyNumbers defaults to empty array", () => {
     const result = dbUserToType(BASE_USER);
     expect(result.loyaltyNumbers).toEqual([]);
