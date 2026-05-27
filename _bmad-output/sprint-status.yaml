@@ -1,0 +1,34 @@
+# Sprint Status — Packt: Trip Cover Image Feature
+# Tracks all epics and stories for the cover image feature set.
+#
+# STATUS DEFINITIONS:
+#   backlog        — story exists in epics; story file not yet created
+#   ready-for-dev  — story file created; not yet started
+#   in-progress    — dev agent is actively implementing
+#   done           — implementation complete; code reviewed and merged
+#   skipped        — intentionally deferred or removed
+
+sprint:
+  name: "Trip Cover Image"
+  epics_file: "_bmad-output/epics-cover-image.md"
+  created: "2026-05-27"
+  last_updated: "2026-05-27"
+
+development_status:
+  # ── Epic 1: Automatic Trip Cover Images ──────────────────────────────────────
+  epic-1: in-progress
+
+  1-1-trip-destination-data-layer: done
+  1-2-location-and-image-search-server-actions: backlog
+  1-3-destination-autocomplete-and-auto-cover-on-create: backlog
+  1-4-trip-cover-image-display-wiring: backlog
+  1-5-default-cover-type-user-preference: backlog
+
+  # ── Epic 2: Cover Image Picker & Management ───────────────────────────────────
+  epic-2: backlog
+
+  2-1-split-trip-edit-sheet-into-subcomponents: backlog
+  2-2-cover-image-picker-scaffold-and-search-tab: backlog
+  2-3-cover-image-picker-upload-and-url-tabs: backlog
+  2-4-cover-image-picker-custom-tab: backlog
+  2-5-trip-edit-sheet-cover-section-and-remove: backlog
