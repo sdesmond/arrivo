@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 
 const { assertTripAccess, db, redirect, requireUser, revalidatePath } = vi.hoisted(() => ({
@@ -33,7 +33,7 @@ vi.mock("@vercel/blob", () => ({
 }));
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import { updateTripMetadata } from "./actions";
+import { searchCoverImages, searchLocations, updateTripMetadata } from "./actions";
 import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
 
 interface TransactionFixture {
@@ -275,5 +275,272 @@ describe("updateTripMetadata", () => {
       )
     ).rejects.toThrow(/review the date change again/i);
     expect(operations.deletes).toEqual([]);
+  });
+});
+
+describe("searchLocations", () => {
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-mapbox-token");
+    requireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("maps Mapbox response to the action return shape", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        features: [
+          {
+            properties: {
+              name: "Tokyo",
+              place_formatted: "Tokyo, Japan",
+              full_address: "Tokyo, Tokyo, Japan",
+              coordinates: { longitude: 139.69, latitude: 35.68 },
+              context: {
+                country: { name: "Japan", country_code: "JP" },
+              },
+            },
+          },
+        ],
+      }),
+    });
+
+    await expect(searchLocations("Tokyo")).resolves.toEqual([
+      {
+        placeName: "Tokyo, Tokyo, Japan",
+        country: "Japan",
+        countryCode: "JP",
+        center: [139.69, 35.68],
+      },
+    ]);
+    expect(requireUser).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.mapbox.com/search/geocode/v6/forward?q=Tokyo&access_token=test-mapbox-token&limit=5&types=place,locality,neighborhood",
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+
+  it("throws when Mapbox returns a non-ok status", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 403 });
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding error: 403");
+  });
+
+  it("throws when the Mapbox token is missing", async () => {
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when query is empty", async () => {
+    await expect(searchLocations("  ")).rejects.toThrow("Search query must not be empty");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when fetch network request fails", async () => {
+    mockFetch.mockRejectedValue(new Error("Network failure"));
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding request failed: Network failure");
+  });
+
+  it("throws when response JSON is malformed", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    });
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding request failed");
+  });
+
+  it("returns empty array when features are empty", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ features: [] }),
+    });
+
+    await expect(searchLocations("Tokyo")).resolves.toEqual([]);
+  });
+
+  it("handles missing optional fields in Mapbox response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        features: [
+          {
+            properties: {
+              name: "Tokyo",
+              place_formatted: "Tokyo, Japan",
+              coordinates: null,
+              context: {},
+            },
+          },
+          {
+            properties: {
+              name: undefined,
+              place_formatted: undefined,
+              full_address: undefined,
+              coordinates: undefined,
+            },
+          },
+        ],
+      }),
+    });
+
+    const result = await searchLocations("Tokyo");
+    expect(result).toHaveLength(2);
+    expect(result[0].center).toEqual([0, 0]);
+    expect(result[1].placeName).toBe("");
+    expect(result[1].center).toEqual([0, 0]);
+  });
+});
+
+describe("searchCoverImages", () => {
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
+    requireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("maps Unsplash response to the action return shape", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "abc123",
+            urls: { regular: "https://images.unsplash.com/abc" },
+            user: { name: "John Photographer" },
+            alt_description: "Tokyo skyline",
+            description: null,
+          },
+        ],
+      }),
+    });
+
+    await expect(searchCoverImages("Tokyo")).resolves.toEqual([
+      {
+        id: "abc123",
+        url: "https://images.unsplash.com/abc",
+        photographer: "John Photographer",
+        alt: "Tokyo skyline",
+      },
+    ]);
+    expect(requireUser).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.unsplash.com/search/photos?query=Tokyo+travel&orientation=landscape&per_page=19",
+      {
+        signal: expect.any(AbortSignal),
+        headers: {
+          Authorization: "Client-ID test-unsplash-key",
+        },
+      }
+    );
+  });
+
+  it("throws when Unsplash returns a non-ok status", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("Unsplash search error: 401");
+  });
+
+  it("throws when the Unsplash key is missing", async () => {
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "");
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("UNSPLASH_ACCESS_KEY is not configured");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when query is empty", async () => {
+    await expect(searchCoverImages("")).rejects.toThrow("Search query must not be empty");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when fetch network request fails", async () => {
+    mockFetch.mockRejectedValue(new Error("Network failure"));
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("Unsplash search request failed: Network failure");
+  });
+
+  it("throws when response JSON is malformed", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    });
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("Unsplash search request failed");
+  });
+
+  it("returns empty array when results are empty", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [] }),
+    });
+
+    await expect(searchCoverImages("Tokyo")).resolves.toEqual([]);
+  });
+
+  it("uses description as fallback when alt_description is null", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "xyz",
+            urls: { regular: "https://images.unsplash.com/xyz" },
+            user: { name: "Jane" },
+            alt_description: null,
+            description: "A beautiful view",
+          },
+        ],
+      }),
+    });
+
+    const result = await searchCoverImages("Paris");
+    expect(result[0].alt).toBe("A beautiful view");
+  });
+
+  it("uses empty string when both alt_description and description are null", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "xyz",
+            urls: { regular: "https://images.unsplash.com/xyz" },
+            user: { name: "Jane" },
+            alt_description: null,
+            description: null,
+          },
+        ],
+      }),
+    });
+
+    const result = await searchCoverImages("Paris");
+    expect(result[0].alt).toBe("");
   });
 });

@@ -30,6 +30,10 @@ import { CoverType } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType);
 
+function isCoverType(value: string): value is CoverType {
+  return VALID_COVER_TYPES.some((coverType) => coverType === value);
+}
+
 export function dbTripToType(row: typeof trips.$inferSelect): Trip {
   return {
     id: row.id,
@@ -54,6 +58,8 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
 }
 
 export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
+  const defaultCoverType = row.defaultCoverType ?? "";
+
   return {
     id: row.id,
     name: row.name ?? null,
@@ -65,9 +71,7 @@ export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
     passportExpiry: row.passportExpiry ?? null,
     passportNationality: row.passportNationality ?? null,
     knownTravelerNumber: row.knownTravelerNumber ?? null,
-    defaultCoverType: VALID_COVER_TYPES.includes(row.defaultCoverType ?? "")
-      ? (row.defaultCoverType as CoverType)
-      : undefined,
+    defaultCoverType: isCoverType(defaultCoverType) ? defaultCoverType : undefined,
     loyaltyNumbers: [],
     wishlistDestinations: [],
     companions: [],
