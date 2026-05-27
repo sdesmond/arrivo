@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { cn, isEventNow, isEventPast } from "@/lib/utils";
+import { IconSize } from "@/lib/size-tokens";
 import { type TripEvent } from "@/data/types";
 
 interface EventChipProps {
@@ -36,7 +37,7 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
       <div
         style={{
           fontFamily: "var(--font-mono-family, ui-monospace)",
-          fontSize: "calc(10px * var(--font-scale))",
+          fontSize: "calc(var(--fs-chip-meta) * var(--font-scale))",
           fontWeight: 500,
           letterSpacing: "0.04em",
           color: isNow ? "var(--accent-brand)" : "var(--fg-3)",
@@ -46,12 +47,17 @@ export function EventChip({ ev, tripId, now }: EventChipProps) {
           gap: "4px",
         }}
       >
-        <MapPin size={10} strokeWidth={1.5} />
+        <MapPin size={IconSize.chipMeta} strokeWidth={1.5} />
         {timeStr}
         {isNow ? " · NOW" : isPast ? " · DONE" : ""}
       </div>
       <div
-        style={{ fontSize: "calc(12.5px * var(--font-scale))", fontWeight: 500, color: "var(--fg)", lineHeight: 1.2 }}
+        style={{
+          fontSize: "calc(var(--fs-chip-name) * var(--font-scale))",
+          fontWeight: 500,
+          color: "var(--fg)",
+          lineHeight: 1.2,
+        }}
       >
         {ev.name}
       </div>

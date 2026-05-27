@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { MapPin, ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { IconSize } from "@/lib/size-tokens";
 import type { DayItinerary } from "@/data/types";
 
 export interface DayCardHeaderProps {
@@ -62,7 +63,7 @@ export function DayCardHeader({
           <div
             style={{
               fontFamily: "var(--font-heading-family, ui-sans-serif)",
-              fontSize: "calc(14px * var(--font-scale))",
+              fontSize: "calc(var(--fs-card-title) * var(--font-scale))",
               fontWeight: 600,
               color: "var(--fg)",
             }}
@@ -72,9 +73,9 @@ export function DayCardHeader({
           <div className="flex items-center gap-2">
             <span
               className="flex items-center gap-1"
-              style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)" }}
+              style={{ fontSize: "calc(var(--fs-card-sub) * var(--font-scale))", color: "var(--fg-3)" }}
             >
-              <MapPin size={12} strokeWidth={1.5} />
+              <MapPin size={IconSize.cardSub} strokeWidth={1.5} />
               {stopsCount} stops
             </span>
             {isToday && <Badge variant="soft">Active</Badge>}
@@ -121,7 +122,7 @@ export function DayCardHeader({
               }
             }}
             style={{
-              fontSize: "calc(12px * var(--font-scale))",
+              fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
               color: "var(--fg-3)",
               background: "transparent",
               border: "none",
@@ -148,7 +149,7 @@ export function DayCardHeader({
               }
             }}
             style={{
-              fontSize: "calc(12px * var(--font-scale))",
+              fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
               color: subtitle ? "var(--fg-3)" : "var(--fg-4)",
               cursor: "text",
               minHeight: "1.2em",

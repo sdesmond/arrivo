@@ -65,8 +65,17 @@
 /* ─── Light theme ─── */
 :root {
   /* Font size preference — overridden by FontSizeSelect via JS */
-  --font-size-base: 15px;
+  --font-size-base: 16px;
   --font-scale: 1;
+
+  /* ─── Text-size tokens (base px values; always multiply by var(--font-scale)) ─── */
+  --fs-chip-name: 14px; /* event chip event name */
+  --fs-chip-meta: 11px; /* event chip time / mono metadata */
+  --fs-action-chip: 12px; /* place-row action-bar chips */
+  --fs-card-title: 15px; /* day card date heading */
+  --fs-card-sub: 13px; /* day card subtitle, stops count, notes */
+  --fs-nav: 14px; /* sidebar nav item label */
+  --fs-nav-badge: 11px; /* sidebar nav count badge */
 
   /* Packt design tokens — light */
   --bg: #ffffff;
@@ -132,12 +141,12 @@
 /* ─── Font size scale overrides ─── */
 html[data-font-size="small"] {
   --font-size-base: 13px;
-  --font-scale: 0.867;
+  --font-scale: 0.813;
 }
 
 html[data-font-size="large"] {
-  --font-size-base: 17px;
-  --font-scale: 1.133;
+  --font-size-base: 18px;
+  --font-scale: 1.125;
 }
 
 /* ─── Dark theme ─── */
@@ -288,9 +297,9 @@ html[data-font-size="large"] {
   gap: 2px;
 }
 .seg-item {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  padding: 5px 12px;
+  padding: 6px 14px;
   border-radius: 6px;
   color: var(--fg-3);
   letter-spacing: -0.005em;

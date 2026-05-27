@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MapPin, Trash2 } from "lucide-react";
+import { IconSize } from "@/lib/size-tokens";
 import { type TripEvent, type Document } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
@@ -150,7 +151,7 @@ export function PlaceRow({
                 rows={2}
                 style={{
                   width: "100%",
-                  fontSize: "calc(12px * var(--font-scale))",
+                  fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
                   color: "var(--fg-2)",
                   background: "var(--surface-2)",
                   border: "1px solid var(--accent-brand)",
@@ -178,7 +179,7 @@ export function PlaceRow({
                   }
                 }}
                 style={{
-                  fontSize: "calc(12px * var(--font-scale))",
+                  fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
                   cursor: "text",
                   borderRadius: 6,
                   padding: "4px 10px",
@@ -236,7 +237,7 @@ export function PlaceRow({
           }}
           title="Delete event"
         >
-          <Trash2 size={13} strokeWidth={1.5} />
+          <Trash2 size={IconSize.placeAction} strokeWidth={1.5} />
         </button>
       </div>
 
