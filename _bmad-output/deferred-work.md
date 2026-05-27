@@ -9,3 +9,7 @@
 - `UpdateTripPatch` can't clear destination fields — pre-existing pattern, not scoped [src/data/types.ts]
 - No migration file in diff — schema-only commit, separate workflow [src/db/schema.ts]
 - `CoverType.Graphic` value and URL prefix coupled — no spec requirement for shared constant
+
+## Deferred from: code review of 1-2-location-and-image-search-server-actions (2026-05-27)
+
+- Unsound `as` type assertions for API responses — pre-existing project-wide pattern; not introduced by this change [actions.ts:502,534]

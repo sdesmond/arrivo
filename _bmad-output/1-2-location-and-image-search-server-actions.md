@@ -393,3 +393,16 @@ GPT-5 Codex
 - src/app/(app)/trips/actions.test.ts
 - src/lib/db-mappers.ts
 - src/lib/db-mappers.test.ts
+
+### Review Findings
+
+- [x] [Review][Patch] Add fetch AbortController timeout [actions.ts:488,522]
+- [x] [Review][Patch] Guard `response.json()` inside try/catch [actions.ts:502,542]
+- [x] [Review][Patch] Guard null `properties.coordinates` [actions.ts:509]
+- [x] [Review][Patch] Chain original error in catch blocks [actions.ts:492,526]
+- [x] [Review][Patch] Use `vi.stubEnv` instead of `process.env` mutation [actions.test.ts:288,352]
+- [x] [Review][Patch] Guard empty/whitespace queries [actions.ts:479,514]
+- [x] [Review][Patch] Handle missing `full_address` without producing `", "` [actions.ts:506]
+- [x] [Review][Patch] Missing test coverage: network-failure, JSON-parse-error, empty-results, alt-fallback, null-`name` [actions.test.ts]
+- [x] [Review][Patch] Missing-token test should verify WHICH env var [actions.test.ts:341]
+- [x] [Review][Defer] Unsound `as` type assertions for API responses — pre-existing project-wide pattern

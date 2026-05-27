@@ -482,33 +482,51 @@ export async function searchLocations(query: string): Promise<LocationSuggestion
     throw new Error("MAPBOX_ACCESS_TOKEN is not configured");
   }
 
+  if (!query.trim()) {
+    throw new Error("Search query must not be empty");
+  }
+
   await requireUser();
 
-  let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
   try {
     const encodedQuery = encodeURIComponent(query);
-    response = await fetch(
-      `https://api.mapbox.com/search/geocode/v6/forward?q=${encodedQuery}&access_token=${token}&limit=5&types=place,locality,neighborhood`
+    const response = await fetch(
+      `https://api.mapbox.com/search/geocode/v6/forward?q=${encodedQuery}&access_token=${token}&limit=5&types=place,locality,neighborhood`,
+      { signal: controller.signal }
     );
+
+    if (!response.ok) {
+      throw new Error(`Mapbox geocoding error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as MapboxGeocodingResponse;
+    return data.features.map((feature) => {
+      const props = feature.properties;
+      const placeName =
+        props.full_address ??
+        (props.name && props.place_formatted
+          ? `${props.name}, ${props.place_formatted}`
+          : (props.name ?? props.place_formatted ?? ""));
+      return {
+        placeName,
+        country: props.context?.country?.name ?? "",
+        countryCode: props.context?.country?.country_code ?? "",
+        center: props.coordinates
+          ? ([props.coordinates.longitude, props.coordinates.latitude] as [number, number])
+          : [0, 0],
+      };
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Mapbox geocoding request failed: ${message}`);
+    if (error instanceof Error) {
+      throw new Error(`Mapbox geocoding request failed: ${error.message}`, { cause: error });
+    }
+    throw new Error("Mapbox geocoding request failed: Unknown error");
+  } finally {
+    clearTimeout(timeout);
   }
-
-  if (!response.ok) {
-    throw new Error(`Mapbox geocoding error: ${response.status}`);
-  }
-
-  const data = (await response.json()) as MapboxGeocodingResponse;
-  return data.features.map((feature) => {
-    const props = feature.properties;
-    return {
-      placeName: props.full_address ?? `${props.name}, ${props.place_formatted}`,
-      country: props.context?.country?.name ?? "",
-      countryCode: props.context?.country?.country_code ?? "",
-      center: [props.coordinates.longitude, props.coordinates.latitude] as [number, number],
-    };
-  });
 }
 
 export async function searchCoverImages(query: string): Promise<CoverImageResult[]> {
@@ -517,33 +535,44 @@ export async function searchCoverImages(query: string): Promise<CoverImageResult
     throw new Error("UNSPLASH_ACCESS_KEY is not configured");
   }
 
+  if (!query.trim()) {
+    throw new Error("Search query must not be empty");
+  }
+
   await requireUser();
 
-  let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
   try {
     const encodedQuery = encodeURIComponent(query);
-    response = await fetch(
+    const response = await fetch(
       `https://api.unsplash.com/search/photos?query=${encodedQuery}+travel&orientation=landscape&per_page=19`,
       {
+        signal: controller.signal,
         headers: {
           Authorization: `Client-ID ${key}`,
         },
       }
     );
+
+    if (!response.ok) {
+      throw new Error(`Unsplash search error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as UnsplashSearchResponse;
+    return data.results.map((result) => ({
+      id: result.id,
+      url: result.urls.regular,
+      photographer: result.user.name,
+      alt: result.alt_description ?? result.description ?? "",
+    }));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Unsplash search request failed: ${message}`);
+    if (error instanceof Error) {
+      throw new Error(`Unsplash search request failed: ${error.message}`, { cause: error });
+    }
+    throw new Error("Unsplash search request failed: Unknown error");
+  } finally {
+    clearTimeout(timeout);
   }
-
-  if (!response.ok) {
-    throw new Error(`Unsplash search error: ${response.status}`);
-  }
-
-  const data = (await response.json()) as UnsplashSearchResponse;
-  return data.results.map((result) => ({
-    id: result.id,
-    url: result.urls.regular,
-    photographer: result.user.name,
-    alt: result.alt_description ?? result.description ?? "",
-  }));
 }

@@ -284,13 +284,13 @@ describe("searchLocations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-mapbox-token");
     requireUser.mockResolvedValue({ id: "user-1" });
-    process.env.MAPBOX_ACCESS_TOKEN = "test-mapbox-token";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete process.env.MAPBOX_ACCESS_TOKEN;
+    vi.unstubAllEnvs();
   });
 
   it("maps Mapbox response to the action return shape", async () => {
@@ -323,7 +323,8 @@ describe("searchLocations", () => {
     ]);
     expect(requireUser).toHaveBeenCalled();
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.mapbox.com/search/geocode/v6/forward?q=Tokyo&access_token=test-mapbox-token&limit=5&types=place,locality,neighborhood"
+      "https://api.mapbox.com/search/geocode/v6/forward?q=Tokyo&access_token=test-mapbox-token&limit=5&types=place,locality,neighborhood",
+      { signal: expect.any(AbortSignal) }
     );
   });
 
@@ -334,11 +335,75 @@ describe("searchLocations", () => {
   });
 
   it("throws when the Mapbox token is missing", async () => {
-    delete process.env.MAPBOX_ACCESS_TOKEN;
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
 
     await expect(searchLocations("Tokyo")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
     expect(requireUser).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when query is empty", async () => {
+    await expect(searchLocations("  ")).rejects.toThrow("Search query must not be empty");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when fetch network request fails", async () => {
+    mockFetch.mockRejectedValue(new Error("Network failure"));
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding request failed: Network failure");
+  });
+
+  it("throws when response JSON is malformed", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    });
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding request failed");
+  });
+
+  it("returns empty array when features are empty", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ features: [] }),
+    });
+
+    await expect(searchLocations("Tokyo")).resolves.toEqual([]);
+  });
+
+  it("handles missing optional fields in Mapbox response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        features: [
+          {
+            properties: {
+              name: "Tokyo",
+              place_formatted: "Tokyo, Japan",
+              coordinates: null,
+              context: {},
+            },
+          },
+          {
+            properties: {
+              name: undefined,
+              place_formatted: undefined,
+              full_address: undefined,
+              coordinates: undefined,
+            },
+          },
+        ],
+      }),
+    });
+
+    const result = await searchLocations("Tokyo");
+    expect(result).toHaveLength(2);
+    expect(result[0].center).toEqual([0, 0]);
+    expect(result[1].placeName).toBe("");
+    expect(result[1].center).toEqual([0, 0]);
   });
 });
 
@@ -348,13 +413,13 @@ describe("searchCoverImages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
     requireUser.mockResolvedValue({ id: "user-1" });
-    process.env.UNSPLASH_ACCESS_KEY = "test-unsplash-key";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete process.env.UNSPLASH_ACCESS_KEY;
+    vi.unstubAllEnvs();
   });
 
   it("maps Unsplash response to the action return shape", async () => {
@@ -385,6 +450,7 @@ describe("searchCoverImages", () => {
     expect(mockFetch).toHaveBeenCalledWith(
       "https://api.unsplash.com/search/photos?query=Tokyo+travel&orientation=landscape&per_page=19",
       {
+        signal: expect.any(AbortSignal),
         headers: {
           Authorization: "Client-ID test-unsplash-key",
         },
@@ -399,10 +465,82 @@ describe("searchCoverImages", () => {
   });
 
   it("throws when the Unsplash key is missing", async () => {
-    delete process.env.UNSPLASH_ACCESS_KEY;
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "");
 
     await expect(searchCoverImages("Tokyo")).rejects.toThrow("UNSPLASH_ACCESS_KEY is not configured");
     expect(requireUser).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when query is empty", async () => {
+    await expect(searchCoverImages("")).rejects.toThrow("Search query must not be empty");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws when fetch network request fails", async () => {
+    mockFetch.mockRejectedValue(new Error("Network failure"));
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("Unsplash search request failed: Network failure");
+  });
+
+  it("throws when response JSON is malformed", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    });
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("Unsplash search request failed");
+  });
+
+  it("returns empty array when results are empty", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [] }),
+    });
+
+    await expect(searchCoverImages("Tokyo")).resolves.toEqual([]);
+  });
+
+  it("uses description as fallback when alt_description is null", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "xyz",
+            urls: { regular: "https://images.unsplash.com/xyz" },
+            user: { name: "Jane" },
+            alt_description: null,
+            description: "A beautiful view",
+          },
+        ],
+      }),
+    });
+
+    const result = await searchCoverImages("Paris");
+    expect(result[0].alt).toBe("A beautiful view");
+  });
+
+  it("uses empty string when both alt_description and description are null", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "xyz",
+            urls: { regular: "https://images.unsplash.com/xyz" },
+            user: { name: "Jane" },
+            alt_description: null,
+            description: null,
+          },
+        ],
+      }),
+    });
+
+    const result = await searchCoverImages("Paris");
+    expect(result[0].alt).toBe("");
   });
 });
