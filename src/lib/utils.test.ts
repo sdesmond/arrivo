@@ -16,6 +16,7 @@ import {
   formatFileSize,
   shareDoc,
   pluralize,
+  parseGraphicCover,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -357,6 +358,42 @@ describe("shareDoc", () => {
     });
 
     await expect(shareDoc(doc)).resolves.toBeUndefined();
+  });
+});
+
+describe("parseGraphicCover", () => {
+  it("returns color and icon for valid graphic URL", () => {
+    expect(parseGraphicCover("graphic:oklch(0.7 0.15 200)/plane")).toEqual({
+      color: "oklch(0.7 0.15 200)",
+      icon: "plane",
+    });
+  });
+
+  it("handles icon names with hyphens", () => {
+    expect(parseGraphicCover("graphic:#3b82f6/map-pin")).toEqual({
+      color: "#3b82f6",
+      icon: "map-pin",
+    });
+  });
+
+  it("returns null for non-graphic URL", () => {
+    expect(parseGraphicCover("https://example.com/img.jpg")).toBeNull();
+  });
+
+  it("returns null for empty string", () => {
+    expect(parseGraphicCover("")).toBeNull();
+  });
+
+  it("returns null for malformed graphic URL without slash", () => {
+    expect(parseGraphicCover("graphic:coloronly")).toBeNull();
+  });
+
+  it("returns null for graphic URL with empty color", () => {
+    expect(parseGraphicCover("graphic:/plane")).toBeNull();
+  });
+
+  it("returns null for graphic URL with empty icon", () => {
+    expect(parseGraphicCover("graphic:blue/")).toBeNull();
   });
 });
 
