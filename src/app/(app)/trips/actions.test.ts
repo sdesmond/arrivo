@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 
 const { assertTripAccess, db, redirect, requireUser, revalidatePath } = vi.hoisted(() => ({
@@ -33,7 +33,7 @@ vi.mock("@vercel/blob", () => ({
 }));
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import { updateTripMetadata } from "./actions";
+import { searchCoverImages, searchLocations, updateTripMetadata } from "./actions";
 import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
 
 interface TransactionFixture {
@@ -275,5 +275,134 @@ describe("updateTripMetadata", () => {
       )
     ).rejects.toThrow(/review the date change again/i);
     expect(operations.deletes).toEqual([]);
+  });
+});
+
+describe("searchLocations", () => {
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+    requireUser.mockResolvedValue({ id: "user-1" });
+    process.env.MAPBOX_ACCESS_TOKEN = "test-mapbox-token";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  it("maps Mapbox response to the action return shape", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        features: [
+          {
+            properties: {
+              name: "Tokyo",
+              place_formatted: "Tokyo, Japan",
+              full_address: "Tokyo, Tokyo, Japan",
+              coordinates: { longitude: 139.69, latitude: 35.68 },
+              context: {
+                country: { name: "Japan", country_code: "JP" },
+              },
+            },
+          },
+        ],
+      }),
+    });
+
+    await expect(searchLocations("Tokyo")).resolves.toEqual([
+      {
+        placeName: "Tokyo, Tokyo, Japan",
+        country: "Japan",
+        countryCode: "JP",
+        center: [139.69, 35.68],
+      },
+    ]);
+    expect(requireUser).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.mapbox.com/search/geocode/v6/forward?q=Tokyo&access_token=test-mapbox-token&limit=5&types=place,locality,neighborhood"
+    );
+  });
+
+  it("throws when Mapbox returns a non-ok status", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 403 });
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding error: 403");
+  });
+
+  it("throws when the Mapbox token is missing", async () => {
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+
+    await expect(searchLocations("Tokyo")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchCoverImages", () => {
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+    requireUser.mockResolvedValue({ id: "user-1" });
+    process.env.UNSPLASH_ACCESS_KEY = "test-unsplash-key";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.UNSPLASH_ACCESS_KEY;
+  });
+
+  it("maps Unsplash response to the action return shape", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "abc123",
+            urls: { regular: "https://images.unsplash.com/abc" },
+            user: { name: "John Photographer" },
+            alt_description: "Tokyo skyline",
+            description: null,
+          },
+        ],
+      }),
+    });
+
+    await expect(searchCoverImages("Tokyo")).resolves.toEqual([
+      {
+        id: "abc123",
+        url: "https://images.unsplash.com/abc",
+        photographer: "John Photographer",
+        alt: "Tokyo skyline",
+      },
+    ]);
+    expect(requireUser).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.unsplash.com/search/photos?query=Tokyo+travel&orientation=landscape&per_page=19",
+      {
+        headers: {
+          Authorization: "Client-ID test-unsplash-key",
+        },
+      }
+    );
+  });
+
+  it("throws when Unsplash returns a non-ok status", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("Unsplash search error: 401");
+  });
+
+  it("throws when the Unsplash key is missing", async () => {
+    delete process.env.UNSPLASH_ACCESS_KEY;
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("UNSPLASH_ACCESS_KEY is not configured");
+    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
