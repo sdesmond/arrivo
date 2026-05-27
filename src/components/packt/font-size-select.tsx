@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const SIZES: { value: FontSizeValue; label: string; px: string }[] = [
   { value: "small", label: "Small", px: "13px" },
-  { value: "medium", label: "Medium", px: "15px" },
-  { value: "large", label: "Large", px: "17px" },
+  { value: "medium", label: "Medium", px: "16px" },
+  { value: "large", label: "Large", px: "18px" },
 ];
 
 const STORAGE_KEY = "packt-font-size";

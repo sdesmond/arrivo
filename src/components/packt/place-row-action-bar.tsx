@@ -3,6 +3,7 @@
 import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
 import type { TripEvent } from "@/data/types";
 import { toHHMM } from "@/lib/utils";
+import { IconSize } from "@/lib/size-tokens";
 
 function formatTime(t: string): string {
   if (!t) return "—";
@@ -48,13 +49,13 @@ export function PlaceRowActionBar({
         onClick={onOpenTime}
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
-          fontSize: "calc(11px * var(--font-scale))",
+          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
           color: p.startAt ? "var(--accent-ink)" : "var(--fg-4)",
           background: p.startAt ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
         }}
       >
-        <Clock size={11} strokeWidth={1.5} />
+        <Clock size={IconSize.actionChip} strokeWidth={1.5} />
         {timeLabel ?? "Add time"}
       </button>
 
@@ -63,14 +64,14 @@ export function PlaceRowActionBar({
         onClick={onOpenLocation}
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
-          fontSize: "calc(11px * var(--font-scale))",
+          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
           color: p.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
           background: p.locationAddress ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
           maxWidth: 160,
         }}
       >
-        <MapPin size={11} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+        <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
         <span className="truncate">{p.locationAddress ?? "Add location"}</span>
       </button>
 
@@ -79,13 +80,13 @@ export function PlaceRowActionBar({
         onClick={onOpenCost}
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
-          fontSize: "calc(11px * var(--font-scale))",
+          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
           color: p.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
           background: p.cost !== undefined ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
         }}
       >
-        <DollarSign size={11} strokeWidth={1.5} />
+        <DollarSign size={IconSize.actionChip} strokeWidth={1.5} />
         {p.cost !== undefined
           ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(p.cost)
           : "Add cost"}
@@ -99,13 +100,13 @@ export function PlaceRowActionBar({
           title="Show attached documents"
           className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
           style={{
-            fontSize: "calc(11px * var(--font-scale))",
+            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--accent-ink)",
             background: "var(--accent-soft)",
             border: "1px solid transparent",
           }}
         >
-          <FileText size={11} strokeWidth={1.5} />
+          <FileText size={IconSize.actionChip} strokeWidth={1.5} />
           {docs.length} doc{docs.length !== 1 ? "s" : ""}
           <ChevronDown
             size={10}
@@ -123,13 +124,13 @@ export function PlaceRowActionBar({
           onClick={onOpenAddDoc}
           className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
           style={{
-            fontSize: "calc(11px * var(--font-scale))",
+            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--fg-4)",
             border: "1px solid transparent",
           }}
           title="Attach document"
         >
-          <Paperclip size={11} strokeWidth={1.5} />
+          <Paperclip size={IconSize.actionChip} strokeWidth={1.5} />
           Attach
         </button>
       )}
