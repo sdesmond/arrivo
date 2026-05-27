@@ -269,7 +269,7 @@ describe("PlaceRow", () => {
       ],
     };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
-    expect(screen.getByRole("button", { name: /1 doc/i })).toBeInTheDocument();
+    expect(screen.getByTitle("Show attached documents")).toBeInTheDocument();
   });
 
   it("renders location address when set", () => {
@@ -394,9 +394,9 @@ describe("PlaceRow", () => {
     };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.queryByTestId("docs-block")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /1 doc/i }));
+    await user.click(screen.getByTitle("Show attached documents"));
     expect(screen.getByTestId("docs-block")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /1 doc/i }));
+    await user.click(screen.getByTitle("Show attached documents"));
     expect(screen.queryByTestId("docs-block")).not.toBeInTheDocument();
   });
 

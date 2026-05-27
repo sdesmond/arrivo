@@ -12,7 +12,7 @@ import {
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/types";
-import { getTripDays, formatDate } from "@/lib/utils";
+import { getTripDays, formatDate, pluralize } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 interface TripCardProps {
@@ -24,7 +24,7 @@ interface TripCardProps {
 
 export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCardProps) {
   const now = useNow();
-  const sub = `${getTripDays(trip.startDate, trip.endDate)} DAYS`;
+  const sub = pluralize(getTripDays(trip.startDate, trip.endDate), "DAY");
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const inDays = trip.startDate
@@ -127,11 +127,11 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         >
           <span className="flex items-center gap-1">
             <Calendar size={13} strokeWidth={1.5} />
-            {getTripDays(trip.startDate, trip.endDate)} days
+            {pluralize(getTripDays(trip.startDate, trip.endDate), "day")}
           </span>
           <span className="flex items-center gap-1">
             <FileText size={13} strokeWidth={1.5} />
-            {trip.docs?.length ?? 0} docs
+            {pluralize(trip.docs?.length ?? 0, "doc")}
           </span>
           <span className="flex items-center gap-1">
             <Users size={13} strokeWidth={1.5} />

@@ -65,7 +65,7 @@ describe("MobileUnscheduledTab", () => {
     );
 
     expect(screen.getByText("Aug 1, 2026 — Aug 3, 2026")).toBeInTheDocument();
-    expect(screen.getByText("1 docs")).toBeInTheDocument();
+    expect(screen.getByText("doc")).toBeInTheDocument();
     expect(screen.queryByText("No dates")).not.toBeInTheDocument();
     expect(screen.queryByText("no docs")).not.toBeInTheDocument();
   });

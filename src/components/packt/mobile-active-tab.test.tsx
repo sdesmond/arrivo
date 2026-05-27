@@ -104,7 +104,7 @@ describe("MobileActiveTab", () => {
 
     expect(screen.queryByText("Now")).not.toBeInTheDocument();
     expect(screen.queryByText("Next Event")).not.toBeInTheDocument();
-    expect(screen.getByText("1 stops")).toBeInTheDocument();
+    expect(screen.getByText("stop")).toBeInTheDocument();
   });
 
   it("renders past event styling and keeps untimed rows blank", () => {

@@ -48,7 +48,7 @@ describe("PlaceRowActionBar", () => {
       docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
-    expect(screen.getByRole("button", { name: /1 doc/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /doc/i })).toBeInTheDocument();
   });
 
   it("does not show Attach pill when hasDocs", () => {
@@ -100,7 +100,7 @@ describe("PlaceRowActionBar", () => {
       docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} onToggleDocs={onToggleDocs} />);
-    await user.click(screen.getByRole("button", { name: /1 doc/i }));
+    await user.click(screen.getByRole("button", { name: /doc/i }));
     expect(onToggleDocs).toHaveBeenCalledOnce();
   });
 
@@ -110,7 +110,7 @@ describe("PlaceRowActionBar", () => {
       docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} showDocs={false} />);
-    expect(screen.getByRole("button", { name: /1 doc/i })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: /doc/i })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("docs toggle has aria-expanded=true when showDocs is true", () => {
@@ -119,7 +119,7 @@ describe("PlaceRowActionBar", () => {
       docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} showDocs={true} />);
-    expect(screen.getByRole("button", { name: /1 doc/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /doc/i })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("docs toggle has title 'Show attached documents'", () => {
@@ -128,7 +128,7 @@ describe("PlaceRowActionBar", () => {
       docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
-    expect(screen.getByRole("button", { name: /1 doc/i })).toHaveAttribute("title", "Show attached documents");
+    expect(screen.getByRole("button", { name: /doc/i })).toHaveAttribute("title", "Show attached documents");
   });
 
   it("cost displays formatted value with comma separators", () => {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { TripCover } from "@/components/packt/trip-cover";
 import { type Trip, type TripEvent } from "@/data/types";
-import { getActiveDayNumber, getTodayDisplay, getTripStatus, isEventNow, isEventPast } from "@/lib/utils";
+import { getActiveDayNumber, getTodayDisplay, getTripStatus, isEventNow, isEventPast, pluralize } from "@/lib/utils";
 
 interface MobileActiveTabProps {
   trip: Trip | null;
@@ -167,7 +167,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
               TODAY · {todayMonth.toUpperCase()} {todayDate}
             </span>
             <span style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>
-              {todayEvents.length} stops
+              {pluralize(todayEvents.length, "stop")}
             </span>
           </div>
           {todayEvents.map((event) => (

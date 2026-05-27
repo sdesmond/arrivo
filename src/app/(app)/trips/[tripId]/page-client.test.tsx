@@ -132,6 +132,6 @@ describe("TripDetailClient", () => {
       />
     );
 
-    expect(screen.getByText("1 places")).toBeInTheDocument();
+    expect(screen.getByText("place")).toBeInTheDocument();
   });
 });

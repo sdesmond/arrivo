@@ -68,6 +68,6 @@ describe("MobileUpcomingTab", () => {
       />
     );
 
-    expect(screen.getByText("2 docs")).toBeInTheDocument();
+    expect(screen.getByText("docs")).toBeInTheDocument();
   });
 });

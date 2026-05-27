@@ -4,6 +4,7 @@ import { Search, Bell, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/packt/theme-toggle";
+import { pluralize } from "@/lib/utils";
 
 interface TopbarProps {
   tripCount: number;
@@ -44,7 +45,7 @@ export function Topbar({ tripCount, pastCount, now, onNewTrip }: TopbarProps) {
             marginTop: 2,
           }}
         >
-          {todayFormatted} · {tripCount} trip{tripCount !== 1 ? "s" : ""} · {pastCount} past
+          {todayFormatted} · {pluralize(tripCount, "trip")} · {pastCount} past
         </div>
       </div>
 

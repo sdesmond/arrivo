@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { deleteEventWithDocDecision } from "@/app/(app)/trips/[tripId]/actions";
+import { pluralize } from "@/lib/utils";
 
 export interface DeleteEventDialogProps {
   eventId: string;
@@ -36,8 +37,8 @@ export function DeleteEventDialog({ eventId, eventName, docCount, open, onOpenCh
           <DialogTitle>Delete {eventName}?</DialogTitle>
         </DialogHeader>
         <p style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>
-          This event has {docCount} attached document{docCount !== 1 ? "s" : ""}. What would you like to do with{" "}
-          {docCount !== 1 ? "them" : "it"}?
+          This event has {docCount} attached {pluralize(docCount, "document")}. What would you like to do with{" "}
+          {docCount === 1 ? "it" : "them"}?
         </p>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending} style={{ minHeight: 44 }}>

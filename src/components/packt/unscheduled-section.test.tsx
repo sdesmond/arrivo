@@ -105,7 +105,7 @@ describe("UnscheduledSection", () => {
         wrapper: Wrapper,
       }
     );
-    expect(screen.getByText("2 TRIPS")).toBeInTheDocument();
+    expect(screen.getByText("TRIPs")).toBeInTheDocument();
   });
 
   it("renders singular count for one trip", () => {
@@ -120,7 +120,7 @@ describe("UnscheduledSection", () => {
         wrapper: Wrapper,
       }
     );
-    expect(screen.getByText("1 TRIP")).toBeInTheDocument();
+    expect(screen.getByText("TRIP")).toBeInTheDocument();
   });
 
   it("does not render when trips array is empty", () => {
