@@ -78,9 +78,9 @@ export function getTripDays(startDate: string | null | undefined, endDate: strin
 }
 
 export function toHHMM(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return "";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;

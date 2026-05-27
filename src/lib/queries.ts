@@ -148,7 +148,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
           .orderBy(itineraryChecklists.position)
       : [];
 
-  const checklistIds = allChecklists.map((cl) => cl.id);
+  const checklistIds = allChecklists.map((checklist) => checklist.id);
   const allChecklistItems =
     checklistIds.length > 0
       ? await db
@@ -188,10 +188,10 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
   }
 
   const checklistsByDay = new Map<string, typeof allChecklists>();
-  for (const cl of allChecklists) {
-    const arr = checklistsByDay.get(cl.dayId) ?? [];
-    arr.push(cl);
-    checklistsByDay.set(cl.dayId, arr);
+  for (const checklist of allChecklists) {
+    const arr = checklistsByDay.get(checklist.dayId) ?? [];
+    arr.push(checklist);
+    checklistsByDay.set(checklist.dayId, arr);
   }
 
   const itemsByChecklistId = new Map<string, typeof allChecklistItems>();
@@ -212,25 +212,25 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
 
   return {
     trip: dbTripToType(trip),
-    days: tripDays.map((d) => ({
-      id: d.id,
-      dayNumber: d.dayNumber,
-      date: d.date ?? undefined,
-      label: d.label,
-      subtitle: d.subtitle ?? undefined,
-      weather: d.weather ?? undefined,
-      travelSummary: d.travelSummary ?? undefined,
-      events: (eventsByDay.get(d.id) ?? []).map((e) => ({
-        ...dbEventToType(e),
-        docs: (docsByEventId.get(e.id) ?? []).map(dbDocToType),
+    days: tripDays.map((day) => ({
+      id: day.id,
+      dayNumber: day.dayNumber,
+      date: day.date ?? undefined,
+      label: day.label,
+      subtitle: day.subtitle ?? undefined,
+      weather: day.weather ?? undefined,
+      travelSummary: day.travelSummary ?? undefined,
+      events: (eventsByDay.get(day.id) ?? []).map((event) => ({
+        ...dbEventToType(event),
+        docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
       })),
-      notes: (notesByDay.get(d.id) ?? []).map((n) => ({
+      notes: (notesByDay.get(day.id) ?? []).map((n) => ({
         id: n.id,
         content: n.content,
         position: n.position,
       })),
-      checklists: (checklistsByDay.get(d.id) ?? []).map((cl) =>
-        dbChecklistToType(cl, itemsByChecklistId.get(cl.id) ?? [])
+      checklists: (checklistsByDay.get(day.id) ?? []).map((checklist) =>
+        dbChecklistToType(checklist, itemsByChecklistId.get(checklist.id) ?? [])
       ),
     })),
     unscheduledEvents: unscheduledEvents.map((event) => ({

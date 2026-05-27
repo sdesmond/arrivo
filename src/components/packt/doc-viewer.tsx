@@ -44,10 +44,10 @@ export function DocViewer({ doc, open, onClose, finalFocusRef }: DocViewerProps)
   const [sandboxIframe, setSandboxIframe] = useState(false);
 
   useEffect(() => {
-    const ua = navigator.userAgent;
-    const isIosUa = /iPhone|iPad|iPod/i.test(ua);
+    const userAgent = navigator.userAgent;
+    const isIosUa = /iPhone|iPad|iPod/i.test(userAgent);
     const isIpadOsAsMac = /Mac/.test(navigator.platform) && (navigator.maxTouchPoints ?? 0) > 1;
-    const isSafariEngine = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|mercury/i.test(ua);
+    const isSafariEngine = /Safari/i.test(userAgent) && !/CriOS|FxiOS|OPiOS|mercury/i.test(userAgent);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileSafari((isIosUa || isIpadOsAsMac) && isSafariEngine);
   }, []);
@@ -64,8 +64,8 @@ export function DocViewer({ doc, open, onClose, finalFocusRef }: DocViewerProps)
     let sentinel: WakeLockSentinel | null = null;
     navigator.wakeLock
       .request("screen")
-      .then((s) => {
-        sentinel = s;
+      .then((lock) => {
+        sentinel = lock;
       })
       .catch(() => {});
 

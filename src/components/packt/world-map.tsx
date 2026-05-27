@@ -40,7 +40,7 @@ interface WorldMapProps {
 }
 
 export function WorldMap({ pins = [], size = "lg", className }: WorldMapProps) {
-  const r = size === "sm" ? 1.6 : 2.2;
+  const radius = size === "sm" ? 1.6 : 2.2;
 
   const dots: React.ReactNode[] = [];
   for (let y = 0; y < ROWS; y++) {
@@ -51,7 +51,7 @@ export function WorldMap({ pins = [], size = "lg", className }: WorldMapProps) {
             key={`${x},${y}`}
             cx={x * CELL_W + CELL_W / 2}
             cy={y * CELL_H + CELL_H / 2}
-            r={r}
+            r={radius}
             fill="var(--fg-4)"
           />
         );

@@ -5,24 +5,24 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/components/ui/date-range-picker", () => ({
   DateRangePicker: ({
-    from,
-    to,
+    start,
+    end,
     onChange,
   }: {
-    from?: string;
-    to?: string;
-    onChange: (from: string | undefined, to: string | undefined) => void;
+    start?: string;
+    end?: string;
+    onChange: (start: string | undefined, end: string | undefined) => void;
   }) => (
     <>
       <input
         data-testid="date-range-start"
-        value={from ?? ""}
-        onChange={(e) => onChange(e.target.value || undefined, to)}
+        value={start ?? ""}
+        onChange={(e) => onChange(e.target.value || undefined, end)}
       />
       <input
         data-testid="date-range-end"
-        value={to ?? ""}
-        onChange={(e) => onChange(from, e.target.value || undefined)}
+        value={end ?? ""}
+        onChange={(e) => onChange(start, e.target.value || undefined)}
       />
     </>
   ),

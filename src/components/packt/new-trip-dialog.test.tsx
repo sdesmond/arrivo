@@ -32,20 +32,20 @@ vi.mock("@/components/ui/dialog", () => ({
 
 vi.mock("@/components/ui/date-range-picker", () => ({
   DateRangePicker: ({
-    from,
-    to,
+    start,
+    end,
     onChange,
   }: {
-    from?: string;
-    to?: string;
-    onChange: (from: string | undefined, to: string | undefined) => void;
+    start?: string;
+    end?: string;
+    onChange: (start: string | undefined, end: string | undefined) => void;
   }) => (
     <div>
       <button type="button" onClick={() => onChange("2026-06-01", "2026-06-10")}>
         Optional date range
       </button>
       <span data-testid="date-value">
-        {from ?? "none"}-{to ?? "none"}
+        {start ?? "none"}-{end ?? "none"}
       </span>
     </div>
   ),

@@ -68,10 +68,10 @@ export function DayRibbon({ trip, todayEvents }: DayRibbonProps) {
 
       {/* Events — horizontally scrollable */}
       <div className="flex-1 flex items-center gap-1 overflow-x-auto scroll-thin min-w-0">
-        {todayEvents.map((ev, i) => (
-          <div key={ev.id} className="flex items-center gap-1 shrink-0">
-            <EventChip ev={ev} tripId={trip.id!} now={now} />
-            {i < todayEvents.length - 1 && (
+        {todayEvents.map((event, idx) => (
+          <div key={event.id} className="flex items-center gap-1 shrink-0">
+            <EventChip event={event} tripId={trip.id!} now={now} />
+            {idx < todayEvents.length - 1 && (
               <ChevronRight size={12} strokeWidth={1.5} style={{ color: "var(--fg-4)", flexShrink: 0 }} />
             )}
           </div>

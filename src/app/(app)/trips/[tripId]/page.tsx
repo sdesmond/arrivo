@@ -19,15 +19,15 @@ export default async function TripDetailPage({
     getUserById(session.id!),
     getServerNow(),
   ]);
-  const sp = await searchParams;
+  const resolvedSearchParams = await searchParams;
   const dateFormat = profile?.dateFormat ?? detectDefaultDateFormat((await headers()).get("accept-language") ?? "");
   return (
     <TripDetailClient
       detail={detail}
       nowISO={now.toISOString()}
       dateFormat={dateFormat}
-      initialExpandedDayNumber={sp.new === "1" ? 1 : undefined}
-      isNew={sp.new === "1"}
+      initialExpandedDayNumber={resolvedSearchParams.new === "1" ? 1 : undefined}
+      isNew={resolvedSearchParams.new === "1"}
     />
   );
 }

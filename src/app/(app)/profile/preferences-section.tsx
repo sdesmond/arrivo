@@ -26,11 +26,11 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   const [isPending, startTransition] = useTransition();
   const [justSaved, setJustSaved] = useState(false);
 
-  function computeDirty(df: string, cur: string, du: string) {
+  function computeDirty(dateFormat: string, currency: string, distanceUnit: string) {
     return (
-      df !== (user.dateFormat ?? "MM/DD/YYYY") ||
-      cur !== (user.currency ?? "") ||
-      du !== (user.distanceUnit ?? "imperial")
+      dateFormat !== (user.dateFormat ?? "MM/DD/YYYY") ||
+      currency !== (user.currency ?? "") ||
+      distanceUnit !== (user.distanceUnit ?? "imperial")
     );
   }
 

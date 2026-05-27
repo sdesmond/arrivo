@@ -10,9 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 
 export interface DateRangePickerProps {
-  from?: string;
-  to?: string;
-  onChange: (from: string | undefined, to: string | undefined) => void;
+  start?: string;
+  end?: string;
+  onChange: (start: string | undefined, end: string | undefined) => void;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -28,8 +28,8 @@ function detectClickedDate(prev: DateRange, curr: DateRange | undefined): Date |
 }
 
 export function DateRangePicker({
-  from,
-  to,
+  start,
+  end,
   onChange,
   placeholder = "Pick a date range",
   disabled,
@@ -50,7 +50,7 @@ export function DateRangePicker({
 
   // The committed values (from props) parsed for Calendar display.
   const committedForDisplay: DateRange | undefined =
-    from || to ? { from: from ? parseISO(from) : undefined, to: to ? parseISO(to) : undefined } : undefined;
+    start || end ? { from: start ? parseISO(start) : undefined, to: end ? parseISO(end) : undefined } : undefined;
 
   // Before the user clicks, show the committed range for highlighting.
   // After first click, show the in-progress selection.
@@ -96,8 +96,8 @@ export function DateRangePicker({
     if (nextFrom && nextTo) setOpen(false);
   }
 
-  const hasValue = from || to;
-  const initialMonth = from ? parseISO(from) : undefined;
+  const hasValue = start || end;
+  const initialMonth = start ? parseISO(start) : undefined;
 
   return (
     <div className="flex items-center gap-1">
@@ -108,13 +108,13 @@ export function DateRangePicker({
           style={{ color: hasValue ? "var(--fg)" : "var(--fg-3)" }}
         >
           <CalendarIcon size={16} strokeWidth={1.5} className="mr-2 shrink-0" />
-          {from ? (
-            to ? (
+          {start ? (
+            end ? (
               <>
-                {format(parseISO(from), "MMM d, yyyy")} – {format(parseISO(to), "MMM d, yyyy")}
+                {format(parseISO(start), "MMM d, yyyy")} – {format(parseISO(end), "MMM d, yyyy")}
               </>
             ) : (
-              format(parseISO(from), "MMM d, yyyy")
+              format(parseISO(start), "MMM d, yyyy")
             )
           ) : (
             placeholder

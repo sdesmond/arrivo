@@ -46,25 +46,25 @@ const baseEvent: TripEvent = {
 describe("EventChip", () => {
   it("renders the event name", () => {
     const now = new Date("2026-05-13T09:00:00Z");
-    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />);
+    render(<EventChip event={baseEvent} tripId={TRIP_ID} now={now} />);
     expect(screen.getByText("Lunch at Cafe")).toBeInTheDocument();
   });
 
   it("shows NOW text indicator when event is current", () => {
     const now = new Date("2026-05-13T11:30:00Z");
-    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />);
+    render(<EventChip event={baseEvent} tripId={TRIP_ID} now={now} />);
     expect(screen.getByText(/NOW/)).toBeInTheDocument();
   });
 
   it("shows DONE text indicator when event is past", () => {
     const now = new Date("2026-05-13T15:00:00Z");
-    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />);
+    render(<EventChip event={baseEvent} tripId={TRIP_ID} now={now} />);
     expect(screen.getByText(/DONE/)).toBeInTheDocument();
   });
 
   it("renders a time string when startAt is present", () => {
     const now = new Date("2026-05-13T09:00:00Z");
-    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />);
+    render(<EventChip event={baseEvent} tripId={TRIP_ID} now={now} />);
     // Time label div contains the formatted start time (non-empty)
     const link = screen.getByTitle(`Open ${baseEvent.name} in day planner`);
     expect(link).toBeInTheDocument();
@@ -76,26 +76,26 @@ describe("EventChip", () => {
 
   it("renders no time string when startAt is absent", () => {
     const now = new Date("2026-05-13T09:00:00Z");
-    const ev: TripEvent = { id: "ev-2", name: "Free time", position: 0 };
-    render(<EventChip ev={ev} tripId={TRIP_ID} now={now} />);
+    const event: TripEvent = { id: "ev-2", name: "Free time", position: 0 };
+    render(<EventChip event={event} tripId={TRIP_ID} now={now} />);
     expect(screen.getByText("Free time")).toBeInTheDocument();
   });
 
   it("link has a descriptive title", () => {
     const now = new Date("2026-05-13T09:00:00Z");
-    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />);
+    render(<EventChip event={baseEvent} tripId={TRIP_ID} now={now} />);
     expect(screen.getByTitle(`Open ${baseEvent.name} in day planner`)).toBeInTheDocument();
   });
 
   it("renders MapPin icon", () => {
     const now = new Date("2026-05-13T09:00:00Z");
-    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />);
+    render(<EventChip event={baseEvent} tripId={TRIP_ID} now={now} />);
     expect(screen.getByTestId("map-pin-icon")).toBeInTheDocument();
   });
 
   it("MapPin icon has strokeWidth 1.5", () => {
     const now = new Date("2026-05-13T09:00:00Z");
-    render(<EventChip ev={baseEvent} tripId={TRIP_ID} now={now} />);
+    render(<EventChip event={baseEvent} tripId={TRIP_ID} now={now} />);
     expect(screen.getByTestId("map-pin-icon")).toHaveAttribute("data-stroke-width", "1.5");
   });
 });

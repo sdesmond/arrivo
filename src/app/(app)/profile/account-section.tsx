@@ -39,8 +39,8 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
   const confirmPasswordError =
     confirmPassword.length > 0 && confirmPassword !== newPassword ? "Passwords do not match." : null;
 
-  function computeDirty(cp: string, np: string, conf: string) {
-    return cp.length > 0 || np.length > 0 || conf.length > 0;
+  function computeDirty(currentPassword: string, newPassword: string, confirmPassword: string) {
+    return currentPassword.length > 0 || newPassword.length > 0 || confirmPassword.length > 0;
   }
 
   function handleCurrentPasswordChange(next: string) {

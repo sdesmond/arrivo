@@ -21,7 +21,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
   const [isSavingOffline, startSaveOfflineTransition] = useTransition();
   const [query, setQuery] = useState("");
 
-  const visible = query.trim() ? docs.filter((d) => d.name.toLowerCase().includes(query.toLowerCase())) : docs;
+  const visible = query.trim() ? docs.filter((doc) => doc.name.toLowerCase().includes(query.toLowerCase())) : docs;
 
   function handleSaveOffline() {
     startSaveOfflineTransition(async () => {

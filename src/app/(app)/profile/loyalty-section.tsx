@@ -51,10 +51,10 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
     <Section title="Loyalty Numbers">
       {loyaltyNumbers.length > 0 && (
         <div className="flex flex-col gap-2">
-          {loyaltyNumbers.map((ln) => (
-            <div key={ln.id} className="flex items-center gap-2">
+          {loyaltyNumbers.map((loyaltyNumber) => (
+            <div key={loyaltyNumber.id} className="flex items-center gap-2">
               <span style={{ flex: 1, fontSize: "calc(13px * var(--font-scale))", color: "var(--fg)" }}>
-                {ln.programName}
+                {loyaltyNumber.programName}
               </span>
               <span
                 style={{
@@ -63,23 +63,27 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
                   color: "var(--fg-2)",
                 }}
               >
-                {ln.memberNumber}
+                {loyaltyNumber.memberNumber}
               </span>
               <button
                 type="button"
-                onClick={() => handleCopy(ln)}
-                title={copiedId === ln.id ? "Copied!" : "Copy member number"}
-                aria-label={copiedId === ln.id ? "Copied!" : "Copy member number"}
+                onClick={() => handleCopy(loyaltyNumber)}
+                title={copiedId === loyaltyNumber.id ? "Copied!" : "Copy member number"}
+                aria-label={copiedId === loyaltyNumber.id ? "Copied!" : "Copy member number"}
                 className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
                 style={{ color: "var(--fg-4)" }}
               >
-                {copiedId === ln.id ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
+                {copiedId === loyaltyNumber.id ? (
+                  <Check size={14} strokeWidth={1.5} />
+                ) : (
+                  <Copy size={14} strokeWidth={1.5} />
+                )}
               </button>
               <button
                 type="button"
-                onClick={() => handleDelete(ln.id)}
+                onClick={() => handleDelete(loyaltyNumber.id)}
                 title="Remove"
-                aria-label={`Remove ${ln.programName}`}
+                aria-label={`Remove ${loyaltyNumber.programName}`}
                 className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
                 style={{ color: "var(--fg-4)" }}
               >

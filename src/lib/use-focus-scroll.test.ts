@@ -25,15 +25,15 @@ describe("useFocusScroll", () => {
 
   it("calls scrollIntoView when focus param is set and element exists", () => {
     mockGet.mockReturnValue("ev-123");
-    const el = document.createElement("div");
-    el.id = "event-ev-123";
+    const element = document.createElement("div");
+    element.id = "event-ev-123";
     const scrollIntoView = vi.fn();
-    el.scrollIntoView = scrollIntoView;
-    document.body.appendChild(el);
+    element.scrollIntoView = scrollIntoView;
+    document.body.appendChild(element);
 
     renderHook(() => useFocusScroll());
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
-    document.body.removeChild(el);
+    document.body.removeChild(element);
   });
 });

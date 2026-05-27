@@ -19,9 +19,9 @@ export function DocsRail({ docs }: DocsRailProps) {
   return (
     <RailPanel header="Documents" meta={`${offlineCount} / ${docs.length} OFFLINE`}>
       <div className="flex flex-col gap-0.5">
-        {docs.slice(0, 5).map((d, i) => (
+        {docs.slice(0, 5).map((doc, idx) => (
           <div
-            key={i}
+            key={idx}
             className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-surface"
             style={{ cursor: "pointer" }}
           >
@@ -38,13 +38,13 @@ export function DocsRail({ docs }: DocsRailProps) {
                 }}
                 className="truncate"
               >
-                {d.name}
+                {doc.name}
               </div>
-              {d.subtitle && (
-                <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>{d.subtitle}</div>
+              {doc.subtitle && (
+                <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>{doc.subtitle}</div>
               )}
             </div>
-            {d.cached ? (
+            {doc.cached ? (
               <span style={{ color: "var(--accent-brand)", flexShrink: 0 }}>
                 <Check size={15} strokeWidth={2} />
               </span>

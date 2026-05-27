@@ -22,10 +22,10 @@ export function TripCover({ name, country, metaTag, showCity = true, className, 
     () => false
   );
   const dark = mounted && resolvedTheme === "dark";
-  const bg = getTint(name, dark);
+  const tint = getTint(name, dark);
 
   return (
-    <div className={cn("relative overflow-hidden", className)} style={{ background: bg, ...style }}>
+    <div className={cn("relative overflow-hidden", className)} style={{ background: tint, ...style }}>
       {/* Stripes overlay */}
       <div className="cover-stripes absolute inset-0" />
 
