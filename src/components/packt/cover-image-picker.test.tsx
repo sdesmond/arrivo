@@ -65,7 +65,7 @@ describe("CoverImagePicker", () => {
       expect(screen.getByRole("button", { name: /apply/i })).toBeInTheDocument();
 
       await user.click(screen.getByRole("tab", { name: /custom/i }));
-      expect(screen.getByText("Custom tab content")).toBeInTheDocument();
+      expect(screen.getByLabelText(/background color/i)).toBeInTheDocument();
     });
   });
 
