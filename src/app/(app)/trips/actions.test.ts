@@ -388,7 +388,7 @@ describe("createTrip", () => {
     return operations;
   }
 
-  it("stores destination fields and applies the first Unsplash cover when the default is unsplash", async () => {
+  it("stores destination fields and applies the first Unsplash cover when the default is photo", async () => {
     vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
     const operations = setupCreateTripDb(null);
     mockFetch.mockResolvedValue({
@@ -444,10 +444,10 @@ describe("createTrip", () => {
     expect(redirect).toHaveBeenCalledWith("/trips/trip-1?new=1");
   });
 
-  it("fetches the Mapbox static tile server-side and stores the Blob URL when the default is mapbox", async () => {
+  it("fetches the Mapbox static tile server-side and stores the Blob URL when the default is map", async () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "mapbox-token");
     vi.stubEnv("UPLOAD_STUB", ""); // override .env UPLOAD_STUB=true for this test
-    const operations = setupCreateTripDb("mapbox");
+    const operations = setupCreateTripDb("map");
     const fakeBlob = new Blob(["png-bytes"], { type: "image/jpeg" });
     mockFetch.mockResolvedValue({ ok: true, blob: async () => fakeBlob });
     blobPut.mockResolvedValue({ url: "https://blob.vercel.com/mapbox-covers/trip-1.jpg" });
@@ -474,7 +474,7 @@ describe("createTrip", () => {
   it("skips blob upload and leaves coverImageUrl null when UPLOAD_STUB is set", async () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "mapbox-token");
     vi.stubEnv("UPLOAD_STUB", "true");
-    const operations = setupCreateTripDb("mapbox");
+    const operations = setupCreateTripDb("map");
 
     await createTrip({
       name: "Map Trip",
@@ -506,7 +506,7 @@ describe("createTrip", () => {
 
   it("swallows cover lookup failures and still completes trip creation", async () => {
     vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
-    const operations = setupCreateTripDb("unsplash");
+    const operations = setupCreateTripDb("photo");
     mockFetch.mockRejectedValue(new Error("Unsplash unavailable"));
 
     await createTrip({
@@ -519,8 +519,8 @@ describe("createTrip", () => {
     expect(redirect).toHaveBeenCalledWith("/trips/trip-1?new=1");
   });
 
-  it("skips cover lookup when no destination is selected", async () => {
-    const operations = setupCreateTripDb("graphic");
+  it("applies graphic cover without loading user preference when no destination is selected (AC6)", async () => {
+    const operations = setupCreateTripDb(null);
 
     await createTrip({
       name: "No Destination Trip",
@@ -528,7 +528,24 @@ describe("createTrip", () => {
 
     expect(db.select).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
-    expect(operations.updates).toEqual([]);
+    expect(operations.updates).toEqual([
+      { table: trips, values: { coverImageUrl: deriveGraphicCover("No Destination Trip") } },
+    ]);
+  });
+
+  it("applies graphic cover preference when trip has coordinates but no destination name", async () => {
+    const operations = setupCreateTripDb("graphic");
+
+    await createTrip({
+      name: "Coordinates Trip",
+      destinationCenter: [2.35, 48.85],
+    });
+
+    expect(db.select).toHaveBeenCalledOnce();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(operations.updates).toEqual([
+      { table: trips, values: { coverImageUrl: deriveGraphicCover("Coordinates Trip") } },
+    ]);
   });
 });
 
