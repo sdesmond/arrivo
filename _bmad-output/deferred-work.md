@@ -13,3 +13,12 @@
 ## Deferred from: code review of 1-2-location-and-image-search-server-actions (2026-05-27)
 
 - Unsound `as` type assertions for API responses — pre-existing project-wide pattern; not introduced by this change [actions.ts:502,534]
+
+## Deferred from: code review of 1-3-destination-autocomplete-and-auto-cover-on-create (2026-05-27)
+
+- `user.id!` non-null assertion pattern — Pre-existing project convention after `requireUser()`. Not introduced by this change.
+- `deriveGraphicCover` returns raw CSS `var()` strings — By design per spec dev notes; CSS variables resolve client-side.
+- `LocationSuggestion` removes `center` field — Intentional breaking change for new Search Box API flow; `center` obtained via `retrieveLocation`.
+- Budget "0" coerced to `undefined` — Pre-existing falsy `||` coercion, not introduced by this change.
+- `sanitizeBudget` regex allows multiple decimal points — Pre-existing regex pattern, not introduced by this change.
+- Partial update nullification via undefined fields — Drizzle drops `undefined` from UPDATE; handled correctly. Pre-existing pattern.
