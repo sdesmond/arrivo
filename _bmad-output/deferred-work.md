@@ -33,3 +33,15 @@
 
 - ToggleGroup deselect sends empty array; state unchanged but UI visually clears — pre-existing pattern for all toggles in preferences-section.tsx; fix when ToggleGroup primitives are refactored
 - Cover preference DB query runs outside the trip transaction — pre-existing from Story 1.3; trip could exist without cover if the query throws post-commit
+
+## Deferred from: code review of 2-1-split-trip-edit-sheet-into-subcomponents (2026-05-28)
+
+- Duplicate "Destination" heading text [trip-edit-destination.tsx] — Section title and Field label both render "Destination" text; UX/presentation judgment deferred
+
+## Deferred from: code review of 2-1-split-trip-edit-sheet-into-subcomponents round 2 (2026-05-28)
+
+- Currency cleared to `""` stored as empty string after `??` fix [trip-edit-sheet.tsx:71] — old `||` coerced `""` to `undefined`; new `??` stores `""`. Semantically equivalent for UI; revisit if server rejects empty-string currency.
+- `TripEditDestination` has unnecessary `"use client"` — purely presentational, no hooks or event handlers [trip-edit-destination.tsx:1]
+- Budget number inputs could pass `NaN` if non-numeric string bypasses `type="number"` [trip-edit-budget.tsx:46,56] — browser returns `""` for invalid number inputs in practice
+- `TripEditDestination` read-only within edit form — destination cannot be edited or cleared here; by spec design, revisit when destination editing is scoped
+- Cover image URL field accepts data URIs and very long URLs without format validation [trip-edit-cover.tsx:30] — `onError` suppresses broken previews; full URL validation is out of scope for story 2.1
