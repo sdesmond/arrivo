@@ -36,6 +36,7 @@ export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip }: P
             name={trip.name}
             showCity={false}
             style={{ width: 52, height: 40, borderRadius: 6, flexShrink: 0 }}
+            coverImageUrl={trip.coverImageUrl}
           />
           <div className="flex-1 min-w-0">
             <div style={{ fontSize: "calc(14px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>

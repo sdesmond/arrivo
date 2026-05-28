@@ -22,3 +22,9 @@
 - Budget "0" coerced to `undefined` — Pre-existing falsy `||` coercion, not introduced by this change.
 - `sanitizeBudget` regex allows multiple decimal points — Pre-existing regex pattern, not introduced by this change.
 - Partial update nullification via undefined fields — Drizzle drops `undefined` from UPDATE; handled correctly. Pre-existing pattern.
+
+## Deferred from: code review of 1-4-trip-cover-image-display-wiring (2026-05-27)
+
+- Image onError can update state after component unmount — minor React anti-pattern, rarely materializes [trip-cover.tsx:74]
+- Hardcoded 48px icon size with no consumer override — design limitation, not a bug [trip-cover.tsx:29]
+- No srcSet/sizes on cover `<img>` — enhancement, not in scope [trip-cover.tsx:73-85]

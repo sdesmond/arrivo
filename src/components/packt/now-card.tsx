@@ -56,7 +56,15 @@ export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardPr
       }}
     >
       {/* Cover */}
-      <TripCover name={trip.name} country={sub} metaTag={statusLabel} showCity style={{ minHeight: 220 }} />
+      <TripCover
+        name={trip.name}
+        country={sub}
+        metaTag={statusLabel}
+        showCity
+        style={{ minHeight: 220 }}
+        coverImageUrl={trip.coverImageUrl}
+        destinationCountry={trip.destinationCountry}
+      />
 
       {/* Body */}
       <div className="p-6">

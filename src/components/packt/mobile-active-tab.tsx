@@ -45,7 +45,15 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
   return (
     <div className="flex flex-col gap-4">
       <div className="overflow-hidden rounded-[14px]" style={{ border: "1px solid var(--line)" }}>
-        <TripCover name={trip.name} country="" metaTag={statusLabel} showCity style={{ minHeight: 160 }} />
+        <TripCover
+          name={trip.name}
+          country=""
+          metaTag={statusLabel}
+          showCity
+          style={{ minHeight: 160 }}
+          coverImageUrl={trip.coverImageUrl}
+          destinationCountry={trip.destinationCountry}
+        />
         <div className="p-4">
           <div
             className="mb-1 flex items-center gap-1.5"
