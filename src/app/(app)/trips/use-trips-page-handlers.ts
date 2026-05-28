@@ -87,6 +87,10 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
           startDate: draft.startDate,
           endDate: draft.endDate,
           budgetTotal: draft.budgetAmount ? parseFloat(draft.budgetAmount) : undefined,
+          destinationName: draft.destinationName,
+          destinationCountry: draft.destinationCountry,
+          destinationCountryCode: draft.destinationCountryCode,
+          destinationCenter: draft.destinationCenter,
         });
       } catch (e) {
         if (e && typeof e === "object" && "digest" in e) throw e;

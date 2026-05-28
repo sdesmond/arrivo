@@ -418,6 +418,7 @@ export interface NewTripDraft {
   destinationName?: string;
   destinationCountry?: string;
   destinationCountryCode?: string;
+  destinationCenter?: [number, number];
 }
 
 export interface CreateTripInput {
@@ -428,6 +429,7 @@ export interface CreateTripInput {
   destinationName?: string;
   destinationCountry?: string;
   destinationCountryCode?: string;
+  destinationCenter?: [number, number];
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;

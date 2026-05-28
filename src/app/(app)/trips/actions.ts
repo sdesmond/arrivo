@@ -12,6 +12,7 @@ import {
   events,
   itineraryNotes,
   itineraryChecklists,
+  users,
 } from "@/db/schema";
 import { asc, eq, inArray, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -25,6 +26,9 @@ import type {
   TripDateConflictResolution,
   UpdateTripMetadataResult,
 } from "@/data/types";
+import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
+import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
+import { deriveGraphicCover } from "@/lib/utils";
 import { buildDayRows } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 
@@ -153,6 +157,9 @@ export async function createTrip(input: CreateTripInput) {
         startDate: input.startDate,
         endDate: input.endDate,
         coverImageUrl: input.coverImageUrl,
+        destinationName: input.destinationName,
+        destinationCountry: input.destinationCountry,
+        destinationCountryCode: input.destinationCountryCode,
         notes: input.notes,
         budgetCurrency: input.budgetCurrency,
         budgetTotal: input.budgetTotal?.toString(),
@@ -174,6 +181,46 @@ export async function createTrip(input: CreateTripInput) {
       await tx.insert(days).values(dayRows);
     }
   });
+
+  if (input.destinationName) {
+    const [userRow] = await db
+      .select({ defaultCoverType: users.defaultCoverType })
+      .from(users)
+      .where(eq(users.id, user.id!));
+    const coverType = userRow?.defaultCoverType ?? "unsplash";
+
+    let coverUrl: string | null = null;
+    try {
+      if (coverType === "mapbox" && input.destinationCenter) {
+        const [lng, lat] = input.destinationCenter;
+        const token = process.env.MAPBOX_ACCESS_TOKEN ?? "";
+        const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/${lng},${lat},10/600x400@2x?access_token=${token}`;
+        if (process.env.UPLOAD_STUB === "true") {
+          // Skip blob upload in E2E/test environments
+          coverUrl = null;
+        } else {
+          const tileRes = await fetch(tileUrl);
+          if (!tileRes.ok) throw new Error(`Mapbox tile fetch failed: ${tileRes.status}`);
+          const tileBlob = await tileRes.blob();
+          const { put } = await import("@vercel/blob");
+          const result = await put(`mapbox-covers/${tripId}.jpg`, tileBlob, { access: "public" });
+          coverUrl = result.url;
+        }
+      } else if (coverType === "graphic") {
+        coverUrl = deriveGraphicCover(input.name);
+      } else {
+        const images = await searchCoverImages(input.destinationName);
+        coverUrl = images[0]?.url ?? null;
+      }
+    } catch (error) {
+      console.error("Cover image fetch failed:", error);
+    }
+
+    if (coverUrl) {
+      await db.update(trips).set({ coverImageUrl: coverUrl }).where(eq(trips.id, tripId));
+    }
+  }
+
   revalidatePath("/trips");
   redirect(`/trips/${tripId}?new=1`);
 }
@@ -307,6 +354,9 @@ export async function updateTripMetadata(
         startDate: desiredDayRows[0]?.date ?? null,
         endDate: desiredDayRows.at(-1)?.date ?? null,
         coverImageUrl: patch.coverImageUrl,
+        destinationName: patch.destinationName,
+        destinationCountry: patch.destinationCountry,
+        destinationCountryCode: patch.destinationCountryCode,
         notes: patch.notes,
         budgetCurrency: patch.budgetCurrency,
         budgetTotal: patch.budgetTotal?.toString(),
@@ -428,31 +478,18 @@ export async function removePackingItem(itemId: string) {
   revalidatePath(`/trips/${item.tripId}`);
 }
 
-interface LocationSuggestion {
+export interface LocationSuggestion {
+  placeName: string;
+  country: string;
+  countryCode: string;
+  mapboxId: string;
+}
+
+export interface RetrievedLocation {
   placeName: string;
   country: string;
   countryCode: string;
   center: [number, number];
-}
-
-interface MapboxGeocodingResponse {
-  features: Array<{
-    properties: {
-      name: string;
-      place_formatted: string;
-      full_address?: string;
-      coordinates: {
-        longitude: number;
-        latitude: number;
-      };
-      context?: {
-        country?: {
-          name: string;
-          country_code: string;
-        };
-      };
-    };
-  }>;
 }
 
 interface CoverImageResult {
@@ -476,54 +513,120 @@ interface UnsplashSearchResponse {
   }>;
 }
 
-export async function searchLocations(query: string): Promise<LocationSuggestion[]> {
+const LOCATION_TYPES: SearchBoxAdministrativeUnitTypes[] = ["place", "locality", "neighborhood", "region", "country"];
+
+export async function searchLocations(query: string, sessionToken: string): Promise<LocationSuggestion[]> {
+  if (!query.trim()) {
+    throw new Error("Search query must not be empty");
+  }
+
+  if (process.env.E2E_MAPBOX_STUB === "true") {
+    await requireUser();
+    return [
+      {
+        placeName: "Paris, France",
+        country: "France",
+        countryCode: "FR",
+        mapboxId: "stub-paris-id",
+      },
+    ];
+  }
+
   const token = process.env.MAPBOX_ACCESS_TOKEN;
   if (!token) {
     throw new Error("MAPBOX_ACCESS_TOKEN is not configured");
   }
 
-  if (!query.trim()) {
-    throw new Error("Search query must not be empty");
-  }
-
   await requireUser();
 
+  const search = new SearchBoxCore({ accessToken: token });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
 
   try {
-    const encodedQuery = encodeURIComponent(query);
-    const response = await fetch(
-      `https://api.mapbox.com/search/geocode/v6/forward?q=${encodedQuery}&access_token=${token}&limit=5&types=place,locality,neighborhood`,
-      { signal: controller.signal }
-    );
+    const response = await search.suggest(query, {
+      sessionToken: new SessionToken(sessionToken),
+      types: new Set(LOCATION_TYPES),
+      limit: 5,
+      signal: controller.signal,
+    });
 
-    if (!response.ok) {
-      throw new Error(`Mapbox geocoding error: ${response.status}`);
-    }
-
-    const data = (await response.json()) as MapboxGeocodingResponse;
-    return data.features.map((feature) => {
-      const props = feature.properties;
+    return response.suggestions.map((s) => {
       const placeName =
-        props.full_address ??
-        (props.name && props.place_formatted
-          ? `${props.name}, ${props.place_formatted}`
-          : (props.name ?? props.place_formatted ?? ""));
+        s.full_address ||
+        (s.name && s.place_formatted ? `${s.name}, ${s.place_formatted}` : (s.name ?? s.place_formatted ?? ""));
       return {
         placeName,
-        country: props.context?.country?.name ?? "",
-        countryCode: props.context?.country?.country_code ?? "",
-        center: props.coordinates
-          ? ([props.coordinates.longitude, props.coordinates.latitude] as [number, number])
-          : [0, 0],
+        country: s.context?.country?.name ?? "",
+        countryCode: s.context?.country?.country_code ?? "",
+        mapboxId: s.mapbox_id,
       };
     });
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Mapbox geocoding request failed: ${error.message}`, { cause: error });
+      throw new Error(`Location search failed: ${error.message}`, { cause: error });
     }
-    throw new Error("Mapbox geocoding request failed: Unknown error");
+    throw new Error("Location search failed: Unknown error");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function retrieveLocation(mapboxId: string, sessionToken: string): Promise<RetrievedLocation> {
+  if (!mapboxId) {
+    throw new Error("mapboxId is required");
+  }
+
+  if (process.env.E2E_MAPBOX_STUB === "true") {
+    await requireUser();
+    return {
+      placeName: "Paris, France",
+      country: "France",
+      countryCode: "FR",
+      center: [2.3488, 48.8534],
+    };
+  }
+
+  const token = process.env.MAPBOX_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error("MAPBOX_ACCESS_TOKEN is not configured");
+  }
+
+  await requireUser();
+
+  const search = new SearchBoxCore({ accessToken: token });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    const response = await search.retrieve({ mapbox_id: mapboxId } as unknown as SearchBoxSuggestion, {
+      sessionToken: new SessionToken(sessionToken),
+      signal: controller.signal,
+    });
+
+    const feature = response.features[0];
+    if (!feature) throw new Error("No feature returned from retrieve");
+    if (!feature.geometry) throw new Error("No geometry in retrieve response");
+
+    const props = feature.properties;
+    const coords = feature.geometry.coordinates as [number, number];
+    const placeName =
+      props.full_address ||
+      (props.name && props.place_formatted
+        ? `${props.name}, ${props.place_formatted}`
+        : (props.name ?? props.place_formatted ?? ""));
+
+    return {
+      placeName,
+      country: props.context?.country?.name ?? "",
+      countryCode: props.context?.country?.country_code ?? "",
+      center: coords,
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Location retrieve failed: ${error.message}`, { cause: error });
+    }
+    throw new Error("Location retrieve failed: Unknown error");
   } finally {
     clearTimeout(timeout);
   }

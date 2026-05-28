@@ -17,6 +17,9 @@ import {
   shareDoc,
   pluralize,
   parseGraphicCover,
+  deriveGraphicCover,
+  GRAPHIC_COVER_COLORS,
+  GRAPHIC_COVER_ICONS,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -394,6 +397,36 @@ describe("parseGraphicCover", () => {
 
   it("returns null for graphic URL with empty icon", () => {
     expect(parseGraphicCover("graphic:blue/")).toBeNull();
+  });
+});
+
+describe("deriveGraphicCover", () => {
+  it("returns a graphic cover string", () => {
+    expect(deriveGraphicCover("Tokyo")).toMatch(/^graphic:.+\/.+$/);
+  });
+
+  it("is deterministic for the same title", () => {
+    expect(deriveGraphicCover("Paris")).toBe(deriveGraphicCover("Paris"));
+  });
+
+  it("produces different results for different titles", () => {
+    expect(deriveGraphicCover("Tokyo")).not.toBe(deriveGraphicCover("Paris"));
+  });
+
+  it("returns a valid color from the palette", () => {
+    const parsed = parseGraphicCover(deriveGraphicCover("London"));
+    expect(parsed).not.toBeNull();
+    expect(GRAPHIC_COVER_COLORS).toContain(parsed!.color);
+  });
+
+  it("returns a valid icon from the palette", () => {
+    const parsed = parseGraphicCover(deriveGraphicCover("New York"));
+    expect(parsed).not.toBeNull();
+    expect(GRAPHIC_COVER_ICONS).toContain(parsed!.icon);
+  });
+
+  it("handles empty titles without throwing", () => {
+    expect(() => deriveGraphicCover("")).not.toThrow();
   });
 });
 

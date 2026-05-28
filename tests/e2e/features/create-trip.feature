@@ -32,3 +32,13 @@ Feature: Create Trip
     And I type "E2E Pending Trip" in the title field
     And I click the Create button
     Then the Create button is not clickable during submission
+
+  Scenario: Create a trip with a destination populates the destination field and creates the trip
+    When I open the New Trip dialog
+    And I type "E2E Destination Trip" in the title field
+    And I type "Par" in the destination field
+    And the destination suggestions appear
+    And I select the first destination suggestion
+    Then the destination field shows the selected place name
+    When I click the Create button
+    Then I am on the trip detail page for "E2E Destination Trip"
