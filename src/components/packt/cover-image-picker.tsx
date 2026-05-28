@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { searchCoverImages } from "@/app/(app)/trips/actions";
 import { CoverImagePickerUpload } from "./cover-image-picker-upload";
 import { CoverImagePickerUrl } from "./cover-image-picker-url";
+import { CoverImagePickerCustom } from "./cover-image-picker-custom";
 
 interface CoverImageResult {
   id: string;
@@ -226,7 +227,7 @@ export function CoverImagePicker({ tripId, destinationName, center, onImageSelec
             <CoverImagePickerUrl onImageSelected={onImageSelected} onClose={onClose} />
           </TabsContent>
           <TabsContent value="custom">
-            <div>Custom tab content</div>
+            <CoverImagePickerCustom onImageSelected={onImageSelected} onClose={onClose} />
           </TabsContent>
         </Tabs>
       </DialogContent>
