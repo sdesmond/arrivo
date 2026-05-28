@@ -7,11 +7,18 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { updateProfile } from "./actions";
+import { CoverType } from "@/data/types";
 import type { UserProfile } from "@/data/types";
 
 const DATE_FORMAT_OPTIONS = [
   { value: "MM/DD/YYYY", label: "Month/Day" },
   { value: "DD/MM/YYYY", label: "Day/Month" },
+] as const;
+
+const COVER_TYPE_OPTIONS = [
+  { value: CoverType.Photo, label: "Photo" },
+  { value: CoverType.Map, label: "Map" },
+  { value: CoverType.Graphic, label: "Graphic" },
 ] as const;
 
 interface ProfilePreferencesSectionProps {
@@ -23,30 +30,37 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   const [dateFormat, setDateFormat] = useState(user.dateFormat ?? "MM/DD/YYYY");
   const [currency, setCurrency] = useState(user.currency ?? "");
   const [distanceUnit, setDistanceUnit] = useState(user.distanceUnit ?? "imperial");
+  const [coverType, setCoverType] = useState<string>(user.defaultCoverType ?? CoverType.Photo);
   const [isPending, startTransition] = useTransition();
   const [justSaved, setJustSaved] = useState(false);
 
-  function computeDirty(dateFormat: string, currency: string, distanceUnit: string) {
+  function computeDirty(dateFormat: string, currency: string, distanceUnit: string, coverType: string) {
     return (
       dateFormat !== (user.dateFormat ?? "MM/DD/YYYY") ||
       currency !== (user.currency ?? "") ||
-      distanceUnit !== (user.distanceUnit ?? "imperial")
+      distanceUnit !== (user.distanceUnit ?? "imperial") ||
+      coverType !== (user.defaultCoverType ?? CoverType.Photo)
     );
   }
 
   function handleDateFormatChange(next: string) {
     setDateFormat(next);
-    onDirtyChange?.(computeDirty(next, currency, distanceUnit));
+    onDirtyChange?.(computeDirty(next, currency, distanceUnit, coverType));
   }
 
   function handleCurrencyChange(next: string) {
     setCurrency(next);
-    onDirtyChange?.(computeDirty(dateFormat, next, distanceUnit));
+    onDirtyChange?.(computeDirty(dateFormat, next, distanceUnit, coverType));
   }
 
   function handleDistanceUnitChange(next: string) {
     setDistanceUnit(next);
-    onDirtyChange?.(computeDirty(dateFormat, currency, next));
+    onDirtyChange?.(computeDirty(dateFormat, currency, next, coverType));
+  }
+
+  function handleCoverTypeChange(next: string) {
+    setCoverType(next);
+    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, next));
   }
 
   const currencyError =
@@ -58,6 +72,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       if (dateFormat !== (user.dateFormat ?? "MM/DD/YYYY")) patch.dateFormat = dateFormat;
       if (currency !== (user.currency ?? "")) patch.currency = currency;
       if (distanceUnit !== (user.distanceUnit ?? "imperial")) patch.distanceUnit = distanceUnit;
+      if (coverType !== (user.defaultCoverType ?? CoverType.Photo)) patch.defaultCoverType = coverType as CoverType;
       const result = await updateProfile(patch);
       if (result.error) {
         toast.error(result.error);
@@ -69,7 +84,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     });
   }
 
-  const isDirty = computeDirty(dateFormat, currency, distanceUnit);
+  const isDirty = computeDirty(dateFormat, currency, distanceUnit, coverType);
 
   return (
     <Section>
@@ -109,6 +124,20 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
           {(["imperial", "metric"] as const).map((unit) => (
             <ToggleGroupItem key={unit} value={unit} className="capitalize">
               {unit}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </Field>
+
+      <Field label="Default trip cover type">
+        <ToggleGroup
+          aria-label="Default trip cover type"
+          value={[coverType]}
+          onValueChange={(arr) => arr[0] && handleCoverTypeChange(arr[0])}
+        >
+          {COVER_TYPE_OPTIONS.map((opt) => (
+            <ToggleGroupItem key={opt.value} value={opt.value}>
+              {opt.label}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>

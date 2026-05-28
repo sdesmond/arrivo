@@ -19,6 +19,7 @@ const mockUser: UserProfile = {
   dateFormat: "MM/DD/YYYY",
   currency: "USD",
   distanceUnit: "imperial",
+  defaultCoverType: "photo",
   passportNumber: null,
   passportExpiry: null,
   passportNationality: null,
@@ -91,5 +92,51 @@ describe("ProfilePreferencesSection", () => {
     await userEvent.type(input, "EUR");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ currency: "EUR" });
+  });
+
+  it("renders cover type toggle with three options", () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByText("Default trip cover type")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Photo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Map" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Graphic" })).toBeInTheDocument();
+  });
+
+  it("Photo is selected by default when no preference saved", () => {
+    const userWithoutPref: UserProfile = { ...mockUser, defaultCoverType: undefined };
+    render(<ProfilePreferencesSection user={userWithoutPref} />);
+    expect(screen.getByRole("button", { name: "Photo" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Map" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Graphic" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("changing cover type enables Save and toggle reflects new value", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Map" }));
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Photo" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Map" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("saves cover type patch when changed", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    await userEvent.click(screen.getByRole("button", { name: "Map" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ defaultCoverType: "map" });
+  });
+
+  it("saves graphic cover type patch", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    await userEvent.click(screen.getByRole("button", { name: "Graphic" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ defaultCoverType: "graphic" });
+  });
+
+  it("renders with saved Graphic preference selected", () => {
+    const userWithGraphic: UserProfile = { ...mockUser, defaultCoverType: "graphic" };
+    render(<ProfilePreferencesSection user={userWithGraphic} />);
+    expect(screen.getByRole("button", { name: "Graphic" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Photo" })).toHaveAttribute("aria-pressed", "false");
   });
 });
