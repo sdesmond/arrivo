@@ -59,6 +59,13 @@ When("I type {string} in the title field", async ({ page }, title: string) => {
   await page.getByRole("dialog").getByLabel("Title").fill(title);
 });
 
+When("I type {string} in the destination field", async ({ page }, destination: string) => {
+  // searchLocations and retrieveLocation are server actions — Mapbox API calls happen server-side.
+  // E2E_MAPBOX_STUB=true (set in the E2E environment) makes both actions return deterministic stubs
+  // without making real API calls. No browser-level route mocking is needed.
+  await page.getByRole("dialog").getByLabel("Destination").fill(destination);
+});
+
 When("I select dates {string} to {string}", async ({ page }, startDate: string, endDate: string) => {
   await page.getByRole("button", { name: /optional date range/i }).click();
   await clickDate(page, startDate);
@@ -102,4 +109,16 @@ Then("the itinerary shows the empty state", async ({ page }) => {
 
 Then("the Create button is not clickable during submission", async ({ page }) => {
   await expect(page.getByRole("dialog").getByRole("button", { name: /creating/i })).toBeDisabled({ timeout: 1000 });
+});
+
+Then("the destination suggestions appear", async ({ page }) => {
+  await expect(page.getByRole("listbox")).toBeVisible();
+});
+
+When("I select the first destination suggestion", async ({ page }) => {
+  await page.getByRole("option").first().click();
+});
+
+Then("the destination field shows the selected place name", async ({ page }) => {
+  await expect(page.getByRole("dialog").getByLabel("Destination")).toHaveValue("Paris, France");
 });

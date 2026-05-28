@@ -116,6 +116,54 @@ export function parseGraphicCover(url: string | null | undefined): { color: stri
   return { color, icon };
 }
 
+export const GRAPHIC_COVER_COLORS = [
+  "var(--accent-brand)",
+  "var(--color-indigo-500)",
+  "var(--color-pink-500)",
+  "var(--color-teal-500)",
+  "var(--color-amber-500)",
+  "var(--color-red-500)",
+  "var(--color-emerald-500)",
+  "var(--color-slate-500)",
+  "var(--color-violet-500)",
+  "var(--color-orange-500)",
+] as const;
+
+export const GRAPHIC_COVER_ICONS = [
+  "plane",
+  "map",
+  "compass",
+  "camera",
+  "tent-tree",
+  "ship",
+  "backpack",
+  "luggage",
+  "bus",
+  "car",
+  "mountain",
+  "tree-palm",
+  "hotel",
+  "road",
+  "van",
+  "caravan",
+  "map-pin",
+  "map-pinned",
+  "trees",
+] as const;
+
+export function deriveGraphicCover(title: string): string {
+  let hash = 5381;
+  for (let index = 0; index < title.length; index++) {
+    hash = ((hash << 5) + hash) ^ title.charCodeAt(index);
+    hash = hash >>> 0;
+  }
+
+  const color = GRAPHIC_COVER_COLORS[hash % GRAPHIC_COVER_COLORS.length];
+  const iconHash = (hash * 2654435761) >>> 0;
+  const icon = GRAPHIC_COVER_ICONS[iconHash % GRAPHIC_COVER_ICONS.length];
+  return `graphic:${color}/${icon}`;
+}
+
 export async function shareDoc(doc: { name: string; url?: string }): Promise<void> {
   const url = doc.url ?? "";
   try {

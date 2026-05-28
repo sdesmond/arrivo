@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import { collaborators, days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 
 const { assertTripAccess, db, redirect, requireUser, revalidatePath } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   db: {
     transaction: vi.fn(),
+    select: vi.fn(),
+    update: vi.fn(),
   },
   redirect: vi.fn(),
   requireUser: vi.fn(),
@@ -28,13 +30,35 @@ vi.mock("next/navigation", () => ({
   redirect,
 }));
 
+const { blobPut } = vi.hoisted(() => ({
+  blobPut: vi.fn(),
+}));
+
 vi.mock("@vercel/blob", () => ({
   del: vi.fn(),
+  put: blobPut,
+}));
+
+const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
+  mockSearchBoxSuggest: vi.fn(),
+  mockSearchBoxRetrieve: vi.fn(),
+}));
+
+vi.mock("@mapbox/search-js-core", () => ({
+  // Must use regular functions (not arrows) so `new SearchBoxCore()` works as a constructor
+  SearchBoxCore: vi.fn(function (this: Record<string, unknown>) {
+    this.suggest = mockSearchBoxSuggest;
+    this.retrieve = mockSearchBoxRetrieve;
+  }),
+  SessionToken: vi.fn(function (this: Record<string, unknown>, id?: string) {
+    this.id = id ?? "mock-session-token";
+  }),
 }));
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import { searchCoverImages, searchLocations, updateTripMetadata } from "./actions";
+import { createTrip, retrieveLocation, searchCoverImages, searchLocations, updateTripMetadata } from "./actions";
 import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
+import { deriveGraphicCover } from "@/lib/utils";
 
 interface TransactionFixture {
   checklistRows?: Array<{ id: string }>;
@@ -276,16 +300,48 @@ describe("updateTripMetadata", () => {
     ).rejects.toThrow(/review the date change again/i);
     expect(operations.deletes).toEqual([]);
   });
+
+  it("threads destination fields into the trip update without auto-changing the cover", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", {
+      destinationName: "Paris, France",
+      destinationCountry: "France",
+      destinationCountryCode: "FR",
+    });
+
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(result).toEqual({ status: "saved" });
+    expect(tripUpdate?.values).toEqual(
+      expect.objectContaining({
+        destinationName: "Paris, France",
+        destinationCountry: "France",
+        destinationCountryCode: "FR",
+        coverImageUrl: undefined,
+      })
+    );
+  });
 });
 
-describe("searchLocations", () => {
+describe("createTrip", () => {
   const mockFetch = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mockFetch);
-    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-mapbox-token");
-    requireUser.mockResolvedValue({ id: "user-1" });
+    requireUser.mockResolvedValue({
+      id: "user-1",
+      email: "test@example.com",
+      name: "Test User",
+    });
   });
 
   afterEach(() => {
@@ -293,117 +349,355 @@ describe("searchLocations", () => {
     vi.unstubAllEnvs();
   });
 
-  it("maps Mapbox response to the action return shape", async () => {
+  function setupCreateTripDb(defaultCoverType: string | null) {
+    const operations = {
+      inserts: [] as Array<{ table: unknown; values: unknown }>,
+      updates: [] as Array<{ table: unknown; values: unknown }>,
+    };
+    const createdTrip = { id: "trip-1" };
+    const transaction = {
+      insert: (table: unknown) => ({
+        values: (values: unknown) => {
+          operations.inserts.push({ table, values });
+          if (table === trips) {
+            return {
+              returning: async () => [createdTrip],
+            };
+          }
+          return undefined;
+        },
+      }),
+    };
+
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    db.select.mockReturnValue({
+      from: () => ({
+        where: async () => [{ defaultCoverType }],
+      }),
+    });
+    db.update.mockImplementation((table: unknown) => ({
+      set: (values: unknown) => ({
+        where: async () => {
+          operations.updates.push({ table, values });
+        },
+      }),
+    }));
+
+    return operations;
+  }
+
+  it("stores destination fields and applies the first Unsplash cover when the default is unsplash", async () => {
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
+    const operations = setupCreateTripDb(null);
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        features: [
+        results: [
           {
-            properties: {
-              name: "Tokyo",
-              place_formatted: "Tokyo, Japan",
-              full_address: "Tokyo, Tokyo, Japan",
-              coordinates: { longitude: 139.69, latitude: 35.68 },
-              context: {
-                country: { name: "Japan", country_code: "JP" },
-              },
-            },
+            id: "img-1",
+            urls: { regular: "https://images.example/paris.jpg" },
+            user: { name: "Photographer" },
+            alt_description: "Paris skyline",
+            description: null,
           },
         ],
       }),
     });
 
-    await expect(searchLocations("Tokyo")).resolves.toEqual([
+    await createTrip({
+      name: "Paris Trip",
+      destinationName: "Paris, France",
+      destinationCountry: "France",
+      destinationCountryCode: "FR",
+      destinationCenter: [2.35, 48.85],
+    });
+
+    expect(operations.inserts).toEqual(
+      expect.arrayContaining([
+        {
+          table: trips,
+          values: expect.objectContaining({
+            destinationName: "Paris, France",
+            destinationCountry: "France",
+            destinationCountryCode: "FR",
+          }),
+        },
+        {
+          table: collaborators,
+          values: expect.objectContaining({
+            tripId: "trip-1",
+            role: "owner",
+          }),
+        },
+      ])
+    );
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(operations.updates).toEqual([
+      {
+        table: trips,
+        values: { coverImageUrl: "https://images.example/paris.jpg" },
+      },
+    ]);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(redirect).toHaveBeenCalledWith("/trips/trip-1?new=1");
+  });
+
+  it("fetches the Mapbox static tile server-side and stores the Blob URL when the default is mapbox", async () => {
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "mapbox-token");
+    vi.stubEnv("UPLOAD_STUB", ""); // override .env UPLOAD_STUB=true for this test
+    const operations = setupCreateTripDb("mapbox");
+    const fakeBlob = new Blob(["png-bytes"], { type: "image/jpeg" });
+    mockFetch.mockResolvedValue({ ok: true, blob: async () => fakeBlob });
+    blobPut.mockResolvedValue({ url: "https://blob.vercel.com/mapbox-covers/trip-1.jpg" });
+
+    await createTrip({
+      name: "Map Trip",
+      destinationName: "Paris, France",
+      destinationCenter: [2.3488, 48.8534],
+    });
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/2.3488,48.8534,10/600x400@2x?access_token=mapbox-token"
+    );
+    expect(blobPut).toHaveBeenCalledWith("mapbox-covers/trip-1.jpg", fakeBlob, { access: "public" });
+    expect(operations.updates).toEqual([
+      {
+        table: trips,
+        values: { coverImageUrl: "https://blob.vercel.com/mapbox-covers/trip-1.jpg" },
+      },
+    ]);
+  });
+
+  it("skips blob upload and leaves coverImageUrl null when UPLOAD_STUB is set", async () => {
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "mapbox-token");
+    vi.stubEnv("UPLOAD_STUB", "true");
+    const operations = setupCreateTripDb("mapbox");
+
+    await createTrip({
+      name: "Map Trip",
+      destinationName: "Paris, France",
+      destinationCenter: [2.3488, 48.8534],
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(blobPut).not.toHaveBeenCalled();
+    expect(operations.updates).toEqual([]);
+  });
+
+  it("derives a graphic cover without calling external APIs when the default is graphic", async () => {
+    const operations = setupCreateTripDb("graphic");
+
+    await createTrip({
+      name: "Road Trip",
+      destinationName: "Paris, France",
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(operations.updates).toEqual([
+      {
+        table: trips,
+        values: { coverImageUrl: deriveGraphicCover("Road Trip") },
+      },
+    ]);
+  });
+
+  it("swallows cover lookup failures and still completes trip creation", async () => {
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
+    const operations = setupCreateTripDb("unsplash");
+    mockFetch.mockRejectedValue(new Error("Unsplash unavailable"));
+
+    await createTrip({
+      name: "Fallback Trip",
+      destinationName: "Paris, France",
+    });
+
+    expect(operations.updates).toEqual([]);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(redirect).toHaveBeenCalledWith("/trips/trip-1?new=1");
+  });
+
+  it("skips cover lookup when no destination is selected", async () => {
+    const operations = setupCreateTripDb("graphic");
+
+    await createTrip({
+      name: "No Destination Trip",
+    });
+
+    expect(db.select).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(operations.updates).toEqual([]);
+  });
+});
+
+describe("searchLocations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-mapbox-token");
+    requireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("maps Search Box API response to the action return shape", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({
+      suggestions: [
+        {
+          name: "Tokyo",
+          place_formatted: "Tokyo, Japan",
+          full_address: "Tokyo, Tokyo, Japan",
+          mapbox_id: "dXJuOm1hcGJveA==",
+          context: { country: { name: "Japan", country_code: "JP" } },
+        },
+      ],
+    });
+
+    await expect(searchLocations("Tokyo", "test-session-token")).resolves.toEqual([
       {
         placeName: "Tokyo, Tokyo, Japan",
         country: "Japan",
         countryCode: "JP",
-        center: [139.69, 35.68],
+        mapboxId: "dXJuOm1hcGJveA==",
       },
     ]);
     expect(requireUser).toHaveBeenCalled();
-    expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.mapbox.com/search/geocode/v6/forward?q=Tokyo&access_token=test-mapbox-token&limit=5&types=place,locality,neighborhood",
-      { signal: expect.any(AbortSignal) }
-    );
+    expect(mockSearchBoxSuggest).toHaveBeenCalledWith("Tokyo", expect.objectContaining({ limit: 5 }));
   });
 
-  it("throws when Mapbox returns a non-ok status", async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 403 });
+  it("falls back to name + place_formatted when full_address is missing", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({
+      suggestions: [
+        {
+          name: "Tokyo",
+          place_formatted: "Tokyo, Japan",
+          full_address: "",
+          mapbox_id: "abc",
+          context: {},
+        },
+      ],
+    });
 
-    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding error: 403");
+    const result = await searchLocations("Tokyo", "sess");
+    expect(result[0].placeName).toBe("Tokyo, Tokyo, Japan");
   });
 
   it("throws when the Mapbox token is missing", async () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
 
-    await expect(searchLocations("Tokyo")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
+    await expect(searchLocations("Tokyo", "sess")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
     expect(requireUser).not.toHaveBeenCalled();
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
+  });
+
+  it("returns the deterministic E2E stub suggestion when configured", async () => {
+    vi.stubEnv("E2E_MAPBOX_STUB", "true");
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
+
+    await expect(searchLocations("Par", "sess")).resolves.toEqual([
+      {
+        placeName: "Paris, France",
+        country: "France",
+        countryCode: "FR",
+        mapboxId: "stub-paris-id",
+      },
+    ]);
+    expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
   });
 
   it("throws when query is empty", async () => {
-    await expect(searchLocations("  ")).rejects.toThrow("Search query must not be empty");
+    await expect(searchLocations("  ", "sess")).rejects.toThrow("Search query must not be empty");
     expect(requireUser).not.toHaveBeenCalled();
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
   });
 
-  it("throws when fetch network request fails", async () => {
-    mockFetch.mockRejectedValue(new Error("Network failure"));
+  it("throws when suggest network request fails", async () => {
+    mockSearchBoxSuggest.mockRejectedValue(new Error("Network failure"));
 
-    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding request failed: Network failure");
+    await expect(searchLocations("Tokyo", "sess")).rejects.toThrow("Location search failed: Network failure");
   });
 
-  it("throws when response JSON is malformed", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => {
-        throw new SyntaxError("Unexpected token");
-      },
-    });
+  it("returns empty array when suggestions are empty", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({ suggestions: [] });
 
-    await expect(searchLocations("Tokyo")).rejects.toThrow("Mapbox geocoding request failed");
+    await expect(searchLocations("Tokyo", "sess")).resolves.toEqual([]);
+  });
+});
+
+describe("retrieveLocation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-mapbox-token");
+    requireUser.mockResolvedValue({ id: "user-1" });
   });
 
-  it("returns empty array when features are empty", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ features: [] }),
-    });
-
-    await expect(searchLocations("Tokyo")).resolves.toEqual([]);
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
-  it("handles missing optional fields in Mapbox response", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        features: [
-          {
-            properties: {
-              name: "Tokyo",
-              place_formatted: "Tokyo, Japan",
-              coordinates: null,
-              context: {},
-            },
+  it("maps Search Box retrieve response to RetrievedLocation", async () => {
+    mockSearchBoxRetrieve.mockResolvedValue({
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [139.69, 35.68] },
+          properties: {
+            name: "Tokyo",
+            place_formatted: "Tokyo, Japan",
+            full_address: "Tokyo, Tokyo, Japan",
+            context: { country: { name: "Japan", country_code: "JP" } },
           },
-          {
-            properties: {
-              name: undefined,
-              place_formatted: undefined,
-              full_address: undefined,
-              coordinates: undefined,
-            },
-          },
-        ],
-      }),
+        },
+      ],
     });
 
-    const result = await searchLocations("Tokyo");
-    expect(result).toHaveLength(2);
-    expect(result[0].center).toEqual([0, 0]);
-    expect(result[1].placeName).toBe("");
-    expect(result[1].center).toEqual([0, 0]);
+    await expect(retrieveLocation("dXJuOm1hcGJveA==", "test-session-token")).resolves.toEqual({
+      placeName: "Tokyo, Tokyo, Japan",
+      country: "Japan",
+      countryCode: "JP",
+      center: [139.69, 35.68],
+    });
+    expect(requireUser).toHaveBeenCalled();
+  });
+
+  it("returns the E2E stub location when configured", async () => {
+    vi.stubEnv("E2E_MAPBOX_STUB", "true");
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
+
+    await expect(retrieveLocation("stub-paris-id", "sess")).resolves.toEqual({
+      placeName: "Paris, France",
+      country: "France",
+      countryCode: "FR",
+      center: [2.3488, 48.8534],
+    });
+    expect(mockSearchBoxRetrieve).not.toHaveBeenCalled();
+  });
+
+  it("throws when the Mapbox token is missing", async () => {
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
+
+    await expect(retrieveLocation("some-id", "sess")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
+    expect(requireUser).not.toHaveBeenCalled();
+  });
+
+  it("throws when mapboxId is empty", async () => {
+    await expect(retrieveLocation("", "sess")).rejects.toThrow("mapboxId is required");
+    expect(requireUser).not.toHaveBeenCalled();
+  });
+
+  it("throws when no feature is returned", async () => {
+    mockSearchBoxRetrieve.mockResolvedValue({ features: [] });
+
+    await expect(retrieveLocation("some-id", "sess")).rejects.toThrow("No feature returned from retrieve");
+  });
+
+  it("throws when retrieve network request fails", async () => {
+    mockSearchBoxRetrieve.mockRejectedValue(new Error("Network failure"));
+
+    await expect(retrieveLocation("some-id", "sess")).rejects.toThrow("Location retrieve failed: Network failure");
   });
 });
 

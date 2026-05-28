@@ -1,7 +1,24 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const { mockSearchLocations, mockRetrieveLocation } = vi.hoisted(() => ({
+  mockSearchLocations: vi.fn(),
+  mockRetrieveLocation: vi.fn(),
+}));
+
+vi.mock("@/app/(app)/trips/actions", () => ({
+  searchLocations: mockSearchLocations,
+  retrieveLocation: mockRetrieveLocation,
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}));
 
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
@@ -51,6 +68,7 @@ vi.mock("@/components/ui/date-range-picker", () => ({
   ),
 }));
 
+import { toast } from "sonner";
 import { NewTripDialog } from "./new-trip-dialog";
 
 describe("NewTripDialog", () => {
@@ -138,12 +156,18 @@ describe("NewTripDialog", () => {
     await user.click(screen.getByRole("button", { name: /optional date range/i }));
     await user.type(screen.getByLabelText(/budget/i), "1500");
     await user.click(screen.getByRole("button", { name: /create/i }));
-    expect(onCreate).toHaveBeenCalledWith({
-      title: "Paris",
-      startDate: "2026-06-01",
-      endDate: "2026-06-10",
-      budgetAmount: "1500",
-    });
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Paris",
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        budgetAmount: "1500",
+        destinationName: undefined,
+        destinationCountry: undefined,
+        destinationCountryCode: undefined,
+        destinationCenter: undefined,
+      })
+    );
   });
 
   it("renders nothing when closed (open=false)", () => {
@@ -180,5 +204,283 @@ describe("NewTripDialog", () => {
     await user.keyboard("{Escape}");
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  describe("destination autocomplete", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mockSearchLocations.mockResolvedValue([
+        {
+          placeName: "Paris, France",
+          country: "France",
+          countryCode: "FR",
+          mapboxId: "paris-france-id",
+        },
+        {
+          placeName: "Paris, Texas",
+          country: "United States",
+          countryCode: "US",
+          mapboxId: "paris-texas-id",
+        },
+      ]);
+      mockRetrieveLocation.mockResolvedValue({
+        placeName: "Paris, France",
+        country: "France",
+        countryCode: "FR",
+        center: [2.35, 48.85],
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.clearAllMocks();
+    });
+
+    it("renders the destination field", () => {
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+      expect(screen.getByLabelText(/destination/i)).toBeInTheDocument();
+    });
+
+    it("fires the destination search after the 300ms debounce", async () => {
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+      const destination = screen.getByLabelText(/destination/i);
+
+      act(() => {
+        fireEvent.change(destination, { target: { value: "Par" } });
+      });
+      expect(mockSearchLocations).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      expect(mockSearchLocations).toHaveBeenCalledWith("Par", expect.any(String));
+    });
+
+    it("selects a suggestion and includes destination data in the submitted draft", async () => {
+      const onCreate = vi.fn();
+      render(<NewTripDialog open onOpenChange={vi.fn()} onCreate={onCreate} />);
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/title/i), { target: { value: "Europe Trip" } });
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      expect(screen.getByRole("option", { name: "Paris, France" })).toBeInTheDocument();
+      await act(async () => {
+        fireEvent.mouseDown(screen.getByRole("option", { name: "Paris, France" }));
+      });
+
+      expect(screen.getByLabelText(/destination/i)).toHaveValue("Paris, France");
+
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      });
+
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          destinationName: "Paris, France",
+          destinationCountry: "France",
+          destinationCountryCode: "FR",
+          destinationCenter: [2.35, 48.85],
+        })
+      );
+    });
+
+    it("clears destination data when typing after a selection", async () => {
+      const onCreate = vi.fn();
+      render(<NewTripDialog open onOpenChange={vi.fn()} onCreate={onCreate} />);
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/title/i), { target: { value: "Anywhere" } });
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.getByRole("option", { name: "Paris, France" })).toBeInTheDocument();
+      // mouseDown starts the async retrieve; immediately typing cancels it via cancelRetrieveRef
+      act(() => {
+        fireEvent.mouseDown(screen.getByRole("option", { name: "Paris, France" }));
+      });
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Paris, Francex" } });
+        fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      });
+
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          destinationName: undefined,
+          destinationCountry: undefined,
+          destinationCountryCode: undefined,
+          destinationCenter: undefined,
+        })
+      );
+    });
+
+    it("discards search results that arrive after a newer search started", async () => {
+      // Simulate a slow first search followed immediately by input change
+      let resolveFirstSearch!: (v: unknown) => void;
+      mockSearchLocations.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirstSearch = resolve;
+        })
+      );
+
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+
+      // Start the first search
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      // Change input before first search resolves — sets active = false for first effect
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par2" } });
+      });
+
+      // Resolve the stale first search — should be discarded (!active branch)
+      await act(async () => {
+        resolveFirstSearch([{ placeName: "Paris, France", country: "France", countryCode: "FR", mapboxId: "x" }]);
+      });
+
+      // "Par2" debounce timer hasn't fired yet, so no new suggestions either
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
+
+    it("shows a toast when location search fails", async () => {
+      mockSearchLocations.mockRejectedValueOnce(new Error("Mapbox down"));
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      expect(toast.error).toHaveBeenCalledWith("Could not search locations");
+    });
+
+    it("supports keyboard selection with ArrowDown and Enter", async () => {
+      const onCreate = vi.fn();
+      render(<NewTripDialog open onOpenChange={vi.fn()} onCreate={onCreate} />);
+      const destination = screen.getByLabelText(/destination/i);
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/title/i), { target: { value: "Keyboard Trip" } });
+        fireEvent.change(destination, { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.getByRole("option", { name: "Paris, France" })).toBeInTheDocument();
+
+      act(() => {
+        fireEvent.keyDown(destination, { key: "ArrowDown" });
+      });
+      await act(async () => {
+        fireEvent.keyDown(destination, { key: "Enter" });
+      });
+      expect(screen.getByLabelText(/destination/i)).toHaveValue("Paris, France");
+
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      });
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ destinationName: "Paris, France" }));
+    });
+
+    it("closes the dropdown on Escape without selecting a destination", async () => {
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+      const destination = screen.getByLabelText(/destination/i);
+
+      act(() => {
+        fireEvent.change(destination, { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+      act(() => {
+        fireEvent.keyDown(destination, { key: "Escape" });
+      });
+
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/destination/i)).toHaveValue("Par");
+    });
+
+    it("shows a toast when retrieveLocation fails", async () => {
+      mockRetrieveLocation.mockRejectedValueOnce(new Error("Retrieve failed"));
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.getByRole("option", { name: "Paris, France" })).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.mouseDown(screen.getByRole("option", { name: "Paris, France" }));
+      });
+
+      expect(toast.error).toHaveBeenCalledWith("Could not load location details");
+    });
+
+    it("discards a retrieve result when the user types before it resolves", async () => {
+      const onCreate = vi.fn();
+      // Delay retrieve so we can type before it resolves
+      let resolveRetrieve!: (v: unknown) => void;
+      mockRetrieveLocation.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveRetrieve = resolve;
+        })
+      );
+
+      render(<NewTripDialog open onOpenChange={vi.fn()} onCreate={onCreate} />);
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/title/i), { target: { value: "Cancel Trip" } });
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par" } });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      // Click suggestion — retrieve is now in-flight
+      act(() => {
+        fireEvent.mouseDown(screen.getByRole("option", { name: "Paris, France" }));
+      });
+
+      // Type before retrieve resolves — cancels the retrieve result
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Par" } });
+      });
+
+      // Now resolve the retrieve — should be discarded
+      await act(async () => {
+        resolveRetrieve({
+          placeName: "Paris, France",
+          country: "France",
+          countryCode: "FR",
+          center: [2.35, 48.85],
+        });
+      });
+
+      // Submit — destinationData should be null (cancelled)
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      });
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ destinationName: undefined, destinationCenter: undefined })
+      );
+    });
   });
 });
