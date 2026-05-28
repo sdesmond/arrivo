@@ -7,6 +7,7 @@ import { eq, and, not, exists, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
+import { CoverType } from "@/data/types";
 import type {
   UpdateUserProfilePatch,
   AddLoyaltyNumberInput,
@@ -44,6 +45,12 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
   }
   if (patch.distanceUnit !== undefined) {
     if (!["imperial", "metric"].includes(patch.distanceUnit)) return { error: "Invalid distance unit." };
+  }
+  if (patch.defaultCoverType !== undefined) {
+    const validCoverTypes = Object.values(CoverType) as string[];
+    if (!validCoverTypes.includes(patch.defaultCoverType)) {
+      return { error: "Invalid cover type." };
+    }
   }
   if (patch.passportExpiry !== undefined && !DATE_RE.test(patch.passportExpiry)) {
     return { error: "Passport expiry must be a valid date (YYYY-MM-DD)." };
