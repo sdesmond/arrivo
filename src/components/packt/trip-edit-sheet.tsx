@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  type Trip,
+  type Budget,
   type Collaborator,
   type CollaboratorRole,
-  type Budget,
-  type UpdateTripPatch,
+  type Trip,
   type TripDateChangeConfirmation,
   type TripDateConflictResolution as TripDateConflictResolutionValue,
+  type UpdateTripPatch,
 } from "@/data/types";
 import { Section, Field } from "@/components/packt/form-section";
+import { TripEditBudget } from "@/components/packt/trip-edit-budget";
 import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
+import { TripEditCover } from "@/components/packt/trip-edit-cover";
+import { TripEditDestination } from "@/components/packt/trip-edit-destination";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
 import { TripDateChangeConfirmationDialog } from "@/components/packt/trip-date-change-confirmation-dialog";
@@ -52,7 +54,6 @@ export function TripEditSheet({
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const isBusy = saving || isDeleting;
-
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (!open) {
@@ -63,19 +64,16 @@ export function TripEditSheet({
   }, [open, trip]);
 
   if (!draft) return null;
-
   function set<K extends keyof Trip>(key: K, value: Trip[K]) {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
-
   function setBudget(key: keyof Budget, value: string | number | undefined) {
     setDraft((prev) => {
       if (!prev) return prev;
-      const budget = { currency: "USD", ...prev.budget, [key]: value || undefined };
+      const budget = { currency: "USD", ...prev.budget, [key]: value ?? undefined };
       return { ...prev, budget };
     });
   }
-
   function removeCollaborator(index: number) {
     setDraft((prev) =>
       prev
@@ -86,7 +84,6 @@ export function TripEditSheet({
         : prev
     );
   }
-
   function updateCollaboratorRole(index: number, role: CollaboratorRole) {
     setDraft((prev) => {
       if (!prev?.collaborators) return prev;
@@ -95,7 +92,6 @@ export function TripEditSheet({
       return { ...prev, collaborators: updated };
     });
   }
-
   function addCollaborator(name: string, email: string, role: CollaboratorRole) {
     const parts = name.split(" ");
     const initials = ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
@@ -109,24 +105,20 @@ export function TripEditSheet({
         : prev
     );
   }
-
   function restoreSaveButtonFocus(): void {
     requestAnimationFrame(() => {
       saveButtonRef.current?.focus();
     });
   }
-
   function closeDateChangeDialog(): void {
     onCancelDateChange?.();
     restoreSaveButtonFocus();
   }
-
   function getPatch(): UpdateTripPatch {
     const currentDraft = draft;
     if (!currentDraft) {
       throw new Error("Trip draft is unavailable.");
     }
-
     return {
       name: currentDraft.name,
       startDate: currentDraft.startDate,
@@ -138,7 +130,6 @@ export function TripEditSheet({
       tags: currentDraft.tags,
     };
   }
-
   async function handleResolution(resolution: TripDateConflictResolutionValue): Promise<void> {
     await onResolveDateChange?.(resolution);
   }
@@ -175,65 +166,25 @@ export function TripEditSheet({
                 }}
               />
             </Section>
-
-            <Section title="Cover image">
-              <Field label="Image URL">
-                <Input
-                  disabled={isBusy}
-                  value={draft.coverImageUrl ?? ""}
-                  placeholder="https://…"
-                  onChange={(e) => set("coverImageUrl", e.target.value || undefined)}
-                />
-              </Field>
-              {draft.coverImageUrl && (
-                <Image
-                  src={draft.coverImageUrl}
-                  alt={draft.name}
-                  width={400}
-                  height={120}
-                  unoptimized
-                  style={{
-                    width: "100%",
-                    maxHeight: 120,
-                    objectFit: "cover",
-                    borderRadius: 6,
-                    border: "1px solid var(--line)",
-                  }}
-                />
-              )}
-            </Section>
-
-            <Section title="Budget">
-              <Field label="Currency">
-                <Input
-                  disabled={isBusy}
-                  value={draft.budget?.currency ?? ""}
-                  placeholder="USD"
-                  onChange={(e) => setBudget("currency", e.target.value)}
-                />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Total">
-                  <Input
-                    disabled={isBusy}
-                    type="number"
-                    min={0}
-                    value={draft.budget?.total ?? ""}
-                    onChange={(e) => setBudget("total", e.target.value ? Number(e.target.value) : undefined)}
-                  />
-                </Field>
-                <Field label="Per person">
-                  <Input
-                    disabled={isBusy}
-                    type="number"
-                    min={0}
-                    value={draft.budget?.perPerson ?? ""}
-                    onChange={(e) => setBudget("perPerson", e.target.value ? Number(e.target.value) : undefined)}
-                  />
-                </Field>
-              </div>
-            </Section>
-
+            <TripEditDestination
+              destinationName={draft.destinationName}
+              destinationCountry={draft.destinationCountry}
+            />
+            <TripEditCover
+              tripName={draft.name}
+              coverImageUrl={draft.coverImageUrl}
+              onCoverImageUrlChange={(coverImageUrl) => set("coverImageUrl", coverImageUrl)}
+              disabled={isBusy}
+            />
+            <TripEditBudget
+              currency={draft.budget?.currency}
+              total={draft.budget?.total}
+              perPerson={draft.budget?.perPerson}
+              onCurrencyChange={(currency) => setBudget("currency", currency)}
+              onTotalChange={(total) => setBudget("total", total)}
+              onPerPersonChange={(perPerson) => setBudget("perPerson", perPerson)}
+              disabled={isBusy}
+            />
             <Section title="People">
               <TripEditCollaborators
                 collaborators={draft.collaborators ?? []}
