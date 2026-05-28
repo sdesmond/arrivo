@@ -8,6 +8,7 @@ export const E2E_TRIP = {
   name: "E2E Test Trip",
   startDate: "2026-07-01",
   endDate: "2026-07-03",
+  coverImageUrl: "graphic:var(--accent-brand)/plane",
 };
 
 export const E2E_DELETE_TRIP = {

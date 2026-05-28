@@ -119,11 +119,17 @@ export function TripEditSheet({
     if (!currentDraft) {
       throw new Error("Trip draft is unavailable.");
     }
+
+    const coverImageUrl =
+      trip?.coverImageUrl === undefined && currentDraft.coverImageUrl === undefined
+        ? undefined
+        : currentDraft.coverImageUrl || null;
+
     return {
       name: currentDraft.name,
       startDate: currentDraft.startDate,
       endDate: currentDraft.endDate ?? currentDraft.startDate,
-      coverImageUrl: currentDraft.coverImageUrl,
+      coverImageUrl,
       budgetCurrency: currentDraft.budget?.currency,
       budgetTotal: currentDraft.budget?.total,
       budgetPerPerson: currentDraft.budget?.perPerson,
@@ -171,10 +177,13 @@ export function TripEditSheet({
               destinationCountry={draft.destinationCountry}
             />
             <TripEditCover
+              tripId={draft.id}
               tripName={draft.name}
               coverImageUrl={draft.coverImageUrl}
-              onCoverImageUrlChange={(coverImageUrl) => set("coverImageUrl", coverImageUrl)}
+              onCoverImageUrlChange={(url) => set("coverImageUrl", url ?? undefined)}
               disabled={isBusy}
+              destinationName={draft.destinationName}
+              destinationCountry={draft.destinationCountry}
             />
             <TripEditBudget
               currency={draft.budget?.currency}
