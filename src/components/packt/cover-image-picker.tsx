@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { searchCoverImages } from "@/app/(app)/trips/actions";
+import { CoverImagePickerUpload } from "./cover-image-picker-upload";
+import { CoverImagePickerUrl } from "./cover-image-picker-url";
 
 interface CoverImageResult {
   id: string;
@@ -37,7 +39,7 @@ function buildMapTileUrl(center?: [number, number]) {
   return `/api/mapbox/static?${searchParams.toString()}`;
 }
 
-export function CoverImagePicker({ destinationName, center, onImageSelected, onClose }: CoverImagePickerProps) {
+export function CoverImagePicker({ tripId, destinationName, center, onImageSelected, onClose }: CoverImagePickerProps) {
   const [images, setImages] = useState<CoverImageResult[]>([]);
   const [hiddenImageIds, setHiddenImageIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -218,10 +220,10 @@ export function CoverImagePicker({ destinationName, center, onImageSelected, onC
             )}
           </TabsContent>
           <TabsContent value="upload">
-            <div>Upload tab content</div>
+            <CoverImagePickerUpload tripId={tripId} onImageSelected={onImageSelected} onClose={onClose} />
           </TabsContent>
           <TabsContent value="url">
-            <div>URL tab content</div>
+            <CoverImagePickerUrl onImageSelected={onImageSelected} onClose={onClose} />
           </TabsContent>
           <TabsContent value="custom">
             <div>Custom tab content</div>

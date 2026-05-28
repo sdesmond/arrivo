@@ -401,6 +401,54 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) throw new Error("No file provided");
+  if (!file.type.startsWith("image/")) throw new Error("Cover image must be an image");
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("Cover image exceeds 25 MB limit");
+
+  let url: string;
+  let uploadedBlobUrl: string | null = null;
+  try {
+    const existing = await db
+      .select({ coverImageUrl: trips.coverImageUrl })
+      .from(trips)
+      .where(eq(trips.id, tripId))
+      .limit(1);
+    const previousUrl = existing[0]?.coverImageUrl;
+
+    if (process.env.UPLOAD_STUB === "true") {
+      url = `https://placehold.co/600x400/png?text=${encodeURIComponent(file.name)}`;
+    } else {
+      const result = await put(file.name, file, { access: "public" });
+      url = result.url;
+      uploadedBlobUrl = result.url;
+    }
+
+    await db.update(trips).set({ coverImageUrl: url }).where(eq(trips.id, tripId));
+
+    if (previousUrl && !previousUrl.startsWith("https://placehold.co/")) {
+      await del(previousUrl).catch((cleanupError) =>
+        console.warn(`Blob cleanup failed for previous cover image ${previousUrl}`, cleanupError)
+      );
+    }
+  } catch (error) {
+    if (uploadedBlobUrl) {
+      await del(uploadedBlobUrl).catch((cleanupError) =>
+        console.warn(`Blob cleanup failed for cover image ${uploadedBlobUrl}`, cleanupError)
+      );
+    }
+
+    throw error;
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  return url;
+}
+
 export async function addDocument(input: AddDocumentInput): Promise<void> {
   const user = await requireUser();
   const tripId = input.tripId ?? (input.eventId ? await getEventTripId(input.eventId) : null);
