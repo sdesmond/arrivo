@@ -27,7 +27,12 @@ export function MobileUnscheduledTab({ trips, dateFormat }: MobileUnscheduledTab
             className="flex overflow-hidden rounded-[14px]"
             style={{ border: "1px solid var(--line)", background: "var(--bg)" }}
           >
-            <TripCover name={trip.name} showCity={false} style={{ width: 100, minHeight: 100 }} />
+            <TripCover
+              name={trip.name}
+              showCity={false}
+              style={{ width: 100, minHeight: 100 }}
+              coverImageUrl={trip.coverImageUrl}
+            />
             <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-3">
               <div style={{ fontSize: "calc(14px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
                 {trip.name}

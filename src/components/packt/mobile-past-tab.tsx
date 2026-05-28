@@ -30,7 +30,12 @@ export function MobilePastTab({ trips, dateFormat, onEditTrip, onDeleteTrip }: M
           style={{ border: "1px solid var(--line)", background: "var(--bg)" }}
         >
           <Link href={`/trips/${trip.id}`} className="flex min-w-0 flex-1">
-            <TripCover name={trip.name} showCity={false} style={{ width: 80, minHeight: 80 }} />
+            <TripCover
+              name={trip.name}
+              showCity={false}
+              style={{ width: 80, minHeight: 80 }}
+              coverImageUrl={trip.coverImageUrl}
+            />
             <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
               <div style={{ fontSize: "calc(14px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
                 {trip.name}

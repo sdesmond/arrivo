@@ -16,6 +16,7 @@ interface TripHeroProps {
   docs: number;
   collaborators: number;
   dateFormat: string;
+  coverImageUrl?: string;
 }
 
 export function TripHero({
@@ -29,6 +30,7 @@ export function TripHero({
   docs,
   collaborators,
   dateFormat,
+  coverImageUrl,
 }: TripHeroProps) {
   return (
     <div className="relative overflow-hidden rounded-t-none">
@@ -40,6 +42,7 @@ export function TripHero({
           metaTag="ACTIVE TRIP · OFFLINE"
           showCity={false}
           style={{ minHeight: 260 }}
+          coverImageUrl={coverImageUrl}
         />
         {/* Gradient scrim for text legibility */}
         <div

@@ -1,9 +1,16 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
+import * as LucideIcons from "lucide-react";
 import { useTheme } from "next-themes";
 import { getTint } from "@/lib/trip-tints";
-import { cn } from "@/lib/utils";
+import { cn, parseGraphicCover } from "@/lib/utils";
+
+const graphicIconLookup = LucideIcons as unknown as Record<
+  string,
+  React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>
+>;
 
 interface TripCoverProps {
   name: string;
@@ -12,22 +19,85 @@ interface TripCoverProps {
   showCity?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  coverImageUrl?: string;
+  destinationCountry?: string;
 }
 
-export function TripCover({ name, country, metaTag, showCity = true, className, style }: TripCoverProps) {
+function toGraphicIconKey(iconName: string): string {
+  return iconName
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
+function renderGraphicIcon(iconName: string, color: string): ReactNode {
+  const IconComponent = graphicIconLookup[toGraphicIconKey(iconName)];
+  if (!IconComponent) return null;
+  return <IconComponent size={48} strokeWidth={1.5} style={{ color }} />;
+}
+
+export function TripCover({
+  name,
+  country,
+  metaTag,
+  showCity = true,
+  className,
+  style,
+  coverImageUrl,
+  destinationCountry,
+}: TripCoverProps) {
   const { resolvedTheme } = useTheme();
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false
   );
+  const normalizedCoverImageUrl = coverImageUrl?.trim() ?? "";
+  const [failedCoverImageUrl, setFailedCoverImageUrl] = useState<string | null>(null);
+
   const dark = mounted && resolvedTheme === "dark";
   const tint = getTint(name, dark);
+  const activeCoverImageUrl = failedCoverImageUrl === normalizedCoverImageUrl ? "" : normalizedCoverImageUrl;
+  const graphicCover = parseGraphicCover(activeCoverImageUrl);
+  const isHttpUrl = activeCoverImageUrl.startsWith("http://") || activeCoverImageUrl.startsWith("https://");
+  const photoCoverImageUrl = activeCoverImageUrl && !graphicCover && isHttpUrl ? activeCoverImageUrl : null;
+  const overlayCountry = destinationCountry?.trim() || country;
+  const graphicIconEl = graphicCover ? renderGraphicIcon(graphicCover.icon, graphicCover.color) : null;
 
   return (
-    <div className={cn("relative overflow-hidden", className)} style={{ background: tint, ...style }}>
-      {/* Stripes overlay */}
-      <div className="cover-stripes absolute inset-0" />
+    <div
+      className={cn("relative overflow-hidden", className)}
+      style={{ background: graphicCover?.color ?? tint, ...style }}
+    >
+      {photoCoverImageUrl ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={photoCoverImageUrl}
+            src={photoCoverImageUrl}
+            alt=""
+            role="presentation"
+            onError={() => setFailedCoverImageUrl(normalizedCoverImageUrl)}
+            onLoad={() => setFailedCoverImageUrl(null)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        </>
+      ) : (
+        <div className="cover-stripes absolute inset-0" />
+      )}
+
+      {graphicIconEl ? (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 1 }}>
+          {graphicIconEl}
+        </div>
+      ) : null}
 
       {/* Meta tag (top-left) */}
       {metaTag && (
@@ -63,7 +133,7 @@ export function TripCover({ name, country, metaTag, showCity = true, className, 
           }}
         >
           {name}
-          {country && (
+          {overlayCountry && (
             <span
               style={{
                 display: "block",
@@ -76,7 +146,7 @@ export function TripCover({ name, country, metaTag, showCity = true, className, 
                 marginTop: 4,
               }}
             >
-              {country}
+              {overlayCountry}
             </span>
           )}
         </div>

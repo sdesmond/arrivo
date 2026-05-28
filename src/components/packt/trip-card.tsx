@@ -84,7 +84,15 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
       </div>
 
       {/* Cover */}
-      <TripCover name={trip.name} country={sub} metaTag="UPCOMING" showCity style={{ minHeight: 160 }} />
+      <TripCover
+        name={trip.name}
+        country={sub}
+        metaTag="UPCOMING"
+        showCity
+        style={{ minHeight: 160 }}
+        coverImageUrl={trip.coverImageUrl}
+        destinationCountry={trip.destinationCountry}
+      />
 
       {/* Body */}
       <div className="flex flex-col gap-2.5 p-4">

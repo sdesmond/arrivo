@@ -132,7 +132,15 @@ export function TripDetailClient({
 
       {/* Hero */}
       <div className="relative shrink-0" style={{ minHeight: 260 }}>
-        <TripCover name={trip.name} country="" metaTag={heroStatusLabel} showCity={false} style={{ minHeight: 260 }} />
+        <TripCover
+          name={trip.name}
+          country=""
+          metaTag={heroStatusLabel}
+          showCity={false}
+          style={{ minHeight: 260 }}
+          coverImageUrl={trip.coverImageUrl}
+          destinationCountry={trip.destinationCountry}
+        />
         <div className="absolute inset-0 pointer-events-none" style={{ background: "var(--cover-scrim)" }} />
         <div className="absolute bottom-0 left-0 right-0 p-5 lg:p-6">
           <div
