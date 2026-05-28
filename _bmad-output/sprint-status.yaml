@@ -13,7 +13,7 @@ sprint:
   name: "Trip Cover Image"
   epics_file: "_bmad-output/epics-cover-image.md"
   created: "2026-05-27"
-  last_updated: "2026-05-27" # story 1.4 review complete
+  last_updated: "2026-05-28" # story 1.5 done
 
 development_status:
   # ── Epic 1: Automatic Trip Cover Images ──────────────────────────────────────
@@ -23,7 +23,7 @@ development_status:
   1-2-location-and-image-search-server-actions: done
   1-3-destination-autocomplete-and-auto-cover-on-create: done
   1-4-trip-cover-image-display-wiring: done
-  1-5-default-cover-type-user-preference: backlog
+  1-5-default-cover-type-user-preference: done
 
   # ── Epic 2: Cover Image Picker & Management ───────────────────────────────────
   epic-2: backlog

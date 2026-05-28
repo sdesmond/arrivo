@@ -47,8 +47,8 @@ export const DocKind = {
 export type DocKind = (typeof DocKind)[keyof typeof DocKind];
 
 export const CoverType = {
-  Unsplash: "unsplash",
-  Mapbox: "mapbox",
+  Photo: "photo",
+  Map: "map",
   Graphic: "graphic",
 } as const;
 export type CoverType = (typeof CoverType)[keyof typeof CoverType];
@@ -101,6 +101,7 @@ export interface UpdateUserProfilePatch {
   dateFormat?: string;
   currency?: string;
   distanceUnit?: string;
+  defaultCoverType?: CoverType;
   passportNumber?: string | null;
   passportExpiry?: string;
   passportNationality?: string | null;

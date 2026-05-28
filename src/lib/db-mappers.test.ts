@@ -349,14 +349,14 @@ describe("dbUserToType", () => {
     expect(result.defaultCoverType).toBeUndefined();
   });
 
-  it('maps defaultCoverType "unsplash"', () => {
-    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "unsplash" });
-    expect(result.defaultCoverType).toBe("unsplash");
+  it('maps defaultCoverType "photo"', () => {
+    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "photo" });
+    expect(result.defaultCoverType).toBe("photo");
   });
 
-  it('maps defaultCoverType "mapbox"', () => {
-    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "mapbox" });
-    expect(result.defaultCoverType).toBe("mapbox");
+  it('maps defaultCoverType "map"', () => {
+    const result = dbUserToType({ ...BASE_USER, defaultCoverType: "map" });
+    expect(result.defaultCoverType).toBe("map");
   });
 
   it('maps defaultCoverType "graphic"', () => {

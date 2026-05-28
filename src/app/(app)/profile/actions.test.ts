@@ -186,6 +186,26 @@ describe("updateProfile — server-side validation (AC10)", () => {
     const result = await updateProfile({ name: "Alice" });
     expect(result).toEqual({ error: "Something went wrong." });
   });
+
+  it("rejects invalid defaultCoverType", async () => {
+    const result = await updateProfile({ defaultCoverType: "invalid" as "photo" });
+    expect(result).toEqual({ error: "Invalid cover type." });
+  });
+
+  it('accepts valid defaultCoverType "photo"', async () => {
+    const result = await updateProfile({ defaultCoverType: "photo" });
+    expect(result).toEqual({});
+  });
+
+  it('accepts valid defaultCoverType "map"', async () => {
+    const result = await updateProfile({ defaultCoverType: "map" });
+    expect(result).toEqual({});
+  });
+
+  it('accepts valid defaultCoverType "graphic"', async () => {
+    const result = await updateProfile({ defaultCoverType: "graphic" });
+    expect(result).toEqual({});
+  });
 });
 
 describe("updateCompanion — passportExpiry validation, zero-row detection, exception safety", () => {

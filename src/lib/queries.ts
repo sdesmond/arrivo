@@ -27,7 +27,15 @@ import {
   dbWishlistToType,
   dbCompanionToType,
 } from "@/lib/db-mappers";
+import { CoverType } from "@/data/types";
 import type { TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
+
+const VALID_COVER_TYPES = Object.values(CoverType) as string[];
+
+function parseCoverType(val: string | null): UserProfile["defaultCoverType"] {
+  if (!val) return undefined;
+  return VALID_COVER_TYPES.includes(val) ? (val as UserProfile["defaultCoverType"]) : undefined;
+}
 
 export async function getUserById(id: string): Promise<UserProfile | null> {
   const [user] = await db
@@ -42,6 +50,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
       passportExpiry: users.passportExpiry,
       passportNationality: users.passportNationality,
       knownTravelerNumber: users.knownTravelerNumber,
+      defaultCoverType: users.defaultCoverType,
     })
     .from(users)
     .where(eq(users.id, id));
@@ -65,6 +74,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
   return {
     ...user,
     email: user.email,
+    defaultCoverType: parseCoverType(user.defaultCoverType),
     loyaltyNumbers: loyaltyRows.map(dbLoyaltyToType),
     wishlistDestinations: wishlistRows.map(dbWishlistToType),
     companions: companionRows.map(dbCompanionToType),

@@ -29,10 +29,12 @@ import type {
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover } from "@/lib/utils";
+import { CoverType } from "@/data/types";
 import { buildDayRows } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 
 const DAY_NUMBER_TEMP_OFFSET = 1000;
+const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
 
 interface RemovedDayContentSummary {
   confirmation: TripDateChangeConfirmation;
@@ -182,21 +184,28 @@ export async function createTrip(input: CreateTripInput) {
     }
   });
 
-  if (input.destinationName) {
-    const [userRow] = await db
-      .select({ defaultCoverType: users.defaultCoverType })
-      .from(users)
-      .where(eq(users.id, user.id!));
-    const coverType = userRow?.defaultCoverType ?? "unsplash";
+  const hasDestination = !!input.destinationName || !!input.destinationCenter;
+  let coverUrl: string | null = null;
+  try {
+    if (!hasDestination) {
+      coverUrl = deriveGraphicCover(input.name);
+    } else {
+      const [userRow] = await db
+        .select({ defaultCoverType: users.defaultCoverType })
+        .from(users)
+        .where(eq(users.id, user.id!));
+      const storedCoverType = userRow?.defaultCoverType;
+      const coverType =
+        (storedCoverType && VALID_COVER_TYPES.has(storedCoverType) ? (storedCoverType as CoverType) : null) ??
+        CoverType.Photo;
 
-    let coverUrl: string | null = null;
-    try {
-      if (coverType === "mapbox" && input.destinationCenter) {
+      if (coverType === CoverType.Graphic) {
+        coverUrl = deriveGraphicCover(input.name);
+      } else if (coverType === CoverType.Map && input.destinationCenter) {
         const [lng, lat] = input.destinationCenter;
         const token = process.env.MAPBOX_ACCESS_TOKEN ?? "";
         const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/${lng},${lat},10/600x400@2x?access_token=${token}`;
         if (process.env.UPLOAD_STUB === "true") {
-          // Skip blob upload in E2E/test environments
           coverUrl = null;
         } else {
           const tileRes = await fetch(tileUrl);
@@ -206,19 +215,17 @@ export async function createTrip(input: CreateTripInput) {
           const result = await put(`mapbox-covers/${tripId}.jpg`, tileBlob, { access: "public" });
           coverUrl = result.url;
         }
-      } else if (coverType === "graphic") {
-        coverUrl = deriveGraphicCover(input.name);
-      } else {
+      } else if (coverType === CoverType.Photo && input.destinationName) {
         const images = await searchCoverImages(input.destinationName);
         coverUrl = images[0]?.url ?? null;
       }
-    } catch (error) {
-      console.error("Cover image fetch failed:", error);
     }
+  } catch (error) {
+    console.error("Cover image fetch failed:", error);
+  }
 
-    if (coverUrl) {
-      await db.update(trips).set({ coverImageUrl: coverUrl }).where(eq(trips.id, tripId));
-    }
+  if (coverUrl) {
+    await db.update(trips).set({ coverImageUrl: coverUrl }).where(eq(trips.id, tripId));
   }
 
   revalidatePath("/trips");
