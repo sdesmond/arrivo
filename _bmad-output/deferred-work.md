@@ -28,3 +28,8 @@
 - Image onError can update state after component unmount — minor React anti-pattern, rarely materializes [trip-cover.tsx:74]
 - Hardcoded 48px icon size with no consumer override — design limitation, not a bug [trip-cover.tsx:29]
 - No srcSet/sizes on cover `<img>` — enhancement, not in scope [trip-cover.tsx:73-85]
+
+## Deferred from: code review of 1-5-default-cover-type-user-preference (2026-05-28)
+
+- ToggleGroup deselect sends empty array; state unchanged but UI visually clears — pre-existing pattern for all toggles in preferences-section.tsx; fix when ToggleGroup primitives are refactored
+- Cover preference DB query runs outside the trip transaction — pre-existing from Story 1.3; trip could exist without cover if the query throws post-commit
