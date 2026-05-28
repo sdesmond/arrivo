@@ -49,3 +49,8 @@
 ## Deferred from: code review of 2-3-cover-image-picker-upload-and-url-tabs (2026-05-28)
 
 - Test coverage location mismatch — subcomponent tests are in colocated files per project convention, not in cover-image-picker.test.tsx as the spec states; deferred, pre-existing project pattern
+
+## Deferred from: code review of 2-4-cover-image-picker-custom-tab (2026-05-28)
+
+- `import * as LucideIcons` imports entire icon bundle [src/components/packt/cover-image-picker-custom.tsx] — spec explicitly mandates this pattern ("do NOT import icons individually"); pre-existing in trip-cover.tsx
+- Lucide mock brittle static list [src/components/packt/cover-image-picker-custom.test.tsx] — Proxy mock approach is incompatible with Vitest 4.x's strict named-export validation; static list must be kept in sync manually if GRAPHIC_COVER_ICONS changes
