@@ -1,0 +1,128 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { LoaderIcon } from "lucide-react";
+import { cn, MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { uploadCoverImage } from "@/app/(app)/trips/[tripId]/actions";
+
+export interface CoverImagePickerUploadProps {
+  tripId: string;
+  onImageSelected: (url: string) => void;
+  onClose: () => void;
+}
+
+export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: CoverImagePickerUploadProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  function resetInputValue() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      resetInputValue();
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("Cover image exceeds 25 MB limit.");
+      resetInputValue();
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const url = await uploadCoverImage(tripId, formData);
+      onImageSelected(url);
+      onClose();
+    } catch {
+      toast.error("Upload failed. Try again.");
+      resetInputValue();
+      setUploading(false);
+    }
+  }
+
+  function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void handleFile(file);
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(true);
+  }
+
+  function onDragLeave() {
+    setDragOver(false);
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) void handleFile(file);
+  }
+
+  function onTriggerKeyDown(e: React.KeyboardEvent<HTMLLabelElement>) {
+    if (e.key !== "Enter" && e.key !== " ") {
+      return;
+    }
+
+    e.preventDefault();
+    fileInputRef.current?.click();
+  }
+
+  if (uploading) {
+    return (
+      <div
+        role="status"
+        aria-label="Uploading image"
+        style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: 32 }}
+      >
+        <LoaderIcon strokeWidth={1.5} className="animate-spin" />
+        <span className="sr-only">Uploading…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "8px 0" }}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        id="cover-upload-input"
+        onChange={onFileSelected}
+        className="sr-only"
+      />
+      <label
+        htmlFor="cover-upload-input"
+        tabIndex={0}
+        role="button"
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onKeyDown={onTriggerKeyDown}
+        className={cn(
+          "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg p-8",
+          "border-2 border-dashed"
+        )}
+        style={{
+          borderColor: "var(--line)",
+          background: dragOver ? "var(--accent-soft)" : undefined,
+        }}
+      >
+        Drop file here or browse
+      </label>
+    </div>
+  );
+}

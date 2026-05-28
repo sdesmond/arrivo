@@ -45,3 +45,7 @@
 - Budget number inputs could pass `NaN` if non-numeric string bypasses `type="number"` [trip-edit-budget.tsx:46,56] — browser returns `""` for invalid number inputs in practice
 - `TripEditDestination` read-only within edit form — destination cannot be edited or cleared here; by spec design, revisit when destination editing is scoped
 - Cover image URL field accepts data URIs and very long URLs without format validation [trip-edit-cover.tsx:30] — `onError` suppresses broken previews; full URL validation is out of scope for story 2.1
+
+## Deferred from: code review of 2-3-cover-image-picker-upload-and-url-tabs (2026-05-28)
+
+- Test coverage location mismatch — subcomponent tests are in colocated files per project convention, not in cover-image-picker.test.tsx as the spec states; deferred, pre-existing project pattern

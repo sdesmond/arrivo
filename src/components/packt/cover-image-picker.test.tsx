@@ -11,6 +11,10 @@ vi.mock("@/app/(app)/trips/actions", () => ({
   searchCoverImages: vi.fn(),
 }));
 
+vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
+  uploadCoverImage: vi.fn(),
+}));
+
 const toastError = vi.fn();
 vi.mock("sonner", () => ({
   toast: { error: (...args: unknown[]) => toastError(...args), success: vi.fn() },
@@ -49,16 +53,16 @@ describe("CoverImagePicker", () => {
       expect(screen.getByRole("tab", { name: /custom/i })).toBeInTheDocument();
     });
 
-    it("renders placeholder content for Upload, URL, and Custom tabs", async () => {
+    it("renders Upload tab drop zone and URL tab input on tab switch", async () => {
       const user = userEvent.setup();
       render(<CoverImagePicker {...defaultProps} />);
       await waitFor(() => expect(searchCoverImages).toHaveBeenCalled());
 
       await user.click(screen.getByRole("tab", { name: /upload/i }));
-      expect(screen.getByText("Upload tab content")).toBeInTheDocument();
+      expect(screen.getByText(/drop file here or browse/i)).toBeInTheDocument();
 
       await user.click(screen.getByRole("tab", { name: /url/i }));
-      expect(screen.getByText("URL tab content")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /apply/i })).toBeInTheDocument();
 
       await user.click(screen.getByRole("tab", { name: /custom/i }));
       expect(screen.getByText("Custom tab content")).toBeInTheDocument();
