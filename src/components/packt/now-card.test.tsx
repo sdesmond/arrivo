@@ -128,4 +128,46 @@ describe("NowCard", () => {
     render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByText("Museum Visit")).toBeInTheDocument();
   });
+
+  it("renders next event when no current event exists", () => {
+    const futureEvents: TripEvent[] = [
+      { id: "ev-3", name: "Future Event", startAt: "2026-05-13T14:00:00Z", position: 0 },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={futureEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("Next Event")).toBeInTheDocument();
+    expect(screen.getByText("Future Event")).toBeInTheDocument();
+  });
+
+  it("does not render event section when no events exist", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByText("Now")).not.toBeInTheDocument();
+    expect(screen.queryByText("Next Event")).not.toBeInTheDocument();
+  });
+
+  it("does not render collaborators section when trip has no collaborators", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByLabelText(/alice/i)).not.toBeInTheDocument();
+  });
+
+  it("renders ACTIVE TRIP label for active trips", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getAllByText("ACTIVE TRIP").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders UPCOMING TRIP label for upcoming trips", () => {
+    render(<NowCard trip={upcomingTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getAllByText("UPCOMING TRIP").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows 'No dates' when startDate and endDate are missing", () => {
+    const tripNoDates: Trip = { id: "trip-4", name: "No Date Trip", status: "active" };
+    render(<NowCard trip={tripNoDates} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("No dates")).toBeInTheDocument();
+  });
+
+  it("does not render event section when events have no startAt", () => {
+    const eventsNoStart: TripEvent[] = [{ id: "ev-4", name: "Open-ended", position: 0 }];
+    render(<NowCard trip={activeTrip} todayEvents={eventsNoStart} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByText("Open-ended")).not.toBeInTheDocument();
+  });
 });

@@ -69,4 +69,26 @@ describe("MobileUpcomingTab", () => {
 
     expect(screen.getByText("docs")).toBeInTheDocument();
   });
+
+  it("shows unscheduled badge when startDate is missing", () => {
+    render(
+      <MobileUpcomingTab
+        trips={[{ id: "trip-4", name: "No Date Trip", status: "upcoming" }]}
+        now={NOW}
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+    expect(screen.getByText("unscheduled")).toBeInTheDocument();
+  });
+
+  it("shows No dates when startDate is missing", () => {
+    render(
+      <MobileUpcomingTab
+        trips={[{ id: "trip-5", name: "Flexi Trip", status: "upcoming" }]}
+        now={NOW}
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+    expect(screen.getByText("No dates")).toBeInTheDocument();
+  });
 });

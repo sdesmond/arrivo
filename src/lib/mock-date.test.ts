@@ -39,6 +39,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("getNow — server environment (no document)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubEnv("NODE_ENV", "development");
+    if ("document" in globalThis) {
+      delete (globalThis as Record<string, unknown>).document;
+    }
+  });
+
+  it("returns real Date when document is undefined in development", () => {
+    const result = getNow();
+    expect(result).toBeInstanceOf(Date);
+  });
+});
+
 describe("getNow", () => {
   it("returns real Date when NODE_ENV is not development", () => {
     vi.stubEnv("NODE_ENV", "test");
@@ -62,6 +77,19 @@ describe("getNow", () => {
     document.cookie = `${KEY}=${encodeURIComponent(isoDate)}; path=/`;
     const result = getNow();
     expect(result.toISOString()).toBe(isoDate);
+  });
+});
+
+describe("getMockDateISO — server environment (no document)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    if ("document" in globalThis) {
+      delete (globalThis as Record<string, unknown>).document;
+    }
+  });
+
+  it("returns null when document is undefined", () => {
+    expect(getMockDateISO()).toBeNull();
   });
 });
 

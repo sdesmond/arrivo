@@ -155,6 +155,26 @@ describe("ChecklistItem — expanded state (title management)", () => {
     expect(screen.getByPlaceholderText("Add title...")).toBeInTheDocument();
   });
 
+  it("pressing Enter on 'Add title...' enters inline edit mode", async () => {
+    const user = userEvent.setup();
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
+    const titleBtn = screen.getByRole("button", { name: "Add title..." });
+    titleBtn.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByPlaceholderText("Add title...")).toBeInTheDocument();
+  });
+
+  it("pressing Space on 'Add title...' enters inline edit mode", async () => {
+    const user = userEvent.setup();
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
+    const titleBtn = screen.getByRole("button", { name: "Add title..." });
+    titleBtn.focus();
+    await user.keyboard(" ");
+    expect(screen.getByPlaceholderText("Add title...")).toBeInTheDocument();
+  });
+
   it("typing and pressing Enter in title input calls onTitleUpdate", async () => {
     const onTitleUpdate = vi.fn();
     const user = userEvent.setup();
@@ -359,6 +379,26 @@ describe("ChecklistItem — item rendering", () => {
     render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
     await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     await user.click(screen.getByText("Sunscreen"));
+    expect(screen.getByDisplayValue("Sunscreen")).toBeInTheDocument();
+  });
+
+  it("pressing Enter on item text enters inline edit", async () => {
+    const user = userEvent.setup();
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
+    const itemText = screen.getByText("Sunscreen");
+    itemText.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByDisplayValue("Sunscreen")).toBeInTheDocument();
+  });
+
+  it("pressing Space on item text enters inline edit", async () => {
+    const user = userEvent.setup();
+    render(<ChecklistItem checklist={CHECKLIST_WITH_ITEMS} />);
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
+    const itemText = screen.getByText("Sunscreen");
+    itemText.focus();
+    await user.keyboard(" ");
     expect(screen.getByDisplayValue("Sunscreen")).toBeInTheDocument();
   });
 

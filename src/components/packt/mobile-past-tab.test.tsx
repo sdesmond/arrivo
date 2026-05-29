@@ -87,4 +87,31 @@ describe("MobilePastTab", () => {
     expect(onEditTrip).toHaveBeenCalledWith(pastTrips[0]);
     expect(onDeleteTrip).toHaveBeenCalledWith(pastTrips[0]);
   });
+
+  it("does not show edit button when onEditTrip is not provided", () => {
+    render(<MobilePastTab trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" onDeleteTrip={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+  });
+
+  it("shows delete button when only onDeleteTrip is provided", () => {
+    render(<MobilePastTab trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" onDeleteTrip={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /delete trip/i })).toBeInTheDocument();
+  });
+
+  it("renders without the dropdown menu when no handlers provided", () => {
+    render(<MobilePastTab trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" />);
+    expect(screen.queryByTitle("Trip options")).not.toBeInTheDocument();
+  });
+
+  it("renders start date with day count", () => {
+    render(<MobilePastTab trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getByText(/Sep 1/)).toBeInTheDocument();
+    expect(screen.getByText(/7 days/)).toBeInTheDocument();
+  });
+
+  it('renders "No dates" when startDate is missing', () => {
+    const tripNoDates: Trip = { id: "trip-3", name: "Mystery Trip", status: "past" };
+    render(<MobilePastTab trips={[tripNoDates]} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getByText(/No dates/)).toBeInTheDocument();
+  });
 });

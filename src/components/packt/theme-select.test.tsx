@@ -22,4 +22,9 @@ describe("ThemeSelect", () => {
     await user.click(await screen.findByRole("option", { name: /dark/i }));
     expect(mockSetTheme).toHaveBeenCalledWith("dark");
   });
+
+  it("renders enabled trigger when mounted", () => {
+    render(<ThemeSelect />);
+    expect(screen.getByRole("combobox", { name: /theme/i })).not.toBeDisabled();
+  });
 });

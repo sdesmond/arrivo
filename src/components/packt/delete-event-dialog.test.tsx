@@ -169,4 +169,22 @@ describe("DeleteEventDialog", () => {
       expect(deleteEventWithDocDecision).not.toHaveBeenCalled();
     });
   });
+
+  describe("edge cases", () => {
+    it("uses 'it' pronoun when docCount is 1", () => {
+      render(<DeleteEventDialog {...defaultProps} docCount={1} />);
+      expect(screen.getByText(/with it\?/)).toBeInTheDocument();
+    });
+
+    it("uses 'them' pronoun when docCount is 2", () => {
+      render(<DeleteEventDialog {...defaultProps} docCount={2} />);
+      expect(screen.getByText(/with them\?/)).toBeInTheDocument();
+    });
+
+    it("renders with zero documents", () => {
+      render(<DeleteEventDialog {...defaultProps} docCount={0} />);
+      expect(screen.getByText(/0 attached documents/)).toBeInTheDocument();
+      expect(screen.getByText(/with them\?/)).toBeInTheDocument();
+    });
+  });
 });

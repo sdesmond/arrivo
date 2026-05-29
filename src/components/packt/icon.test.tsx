@@ -18,4 +18,10 @@ describe("Icon", () => {
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
   });
+
+  it("applies default strokeWidth", () => {
+    const { container } = render(<Icon name="MapPin" />);
+    const svg = container.querySelector("svg");
+    expect(svg).toHaveAttribute("stroke-width", "1.5");
+  });
 });
