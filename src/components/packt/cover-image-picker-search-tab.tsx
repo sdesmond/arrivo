@@ -3,13 +3,10 @@
 import { useEffect, useState } from "react";
 import { LoaderIcon } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import type { CoverImageSearchResult } from "@/data/types";
 import { resolveDestinationCenter, searchCoverImages } from "@/app/(app)/trips/cover-image-search-actions";
 
-const MAX_REFRESHES = 4;
-const PHOTO_PAGE_SIZE_WITH_MAP = 11;
-const PHOTO_PAGE_SIZE_WITHOUT_MAP = 12;
+const PHOTO_PAGE_SIZE = 19;
 
 export interface CoverImagePickerSearchTabProps {
   destinationName?: string;
@@ -30,39 +27,29 @@ function buildMapTileUrl(center?: [number, number]) {
   return `/api/mapbox/static?${searchParams.toString()}`;
 }
 
-function getPhotoPageSize(hasMapTile: boolean) {
-  return hasMapTile ? PHOTO_PAGE_SIZE_WITH_MAP : PHOTO_PAGE_SIZE_WITHOUT_MAP;
-}
-
 export function CoverImagePickerSearchTab({
   destinationName,
   center,
   onImageSelected,
 }: CoverImagePickerSearchTabProps) {
-  const [cachedPages, setCachedPages] = useState<Record<number, CoverImageSearchResult[]>>({});
   const [images, setImages] = useState<CoverImageSearchResult[]>([]);
   const [hiddenImageIds, setHiddenImageIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [refreshCount, setRefreshCount] = useState(0);
   const [resolvedCenter, setResolvedCenter] = useState<[number, number] | undefined>(center);
-  const [allowMapTile, setAllowMapTile] = useState(true);
+  const [showMapTile, setShowMapTile] = useState(true);
 
   useEffect(() => {
     let isCurrent = true;
     const query = destinationName?.trim();
 
     /* eslint-disable react-hooks/set-state-in-effect */
-    setCachedPages({});
     setImages([]);
     setHiddenImageIds([]);
     setHasError(false);
     setLoading(false);
-    setRefreshing(false);
-    setRefreshCount(0);
     setResolvedCenter(center);
-    setAllowMapTile(true);
+    setShowMapTile(true);
     /* eslint-enable react-hooks/set-state-in-effect */
 
     if (!query) {
@@ -73,26 +60,23 @@ export function CoverImagePickerSearchTab({
 
     const searchQuery = query;
 
-    async function loadInitialPage() {
+    async function loadImages() {
       setLoading(true);
 
       try {
-        const nextCenter = !center && allowMapTile ? await resolveDestinationCenter(searchQuery) : center;
+        const nextCenter = !center ? await resolveDestinationCenter(searchQuery) : center;
         if (!isCurrent) return;
 
-        const hasMapTile = allowMapTile && !!nextCenter;
-        const perPage = getPhotoPageSize(hasMapTile);
-        const firstPage = await searchCoverImages(searchQuery, { page: 1, perPage });
+        setResolvedCenter(nextCenter ?? undefined);
+
+        const results = await searchCoverImages(searchQuery, { page: 1, perPage: PHOTO_PAGE_SIZE });
         if (!isCurrent) return;
 
-        setResolvedCenter(hasMapTile ? nextCenter : undefined);
-        setCachedPages({ 1: firstPage });
-        setImages(firstPage);
+        setImages(results);
       } catch {
         if (!isCurrent) return;
         toast.error("Could not load images");
         setHasError(true);
-        setResolvedCenter(undefined);
       } finally {
         if (isCurrent) {
           setLoading(false);
@@ -100,67 +84,19 @@ export function CoverImagePickerSearchTab({
       }
     }
 
-    void loadInitialPage();
+    void loadImages();
 
     return () => {
       isCurrent = false;
     };
-  }, [destinationName, center, allowMapTile]);
+  }, [destinationName, center]);
 
-  const mapTileUrl = allowMapTile && !hasError ? buildMapTileUrl(resolvedCenter) : null;
-  const showMapTile = !!mapTileUrl;
-  const photoPageSize = getPhotoPageSize(showMapTile);
-  const visibleImages = images.filter((item) => !hiddenImageIds.includes(item.id)).slice(0, photoPageSize);
-  const showEmptyState = !loading && (hasError || (visibleImages.length === 0 && !showMapTile));
-  const canRefresh = !!destinationName?.trim();
-
-  async function handleRefresh() {
-    const query = destinationName?.trim();
-    if (!query) {
-      return;
-    }
-
-    const nextRefreshCount = refreshCount === MAX_REFRESHES ? 0 : refreshCount + 1;
-    const nextPage = nextRefreshCount + 1;
-    const cachedPage = cachedPages[nextPage];
-
-    setRefreshing(true);
-    setHasError(false);
-    setHiddenImageIds([]);
-
-    if (cachedPage) {
-      setImages(cachedPage);
-      setRefreshCount(nextRefreshCount);
-      setRefreshing(false);
-      return;
-    }
-
-    try {
-      const nextImages = await searchCoverImages(query, { page: nextPage, perPage: photoPageSize });
-      setCachedPages((currentPages) => ({ ...currentPages, [nextPage]: nextImages }));
-      setImages(nextImages);
-      setRefreshCount(nextRefreshCount);
-    } catch {
-      toast.error("Could not load images");
-      setHasError(true);
-    } finally {
-      setRefreshing(false);
-    }
-  }
+  const mapTileUrl = showMapTile && !hasError ? buildMapTileUrl(resolvedCenter) : null;
+  const visibleImages = images.filter((item) => !hiddenImageIds.includes(item.id));
+  const showEmptyState = !loading && (hasError || (visibleImages.length === 0 && !mapTileUrl));
 
   return (
     <div className="pt-2">
-      <div className="flex items-center justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!canRefresh || loading || refreshing}
-          onClick={handleRefresh}
-        >
-          {refreshing ? "Refreshing photos..." : "Refresh photos"}
-        </Button>
-      </div>
       {loading ? (
         <div
           role="status"
@@ -180,7 +116,7 @@ export function CoverImagePickerSearchTab({
             paddingTop: 8,
           }}
         >
-          {showMapTile && mapTileUrl ? (
+          {mapTileUrl ? (
             <button
               type="button"
               title="Map view"
@@ -203,7 +139,7 @@ export function CoverImagePickerSearchTab({
                 alt={`Map view of ${destinationName ?? ""}`}
                 style={{ display: "block", height: "100%", objectFit: "cover", width: "100%" }}
                 onError={() => {
-                  setAllowMapTile(false);
+                  setShowMapTile(false);
                 }}
               />
               <span
