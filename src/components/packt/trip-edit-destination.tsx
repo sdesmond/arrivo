@@ -34,7 +34,7 @@ export function TripEditDestination({
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [retrieveLoading, setRetrieveLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [lastResolvedName, setLastResolvedName] = useState<string | null>(null);
+  const [lastResolvedName, setLastResolvedName] = useState<string | null>(value || null);
 
   useEffect(() => {
     if (!sessionTokenRef.current) {

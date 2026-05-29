@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 
 const mockSearchLocations = vi.fn();
 const mockRetrieveLocation = vi.fn();
@@ -10,7 +11,12 @@ vi.mock("@/app/(app)/trips/actions", () => ({
   retrieveLocation: (...args: unknown[]) => mockRetrieveLocation(...args),
 }));
 
-import { TripEditDestination } from "./trip-edit-destination";
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
+}));
+
+import { TripEditDestination, type TripEditDestinationProps } from "./trip-edit-destination";
+import { toast } from "sonner";
 
 const defaultProps = {
   value: "",
@@ -18,6 +24,31 @@ const defaultProps = {
   onSelect: vi.fn(),
   onClear: vi.fn(),
 };
+
+// Stateful wrapper so that typing via fireEvent actually updates the value prop,
+// allowing the search effect to fire correctly in tests.
+function ControlledWrapper({
+  onSelect,
+  onClear,
+  initialValue = "",
+}: {
+  onSelect?: TripEditDestinationProps["onSelect"];
+  onClear?: () => void;
+  initialValue?: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+  return (
+    <TripEditDestination
+      value={value}
+      onInputChange={setValue}
+      onSelect={onSelect ?? vi.fn()}
+      onClear={() => {
+        setValue("");
+        onClear?.();
+      }}
+    />
+  );
+}
 
 describe("TripEditDestination", () => {
   beforeEach(() => {
@@ -84,15 +115,28 @@ describe("TripEditDestination", () => {
     expect(mockSearchLocations).not.toHaveBeenCalled();
   });
 
+  it("does not search on initial mount when a value is pre-filled", async () => {
+    vi.useFakeTimers();
+    render(<ControlledWrapper initialValue="Tokyo, Japan" />);
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    vi.useRealTimers();
+    expect(mockSearchLocations).not.toHaveBeenCalled();
+  });
+
   it("shows suggestions after debounce when value >= 2 chars", async () => {
     mockSearchLocations.mockResolvedValue([
       { placeName: "Tokyo, Japan", mapboxId: "mapbox-1" },
       { placeName: "Toronto, Canada", mapboxId: "mapbox-2" },
     ]);
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" />);
+    render(<ControlledWrapper />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
@@ -111,9 +155,12 @@ describe("TripEditDestination", () => {
     });
     const onSelect = vi.fn();
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
+    render(<ControlledWrapper onSelect={onSelect} />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
@@ -136,9 +183,12 @@ describe("TripEditDestination", () => {
     mockSearchLocations.mockResolvedValue([{ placeName: "Tokyo, Japan", mapboxId: "mapbox-1" }]);
     const user = userEvent.setup();
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" />);
+    render(<ControlledWrapper />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
@@ -153,9 +203,12 @@ describe("TripEditDestination", () => {
       { placeName: "Toronto, Canada", mapboxId: "mapbox-2" },
     ]);
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" />);
+    render(<ControlledWrapper />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
@@ -178,9 +231,12 @@ describe("TripEditDestination", () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
+    render(<ControlledWrapper onSelect={onSelect} />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
@@ -202,9 +258,12 @@ describe("TripEditDestination", () => {
     mockSearchLocations.mockReturnValue(new Promise((res) => (resolveFn = res)));
 
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" />);
+    render(<ControlledWrapper />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
@@ -218,13 +277,18 @@ describe("TripEditDestination", () => {
   it("shows error toast when searchLocations fails", async () => {
     mockSearchLocations.mockRejectedValue(new Error("network error"));
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" />);
+    render(<ControlledWrapper />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(300);
     });
     vi.useRealTimers();
-
     expect(mockSearchLocations).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Could not search locations");
+    });
   });
 
   it("shows error toast when retrieveLocation fails", async () => {
@@ -234,9 +298,12 @@ describe("TripEditDestination", () => {
     const onSelect = vi.fn();
 
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
+    render(<ControlledWrapper onSelect={onSelect} />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
@@ -260,9 +327,12 @@ describe("TripEditDestination", () => {
     const onSelect = vi.fn();
 
     vi.useFakeTimers();
-    render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
+    render(<ControlledWrapper onSelect={onSelect} />);
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "To" } });
+    });
     await act(async () => {
-      vi.advanceTimersByTime(350);
+      await vi.advanceTimersByTimeAsync(350);
     });
     vi.useRealTimers();
 
