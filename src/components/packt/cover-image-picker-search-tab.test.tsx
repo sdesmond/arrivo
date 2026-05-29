@@ -42,16 +42,6 @@ describe("CoverImagePickerSearchTab", () => {
     mockResolveDestinationCenter.mockResolvedValue(null);
   });
 
-  it("renders the Refresh photos button", () => {
-    render(<CoverImagePickerSearchTab {...defaultProps} />);
-    expect(screen.getByRole("button", { name: /refresh photos/i })).toBeInTheDocument();
-  });
-
-  it("disables Refresh button when no destinationName is provided", () => {
-    render(<CoverImagePickerSearchTab {...defaultProps} />);
-    expect(screen.getByRole("button", { name: /refresh photos/i })).toBeDisabled();
-  });
-
   it("does not call searchCoverImages when destinationName is absent", async () => {
     render(<CoverImagePickerSearchTab {...defaultProps} />);
     await act(async () => {});
@@ -221,7 +211,7 @@ describe("CoverImagePickerSearchTab", () => {
     expect(screen.getByRole("button", { name: "Alt good" })).toBeInTheDocument();
   });
 
-  it("re-fetches images when the map tile image fails to load", async () => {
+  it("hides the map tile when the map tile image fails to load", async () => {
     const center: [number, number] = [2.347, 48.859];
     mockSearchCoverImages.mockResolvedValue([]);
 
@@ -238,107 +228,9 @@ describe("CoverImagePickerSearchTab", () => {
     });
 
     await waitFor(() => {
-      expect(mockSearchCoverImages.mock.calls.length).toBeGreaterThan(callsBefore);
+      expect(screen.queryByTitle("Map view")).not.toBeInTheDocument();
     });
-  });
-
-  it("enables Refresh button after images have loaded", async () => {
-    mockSearchCoverImages.mockResolvedValue([]);
-
-    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /refresh photos/i })).not.toBeDisabled();
-    });
-  });
-
-  it("fetches page 2 when Refresh is clicked once", async () => {
-    mockSearchCoverImages.mockResolvedValue(makeImages(2));
-
-    const user = userEvent.setup();
-    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /refresh photos/i })).not.toBeDisabled();
-    });
-
-    await user.click(screen.getByRole("button", { name: /refresh photos/i }));
-
-    await waitFor(() => {
-      expect(mockSearchCoverImages).toHaveBeenCalledWith("Paris", expect.objectContaining({ page: 2 }));
-    });
-  });
-
-  it("shows 'Refreshing photos...' while a refresh fetch is in progress", async () => {
-    let resolveRefresh!: (v: CoverImageSearchResult[]) => void;
-    mockSearchCoverImages
-      .mockResolvedValueOnce(makeImages(2))
-      .mockReturnValueOnce(new Promise((res) => (resolveRefresh = res)));
-
-    const user = userEvent.setup();
-    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /refresh photos/i })).not.toBeDisabled();
-    });
-
-    void user.click(screen.getByRole("button", { name: /refresh photos/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /refreshing photos/i })).toBeInTheDocument();
-    });
-
-    await act(async () => {
-      resolveRefresh([]);
-    });
-  });
-
-  it("uses the cached first page after cycling through all MAX_REFRESHES pages", async () => {
-    mockSearchCoverImages.mockResolvedValue(makeImages(2));
-
-    const user = userEvent.setup();
-    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /refresh photos/i })).not.toBeDisabled();
-    });
-
-    // 4 refreshes to reach MAX_REFRESHES (pages 2-5, all fetched)
-    for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole("button", { name: /refresh photos/i }));
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: /refresh photos/i })).not.toBeDisabled();
-      });
-    }
-
-    const callsBeforeWrap = mockSearchCoverImages.mock.calls.length;
-
-    // 5th refresh wraps to page 1 → uses cached result, no new fetch
-    await user.click(screen.getByRole("button", { name: /refresh photos/i }));
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /refresh photos/i })).not.toBeDisabled();
-    });
-
-    expect(mockSearchCoverImages.mock.calls.length).toBe(callsBeforeWrap);
-  });
-
-  it("shows error toast when a refresh fetch fails", async () => {
-    mockSearchCoverImages
-      .mockResolvedValueOnce(makeImages(2))
-      .mockRejectedValueOnce(new Error("refresh network error"));
-
-    const user = userEvent.setup();
-    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /refresh photos/i })).not.toBeDisabled();
-    });
-
-    await user.click(screen.getByRole("button", { name: /refresh photos/i }));
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Could not load images");
-    });
+    expect(mockSearchCoverImages.mock.calls.length).toBe(callsBefore);
   });
 
   it("resets and reloads when destinationName changes", async () => {
