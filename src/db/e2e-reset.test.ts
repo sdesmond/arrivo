@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { E2E_RESET_STATEMENTS, getRequiredE2EConnectionString } from "./e2e-reset";
 

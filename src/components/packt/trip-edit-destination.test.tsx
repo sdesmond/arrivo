@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mockSearchLocations = vi.fn();
@@ -77,9 +77,11 @@ describe("TripEditDestination", () => {
   it("does not search when value.trim().length < 2", async () => {
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="T" />);
-    vi.runAllTimers();
-    expect(mockSearchLocations).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.runAllTimers();
+    });
     vi.useRealTimers();
+    expect(mockSearchLocations).not.toHaveBeenCalled();
   });
 
   it("shows suggestions after debounce when value >= 2 chars", async () => {
@@ -89,12 +91,12 @@ describe("TripEditDestination", () => {
     ]);
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
 
-    await waitFor(() => {
-      expect(screen.getByRole("listbox")).toBeInTheDocument();
-    });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     expect(screen.getByText("Tokyo, Japan")).toBeInTheDocument();
     expect(screen.getByText("Toronto, Canada")).toBeInTheDocument();
   });
@@ -110,12 +112,15 @@ describe("TripEditDestination", () => {
     const onSelect = vi.fn();
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
 
-    await waitFor(() => screen.getByRole("listbox"));
     const user = userEvent.setup();
+
     await user.click(screen.getByText("Tokyo, Japan"));
+    await act(async () => {});
 
     await waitFor(() => {
       expect(onSelect).toHaveBeenCalledWith({
@@ -132,10 +137,10 @@ describe("TripEditDestination", () => {
     const user = userEvent.setup();
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
-
-    await waitFor(() => screen.getByRole("listbox"));
 
     await user.click(screen.getByRole("combobox"));
     await user.keyboard("{Escape}");
@@ -149,10 +154,10 @@ describe("TripEditDestination", () => {
     ]);
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
-
-    await waitFor(() => screen.getByRole("listbox"));
 
     const combobox = screen.getByRole("combobox");
     const user = userEvent.setup();
@@ -174,14 +179,15 @@ describe("TripEditDestination", () => {
     const user = userEvent.setup();
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
-
-    await waitFor(() => screen.getByRole("listbox"));
 
     await user.click(screen.getByRole("combobox"));
     await user.keyboard("{ArrowDown}");
     await user.keyboard("{Enter}");
+    await act(async () => {});
 
     await waitFor(() => expect(onSelect).toHaveBeenCalled());
   });
@@ -197,39 +203,49 @@ describe("TripEditDestination", () => {
 
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
 
-    await waitFor(() => expect(screen.getByText("Searching…")).toBeInTheDocument());
+    expect(screen.getByText("Searching…")).toBeInTheDocument();
 
-    resolveFn([]);
+    await act(async () => {
+      resolveFn([]);
+    });
   });
 
   it("shows error toast when searchLocations fails", async () => {
     mockSearchLocations.mockRejectedValue(new Error("network error"));
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
 
-    await waitFor(() => {
-      expect(mockSearchLocations).toHaveBeenCalled();
-    });
+    expect(mockSearchLocations).toHaveBeenCalled();
   });
 
   it("shows error toast when retrieveLocation fails", async () => {
     mockSearchLocations.mockResolvedValue([{ placeName: "Tokyo, Japan", mapboxId: "mapbox-1" }]);
-    mockRetrieveLocation.mockRejectedValue(new Error("retrieve failed"));
+    let rejectRetrieve!: (e: Error) => void;
+    mockRetrieveLocation.mockReturnValue(new Promise((_, reject) => (rejectRetrieve = reject)));
     const onSelect = vi.fn();
 
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
 
-    await waitFor(() => screen.getByRole("listbox"));
     const user = userEvent.setup();
     await user.click(screen.getByText("Tokyo, Japan"));
+
+    await act(async () => {
+      rejectRetrieve(new Error("retrieve failed"));
+    });
 
     await waitFor(() => {
       expect(onSelect).not.toHaveBeenCalled();
@@ -245,16 +261,19 @@ describe("TripEditDestination", () => {
 
     vi.useFakeTimers();
     render(<TripEditDestination {...defaultProps} value="To" onSelect={onSelect} />);
-    vi.advanceTimersByTime(350);
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     vi.useRealTimers();
 
-    await waitFor(() => screen.getByRole("listbox"));
     const user = userEvent.setup();
 
     await user.click(screen.getByText("Tokyo, Japan"));
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "X" } });
 
-    resolveRetrieve({ placeName: "Tokyo, Japan", country: "Japan", countryCode: "JP", center: [0, 0] });
+    await act(async () => {
+      resolveRetrieve({ placeName: "Tokyo, Japan", country: "Japan", countryCode: "JP", center: [0, 0] });
+    });
 
     await waitFor(() => {
       expect(mockRetrieveLocation).toHaveBeenCalled();

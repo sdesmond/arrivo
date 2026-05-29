@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     passWithNoTests: true,
-    environment: "node",
+    environment: "jsdom",
     include: ["src/**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{test,spec}.mjs"],
     setupFiles: ["./vitest.setup.mts"],
     coverage: {
