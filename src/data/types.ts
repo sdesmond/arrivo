@@ -198,6 +198,13 @@ export interface GeoCoords {
   lng: number;
 }
 
+export interface CoverImageSearchResult {
+  id: string;
+  url: string;
+  photographer: string;
+  alt: string;
+}
+
 export interface EventLocation {
   name?: string;
   address?: string;

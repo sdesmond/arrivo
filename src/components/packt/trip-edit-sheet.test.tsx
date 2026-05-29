@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -50,17 +49,20 @@ vi.mock("./trip-edit-collaborators", () => ({
 vi.mock("./trip-edit-cover", () => ({
   TripEditCover: ({
     coverImageUrl,
+    center,
     onCoverImageUrlChange,
     disabled,
   }: {
     tripId: string;
     tripName: string;
     coverImageUrl?: string;
+    center?: [number, number];
     onCoverImageUrlChange: (url: string | null) => void;
     disabled?: boolean;
   }) => (
     <div>
       <span data-testid="cover-url">{coverImageUrl ?? ""}</span>
+      <span data-testid="cover-center">{center ? center.join(",") : ""}</span>
       <button disabled={disabled} onClick={() => onCoverImageUrlChange("https://example.com/new.jpg")}>
         set-cover
       </button>
@@ -80,12 +82,17 @@ vi.mock("./trip-edit-destination", () => ({
   }: {
     value: string;
     onInputChange: (text: string) => void;
-    onSelect: (data: { name: string; country: string | null; countryCode: string | null }) => void;
+    onSelect: (data: {
+      name: string;
+      country: string | null;
+      countryCode: string | null;
+      center: [number, number];
+    }) => void;
     onClear: () => void;
   }) => (
     <div>
       <input data-testid="destination-input" value={value} onChange={(e) => onInputChange(e.target.value)} />
-      <button onClick={() => onSelect({ name: "Tokyo", country: "Japan", countryCode: "JP" })}>
+      <button onClick={() => onSelect({ name: "Tokyo", country: "Japan", countryCode: "JP", center: [139.69, 35.68] })}>
         select-destination
       </button>
       <button onClick={() => onClear()}>clear-destination</button>
@@ -562,6 +569,13 @@ describe("TripEditSheet", () => {
     expect(patch.destinationName).toBe("Tokyo");
     expect(patch.destinationCountry).toBe("Japan");
     expect(patch.destinationCountryCode).toBe("JP");
+  });
+
+  it("passes the selected destination center through to TripEditCover", async () => {
+    const user = userEvent.setup();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "select-destination" }));
+    expect(screen.getByTestId("cover-center")).toHaveTextContent("139.69,35.68");
   });
 
   it("onSave patch includes null destination fields after clearing via onClear callback", async () => {

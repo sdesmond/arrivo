@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { collaborators, days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 
@@ -56,7 +57,8 @@ vi.mock("@mapbox/search-js-core", () => ({
 }));
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import { createTrip, retrieveLocation, searchCoverImages, searchLocations, updateTripMetadata } from "./actions";
+import { createTrip, retrieveLocation, searchLocations, updateTripMetadata } from "./actions";
+import { searchCoverImages } from "./cover-image-search-actions";
 import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
 import { deriveGraphicCover } from "@/lib/utils";
 
@@ -759,7 +761,7 @@ describe("searchCoverImages", () => {
     ]);
     expect(requireUser).toHaveBeenCalled();
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.unsplash.com/search/photos?query=Tokyo+travel&orientation=landscape&per_page=19",
+      "https://api.unsplash.com/search/photos?query=Tokyo+travel&orientation=landscape&page=1&per_page=19",
       {
         signal: expect.any(AbortSignal),
         headers: {

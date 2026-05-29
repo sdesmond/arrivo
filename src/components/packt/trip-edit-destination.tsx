@@ -11,7 +11,12 @@ import { toast } from "sonner";
 export interface TripEditDestinationProps {
   value: string;
   onInputChange: (text: string) => void;
-  onSelect: (data: { name: string; country: string | null; countryCode: string | null }) => void;
+  onSelect: (data: {
+    name: string;
+    country: string | null;
+    countryCode: string | null;
+    center: [number, number];
+  }) => void;
   onClear: () => void;
   disabled?: boolean;
 }
@@ -89,6 +94,7 @@ export function TripEditDestination({
         name: location.placeName,
         country: location.country ?? null,
         countryCode: location.countryCode ?? null,
+        center: location.center,
       });
     } catch (error) {
       if (!cancelRetrieveRef.current) {

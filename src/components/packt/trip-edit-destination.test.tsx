@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -119,7 +118,12 @@ describe("TripEditDestination", () => {
     await user.click(screen.getByText("Tokyo, Japan"));
 
     await waitFor(() => {
-      expect(onSelect).toHaveBeenCalledWith({ name: "Tokyo, Japan", country: "Japan", countryCode: "JP" });
+      expect(onSelect).toHaveBeenCalledWith({
+        name: "Tokyo, Japan",
+        country: "Japan",
+        countryCode: "JP",
+        center: [139.69, 35.68],
+      });
     });
   });
 

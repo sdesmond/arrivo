@@ -56,6 +56,7 @@ export function TripEditSheet({
   const [destinationPatch, setDestinationPatch] = useState<
     { name: string | null; country: string | null; countryCode: string | null } | undefined
   >(undefined);
+  const [destinationCenter, setDestinationCenter] = useState<[number, number] | undefined>(undefined);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const isBusy = saving || isDeleting;
   useEffect(() => {
@@ -65,6 +66,7 @@ export function TripEditSheet({
       setDeleteDialogOpen(false);
       setDestinationInput(trip?.destinationName ?? "");
       setDestinationPatch(undefined);
+      setDestinationCenter(undefined);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, trip]);
@@ -191,10 +193,12 @@ export function TripEditSheet({
               onSelect={(data) => {
                 setDestinationInput(data.name);
                 setDestinationPatch({ name: data.name, country: data.country, countryCode: data.countryCode });
+                setDestinationCenter(data.center);
               }}
               onClear={() => {
                 setDestinationInput("");
                 setDestinationPatch({ name: null, country: null, countryCode: null });
+                setDestinationCenter(undefined);
               }}
               disabled={isBusy}
             />
@@ -210,6 +214,7 @@ export function TripEditSheet({
               destinationCountry={
                 destinationPatch !== undefined ? (destinationPatch.country ?? undefined) : draft.destinationCountry
               }
+              center={destinationCenter}
             />
             <TripEditBudget
               currency={draft.budget?.currency}

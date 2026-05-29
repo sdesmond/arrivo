@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { useState } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -12,8 +11,16 @@ vi.mock("./trip-cover", () => ({
 }));
 
 vi.mock("./cover-image-picker", () => ({
-  CoverImagePicker: ({ onImageSelected, onClose }: { onImageSelected: (url: string) => void; onClose: () => void }) => (
-    <div data-testid="cover-image-picker">
+  CoverImagePicker: ({
+    center,
+    onImageSelected,
+    onClose,
+  }: {
+    center?: [number, number];
+    onImageSelected: (url: string) => void;
+    onClose: () => void;
+  }) => (
+    <div data-testid="cover-image-picker" data-center={center ? center.join(",") : ""}>
       <button onClick={() => onImageSelected("https://example.com/new.jpg")}>select-image</button>
       <button onClick={onClose}>close-picker</button>
     </div>
@@ -88,6 +95,13 @@ describe("TripEditCover", () => {
     render(<TripEditCover {...baseProps} />);
     await user.click(screen.getByRole("button", { name: "Edit cover image" }));
     expect(screen.getByTestId("cover-image-picker")).toBeInTheDocument();
+  });
+
+  it("passes center through to the cover picker", async () => {
+    const user = userEvent.setup();
+    render(<TripEditCover {...baseProps} center={[139.69, 35.68]} />);
+    await user.click(screen.getByRole("button", { name: "Edit cover image" }));
+    expect(screen.getByTestId("cover-image-picker")).toHaveAttribute("data-center", "139.69,35.68");
   });
 
   it("selecting an image calls onCoverImageUrlChange and closes picker", async () => {

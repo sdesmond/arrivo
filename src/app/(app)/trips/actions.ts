@@ -32,6 +32,7 @@ import { deriveGraphicCover } from "@/lib/utils";
 import { CoverType } from "@/data/types";
 import { buildDayRows } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
+import { searchCoverImages } from "./cover-image-search-actions";
 
 const DAY_NUMBER_TEMP_OFFSET = 1000;
 const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
@@ -499,27 +500,6 @@ export interface RetrievedLocation {
   center: [number, number];
 }
 
-interface CoverImageResult {
-  id: string;
-  url: string;
-  photographer: string;
-  alt: string;
-}
-
-interface UnsplashSearchResponse {
-  results: Array<{
-    id: string;
-    urls: {
-      regular: string;
-    };
-    user: {
-      name: string;
-    };
-    alt_description: string | null;
-    description: string | null;
-  }>;
-}
-
 const LOCATION_TYPES: SearchBoxAdministrativeUnitTypes[] = ["place", "locality", "neighborhood", "region", "country"];
 
 export async function searchLocations(query: string, sessionToken: string): Promise<LocationSuggestion[]> {
@@ -634,99 +614,6 @@ export async function retrieveLocation(mapboxId: string, sessionToken: string): 
       throw new Error(`Location retrieve failed: ${error.message}`, { cause: error });
     }
     throw new Error("Location retrieve failed: Unknown error");
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-export async function resolveDestinationCenter(destinationName: string): Promise<[number, number] | null> {
-  if (!destinationName.trim()) return null;
-
-  if (process.env.E2E_MAPBOX_STUB === "true") {
-    await requireUser();
-    return [2.3488, 48.8534];
-  }
-
-  const token = process.env.MAPBOX_ACCESS_TOKEN;
-  if (!token) return null;
-
-  await requireUser();
-
-  const sessionToken = crypto.randomUUID();
-  const search = new SearchBoxCore({ accessToken: token });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-
-  try {
-    const suggest = await search.suggest(destinationName, {
-      sessionToken: new SessionToken(sessionToken),
-      types: new Set(LOCATION_TYPES),
-      limit: 1,
-      signal: controller.signal,
-    });
-
-    const first = suggest.suggestions[0];
-    if (!first?.mapbox_id) return null;
-
-    const retrieved = await search.retrieve({ mapbox_id: first.mapbox_id } as unknown as SearchBoxSuggestion, {
-      sessionToken: new SessionToken(sessionToken),
-      signal: controller.signal,
-    });
-
-    const feature = retrieved.features[0];
-    if (!feature?.geometry) return null;
-
-    return feature.geometry.coordinates as [number, number];
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-export async function searchCoverImages(query: string): Promise<CoverImageResult[]> {
-  const key = process.env.UNSPLASH_ACCESS_KEY;
-  if (!key) {
-    throw new Error("UNSPLASH_ACCESS_KEY is not configured");
-  }
-
-  if (!query.trim()) {
-    throw new Error("Search query must not be empty");
-  }
-
-  await requireUser();
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-
-  try {
-    const encodedQuery = encodeURIComponent(query);
-    const response = await fetch(
-      `https://api.unsplash.com/search/photos?query=${encodedQuery}+travel&orientation=landscape&per_page=19`,
-      {
-        signal: controller.signal,
-        headers: {
-          Authorization: `Client-ID ${key}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Unsplash search error: ${response.status}`);
-    }
-
-    const data = (await response.json()) as UnsplashSearchResponse;
-    return data.results.map((result) => ({
-      id: result.id,
-      url: result.urls.regular,
-      photographer: result.user.name,
-      alt: result.alt_description ?? result.description ?? "",
-    }));
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Unsplash search request failed: ${error.message}`, { cause: error });
-    }
-    throw new Error("Unsplash search request failed: Unknown error");
   } finally {
     clearTimeout(timeout);
   }
