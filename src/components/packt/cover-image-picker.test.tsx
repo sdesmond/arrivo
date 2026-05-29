@@ -9,6 +9,7 @@ vi.mock("@/lib/use-is-mobile", () => ({
 
 vi.mock("@/app/(app)/trips/actions", () => ({
   searchCoverImages: vi.fn(),
+  resolveDestinationCenter: vi.fn(),
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
@@ -21,7 +22,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { CoverImagePicker } from "./cover-image-picker";
-import { searchCoverImages } from "@/app/(app)/trips/actions";
+import { resolveDestinationCenter, searchCoverImages } from "@/app/(app)/trips/actions";
 
 const parisImages = [
   { id: "img-1", url: "https://unsplash.com/photo-1.jpg", photographer: "Alice", alt: "A scenic mountain" },
@@ -40,6 +41,7 @@ describe("CoverImagePicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(searchCoverImages).mockResolvedValue(parisImages);
+    vi.mocked(resolveDestinationCenter).mockResolvedValue([2.3488, 48.8534]);
   });
 
   describe("tab layout", () => {
@@ -141,10 +143,31 @@ describe("CoverImagePicker", () => {
       expect(mapButton?.parentElement?.firstElementChild).toBe(mapButton);
     });
 
-    it("does not render map tile when center is absent", async () => {
+    it("geocodes destination and renders map tile when center is absent", async () => {
+      render(<CoverImagePicker {...defaultProps} center={undefined} />);
+      const mapImg = await screen.findByAltText(/map view of paris/i);
+      expect(mapImg).toBeInTheDocument();
+      expect(mapImg).toHaveAttribute("src", "/api/mapbox/static?lng=2.3488&lat=48.8534");
+      expect(resolveDestinationCenter).toHaveBeenCalledWith("Paris");
+    });
+
+    it("does not call resolveDestinationCenter when center prop is provided", async () => {
+      render(<CoverImagePicker {...defaultProps} />);
+      await waitFor(() => expect(searchCoverImages).toHaveBeenCalled());
+      expect(resolveDestinationCenter).not.toHaveBeenCalled();
+    });
+
+    it("does not render map tile when geocoding returns null", async () => {
+      vi.mocked(resolveDestinationCenter).mockResolvedValueOnce(null);
       render(<CoverImagePicker {...defaultProps} center={undefined} />);
       await waitFor(() => expect(searchCoverImages).toHaveBeenCalled());
+      expect(screen.queryByAltText(/map view/i)).not.toBeInTheDocument();
+    });
 
+    it("does not render map tile when geocoding throws", async () => {
+      vi.mocked(resolveDestinationCenter).mockRejectedValueOnce(new Error("Geocode failed"));
+      render(<CoverImagePicker {...defaultProps} center={undefined} />);
+      await waitFor(() => expect(searchCoverImages).toHaveBeenCalled());
       expect(screen.queryByAltText(/map view/i)).not.toBeInTheDocument();
     });
 

@@ -6,7 +6,7 @@ import { XIcon, LoaderIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { searchCoverImages } from "@/app/(app)/trips/actions";
+import { resolveDestinationCenter, searchCoverImages } from "@/app/(app)/trips/actions";
 import { CoverImagePickerUpload } from "./cover-image-picker-upload";
 import { CoverImagePickerUrl } from "./cover-image-picker-url";
 import { CoverImagePickerCustom } from "./cover-image-picker-custom";
@@ -46,6 +46,7 @@ export function CoverImagePicker({ tripId, destinationName, center, onImageSelec
   const [loading, setLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [failedMapTileUrl, setFailedMapTileUrl] = useState<string | null>(null);
+  const [resolvedCenter, setResolvedCenter] = useState<[number, number] | undefined>(center);
 
   useEffect(() => {
     let isCurrent = true;
@@ -56,6 +57,7 @@ export function CoverImagePicker({ tripId, destinationName, center, onImageSelec
     setHiddenImageIds([]);
     setHasError(false);
     setLoading(false);
+    setResolvedCenter(center);
     /* eslint-enable react-hooks/set-state-in-effect */
 
     if (!query) {
@@ -65,36 +67,38 @@ export function CoverImagePicker({ tripId, destinationName, center, onImageSelec
     }
 
     setLoading(true);
-    searchCoverImages(query)
-      .then((results) => {
-        if (!isCurrent) {
-          return;
-        }
 
+    const imagesFetch = searchCoverImages(query)
+      .then((results) => {
+        if (!isCurrent) return;
         setImages(results);
       })
       .catch(() => {
-        if (!isCurrent) {
-          return;
-        }
-
+        if (!isCurrent) return;
         toast.error("Could not load images");
         setHasError(true);
-      })
-      .finally(() => {
-        if (!isCurrent) {
-          return;
-        }
-
-        setLoading(false);
       });
+
+    const centerFetch = !center
+      ? resolveDestinationCenter(query)
+          .then((coords) => {
+            if (!isCurrent || !coords) return;
+            setResolvedCenter(coords);
+          })
+          .catch(() => undefined)
+      : Promise.resolve();
+
+    Promise.all([imagesFetch, centerFetch]).finally(() => {
+      if (!isCurrent) return;
+      setLoading(false);
+    });
 
     return () => {
       isCurrent = false;
     };
-  }, [destinationName]);
+  }, [destinationName, center]);
 
-  const mapTileUrl = buildMapTileUrl(center);
+  const mapTileUrl = buildMapTileUrl(resolvedCenter);
 
   function handleSelect(url: string) {
     onImageSelected(url);

@@ -29,6 +29,15 @@ describe("TripCover", () => {
     expect(document.querySelector(".cover-stripes")).not.toBeInTheDocument();
   });
 
+  it("renders a full-bleed image when coverImageUrl is a relative path (e.g. Mapbox proxy tile)", () => {
+    render(<TripCover name="Tokyo" coverImageUrl="/api/mapbox/static?lng=2.347&lat=48.859" />);
+
+    const image = screen.getByRole("presentation");
+    expect(image).toHaveAttribute("src", "/api/mapbox/static?lng=2.347&lat=48.859");
+    expect(image).toHaveStyle({ objectFit: "cover" });
+    expect(document.querySelector(".cover-stripes")).not.toBeInTheDocument();
+  });
+
   it("renders a graphic cover when coverImageUrl uses the graphic prefix", () => {
     const { container } = render(<TripCover name="Tokyo" coverImageUrl="graphic:var(--accent-brand)/plane" />);
 

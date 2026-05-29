@@ -34,7 +34,7 @@ function toGraphicIconKey(iconName: string): string {
 function renderGraphicIcon(iconName: string, color: string): ReactNode {
   const IconComponent = graphicIconLookup[toGraphicIconKey(iconName)];
   if (!IconComponent) return null;
-  return <IconComponent size={48} strokeWidth={1.5} style={{ color }} />;
+  return <IconComponent size={128} strokeWidth={1.5} style={{ color: "white" }} />;
 }
 
 export function TripCover({
@@ -60,8 +60,11 @@ export function TripCover({
   const tint = getTint(name, dark);
   const activeCoverImageUrl = failedCoverImageUrl === normalizedCoverImageUrl ? "" : normalizedCoverImageUrl;
   const graphicCover = parseGraphicCover(activeCoverImageUrl);
-  const isHttpUrl = activeCoverImageUrl.startsWith("http://") || activeCoverImageUrl.startsWith("https://");
-  const photoCoverImageUrl = activeCoverImageUrl && !graphicCover && isHttpUrl ? activeCoverImageUrl : null;
+  const isImageUrl =
+    activeCoverImageUrl.startsWith("http://") ||
+    activeCoverImageUrl.startsWith("https://") ||
+    activeCoverImageUrl.startsWith("/");
+  const photoCoverImageUrl = activeCoverImageUrl && !graphicCover && isImageUrl ? activeCoverImageUrl : null;
   const overlayCountry = destinationCountry?.trim() || country;
   const graphicIconEl = graphicCover ? renderGraphicIcon(graphicCover.icon, graphicCover.color) : null;
 
@@ -128,7 +131,8 @@ export function TripCover({
             fontWeight: 700,
             fontSize: "calc(26px * var(--font-scale))",
             letterSpacing: "-0.02em",
-            color: "var(--fg)",
+            color: photoCoverImageUrl ? "white" : "var(--fg)",
+            textShadow: photoCoverImageUrl ? "0 1px 3px rgba(0,0,0,0.4)" : undefined,
             lineHeight: 1.05,
           }}
         >
@@ -141,7 +145,7 @@ export function TripCover({
                 fontWeight: 400,
                 fontSize: "calc(10.5px * var(--font-scale))",
                 letterSpacing: "0.06em",
-                color: "var(--fg-3)",
+                color: photoCoverImageUrl ? "rgba(255,255,255,0.8)" : "var(--fg-3)",
                 textTransform: "uppercase",
                 marginTop: 4,
               }}

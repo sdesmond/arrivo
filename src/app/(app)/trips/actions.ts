@@ -639,6 +639,51 @@ export async function retrieveLocation(mapboxId: string, sessionToken: string): 
   }
 }
 
+export async function resolveDestinationCenter(destinationName: string): Promise<[number, number] | null> {
+  if (!destinationName.trim()) return null;
+
+  if (process.env.E2E_MAPBOX_STUB === "true") {
+    await requireUser();
+    return [2.3488, 48.8534];
+  }
+
+  const token = process.env.MAPBOX_ACCESS_TOKEN;
+  if (!token) return null;
+
+  await requireUser();
+
+  const sessionToken = crypto.randomUUID();
+  const search = new SearchBoxCore({ accessToken: token });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    const suggest = await search.suggest(destinationName, {
+      sessionToken: new SessionToken(sessionToken),
+      types: new Set(LOCATION_TYPES),
+      limit: 1,
+      signal: controller.signal,
+    });
+
+    const first = suggest.suggestions[0];
+    if (!first?.mapbox_id) return null;
+
+    const retrieved = await search.retrieve({ mapbox_id: first.mapbox_id } as unknown as SearchBoxSuggestion, {
+      sessionToken: new SessionToken(sessionToken),
+      signal: controller.signal,
+    });
+
+    const feature = retrieved.features[0];
+    if (!feature?.geometry) return null;
+
+    return feature.geometry.coordinates as [number, number];
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function searchCoverImages(query: string): Promise<CoverImageResult[]> {
   const key = process.env.UNSPLASH_ACCESS_KEY;
   if (!key) {
