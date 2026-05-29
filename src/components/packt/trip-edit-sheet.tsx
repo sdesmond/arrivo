@@ -52,6 +52,10 @@ export function TripEditSheet({
 }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [destinationInput, setDestinationInput] = useState(trip?.destinationName ?? "");
+  const [destinationPatch, setDestinationPatch] = useState<
+    { name: string | null; country: string | null; countryCode: string | null } | undefined
+  >(undefined);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const isBusy = saving || isDeleting;
   useEffect(() => {
@@ -59,6 +63,8 @@ export function TripEditSheet({
     if (!open) {
       setDraft(createTripDraft(trip));
       setDeleteDialogOpen(false);
+      setDestinationInput(trip?.destinationName ?? "");
+      setDestinationPatch(undefined);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, trip]);
@@ -130,6 +136,13 @@ export function TripEditSheet({
       startDate: currentDraft.startDate,
       endDate: currentDraft.endDate ?? currentDraft.startDate,
       coverImageUrl,
+      ...(destinationPatch !== undefined
+        ? {
+            destinationName: destinationPatch.name,
+            destinationCountry: destinationPatch.country,
+            destinationCountryCode: destinationPatch.countryCode,
+          }
+        : {}),
       budgetCurrency: currentDraft.budget?.currency,
       budgetTotal: currentDraft.budget?.total,
       budgetPerPerson: currentDraft.budget?.perPerson,
@@ -173,8 +186,17 @@ export function TripEditSheet({
               />
             </Section>
             <TripEditDestination
-              destinationName={draft.destinationName}
-              destinationCountry={draft.destinationCountry}
+              value={destinationInput}
+              onInputChange={setDestinationInput}
+              onSelect={(data) => {
+                setDestinationInput(data.name);
+                setDestinationPatch({ name: data.name, country: data.country, countryCode: data.countryCode });
+              }}
+              onClear={() => {
+                setDestinationInput("");
+                setDestinationPatch({ name: null, country: null, countryCode: null });
+              }}
+              disabled={isBusy}
             />
             <TripEditCover
               tripId={draft.id}
@@ -182,8 +204,12 @@ export function TripEditSheet({
               coverImageUrl={draft.coverImageUrl}
               onCoverImageUrlChange={(url) => set("coverImageUrl", url ?? undefined)}
               disabled={isBusy}
-              destinationName={draft.destinationName}
-              destinationCountry={draft.destinationCountry}
+              destinationName={
+                destinationPatch !== undefined ? (destinationPatch.name ?? undefined) : draft.destinationName
+              }
+              destinationCountry={
+                destinationPatch !== undefined ? (destinationPatch.country ?? undefined) : draft.destinationCountry
+              }
             />
             <TripEditBudget
               currency={draft.budget?.currency}
