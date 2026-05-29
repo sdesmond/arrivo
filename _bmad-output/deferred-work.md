@@ -54,3 +54,7 @@
 
 - `import * as LucideIcons` imports entire icon bundle [src/components/packt/cover-image-picker-custom.tsx] — spec explicitly mandates this pattern ("do NOT import icons individually"); pre-existing in trip-cover.tsx
 - Lucide mock brittle static list [src/components/packt/cover-image-picker-custom.test.tsx] — Proxy mock approach is incompatible with Vitest 4.x's strict named-export validation; static list must be kept in sync manually if GRAPHIC_COVER_ICONS changes
+
+## Deferred from: code review of 2-5-trip-edit-sheet-cover-section-and-remove (2026-05-28)
+
+- `revalidatePath` assertion absent from unit tests — `revalidatePath` is better tested via E2E, not unit tests [src/components/packt/trip-edit-sheet.test.tsx]

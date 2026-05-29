@@ -13,7 +13,7 @@ sprint:
   name: "Trip Cover Image"
   epics_file: "_bmad-output/epics-cover-image.md"
   created: "2026-05-27"
-  last_updated: "2026-05-28" # story 2-4 code review round 2
+  last_updated: "2026-05-28" # story 2-5 review fixes applied
 
 development_status:
   # ── Epic 1: Automatic Trip Cover Images ──────────────────────────────────────
@@ -32,4 +32,4 @@ development_status:
   2-2-cover-image-picker-scaffold-and-search-tab: done
   2-3-cover-image-picker-upload-and-url-tabs: done
   2-4-cover-image-picker-custom-tab: done
-  2-5-trip-edit-sheet-cover-section-and-remove: backlog
+  2-5-trip-edit-sheet-cover-section-and-remove: done

@@ -1,56 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Field, Section } from "@/components/packt/form-section";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { Section } from "@/components/packt/form-section";
+import { Button } from "@/components/ui/button";
+import { TripCover } from "@/components/packt/trip-cover";
+import { CoverImagePicker } from "@/components/packt/cover-image-picker";
 
 export interface TripEditCoverProps {
+  tripId: string;
   tripName: string;
   coverImageUrl?: string;
-  onCoverImageUrlChange: (url: string | undefined) => void;
+  onCoverImageUrlChange: (url: string | null) => void;
   disabled?: boolean;
+  destinationName?: string;
+  destinationCountry?: string;
 }
 
 export function TripEditCover({
+  tripId,
   tripName,
   coverImageUrl,
   onCoverImageUrlChange,
   disabled = false,
+  destinationName,
+  destinationCountry,
 }: TripEditCoverProps) {
-  const [imgError, setImgError] = useState(false);
-
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setImgError(false);
-  }, [coverImageUrl]);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   return (
     <Section title="Cover image">
-      <Field label="Image URL" htmlFor="trip-cover-image-url">
-        <Input
-          id="trip-cover-image-url"
-          disabled={disabled}
-          value={coverImageUrl ?? ""}
-          placeholder="https://…"
-          onChange={(event) => onCoverImageUrlChange(event.target.value.trim() || undefined)}
-        />
-      </Field>
-      {coverImageUrl && !imgError ? (
-        <Image
-          src={coverImageUrl}
-          alt={tripName.length > 100 ? `${tripName.slice(0, 100)}…` : tripName}
-          width={400}
-          height={120}
-          unoptimized
-          onError={() => setImgError(true)}
-          style={{
-            width: "100%",
-            maxHeight: 120,
-            objectFit: "cover",
-            borderRadius: 6,
-            border: "1px solid var(--line)",
+      <TripCover
+        key={coverImageUrl || "__empty__"}
+        name={tripName}
+        coverImageUrl={coverImageUrl}
+        destinationCountry={destinationCountry}
+        showCity={false}
+        style={{ height: 120, width: "100%", borderRadius: 6, border: "1px solid var(--line)" }}
+      />
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <Button variant="outline" size="sm" disabled={disabled} onClick={() => setIsPickerOpen(true)}>
+          Edit cover image
+        </Button>
+        {coverImageUrl ? (
+          <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onCoverImageUrlChange(null)}>
+            Remove image
+          </Button>
+        ) : null}
+      </div>
+      {isPickerOpen ? (
+        <CoverImagePicker
+          tripId={tripId}
+          destinationName={destinationName}
+          destinationCountry={destinationCountry}
+          center={undefined}
+          onImageSelected={(url) => {
+            onCoverImageUrlChange(url);
+            setIsPickerOpen(false);
           }}
+          onClose={() => setIsPickerOpen(false)}
         />
       ) : null}
     </Section>

@@ -442,7 +442,7 @@ export interface UpdateTripPatch {
   name?: string;
   startDate?: string;
   endDate?: string;
-  coverImageUrl?: string;
+  coverImageUrl?: string | null;
   destinationName?: string;
   destinationCountry?: string;
   destinationCountryCode?: string;

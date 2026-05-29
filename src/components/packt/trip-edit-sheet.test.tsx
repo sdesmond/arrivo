@@ -28,10 +28,6 @@ vi.mock("@/components/ui/date-range-picker", () => ({
   ),
 }));
 
-vi.mock("next/image", () => ({
-  default: ({ alt }: { alt: string }) => <div role="img" aria-label={alt} />,
-}));
-
 vi.mock("./trip-edit-collaborators", () => ({
   TripEditCollaborators: ({
     onRemove,
@@ -47,6 +43,30 @@ vi.mock("./trip-edit-collaborators", () => ({
       <button onClick={() => onRemove(0)}>remove-collaborator</button>
       <button onClick={() => onUpdateRole(0, "viewer")}>update-role</button>
       <button onClick={() => onAdd("Test User", "test@test.com", "editor")}>add-collaborator</button>
+    </div>
+  ),
+}));
+
+vi.mock("./trip-edit-cover", () => ({
+  TripEditCover: ({
+    coverImageUrl,
+    onCoverImageUrlChange,
+    disabled,
+  }: {
+    tripId: string;
+    tripName: string;
+    coverImageUrl?: string;
+    onCoverImageUrlChange: (url: string | null) => void;
+    disabled?: boolean;
+  }) => (
+    <div>
+      <span data-testid="cover-url">{coverImageUrl ?? ""}</span>
+      <button disabled={disabled} onClick={() => onCoverImageUrlChange("https://example.com/new.jpg")}>
+        set-cover
+      </button>
+      <button disabled={disabled} onClick={() => onCoverImageUrlChange(null)}>
+        remove-cover
+      </button>
     </div>
   ),
 }));
@@ -226,17 +246,6 @@ describe("TripEditSheet", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ startDate: "2026-07-01" }));
   });
 
-  it("renders cover image URL input", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    expect(screen.getByPlaceholderText("https://…")).toBeInTheDocument();
-  });
-
-  it("renders cover image preview when coverImageUrl is set", () => {
-    const trip = { ...baseTrip, coverImageUrl: "https://example.com/cover.jpg" };
-    render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    expect(screen.getByRole("img", { name: "Tokyo Adventure" })).toBeInTheDocument();
-  });
-
   it("does not render a status select", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
@@ -271,14 +280,23 @@ describe("TripEditSheet", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetPerPerson: undefined }));
   });
 
-  it("sets coverImageUrl to undefined when input is cleared", async () => {
+  it("onSave includes updated coverImageUrl after TripEditCover callback fires", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: "set-cover" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ coverImageUrl: "https://example.com/new.jpg" }));
+  });
+
+  it("onSave includes coverImageUrl: null after TripEditCover remove fires", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     const trip = { ...baseTrip, coverImageUrl: "https://example.com/img.jpg" };
     render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={onSave} />);
-    await user.clear(screen.getByPlaceholderText("https://…"));
+    await user.click(screen.getByRole("button", { name: "remove-cover" }));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ coverImageUrl: undefined }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ coverImageUrl: null }));
   });
 
   it("addCollaborator via TripEditCollaborators callback does not crash", async () => {
