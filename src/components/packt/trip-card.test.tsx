@@ -164,4 +164,16 @@ describe("TripCard", () => {
     render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1);
   });
+
+  it("renders unscheduled badge when startDate is null", () => {
+    const trip = { ...baseTrip, startDate: undefined, endDate: undefined };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("unscheduled")).toBeInTheDocument();
+  });
+
+  it("renders No dates when startDate is null", () => {
+    const trip = { ...baseTrip, startDate: undefined, endDate: undefined };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("No dates")).toBeInTheDocument();
+  });
 });

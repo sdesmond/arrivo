@@ -109,4 +109,31 @@ describe("DayCardHeader", () => {
     render(<DayCardHeader {...baseProps} onRemove={vi.fn()} removeDisabled={true} />);
     expect(screen.getByRole("button", { name: "Remove day" })).toBeDisabled();
   });
+
+  it("saving an unchanged subtitle does not call onUpdateDay", async () => {
+    const onUpdateDay = vi.fn();
+    render(<DayCardHeader {...baseProps} subtitle="Same" onUpdateDay={onUpdateDay} />);
+    await userEvent.click(screen.getByRole("button", { name: /same/i }));
+    const input = screen.getByDisplayValue("Same");
+    fireEvent.blur(input);
+    expect(onUpdateDay).not.toHaveBeenCalled();
+  });
+
+  it("Enter key on subtitle trigger enters edit mode", async () => {
+    const user = userEvent.setup();
+    render(<DayCardHeader {...baseProps} subtitle="Test" />);
+    const subtitleBtn = screen.getByRole("button", { name: /test/i });
+    subtitleBtn.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByDisplayValue("Test")).toBeInTheDocument();
+  });
+
+  it("Space key on subtitle trigger enters edit mode", async () => {
+    const user = userEvent.setup();
+    render(<DayCardHeader {...baseProps} subtitle="Test" />);
+    const subtitleBtn = screen.getByRole("button", { name: /test/i });
+    subtitleBtn.focus();
+    await user.keyboard(" ");
+    expect(screen.getByDisplayValue("Test")).toBeInTheDocument();
+  });
 });

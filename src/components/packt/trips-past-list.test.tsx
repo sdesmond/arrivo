@@ -120,4 +120,15 @@ describe("PastTripsList", () => {
 
     expect(onDeleteTrip).toHaveBeenCalledWith(pastTrips[0]);
   });
+
+  it("does not render delete button when onDeleteTrip is not provided", () => {
+    render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+  });
+
+  it('renders "No dates" when startDate is missing', () => {
+    const tripNoDates: Trip = { id: "t4", name: "Mystery Trip", status: "past" };
+    render(<PastTripsList trips={[tripNoDates]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.getByText("No dates")).toBeInTheDocument();
+  });
 });

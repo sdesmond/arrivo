@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { DocKind } from "@/data/types";
 import { DocKindBadge } from "./doc-kind-badge";
 
 describe("DocKindBadge", () => {
@@ -16,5 +17,10 @@ describe("DocKindBadge", () => {
   it("renders DOC label", () => {
     render(<DocKindBadge kind="doc" />);
     expect(screen.getByText("DOC")).toBeInTheDocument();
+  });
+
+  it("renders FILE label for unknown kind", () => {
+    render(<DocKindBadge kind={"unknown" as DocKind} />);
+    expect(screen.getByText("FILE")).toBeInTheDocument();
   });
 });

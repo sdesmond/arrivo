@@ -216,6 +216,14 @@ describe("upload mode", () => {
     dropZone.focus();
     await user.keyboard("{Enter}");
   });
+
+  it("Space key on drop zone invokes file input click", async () => {
+    const user = userEvent.setup();
+    render(<AddDocDialog open eventId="ev-1" onOpenChange={vi.fn()} />);
+    const dropZone = screen.getByRole("button", { name: /choose file/i });
+    dropZone.focus();
+    await user.keyboard(" ");
+  });
 });
 
 describe("focus management", () => {

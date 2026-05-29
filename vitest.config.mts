@@ -21,6 +21,8 @@ export default defineConfig({
         "src/app/**",
         "src/components/ui/**",
         "src/components/providers/**",
+        "src/components/packt/trip-rail.tsx",
+        "src/components/packt/trips-mobile-tabs.tsx",
       ],
     },
   },

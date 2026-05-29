@@ -35,4 +35,10 @@ describe("DocsRail", () => {
     render(<DocsRail docs={docs} />);
     expect(screen.getByText("Cached.pdf")).toBeInTheDocument();
   });
+
+  it("renders subtitle when provided", () => {
+    const docs: DocRailItem[] = [{ name: "Guide.pdf", subtitle: "12 pages", cached: false }];
+    render(<DocsRail docs={docs} />);
+    expect(screen.getByText("12 pages")).toBeInTheDocument();
+  });
 });
