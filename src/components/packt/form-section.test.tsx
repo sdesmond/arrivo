@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Section, Field } from "./form-section";

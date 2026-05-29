@@ -1,6 +1,5 @@
-// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
@@ -181,7 +180,9 @@ describe("DocRow", () => {
     await user.click(confirm);
     await user.click(confirm);
     expect(removeDocument).toHaveBeenCalledTimes(1);
-    resolveCall?.();
+    await act(async () => {
+      resolveCall?.();
+    });
   });
 
   it("clicking the name enters edit mode with input pre-filled", async () => {

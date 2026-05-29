@@ -1,6 +1,5 @@
-// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
@@ -271,7 +270,9 @@ describe("EventDocRow", () => {
     await user.click(promoteBtn);
     await user.click(promoteBtn);
     expect(promoteEventDocToTrip).toHaveBeenCalledTimes(1);
-    resolveCall?.();
+    await act(async () => {
+      resolveCall?.();
+    });
   });
 
   it("silently recovers when promoteEventDocToTrip rejects", async () => {
@@ -347,6 +348,8 @@ describe("EventDocRow", () => {
     await user.click(confirm);
     await user.click(confirm);
     expect(removeDocument).toHaveBeenCalledTimes(1);
-    resolveCall?.();
+    await act(async () => {
+      resolveCall?.();
+    });
   });
 });

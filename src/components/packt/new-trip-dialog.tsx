@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { retrieveLocation, searchLocations } from "@/app/(app)/trips/actions";
 import type { LocationSuggestion, RetrievedLocation } from "@/app/(app)/trips/actions";
@@ -224,33 +224,59 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
 
               <Field label="Destination" htmlFor="new-trip-destination">
                 <div style={{ position: "relative" }}>
-                  <Input
-                    id="new-trip-destination"
-                    role="combobox"
-                    aria-autocomplete="list"
-                    aria-busy={suggestionsLoading || retrieveLoading}
-                    aria-controls={suggestions.length > 0 ? "new-trip-destination-suggestions" : undefined}
-                    aria-expanded={suggestions.length > 0}
-                    aria-haspopup="listbox"
-                    aria-activedescendant={
-                      highlightedIndex >= 0 && suggestions.length > 0
-                        ? `new-trip-destination-suggestion-${highlightedIndex}`
-                        : undefined
-                    }
-                    value={destinationInput}
-                    placeholder="Optional destination"
-                    autoComplete="off"
-                    onChange={(event) => {
-                      cancelRetrieveRef.current = true;
-                      setRetrieveLoading(false);
-                      setDestinationInput(event.target.value);
-                      setDestinationData(null);
-                      setSuggestions([]);
-                      setHighlightedIndex(-1);
-                      setSuggestionsLoading(event.target.value.trim().length >= 2);
-                    }}
-                    onKeyDown={handleDestinationKeyDown}
-                  />
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <Input
+                      id="new-trip-destination"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-busy={suggestionsLoading || retrieveLoading}
+                      aria-controls={suggestions.length > 0 ? "new-trip-destination-suggestions" : undefined}
+                      aria-expanded={suggestions.length > 0}
+                      aria-haspopup="listbox"
+                      aria-activedescendant={
+                        highlightedIndex >= 0 && suggestions.length > 0
+                          ? `new-trip-destination-suggestion-${highlightedIndex}`
+                          : undefined
+                      }
+                      value={destinationInput}
+                      placeholder="Optional destination"
+                      autoComplete="off"
+                      style={{ paddingRight: destinationInput ? "2rem" : undefined }}
+                      onChange={(event) => {
+                        cancelRetrieveRef.current = true;
+                        setRetrieveLoading(false);
+                        setDestinationInput(event.target.value);
+                        setDestinationData(null);
+                        setSuggestions([]);
+                        setHighlightedIndex(-1);
+                        setSuggestionsLoading(event.target.value.trim().length >= 2);
+                      }}
+                      onKeyDown={handleDestinationKeyDown}
+                    />
+                    {destinationInput ? (
+                      <button
+                        type="button"
+                        title="Clear destination"
+                        onClick={resetDestinationState}
+                        style={{
+                          position: "absolute",
+                          right: "0.5rem",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          cursor: "pointer",
+                          color: "var(--fg-muted, var(--fg))",
+                        }}
+                      >
+                        <X size={14} strokeWidth={1.5} />
+                      </button>
+                    ) : null}
+                  </div>
 
                   {suggestionsLoading && suggestions.length === 0 && destinationInput.trim().length >= 2 ? (
                     <div

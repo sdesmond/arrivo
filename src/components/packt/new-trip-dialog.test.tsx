@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -239,6 +238,44 @@ describe("NewTripDialog", () => {
     it("renders the destination field", () => {
       render(<NewTripDialog open onOpenChange={vi.fn()} />);
       expect(screen.getByLabelText(/destination/i)).toBeInTheDocument();
+    });
+
+    it("does not show a clear button when destination is empty", () => {
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+      expect(screen.queryByTitle("Clear destination")).not.toBeInTheDocument();
+    });
+
+    it("shows a clear button when destination has a value", () => {
+      render(<NewTripDialog open onOpenChange={vi.fn()} />);
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Paris" } });
+      });
+      expect(screen.getByTitle("Clear destination")).toBeInTheDocument();
+    });
+
+    it("clears destination input and resets destination data when clear button is clicked", () => {
+      const onCreate = vi.fn();
+      render(<NewTripDialog open onOpenChange={vi.fn()} onCreate={onCreate} />);
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/destination/i), { target: { value: "Paris" } });
+      });
+      expect(screen.getByTitle("Clear destination")).toBeInTheDocument();
+
+      act(() => {
+        fireEvent.click(screen.getByTitle("Clear destination"));
+      });
+
+      expect(screen.queryByTitle("Clear destination")).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/destination/i)).toHaveValue("");
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText(/title/i), { target: { value: "Test Trip" } });
+        fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      });
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ destinationName: undefined, destinationCenter: undefined })
+      );
     });
 
     it("fires the destination search after the 300ms debounce", async () => {

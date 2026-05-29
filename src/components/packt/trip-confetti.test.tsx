@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { render, waitFor } from "@testing-library/react";
 import confetti from "canvas-confetti";
 import { afterEach, describe, expect, it, vi } from "vitest";

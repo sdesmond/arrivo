@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -50,23 +49,53 @@ vi.mock("./trip-edit-collaborators", () => ({
 vi.mock("./trip-edit-cover", () => ({
   TripEditCover: ({
     coverImageUrl,
+    center,
     onCoverImageUrlChange,
     disabled,
   }: {
     tripId: string;
     tripName: string;
     coverImageUrl?: string;
+    center?: [number, number];
     onCoverImageUrlChange: (url: string | null) => void;
     disabled?: boolean;
   }) => (
     <div>
       <span data-testid="cover-url">{coverImageUrl ?? ""}</span>
+      <span data-testid="cover-center">{center ? center.join(",") : ""}</span>
       <button disabled={disabled} onClick={() => onCoverImageUrlChange("https://example.com/new.jpg")}>
         set-cover
       </button>
       <button disabled={disabled} onClick={() => onCoverImageUrlChange(null)}>
         remove-cover
       </button>
+    </div>
+  ),
+}));
+
+vi.mock("./trip-edit-destination", () => ({
+  TripEditDestination: ({
+    value,
+    onInputChange,
+    onSelect,
+    onClear,
+  }: {
+    value: string;
+    onInputChange: (text: string) => void;
+    onSelect: (data: {
+      name: string;
+      country: string | null;
+      countryCode: string | null;
+      center: [number, number];
+    }) => void;
+    onClear: () => void;
+  }) => (
+    <div>
+      <input data-testid="destination-input" value={value} onChange={(e) => onInputChange(e.target.value)} />
+      <button onClick={() => onSelect({ name: "Tokyo", country: "Japan", countryCode: "JP", center: [139.69, 35.68] })}>
+        select-destination
+      </button>
+      <button onClick={() => onClear()}>clear-destination</button>
     </div>
   ),
 }));
@@ -517,5 +546,63 @@ describe("TripEditSheet", () => {
 
     await user.click(screen.getByRole("button", { name: "Remove Events" }));
     expect(onResolveDateChange).toHaveBeenCalledWith(TripDateConflictResolution.DeleteEvents);
+  });
+
+  it("onSave patch does not include destination fields when destination was not changed", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    const patch: UpdateTripPatch = onSave.mock.calls[0][0];
+    expect(patch.destinationName).toBeUndefined();
+    expect(patch.destinationCountry).toBeUndefined();
+    expect(patch.destinationCountryCode).toBeUndefined();
+  });
+
+  it("onSave patch includes new destination after selecting via onSelect callback", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: "select-destination" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    const patch: UpdateTripPatch = onSave.mock.calls[0][0];
+    expect(patch.destinationName).toBe("Tokyo");
+    expect(patch.destinationCountry).toBe("Japan");
+    expect(patch.destinationCountryCode).toBe("JP");
+  });
+
+  it("passes the selected destination center through to TripEditCover", async () => {
+    const user = userEvent.setup();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "select-destination" }));
+    expect(screen.getByTestId("cover-center")).toHaveTextContent("139.69,35.68");
+  });
+
+  it("onSave patch includes null destination fields after clearing via onClear callback", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: "clear-destination" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    const patch: UpdateTripPatch = onSave.mock.calls[0][0];
+    expect(patch.destinationName).toBeNull();
+    expect(patch.destinationCountry).toBeNull();
+    expect(patch.destinationCountryCode).toBeNull();
+  });
+
+  it("resets destination input after closing and reopening without saving", async () => {
+    const user = userEvent.setup();
+    const trip = { ...baseTrip, destinationName: "Paris" };
+    const { rerender } = render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
+
+    expect(screen.getByTestId("destination-input")).toHaveValue("Paris");
+
+    await user.click(screen.getByRole("button", { name: "clear-destination" }));
+    expect(screen.getByTestId("destination-input")).toHaveValue("");
+
+    rerender(<TripEditSheet trip={trip} open={false} onClose={vi.fn()} onSave={vi.fn()} />);
+    rerender(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
+
+    expect(screen.getByTestId("destination-input")).toHaveValue("Paris");
   });
 });

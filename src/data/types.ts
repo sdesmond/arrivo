@@ -198,6 +198,13 @@ export interface GeoCoords {
   lng: number;
 }
 
+export interface CoverImageSearchResult {
+  id: string;
+  url: string;
+  photographer: string;
+  alt: string;
+}
+
 export interface EventLocation {
   name?: string;
   address?: string;
@@ -443,9 +450,9 @@ export interface UpdateTripPatch {
   startDate?: string;
   endDate?: string;
   coverImageUrl?: string | null;
-  destinationName?: string;
-  destinationCountry?: string;
-  destinationCountryCode?: string;
+  destinationName?: string | null;
+  destinationCountry?: string | null;
+  destinationCountryCode?: string | null;
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;

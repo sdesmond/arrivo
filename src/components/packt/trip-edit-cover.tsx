@@ -14,6 +14,7 @@ export interface TripEditCoverProps {
   disabled?: boolean;
   destinationName?: string;
   destinationCountry?: string;
+  center?: [number, number];
 }
 
 export function TripEditCover({
@@ -24,6 +25,7 @@ export function TripEditCover({
   disabled = false,
   destinationName,
   destinationCountry,
+  center,
 }: TripEditCoverProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
@@ -52,7 +54,7 @@ export function TripEditCover({
           tripId={tripId}
           destinationName={destinationName}
           destinationCountry={destinationCountry}
-          center={undefined}
+          center={center}
           onImageSelected={(url) => {
             onCoverImageUrlChange(url);
             setIsPickerOpen(false);

@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TripCover } from "./trip-cover";
@@ -25,6 +24,15 @@ describe("TripCover", () => {
 
     const image = screen.getByRole("presentation");
     expect(image).toHaveAttribute("src", "https://images.example.com/tokyo.jpg");
+    expect(image).toHaveStyle({ objectFit: "cover" });
+    expect(document.querySelector(".cover-stripes")).not.toBeInTheDocument();
+  });
+
+  it("renders a full-bleed image when coverImageUrl is a relative path (e.g. Mapbox proxy tile)", () => {
+    render(<TripCover name="Tokyo" coverImageUrl="/api/mapbox/static?lng=2.347&lat=48.859" />);
+
+    const image = screen.getByRole("presentation");
+    expect(image).toHaveAttribute("src", "/api/mapbox/static?lng=2.347&lat=48.859");
     expect(image).toHaveStyle({ objectFit: "cover" });
     expect(document.querySelector(".cover-stripes")).not.toBeInTheDocument();
   });
