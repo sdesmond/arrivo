@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import * as LucideIcons from "lucide-react";
 import { useTheme } from "next-themes";
@@ -53,6 +53,13 @@ export function TripCover({
     () => true,
     () => false
   );
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const normalizedCoverImageUrl = coverImageUrl?.trim() ?? "";
   const [failedCoverImageUrl, setFailedCoverImageUrl] = useState<string | null>(null);
 
@@ -81,8 +88,12 @@ export function TripCover({
             src={photoCoverImageUrl}
             alt=""
             role="presentation"
-            onError={() => setFailedCoverImageUrl(normalizedCoverImageUrl)}
-            onLoad={() => setFailedCoverImageUrl(null)}
+            onError={() => {
+              if (isMountedRef.current) setFailedCoverImageUrl(normalizedCoverImageUrl);
+            }}
+            onLoad={() => {
+              if (isMountedRef.current) setFailedCoverImageUrl(null);
+            }}
             style={{
               position: "absolute",
               inset: 0,
