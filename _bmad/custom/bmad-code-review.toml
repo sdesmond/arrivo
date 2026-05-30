@@ -1,0 +1,6 @@
+# Team override for bmad-code-review.
+# Scalars override the default; arrays append.
+
+[workflow]
+
+on_complete = "After presenting review findings: detect current Git branch. If on main (or master), ask if user wants to create a new branch. If yes, create a descriptive feature branch, stage all, commit referencing findings, push. If no to branch, ask if they want to commit+push to main. If already on a non-main branch, skip branch question — just ask if they want to commit and push changes."

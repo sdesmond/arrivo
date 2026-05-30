@@ -60,6 +60,9 @@ next-env.d.ts
 _bmad/**
 !_bmad/_config/
 !_bmad/_config/manifest.yaml
+!_bmad/custom/
+!_bmad/custom/**
+_bmad/custom/*.user.toml
 
 # AI Agents
 .opencode/plans/
