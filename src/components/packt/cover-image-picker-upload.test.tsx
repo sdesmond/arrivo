@@ -27,6 +27,7 @@ describe("CoverImagePickerUpload", () => {
   it("renders drop zone with associated label element", () => {
     render(<CoverImagePickerUpload {...defaultProps} />);
     expect(screen.getByText(/drop file here or browse/i)).toBeInTheDocument();
+    expect(screen.getByText("JPG, PNG, WEBP, HEIC, GIF, AVIF · max 12 MB")).toBeInTheDocument();
     const input = screen.getByLabelText(/drop file here or browse/i);
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute("type", "file");
@@ -86,10 +87,10 @@ describe("CoverImagePickerUpload", () => {
 
     const input = screen.getByLabelText(/drop file here or browse/i);
     const oversized = new File(["img"], "large.png", { type: "image/png" });
-    Object.defineProperty(oversized, "size", { value: 25 * 1024 * 1024 + 1 });
+    Object.defineProperty(oversized, "size", { value: 12 * 1024 * 1024 + 1 });
     fireEvent.change(input, { target: { files: [oversized] } });
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Cover image exceeds 25 MB limit."));
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Cover image exceeds 12 MB limit."));
     expect(uploadCoverImage).not.toHaveBeenCalled();
   });
 

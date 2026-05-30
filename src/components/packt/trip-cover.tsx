@@ -31,7 +31,7 @@ function toGraphicIconKey(iconName: string): string {
     .join("");
 }
 
-function renderGraphicIcon(iconName: string, color: string): ReactNode {
+function renderGraphicIcon(iconName: string): ReactNode {
   const IconComponent = graphicIconLookup[toGraphicIconKey(iconName)];
   if (!IconComponent) return null;
   return <IconComponent size={128} strokeWidth={1.5} style={{ color: "white" }} />;
@@ -73,7 +73,7 @@ export function TripCover({
     activeCoverImageUrl.startsWith("/");
   const photoCoverImageUrl = activeCoverImageUrl && !graphicCover && isImageUrl ? activeCoverImageUrl : null;
   const overlayCountry = destinationCountry?.trim() || country;
-  const graphicIconEl = graphicCover ? renderGraphicIcon(graphicCover.icon, graphicCover.color) : null;
+  const graphicIconEl = graphicCover ? renderGraphicIcon(graphicCover.icon) : null;
 
   return (
     <div
