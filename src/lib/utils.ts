@@ -102,32 +102,44 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function parseGraphicCover(url: string | null | undefined): { color: string; icon: string } | null {
+export function parseGraphicCover(
+  url: string | null | undefined
+): { color: string; pattern: string; icon: string } | null {
   if (!url || !url.startsWith("graphic:")) return null;
   const rest = url.slice("graphic:".length);
-  const slashIndex = rest.indexOf("/");
-  if (slashIndex === -1) return null;
+  const firstSlash = rest.indexOf("/");
+  if (firstSlash === -1) return null;
 
-  const color = rest.slice(0, slashIndex);
-  const icon = rest.slice(slashIndex + 1);
-  if (!color.trim() || !icon.trim()) return null;
+  const color = rest.slice(0, firstSlash);
+  const afterColor = rest.slice(firstSlash + 1);
+  if (!color.trim() || !afterColor.trim()) return null;
+
+  const secondSlash = afterColor.indexOf("/");
+  if (secondSlash === -1) {
+    return { color, pattern: "slanted", icon: afterColor };
+  }
+
+  const pattern = afterColor.slice(0, secondSlash);
+  const icon = afterColor.slice(secondSlash + 1);
+  if (!pattern.trim() || !icon.trim()) return null;
   if (icon.includes("/")) return null;
 
-  return { color, icon };
+  return { color, pattern, icon };
 }
 
 export const GRAPHIC_COVER_COLORS = [
-  "var(--accent-brand)",
-  "var(--color-indigo-500)",
-  "var(--color-pink-500)",
-  "var(--color-teal-500)",
-  "var(--color-amber-500)",
-  "var(--color-red-500)",
-  "var(--color-emerald-500)",
-  "var(--color-slate-500)",
-  "var(--color-violet-500)",
-  "var(--color-orange-500)",
+  "var(--color-indigo-400)",
+  "var(--color-pink-400)",
+  "var(--color-teal-400)",
+  "var(--color-amber-400)",
+  "var(--color-red-400)",
+  "var(--color-emerald-400)",
+  "var(--color-slate-400)",
+  "var(--color-violet-400)",
+  "var(--color-orange-400)",
 ] as const;
+
+export const GRAPHIC_COVER_PATTERNS = ["horizontal", "vertical", "slanted", "crosshatch", "dots", "none"] as const;
 
 export const GRAPHIC_COVER_ICONS = [
   "plane",
@@ -161,7 +173,8 @@ export function deriveGraphicCover(title: string): string {
   const color = GRAPHIC_COVER_COLORS[hash % GRAPHIC_COVER_COLORS.length];
   const iconHash = (hash * 2654435761) >>> 0;
   const icon = GRAPHIC_COVER_ICONS[iconHash % GRAPHIC_COVER_ICONS.length];
-  return `graphic:${color}/${icon}`;
+  const pattern = GRAPHIC_COVER_PATTERNS[hash % GRAPHIC_COVER_PATTERNS.length];
+  return `graphic:${color}/${pattern}/${icon}`;
 }
 
 export async function shareDoc(doc: { name: string; url?: string }): Promise<void> {
