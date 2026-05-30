@@ -147,7 +147,7 @@ export function TripEditDestination({
 
   return (
     <Section title="Destination">
-      <Field label="Destination" htmlFor="trip-edit-destination">
+      <Field label="Location" htmlFor="trip-edit-destination">
         <div style={{ position: "relative" }}>
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <Input

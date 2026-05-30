@@ -1,14 +1,53 @@
 "use client";
 
 import { useState } from "react";
-import * as LucideIcons from "lucide-react";
+import {
+  Plane,
+  Map,
+  Compass,
+  Camera,
+  TentTree,
+  Ship,
+  Backpack,
+  Luggage,
+  Bus,
+  Car,
+  Mountain,
+  TreePalm,
+  Hotel,
+  Road,
+  Van,
+  Caravan,
+  MapPin,
+  MapPinned,
+  Trees,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GRAPHIC_COVER_COLORS, GRAPHIC_COVER_ICONS } from "@/lib/utils";
 
-const graphicIconLookup = LucideIcons as unknown as Record<
-  string,
-  React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>
->;
+type LucideIcon = React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>;
+
+const ICON_COMPONENTS: Record<string, LucideIcon> = {
+  Plane,
+  Map,
+  Compass,
+  Camera,
+  TentTree,
+  Ship,
+  Backpack,
+  Luggage,
+  Bus,
+  Car,
+  Mountain,
+  TreePalm,
+  Hotel,
+  Road,
+  Van,
+  Caravan,
+  MapPin,
+  MapPinned,
+  Trees,
+};
 
 const COLOR_LABELS: Record<(typeof GRAPHIC_COVER_COLORS)[number], string> = {
   "var(--accent-brand)": "Brand",
@@ -58,7 +97,7 @@ export function CoverImagePickerCustom({ onImageSelected, onClose }: CoverImageP
   const [selectedColor, setSelectedColor] = useState<(typeof GRAPHIC_COVER_COLORS)[number]>(GRAPHIC_COVER_COLORS[0]);
   const [selectedIcon, setSelectedIcon] = useState<(typeof GRAPHIC_COVER_ICONS)[number]>(GRAPHIC_COVER_ICONS[0]);
 
-  const IconComponent = graphicIconLookup[toGraphicIconKey(selectedIcon)];
+  const IconComponent = ICON_COMPONENTS[toGraphicIconKey(selectedIcon)];
 
   function handleApply() {
     try {

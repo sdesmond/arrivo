@@ -92,7 +92,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         <ToggleGroup
           aria-label="Date format"
           value={[dateFormat]}
-          onValueChange={(arr) => arr[0] && handleDateFormatChange(arr[0])}
+          onValueChange={(arr) => handleDateFormatChange(arr[0] ?? dateFormat)}
         >
           {DATE_FORMAT_OPTIONS.map((opt) => (
             <ToggleGroupItem key={opt.value} value={opt.value}>
@@ -119,7 +119,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         <ToggleGroup
           aria-label="Distance units"
           value={[distanceUnit]}
-          onValueChange={(arr) => arr[0] && handleDistanceUnitChange(arr[0])}
+          onValueChange={(arr) => handleDistanceUnitChange(arr[0] ?? distanceUnit)}
         >
           {(["imperial", "metric"] as const).map((unit) => (
             <ToggleGroupItem key={unit} value={unit} className="capitalize">
@@ -133,7 +133,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         <ToggleGroup
           aria-label="Default trip cover type"
           value={[coverType]}
-          onValueChange={(arr) => arr[0] && handleCoverTypeChange(arr[0])}
+          onValueChange={(arr) => handleCoverTypeChange(arr[0] ?? coverType)}
         >
           {COVER_TYPE_OPTIONS.map((opt) => (
             <ToggleGroupItem key={opt.value} value={opt.value}>
