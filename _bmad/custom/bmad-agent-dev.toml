@@ -5,4 +5,5 @@
 
 persistent_facts = [
   "Before implementing any code changes, ask the user if they want to create a new Git branch. If yes, create a descriptive feature branch before starting.",
+  "After implementation is complete and changes are committed and pushed, ask the user if they want to create a GitHub PR via the gh CLI and switch back to the main branch. If yes, create the PR and switch to main.",
 ]
