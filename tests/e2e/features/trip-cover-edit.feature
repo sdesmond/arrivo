@@ -15,6 +15,6 @@ Feature: Trip Cover Image Edit
   Scenario: User edits a trip cover image
     Given I have an existing trip
     When I open the trip edit sheet
-    And I select a new cover image from the picker
+    And I upload a new cover image from the picker
     And I save
     Then the new cover image is shown after reloading the page

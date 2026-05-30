@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { LoaderIcon } from "lucide-react";
-import { cn, MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { cn, MAX_COVER_IMAGE_UPLOAD_BYTES } from "@/lib/utils";
 import { uploadCoverImage } from "@/app/(app)/trips/[tripId]/actions";
 
 export interface CoverImagePickerUploadProps {
@@ -30,8 +30,8 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
       return;
     }
 
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("Cover image exceeds 25 MB limit.");
+    if (file.size > MAX_COVER_IMAGE_UPLOAD_BYTES) {
+      toast.error("Cover image exceeds 12 MB limit.");
       resetInputValue();
       return;
     }
@@ -123,6 +123,18 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
       >
         Drop file here or browse
       </label>
+      <p
+        style={{
+          color: "var(--fg-3)",
+          fontFamily: "var(--font-mono-family, ui-monospace)",
+          fontSize: "calc(10.5px * var(--font-scale))",
+          letterSpacing: "0.04em",
+          marginTop: 8,
+          textTransform: "uppercase",
+        }}
+      >
+        JPG, PNG, WEBP, HEIC, GIF, AVIF · max 12 MB
+      </p>
     </div>
   );
 }

@@ -6,6 +6,11 @@ import { When, Then, Before } from "../fixtures";
 import { trips, users } from "../../../src/db/schema";
 import { E2E_USER, E2E_TRIP } from "../e2e-seed-data";
 
+const COVER_UPLOAD_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0Q0AAAAASUVORK5CYII=",
+  "base64"
+);
+
 async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
   const db = drizzle(client);
@@ -38,18 +43,23 @@ Then("the cover image is cleared after reloading the page", async ({ page }) => 
   await expect(page.getByRole("dialog").getByRole("button", { name: "Remove image" })).not.toBeVisible();
 });
 
-When("I select a new cover image from the picker", async ({ page }) => {
+When("I upload a new cover image from the picker", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Edit cover image" }).click();
-  await expect(page.getByRole("tab", { name: "URL" })).toBeVisible();
-  await page.getByRole("tab", { name: "URL" }).click();
-  await page.getByPlaceholder("https://...").fill("https://example.com/e2e-cover.jpg");
-  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByRole("tab", { name: "Upload" })).toBeVisible();
+  await page.getByRole("tab", { name: "Upload" }).click();
+  await page.locator("#cover-upload-input").setInputFiles({
+    name: "e2e-cover.png",
+    mimeType: "image/png",
+    buffer: COVER_UPLOAD_PNG,
+  });
 });
 
 Then("the new cover image is shown after reloading the page", async ({ page }) => {
   await page.reload();
   await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("dialog").getByRole("button", { name: "Remove image" })).toBeVisible();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Remove image" })).toBeVisible();
+  await expect(dialog.locator('img[role="presentation"]')).toHaveAttribute("src", /\/uploads\//);
 });

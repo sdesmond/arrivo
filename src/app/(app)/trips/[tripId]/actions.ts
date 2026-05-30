@@ -6,7 +6,8 @@ import { events, days, documents, itineraryNotes, itineraryChecklists, checklist
 import { eq, and, max, gte, sql, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { del, put } from "@vercel/blob";
-import { inferDocKind, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { saveLocalUpload, isBlobUploadUrl } from "@/lib/local-upload";
+import { inferDocKind, formatFileSize, MAX_COVER_IMAGE_UPLOAD_BYTES, MAX_UPLOAD_BYTES } from "@/lib/utils";
 import type {
   CreateEventInput,
   UpdateEventPatch,
@@ -383,15 +384,7 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
 
   let url: string;
   if (process.env.UPLOAD_STUB === "true") {
-    const { writeFile, mkdir } = await import("fs/promises");
-    const { join, basename } = await import("path");
-    const uploadsDir = join(process.cwd(), "public", "uploads");
-    await mkdir(uploadsDir, { recursive: true });
-    const safeName = basename(name).replace(/[^\w.-]/g, "_");
-    const randomSuffix = Math.random().toString(36).slice(2, 8);
-    const uniqueName = `${Date.now()}-${randomSuffix}-${safeName}`;
-    await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
-    url = `/uploads/${encodeURIComponent(uniqueName)}`;
+    url = await saveLocalUpload(file);
   } else {
     const result = await put(name, file, { access: "public" });
     url = result.url;
@@ -408,7 +401,7 @@ export async function uploadCoverImage(tripId: string, formData: FormData): Prom
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided");
   if (!file.type.startsWith("image/")) throw new Error("Cover image must be an image");
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error("Cover image exceeds 25 MB limit");
+  if (file.size > MAX_COVER_IMAGE_UPLOAD_BYTES) throw new Error("Cover image exceeds 12 MB limit");
 
   let url: string;
   let uploadedBlobUrl: string | null = null;
@@ -421,7 +414,7 @@ export async function uploadCoverImage(tripId: string, formData: FormData): Prom
     const previousUrl = existing[0]?.coverImageUrl;
 
     if (process.env.UPLOAD_STUB === "true") {
-      url = `https://placehold.co/600x400/png?text=${encodeURIComponent(file.name)}`;
+      url = await saveLocalUpload(file);
     } else {
       const result = await put(file.name, file, { access: "public" });
       url = result.url;
@@ -430,7 +423,7 @@ export async function uploadCoverImage(tripId: string, formData: FormData): Prom
 
     await db.update(trips).set({ coverImageUrl: url }).where(eq(trips.id, tripId));
 
-    if (previousUrl && !previousUrl.startsWith("https://placehold.co/")) {
+    if (previousUrl && isBlobUploadUrl(previousUrl)) {
       await del(previousUrl).catch((cleanupError) =>
         console.warn(`Blob cleanup failed for previous cover image ${previousUrl}`, cleanupError)
       );
@@ -659,15 +652,7 @@ export async function uploadDocumentToEvent(eventId: string, formData: FormData)
 
   let url: string;
   if (process.env.UPLOAD_STUB === "true") {
-    const { writeFile, mkdir } = await import("fs/promises");
-    const { join, basename } = await import("path");
-    const uploadsDir = join(process.cwd(), "public", "uploads");
-    await mkdir(uploadsDir, { recursive: true });
-    const safeName = basename(name).replace(/[^\w.-]/g, "_");
-    const randomSuffix = Math.random().toString(36).slice(2, 8);
-    const uniqueName = `${Date.now()}-${randomSuffix}-${safeName}`;
-    await writeFile(join(uploadsDir, uniqueName), Buffer.from(await file.arrayBuffer()));
-    url = `/uploads/${encodeURIComponent(uniqueName)}`;
+    url = await saveLocalUpload(file);
   } else {
     const result = await put(name, file, { access: "public" });
     url = result.url;

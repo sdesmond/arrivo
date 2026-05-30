@@ -10,6 +10,7 @@ const {
   mockRevalidatePath,
   mockBlobDel,
   mockBlobPut,
+  mockSaveLocalUpload,
   schemaTokens,
 } = vi.hoisted(() => {
   const mockAssertTripAccess = vi.fn();
@@ -20,6 +21,7 @@ const {
   const mockRevalidatePath = vi.fn();
   const mockBlobDel = vi.fn();
   const mockBlobPut = vi.fn();
+  const mockSaveLocalUpload = vi.fn();
   const schemaTokens = {
     checklistItems: {},
     days: {},
@@ -39,6 +41,7 @@ const {
     mockRevalidatePath,
     mockBlobDel,
     mockBlobPut,
+    mockSaveLocalUpload,
     schemaTokens,
   };
 });
@@ -67,7 +70,13 @@ vi.mock("@vercel/blob", () => ({
   put: mockBlobPut,
 }));
 
+vi.mock("@/lib/local-upload", () => ({
+  isBlobUploadUrl: (url: string) => url.startsWith("https://blob.vercel."),
+  saveLocalUpload: mockSaveLocalUpload,
+}));
+
 vi.mock("@/lib/utils", () => ({
+  MAX_COVER_IMAGE_UPLOAD_BYTES: 12 * 1024 * 1024,
   MAX_UPLOAD_BYTES: 25 * 1024 * 1024,
   formatFileSize: vi.fn(),
   inferDocKind: vi.fn(),
@@ -196,9 +205,11 @@ describe("reorderDayItems", () => {
 describe("uploadCoverImage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockAssertTripAccess.mockResolvedValue(undefined);
     mockBlobDel.mockResolvedValue(undefined);
+    mockSaveLocalUpload.mockResolvedValue("/uploads/cover.png");
     mockDbSelect.mockReturnValue({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -225,11 +236,11 @@ describe("uploadCoverImage", () => {
 
   it("rejects oversized image files before uploading", async () => {
     const oversized = new File(["img"], "cover.png", { type: "image/png" });
-    Object.defineProperty(oversized, "size", { value: 25 * 1024 * 1024 + 1 });
+    Object.defineProperty(oversized, "size", { value: 12 * 1024 * 1024 + 1 });
     const formData = new FormData();
     formData.append("file", oversized);
 
-    await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow("Cover image exceeds 25 MB limit");
+    await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow("Cover image exceeds 12 MB limit");
 
     expect(mockBlobPut).not.toHaveBeenCalled();
     expect(mockDbUpdate).not.toHaveBeenCalled();
@@ -266,6 +277,19 @@ describe("uploadCoverImage", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
+  it("returns a local upload url in stub mode", async () => {
+    vi.stubEnv("UPLOAD_STUB", "true");
+    const formData = new FormData();
+    const file = new File(["img"], "cover.png", { type: "image/png" });
+    formData.append("file", file);
+    mockSaveLocalUpload.mockResolvedValue("/uploads/local-cover.png");
+
+    await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("/uploads/local-cover.png");
+
+    expect(mockSaveLocalUpload).toHaveBeenCalledWith(file);
+    expect(mockBlobPut).not.toHaveBeenCalled();
+  });
+
   it("cleans up the previous blob when replacing a cover image", async () => {
     const formData = new FormData();
     formData.append("file", new File(["img"], "new-cover.png", { type: "image/png" }));
@@ -283,20 +307,39 @@ describe("uploadCoverImage", () => {
     expect(mockBlobDel).toHaveBeenCalledWith("https://blob.vercel.dev/old-cover.png");
   });
 
-  it("does not delete the previous cover when it is a placeholder", async () => {
+  it("does not delete the previous cover when it is a local stub upload", async () => {
+    vi.stubEnv("UPLOAD_STUB", "true");
+    const formData = new FormData();
+    formData.append("file", new File(["img"], "new-cover.png", { type: "image/png" }));
+    mockDbSelect.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [{ coverImageUrl: "/uploads/old-cover.png" }]),
+        })),
+      })),
+    });
+    mockSaveLocalUpload.mockResolvedValue("/uploads/new-cover.png");
+
+    await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("/uploads/new-cover.png");
+
+    expect(mockBlobDel).not.toHaveBeenCalled();
+    expect(mockBlobPut).not.toHaveBeenCalled();
+  });
+
+  it("does not delete the previous cover when it is an external url", async () => {
     const formData = new FormData();
     formData.append("file", new File(["img"], "new-cover.png", { type: "image/png" }));
     mockBlobPut.mockResolvedValue({ url: "https://blob.vercel.dev/new-cover.png" });
     mockDbSelect.mockReturnValue({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          limit: vi.fn(async () => [{ coverImageUrl: "https://placehold.co/600x400/png?text=Old" }]),
+          limit: vi.fn(async () => [{ coverImageUrl: "https://images.example.com/old-cover.png" }]),
         })),
       })),
     });
 
     await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/new-cover.png");
 
-    expect(mockBlobDel).not.toHaveBeenCalled();
+    expect(mockBlobDel).not.toHaveBeenCalledWith("https://images.example.com/old-cover.png");
   });
 });
