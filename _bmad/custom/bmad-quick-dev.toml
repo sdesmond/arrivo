@@ -6,3 +6,5 @@
 activation_steps_append = [
   "Ask the user if they want to create a new Git branch before starting implementation. If yes, create a descriptive feature branch now.",
 ]
+
+on_complete = "After implementation and any commit/push, ask the user if they want to create a GitHub PR via the gh CLI and switch back to the main branch. If yes, create the PR and switch to main."
