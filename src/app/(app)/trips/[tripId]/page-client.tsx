@@ -83,6 +83,10 @@ export function TripDetailClient({
 
   const eventCount = days.reduce((count, day) => count + day.events.length, 0) + unscheduledEvents.length;
   const dayTotal = getTripDays(trip.startDate, trip.endDate);
+  const dayN =
+    trip.startDate && dayTotal > 0
+      ? Math.max(1, Math.min(getTripDays(trip.startDate, nowISO.slice(0, 10)), dayTotal))
+      : 0;
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const heroStatusLabel =
     trip.startDate && trip.endDate ? `${status.toUpperCase()} TRIP · OFFLINE` : "UNSCHEDULED TRIP · OFFLINE";
@@ -175,19 +179,19 @@ export function TripDetailClient({
           >
             <span className="flex items-center gap-1.5">
               <Calendar size={13} strokeWidth={1.5} />
-              {pluralize(dayTotal, "day")}
+              {dayTotal > 0 ? `${dayTotal} ${pluralize(dayTotal, "day")} · day ${dayN} today` : "0 days"}
             </span>
             <span className="flex items-center gap-1.5">
               <MapPin size={13} strokeWidth={1.5} />
-              {pluralize(eventCount, "place")}
+              {eventCount} {pluralize(eventCount, "place")}
             </span>
             <span className="flex items-center gap-1.5">
               <FileText size={13} strokeWidth={1.5} />
-              {pluralize(docs.filter((document) => document.scope === "trip").length, "doc")}
+              {docs.length} {pluralize(docs.length, "doc")}
             </span>
             <span className="flex items-center gap-1.5">
               <Users size={13} strokeWidth={1.5} />
-              {pluralize(collaborators.length, "collaborator")}
+              {collaborators.length} {pluralize(collaborators.length, "collaborator")}
             </span>
           </div>
         </div>

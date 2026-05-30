@@ -131,6 +131,63 @@ describe("TripDetailClient", () => {
       />
     );
 
-    expect(screen.getByText("place")).toBeInTheDocument();
+    expect(screen.getByText("1 place")).toBeInTheDocument();
+  });
+
+  it("shows collaborator count excluding the current user in the hero summary", () => {
+    render(
+      <TripDetailClient
+        detail={{
+          ...baseDetail,
+          collaborators: [
+            { name: "Alice", email: "alice@test.com", initials: "A", role: "editor" as const },
+            { name: "Bob", email: "bob@test.com", initials: "B", role: "viewer" as const },
+          ],
+        }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByText("2 collaborators")).toBeInTheDocument();
+  });
+
+  it("counts all docs including event-scoped docs in the hero summary", () => {
+    render(
+      <TripDetailClient
+        detail={{
+          ...baseDetail,
+          docs: [
+            { id: "doc-1", name: "Trip doc", scope: "trip", kind: "pdf", offline: false },
+            { id: "doc-2", name: "Event doc", scope: "event", kind: "pdf", offline: false },
+          ],
+        }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByText("2 docs")).toBeInTheDocument();
+  });
+
+  it("shows day count and current day number for scheduled trips", () => {
+    render(
+      <TripDetailClient
+        detail={{
+          ...baseDetail,
+          trip: { id: "trip-1", name: "Tokyo", status: "upcoming", startDate: "2026-05-20", endDate: "2026-05-30" },
+        }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByText(/11 days.*day 5 today/)).toBeInTheDocument();
+  });
+
+  it("shows 0 days for unscheduled trips", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(screen.getByText("0 days")).toBeInTheDocument();
   });
 });

@@ -22,11 +22,6 @@ use https://ui.shadcn.com/docs/components/base/empty as an example. Empty state 
 
 days, events, docs, collaborators aren't accurate in trip header
 
-### background image changes
-
-- open the dialog showing the tab that is currently selected. If I have a custom background, open it to custom, etc.
-  - If custom, pre-select the current values in the selects
-
 ### Trip Notes
 
 The Notes tab exists on the trip detail page as a placeholder. The trip-level `notes` field is stored in the DB and wired through the backend, but has no display surface or editing UI yet (the edit sheet input was removed to avoid orphaned data entry).
