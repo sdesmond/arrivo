@@ -24,11 +24,8 @@ days, events, docs, collaborators aren't accurate in trip header
 
 ### background image changes
 
-- Custom
-  - add background option to the custom picker. It should have options that change the stripe pattern. I'm thinking options like "horizontal" "vertical" "slanted" what others?
 - open the dialog showing the tab that is currently selected. If I have a custom background, open it to custom, etc.
   - If custom, pre-select the current values in the selects
-- image upload just shows filename after upload, not the actual image
 
 ### Trip Notes
 
