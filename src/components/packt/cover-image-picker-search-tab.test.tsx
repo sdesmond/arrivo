@@ -2,13 +2,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CoverImageSearchResult } from "@/data/types";
+import type { LocationSuggestion } from "@/app/(app)/trips/actions";
 
 const mockSearchCoverImages = vi.fn();
 const mockResolveDestinationCenter = vi.fn();
+const mockSearchLocations = vi.fn();
+const mockRetrieveLocation = vi.fn();
 
 vi.mock("@/app/(app)/trips/cover-image-search-actions", () => ({
   searchCoverImages: (...args: unknown[]) => mockSearchCoverImages(...args),
   resolveDestinationCenter: (...args: unknown[]) => mockResolveDestinationCenter(...args),
+}));
+
+vi.mock("@/app/(app)/trips/actions", () => ({
+  searchLocations: (...args: unknown[]) => mockSearchLocations(...args),
+  retrieveLocation: (...args: unknown[]) => mockRetrieveLocation(...args),
 }));
 
 vi.mock("sonner", () => ({
@@ -35,17 +43,57 @@ const defaultProps = {
   onImageSelected: vi.fn(),
 };
 
+function mockSuggestion(overrides?: Partial<LocationSuggestion>): LocationSuggestion {
+  return {
+    placeName: "Paris, France",
+    country: "France",
+    countryCode: "FR",
+    mapboxId: "mapbox-paris",
+    ...overrides,
+  };
+}
+
 describe("CoverImagePickerSearchTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchCoverImages.mockResolvedValue([]);
     mockResolveDestinationCenter.mockResolvedValue(null);
+    mockSearchLocations.mockResolvedValue([]);
+    mockRetrieveLocation.mockResolvedValue({
+      placeName: "Paris, France",
+      country: "France",
+      countryCode: "FR",
+      center: [2.35, 48.86],
+    });
+  });
+
+  it("pre-fills the search input with destinationName", () => {
+    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
+
+    expect(screen.getByRole("combobox")).toHaveValue("Paris");
+  });
+
+  it("leaves search input empty when destinationName is absent", () => {
+    render(<CoverImagePickerSearchTab {...defaultProps} />);
+
+    expect(screen.getByRole("combobox")).toHaveValue("");
   });
 
   it("does not call searchCoverImages when destinationName is absent", async () => {
     render(<CoverImagePickerSearchTab {...defaultProps} />);
+
     await act(async () => {});
     expect(mockSearchCoverImages).not.toHaveBeenCalled();
+  });
+
+  it("calls searchCoverImages with the destination name on mount", async () => {
+    mockSearchCoverImages.mockResolvedValue(makeImages(2));
+
+    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
+
+    await waitFor(() => {
+      expect(mockSearchCoverImages).toHaveBeenCalledWith("Paris", expect.objectContaining({ page: 1 }));
+    });
   });
 
   it("shows a loading spinner while images are fetching", async () => {
@@ -61,16 +109,6 @@ describe("CoverImagePickerSearchTab", () => {
 
     await act(async () => {
       resolveLoad([]);
-    });
-  });
-
-  it("calls searchCoverImages with trimmed destination name on page 1", async () => {
-    mockSearchCoverImages.mockResolvedValue(makeImages(2));
-
-    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="  Paris  " />);
-
-    await waitFor(() => {
-      expect(mockSearchCoverImages).toHaveBeenCalledWith("Paris", expect.objectContaining({ page: 1 }));
     });
   });
 
@@ -233,35 +271,140 @@ describe("CoverImagePickerSearchTab", () => {
     expect(mockSearchCoverImages.mock.calls.length).toBe(callsBefore);
   });
 
-  it("resets and reloads when destinationName changes", async () => {
-    mockSearchCoverImages.mockResolvedValue(makeImages(2));
+  describe("location autocomplete", () => {
+    it("calls searchLocations when user types 2+ characters", async () => {
+      mockSearchLocations.mockResolvedValue([mockSuggestion()]);
 
-    const { rerender } = render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
+      const user = userEvent.setup();
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="" />);
 
-    await waitFor(() => {
-      expect(mockSearchCoverImages).toHaveBeenCalledWith("Paris", expect.anything());
+      const input = screen.getByRole("combobox");
+      await user.type(input, "Pa");
+
+      await waitFor(
+        () => {
+          expect(mockSearchLocations).toHaveBeenCalledWith("Pa", expect.any(String));
+        },
+        { timeout: 500 }
+      );
     });
 
-    rerender(<CoverImagePickerSearchTab {...defaultProps} destinationName="Tokyo" />);
+    it("does not call searchLocations when typing fewer than 2 characters", async () => {
+      const user = userEvent.setup();
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="" />);
 
-    await waitFor(() => {
-      expect(mockSearchCoverImages).toHaveBeenCalledWith("Tokyo", expect.anything());
-    });
-  });
+      const input = screen.getByRole("combobox");
+      await user.type(input, "P");
 
-  it("clears the image grid when destinationName is cleared", async () => {
-    mockSearchCoverImages.mockResolvedValue(makeImages(2));
-
-    const { rerender } = render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Alt img-1" })).toBeInTheDocument();
+      await act(async () => {});
+      expect(mockSearchLocations).not.toHaveBeenCalled();
     });
 
-    rerender(<CoverImagePickerSearchTab {...defaultProps} destinationName="" />);
+    it("does not call searchLocations when typing equals the active location query", async () => {
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
 
-    await act(async () => {});
-    expect(screen.queryByRole("button", { name: "Alt img-1" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      await act(async () => {});
+      expect(mockSearchLocations).not.toHaveBeenCalled();
+    });
+
+    it("shows suggestions when searchLocations returns results", async () => {
+      mockSearchLocations.mockResolvedValue([
+        mockSuggestion({ placeName: "Paris, France" }),
+        mockSuggestion({ placeName: "Paris, Texas, United States", mapboxId: "mapbox-paris-tx" }),
+      ]);
+
+      const user = userEvent.setup();
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="" />);
+
+      const input = screen.getByRole("combobox");
+      await user.type(input, "Paris");
+
+      await waitFor(
+        () => {
+          expect(screen.getByText("Paris, France")).toBeInTheDocument();
+          expect(screen.getByText("Paris, Texas")).toBeInTheDocument();
+        },
+        { timeout: 500 }
+      );
+    });
+
+    it("calls retrieveLocation and updates images when suggestion is selected", async () => {
+      const retrieveCenter: [number, number] = [2.35, 48.86];
+      mockRetrieveLocation.mockResolvedValue({
+        placeName: "Paris, France",
+        country: "France",
+        countryCode: "FR",
+        center: retrieveCenter,
+      });
+      mockSearchLocations.mockResolvedValue([mockSuggestion()]);
+      mockSearchCoverImages.mockResolvedValue([makeImage("paris-pic")]);
+
+      const user = userEvent.setup();
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="" />);
+
+      const input = screen.getByRole("combobox");
+      await user.type(input, "Paris");
+
+      await waitFor(
+        () => {
+          expect(screen.getByText("Paris, France")).toBeInTheDocument();
+        },
+        { timeout: 500 }
+      );
+
+      await user.click(screen.getByText("Paris, France"));
+
+      await waitFor(() => {
+        expect(mockRetrieveLocation).toHaveBeenCalledWith("mapbox-paris", expect.any(String));
+        expect(mockSearchCoverImages).toHaveBeenCalledWith("Paris, France", expect.objectContaining({ page: 1 }));
+        expect(screen.getByRole("button", { name: "Alt paris-pic" })).toBeInTheDocument();
+      });
+    });
+
+    it("shows map tile after selecting a suggestion with a center", async () => {
+      mockRetrieveLocation.mockResolvedValue({
+        placeName: "Paris, France",
+        country: "France",
+        countryCode: "FR",
+        center: [2.35, 48.86],
+      });
+      mockSearchLocations.mockResolvedValue([mockSuggestion()]);
+      mockSearchCoverImages.mockResolvedValue([]);
+
+      const user = userEvent.setup();
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="" />);
+
+      const input = screen.getByRole("combobox");
+      await user.type(input, "Paris");
+
+      await waitFor(
+        () => {
+          expect(screen.getByText("Paris, France")).toBeInTheDocument();
+        },
+        { timeout: 500 }
+      );
+
+      await user.click(screen.getByText("Paris, France"));
+
+      await waitFor(() => {
+        expect(screen.getByTitle("Map view")).toBeInTheDocument();
+      });
+    });
+
+    it("does not render image grid when no active location is set", () => {
+      render(<CoverImagePickerSearchTab {...defaultProps} />);
+
+      expect(screen.queryByTestId("cover-search-grid")).not.toBeInTheDocument();
+    });
+
+    it("renders image grid when active location is set", async () => {
+      mockSearchCoverImages.mockResolvedValue([makeImage("test")]);
+
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("cover-search-grid")).toBeInTheDocument();
+      });
+    });
   });
 });

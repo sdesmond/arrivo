@@ -28,6 +28,15 @@ const DEFAULT_COVER_IMAGE_PAGE = 1;
 const DEFAULT_COVER_IMAGE_PAGE_SIZE = 19;
 const LOCATION_TYPES: SearchBoxAdministrativeUnitTypes[] = ["place", "locality", "neighborhood", "region", "country"];
 
+function simplifySearchQuery(query: string): string {
+  const parts = query
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length <= 2) return query;
+  return `${parts[0]}, ${parts[1]}`;
+}
+
 function buildE2EUnsplashStub(query: string, page: number, perPage: number): CoverImageSearchResult[] {
   const slug = query
     .trim()
@@ -127,7 +136,8 @@ export async function searchCoverImages(
   const timeout = setTimeout(() => controller.abort(), 10_000);
 
   try {
-    const encodedQuery = encodeURIComponent(query);
+    const searchQuery = simplifySearchQuery(query);
+    const encodedQuery = encodeURIComponent(searchQuery);
     const response = await fetch(
       `https://api.unsplash.com/search/photos?query=${encodedQuery}+travel&orientation=landscape&page=${page}&per_page=${perPage}`,
       {
