@@ -1,0 +1,8 @@
+# Team override for bmad-quick-dev.
+# Scalars override; arrays append.
+
+[workflow]
+
+activation_steps_append = [
+  "Ask the user if they want to create a new Git branch before starting implementation. If yes, create a descriptive feature branch now.",
+]

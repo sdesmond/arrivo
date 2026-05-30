@@ -1,0 +1,8 @@
+# Team override for bmad-agent-dev.
+# Scalars override; arrays append; array-of-tables merge by `code`/`id`.
+
+[agent]
+
+persistent_facts = [
+  "Before implementing any code changes, ask the user if they want to create a new Git branch. If yes, create a descriptive feature branch before starting.",
+]
