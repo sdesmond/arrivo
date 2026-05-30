@@ -47,13 +47,16 @@ export function SidebarNav({ user }: SidebarNavProps) {
       aria-label="Main navigation"
     >
       {/* Brand row */}
-      <div
+      <Link
+        href="/trips"
         className="flex items-center gap-2 px-4 py-4"
         style={{
           fontFamily: "var(--font-heading-family, ui-sans-serif)",
           fontWeight: 700,
           fontSize: "calc(16px * var(--font-scale))",
           letterSpacing: "-0.02em",
+          textDecoration: "none",
+          color: "inherit",
         }}
       >
         <span
@@ -72,7 +75,7 @@ export function SidebarNav({ user }: SidebarNavProps) {
           />
         </span>
         Packt
-      </div>
+      </Link>
 
       {/* Workspace */}
       <div className="px-2 pb-1">
