@@ -19,7 +19,6 @@ import {
   deriveGraphicCover,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
-  GRAPHIC_COVER_PATTERNS,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
