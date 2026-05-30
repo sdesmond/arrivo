@@ -13,14 +13,20 @@ vi.mock("./trip-cover", () => ({
 vi.mock("./cover-image-picker", () => ({
   CoverImagePicker: ({
     center,
+    currentCoverImageUrl,
     onImageSelected,
     onClose,
   }: {
     center?: [number, number];
+    currentCoverImageUrl?: string;
     onImageSelected: (url: string) => void;
     onClose: () => void;
   }) => (
-    <div data-testid="cover-image-picker" data-center={center ? center.join(",") : ""}>
+    <div
+      data-testid="cover-image-picker"
+      data-center={center ? center.join(",") : ""}
+      data-current-cover-url={currentCoverImageUrl ?? ""}
+    >
       <button onClick={() => onImageSelected("https://example.com/new.jpg")}>select-image</button>
       <button onClick={onClose}>close-picker</button>
     </div>
@@ -102,6 +108,16 @@ describe("TripEditCover", () => {
     render(<TripEditCover {...baseProps} center={[139.69, 35.68]} />);
     await user.click(screen.getByRole("button", { name: "Edit cover image" }));
     expect(screen.getByTestId("cover-image-picker")).toHaveAttribute("data-center", "139.69,35.68");
+  });
+
+  it("passes coverImageUrl through as currentCoverImageUrl to the picker", async () => {
+    const user = userEvent.setup();
+    render(<TripEditCover {...baseProps} coverImageUrl="graphic:var(--color-amber-400)/dots/mountain" />);
+    await user.click(screen.getByRole("button", { name: "Edit cover image" }));
+    expect(screen.getByTestId("cover-image-picker")).toHaveAttribute(
+      "data-current-cover-url",
+      "graphic:var(--color-amber-400)/dots/mountain"
+    );
   });
 
   it("selecting an image calls onCoverImageUrlChange and closes picker", async () => {

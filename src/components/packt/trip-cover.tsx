@@ -103,9 +103,9 @@ export function TripCover({
             }}
           />
         </>
-      ) : (
+      ) : !graphicCover ? (
         <div className="cover-stripes absolute inset-0" />
-      )}
+      ) : null}
 
       {graphicCover && graphicCover.pattern !== "none" ? (
         <div className={`cover-pattern-${graphicCover.pattern} absolute inset-0`} />

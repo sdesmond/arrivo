@@ -42,7 +42,7 @@ describe("TripCover", () => {
 
     expect(container.querySelector("img")).not.toBeInTheDocument();
     expect(screen.getByTestId("lucide-plane")).toBeInTheDocument();
-    expect(document.querySelector(".cover-stripes")).toBeInTheDocument();
+    expect(document.querySelector(".cover-stripes")).not.toBeInTheDocument();
   });
 
   it("falls back to the gradient cover when the image fails to load", () => {

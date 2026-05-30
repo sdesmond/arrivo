@@ -105,6 +105,9 @@ const selectStyles = {
 export interface CoverImagePickerCustomProps {
   onImageSelected: (url: string) => void;
   onClose: () => void;
+  defaultColor?: (typeof GRAPHIC_COVER_COLORS)[number];
+  defaultPattern?: (typeof GRAPHIC_COVER_PATTERNS)[number];
+  defaultIcon?: (typeof GRAPHIC_COVER_ICONS)[number];
 }
 
 function toGraphicIconKey(iconName: string): string {
@@ -115,12 +118,22 @@ function toGraphicIconKey(iconName: string): string {
     .join("");
 }
 
-export function CoverImagePickerCustom({ onImageSelected, onClose }: CoverImagePickerCustomProps) {
-  const [selectedColor, setSelectedColor] = useState<(typeof GRAPHIC_COVER_COLORS)[number]>(GRAPHIC_COVER_COLORS[0]);
-  const [selectedPattern, setSelectedPattern] = useState<(typeof GRAPHIC_COVER_PATTERNS)[number]>(
-    GRAPHIC_COVER_PATTERNS[0]
+export function CoverImagePickerCustom({
+  onImageSelected,
+  onClose,
+  defaultColor,
+  defaultPattern,
+  defaultIcon,
+}: CoverImagePickerCustomProps) {
+  const [selectedColor, setSelectedColor] = useState<(typeof GRAPHIC_COVER_COLORS)[number]>(
+    defaultColor ?? GRAPHIC_COVER_COLORS[0]
   );
-  const [selectedIcon, setSelectedIcon] = useState<(typeof GRAPHIC_COVER_ICONS)[number]>(GRAPHIC_COVER_ICONS[0]);
+  const [selectedPattern, setSelectedPattern] = useState<(typeof GRAPHIC_COVER_PATTERNS)[number]>(
+    defaultPattern ?? GRAPHIC_COVER_PATTERNS[0]
+  );
+  const [selectedIcon, setSelectedIcon] = useState<(typeof GRAPHIC_COVER_ICONS)[number]>(
+    defaultIcon ?? GRAPHIC_COVER_ICONS[0]
+  );
 
   const IconComponent = ICON_COMPONENTS[toGraphicIconKey(selectedIcon)];
 
