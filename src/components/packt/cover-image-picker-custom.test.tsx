@@ -122,4 +122,29 @@ describe("CoverImagePickerCustom", () => {
     );
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("uses defaultColor when provided", () => {
+    render(
+      <CoverImagePickerCustom onImageSelected={vi.fn()} onClose={vi.fn()} defaultColor={GRAPHIC_COVER_COLORS[4]} />
+    );
+
+    const colorSelect = screen.getByLabelText(/background color/i);
+    expect(colorSelect).toHaveValue(GRAPHIC_COVER_COLORS[4]);
+  });
+
+  it("uses defaultPattern when provided", () => {
+    render(
+      <CoverImagePickerCustom onImageSelected={vi.fn()} onClose={vi.fn()} defaultPattern={GRAPHIC_COVER_PATTERNS[3]} />
+    );
+
+    const patternSelect = screen.getByLabelText(/pattern/i);
+    expect(patternSelect).toHaveValue(GRAPHIC_COVER_PATTERNS[3]);
+  });
+
+  it("uses defaultIcon when provided", () => {
+    render(<CoverImagePickerCustom onImageSelected={vi.fn()} onClose={vi.fn()} defaultIcon={GRAPHIC_COVER_ICONS[9]} />);
+
+    const iconSelect = screen.getByLabelText(/^icon$/i);
+    expect(iconSelect).toHaveValue(GRAPHIC_COVER_ICONS[9]);
+  });
 });

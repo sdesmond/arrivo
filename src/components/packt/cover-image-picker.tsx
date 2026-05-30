@@ -8,21 +8,33 @@ import { CoverImagePickerUpload } from "./cover-image-picker-upload";
 import { CoverImagePickerUrl } from "./cover-image-picker-url";
 import { CoverImagePickerCustom } from "./cover-image-picker-custom";
 import { CoverImagePickerSearchTab } from "./cover-image-picker-search-tab";
+import { GRAPHIC_COVER_COLORS, GRAPHIC_COVER_ICONS, GRAPHIC_COVER_PATTERNS, parseGraphicCover } from "@/lib/utils";
 
 export interface CoverImagePickerProps {
   tripId: string;
   destinationName?: string;
   destinationCountry?: string;
   center?: [number, number];
+  currentCoverImageUrl?: string;
   onImageSelected: (url: string) => void;
   onClose: () => void;
 }
 
-export function CoverImagePicker({ tripId, destinationName, center, onImageSelected, onClose }: CoverImagePickerProps) {
+export function CoverImagePicker({
+  tripId,
+  destinationName,
+  center,
+  currentCoverImageUrl,
+  onImageSelected,
+  onClose,
+}: CoverImagePickerProps) {
   function handleSelect(url: string) {
     onImageSelected(url);
     onClose();
   }
+
+  const graphicCover = currentCoverImageUrl ? parseGraphicCover(currentCoverImageUrl) : null;
+  const defaultTab = graphicCover ? "custom" : "search";
 
   return (
     <Dialog
@@ -43,7 +55,7 @@ export function CoverImagePicker({ tripId, destinationName, center, onImageSelec
           </Button>
         </DialogHeader>
 
-        <Tabs defaultValue="search" className="flex min-h-0 flex-1 flex-col">
+        <Tabs defaultValue={defaultTab} className="flex min-h-0 flex-1 flex-col">
           <TabsList className="shrink-0">
             <TabsTrigger value="search">Search</TabsTrigger>
             <TabsTrigger value="upload">Upload</TabsTrigger>
@@ -66,7 +78,13 @@ export function CoverImagePicker({ tripId, destinationName, center, onImageSelec
             <CoverImagePickerUrl onImageSelected={onImageSelected} onClose={onClose} />
           </TabsContent>
           <TabsContent value="custom" className="min-h-0 flex-1 overflow-y-auto">
-            <CoverImagePickerCustom onImageSelected={onImageSelected} onClose={onClose} />
+            <CoverImagePickerCustom
+              onImageSelected={onImageSelected}
+              onClose={onClose}
+              defaultColor={graphicCover?.color as (typeof GRAPHIC_COVER_COLORS)[number] | undefined}
+              defaultPattern={graphicCover?.pattern as (typeof GRAPHIC_COVER_PATTERNS)[number] | undefined}
+              defaultIcon={graphicCover?.icon as (typeof GRAPHIC_COVER_ICONS)[number] | undefined}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>

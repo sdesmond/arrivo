@@ -55,6 +55,7 @@ export function TripEditCover({
           destinationName={destinationName}
           destinationCountry={destinationCountry}
           center={center}
+          currentCoverImageUrl={coverImageUrl}
           onImageSelected={(url) => {
             onCoverImageUrlChange(url);
             setIsPickerOpen(false);

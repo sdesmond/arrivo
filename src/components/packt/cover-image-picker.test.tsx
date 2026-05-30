@@ -99,4 +99,24 @@ describe("CoverImagePicker", () => {
     await user.click(screen.getByTitle("Close"));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("opens to custom tab by default when currentCoverImageUrl is a graphic cover", () => {
+    render(<CoverImagePicker {...defaultProps} currentCoverImageUrl="graphic:var(--color-amber-400)/dots/mountain" />);
+
+    expect(screen.getByRole("tab", { name: /custom/i, selected: true })).toBeInTheDocument();
+  });
+
+  it("opens to search tab by default when currentCoverImageUrl is a photo URL", () => {
+    render(<CoverImagePicker {...defaultProps} currentCoverImageUrl="https://images.example.com/photo.jpg" />);
+
+    expect(screen.getByRole("tab", { name: /search/i, selected: true })).toBeInTheDocument();
+  });
+
+  it("pre-selects graphic cover values in custom tab when currentCoverImageUrl is a graphic cover", () => {
+    render(<CoverImagePicker {...defaultProps} currentCoverImageUrl="graphic:var(--color-amber-400)/dots/mountain" />);
+
+    expect(screen.getByLabelText(/background color/i)).toHaveValue("var(--color-amber-400)");
+    expect(screen.getByLabelText(/pattern/i)).toHaveValue("dots");
+    expect(screen.getByLabelText(/^icon$/i)).toHaveValue("mountain");
+  });
 });
