@@ -107,6 +107,10 @@ export function TripCover({
         <div className="cover-stripes absolute inset-0" />
       )}
 
+      {graphicCover && graphicCover.pattern !== "none" ? (
+        <div className={`cover-pattern-${graphicCover.pattern} absolute inset-0`} />
+      ) : null}
+
       {graphicIconEl ? (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 1 }}>
           {graphicIconEl}

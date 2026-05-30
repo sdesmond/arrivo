@@ -301,6 +301,117 @@ html[data-font-size="large"] {
   );
 }
 
+/* ─── Graphic cover pattern overlays ─── */
+.cover-pattern-horizontal {
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.07) 0px,
+    rgba(0, 0, 0, 0.07) 28px,
+    transparent 28px,
+    transparent 56px
+  );
+  filter: blur(6px);
+}
+.dark .cover-pattern-horizontal {
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.07) 0px,
+    rgba(255, 255, 255, 0.07) 28px,
+    transparent 28px,
+    transparent 56px
+  );
+}
+
+.cover-pattern-vertical {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.07) 0px,
+    rgba(0, 0, 0, 0.07) 28px,
+    transparent 28px,
+    transparent 56px
+  );
+  filter: blur(6px);
+}
+.dark .cover-pattern-vertical {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.07) 0px,
+    rgba(255, 255, 255, 0.07) 28px,
+    transparent 28px,
+    transparent 56px
+  );
+}
+
+.cover-pattern-slanted {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.07) 0px,
+    rgba(0, 0, 0, 0.07) 28px,
+    transparent 28px,
+    transparent 56px
+  );
+  filter: blur(6px);
+}
+.dark .cover-pattern-slanted {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.07) 0px,
+    rgba(255, 255, 255, 0.07) 28px,
+    transparent 28px,
+    transparent 56px
+  );
+}
+
+.cover-pattern-crosshatch {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.07) 0px,
+      rgba(0, 0, 0, 0.07) 28px,
+      transparent 28px,
+      transparent 56px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.07) 0px,
+      rgba(0, 0, 0, 0.07) 28px,
+      transparent 28px,
+      transparent 56px
+    );
+  filter: blur(6px);
+}
+.dark .cover-pattern-crosshatch {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.07) 0px,
+      rgba(255, 255, 255, 0.07) 28px,
+      transparent 28px,
+      transparent 56px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.07) 0px,
+      rgba(255, 255, 255, 0.07) 28px,
+      transparent 28px,
+      transparent 56px
+    );
+  filter: blur(6px);
+}
+
+.cover-pattern-dots {
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.1) 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+.dark .cover-pattern-dots {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+
+.cover-pattern-none {
+  display: none;
+}
+
 /* ─── Segmented control ─── */
 .seg {
   display: inline-flex;

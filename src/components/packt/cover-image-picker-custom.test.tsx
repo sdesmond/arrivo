@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { GRAPHIC_COVER_COLORS, GRAPHIC_COVER_ICONS } from "@/lib/utils";
+import { GRAPHIC_COVER_COLORS, GRAPHIC_COVER_ICONS, GRAPHIC_COVER_PATTERNS } from "@/lib/utils";
 import { CoverImagePickerCustom } from "./cover-image-picker-custom";
 
 vi.mock("lucide-react", () => {
@@ -85,6 +85,26 @@ describe("CoverImagePickerCustom", () => {
     expect(screen.getByTestId("icon-TentTree")).toBeInTheDocument();
   });
 
+  it("renders one pattern option per graphic cover pattern", () => {
+    render(<CoverImagePickerCustom onImageSelected={vi.fn()} onClose={vi.fn()} />);
+
+    const patternSelect = screen.getByLabelText(/pattern/i);
+
+    expect(patternSelect).toHaveValue(GRAPHIC_COVER_PATTERNS[0]);
+    expect(within(patternSelect).getAllByRole("option")).toHaveLength(GRAPHIC_COVER_PATTERNS.length);
+  });
+
+  it("updates the preview when the pattern changes", async () => {
+    const user = userEvent.setup();
+    render(<CoverImagePickerCustom onImageSelected={vi.fn()} onClose={vi.fn()} />);
+
+    const preview = screen.getByTestId("cover-preview");
+
+    await user.selectOptions(screen.getByLabelText(/pattern/i), GRAPHIC_COVER_PATTERNS[2]);
+
+    expect(preview.querySelector(".cover-pattern-slanted")).toBeInTheDocument();
+  });
+
   it("applies the selected graphic cover and closes the picker", async () => {
     const user = userEvent.setup();
     const onImageSelected = vi.fn();
@@ -93,10 +113,13 @@ describe("CoverImagePickerCustom", () => {
     render(<CoverImagePickerCustom onImageSelected={onImageSelected} onClose={onClose} />);
 
     await user.selectOptions(screen.getByLabelText(/background color/i), GRAPHIC_COVER_COLORS[3]);
+    await user.selectOptions(screen.getByLabelText(/pattern/i), GRAPHIC_COVER_PATTERNS[1]);
     await user.selectOptions(screen.getByLabelText(/^icon$/i), GRAPHIC_COVER_ICONS[6]);
     await user.click(screen.getByRole("button", { name: /apply/i }));
 
-    expect(onImageSelected).toHaveBeenCalledWith(`graphic:${GRAPHIC_COVER_COLORS[3]}/${GRAPHIC_COVER_ICONS[6]}`);
+    expect(onImageSelected).toHaveBeenCalledWith(
+      `graphic:${GRAPHIC_COVER_COLORS[3]}/${GRAPHIC_COVER_PATTERNS[1]}/${GRAPHIC_COVER_ICONS[6]}`
+    );
     expect(onClose).toHaveBeenCalled();
   });
 });

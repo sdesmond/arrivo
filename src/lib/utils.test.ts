@@ -19,6 +19,7 @@ import {
   deriveGraphicCover,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
+  GRAPHIC_COVER_PATTERNS,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -364,16 +365,26 @@ describe("shareDoc", () => {
 });
 
 describe("parseGraphicCover", () => {
-  it("returns color and icon for valid graphic URL", () => {
-    expect(parseGraphicCover("graphic:oklch(0.7 0.15 200)/plane")).toEqual({
+  it("returns color, pattern and icon for 3-segment graphic URL", () => {
+    expect(parseGraphicCover("graphic:oklch(0.7 0.15 200)/horizontal/plane")).toEqual({
       color: "oklch(0.7 0.15 200)",
+      pattern: "horizontal",
       icon: "plane",
     });
   });
 
-  it("handles icon names with hyphens", () => {
+  it("defaults to slanted pattern for legacy 2-segment URLs", () => {
     expect(parseGraphicCover("graphic:#3b82f6/map-pin")).toEqual({
       color: "#3b82f6",
+      pattern: "slanted",
+      icon: "map-pin",
+    });
+  });
+
+  it("handles icon names with hyphens", () => {
+    expect(parseGraphicCover("graphic:oklch(0.7 0.15 200)/dots/map-pin")).toEqual({
+      color: "oklch(0.7 0.15 200)",
+      pattern: "dots",
       icon: "map-pin",
     });
   });
