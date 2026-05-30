@@ -1,9 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Share2, MapPin, CheckCircle, Pencil, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { CheckCircle, ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip, type TripEvent } from "@/data/types";
@@ -18,11 +24,13 @@ interface NowCardProps {
   trip: Trip;
   todayEvents: TripEvent[];
   onEditTrip?: (trip: Trip) => void;
+  onDeleteTrip?: (trip: Trip) => void;
   dateFormat: string;
 }
 
-export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardProps) {
+export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, dateFormat }: NowCardProps) {
   const now = useNow();
+  const router = useRouter();
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
   const sub = status === "upcoming" ? (trip.startDate ?? "") : status === "past" ? (trip.endDate ?? "") : "";
@@ -48,13 +56,57 @@ export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardPr
 
   return (
     <div
-      className="rounded-[14px] overflow-hidden"
+      className="relative rounded-[14px] overflow-hidden cursor-pointer"
       style={{
         border: "1px solid var(--line)",
         boxShadow: "var(--shadow-2)",
         background: "var(--bg)",
       }}
+      onClick={() => router.push(`/trips/${trip.id}`)}
     >
+      {/* Overflow menu — upper-right */}
+      <div className="absolute top-2 right-2 z-10">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            title="Trip options"
+            className="rounded-[6px] p-2 bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/45"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <MoreHorizontal size={18} strokeWidth={1.5} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="bottom" align="end">
+            {onEditTrip && (
+              <DropdownMenuItem
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onEditTrip(trip);
+                }}
+              >
+                <Pencil size={13} strokeWidth={1.5} />
+                Edit trip
+              </DropdownMenuItem>
+            )}
+            {onDeleteTrip && (
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onDeleteTrip(trip);
+                }}
+              >
+                <Trash2 size={13} strokeWidth={1.5} />
+                Delete trip
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       {/* Cover */}
       <TripCover
         name={trip.name}
@@ -67,85 +119,45 @@ export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardPr
       />
 
       {/* Body */}
-      <div className="p-6">
+      <div className="relative p-6">
         {/* Heading row */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div
-              className="flex items-center gap-1.5 mb-1"
+        <div>
+          <div
+            className="flex items-center gap-1.5 mb-1"
+            style={{
+              fontFamily: "var(--font-mono-family, ui-monospace)",
+              fontSize: "calc(10.5px * var(--font-scale))",
+              fontWeight: 500,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: "var(--fg-3)",
+            }}
+          >
+            <span
+              className={cn(status === "active" && "pulse", "rounded-full shrink-0")}
               style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "calc(10.5px * var(--font-scale))",
-                fontWeight: 500,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: "var(--fg-3)",
-              }}
-            >
-              <span
-                className={cn(status === "active" && "pulse", "rounded-full shrink-0")}
-                style={{
-                  width: 6,
-                  height: 6,
-                  background: "var(--accent-brand)",
-                  display: "inline-block",
-                }}
-              />
-              {statusLabel}
-            </div>
-            <h2
-              style={{
-                fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                fontSize: "calc(28px * var(--font-scale))",
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                color: "var(--fg)",
-                lineHeight: 1.1,
-              }}
-            >
-              {trip.name}
-            </h2>
-            <div style={{ color: "var(--fg-3)", fontSize: "calc(13.5px * var(--font-scale))", marginTop: 4 }}>
-              {dateLine}
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2 shrink-0">
-            {onEditTrip && (
-              <Button variant="outline" size="icon-sm" title="Edit trip" onClick={() => onEditTrip(trip)}>
-                <Pencil size={13} strokeWidth={1.5} />
-              </Button>
-            )}
-            <Button variant="outline" size="icon-sm" title="Share">
-              <Share2 size={13} strokeWidth={1.5} />
-            </Button>
-            <Link
-              href={`/trips/${trip.id}`}
-              className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
-              style={{
-                fontSize: "0.8rem",
-                borderRadius: "min(var(--radius-md), 12px)",
-                border: "1px solid var(--line)",
-                background: "var(--bg)",
-                color: "var(--fg)",
-              }}
-            >
-              Open trip
-            </Link>
-            <Link
-              href={displayEvent ? `/trips/${trip.id}?focus=${displayEvent.id}` : `/trips/${trip.id}`}
-              className="inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-all select-none h-7 gap-1 px-2.5"
-              style={{
-                fontSize: "0.8rem",
-                borderRadius: "min(var(--radius-md), 12px)",
+                width: 6,
+                height: 6,
                 background: "var(--accent-brand)",
-                color: "var(--accent-fg)",
+                display: "inline-block",
               }}
-            >
-              <MapPin size={13} strokeWidth={1.5} />
-              Today
-            </Link>
+            />
+            {statusLabel}
+          </div>
+          <h2
+            style={{
+              fontFamily: "var(--font-heading-family, ui-sans-serif)",
+              fontSize: "calc(28px * var(--font-scale))",
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              color: "var(--fg)",
+              lineHeight: 1.1,
+            }}
+          >
+            {trip.name}
+          </h2>
+          <div style={{ color: "var(--fg-3)", fontSize: "calc(13.5px * var(--font-scale))", marginTop: 4 }}>
+            {dateLine}
           </div>
         </div>
 
@@ -181,6 +193,7 @@ export function NowCard({ trip, todayEvents, onEditTrip, dateFormat }: NowCardPr
           <Link
             href={`/trips/${trip.id}?focus=${displayEvent.id}`}
             className="block mt-4 rounded-[8px] group"
+            onClick={(e) => e.stopPropagation()}
             style={{
               background: "var(--accent-soft)",
               border: "1px solid var(--line)",

@@ -49,13 +49,13 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         <DropdownMenu>
           <DropdownMenuTrigger
             title="Trip options"
-            className="rounded-[6px] p-1 text-fg-4 transition-colors hover:bg-surface-2 hover:text-fg"
+            className="rounded-[6px] p-2 bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/45"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
             }}
           >
-            <MoreHorizontal size={13} strokeWidth={1.5} />
+            <MoreHorizontal size={18} strokeWidth={1.5} />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="bottom" align="end">
             <DropdownMenuItem

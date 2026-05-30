@@ -48,6 +48,19 @@ export function TripsDesktopLayout({
       />
       <div className="flex-1 overflow-y-auto scroll-thin">
         <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
+          {activeEntry !== null && (
+            <>
+              <NowCard
+                trip={activeEntry.trip}
+                todayEvents={activeEntry.todayEvents}
+                onEditTrip={(t) => onEditTrip(t.id)}
+                onDeleteTrip={onDeleteTrip}
+                dateFormat={dateFormat}
+              />
+              <DayRibbon trip={activeEntry.trip} todayEvents={activeEntry.todayEvents} />
+            </>
+          )}
+
           {/* Unscheduled */}
           <UnscheduledSection
             trips={unscheduledEntries.map((e) => e.trip)}
@@ -55,18 +68,6 @@ export function TripsDesktopLayout({
             onDeleteTrip={onDeleteTrip}
             dateFormat={dateFormat}
           />
-
-          {activeEntry !== null && (
-            <>
-              <NowCard
-                trip={activeEntry.trip}
-                todayEvents={activeEntry.todayEvents}
-                onEditTrip={(t) => onEditTrip(t.id)}
-                dateFormat={dateFormat}
-              />
-              <DayRibbon trip={activeEntry.trip} todayEvents={activeEntry.todayEvents} />
-            </>
-          )}
 
           {/* Upcoming */}
           <div>

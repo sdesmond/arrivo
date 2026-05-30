@@ -12,15 +12,7 @@ use https://ui.shadcn.com/docs/components/base/sidebar as an example. The curren
 
 use proper breadcrumbs as shown at https://ui.shadcn.com/docs/components/base/breadcrumb
 
-### Empty state for docs
-
-use https://ui.shadcn.com/docs/components/base/empty as an example. Empty state should show a message like "No trip-level docs yet. Docs attached to an event don't show up here." There should also be a message directing the user to the "add" button to add their first doc.
-
 ## Bugs
-
-### incorrect item counts
-
-days, events, docs, collaborators aren't accurate in trip header
 
 ### Trip Notes
 
@@ -34,3 +26,5 @@ Needs full design and implementation: display in the Notes tab, editing UX (inli
 
 The icons for moving and deleting an event are too small and faint. Make them more visible.
 ?????????
+
+- The active trip should always be at the top of the list

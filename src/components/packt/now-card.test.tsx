@@ -24,6 +24,29 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn() }),
 }));
 
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({
+    children,
+    onClick,
+    title,
+    className,
+  }: {
+    children: React.ReactNode;
+    onClick?: React.MouseEventHandler;
+    title?: string;
+    className?: string;
+  }) => (
+    <button onClick={onClick} title={title} className={className}>
+      {children}
+    </button>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: React.MouseEventHandler }) => (
+    <button onClick={onClick}>{children}</button>
+  ),
+}));
+
 import { NowCard } from "./now-card";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { Trip, TripEvent } from "@/data/types";
@@ -78,26 +101,26 @@ describe("NowCard", () => {
     expect(screen.getAllByText("Paris Trip").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders edit button when onEditTrip is provided", () => {
+  it("renders trip options trigger", () => {
     render(<NowCard trip={activeTrip} todayEvents={[]} onEditTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, {
       wrapper: Wrapper,
     });
-    expect(screen.getByTitle("Edit trip")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /trip options/i })).toBeInTheDocument();
   });
 
-  it("calls onEditTrip when edit button is clicked", async () => {
+  it("calls onEditTrip when edit trip is clicked in the dropdown", async () => {
     const user = userEvent.setup();
     const onEditTrip = vi.fn();
     render(<NowCard trip={activeTrip} todayEvents={[]} onEditTrip={onEditTrip} dateFormat="MM/DD/YYYY" />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByTitle("Edit trip"));
+    await user.click(screen.getByRole("button", { name: /edit trip/i }));
     expect(onEditTrip).toHaveBeenCalledWith(activeTrip);
   });
 
-  it("does not render edit button when onEditTrip is absent", () => {
+  it("does not render edit trip item when onEditTrip is absent", () => {
     render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    expect(screen.queryByTitle("Edit trip")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
   });
 
   it("renders PAST TRIP label for past trips", () => {

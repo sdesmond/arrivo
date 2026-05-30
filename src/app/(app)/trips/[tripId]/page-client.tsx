@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import Link from "next/link";
-import { ChevronLeft, Share2, Download, MoreHorizontal, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
+import { ChevronLeft, Share2, Download, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
 import { TripConfetti } from "@/components/packt/trip-confetti";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
@@ -127,9 +127,6 @@ export function TripDetailClient({
           <Button variant="outline" size="sm">
             <Download size={13} strokeWidth={1.5} />
             Offline
-          </Button>
-          <Button variant="outline" size="icon-sm" title="More options">
-            <MoreHorizontal size={13} strokeWidth={1.5} />
           </Button>
         </div>
       </div>

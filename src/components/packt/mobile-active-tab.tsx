@@ -44,7 +44,11 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-hidden rounded-[14px]" style={{ border: "1px solid var(--line)" }}>
+      <Link
+        href={`/trips/${trip.id}`}
+        className="block overflow-hidden rounded-[14px]"
+        style={{ border: "1px solid var(--line)" }}
+      >
         <TripCover
           name={trip.name}
           country=""
@@ -89,7 +93,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
             {trip.name}
           </h2>
         </div>
-      </div>
+      </Link>
 
       {status === "active" && displayEvent ? (
         <Link
@@ -221,14 +225,6 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
           ))}
         </div>
       ) : null}
-
-      <Link
-        href={`/trips/${trip.id}`}
-        className="inline-flex h-11 w-full items-center justify-center rounded-lg px-2.5 text-sm font-medium whitespace-nowrap transition-all"
-        style={{ border: "1px solid var(--line)", background: "var(--bg)", color: "var(--fg)" }}
-      >
-        Open trip →
-      </Link>
     </div>
   );
 }

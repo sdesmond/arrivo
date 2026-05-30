@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -272,7 +273,8 @@ describe("TripsDesktopLayout", () => {
     expect(onEditTrip).toHaveBeenCalled();
   });
 
-  it("calls onEditTrip from NowCard", () => {
+  it("calls onEditTrip from NowCard", async () => {
+    const user = userEvent.setup();
     const onEditTrip = vi.fn();
     render(
       <TripsDesktopLayout
@@ -289,7 +291,7 @@ describe("TripsDesktopLayout", () => {
       />,
       { wrapper: Wrapper }
     );
-    fireEvent.click(screen.getByTitle("Edit trip"));
+    await user.click(screen.getByRole("button", { name: /edit trip/i }));
     expect(onEditTrip).toHaveBeenCalled();
   });
 

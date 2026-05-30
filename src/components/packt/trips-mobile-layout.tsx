@@ -41,8 +41,8 @@ export function TripsMobileLayout({
   onDeleteTrip,
 }: TripsMobileLayoutProps) {
   const tabs: MobileTab[] = [
-    ...(unscheduledEntries.length > 0 ? (["Unscheduled"] as const) : []),
     "Active" as const,
+    ...(unscheduledEntries.length > 0 ? (["Unscheduled"] as const) : []),
     "Upcoming" as const,
     "Past" as const,
   ].filter((tab) => tab !== "Active" || activeEntry !== null);

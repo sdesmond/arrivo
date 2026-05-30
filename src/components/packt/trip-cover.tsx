@@ -146,7 +146,7 @@ export function TripCover({
             fontWeight: 700,
             fontSize: "calc(26px * var(--font-scale))",
             letterSpacing: "-0.02em",
-            color: photoCoverImageUrl ? "white" : "var(--fg)",
+            color: "white",
             textShadow: photoCoverImageUrl ? "0 1px 3px rgba(0,0,0,0.4)" : undefined,
             lineHeight: 1.05,
           }}
@@ -160,7 +160,7 @@ export function TripCover({
                 fontWeight: 400,
                 fontSize: "calc(10.5px * var(--font-scale))",
                 letterSpacing: "0.06em",
-                color: photoCoverImageUrl ? "rgba(255,255,255,0.8)" : "var(--fg-3)",
+                color: "rgba(255,255,255,0.8)",
                 textTransform: "uppercase",
                 marginTop: 4,
               }}
