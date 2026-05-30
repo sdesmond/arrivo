@@ -43,7 +43,7 @@ export function TripEditBudget({
             value={total ?? ""}
             onChange={(event) => {
               const val = event.target.value;
-              onTotalChange(val ? Math.max(0, Number(val)) : undefined);
+              onTotalChange(val !== "" ? Math.max(0, Number(val)) : undefined);
             }}
           />
         </Field>
@@ -56,7 +56,7 @@ export function TripEditBudget({
             value={perPerson ?? ""}
             onChange={(event) => {
               const val = event.target.value;
-              onPerPersonChange(val ? Math.max(0, Number(val)) : undefined);
+              onPerPersonChange(val !== "" ? Math.max(0, Number(val)) : undefined);
             }}
           />
         </Field>
