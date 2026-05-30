@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { LoaderIcon } from "lucide-react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { LoaderIcon, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { CoverImageSearchResult } from "@/data/types";
+import type { LocationSuggestion } from "@/app/(app)/trips/actions";
+import { searchLocations, retrieveLocation } from "@/app/(app)/trips/actions";
 import { resolveDestinationCenter, searchCoverImages } from "@/app/(app)/trips/cover-image-search-actions";
 
 const PHOTO_PAGE_SIZE = 19;
+
+function simplifyLocationName(name: string): string {
+  const parts = name
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length <= 2) return name;
+  return `${parts[0]}, ${parts[1]}`;
+}
 
 export interface CoverImagePickerSearchTabProps {
   destinationName?: string;
@@ -15,9 +26,7 @@ export interface CoverImagePickerSearchTabProps {
 }
 
 function buildMapTileUrl(center?: [number, number]) {
-  if (!center) {
-    return null;
-  }
+  if (!center) return null;
 
   const searchParams = new URLSearchParams({
     lng: center[0].toString(),
@@ -29,74 +38,235 @@ function buildMapTileUrl(center?: [number, number]) {
 
 export function CoverImagePickerSearchTab({
   destinationName,
-  center,
+  center: initialCenter,
   onImageSelected,
 }: CoverImagePickerSearchTabProps) {
+  const sessionTokenRef = useRef(crypto.randomUUID());
+  const [searchInput, setSearchInput] = useState(destinationName ?? "");
+  const [activeLocation, setActiveLocation] = useState<{
+    query: string;
+    center?: [number, number];
+  } | null>(destinationName ? { query: destinationName.trim(), center: initialCenter } : null);
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [images, setImages] = useState<CoverImageSearchResult[]>([]);
   const [hiddenImageIds, setHiddenImageIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [resolvedCenter, setResolvedCenter] = useState<[number, number] | undefined>(center);
+  const [resolvedCenter, setResolvedCenter] = useState<[number, number] | undefined>(initialCenter);
   const [showMapTile, setShowMapTile] = useState(true);
 
   useEffect(() => {
+    if (!activeLocation) return;
+
+    const query = activeLocation.query;
+    const initialCenter = activeLocation.center;
     let isCurrent = true;
-    const query = destinationName?.trim();
 
     /* eslint-disable react-hooks/set-state-in-effect */
     setImages([]);
     setHiddenImageIds([]);
     setHasError(false);
-    setLoading(false);
-    setResolvedCenter(center);
     setShowMapTile(true);
+    setLoading(true);
     /* eslint-enable react-hooks/set-state-in-effect */
 
-    if (!query) {
-      return () => {
-        isCurrent = false;
-      };
-    }
-
-    const searchQuery = query;
-
-    async function loadImages() {
-      setLoading(true);
-
+    async function load() {
       try {
-        const nextCenter = !center ? await resolveDestinationCenter(searchQuery) : center;
+        const nextCenter = initialCenter ?? (await resolveDestinationCenter(query));
         if (!isCurrent) return;
-
         setResolvedCenter(nextCenter ?? undefined);
 
-        const results = await searchCoverImages(searchQuery, { page: 1, perPage: PHOTO_PAGE_SIZE });
+        const results = await searchCoverImages(query, {
+          page: 1,
+          perPage: PHOTO_PAGE_SIZE,
+        });
         if (!isCurrent) return;
-
         setImages(results);
       } catch {
         if (!isCurrent) return;
         toast.error("Could not load images");
         setHasError(true);
       } finally {
-        if (isCurrent) {
-          setLoading(false);
-        }
+        if (isCurrent) setLoading(false);
       }
     }
 
-    void loadImages();
+    void load();
 
     return () => {
       isCurrent = false;
     };
-  }, [destinationName, center]);
+  }, [activeLocation]);
+
+  useEffect(() => {
+    const query = searchInput.trim();
+    if (query.length < 2 || (activeLocation && query === activeLocation.query)) return;
+
+    let active = true;
+    const sessionToken = sessionTokenRef.current;
+
+    const timerId = window.setTimeout(async () => {
+      try {
+        const results = await searchLocations(query, sessionToken);
+        if (!active) return;
+        setSuggestions(results.slice(0, 5));
+        setHighlightedIndex(-1);
+      } catch {
+        if (!active) return;
+        setSuggestions([]);
+        toast.error("Could not search locations");
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timerId);
+    };
+  }, [searchInput, activeLocation]);
+
+  async function handleSuggestionSelect(suggestion: LocationSuggestion) {
+    const displayName = simplifyLocationName(suggestion.placeName);
+    setSearchInput(displayName);
+    setSuggestions([]);
+    setHighlightedIndex(-1);
+
+    try {
+      const location = await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current);
+      sessionTokenRef.current = crypto.randomUUID();
+      setActiveLocation({
+        query: displayName,
+        center: location.center,
+      });
+    } catch {
+      setActiveLocation({
+        query: displayName,
+      });
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      setSuggestions([]);
+      setHighlightedIndex(-1);
+      return;
+    }
+
+    if (suggestions.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightedIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+      return;
+    }
+
+    if (event.key === "Enter" && highlightedIndex >= 0) {
+      event.preventDefault();
+      void handleSuggestionSelect(suggestions[highlightedIndex]);
+    }
+  }
 
   const mapTileUrl = showMapTile && !hasError ? buildMapTileUrl(resolvedCenter) : null;
   const visibleImages = images.filter((item) => !hiddenImageIds.includes(item.id));
-  const showEmptyState = !loading && (hasError || (visibleImages.length === 0 && !mapTileUrl));
 
   return (
     <div className="pt-2">
+      <div style={{ position: "relative", marginBottom: 8 }}>
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <Search
+            strokeWidth={1.5}
+            style={{
+              position: "absolute",
+              left: 10,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 16,
+              height: 16,
+              color: "var(--fg-3)",
+              pointerEvents: "none",
+            }}
+          />
+          <input
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestions.length > 0}
+            aria-controls={suggestions.length > 0 ? "cover-image-search-suggestions" : undefined}
+            aria-activedescendant={
+              highlightedIndex >= 0 ? `cover-image-search-suggestion-${highlightedIndex}` : undefined
+            }
+            aria-label="Search location for photos"
+            value={searchInput}
+            placeholder="Search location"
+            autoComplete="off"
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+            }}
+            onKeyDown={handleKeyDown}
+            style={{
+              width: "100%",
+              padding: "8px 10px 8px 32px",
+              border: "1px solid var(--line)",
+              borderRadius: 6,
+              background: "var(--surface)",
+              color: "var(--fg)",
+              fontSize: "0.875rem",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {suggestions.length > 0 ? (
+          <ul
+            id="cover-image-search-suggestions"
+            role="listbox"
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              right: 0,
+              left: 0,
+              zIndex: 10,
+              margin: 0,
+              padding: 4,
+              listStyle: "none",
+              border: "1px solid var(--line)",
+              borderRadius: 8,
+              background: "var(--surface)",
+              boxShadow: "0 10px 30px color-mix(in srgb, var(--surface-3) 45%, transparent)",
+            }}
+          >
+            {suggestions.map((suggestion, index) => (
+              <li
+                key={`${index}-${suggestion.mapboxId ?? suggestion.placeName}`}
+                id={`cover-image-search-suggestion-${index}`}
+                role="option"
+                aria-selected={highlightedIndex === index}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  color: "var(--fg)",
+                  background: highlightedIndex === index ? "var(--accent-soft)" : "transparent",
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  void handleSuggestionSelect(suggestion);
+                }}
+              >
+                {simplifyLocationName(suggestion.placeName)}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
       {loading ? (
         <div
           role="status"
@@ -106,21 +276,20 @@ export function CoverImagePickerSearchTab({
           <LoaderIcon strokeWidth={1.5} className="animate-spin" />
           <span className="sr-only">Loading images…</span>
         </div>
-      ) : (
+      ) : activeLocation ? (
         <div
           data-testid="cover-search-grid"
           style={{
             display: "grid",
             gap: 8,
             gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            paddingTop: 8,
           }}
         >
           {mapTileUrl ? (
             <button
               type="button"
               title="Map view"
-              aria-label={`Map view of ${destinationName ?? ""}`}
+              aria-label={`Map view of ${searchInput || destinationName || ""}`}
               onClick={() => onImageSelected(mapTileUrl)}
               style={{
                 position: "relative",
@@ -136,7 +305,7 @@ export function CoverImagePickerSearchTab({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={mapTileUrl}
-                alt={`Map view of ${destinationName ?? ""}`}
+                alt={`Map view of ${searchInput || destinationName || ""}`}
                 style={{ display: "block", height: "100%", objectFit: "cover", width: "100%" }}
                 onError={() => {
                   setShowMapTile(false);
@@ -191,13 +360,13 @@ export function CoverImagePickerSearchTab({
                 </button>
               ))
             : null}
-          {showEmptyState ? (
+          {!loading && (hasError || (visibleImages.length === 0 && !mapTileUrl)) ? (
             <div className="p-4 text-center" style={{ color: "var(--fg-3)", gridColumn: "1 / -1", width: "100%" }}>
               No images found
             </div>
           ) : null}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

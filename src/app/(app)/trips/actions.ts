@@ -502,6 +502,29 @@ export interface RetrievedLocation {
 
 const LOCATION_TYPES: SearchBoxAdministrativeUnitTypes[] = ["place", "locality", "neighborhood", "region", "country"];
 
+function buildPlaceName(props: Pick<SearchBoxSuggestion, "name" | "context" | "feature_type">): string {
+  const name = props.name ?? "";
+  const country = props.context?.country?.name;
+  const region = props.context?.region?.name;
+  const place = props.context?.place?.name;
+
+  const parts: string[] = [name];
+
+  if (place && place !== name && place !== country) {
+    parts.push(place);
+  }
+
+  if (region && region !== name && region !== place && region !== country) {
+    parts.push(region);
+  }
+
+  if (country && country !== name && country !== place && country !== region) {
+    parts.push(country);
+  }
+
+  return parts.join(", ");
+}
+
 export async function searchLocations(query: string, sessionToken: string): Promise<LocationSuggestion[]> {
   if (!query.trim()) {
     throw new Error("Search query must not be empty");
@@ -539,9 +562,7 @@ export async function searchLocations(query: string, sessionToken: string): Prom
     });
 
     return response.suggestions.map((s) => {
-      const placeName =
-        s.full_address ||
-        (s.name && s.place_formatted ? `${s.name}, ${s.place_formatted}` : (s.name ?? s.place_formatted ?? ""));
+      const placeName = buildPlaceName(s);
       return {
         placeName,
         country: s.context?.country?.name ?? "",
@@ -597,11 +618,7 @@ export async function retrieveLocation(mapboxId: string, sessionToken: string): 
 
     const props = feature.properties;
     const coords = feature.geometry.coordinates as [number, number];
-    const placeName =
-      props.full_address ||
-      (props.name && props.place_formatted
-        ? `${props.name}, ${props.place_formatted}`
-        : (props.name ?? props.place_formatted ?? ""));
+    const placeName = buildPlaceName(props);
 
     return {
       placeName,

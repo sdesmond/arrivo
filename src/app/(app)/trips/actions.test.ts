@@ -577,7 +577,7 @@ describe("searchLocations", () => {
 
     await expect(searchLocations("Tokyo", "test-session-token")).resolves.toEqual([
       {
-        placeName: "Tokyo, Tokyo, Japan",
+        placeName: "Tokyo, Japan",
         country: "Japan",
         countryCode: "JP",
         mapboxId: "dXJuOm1hcGJveA==",
@@ -587,7 +587,87 @@ describe("searchLocations", () => {
     expect(mockSearchBoxSuggest).toHaveBeenCalledWith("Tokyo", expect.objectContaining({ limit: 5 }));
   });
 
-  it("falls back to name + place_formatted when full_address is missing", async () => {
+  it("includes place when it differs from the feature name (neighborhood)", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({
+      suggestions: [
+        {
+          name: "10th arrondissement",
+          place_formatted: "Paris, Île-de-France, France",
+          full_address: "10th arrondissement, Paris, Île-de-France, France",
+          mapbox_id: "abc",
+          context: {
+            place: { name: "Paris" },
+            country: { name: "France", country_code: "FR" },
+          },
+        },
+      ],
+    });
+
+    const result = await searchLocations("10th arrondissement", "sess");
+    expect(result[0].placeName).toBe("10th arrondissement, Paris, France");
+  });
+
+  it("includes the region (state) between name and country", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({
+      suggestions: [
+        {
+          name: "Heber City",
+          place_formatted: "Utah, United States",
+          full_address: "Heber City, Utah, United States",
+          mapbox_id: "abc",
+          context: {
+            region: { name: "Utah", region_code: "UT" },
+            country: { name: "United States", country_code: "US" },
+          },
+        },
+      ],
+    });
+
+    const result = await searchLocations("Heber", "sess");
+    expect(result[0].placeName).toBe("Heber City, Utah, United States");
+  });
+
+  it("does not duplicate the region when it matches the place", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({
+      suggestions: [
+        {
+          name: "Brooklyn",
+          place_formatted: "New York, New York, United States",
+          full_address: "Brooklyn, New York, New York, United States",
+          mapbox_id: "abc",
+          context: {
+            place: { name: "New York" },
+            region: { name: "New York", region_code: "NY" },
+            country: { name: "United States", country_code: "US" },
+          },
+        },
+      ],
+    });
+
+    const result = await searchLocations("Brooklyn", "sess");
+    expect(result[0].placeName).toBe("Brooklyn, New York, United States");
+  });
+
+  it("returns only the country when feature name matches place and country", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({
+      suggestions: [
+        {
+          name: "France",
+          place_formatted: "",
+          full_address: "",
+          mapbox_id: "abc",
+          context: {
+            country: { name: "France", country_code: "FR" },
+          },
+        },
+      ],
+    });
+
+    const result = await searchLocations("France", "sess");
+    expect(result[0].placeName).toBe("France");
+  });
+
+  it("returns only name when context is empty", async () => {
     mockSearchBoxSuggest.mockResolvedValue({
       suggestions: [
         {
@@ -601,7 +681,7 @@ describe("searchLocations", () => {
     });
 
     const result = await searchLocations("Tokyo", "sess");
-    expect(result[0].placeName).toBe("Tokyo, Tokyo, Japan");
+    expect(result[0].placeName).toBe("Tokyo");
   });
 
   it("throws when the Mapbox token is missing", async () => {
@@ -674,12 +754,66 @@ describe("retrieveLocation", () => {
     });
 
     await expect(retrieveLocation("dXJuOm1hcGJveA==", "test-session-token")).resolves.toEqual({
-      placeName: "Tokyo, Tokyo, Japan",
+      placeName: "Tokyo, Japan",
       country: "Japan",
       countryCode: "JP",
       center: [139.69, 35.68],
     });
     expect(requireUser).toHaveBeenCalled();
+  });
+
+  it("includes place in placeName for neighborhood results", async () => {
+    mockSearchBoxRetrieve.mockResolvedValue({
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [2.35, 48.86] },
+          properties: {
+            name: "10th arrondissement",
+            place_formatted: "Paris, Île-de-France, France",
+            full_address: "10th arrondissement, Paris, Île-de-France, France",
+            context: {
+              place: { name: "Paris" },
+              country: { name: "France", country_code: "FR" },
+            },
+          },
+        },
+      ],
+    });
+
+    await expect(retrieveLocation("some-id", "sess")).resolves.toEqual({
+      placeName: "10th arrondissement, Paris, France",
+      country: "France",
+      countryCode: "FR",
+      center: [2.35, 48.86],
+    });
+  });
+
+  it("includes the region (state) in placeName", async () => {
+    mockSearchBoxRetrieve.mockResolvedValue({
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [-111.41, 40.51] },
+          properties: {
+            name: "Heber City",
+            place_formatted: "Utah, United States",
+            full_address: "Heber City, Utah, United States",
+            context: {
+              region: { name: "Utah", region_code: "UT" },
+              country: { name: "United States", country_code: "US" },
+            },
+          },
+        },
+      ],
+    });
+
+    await expect(retrieveLocation("some-id", "sess")).resolves.toEqual({
+      placeName: "Heber City, Utah, United States",
+      country: "United States",
+      countryCode: "US",
+      center: [-111.41, 40.51],
+    });
   });
 
   it("returns the E2E stub location when configured", async () => {
@@ -769,6 +903,36 @@ describe("searchCoverImages", () => {
         },
       }
     );
+  });
+
+  it("simplifies verbose location queries to city + region before calling Unsplash", async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+
+    await searchCoverImages("Heber City, Utah, United States");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("query=Heber%20City%2C%20Utah+travel"),
+      expect.anything()
+    );
+  });
+
+  it("leaves 2-part location queries unchanged", async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+
+    await searchCoverImages("Paris, France");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("query=Paris%2C%20France+travel"),
+      expect.anything()
+    );
+  });
+
+  it("leaves single-part queries unchanged", async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+
+    await searchCoverImages("Tokyo");
+
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("query=Tokyo+travel"), expect.anything());
   });
 
   it("throws when Unsplash returns a non-ok status", async () => {

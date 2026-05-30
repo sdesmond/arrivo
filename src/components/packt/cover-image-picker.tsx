@@ -53,6 +53,7 @@ export function CoverImagePicker({ tripId, destinationName, center, onImageSelec
 
           <TabsContent value="search" className="min-h-0 flex-1 overflow-y-auto">
             <CoverImagePickerSearchTab
+              key={tripId}
               destinationName={destinationName}
               center={center}
               onImageSelected={handleSelect}
