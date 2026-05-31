@@ -106,32 +106,52 @@ export function DayCardHeader({
         )}
       </div>
 
-      <div className="px-4 pb-2.5">
+      <div
+        className="px-4 pb-2.5"
+        onClick={!isEditingSubtitle ? onToggle : undefined}
+        style={{ cursor: isEditingSubtitle ? undefined : "pointer" }}
+      >
         {isEditingSubtitle ? (
-          <input
-            autoFocus
-            value={draftSubtitle}
-            placeholder="Add a note"
-            onChange={(event) => setDraftSubtitle(event.target.value)}
-            onBlur={saveSubtitle}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") saveSubtitle();
-              if (event.key === "Escape") {
-                setDraftSubtitle(subtitle ?? "");
-                setIsEditingSubtitle(false);
-              }
-            }}
-            style={{
-              fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
-              color: "var(--fg-3)",
-              background: "transparent",
-              border: "none",
-              borderBottom: "1px solid var(--accent-brand)",
-              width: "100%",
-              fontFamily: "inherit",
-              padding: "1px 0",
-            }}
-          />
+          <span style={{ display: "inline-grid", minWidth: "6ch", maxWidth: "100%" }}>
+            <input
+              autoFocus
+              value={draftSubtitle}
+              placeholder="Add a note"
+              onChange={(event) => setDraftSubtitle(event.target.value)}
+              onBlur={saveSubtitle}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") saveSubtitle();
+                if (event.key === "Escape") {
+                  setDraftSubtitle(subtitle ?? "");
+                  setIsEditingSubtitle(false);
+                }
+              }}
+              style={{
+                gridArea: "1 / 1",
+                fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
+                color: "var(--fg-3)",
+                background: "transparent",
+                border: "none",
+                borderBottom: "1px solid var(--accent-brand)",
+                width: "100%",
+                fontFamily: "inherit",
+                padding: "1px 0",
+              }}
+            />
+            <span
+              aria-hidden
+              style={{
+                gridArea: "1 / 1",
+                visibility: "hidden",
+                fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
+                fontFamily: "inherit",
+                padding: "1px 0",
+                whiteSpace: "pre",
+              }}
+            >
+              {draftSubtitle || "Add a note"}
+            </span>
+          </span>
         ) : (
           <button
             type="button"
