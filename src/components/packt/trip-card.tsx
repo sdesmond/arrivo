@@ -24,10 +24,10 @@ interface TripCardProps {
 
 export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCardProps) {
   const now = useNow();
-  const tripDays = getTripDays(trip.startDate, trip.endDate);
-  const sub = pluralize(tripDays, "DAY");
   const hasTripDates = Boolean(trip.startDate && trip.endDate);
   const tripStatus = hasTripDates ? getTripStatus(trip.startDate, trip.endDate, now) : null;
+  const tripDays = getTripDays(trip.startDate, trip.endDate);
+  const sub = tripStatus === "active" ? pluralize(tripDays, "DAY") : "";
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const inDays = trip.startDate

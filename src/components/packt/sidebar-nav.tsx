@@ -6,19 +6,12 @@ import { Briefcase, Search, Clock, LogOut } from "lucide-react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { NavItem } from "./nav-item";
-import { SectionHeading } from "./section-heading";
 import type { UserProfile } from "@/data/types";
 
 const NAV_ITEMS = [
-  { id: "trips", label: "Trips", icon: Briefcase, href: "/trips", count: 4 },
+  { id: "trips", label: "Trips", icon: Briefcase, href: "/trips" },
   { id: "search", label: "Search", icon: Search, href: "/search" },
   { id: "travel-history", label: "Travel History", icon: Clock, href: "/travel-history" },
-];
-
-const PINNED = [
-  { name: "Tokyo", hue: 8, meta: "D5" },
-  { name: "Lisbon", hue: 78, meta: "21d" },
-  { name: "Oaxaca", hue: 45, meta: "92d" },
 ];
 
 function getInitials(user: UserProfile): string {
@@ -77,53 +70,16 @@ export function SidebarNav({ user }: SidebarNavProps) {
         Packt
       </Link>
 
-      {/* Workspace */}
+      {/* Nav items */}
       <div className="px-2 pb-1">
-        <SectionHeading>Workspace</SectionHeading>
         {NAV_ITEMS.map((item) => (
           <NavItem
             key={item.id}
             icon={item.icon}
             label={item.label}
             href={item.href}
-            count={item.count}
             active={pathname === item.href || (item.href === "/trips" && pathname.startsWith("/trips"))}
           />
-        ))}
-      </div>
-
-      {/* Pinned trips */}
-      <div className="px-2 pb-1">
-        <SectionHeading>Pinned trips</SectionHeading>
-        {PINNED.map((trip) => (
-          <Link
-            key={trip.name}
-            href={`/trips`}
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] font-medium text-fg-2 hover:bg-surface-2 transition-colors"
-            style={{ fontSize: "calc(13px * var(--font-scale))" }}
-          >
-            <span
-              className="shrink-0 rounded-[3px]"
-              style={{
-                width: 14,
-                height: 14,
-                background: `oklch(0.85 0.06 ${trip.hue})`,
-              }}
-            />
-            <span className="text-fg">{trip.name}</span>
-            <span
-              className="ml-auto"
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "calc(10.5px * var(--font-scale))",
-                fontWeight: 500,
-                letterSpacing: "0.04em",
-                color: "var(--fg-3)",
-              }}
-            >
-              {trip.meta}
-            </span>
-          </Link>
         ))}
       </div>
 

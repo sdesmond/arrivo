@@ -77,23 +77,21 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("TripsDesktopLayout", () => {
-  it("renders Topbar with correct tripCount", () => {
+  it("renders Topbar with heading", () => {
     render(
       <TripsDesktopLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
         pastTrips={pastTrips}
         unscheduledEntries={unscheduledEntries}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
         onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
-    expect(screen.getByText("My trips")).toBeInTheDocument();
+    expect(screen.getByText("Trips")).toBeInTheDocument();
   });
 
   it("renders NowCard and DayRibbon when activeEntry present", () => {
@@ -103,9 +101,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={upcomingTrips}
         pastTrips={pastTrips}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
         onDeleteTrip={vi.fn()}
@@ -122,9 +118,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={upcomingTrips}
         pastTrips={pastTrips}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
         onDeleteTrip={vi.fn()}
@@ -142,9 +136,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={upcomingTrips}
         pastTrips={pastTrips}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
         onDeleteTrip={vi.fn()}
@@ -161,9 +153,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={upcomingTrips}
         pastTrips={pastTrips}
         unscheduledEntries={unscheduledEntries}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
         onDeleteTrip={vi.fn()}
@@ -181,9 +171,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={upcomingTrips}
         pastTrips={pastTrips}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
         onDeleteTrip={vi.fn()}
@@ -191,44 +179,6 @@ describe("TripsDesktopLayout", () => {
       { wrapper: Wrapper }
     );
     expect(screen.queryByRole("heading", { name: "Unscheduled" })).not.toBeInTheDocument();
-  });
-
-  it("shows NEXT IN X DAYS when nextInDays is provided", () => {
-    render(
-      <TripsDesktopLayout
-        activeEntry={null}
-        upcomingTrips={upcomingTrips}
-        pastTrips={[]}
-        unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
-        dateFormat="MM/DD/YYYY"
-        nextInDays={7}
-        onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
-      />,
-      { wrapper: Wrapper }
-    );
-    expect(screen.getByText(/NEXT IN DAY/i)).toBeInTheDocument();
-  });
-
-  it("shows singular TRIP for one upcoming trip", () => {
-    render(
-      <TripsDesktopLayout
-        activeEntry={null}
-        upcomingTrips={[upcomingTrips[0]]}
-        pastTrips={[]}
-        unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
-        dateFormat="MM/DD/YYYY"
-        nextInDays={null}
-        onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
-      />,
-      { wrapper: Wrapper }
-    );
-    expect(screen.getByText("TRIP")).toBeInTheDocument();
   });
 
   it("calls onEditTrip when TripCard edit button is clicked", () => {
@@ -239,9 +189,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={upcomingTrips}
         pastTrips={[]}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
         onDeleteTrip={vi.fn()}
@@ -260,9 +208,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={[]}
         pastTrips={pastTrips}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
         onDeleteTrip={vi.fn()}
@@ -282,9 +228,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={[]}
         pastTrips={[]}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
         onDeleteTrip={vi.fn()}
@@ -303,9 +247,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={[]}
         pastTrips={[]}
         unscheduledEntries={unscheduledEntries}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={onEditTrip}
         onDeleteTrip={vi.fn()}
@@ -325,9 +267,7 @@ describe("TripsDesktopLayout", () => {
         upcomingTrips={upcomingTrips}
         pastTrips={[]}
         unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
-        nextInDays={null}
         onNewTrip={vi.fn()}
         onEditTrip={vi.fn()}
         onDeleteTrip={onDeleteTrip}
@@ -347,9 +287,7 @@ describe("TripsDesktopLayout", () => {
           upcomingTrips={upcomingTrips}
           pastTrips={pastTrips}
           unscheduledEntries={[]}
-          now={new Date(NOW_ISO)}
           dateFormat="MM/DD/YYYY"
-          nextInDays={null}
           onNewTrip={vi.fn()}
           onEditTrip={vi.fn()}
           onDeleteTrip={vi.fn()}
@@ -408,9 +346,7 @@ describe("TripsDesktopLayout", () => {
           upcomingTrips={upcomingTrips}
           pastTrips={[]}
           unscheduledEntries={[]}
-          now={new Date(NOW_ISO)}
           dateFormat="MM/DD/YYYY"
-          nextInDays={null}
           initialViewMode="list"
           onNewTrip={vi.fn()}
           onEditTrip={onEditTrip}
@@ -430,9 +366,7 @@ describe("TripsDesktopLayout", () => {
           upcomingTrips={upcomingTrips}
           pastTrips={[]}
           unscheduledEntries={[]}
-          now={new Date(NOW_ISO)}
           dateFormat="MM/DD/YYYY"
-          nextInDays={null}
           initialViewMode="list"
           onNewTrip={vi.fn()}
           onEditTrip={vi.fn()}

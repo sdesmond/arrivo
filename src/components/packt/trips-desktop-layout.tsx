@@ -19,7 +19,7 @@ import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
 import { PastTripsList } from "@/components/packt/trips-past-list";
 import { UnscheduledSection } from "@/components/packt/unscheduled-section";
-import { pluralize, formatDate, getTripDays } from "@/lib/utils";
+import { formatDate, getTripDays } from "@/lib/utils";
 import { type Trip, type TripListEntry } from "@/data/types";
 
 type ViewMode = "cards" | "list";
@@ -32,9 +32,7 @@ interface TripsDesktopLayoutProps {
   upcomingTrips: Trip[];
   pastTrips: Trip[];
   unscheduledEntries: TripListEntry[];
-  now: Date;
   dateFormat: string;
-  nextInDays: number | null;
   initialViewMode?: ViewMode;
   onNewTrip: () => void;
   onEditTrip: (tripId: string) => void;
@@ -46,9 +44,7 @@ export function TripsDesktopLayout({
   upcomingTrips,
   pastTrips,
   unscheduledEntries,
-  now,
   dateFormat,
-  nextInDays,
   initialViewMode = "cards",
   onNewTrip,
   onEditTrip,
@@ -68,12 +64,7 @@ export function TripsDesktopLayout({
 
   return (
     <div className="hidden lg:flex lg:flex-col h-full">
-      <Topbar
-        tripCount={unscheduledEntries.length + (activeEntry ? 1 : 0) + upcomingTrips.length}
-        pastCount={pastTrips.length}
-        now={now}
-        onNewTrip={onNewTrip}
-      />
+      <Topbar onNewTrip={onNewTrip} />
       <div className="flex-1 overflow-y-auto scroll-thin">
         <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
           {activeEntry !== null && (
@@ -118,10 +109,7 @@ export function TripsDesktopLayout({
 
           {/* Upcoming */}
           <div>
-            <SectionHead
-              title="Upcoming"
-              count={`${pluralize(upcomingTrips.length, "TRIP")}${nextInDays != null ? ` · NEXT IN ${pluralize(nextInDays, "DAY")}` : ""}`}
-            />
+            <SectionHead title="Upcoming" />
             {viewMode === "cards" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {upcomingTrips.map((trip) => (
@@ -221,7 +209,7 @@ export function TripsDesktopLayout({
 
           {/* Past trips */}
           <div>
-            <SectionHead title="Past trips" count={pluralize(pastTrips.length, "TRIP")} />
+            <SectionHead title="Past" />
             <PastTripsList
               trips={pastTrips}
               dateFormat={dateFormat}

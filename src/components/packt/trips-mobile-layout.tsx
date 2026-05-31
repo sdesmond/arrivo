@@ -11,7 +11,6 @@ import {
 } from "@/components/packt/trips-mobile-tabs";
 import { type Trip, type TripListEntry } from "@/data/types";
 import { type MobileTab } from "@/app/(app)/trips/use-trips-page-handlers";
-import { pluralize } from "@/lib/utils";
 
 interface TripsMobileLayoutProps {
   activeEntry: TripListEntry | null;
@@ -92,11 +91,7 @@ export function TripsMobileLayout({
                   verticalAlign: "middle",
                 }}
               />
-              Synced offline ·{" "}
-              {pluralize(
-                unscheduledEntries.length + (activeEntry ? 1 : 0) + upcomingTrips.length + pastTrips.length,
-                "trip"
-              )}
+              Synced offline
             </div>
           </div>
           <div className="flex items-center gap-2">
