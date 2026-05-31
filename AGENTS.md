@@ -103,7 +103,7 @@ These agents enforce project standards. Use them as described below — don't sk
 | `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)    |
 
 **Pre-implementation gate — NON-NEGOTIABLE:**
-Before presenting any planning artifact (PRD, UX spec, architecture doc, story, plan file) to the user, you MUST run the packt-plan-reviewer.
+Before presenting a **story file or implementation-ready plan file** to the user, you MUST run the packt-plan-reviewer. This gate applies only to fully fleshed-out artifacts that will be handed directly to a developer — not to PRDs, UX specs, architecture docs, brainstorming outputs, or other intermediate planning artifacts.
 
 ```
 /packt-plan-reviewer <artifact-path>
@@ -111,7 +111,7 @@ Before presenting any planning artifact (PRD, UX spec, architecture doc, story, 
 
 Pass the original request as context so scope and test checks have what they need. Address every BLOCKING finding by editing the artifact in place. Do not move or recreate the artifact — it stays wherever the planning skill saved it.
 
-**This step is not optional.** Presenting an un-reviewed plan is a process failure — the same severity as shipping untested code. If you catch yourself about to present a planning artifact without having run the reviewer, stop and run it first.
+**This step is not optional.** Presenting an un-reviewed story or plan is a process failure — the same severity as shipping untested code. If you catch yourself about to present a story/plan file without having run the reviewer, stop and run it first.
 
 **Testing-first gate — NON-NEGOTIABLE:**
 For every coding change, tests are first-class deliverables, not cleanup work after implementation. A change is incomplete until the required unit/component tests and any required E2E coverage have been identified and authored in the same change. Coverage thresholds and validator failures are enforcement backstops, not the reason tests get written. If you cannot name the tests you will add or update before coding, stop and resolve that first.
