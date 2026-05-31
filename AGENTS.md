@@ -113,12 +113,16 @@ Pass the original request as context so scope and test checks have what they nee
 
 **This step is not optional.** Presenting an un-reviewed plan is a process failure — the same severity as shipping untested code. If you catch yourself about to present a planning artifact without having run the reviewer, stop and run it first.
 
+**Testing-first gate — NON-NEGOTIABLE:**
+For every coding change, tests are first-class deliverables, not cleanup work after implementation. A change is incomplete until the required unit/component tests and any required E2E coverage have been identified and authored in the same change. Coverage thresholds and validator failures are enforcement backstops, not the reason tests get written. If you cannot name the tests you will add or update before coding, stop and resolve that first.
+
 **Default workflow for any coding task:**
 
-1. Implement the change **and write/update the colocated test file** — tests are part of the same step, not an afterthought
-   - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create `*.test.ts` / `*.test.tsx` alongside it
-   - New user-facing flow (auth, trip CRUD, day planning) → add or extend a `.feature` + step file in `tests/e2e/`
-2. Run `packt-build-validator` to catch lint, TypeScript, coverage, build, and E2E failures
+1. Identify the required tests, then implement the change and write/update those tests in the same change — tests are part of implementation, not something added after a coverage miss
+   - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create the matching colocated `*.test.ts` / `*.test.tsx` alongside it in the same change
+   - New user-facing flow (auth, trip CRUD, day planning) → add or extend the `.feature` file and matching step definitions in `tests/e2e/` in the same change
+   - If you cannot name the exact tests you are adding or updating, pause and resolve that before editing production code
+2. Run `packt-build-validator` to verify the completed change: lint, TypeScript, coverage, build, and Playwright E2E should confirm work that is already fully implemented and tested
 3. Fix any flagged issues, then re-run `packt-build-validator` again before the final commit
 
 ## Key Conventions
@@ -155,12 +159,15 @@ Pass the original request as context so scope and test checks have what they nee
 
 ### Testing
 
+- Tests are first-class deliverables for every coding change; do not defer them until a validator, coverage report, or reviewer points out they are missing
 - Unit test files live **next to their source file** (`foo.tsx` → `foo.test.tsx`); never under a separate `__tests__/` directory
+- Any edit in `src/lib/**` or `src/components/packt/**` must include the matching colocated test edit in the same change
 - E2E goes in `tests/e2e/` only — Gherkin features in `features/`, step definitions in `steps/`
+- Any new or materially changed user-facing flow must include the `.feature` update and matching step-definition update in the same change
 - Use Vitest (`vitest`, `@testing-library/react`) for unit/component tests
 - Use `playwright-bdd` + Playwright for E2E — write scenarios in `.feature` files, implement in step `.ts` files
 - Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
-- Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`
+- Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`, but treat those thresholds as backstops rather than the trigger for adding tests
 - `src/components/ui/**`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, and `src/lib/server-now.ts` are excluded from coverage
 - E2E tests run against the `packt_e2e` database — `global-setup.ts` seeds it fresh before each run; do not assume any pre-existing state in step definitions
 - The E2E webServer runs on port 3001 with `DATABASE_URL` pointed at `E2E_DATABASE_URL` and `NEXT_DISTDIR=.next-e2e` (separate build cache from dev)
