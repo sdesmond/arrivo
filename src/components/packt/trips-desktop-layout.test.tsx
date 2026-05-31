@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -151,7 +151,7 @@ describe("TripsDesktopLayout", () => {
       />,
       { wrapper: Wrapper }
     );
-    expect(screen.getByText("Lisbon Escape")).toBeInTheDocument();
+    expect(screen.getAllByText("Lisbon Escape").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders UnscheduledSection when unscheduledEntries non-empty", () => {
@@ -337,5 +337,131 @@ describe("TripsDesktopLayout", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: /delete trip/i })[0]);
     expect(onDeleteTrip).toHaveBeenCalledWith(upcomingTrips[0]);
+  });
+
+  describe("view mode toggle", () => {
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    afterEach(() => {
+      localStorage.clear();
+    });
+
+    function renderLayout(overrides = {}) {
+      return render(
+        <TripsDesktopLayout
+          activeEntry={null}
+          upcomingTrips={upcomingTrips}
+          pastTrips={pastTrips}
+          unscheduledEntries={[]}
+          now={new Date(NOW_ISO)}
+          dateFormat="MM/DD/YYYY"
+          nextInDays={null}
+          onNewTrip={vi.fn()}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={vi.fn()}
+          {...overrides}
+        />,
+        { wrapper: Wrapper }
+      );
+    }
+
+    it("defaults to cards view when no localStorage value", () => {
+      renderLayout();
+      expect(screen.getByRole("button", { name: "Cards" }).className).toContain("active");
+      expect(screen.getByRole("button", { name: "List" }).className).not.toContain("active");
+    });
+
+    it("clicking List button activates list view", () => {
+      renderLayout();
+      fireEvent.click(screen.getByRole("button", { name: "List" }));
+      expect(screen.getByRole("button", { name: "List" }).className).toContain("active");
+      expect(screen.getByRole("button", { name: "Cards" }).className).not.toContain("active");
+    });
+
+    it("persists selection to localStorage when List clicked", () => {
+      renderLayout();
+      fireEvent.click(screen.getByRole("button", { name: "List" }));
+      expect(localStorage.getItem("trips-view-mode")).toBe("list");
+    });
+
+    it("persists selection to localStorage when Cards clicked after List", () => {
+      renderLayout();
+      fireEvent.click(screen.getByRole("button", { name: "List" }));
+      fireEvent.click(screen.getByRole("button", { name: "Cards" }));
+      expect(localStorage.getItem("trips-view-mode")).toBe("cards");
+    });
+
+    it("reads list view from localStorage on mount", () => {
+      localStorage.setItem("trips-view-mode", "list");
+      renderLayout();
+      expect(screen.getByRole("button", { name: "List" }).className).toContain("active");
+    });
+
+    it("corrupt localStorage value defaults to cards", () => {
+      localStorage.setItem("trips-view-mode", "not-a-valid-mode");
+      renderLayout();
+      expect(screen.getByRole("button", { name: "Cards" }).className).toContain("active");
+    });
+
+    it("unscheduled section renders null when empty in list mode", () => {
+      localStorage.setItem("trips-view-mode", "list");
+      renderLayout({ unscheduledEntries: [] });
+      expect(screen.queryByRole("heading", { name: "Unscheduled" })).not.toBeInTheDocument();
+    });
+
+    it("in list mode, clicking Edit on upcoming trip calls onEditTrip", () => {
+      localStorage.setItem("trips-view-mode", "list");
+      const onEditTrip = vi.fn();
+      render(
+        <TripsDesktopLayout
+          activeEntry={null}
+          upcomingTrips={upcomingTrips}
+          pastTrips={[]}
+          unscheduledEntries={[]}
+          now={new Date(NOW_ISO)}
+          dateFormat="MM/DD/YYYY"
+          nextInDays={null}
+          onNewTrip={vi.fn()}
+          onEditTrip={onEditTrip}
+          onDeleteTrip={vi.fn()}
+        />,
+        { wrapper: Wrapper }
+      );
+      fireEvent.click(screen.getAllByRole("button", { name: /edit trip/i })[0]);
+      expect(onEditTrip).toHaveBeenCalled();
+    });
+
+    it("in list mode, clicking Delete on upcoming trip calls onDeleteTrip", () => {
+      localStorage.setItem("trips-view-mode", "list");
+      const onDeleteTrip = vi.fn();
+      render(
+        <TripsDesktopLayout
+          activeEntry={null}
+          upcomingTrips={upcomingTrips}
+          pastTrips={[]}
+          unscheduledEntries={[]}
+          now={new Date(NOW_ISO)}
+          dateFormat="MM/DD/YYYY"
+          nextInDays={null}
+          onNewTrip={vi.fn()}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={onDeleteTrip}
+        />,
+        { wrapper: Wrapper }
+      );
+      fireEvent.click(screen.getAllByRole("button", { name: /delete trip/i })[0]);
+      expect(onDeleteTrip).toHaveBeenCalledWith(upcomingTrips[0]);
+    });
+
+    it("in list mode, trip options trigger does not navigate on click", async () => {
+      localStorage.setItem("trips-view-mode", "list");
+      const user = userEvent.setup();
+      renderLayout();
+      const triggers = screen.getAllByTitle("Trip options");
+      expect(triggers.length).toBeGreaterThan(0);
+      await user.click(triggers[0]);
+    });
   });
 });

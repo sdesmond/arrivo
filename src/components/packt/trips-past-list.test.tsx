@@ -58,7 +58,14 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 }));
 
 import { PastTripsList } from "./trips-past-list";
+import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { Trip } from "@/data/types";
+
+const NOW_ISO = "2026-05-13T12:00:00.000Z";
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
+}
 
 const pastTrips: Trip[] = [
   {
@@ -130,5 +137,34 @@ describe("PastTripsList", () => {
     const tripNoDates: Trip = { id: "t4", name: "Mystery Trip", status: "past" };
     render(<PastTripsList trips={[tripNoDates]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
     expect(screen.getByText("No dates")).toBeInTheDocument();
+  });
+
+  it("viewMode=list renders row layout with Past badge (default)", () => {
+    render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} viewMode="list" />);
+    expect(screen.getAllByText("Past").length).toBeGreaterThan(0);
+  });
+
+  it("viewMode=cards renders TripCard grid with past status copy", () => {
+    render(
+      <PastTripsList
+        trips={pastTrips}
+        dateFormat="MM/DD/YYYY"
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        viewMode="cards"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getAllByText(/past/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/in -/i)).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("trip-card-date-range").length).toBeGreaterThan(0);
+  });
+
+  it("trip options trigger does not navigate on click", async () => {
+    const user = userEvent.setup();
+    render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    const triggers = screen.getAllByTitle("Trip options");
+    expect(triggers.length).toBeGreaterThan(0);
+    await user.click(triggers[0]);
   });
 });

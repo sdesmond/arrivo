@@ -12,7 +12,7 @@ import {
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/types";
-import { getTripDays, formatDate, pluralize } from "@/lib/utils";
+import { getTripDays, formatDate, getTripStatus, pluralize } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 interface TripCardProps {
@@ -24,12 +24,24 @@ interface TripCardProps {
 
 export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCardProps) {
   const now = useNow();
-  const sub = pluralize(getTripDays(trip.startDate, trip.endDate), "DAY");
+  const tripDays = getTripDays(trip.startDate, trip.endDate);
+  const sub = pluralize(tripDays, "DAY");
+  const hasTripDates = Boolean(trip.startDate && trip.endDate);
+  const tripStatus = hasTripDates ? getTripStatus(trip.startDate, trip.endDate, now) : null;
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const inDays = trip.startDate
     ? Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null;
+  const badgeLabel =
+    inDays === null
+      ? "unscheduled"
+      : tripStatus === "past"
+        ? "past"
+        : tripStatus === "active"
+          ? "active"
+          : `in ${inDays}d`;
+  const coverMetaTag = tripStatus ? tripStatus.toUpperCase() : "UNSCHEDULED";
   const dateLine =
     trip.startDate && trip.endDate
       ? `${formatDate(trip.startDate, dateFormat)} — ${formatDate(trip.endDate, dateFormat)}`
@@ -87,7 +99,7 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
       <TripCover
         name={trip.name}
         country={sub}
-        metaTag="UPCOMING"
+        metaTag={coverMetaTag}
         showCity
         style={{ minHeight: 160 }}
         coverImageUrl={trip.coverImageUrl}
@@ -124,7 +136,7 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
             </div>
           </div>
           <Badge variant="soft" className="shrink-0 mt-0.5">
-            {inDays === null ? "unscheduled" : `in ${inDays}d`}
+            {badgeLabel}
           </Badge>
         </div>
 
@@ -135,7 +147,7 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         >
           <span className="flex items-center gap-1">
             <Calendar size={13} strokeWidth={1.5} />
-            {pluralize(getTripDays(trip.startDate, trip.endDate), "day")}
+            {pluralize(tripDays, "day")}
           </span>
           <span className="flex items-center gap-1">
             <FileText size={13} strokeWidth={1.5} />
