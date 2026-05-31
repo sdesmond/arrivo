@@ -25,16 +25,7 @@ import { type Trip, type TripListEntry } from "@/data/types";
 type ViewMode = "cards" | "list";
 
 const VIEW_MODE_KEY = "trips-view-mode";
-
-function readViewMode(): ViewMode {
-  if (typeof window === "undefined") return "cards";
-  try {
-    const stored = localStorage.getItem(VIEW_MODE_KEY);
-    return stored === "list" ? "list" : "cards";
-  } catch {
-    return "cards";
-  }
-}
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
 interface TripsDesktopLayoutProps {
   activeEntry: TripListEntry | null;
@@ -44,6 +35,7 @@ interface TripsDesktopLayoutProps {
   now: Date;
   dateFormat: string;
   nextInDays: number | null;
+  initialViewMode?: ViewMode;
   onNewTrip: () => void;
   onEditTrip: (tripId: string) => void;
   onDeleteTrip: (trip: Trip) => void;
@@ -57,16 +49,18 @@ export function TripsDesktopLayout({
   now,
   dateFormat,
   nextInDays,
+  initialViewMode = "cards",
   onNewTrip,
   onEditTrip,
   onDeleteTrip,
 }: TripsDesktopLayoutProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>(readViewMode);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
 
   function handleViewMode(mode: ViewMode) {
     setViewMode(mode);
     try {
       localStorage.setItem(VIEW_MODE_KEY, mode);
+      document.cookie = `${VIEW_MODE_KEY}=${mode}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
     } catch {
       // storage unavailable
     }

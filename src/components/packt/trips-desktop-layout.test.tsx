@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -340,14 +340,6 @@ describe("TripsDesktopLayout", () => {
   });
 
   describe("view mode toggle", () => {
-    beforeEach(() => {
-      localStorage.clear();
-    });
-
-    afterEach(() => {
-      localStorage.clear();
-    });
-
     function renderLayout(overrides = {}) {
       return render(
         <TripsDesktopLayout
@@ -393,26 +385,22 @@ describe("TripsDesktopLayout", () => {
       expect(localStorage.getItem("trips-view-mode")).toBe("cards");
     });
 
-    it("reads list view from localStorage on mount", () => {
-      localStorage.setItem("trips-view-mode", "list");
-      renderLayout();
+    it("initialViewMode='list' activates list view", () => {
+      renderLayout({ initialViewMode: "list" });
       expect(screen.getByRole("button", { name: "List" }).className).toContain("active");
     });
 
-    it("corrupt localStorage value defaults to cards", () => {
-      localStorage.setItem("trips-view-mode", "not-a-valid-mode");
+    it("defaults to cards when initialViewMode omitted", () => {
       renderLayout();
       expect(screen.getByRole("button", { name: "Cards" }).className).toContain("active");
     });
 
     it("unscheduled section renders null when empty in list mode", () => {
-      localStorage.setItem("trips-view-mode", "list");
-      renderLayout({ unscheduledEntries: [] });
+      renderLayout({ initialViewMode: "list", unscheduledEntries: [] });
       expect(screen.queryByRole("heading", { name: "Unscheduled" })).not.toBeInTheDocument();
     });
 
     it("in list mode, clicking Edit on upcoming trip calls onEditTrip", () => {
-      localStorage.setItem("trips-view-mode", "list");
       const onEditTrip = vi.fn();
       render(
         <TripsDesktopLayout
@@ -423,6 +411,7 @@ describe("TripsDesktopLayout", () => {
           now={new Date(NOW_ISO)}
           dateFormat="MM/DD/YYYY"
           nextInDays={null}
+          initialViewMode="list"
           onNewTrip={vi.fn()}
           onEditTrip={onEditTrip}
           onDeleteTrip={vi.fn()}
@@ -434,7 +423,6 @@ describe("TripsDesktopLayout", () => {
     });
 
     it("in list mode, clicking Delete on upcoming trip calls onDeleteTrip", () => {
-      localStorage.setItem("trips-view-mode", "list");
       const onDeleteTrip = vi.fn();
       render(
         <TripsDesktopLayout
@@ -445,6 +433,7 @@ describe("TripsDesktopLayout", () => {
           now={new Date(NOW_ISO)}
           dateFormat="MM/DD/YYYY"
           nextInDays={null}
+          initialViewMode="list"
           onNewTrip={vi.fn()}
           onEditTrip={vi.fn()}
           onDeleteTrip={onDeleteTrip}
@@ -456,9 +445,8 @@ describe("TripsDesktopLayout", () => {
     });
 
     it("in list mode, trip options trigger does not navigate on click", async () => {
-      localStorage.setItem("trips-view-mode", "list");
       const user = userEvent.setup();
-      renderLayout();
+      renderLayout({ initialViewMode: "list" });
       const triggers = screen.getAllByTitle("Trip options");
       expect(triggers.length).toBeGreaterThan(0);
       await user.click(triggers[0]);

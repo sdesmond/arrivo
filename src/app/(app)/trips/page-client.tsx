@@ -22,9 +22,10 @@ interface TripsPageClientProps {
   initialEntries: TripListEntry[];
   nowISO: string;
   dateFormat: string;
+  initialViewMode: "cards" | "list";
 }
 
-export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPageClientProps) {
+export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialViewMode }: TripsPageClientProps) {
   const now = new Date(nowISO);
   const handlers = useTripsPageHandlers(initialEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
@@ -39,6 +40,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat }: TripsPag
         now={now}
         dateFormat={dateFormat}
         nextInDays={handlers.nextInDays}
+        initialViewMode={initialViewMode}
         onNewTrip={() => handlers.setNewTripOpen(true)}
         onEditTrip={handlers.setEditingTrip}
         onDeleteTrip={(trip) => handlers.setDeletingTrip(trip)}
