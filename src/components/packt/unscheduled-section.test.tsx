@@ -182,4 +182,104 @@ describe("UnscheduledSection", () => {
     await user.click(screen.getAllByRole("button", { name: /delete trip/i })[0]);
     expect(onDeleteTrip).toHaveBeenCalledWith(unscheduledTrips[0]);
   });
+
+  it("viewMode=cards renders TripCard grid (explicit prop)", () => {
+    render(
+      <UnscheduledSection
+        trips={unscheduledTrips}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        dateFormat="MM/DD/YYYY"
+        viewMode="cards"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getAllByTestId("trip-card-date-range").length).toBeGreaterThan(0);
+  });
+
+  it("viewMode=list renders list rows instead of card grid", () => {
+    render(
+      <UnscheduledSection
+        trips={unscheduledTrips}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        dateFormat="MM/DD/YYYY"
+        viewMode="list"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.queryByTestId("trip-card-date-range")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Unsorted Ideas").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("viewMode=list renders null when trips empty", () => {
+    const { container } = render(
+      <UnscheduledSection
+        trips={[]}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        dateFormat="MM/DD/YYYY"
+        viewMode="list"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("viewMode=list forwards delete actions via row dropdown", async () => {
+    const user = userEvent.setup();
+    const onDeleteTrip = vi.fn();
+
+    render(
+      <UnscheduledSection
+        trips={unscheduledTrips}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={onDeleteTrip}
+        dateFormat="MM/DD/YYYY"
+        viewMode="list"
+      />,
+      { wrapper: Wrapper }
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /delete trip/i })[0]);
+    expect(onDeleteTrip).toHaveBeenCalledWith(unscheduledTrips[0]);
+  });
+
+  it("viewMode=list forwards edit actions via row dropdown", async () => {
+    const user = userEvent.setup();
+    const onEditTrip = vi.fn();
+
+    render(
+      <UnscheduledSection
+        trips={unscheduledTrips}
+        onEditTrip={onEditTrip}
+        onDeleteTrip={vi.fn()}
+        dateFormat="MM/DD/YYYY"
+        viewMode="list"
+      />,
+      { wrapper: Wrapper }
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /edit trip/i })[0]);
+    expect(onEditTrip).toHaveBeenCalledWith(unscheduledTrips[0]);
+  });
+
+  it("viewMode=list trip options trigger does not navigate on click", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <UnscheduledSection
+        trips={unscheduledTrips}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        dateFormat="MM/DD/YYYY"
+        viewMode="list"
+      />,
+      { wrapper: Wrapper }
+    );
+
+    const triggers = screen.getAllByTitle("Trip options");
+    expect(triggers.length).toBeGreaterThan(0);
+    await user.click(triggers[0]);
+  });
 });

@@ -171,6 +171,13 @@ describe("TripCard", () => {
     expect(screen.getByText("unscheduled")).toBeInTheDocument();
   });
 
+  it("renders past badge instead of a negative countdown for past trips", () => {
+    const trip = { ...baseTrip, startDate: "2026-04-01", endDate: "2026-04-05" };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("past")).toBeInTheDocument();
+    expect(screen.queryByText(/in -/i)).not.toBeInTheDocument();
+  });
+
   it("renders No dates when startDate is null", () => {
     const trip = { ...baseTrip, startDate: undefined, endDate: undefined };
     render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });

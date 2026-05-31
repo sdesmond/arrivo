@@ -1,17 +1,31 @@
 "use client";
 
-import { ArrowUpDown, Filter } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import Link from "next/link";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { NowCard } from "@/components/packt/now-card";
 import { DayRibbon } from "@/components/packt/day-ribbon";
 import { TripCard } from "@/components/packt/trip-card";
+import { TripCover } from "@/components/packt/trip-cover";
 import { NewTripCard } from "@/components/packt/new-trip-card";
 import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
 import { PastTripsList } from "@/components/packt/trips-past-list";
 import { UnscheduledSection } from "@/components/packt/unscheduled-section";
-import { pluralize } from "@/lib/utils";
+import { pluralize, formatDate, getTripDays } from "@/lib/utils";
 import { type Trip, type TripListEntry } from "@/data/types";
+
+type ViewMode = "cards" | "list";
+
+const VIEW_MODE_KEY = "trips-view-mode";
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
 interface TripsDesktopLayoutProps {
   activeEntry: TripListEntry | null;
@@ -21,6 +35,7 @@ interface TripsDesktopLayoutProps {
   now: Date;
   dateFormat: string;
   nextInDays: number | null;
+  initialViewMode?: ViewMode;
   onNewTrip: () => void;
   onEditTrip: (tripId: string) => void;
   onDeleteTrip: (trip: Trip) => void;
@@ -34,10 +49,23 @@ export function TripsDesktopLayout({
   now,
   dateFormat,
   nextInDays,
+  initialViewMode = "cards",
   onNewTrip,
   onEditTrip,
   onDeleteTrip,
 }: TripsDesktopLayoutProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+
+  function handleViewMode(mode: ViewMode) {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode);
+      document.cookie = `${VIEW_MODE_KEY}=${mode}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    } catch {
+      // storage unavailable
+    }
+  }
+
   return (
     <div className="hidden lg:flex lg:flex-col h-full">
       <Topbar
@@ -61,12 +89,31 @@ export function TripsDesktopLayout({
             </>
           )}
 
+          {/* Master view toggle */}
+          <div className="flex items-center justify-end">
+            <div className="seg">
+              <button
+                className={viewMode === "cards" ? "seg-item active" : "seg-item"}
+                onClick={() => handleViewMode("cards")}
+              >
+                Cards
+              </button>
+              <button
+                className={viewMode === "list" ? "seg-item active" : "seg-item"}
+                onClick={() => handleViewMode("list")}
+              >
+                List
+              </button>
+            </div>
+          </div>
+
           {/* Unscheduled */}
           <UnscheduledSection
             trips={unscheduledEntries.map((e) => e.trip)}
             onEditTrip={(t) => onEditTrip(t.id)}
             onDeleteTrip={onDeleteTrip}
             dateFormat={dateFormat}
+            viewMode={viewMode}
           />
 
           {/* Upcoming */}
@@ -74,43 +121,113 @@ export function TripsDesktopLayout({
             <SectionHead
               title="Upcoming"
               count={`${pluralize(upcomingTrips.length, "TRIP")}${nextInDays != null ? ` · NEXT IN ${pluralize(nextInDays, "DAY")}` : ""}`}
-            >
-              <div className="seg">
-                <button className="seg-item active">Cards</button>
-                <button className="seg-item">List</button>
+            />
+            {viewMode === "cards" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {upcomingTrips.map((trip) => (
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    onEditTrip={(t) => onEditTrip(t.id)}
+                    onDeleteTrip={onDeleteTrip}
+                    dateFormat={dateFormat}
+                  />
+                ))}
+                <NewTripCard onNewTrip={onNewTrip} />
               </div>
-              <Button variant="ghost" size="sm">
-                <ArrowUpDown size={13} strokeWidth={1.5} />
-                Date
-              </Button>
-            </SectionHead>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {upcomingTrips.map((trip) => (
-                <TripCard
-                  key={trip.id}
-                  trip={trip}
-                  onEditTrip={(t) => onEditTrip(t.id)}
-                  onDeleteTrip={onDeleteTrip}
-                  dateFormat={dateFormat}
-                />
-              ))}
-              <NewTripCard onNewTrip={onNewTrip} />
-            </div>
+            ) : (
+              <div className="rounded-[14px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
+                {upcomingTrips.map((trip, i) => (
+                  <Link
+                    key={trip.id}
+                    href={`/trips/${trip.id}`}
+                    className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface"
+                    style={{ borderTop: i > 0 ? "1px solid var(--line)" : undefined }}
+                  >
+                    <TripCover
+                      name={trip.name}
+                      showCity={false}
+                      style={{ width: 52, height: 40, borderRadius: 6, flexShrink: 0 }}
+                      coverImageUrl={trip.coverImageUrl}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div style={{ fontSize: "calc(14px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
+                        {trip.name}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "calc(12.5px * var(--font-scale))",
+                        color: "var(--fg-3)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {trip.startDate ? formatDate(trip.startDate, dateFormat) : "No dates"}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono-family, ui-monospace)",
+                        fontSize: "calc(10.5px * var(--font-scale))",
+                        color: "var(--fg-4)",
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        width: 52,
+                        textAlign: "right",
+                      }}
+                    >
+                      {getTripDays(trip.startDate, trip.endDate)} DAYS
+                    </span>
+                    <Badge variant="outline">Upcoming</Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        title="Trip options"
+                        className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                      >
+                        <MoreHorizontal size={14} strokeWidth={1.5} />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent side="bottom" align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onEditTrip(trip.id);
+                          }}
+                        >
+                          <Pencil size={13} strokeWidth={1.5} />
+                          Edit trip
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onDeleteTrip(trip);
+                          }}
+                        >
+                          <Trash2 size={13} strokeWidth={1.5} />
+                          Delete trip
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Past trips */}
           <div>
-            <SectionHead title="Past trips" count={`${pastTrips.length} OF ${pastTrips.length}`}>
-              <Button variant="ghost" size="sm">
-                <Filter size={13} strokeWidth={1.5} />
-                Filter
-              </Button>
-            </SectionHead>
+            <SectionHead title="Past trips" count={pluralize(pastTrips.length, "TRIP")} />
             <PastTripsList
               trips={pastTrips}
               dateFormat={dateFormat}
               onEditTrip={(t) => onEditTrip(t.id)}
               onDeleteTrip={onDeleteTrip}
+              viewMode={viewMode}
             />
           </div>
         </div>

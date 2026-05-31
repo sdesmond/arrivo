@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "@/components/packt/trip-cover";
+import { TripCard } from "@/components/packt/trip-card";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,9 +19,26 @@ interface PastTripsListProps {
   dateFormat: string;
   onEditTrip: (trip: Trip) => void;
   onDeleteTrip?: (trip: Trip) => void;
+  viewMode?: "cards" | "list";
 }
 
-export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip }: PastTripsListProps) {
+export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip, viewMode = "list" }: PastTripsListProps) {
+  if (viewMode === "cards") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {trips.map((trip) => (
+          <TripCard
+            key={trip.id}
+            trip={trip}
+            onEditTrip={onEditTrip}
+            onDeleteTrip={onDeleteTrip ?? (() => {})}
+            dateFormat={dateFormat}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-[14px] overflow-hidden" style={{ border: "1px solid var(--line)" }}>
       {trips.map((trip, i) => (
