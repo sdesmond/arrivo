@@ -11,7 +11,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { pluralize } from "@/lib/utils";
 import { type Trip } from "@/data/types";
 
 interface UnscheduledSectionProps {
@@ -33,7 +32,7 @@ export function UnscheduledSection({
 
   return (
     <div>
-      <SectionHead title="Unscheduled" count={pluralize(trips.length, "TRIP")} titleColor="var(--fg-3)">
+      <SectionHead title="Unscheduled" titleColor="var(--fg-3)">
         <CalendarOff size={14} strokeWidth={1.5} style={{ color: "var(--fg-3)" }} />
       </SectionHead>
       {viewMode === "cards" ? (

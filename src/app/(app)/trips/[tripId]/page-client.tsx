@@ -176,7 +176,9 @@ export function TripDetailClient({
           >
             <span className="flex items-center gap-1.5">
               <Calendar size={13} strokeWidth={1.5} />
-              {dayTotal > 0 ? `${dayTotal} ${pluralize(dayTotal, "day")} · day ${dayN} today` : "0 days"}
+              {dayTotal > 0
+                ? `${dayTotal} ${pluralize(dayTotal, "day")}${status === "active" ? ` · day ${dayN} today` : ""}`
+                : "0 days"}
             </span>
             <span className="flex items-center gap-1.5">
               <MapPin size={13} strokeWidth={1.5} />

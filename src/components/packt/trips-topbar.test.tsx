@@ -10,30 +10,12 @@ import { Topbar } from "./trips-topbar";
 
 describe("Topbar", () => {
   const defaultProps = {
-    tripCount: 3,
-    pastCount: 2,
-    now: new Date("2026-05-13"),
     onNewTrip: vi.fn(),
   };
 
-  it("renders 'My trips' heading", () => {
+  it("renders 'Trips' heading", () => {
     render(<Topbar {...defaultProps} />);
-    expect(screen.getByText("My trips")).toBeInTheDocument();
-  });
-
-  it("renders trip count info", () => {
-    render(<Topbar {...defaultProps} />);
-    expect(screen.getByText(/· trips ·/)).toBeInTheDocument();
-  });
-
-  it("renders singular 'trip' when count is 1", () => {
-    render(<Topbar {...defaultProps} tripCount={1} pastCount={0} />);
-    expect(screen.getByText(/· trip ·/)).toBeInTheDocument();
-  });
-
-  it("renders past count info", () => {
-    render(<Topbar {...defaultProps} />);
-    expect(screen.getByText(/2 past/i)).toBeInTheDocument();
+    expect(screen.getByText("Trips")).toBeInTheDocument();
   });
 
   it("calls onNewTrip from the New trip button", async () => {

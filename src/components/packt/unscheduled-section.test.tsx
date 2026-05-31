@@ -92,36 +92,6 @@ describe("UnscheduledSection", () => {
     expect(screen.getByRole("heading", { name: "Unscheduled" })).toBeInTheDocument();
   });
 
-  it("shows correct count", () => {
-    render(
-      <UnscheduledSection
-        trips={unscheduledTrips}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
-        dateFormat="MM/DD/YYYY"
-      />,
-      {
-        wrapper: Wrapper,
-      }
-    );
-    expect(screen.getByText("TRIPs")).toBeInTheDocument();
-  });
-
-  it("renders singular count for one trip", () => {
-    render(
-      <UnscheduledSection
-        trips={[unscheduledTrips[0]]}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
-        dateFormat="MM/DD/YYYY"
-      />,
-      {
-        wrapper: Wrapper,
-      }
-    );
-    expect(screen.getByText("TRIP")).toBeInTheDocument();
-  });
-
   it("does not render when trips array is empty", () => {
     const { container } = render(
       <UnscheduledSection trips={[]} onEditTrip={vi.fn()} onDeleteTrip={vi.fn()} dateFormat="MM/DD/YYYY" />,

@@ -37,9 +37,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialVie
         upcomingTrips={handlers.upcomingTrips}
         pastTrips={handlers.pastTrips}
         unscheduledEntries={handlers.unscheduledEntries}
-        now={now}
         dateFormat={dateFormat}
-        nextInDays={handlers.nextInDays}
         initialViewMode={initialViewMode}
         onNewTrip={() => handlers.setNewTripOpen(true)}
         onEditTrip={handlers.setEditingTrip}
