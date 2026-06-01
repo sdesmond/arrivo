@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import { reorderDayItems } from "./actions";
-import { addPackingItem, deleteTrip, removePackingItem } from "../actions";
+import { addPackingItem, deleteTrip, removePackingItem, reorderPackingItems } from "../actions";
 import type { TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
@@ -23,6 +23,7 @@ vi.mock("../actions", () => ({
   addPackingItem: vi.fn(),
   deleteTrip: vi.fn(),
   removePackingItem: vi.fn(),
+  reorderPackingItems: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
 
@@ -144,6 +145,47 @@ describe("useTripDetailHandlers", () => {
     });
 
     await waitFor(() => expect(removePackingItem).toHaveBeenCalledWith("pack-1"));
+  });
+
+  it("persists reordered packing items against the current trip", async () => {
+    vi.mocked(reorderPackingItems).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleReorderPackingItems(["pack-2", "pack-1"]);
+    });
+
+    await waitFor(() => expect(reorderPackingItems).toHaveBeenCalledWith("trip-1", ["pack-2", "pack-1"]));
+    expect(toast.error).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
+  });
+
+  it("surfaces a toast and refreshes the route when packing reorder fails", async () => {
+    vi.mocked(reorderPackingItems).mockRejectedValueOnce(new Error("Reorder failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleReorderPackingItems(["pack-2", "pack-1"]);
+    });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Reorder failed"));
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("calls onError callback before refresh when packing reorder fails", async () => {
+    vi.mocked(reorderPackingItems).mockRejectedValueOnce(new Error("Reorder failed"));
+    const onError = vi.fn();
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleReorderPackingItems(["pack-2", "pack-1"], onError);
+    });
+
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(mockRefresh).toHaveBeenCalledOnce();
   });
 
   it("surfaces a toast when trip deletion fails", async () => {

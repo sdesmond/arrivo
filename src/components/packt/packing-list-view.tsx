@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
-import { Check, Plus, Tag, X } from "lucide-react";
+import { useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import type { PackingItem } from "@/data/types";
+import { PackingListSortable } from "./packing-list-sortable";
 
 interface PackingListViewProps {
   tripId: string;
@@ -13,16 +13,7 @@ interface PackingListViewProps {
   onAddItem: (name: string, isLabel?: boolean) => void;
   onRemoveItem: (id: string) => void;
   onToggleItem: (id: string) => Promise<void>;
-}
-
-interface PackingSection {
-  label: PackingItem;
-  items: PackingItem[];
-}
-
-interface GroupedPackingItems {
-  sections: PackingSection[];
-  ungroupedItems: PackingItem[];
+  onReorderItems: (orderedItemIds: string[], onError?: () => void) => void;
 }
 
 interface PackingEntryFormProps {
@@ -33,43 +24,6 @@ interface PackingEntryFormProps {
   onDraftNameChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onSubmitItem: () => void;
   onSubmitLabel: () => void;
-}
-
-interface PackingRowProps {
-  item: PackingItem;
-  isLabel?: boolean;
-  isPending?: boolean;
-  onRemove: () => void;
-  onToggle?: () => void;
-}
-
-function groupPackingItems(items: PackingItem[]): GroupedPackingItems {
-  const sortedItems = [...items].sort((first, second) => {
-    const firstPosition = first.position ?? Infinity;
-    const secondPosition = second.position ?? Infinity;
-    return firstPosition - secondPosition;
-  });
-
-  const sections: PackingSection[] = [];
-  const ungroupedItems: PackingItem[] = [];
-  let currentSection: PackingSection | null = null;
-
-  for (const item of sortedItems) {
-    if (item.isLabel) {
-      currentSection = { label: item, items: [] };
-      sections.push(currentSection);
-      continue;
-    }
-
-    if (currentSection) {
-      currentSection.items.push(item);
-      continue;
-    }
-
-    ungroupedItems.push(item);
-  }
-
-  return { sections, ungroupedItems };
 }
 
 function PackingEntryForm({
@@ -127,78 +81,13 @@ function PackingEntryForm({
   );
 }
 
-function PackingRow({ item, isLabel, isPending, onRemove, onToggle }: PackingRowProps): ReactElement {
-  return (
-    <div
-      className={cn("flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2", isLabel ? "shadow-none" : "")}
-      data-packing-kind={isLabel ? "label" : "item"}
-      style={{
-        background: isLabel ? "var(--surface-2)" : "var(--bg)",
-        borderColor: "var(--line)",
-      }}
-    >
-      {isLabel || !onToggle ? null : (
-        <button
-          aria-checked={item.done}
-          aria-label={`Pack ${item.name}`}
-          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center"
-          disabled={isPending}
-          role="checkbox"
-          title={item.done ? `Unpack ${item.name}` : `Pack ${item.name}`}
-          type="button"
-          style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
-          onClick={onToggle}
-        >
-          <span
-            className="flex size-5 items-center justify-center rounded-full"
-            style={{
-              background: item.done ? "var(--accent-brand)" : "transparent",
-              border: item.done ? "1.5px solid var(--accent-brand)" : "1.5px solid var(--line-strong)",
-              color: item.done ? "var(--accent-fg)" : "transparent",
-            }}
-          >
-            {item.done ? <Check size={12} strokeWidth={1.5} /> : null}
-          </span>
-        </button>
-      )}
-      <div className="min-w-0 flex-1">
-        {isLabel ? (
-          <h3 className="truncate text-sm font-semibold" data-packing-name style={{ color: "var(--fg)" }}>
-            {item.name}
-          </h3>
-        ) : (
-          <p
-            className={cn("truncate text-sm font-medium", item.done ? "line-through" : "")}
-            data-packing-name
-            style={{ color: item.done ? "var(--fg-3)" : "var(--fg)" }}
-          >
-            {item.name}
-          </p>
-        )}
-        {isLabel ? (
-          <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>Section label</p>
-        ) : null}
-      </div>
-      <Button
-        aria-label={`Remove ${item.name}`}
-        className="min-h-11 min-w-11 rounded-2xl text-fg-3 hover:text-fg"
-        title={`Remove ${item.name}`}
-        type="button"
-        variant="ghost"
-        onClick={onRemove}
-      >
-        <X size={14} strokeWidth={1.5} />
-      </Button>
-    </div>
-  );
-}
-
 export function PackingListView({
   tripId,
   items,
   onAddItem,
   onRemoveItem,
   onToggleItem,
+  onReorderItems,
 }: PackingListViewProps): ReactElement {
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -206,7 +95,8 @@ export function PackingListView({
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
-  const { sections, ungroupedItems } = useMemo(() => groupPackingItems(items), [items]);
+  const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
+  const effectiveItems = localItems ?? items;
 
   // Reset double-submit guard when the items prop changes (server revalidation completed).
   // React's "derive state from props" pattern: setState during render triggers an immediate re-render.
@@ -214,6 +104,7 @@ export function PackingListView({
     setPrevItems(items);
     setIsSubmitting(false);
     setPendingItemIds(new Set());
+    setLocalItems(null);
   }
 
   function handleDraftNameChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -265,7 +156,7 @@ export function PackingListView({
         <span key={announcementId}>{announcement}</span>
       </div>
 
-      {items.length === 0 ? (
+      {effectiveItems.length === 0 ? (
         <section
           className="flex flex-col gap-4 rounded-3xl border p-5"
           style={{ background: "var(--surface)", borderColor: "var(--line)" }}
@@ -290,45 +181,14 @@ export function PackingListView({
         </section>
       ) : (
         <>
-          <section className="flex flex-col gap-4" aria-label="Packing list">
-            {sections.map((section) => (
-              <div key={section.label.id} className="flex flex-col gap-2">
-                <PackingRow item={section.label} isLabel onRemove={() => handleRemove(section.label)} />
-                {section.items.length > 0 ? (
-                  <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
-                    {section.items.map((item) => (
-                      <PackingRow
-                        key={item.id}
-                        item={item}
-                        isPending={item.id ? pendingItemIds.has(item.id) : false}
-                        onRemove={() => handleRemove(item)}
-                        onToggle={() => void handleToggle(item)}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-
-            {ungroupedItems.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {sections.length > 0 ? (
-                  <h3 style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))", fontWeight: 600 }}>
-                    Ungrouped
-                  </h3>
-                ) : null}
-                {ungroupedItems.map((item) => (
-                  <PackingRow
-                    key={item.id}
-                    item={item}
-                    isPending={item.id ? pendingItemIds.has(item.id) : false}
-                    onRemove={() => handleRemove(item)}
-                    onToggle={() => void handleToggle(item)}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </section>
+          <PackingListSortable
+            items={effectiveItems}
+            pendingItemIds={pendingItemIds}
+            onRemoveItem={handleRemove}
+            onToggleItem={handleToggle}
+            onOptimisticReorder={setLocalItems}
+            onReorderItems={onReorderItems}
+          />
 
           <PackingEntryForm
             tripId={tripId}

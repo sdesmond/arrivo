@@ -127,6 +127,12 @@ export const E2E_PACKING_ITEMS_WITH_LABELS = [
   { name: "Sunglasses", isLabel: false, done: false, position: 2 },
 ];
 
+export const E2E_PACKING_REORDER_ITEMS = [
+  { name: "Item A", isLabel: false, done: false, position: 0 },
+  { name: "Item B", isLabel: false, done: false, position: 1 },
+  { name: "Item C", isLabel: false, done: false, position: 2 },
+];
+
 export const E2E_MANAGE_DOC = {
   name: "E2E Manage Doc",
   kind: "pdf",

@@ -1,3 +1,15 @@
+## Deferred from: code review of 1-3-drag-to-reorder-items-with-position-persistence second pass (2026-06-01)
+
+- Non-label item dragged over disabled label may bypass snap-to-nearest, corrupting section grouping — spec-acknowledged collision behavior, Phase 1 flat position model
+- Keyboard-move E2E step hardcodes `index === 1` assertion, fragile if step is reused for non-zero-position items — correct for current single usage
+- Optimistic reorder clears on concurrent add/remove resolving mid-flight — explicitly deferred in first pass per spec pattern
+
+## Deferred from: code review of 1-3-drag-to-reorder-items-with-position-persistence (2026-06-01)
+
+- No concurrency protection — concurrent reorders/adds/removes can corrupt positions — deferred, Phase 1 is single-user per spec
+- Optimistic state uses referential equality — may miss server-triggered re-renders — deferred, follows existing spec pattern
+- No mouse/touch E2E coverage for pointer-drag reorder — deferred, keyboard E2E + unit tests cover reorder paths
+
 ## Deferred from: code review of 1-1-packing-tab-foundation-list-display-and-item-label-management (2026-05-31)
 
 - Optional `isLabel` type vs not-null DB column — intentional: optional makes sense for input contexts
