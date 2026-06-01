@@ -7,6 +7,7 @@ import {
   itineraryChecklists,
   checklistItems,
   itineraryNotes,
+  packingItems,
   userLoyaltyNumbers,
   userWishlistDestinations,
   userCompanions,
@@ -25,6 +26,7 @@ import type {
   LoyaltyNumber,
   WishlistDestination,
   Companion,
+  PackingItem,
 } from "@/data/types";
 import { CoverType } from "@/data/types";
 
@@ -180,6 +182,17 @@ export function dbCompanionToType(row: typeof userCompanions.$inferSelect): Comp
     knownTravelerNumber: row.knownTravelerNumber ?? undefined,
     packtUsername: row.packtUsername ?? undefined,
     position: row.position,
+  };
+}
+
+export function dbPackingItemToType(row: typeof packingItems.$inferSelect): PackingItem {
+  return {
+    id: row.id,
+    name: row.name,
+    done: row.done ?? false,
+    tripId: row.tripId,
+    position: row.position,
+    isLabel: row.isLabel,
   };
 }
 

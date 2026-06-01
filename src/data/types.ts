@@ -384,6 +384,7 @@ export interface PackingItem {
   done: boolean;
   tripId?: string;
   position?: number;
+  isLabel?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -554,4 +555,5 @@ export interface AddDocumentInput {
 
 export interface AddPackingItemInput {
   name: string;
+  isLabel?: boolean;
 }
