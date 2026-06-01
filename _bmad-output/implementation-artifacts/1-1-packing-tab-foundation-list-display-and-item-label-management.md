@@ -1,6 +1,6 @@
 # Story 1.1: Packing Tab Foundation — List Display & Item/Label Management
 
-Status: in-progress
+Status: done
 
 ## Story
 
