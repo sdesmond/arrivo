@@ -562,4 +562,10 @@ export interface AddDocumentInput {
 export interface AddPackingItemInput {
   name: string;
   isLabel?: boolean;
+  afterItemId?: string;
+  beforeItemId?: string;
+}
+
+export interface UpdatePackingItemInput {
+  name?: string;
 }
