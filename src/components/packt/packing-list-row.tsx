@@ -107,11 +107,13 @@ export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): R
     opacity: isDragging ? 0 : 1,
   };
   const dragHandleRef = useRef<HTMLSpanElement>(null);
+  const prevIsDraggingRef = useRef(false);
 
   useEffect(() => {
-    if (!isDragging && dragHandleRef.current) {
+    if (prevIsDraggingRef.current && !isDragging && dragHandleRef.current) {
       dragHandleRef.current.focus();
     }
+    prevIsDraggingRef.current = isDragging;
   }, [isDragging]);
 
   const dragHandle = props.isLabel ? undefined : (

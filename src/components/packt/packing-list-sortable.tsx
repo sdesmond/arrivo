@@ -36,8 +36,8 @@ export interface PackingListSortableProps {
   pendingItemIds: Set<string>;
   onRemoveItem: (item: PackingItem) => void;
   onToggleItem: (item: PackingItem) => Promise<void>;
-  onOptimisticReorder: (reorderedItems: PackingItem[]) => void;
-  onReorderItems: (orderedItemIds: string[]) => void;
+  onOptimisticReorder: (reorderedItems: PackingItem[] | null) => void;
+  onReorderItems: (orderedItemIds: string[], onError?: () => void) => void;
 }
 
 function groupPackingItems(items: PackingItem[]): GroupedPackingItems {
@@ -114,7 +114,10 @@ export function PackingListSortable({
     if (oldIdx === -1 || newIdx === -1) return;
     const reordered = arrayMove(visualOrder, oldIdx, newIdx).map((item, index) => ({ ...item, position: index }));
     onOptimisticReorder(reordered);
-    onReorderItems(reordered.map((item) => item.id!));
+    onReorderItems(
+      reordered.map((item) => item.id!),
+      () => onOptimisticReorder(null)
+    );
   }
 
   return (
@@ -179,12 +182,7 @@ export function PackingListSortable({
       </SortableContext>
       <DragOverlay dropAnimation={{ duration: 200, easing: "ease-out" }}>
         {activeItem ? (
-          <PackingRow
-            item={activeItem}
-            isLabel={activeItem.isLabel}
-            onRemove={() => {}}
-            onToggle={activeItem.isLabel ? undefined : () => {}}
-          />
+          <PackingRow item={activeItem} isLabel={activeItem.isLabel} onRemove={() => {}} onToggle={undefined} />
         ) : null}
       </DragOverlay>
     </DndContext>

@@ -684,3 +684,17 @@ gpt-5-codex
 - [x] [Review][Defer] No concurrency protection — concurrent reorders/adds/removes can corrupt positions [actions.ts:496-503] — deferred, pre-existing (Phase 1 is single-user per spec)
 - [x] [Review][Defer] Optimistic state uses referential equality — may miss server-triggered re-renders [packing-list-view.tsx:103] — deferred, follows existing spec pattern
 - [x] [Review][Defer] No mouse/touch E2E coverage for pointer-drag reorder — deferred, keyboard E2E + unit tests cover reorder paths
+
+#### Second Pass — Patch
+
+- [x] [Review][Patch] Focus restoration `useEffect` fires on mount (isDragging starts false), stealing focus from unrelated UI on page load [packing-list-row.tsx:111-115]
+- [x] [Review][Patch] DragOverlay renders non-functional checkbox in drag ghost — passes `onToggle={() => {}}` to PackingRow, rendering an interactive-looking but no-op checkbox; pass `onToggle={undefined}` to suppress it [packing-list-sortable.tsx:856-864]
+- [x] [Review][Patch] E2E keyboard-move step calls `dragHandle.focus()` without first asserting visibility; focus silently no-ops if element is detached or not yet visible [packing-tab.steps.ts:192]
+- [x] [Review][Patch] `packing-list-row.test.tsx` mocks `useSortable` wholesale but never asserts `animateLayoutChanges: () => false` is passed — the NFR3-critical option is untested [packing-list-row.test.tsx]
+- [x] [Review][Patch] `localItems` not reset when error-path `router.refresh()` returns identical server data — `prevItems !== items` guard never fires, leaving UI stuck in failed optimistic state [packing-list-view.tsx:103 / use-trip-detail-handlers.ts:254]
+
+#### Second Pass — Deferred
+
+- [x] [Review][Defer] Non-label item dragged over disabled label position may bypass snap-to-nearest behavior, corrupting section grouping [packing-list-sortable.tsx] — deferred, spec-acknowledged collision behavior; Phase 1 flat position model
+- [x] [Review][Defer] Keyboard-move step assertion hardcodes `index === 1` for any item name — correct for current Item A usage but fragile if step is reused [packing-tab.steps.ts:195] — deferred, correct for current single test case
+- [x] [Review][Defer] Optimistic reorder clears on concurrent add/remove resolving mid-flight — deferred, explicitly deferred in first pass (referential equality pattern)

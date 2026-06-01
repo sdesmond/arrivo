@@ -66,7 +66,7 @@ export interface TripDetailHandlers {
   handleAddPackingItem: (name: string, isLabel?: boolean) => void;
   handleRemovePackingItem: (id: string) => void;
   handleTogglePackingItem: (id: string) => Promise<void>;
-  handleReorderPackingItems: (orderedItemIds: string[]) => void;
+  handleReorderPackingItems: (orderedItemIds: string[], onError?: () => void) => void;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -254,12 +254,13 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleReorderPackingItems(orderedItemIds: string[]): void {
+  function handleReorderPackingItems(orderedItemIds: string[], onError?: () => void): void {
     React.startTransition(async () => {
       try {
         await reorderPackingItems(trip.id, orderedItemIds);
         router.refresh();
       } catch (error) {
+        onError?.();
         toast.error(error instanceof Error ? error.message : "Failed to reorder packing items. Please try again.");
         router.refresh();
       }

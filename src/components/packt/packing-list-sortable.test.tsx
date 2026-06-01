@@ -112,7 +112,7 @@ describe("PackingListSortable", () => {
       { id: "item-a", name: "Item A", done: false, position: 1 },
       { id: "item-c", name: "Item C", done: false, position: 2 },
     ]);
-    expect(onReorderItems).toHaveBeenCalledWith(["item-b", "item-a", "item-c"]);
+    expect(onReorderItems).toHaveBeenCalledWith(["item-b", "item-a", "item-c"], expect.any(Function));
   });
 
   it("ignores drag-end events without a valid destination", () => {

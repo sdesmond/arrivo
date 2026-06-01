@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-31
-last_updated: 2026-06-01 (story 1.3 created)
+last_updated: 2026-06-01 (story 1.3 done)
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
   epic-1: in-progress
   1-1-packing-tab-foundation-list-display-and-item-label-management: done
   1-2-check-items-as-packed-with-session-persistence-and-trip-card-progress: done
-  1-3-drag-to-reorder-items-with-position-persistence: ready-for-dev
+  1-3-drag-to-reorder-items-with-position-persistence: done
   1-4-inline-editing-label-strikethrough-and-contextual-add: backlog
   epic-1-retrospective: optional
 

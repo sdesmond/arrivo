@@ -158,7 +158,7 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() => expect(reorderPackingItems).toHaveBeenCalledWith("trip-1", ["pack-2", "pack-1"]));
     expect(toast.error).not.toHaveBeenCalled();
-    expect(mockRefresh).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });
 
   it("surfaces a toast and refreshes the route when packing reorder fails", async () => {
@@ -171,6 +171,20 @@ describe("useTripDetailHandlers", () => {
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Reorder failed"));
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("calls onError callback before refresh when packing reorder fails", async () => {
+    vi.mocked(reorderPackingItems).mockRejectedValueOnce(new Error("Reorder failed"));
+    const onError = vi.fn();
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleReorderPackingItems(["pack-2", "pack-1"], onError);
+    });
+
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
     expect(mockRefresh).toHaveBeenCalledOnce();
   });
 

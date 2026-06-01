@@ -35,7 +35,7 @@ export interface TripDetailTabBodyProps {
   onAddPackingItem: (name: string, isLabel?: boolean) => void;
   onRemovePackingItem: (id: string) => void;
   onTogglePackingItem: (id: string) => Promise<void>;
-  onReorderPackingItems: (orderedItemIds: string[]) => void;
+  onReorderPackingItems: (orderedItemIds: string[], onError?: () => void) => void;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,

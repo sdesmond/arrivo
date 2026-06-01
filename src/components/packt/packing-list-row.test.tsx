@@ -1,17 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingRow, SortablePackingRow } from "./packing-list-row";
 
-vi.mock("@dnd-kit/sortable", () => ({
-  useSortable: vi.fn(() => ({
+const useSortableMock = vi.hoisted(() =>
+  vi.fn(() => ({
     attributes: { "aria-roledescription": "sortable" },
     listeners: {},
     setNodeRef: vi.fn(),
     transform: null,
     transition: undefined,
     isDragging: false,
-  })),
+  }))
+);
+
+vi.mock("@dnd-kit/sortable", () => ({
+  useSortable: useSortableMock,
 }));
 
 vi.mock("@dnd-kit/utilities", () => ({
@@ -86,6 +90,17 @@ describe("PackingRow", () => {
 });
 
 describe("SortablePackingRow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("passes animateLayoutChanges that returns false to useSortable", () => {
+    render(<SortablePackingRow id="item-1" item={itemRow} onRemove={vi.fn()} />);
+    const calls = useSortableMock.mock.calls as unknown[][];
+    const config = calls[0]?.[0] as { animateLayoutChanges?: () => boolean } | undefined;
+    expect(config?.animateLayoutChanges?.()).toBe(false);
+  });
+
   it("renders drag handle for non-label items", () => {
     render(<SortablePackingRow id="item-1" item={itemRow} onRemove={vi.fn()} />);
     expect(screen.getByLabelText("Reorder Passport")).toBeInTheDocument();

@@ -13,7 +13,7 @@ interface PackingListViewProps {
   onAddItem: (name: string, isLabel?: boolean) => void;
   onRemoveItem: (id: string) => void;
   onToggleItem: (id: string) => Promise<void>;
-  onReorderItems: (orderedItemIds: string[]) => void;
+  onReorderItems: (orderedItemIds: string[], onError?: () => void) => void;
 }
 
 interface PackingEntryFormProps {

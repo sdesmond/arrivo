@@ -187,6 +187,7 @@ When("I uncheck the packing item named {string}", async ({ page }, name: string)
 
 When("I keyboard-move the item {string} down one position", async ({ page }, name: string) => {
   const dragHandle = page.getByTitle(`Reorder ${name}`);
+  await expect(dragHandle).toBeVisible();
   await dragHandle.focus();
   await page.keyboard.press("Space");
   await page.keyboard.press("ArrowDown");
