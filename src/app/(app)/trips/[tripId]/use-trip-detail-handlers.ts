@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import type {
   DayItemType,
   DayItinerary,
-  PackingItem,
   TripDetailPayload,
   TripEvent,
   TripDateChangeConfirmation,
@@ -59,7 +58,7 @@ export interface TripDetailHandlers {
   handleToggleChecklistItem: (itemId: string) => void;
   handleAddPackingItem: (name: string, isLabel?: boolean) => void;
   handleRemovePackingItem: (id: string) => void;
-  handleTogglePackingItem: (id: string) => void;
+  handleTogglePackingItem: (id: string) => Promise<void>;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -232,13 +231,18 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleTogglePackingItem(id: string): void {
-    React.startTransition(async () => {
-      try {
-        await togglePackingItem(id);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to update packing item. Please try again.");
-      }
+  function handleTogglePackingItem(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await togglePackingItem(id);
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to update packing item. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
     });
   }
 

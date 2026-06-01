@@ -464,3 +464,6 @@ claude-sonnet-4-6
 - [x] [Review][Defer] Optimistic `aria-live` announcement fires before server action resolves [`src/components/packt/packing-list-view.tsx:231-237`] — deferred, pre-existing pattern (other handlers follow same optimistic announcement approach).
 - [x] [Review][Defer] Race condition between two COUNT queries in `listTripsForUser` [`src/lib/queries.ts:102-110`] — deferred, pre-existing architectural decision (spec notes this and accepts it for Phase 1).
 - [x] [Review][Defer] Test asserts hardcoded `"ungrouped-1"` ID not visible in diff [`src/components/packt/packing-list-view.test.tsx:117`] — deferred, pre-existing test data context.
+- [x] [Review][Patch] Packing mutations do not revalidate the trips list, so trip-card progress can stay stale after returning to `/trips` [`src/app/(app)/trips/actions.ts:469`, `src/app/(app)/trips/actions.ts:478`, `src/app/(app)/trips/actions.ts:487`]
+- [x] [Review][Patch] Toggle live-region announcements report success before persistence is confirmed [`src/components/packt/packing-list-view.tsx:237-249`]
+- [x] [Review][Patch] AC5 is not covered where mixed label-plus-item data drives the packed-count query [`tests/e2e/e2e-seed-data.ts:118`, `tests/e2e/features/packing-tab.feature:67`]

@@ -121,6 +121,12 @@ export const E2E_PACKING_ITEMS = [
   { name: "Beach towel", isLabel: false, done: false, position: 2 },
 ];
 
+export const E2E_PACKING_ITEMS_WITH_LABELS = [
+  { name: "Beach day", isLabel: true, done: false, position: 0 },
+  { name: "Sunscreen", isLabel: false, done: false, position: 1 },
+  { name: "Sunglasses", isLabel: false, done: false, position: 2 },
+];
+
 export const E2E_MANAGE_DOC = {
   name: "E2E Manage Doc",
   kind: "pdf",

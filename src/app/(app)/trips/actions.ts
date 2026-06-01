@@ -467,6 +467,7 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
     position: (maxPos ?? -1) + 1,
   });
   revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
 }
 
 export async function togglePackingItem(itemId: string) {
@@ -476,6 +477,7 @@ export async function togglePackingItem(itemId: string) {
   await assertTripAccess(item.tripId, user.id!, "editor");
   await db.update(packingItems).set({ done: !item.done }).where(eq(packingItems.id, itemId));
   revalidatePath(`/trips/${item.tripId}`);
+  revalidatePath("/trips");
 }
 
 export async function removePackingItem(itemId: string) {
@@ -485,6 +487,7 @@ export async function removePackingItem(itemId: string) {
   await assertTripAccess(item.tripId, user.id!, "editor");
   await db.delete(packingItems).where(eq(packingItems.id, itemId));
   revalidatePath(`/trips/${item.tripId}`);
+  revalidatePath("/trips");
 }
 
 export interface LocationSuggestion {

@@ -69,5 +69,10 @@ Feature: Packing tab
     Then the trip card for "E2E Test Trip" should show "0 / 3 packed"
     When I open the trip and go to the Packing tab
     And I check the packing item named "Sunscreen"
-    When I navigate to the trips list
+    When I return to the trips list
     Then the trip card for "E2E Test Trip" should show "1 / 3 packed"
+
+  Scenario: Trip card progress excludes section labels from the packed count
+    Given I have pre-seeded packing items with labels for the trip
+    When I navigate to the trips list
+    Then the trip card for "E2E Test Trip" should show "0 / 2 packed"

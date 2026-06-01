@@ -12,7 +12,7 @@ interface PackingListViewProps {
   items: PackingItem[];
   onAddItem: (name: string, isLabel?: boolean) => void;
   onRemoveItem: (id: string) => void;
-  onToggleItem: (id: string) => void;
+  onToggleItem: (id: string) => Promise<void>;
 }
 
 interface PackingSection {
@@ -38,6 +38,7 @@ interface PackingEntryFormProps {
 interface PackingRowProps {
   item: PackingItem;
   isLabel?: boolean;
+  isPending?: boolean;
   onRemove: () => void;
   onToggle?: () => void;
 }
@@ -126,7 +127,7 @@ function PackingEntryForm({
   );
 }
 
-function PackingRow({ item, isLabel, onRemove, onToggle }: PackingRowProps): ReactElement {
+function PackingRow({ item, isLabel, isPending, onRemove, onToggle }: PackingRowProps): ReactElement {
   return (
     <div
       className={cn("flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2", isLabel ? "shadow-none" : "")}
@@ -141,6 +142,7 @@ function PackingRow({ item, isLabel, onRemove, onToggle }: PackingRowProps): Rea
           aria-checked={item.done}
           aria-label={`Pack ${item.name}`}
           className="flex min-h-11 min-w-11 shrink-0 items-center justify-center"
+          disabled={isPending}
           role="checkbox"
           title={item.done ? `Unpack ${item.name}` : `Pack ${item.name}`}
           type="button"
@@ -201,6 +203,7 @@ export function PackingListView({
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
+  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
   const { sections, ungroupedItems } = useMemo(() => groupPackingItems(items), [items]);
@@ -210,6 +213,7 @@ export function PackingListView({
   if (prevItems !== items) {
     setPrevItems(items);
     setIsSubmitting(false);
+    setPendingItemIds(new Set());
   }
 
   function handleDraftNameChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -234,12 +238,25 @@ export function PackingListView({
     setAnnouncementId((id) => id + 1);
   }
 
-  function handleToggle(item: PackingItem): void {
-    if (!item.id) return;
-    onToggleItem(item.id);
-    const action = item.done ? "unchecked" : "checked";
-    setAnnouncement(`${item.name} ${action}.`);
-    setAnnouncementId((id) => id + 1);
+  async function handleToggle(item: PackingItem): Promise<void> {
+    if (!item.id || pendingItemIds.has(item.id)) return;
+
+    setPendingItemIds((ids) => new Set(ids).add(item.id!));
+
+    try {
+      await onToggleItem(item.id);
+      const action = item.done ? "unchecked" : "checked";
+      setAnnouncement(`${item.name} ${action}.`);
+      setAnnouncementId((id) => id + 1);
+    } catch {
+      setPendingItemIds((ids) => {
+        const nextIds = new Set(ids);
+        nextIds.delete(item.id!);
+        return nextIds;
+      });
+      setAnnouncement(`Failed to update ${item.name}.`);
+      setAnnouncementId((id) => id + 1);
+    }
   }
 
   return (
@@ -283,8 +300,9 @@ export function PackingListView({
                       <PackingRow
                         key={item.id}
                         item={item}
+                        isPending={item.id ? pendingItemIds.has(item.id) : false}
                         onRemove={() => handleRemove(item)}
-                        onToggle={() => handleToggle(item)}
+                        onToggle={() => void handleToggle(item)}
                       />
                     ))}
                   </div>
@@ -303,8 +321,9 @@ export function PackingListView({
                   <PackingRow
                     key={item.id}
                     item={item}
+                    isPending={item.id ? pendingItemIds.has(item.id) : false}
                     onRemove={() => handleRemove(item)}
-                    onToggle={() => handleToggle(item)}
+                    onToggle={() => void handleToggle(item)}
                   />
                 ))}
               </div>

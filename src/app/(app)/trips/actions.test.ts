@@ -74,6 +74,7 @@ import {
   removePackingItem,
   retrieveLocation,
   searchLocations,
+  togglePackingItem,
   updateTripMetadata,
 } from "./actions";
 import { searchCoverImages } from "./cover-image-search-actions";
@@ -775,6 +776,7 @@ describe("packing actions", () => {
       position: 3,
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
   });
 
   it("assigns position 0 when the trip has no existing packing items", async () => {
@@ -811,6 +813,30 @@ describe("packing actions", () => {
     expect(db.delete).toHaveBeenCalledWith(packingItems);
     expect(deleteWhere).toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("toggles a packing entry and revalidates both the trip detail and trips list", async () => {
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ id: "pack-1", tripId: "trip-1", done: false }],
+      }),
+    });
+    db.update.mockReturnValueOnce({
+      set: () => ({
+        where: updateWhere,
+      }),
+    });
+
+    await togglePackingItem("pack-1");
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(db.update).toHaveBeenCalledWith(packingItems);
+    expect(updateWhere).toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
   });
 });
 

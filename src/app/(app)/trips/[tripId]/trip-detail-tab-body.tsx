@@ -34,7 +34,7 @@ export interface TripDetailTabBodyProps {
   onToggleChecklistItem: (itemId: string) => void;
   onAddPackingItem: (name: string, isLabel?: boolean) => void;
   onRemovePackingItem: (id: string) => void;
-  onTogglePackingItem: (id: string) => void;
+  onTogglePackingItem: (id: string) => Promise<void>;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,

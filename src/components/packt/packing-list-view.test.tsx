@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
 import type { PackingItem } from "@/data/types";
@@ -12,10 +12,20 @@ const groupedItems: PackingItem[] = [
   { id: "item-2", name: "Socks", done: false, position: 4 },
 ];
 
+function createToggleItemHandler() {
+  return vi.fn(async () => undefined);
+}
+
 describe("PackingListView", () => {
   it("renders the empty state prompt when there are no items", () => {
     render(
-      <PackingListView tripId="trip-1" items={[]} onAddItem={vi.fn()} onRemoveItem={vi.fn()} onToggleItem={vi.fn()} />
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+      />
     );
 
     expect(screen.getByRole("heading", { name: "Your packing list is empty" })).toBeInTheDocument();
@@ -31,7 +41,7 @@ describe("PackingListView", () => {
         items={groupedItems}
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
-        onToggleItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
       />
     );
 
@@ -53,7 +63,13 @@ describe("PackingListView", () => {
     const onAddItem = vi.fn();
 
     render(
-      <PackingListView tripId="trip-1" items={[]} onAddItem={onAddItem} onRemoveItem={vi.fn()} onToggleItem={vi.fn()} />
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+      />
     );
 
     await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
@@ -68,7 +84,13 @@ describe("PackingListView", () => {
     const onAddItem = vi.fn();
 
     render(
-      <PackingListView tripId="trip-1" items={[]} onAddItem={onAddItem} onRemoveItem={vi.fn()} onToggleItem={vi.fn()} />
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+      />
     );
 
     await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Documents");
@@ -87,7 +109,7 @@ describe("PackingListView", () => {
         items={groupedItems}
         onAddItem={vi.fn()}
         onRemoveItem={onRemoveItem}
-        onToggleItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
       />
     );
 
@@ -103,7 +125,7 @@ describe("PackingListView", () => {
         items={groupedItems}
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
-        onToggleItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
       />
     );
 
@@ -123,7 +145,7 @@ describe("PackingListView", () => {
         items={groupedItems}
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
-        onToggleItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
       />
     );
 
@@ -140,7 +162,7 @@ describe("PackingListView", () => {
         items={checkedItems}
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
-        onToggleItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
       />
     );
 
@@ -151,7 +173,7 @@ describe("PackingListView", () => {
 
   it("calls onToggleItem with the item's id when checkbox is clicked", async () => {
     const user = userEvent.setup();
-    const onToggleItem = vi.fn();
+    const onToggleItem = createToggleItemHandler();
 
     render(
       <PackingListView
@@ -165,7 +187,7 @@ describe("PackingListView", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
 
-    expect(onToggleItem).toHaveBeenCalledWith("ungrouped-1");
+    await waitFor(() => expect(onToggleItem).toHaveBeenCalledWith("ungrouped-1"));
   });
 
   it("does not render a checkbox button for section labels", () => {
@@ -175,7 +197,7 @@ describe("PackingListView", () => {
         items={groupedItems}
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
-        onToggleItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
       />
     );
 
@@ -184,7 +206,7 @@ describe("PackingListView", () => {
 
   it("announces toggle via aria-live region", async () => {
     const user = userEvent.setup();
-    const onToggleItem = vi.fn();
+    const onToggleItem = createToggleItemHandler();
     const { container } = render(
       <PackingListView
         tripId="trip-1"
@@ -197,13 +219,15 @@ describe("PackingListView", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
 
-    const liveRegion = container.querySelector("[aria-live=polite]");
-    expect(liveRegion).toHaveTextContent("Passport checked.");
+    await waitFor(() => {
+      const liveRegion = container.querySelector("[aria-live=polite]");
+      expect(liveRegion).toHaveTextContent("Passport checked.");
+    });
   });
 
   it("announces uncheck via aria-live region", async () => {
     const user = userEvent.setup();
-    const onToggleItem = vi.fn();
+    const onToggleItem = createToggleItemHandler();
     const checkedItems: PackingItem[] = [{ id: "item-1", name: "Sunscreen", done: true, position: 0 }];
     const { container } = render(
       <PackingListView
@@ -217,8 +241,62 @@ describe("PackingListView", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Pack Sunscreen" }));
 
+    await waitFor(() => {
+      const liveRegion = container.querySelector("[aria-live=polite]");
+      expect(liveRegion).toHaveTextContent("Sunscreen unchecked.");
+    });
+  });
+
+  it("waits for toggle persistence before announcing success", async () => {
+    const user = userEvent.setup();
+    let resolveToggle: (() => void) | undefined;
+    const onToggleItem = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveToggle = resolve;
+        })
+    );
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={onToggleItem}
+      />
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
+
     const liveRegion = container.querySelector("[aria-live=polite]");
-    expect(liveRegion).toHaveTextContent("Sunscreen unchecked.");
+    expect(liveRegion).not.toHaveTextContent("Passport checked.");
+
+    resolveToggle?.();
+
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Passport checked."));
+  });
+
+  it("announces toggle failures without reporting a packed-state change", async () => {
+    const user = userEvent.setup();
+    const onToggleItem = vi.fn(async () => {
+      throw new Error("nope");
+    });
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={onToggleItem}
+      />
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
+
+    await waitFor(() => {
+      const liveRegion = container.querySelector("[aria-live=polite]");
+      expect(liveRegion).toHaveTextContent("Failed to update Passport.");
+    });
   });
 
   it("checkbox button has min-h-11 and min-w-11 classes", () => {
@@ -228,7 +306,7 @@ describe("PackingListView", () => {
         items={groupedItems}
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
-        onToggleItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
       />
     );
 
