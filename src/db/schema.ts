@@ -222,6 +222,7 @@ export const packingItems = pgTable("packing_items", {
     .references(() => trips.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   done: boolean("done").default(false),
+  isLabel: boolean("is_label").default(false).notNull(),
   position: integer("position").notNull(),
 });
 

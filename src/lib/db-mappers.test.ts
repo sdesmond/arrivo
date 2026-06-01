@@ -11,12 +11,14 @@ import {
   dbWishlistToType,
   dbCompanionToType,
   dbUserToType,
+  dbPackingItemToType,
 } from "@/lib/db-mappers";
 import type {
   trips,
   events,
   documents,
   collaborators,
+  packingItems,
   users,
   itineraryNotes,
   itineraryChecklists,
@@ -30,6 +32,7 @@ type TripRow = typeof trips.$inferSelect;
 type EventRow = typeof events.$inferSelect;
 type DocRow = typeof documents.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
+type PackingItemRow = typeof packingItems.$inferSelect;
 type UserRow = typeof users.$inferSelect;
 
 // ── dbTripToType ──────────────────────────────────────────────────────────────
@@ -308,6 +311,39 @@ describe("dbCollabToType", () => {
     });
     expect(result.tintBg).toBe("oklch(0.86 0.07 30)");
     expect(result.tintFg).toBe("oklch(0.30 0.10 30)");
+  });
+});
+
+// ── dbPackingItemToType ──────────────────────────────────────────────────────
+
+const BASE_PACKING_ITEM: PackingItemRow = {
+  id: "packing-1",
+  tripId: "trip-1",
+  name: "Passport",
+  done: false,
+  isLabel: false,
+  position: 0,
+};
+
+describe("dbPackingItemToType", () => {
+  it("maps packing item fields including labels", () => {
+    const result = dbPackingItemToType({ ...BASE_PACKING_ITEM, name: "Documents", isLabel: true, position: 3 });
+
+    expect(result).toEqual({
+      id: "packing-1",
+      tripId: "trip-1",
+      name: "Documents",
+      done: false,
+      isLabel: true,
+      position: 3,
+    });
+  });
+
+  it("defaults nullable done values to false", () => {
+    const result = dbPackingItemToType({ ...BASE_PACKING_ITEM, done: null });
+
+    expect(result.done).toBe(false);
+    expect(result.isLabel).toBe(false);
   });
 });
 

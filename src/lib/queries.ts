@@ -26,6 +26,7 @@ import {
   dbLoyaltyToType,
   dbWishlistToType,
   dbCompanionToType,
+  dbPackingItemToType,
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
 import type { TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
@@ -251,11 +252,6 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     })),
     docs: tripDocs.map(dbDocToType),
     collaborators: tripCollaborators.map(dbCollabToType),
-    packingItems: tripPackingItems.map((p) => ({
-      id: p.id,
-      name: p.name,
-      done: p.done ?? false,
-      position: p.position,
-    })),
+    packingItems: tripPackingItems.map(dbPackingItemToType),
   };
 }

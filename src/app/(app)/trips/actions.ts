@@ -463,6 +463,7 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
     tripId,
     name: input.name,
     done: false,
+    isLabel: input.isLabel ?? false,
     position: (maxPos ?? -1) + 1,
   });
   revalidatePath(`/trips/${tripId}`);
