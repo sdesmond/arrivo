@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type ReactElement } from "react";
-import { GripVertical, Check, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { GripVertical, Check, X, Trash2 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { PackingItem } from "@/data/types";
@@ -11,10 +11,12 @@ import { cn } from "@/lib/utils";
 export interface PackingRowProps {
   item: PackingItem;
   isLabel?: boolean;
+  isComplete?: boolean;
   isPending?: boolean;
   dragHandle?: ReactElement;
   onRemove: () => void;
   onToggle?: () => void;
+  onEdit?: (name: string) => void;
 }
 
 export interface SortablePackingRowProps extends PackingRowProps {
@@ -24,11 +26,34 @@ export interface SortablePackingRowProps extends PackingRowProps {
 export function PackingRow({
   item,
   isLabel,
+  isComplete,
   isPending,
   dragHandle,
   onRemove,
   onToggle,
+  onEdit,
 }: PackingRowProps): ReactElement {
+  const [isEditing, setIsEditing] = useState(false);
+  const originalNameRef = useRef(item.name);
+
+  function commitEdit(newName: string): void {
+    const trimmed = newName.trim();
+    setIsEditing(false);
+    if (!trimmed) return;
+    if (trimmed === originalNameRef.current) return;
+    onEdit?.(trimmed);
+  }
+
+  function cancelEdit(): void {
+    setIsEditing(false);
+  }
+
+  function startEdit(): void {
+    if (!onEdit) return;
+    originalNameRef.current = item.name;
+    setIsEditing(true);
+  }
+
   return (
     <div
       className={cn("flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2", isLabel ? "shadow-none" : "")}
@@ -64,33 +89,87 @@ export function PackingRow({
         </button>
       )}
       <div className="min-w-0 flex-1">
-        {isLabel ? (
-          <h3 className="truncate text-sm font-semibold" data-packing-name style={{ color: "var(--fg)" }}>
-            {item.name}
-          </h3>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              className="min-w-0 flex-1 rounded-md border px-2 py-1 text-sm"
+              defaultValue={item.name}
+              maxLength={100}
+              style={{
+                background: "var(--bg)",
+                borderColor: "var(--line-strong)",
+                color: "var(--fg)",
+                outline: "none",
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitEdit(e.currentTarget.value);
+                if (e.key === "Escape") cancelEdit();
+              }}
+              onBlur={(e) => {
+                // don't commit on blur if focus moved to the delete button inside this row
+                const relatedTarget = e.relatedTarget as HTMLElement | null;
+                if (relatedTarget?.dataset.packingDeleteBtn) return;
+                commitEdit(e.target.value);
+              }}
+            />
+            {isLabel ? (
+              <Button
+                data-packing-delete-btn="true"
+                variant="ghost"
+                size="icon"
+                className="min-h-11 min-w-11 shrink-0 rounded-2xl text-fg-3 hover:text-fg"
+                title="Delete label"
+                aria-label="Delete label"
+                type="button"
+                onClick={() => onRemove()}
+              >
+                <Trash2 size={14} strokeWidth={1.5} />
+              </Button>
+            ) : null}
+          </div>
         ) : (
-          <p
-            className={cn("truncate text-sm font-medium", item.done ? "line-through" : "")}
-            data-packing-name
-            style={{ color: item.done ? "var(--fg-3)" : "var(--fg)" }}
-          >
-            {item.name}
-          </p>
+          <>
+            {isLabel ? (
+              <h3
+                className={cn("truncate text-sm font-semibold", isComplete ? "line-through" : "")}
+                data-packing-name
+                style={{ color: isComplete ? "var(--fg-3)" : "var(--fg)", cursor: onEdit ? "pointer" : "default" }}
+                onClick={startEdit}
+              >
+                {item.name}
+              </h3>
+            ) : (
+              <p
+                className={cn("truncate text-sm font-medium", item.done ? "line-through" : "")}
+                data-packing-name
+                style={{
+                  color: item.done ? "var(--fg-3)" : "var(--fg)",
+                  cursor: onEdit ? "pointer" : "default",
+                }}
+                onClick={startEdit}
+              >
+                {item.name}
+              </p>
+            )}
+            {isLabel ? (
+              <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>Section label</p>
+            ) : null}
+          </>
         )}
-        {isLabel ? (
-          <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>Section label</p>
-        ) : null}
       </div>
-      <Button
-        aria-label={`Remove ${item.name}`}
-        className="min-h-11 min-w-11 rounded-2xl text-fg-3 hover:text-fg"
-        title={`Remove ${item.name}`}
-        type="button"
-        variant="ghost"
-        onClick={onRemove}
-      >
-        <X size={14} strokeWidth={1.5} />
-      </Button>
+      {!isEditing ? (
+        <Button
+          aria-label={`Remove ${item.name}`}
+          className="min-h-11 min-w-11 rounded-2xl text-fg-3 hover:text-fg"
+          title={`Remove ${item.name}`}
+          type="button"
+          variant="ghost"
+          onClick={onRemove}
+        >
+          <X size={14} strokeWidth={1.5} />
+        </Button>
+      ) : null}
     </div>
   );
 }

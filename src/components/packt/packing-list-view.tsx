@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import type { PackingItem } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
 
-interface PackingListViewProps {
+export interface PackingListViewProps {
   tripId: string;
   items: PackingItem[];
-  onAddItem: (name: string, isLabel?: boolean) => void;
+  onAddItem: (name: string, isLabel?: boolean, afterItemId?: string, beforeItemId?: string) => void;
   onRemoveItem: (id: string) => void;
   onToggleItem: (id: string) => Promise<void>;
   onReorderItems: (orderedItemIds: string[], onError?: () => void) => void;
+  onEditItem?: (id: string, name: string) => void;
 }
 
 interface PackingEntryFormProps {
@@ -88,6 +89,7 @@ export function PackingListView({
   onRemoveItem,
   onToggleItem,
   onReorderItems,
+  onEditItem,
 }: PackingListViewProps): ReactElement {
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,6 +122,16 @@ export function PackingListView({
     setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
     setAnnouncementId((id) => id + 1);
     setDraftName("");
+  }
+
+  function handleContextualAdd(name: string, isLabel?: boolean, afterItemId?: string, beforeItemId?: string): void {
+    const trimmedName = name.trim();
+    if (!trimmedName || isSubmitting) return;
+
+    setIsSubmitting(true);
+    onAddItem(trimmedName, isLabel, afterItemId, beforeItemId);
+    setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
+    setAnnouncementId((id) => id + 1);
   }
 
   function handleRemove(item: PackingItem): void {
@@ -188,6 +200,9 @@ export function PackingListView({
             onToggleItem={handleToggle}
             onOptimisticReorder={setLocalItems}
             onReorderItems={onReorderItems}
+            isAdding={isSubmitting}
+            onEditItem={onEditItem}
+            onAddItem={handleContextualAdd}
           />
 
           <PackingEntryForm

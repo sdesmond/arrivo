@@ -87,6 +87,118 @@ describe("PackingRow", () => {
     rerender(<PackingRow item={itemRow} onRemove={vi.fn()} />);
     expect(screen.getByText("Passport").className).not.toContain("line-through");
   });
+
+  it("applies line-through style on label when isComplete is true", () => {
+    render(<PackingRow item={labelRow} isLabel isComplete onRemove={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Documents" }).className).toContain("line-through");
+  });
+
+  it("does not apply line-through style on label when isComplete is false", () => {
+    render(<PackingRow item={labelRow} isLabel isComplete={false} onRemove={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Documents" }).className).not.toContain("line-through");
+  });
+
+  it("does not apply line-through style on label when isComplete is undefined", () => {
+    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Documents" }).className).not.toContain("line-through");
+  });
+
+  it("clicking item name enters edit mode showing an input when onEdit is provided", async () => {
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={vi.fn()} />);
+    await user.click(screen.getByText("Passport"));
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("Passport");
+  });
+
+  it("clicking label name enters edit mode when onEdit is provided", async () => {
+    const user = userEvent.setup();
+    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} onEdit={vi.fn()} />);
+    await user.click(screen.getByRole("heading", { name: "Documents" }));
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("pressing Enter in edit mode calls onEdit with trimmed new name", async () => {
+    const onEdit = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={onEdit} />);
+    await user.click(screen.getByText("Passport"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "Passport (renewed)");
+    await user.keyboard("{Enter}");
+    expect(onEdit).toHaveBeenCalledWith("Passport (renewed)");
+  });
+
+  it("pressing Escape in edit mode cancels and reverts to original name without calling onEdit", async () => {
+    const onEdit = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={onEdit} />);
+    await user.click(screen.getByText("Passport"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "Different name");
+    await user.keyboard("{Escape}");
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(screen.getByText("Passport")).toBeInTheDocument();
+  });
+
+  it("edit mode does not call onEdit when name is unchanged", async () => {
+    const onEdit = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={onEdit} />);
+    await user.click(screen.getByText("Passport"));
+    await user.keyboard("{Enter}");
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("edit mode does not call onEdit when name is blank", async () => {
+    const onEdit = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={onEdit} />);
+    await user.click(screen.getByText("Passport"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.keyboard("{Enter}");
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("edit input has maxLength=100", async () => {
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={vi.fn()} />);
+    await user.click(screen.getByText("Passport"));
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", "100");
+  });
+
+  it("label in edit mode shows a delete button", async () => {
+    const user = userEvent.setup();
+    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} onEdit={vi.fn()} />);
+    await user.click(screen.getByRole("heading", { name: "Documents" }));
+    expect(screen.getByRole("button", { name: "Delete label" })).toBeInTheDocument();
+  });
+
+  it("clicking delete button in label edit mode calls onRemove", async () => {
+    const onRemove = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={labelRow} isLabel onRemove={onRemove} onEdit={vi.fn()} />);
+    await user.click(screen.getByRole("heading", { name: "Documents" }));
+    await user.click(screen.getByRole("button", { name: "Delete label" }));
+    expect(onRemove).toHaveBeenCalledOnce();
+  });
+
+  it("remove button is hidden in edit mode", async () => {
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={vi.fn()} />);
+    await user.click(screen.getByText("Passport"));
+    expect(screen.queryByRole("button", { name: "Remove Passport" })).not.toBeInTheDocument();
+  });
+
+  it("does not enter edit mode when onEdit is not provided", async () => {
+    const user = userEvent.setup();
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} />);
+    await user.click(screen.getByText("Passport"));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
 });
 
 describe("SortablePackingRow", () => {
