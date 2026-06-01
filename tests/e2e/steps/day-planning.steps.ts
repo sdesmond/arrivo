@@ -646,7 +646,7 @@ Then("the itinerary empty state shows buttons for adding events, notes, and chec
 When("I add a day to the itinerary", async ({ page }) => {
   await page.getByRole("button", { name: "Add Day" }).click();
   await expect(page.getByText("Sun, Aug 2")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/day \d+ today/)).toBeVisible();
+  await expect(page.getByText(/\b2 days\b/)).toBeVisible();
   await expect(page.getByText("Aug 1, 2026 — Aug 2, 2026")).toBeVisible();
 });
 
@@ -663,7 +663,7 @@ Then("the appended day and advanced end date are persisted", async () => {
 When("I remove the final empty day", async ({ page }) => {
   await page.getByTitle("Remove day").last().click();
   await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/day \d+ today/)).toBeVisible();
+  await expect(page.getByText(/\b1 day\b/)).toBeVisible();
 });
 
 Then("only the preceding day remains scheduled", async () => {
@@ -777,7 +777,7 @@ Then("the edited trip includes the prepended scheduled days", async ({ page }) =
 Then("the empty removed days are deleted without a warning", async ({ page }) => {
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await expect(page.getByText("Sun, Aug 3")).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/day \d+ today/)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/\b1 day\b/)).toBeVisible({ timeout: 10_000 });
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, structuralTripId!));
     const [trip] = await db.select().from(trips).where(eq(trips.id, structuralTripId!));
