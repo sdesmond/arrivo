@@ -52,7 +52,7 @@ export function TripDetailClient({
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, collaborators } = detail;
+  const { trip, days, unscheduledEvents, docs, collaborators, packingItems } = detail;
 
   async function handleTripSave(patch: UpdateTripPatch): Promise<void> {
     const result = await handlers.handleTripSave(patch);
@@ -232,6 +232,7 @@ export function TripDetailClient({
             days={days}
             unscheduledEvents={unscheduledEvents}
             docs={docs}
+            packingItems={packingItems}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}
             isNew={isNew}
@@ -251,6 +252,8 @@ export function TripDetailClient({
             onUpdateChecklistItem={handlers.handleUpdateChecklistItem}
             onDeleteChecklistItem={handlers.handleDeleteChecklistItem}
             onToggleChecklistItem={handlers.handleToggleChecklistItem}
+            onAddPackingItem={handlers.handleAddPackingItem}
+            onRemovePackingItem={handlers.handleRemovePackingItem}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

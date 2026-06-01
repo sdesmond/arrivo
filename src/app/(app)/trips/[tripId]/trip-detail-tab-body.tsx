@@ -3,7 +3,8 @@
 import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
 import { TripDocsTab } from "@/components/packt/trip-docs-tab";
-import type { DayItinerary, TripEvent, DayItemType, Document, TripDetailTab } from "@/data/types";
+import { PackingListView } from "@/components/packt/packing-list-view";
+import type { DayItinerary, TripEvent, DayItemType, Document, PackingItem, TripDetailTab } from "@/data/types";
 
 export interface TripDetailTabBodyProps {
   tripId: string;
@@ -11,6 +12,7 @@ export interface TripDetailTabBodyProps {
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
   docs: Document[];
+  packingItems: PackingItem[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
   isNew?: boolean;
@@ -30,6 +32,8 @@ export interface TripDetailTabBodyProps {
   onUpdateChecklistItem: (itemId: string, content: string) => void;
   onDeleteChecklistItem: (itemId: string) => void;
   onToggleChecklistItem: (itemId: string) => void;
+  onAddPackingItem: (name: string, isLabel?: boolean) => void;
+  onRemovePackingItem: (id: string) => void;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -45,6 +49,7 @@ export function TripDetailTabBody({
   days,
   unscheduledEvents,
   docs,
+  packingItems,
   dateFormat,
   initialExpandedDayNumber,
   isNew,
@@ -64,6 +69,8 @@ export function TripDetailTabBody({
   onUpdateChecklistItem,
   onDeleteChecklistItem,
   onToggleChecklistItem,
+  onAddPackingItem,
+  onRemovePackingItem,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -108,9 +115,12 @@ export function TripDetailTabBody({
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
       )}
       {activeTab === "pack" && (
-        <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>
-          Packing list view coming soon.
-        </div>
+        <PackingListView
+          tripId={tripId}
+          items={packingItems}
+          onAddItem={onAddPackingItem}
+          onRemoveItem={onRemovePackingItem}
+        />
       )}
       {activeTab === "notes" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Notes coming soon.</div>

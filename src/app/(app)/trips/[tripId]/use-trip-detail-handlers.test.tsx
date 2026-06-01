@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import { reorderDayItems } from "./actions";
-import { deleteTrip } from "../actions";
+import { addPackingItem, deleteTrip, removePackingItem } from "../actions";
 import type { TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
@@ -20,7 +20,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../actions", () => ({
+  addPackingItem: vi.fn(),
   deleteTrip: vi.fn(),
+  removePackingItem: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
 
@@ -118,6 +120,30 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() => expect(deleteTrip).toHaveBeenCalledWith("trip-1"));
     expect(mockPush).toHaveBeenCalledWith("/trips");
+  });
+
+  it("adds packing items against the current trip", async () => {
+    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleAddPackingItem("Passport", true);
+    });
+
+    await waitFor(() => expect(addPackingItem).toHaveBeenCalledWith("trip-1", { name: "Passport", isLabel: true }));
+  });
+
+  it("removes packing items by id", async () => {
+    vi.mocked(removePackingItem).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleRemovePackingItem("pack-1");
+    });
+
+    await waitFor(() => expect(removePackingItem).toHaveBeenCalledWith("pack-1"));
   });
 
   it("surfaces a toast when trip deletion fails", async () => {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type {
   DayItemType,
   DayItinerary,
+  PackingItem,
   TripDetailPayload,
   TripEvent,
   TripDateChangeConfirmation,
@@ -13,7 +14,7 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { deleteTrip, updateTripMetadata } from "../actions";
+import { addPackingItem, deleteTrip, removePackingItem, updateTripMetadata } from "../actions";
 import {
   createChecklist,
   createChecklistItem,
@@ -56,6 +57,8 @@ export interface TripDetailHandlers {
   handleUpdateChecklistItem: (itemId: string, content: string) => void;
   handleDeleteChecklistItem: (itemId: string) => void;
   handleToggleChecklistItem: (itemId: string) => void;
+  handleAddPackingItem: (name: string, isLabel?: boolean) => void;
+  handleRemovePackingItem: (id: string) => void;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -208,6 +211,26 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
+  function handleAddPackingItem(name: string, isLabel?: boolean): void {
+    React.startTransition(async () => {
+      try {
+        await addPackingItem(trip.id, { name, isLabel });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to add packing entry. Please try again.");
+      }
+    });
+  }
+
+  function handleRemovePackingItem(id: string): void {
+    React.startTransition(async () => {
+      try {
+        await removePackingItem(id);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to remove packing entry. Please try again.");
+      }
+    });
+  }
+
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -283,6 +306,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleUpdateChecklistItem,
     handleDeleteChecklistItem,
     handleToggleChecklistItem,
+    handleAddPackingItem,
+    handleRemovePackingItem,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,
