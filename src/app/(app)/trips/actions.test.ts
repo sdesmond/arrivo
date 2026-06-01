@@ -1,12 +1,23 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { collaborators, days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import {
+  collaborators,
+  days,
+  documents,
+  events,
+  itineraryChecklists,
+  itineraryNotes,
+  packingItems,
+  trips,
+} from "@/db/schema";
 
 const { assertTripAccess, db, redirect, requireUser, revalidatePath } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   db: {
-    transaction: vi.fn(),
+    delete: vi.fn(),
+    insert: vi.fn(),
     select: vi.fn(),
+    transaction: vi.fn(),
     update: vi.fn(),
   },
   redirect: vi.fn(),
@@ -57,7 +68,14 @@ vi.mock("@mapbox/search-js-core", () => ({
 }));
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import { createTrip, retrieveLocation, searchLocations, updateTripMetadata } from "./actions";
+import {
+  addPackingItem,
+  createTrip,
+  removePackingItem,
+  retrieveLocation,
+  searchLocations,
+  updateTripMetadata,
+} from "./actions";
 import { searchCoverImages } from "./cover-image-search-actions";
 import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
 import { deriveGraphicCover } from "@/lib/utils";
@@ -723,6 +741,76 @@ describe("searchLocations", () => {
     mockSearchBoxSuggest.mockResolvedValue({ suggestions: [] });
 
     await expect(searchLocations("Tokyo", "sess")).resolves.toEqual([]);
+  });
+});
+
+describe("packing actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("adds a packing label with the next position after access checks", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ maxPos: 2 }],
+      }),
+    });
+    db.insert.mockReturnValueOnce({
+      values: insertValues,
+    });
+
+    await addPackingItem("trip-1", { name: "Documents", isLabel: true });
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(db.insert).toHaveBeenCalledWith(packingItems);
+    expect(insertValues).toHaveBeenCalledWith({
+      tripId: "trip-1",
+      name: "Documents",
+      done: false,
+      isLabel: true,
+      position: 3,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("assigns position 0 when the trip has no existing packing items", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ maxPos: null }],
+      }),
+    });
+    db.insert.mockReturnValueOnce({
+      values: insertValues,
+    });
+
+    await addPackingItem("trip-1", { name: "Passport" });
+
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 0 }));
+  });
+
+  it("removes a packing entry only after loading the item and checking trip access", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ id: "pack-1", tripId: "trip-1" }],
+      }),
+    });
+    db.delete.mockReturnValueOnce({
+      where: deleteWhere,
+    });
+
+    await removePackingItem("pack-1");
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(db.delete).toHaveBeenCalledWith(packingItems);
+    expect(deleteWhere).toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });
 
