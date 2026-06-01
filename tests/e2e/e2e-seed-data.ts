@@ -133,6 +133,26 @@ export const E2E_PACKING_REORDER_ITEMS = [
   { name: "Item C", isLabel: false, done: false, position: 2 },
 ];
 
+export const E2E_PACKING_STRIKETHROUGH_ITEMS = [
+  { name: "Documents", isLabel: true, done: false, position: 0 },
+  { name: "Passport", isLabel: false, done: false, position: 1 },
+  { name: "Visa", isLabel: false, done: false, position: 2 },
+];
+
+export const E2E_PACKING_CONTEXTUAL_ADD_ITEMS = [
+  { name: "Documents", isLabel: true, done: false, position: 0 },
+  { name: "Passport", isLabel: false, done: false, position: 1 },
+];
+
+export const E2E_PACKING_INLINE_EDIT_ITEMS = [{ name: "Passport", isLabel: false, done: false, position: 0 }];
+
+export const E2E_PACKING_RENAME_LABEL_ITEMS = [{ name: "Documents", isLabel: true, done: false, position: 0 }];
+
+export const E2E_PACKING_DELETE_LABEL_ITEMS = [
+  { name: "Documents", isLabel: true, done: false, position: 0 },
+  { name: "Passport", isLabel: false, done: false, position: 1 },
+];
+
 export const E2E_MANAGE_DOC = {
   name: "E2E Manage Doc",
   kind: "pdf",

@@ -4,9 +4,14 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
 import { packingItems, trips, users } from "../../../src/db/schema";
 import {
+  E2E_PACKING_CONTEXTUAL_ADD_ITEMS,
+  E2E_PACKING_DELETE_LABEL_ITEMS,
+  E2E_PACKING_INLINE_EDIT_ITEMS,
   E2E_PACKING_ITEMS,
   E2E_PACKING_ITEMS_WITH_LABELS,
+  E2E_PACKING_RENAME_LABEL_ITEMS,
   E2E_PACKING_REORDER_ITEMS,
+  E2E_PACKING_STRIKETHROUGH_ITEMS,
   E2E_TRIP,
   E2E_USER,
 } from "../e2e-seed-data";
@@ -37,7 +42,7 @@ async function getBaseTripId(db: ReturnType<typeof drizzle>): Promise<string | u
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
-  await expect(page.getByRole("button", { name: "Add item" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "Add item", exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 async function seedPackingItems(
@@ -76,7 +81,7 @@ Then("I should see the empty packing state", async ({ page }) => {
 
 When("I add a packing item named {string}", async ({ page }, name: string) => {
   await page.getByRole("textbox", { name: "Packing item name" }).fill(name);
-  await page.getByRole("button", { name: "Add item" }).click();
+  await page.getByRole("button", { name: "Add item", exact: true }).click();
   await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: name }).first()).toBeVisible({
     timeout: 10_000,
   });
@@ -223,6 +228,157 @@ Then("the packing item {string} should be checked", async ({ page }, name: strin
 
 Then("the packing item {string} should be unchecked", async ({ page }, name: string) => {
   await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "false");
+});
+
+// ── Story 1.4 — Strikethrough seeds & steps ──────────────────────────────────
+
+Given("I have pre-seeded packing items with label and items for strikethrough", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found — cannot seed strikethrough items");
+    await seedPackingItems(db, tripId, E2E_PACKING_STRIKETHROUGH_ITEMS);
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
+Then("the section label {string} should not have strikethrough", async ({ page }, name: string) => {
+  const heading = page.getByRole("heading", { name });
+  await expect(heading).toBeVisible();
+  await expect(heading).not.toHaveClass(/line-through/);
+});
+
+Then("the section label {string} should have strikethrough", async ({ page }, name: string) => {
+  const heading = page.getByRole("heading", { name });
+  await expect(heading).toBeVisible();
+  await expect(heading).toHaveClass(/line-through/, { timeout: 10_000 });
+});
+
+// ── Story 1.4 — Contextual add seeds & steps ─────────────────────────────────
+
+Given("I have pre-seeded packing items for contextual add", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found — cannot seed contextual add items");
+    await seedPackingItems(db, tripId, E2E_PACKING_CONTEXTUAL_ADD_ITEMS);
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
+When("I add an item {string} under the section {string}", async ({ page }, itemName: string, sectionName: string) => {
+  const input = page.getByPlaceholder(`Add item under "${sectionName}"…`);
+  await expect(input).toBeVisible({ timeout: 10_000 });
+  await input.fill(itemName);
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: itemName }).first()).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+When("I add an ungrouped item named {string}", async ({ page }, itemName: string) => {
+  const input = page.getByPlaceholder("Add item…");
+  await expect(input).toBeVisible({ timeout: 10_000 });
+  await input.fill(itemName);
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: itemName }).first()).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+Then("{string} should appear after {string} in the list", async ({ page }, afterName: string, beforeName: string) => {
+  await expect(async () => {
+    const names = await page.locator("[data-packing-name]").allTextContents();
+    const trimmed = names.map((n) => n.trim());
+    const beforeIdx = trimmed.indexOf(beforeName);
+    const afterIdx = trimmed.indexOf(afterName);
+    expect(beforeIdx).toBeGreaterThanOrEqual(0);
+    expect(afterIdx).toBeGreaterThan(beforeIdx);
+  }).toPass({ timeout: 10_000 });
+});
+
+// ── Story 1.4 — Inline edit seeds & steps ────────────────────────────────────
+
+Given("I have pre-seeded packing items for inline editing", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found — cannot seed inline edit items");
+    await seedPackingItems(db, tripId, E2E_PACKING_INLINE_EDIT_ITEMS);
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
+When("I rename the packing item {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+  const nameEl = page.locator("[data-packing-name]").filter({ hasText: oldName }).first();
+  await expect(nameEl).toBeVisible({ timeout: 10_000 });
+  await nameEl.click();
+  const input = page.locator(`input[value="${oldName}"]`);
+  await expect(input).toBeVisible({ timeout: 5_000 });
+  await input.fill(newName);
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-packing-name]").filter({ hasText: newName }).first()).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+Then("the packing item {string} should be visible", async ({ page }, name: string) => {
+  await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: name }).first()).toBeVisible();
+});
+
+// ── Story 1.4 — Rename label seeds & steps ───────────────────────────────────
+
+Given("I have pre-seeded a section label for renaming", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found — cannot seed rename label items");
+    await seedPackingItems(db, tripId, E2E_PACKING_RENAME_LABEL_ITEMS);
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
+When("I rename the section label {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+  const heading = page.getByRole("heading", { name: oldName });
+  await expect(heading).toBeVisible({ timeout: 10_000 });
+  await heading.click();
+  const input = page.locator(`input[value="${oldName}"]`);
+  await expect(input).toBeVisible({ timeout: 5_000 });
+  await input.fill(newName);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: newName })).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the section label {string} should be visible", async ({ page }, name: string) => {
+  await expect(page.getByRole("heading", { name })).toBeVisible();
+});
+
+// ── Story 1.4 — Delete label seeds & steps ───────────────────────────────────
+
+Given("I have pre-seeded a section label with items beneath it", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found — cannot seed delete label items");
+    await seedPackingItems(db, tripId, E2E_PACKING_DELETE_LABEL_ITEMS);
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
+When("I delete the section label {string} via inline edit controls", async ({ page }, name: string) => {
+  const heading = page.getByRole("heading", { name });
+  await expect(heading).toBeVisible({ timeout: 10_000 });
+  await heading.click();
+  const deleteBtn = page.getByRole("button", { name: "Delete label" });
+  await expect(deleteBtn).toBeVisible({ timeout: 5_000 });
+  await deleteBtn.click();
+  await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
+    timeout: 10_000,
+  });
+});
+
+Then("the section label {string} should not be visible", async ({ page }, name: string) => {
+  await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0);
 });
 
 Then("the trip card for {string} should show {string}", async ({ page }, tripName: string, progress: string) => {
