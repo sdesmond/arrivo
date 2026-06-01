@@ -256,6 +256,7 @@ export function TripDetailClient({
             onRemovePackingItem={handlers.handleRemovePackingItem}
             onTogglePackingItem={handlers.handleTogglePackingItem}
             onReorderPackingItems={handlers.handleReorderPackingItems}
+            onEditPackingItem={handlers.handleUpdatePackingItem}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}
