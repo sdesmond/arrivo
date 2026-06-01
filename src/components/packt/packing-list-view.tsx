@@ -12,6 +12,7 @@ interface PackingListViewProps {
   items: PackingItem[];
   onAddItem: (name: string, isLabel?: boolean) => void;
   onRemoveItem: (id: string) => void;
+  onToggleItem: (id: string) => Promise<void>;
 }
 
 interface PackingSection {
@@ -37,7 +38,9 @@ interface PackingEntryFormProps {
 interface PackingRowProps {
   item: PackingItem;
   isLabel?: boolean;
+  isPending?: boolean;
   onRemove: () => void;
+  onToggle?: () => void;
 }
 
 function groupPackingItems(items: PackingItem[]): GroupedPackingItems {
@@ -124,7 +127,7 @@ function PackingEntryForm({
   );
 }
 
-function PackingRow({ item, isLabel, onRemove }: PackingRowProps): ReactElement {
+function PackingRow({ item, isLabel, isPending, onRemove, onToggle }: PackingRowProps): ReactElement {
   return (
     <div
       className={cn("flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2", isLabel ? "shadow-none" : "")}
@@ -134,18 +137,29 @@ function PackingRow({ item, isLabel, onRemove }: PackingRowProps): ReactElement 
         borderColor: "var(--line)",
       }}
     >
-      {isLabel ? null : (
-        <span
-          aria-hidden="true"
-          className="flex size-5 shrink-0 items-center justify-center rounded-full"
-          style={{
-            background: item.done ? "var(--accent-brand)" : "transparent",
-            border: item.done ? "1.5px solid var(--accent-brand)" : "1.5px solid var(--line-strong)",
-            color: item.done ? "var(--accent-fg)" : "transparent",
-          }}
+      {isLabel || !onToggle ? null : (
+        <button
+          aria-checked={item.done}
+          aria-label={`Pack ${item.name}`}
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center"
+          disabled={isPending}
+          role="checkbox"
+          title={item.done ? `Unpack ${item.name}` : `Pack ${item.name}`}
+          type="button"
+          style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+          onClick={onToggle}
         >
-          {item.done ? <Check size={12} strokeWidth={1.5} /> : null}
-        </span>
+          <span
+            className="flex size-5 items-center justify-center rounded-full"
+            style={{
+              background: item.done ? "var(--accent-brand)" : "transparent",
+              border: item.done ? "1.5px solid var(--accent-brand)" : "1.5px solid var(--line-strong)",
+              color: item.done ? "var(--accent-fg)" : "transparent",
+            }}
+          >
+            {item.done ? <Check size={12} strokeWidth={1.5} /> : null}
+          </span>
+        </button>
       )}
       <div className="min-w-0 flex-1">
         {isLabel ? (
@@ -153,7 +167,11 @@ function PackingRow({ item, isLabel, onRemove }: PackingRowProps): ReactElement 
             {item.name}
           </h3>
         ) : (
-          <p className="truncate text-sm font-medium" data-packing-name style={{ color: "var(--fg)" }}>
+          <p
+            className={cn("truncate text-sm font-medium", item.done ? "line-through" : "")}
+            data-packing-name
+            style={{ color: item.done ? "var(--fg-3)" : "var(--fg)" }}
+          >
             {item.name}
           </p>
         )}
@@ -175,10 +193,17 @@ function PackingRow({ item, isLabel, onRemove }: PackingRowProps): ReactElement 
   );
 }
 
-export function PackingListView({ tripId, items, onAddItem, onRemoveItem }: PackingListViewProps): ReactElement {
+export function PackingListView({
+  tripId,
+  items,
+  onAddItem,
+  onRemoveItem,
+  onToggleItem,
+}: PackingListViewProps): ReactElement {
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
+  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
   const { sections, ungroupedItems } = useMemo(() => groupPackingItems(items), [items]);
@@ -188,6 +213,7 @@ export function PackingListView({ tripId, items, onAddItem, onRemoveItem }: Pack
   if (prevItems !== items) {
     setPrevItems(items);
     setIsSubmitting(false);
+    setPendingItemIds(new Set());
   }
 
   function handleDraftNameChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -210,6 +236,27 @@ export function PackingListView({ tripId, items, onAddItem, onRemoveItem }: Pack
     onRemoveItem(item.id);
     setAnnouncement(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
     setAnnouncementId((id) => id + 1);
+  }
+
+  async function handleToggle(item: PackingItem): Promise<void> {
+    if (!item.id || pendingItemIds.has(item.id)) return;
+
+    setPendingItemIds((ids) => new Set(ids).add(item.id!));
+
+    try {
+      await onToggleItem(item.id);
+      const action = item.done ? "unchecked" : "checked";
+      setAnnouncement(`${item.name} ${action}.`);
+      setAnnouncementId((id) => id + 1);
+    } catch {
+      setPendingItemIds((ids) => {
+        const nextIds = new Set(ids);
+        nextIds.delete(item.id!);
+        return nextIds;
+      });
+      setAnnouncement(`Failed to update ${item.name}.`);
+      setAnnouncementId((id) => id + 1);
+    }
   }
 
   return (
@@ -250,7 +297,13 @@ export function PackingListView({ tripId, items, onAddItem, onRemoveItem }: Pack
                 {section.items.length > 0 ? (
                   <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
                     {section.items.map((item) => (
-                      <PackingRow key={item.id} item={item} onRemove={() => handleRemove(item)} />
+                      <PackingRow
+                        key={item.id}
+                        item={item}
+                        isPending={item.id ? pendingItemIds.has(item.id) : false}
+                        onRemove={() => handleRemove(item)}
+                        onToggle={() => void handleToggle(item)}
+                      />
                     ))}
                   </div>
                 ) : null}
@@ -265,7 +318,13 @@ export function PackingListView({ tripId, items, onAddItem, onRemoveItem }: Pack
                   </h3>
                 ) : null}
                 {ungroupedItems.map((item) => (
-                  <PackingRow key={item.id} item={item} onRemove={() => handleRemove(item)} />
+                  <PackingRow
+                    key={item.id}
+                    item={item}
+                    isPending={item.id ? pendingItemIds.has(item.id) : false}
+                    onRemove={() => handleRemove(item)}
+                    onToggle={() => void handleToggle(item)}
+                  />
                 ))}
               </div>
             ) : null}

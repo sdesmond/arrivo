@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, FileText, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
+import { Calendar, FileText, MoreHorizontal, Package, Pencil, Trash2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -157,6 +157,12 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
             <Users size={13} strokeWidth={1.5} />
             {trip.collaborators?.length ?? 0}
           </span>
+          {trip.packingProgress && trip.packingProgress.total > 0 ? (
+            <span className="flex items-center gap-1">
+              <Package size={13} strokeWidth={1.5} />
+              {trip.packingProgress.checked} / {trip.packingProgress.total} packed
+            </span>
+          ) : null}
         </div>
 
         {/* Footer */}

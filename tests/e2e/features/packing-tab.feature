@@ -45,3 +45,34 @@ Feature: Packing tab
     Then the packing list should not contain "Passport"
     When I reload the trip page
     Then the packing list should not contain "Passport"
+
+  Scenario: User checks an item and the checked state persists after reload
+    Given I have pre-seeded packing items for the trip
+    When I open the Packing tab
+    And I check the packing item named "Sunscreen"
+    Then the packing item "Sunscreen" should be checked
+    When I reload the trip page
+    Then the packing item "Sunscreen" should be checked
+
+  Scenario: User unchecks an item and the unchecked state persists after reload
+    Given I have pre-seeded packing items for the trip
+    And the packing item "Sunscreen" is already checked
+    When I open the Packing tab
+    And I uncheck the packing item named "Sunscreen"
+    Then the packing item "Sunscreen" should be unchecked
+    When I reload the trip page
+    Then the packing item "Sunscreen" should be unchecked
+
+  Scenario: Checking items updates the trip card progress count
+    Given I have pre-seeded packing items for the trip
+    When I navigate to the trips list
+    Then the trip card for "E2E Test Trip" should show "0 / 3 packed"
+    When I open the trip and go to the Packing tab
+    And I check the packing item named "Sunscreen"
+    When I return to the trips list
+    Then the trip card for "E2E Test Trip" should show "1 / 3 packed"
+
+  Scenario: Trip card progress excludes section labels from the packed count
+    Given I have pre-seeded packing items with labels for the trip
+    When I navigate to the trips list
+    Then the trip card for "E2E Test Trip" should show "0 / 2 packed"

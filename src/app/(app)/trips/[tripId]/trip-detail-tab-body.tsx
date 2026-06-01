@@ -34,6 +34,7 @@ export interface TripDetailTabBodyProps {
   onToggleChecklistItem: (itemId: string) => void;
   onAddPackingItem: (name: string, isLabel?: boolean) => void;
   onRemovePackingItem: (id: string) => void;
+  onTogglePackingItem: (id: string) => Promise<void>;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -71,6 +72,7 @@ export function TripDetailTabBody({
   onToggleChecklistItem,
   onAddPackingItem,
   onRemovePackingItem,
+  onTogglePackingItem,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -120,6 +122,7 @@ export function TripDetailTabBody({
           items={packingItems}
           onAddItem={onAddPackingItem}
           onRemoveItem={onRemovePackingItem}
+          onToggleItem={onTogglePackingItem}
         />
       )}
       {activeTab === "notes" && (

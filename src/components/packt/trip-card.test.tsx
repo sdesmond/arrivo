@@ -183,4 +183,27 @@ describe("TripCard", () => {
     render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByText("No dates")).toBeInTheDocument();
   });
+
+  it("renders 'X / Y packed' when trip has packingProgress", () => {
+    const trip = { ...baseTrip, packingProgress: { checked: 3, total: 5 } };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("3 / 5 packed")).toBeInTheDocument();
+  });
+
+  it("renders '0 / 5 packed' when nothing is checked yet", () => {
+    const trip = { ...baseTrip, packingProgress: { checked: 0, total: 5 } };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("0 / 5 packed")).toBeInTheDocument();
+  });
+
+  it("does not render packing count when packingProgress is undefined", () => {
+    render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByText(/packed/)).not.toBeInTheDocument();
+  });
+
+  it("does not render packing count when packingProgress.total is 0", () => {
+    const trip = { ...baseTrip, packingProgress: { checked: 0, total: 0 } };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByText(/packed/)).not.toBeInTheDocument();
+  });
 });

@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import type {
   DayItemType,
   DayItinerary,
-  PackingItem,
   TripDetailPayload,
   TripEvent,
   TripDateChangeConfirmation,
@@ -14,7 +13,7 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { addPackingItem, deleteTrip, removePackingItem, updateTripMetadata } from "../actions";
+import { addPackingItem, deleteTrip, removePackingItem, togglePackingItem, updateTripMetadata } from "../actions";
 import {
   createChecklist,
   createChecklistItem,
@@ -59,6 +58,7 @@ export interface TripDetailHandlers {
   handleToggleChecklistItem: (itemId: string) => void;
   handleAddPackingItem: (name: string, isLabel?: boolean) => void;
   handleRemovePackingItem: (id: string) => void;
+  handleTogglePackingItem: (id: string) => Promise<void>;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -231,6 +231,21 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
+  function handleTogglePackingItem(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await togglePackingItem(id);
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to update packing item. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
+    });
+  }
+
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -308,6 +323,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleToggleChecklistItem,
     handleAddPackingItem,
     handleRemovePackingItem,
+    handleTogglePackingItem,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,
