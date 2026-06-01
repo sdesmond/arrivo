@@ -115,6 +115,12 @@ export const E2E_EVENT_REORDER_SECOND = {
   position: 12,
 };
 
+export const E2E_PACKING_ITEMS = [
+  { name: "Sunscreen", isLabel: false, done: false, position: 0 },
+  { name: "Sunglasses", isLabel: false, done: false, position: 1 },
+  { name: "Beach towel", isLabel: false, done: false, position: 2 },
+];
+
 export const E2E_MANAGE_DOC = {
   name: "E2E Manage Doc",
   kind: "pdf",

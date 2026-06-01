@@ -3,8 +3,8 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
 import { packingItems, trips, users } from "../../../src/db/schema";
-import { E2E_TRIP, E2E_USER } from "../e2e-seed-data";
-import { After, Then, When } from "../fixtures";
+import { E2E_PACKING_ITEMS, E2E_TRIP, E2E_USER } from "../e2e-seed-data";
+import { After, Before, Given, Then, When } from "../fixtures";
 
 async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -33,6 +33,17 @@ async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
   await expect(page.getByRole("button", { name: "Add item" })).toBeVisible({ timeout: 10_000 });
 }
+
+async function seedPackingItems(db: ReturnType<typeof drizzle>, tripId: string): Promise<void> {
+  await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
+  for (const item of E2E_PACKING_ITEMS) {
+    await db.insert(packingItems).values({ ...item, tripId });
+  }
+}
+
+Before({ tags: "@packing-tab" }, async () => {
+  // check-persistence scenarios use pre-seeded items via explicit Given step
+});
 
 After({ tags: "@packing-tab" }, async () => {
   await withE2EDb(async (db) => {
@@ -106,3 +117,60 @@ Then(
     }).toPass({ timeout: 10_000 });
   }
 );
+
+Given("I have pre-seeded packing items for the trip", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found — cannot seed packing items");
+    await seedPackingItems(db, tripId);
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
+Given("the packing item {string} is already checked", async ({ page }, name: string) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found");
+    await db
+      .update(packingItems)
+      .set({ done: true })
+      .where(and(eq(packingItems.tripId, tripId), eq(packingItems.name, name)));
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
+When("I check the packing item named {string}", async ({ page }, name: string) => {
+  await page.getByRole("checkbox", { name: `Pack ${name}` }).click();
+  await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "true", {
+    timeout: 10_000,
+  });
+});
+
+When("I uncheck the packing item named {string}", async ({ page }, name: string) => {
+  await page.getByRole("checkbox", { name: `Pack ${name}` }).click();
+  await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "false", {
+    timeout: 10_000,
+  });
+});
+
+Then("the packing item {string} should be checked", async ({ page }, name: string) => {
+  await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "true");
+});
+
+Then("the packing item {string} should be unchecked", async ({ page }, name: string) => {
+  await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "false");
+});
+
+Then("the trip card for {string} should show {string}", async ({ page }, tripName: string, progress: string) => {
+  const card = page.locator("a").filter({ hasText: tripName }).first();
+  await expect(card).toContainText(progress);
+});
+
+When("I open the trip and go to the Packing tab", async ({ page }) => {
+  const tripLink = page.locator("a").filter({ hasText: "E2E Test Trip" }).first();
+  await tripLink.click();
+  await page.waitForURL(/\/trips\/.+/);
+  await openPackingTab(page);
+});

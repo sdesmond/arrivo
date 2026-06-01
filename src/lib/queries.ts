@@ -15,7 +15,7 @@ import {
   userWishlistDestinations,
   userCompanions,
 } from "@/db/schema";
-import { eq, and, sql, inArray, asc } from "drizzle-orm";
+import { eq, and, sql, inArray, asc, count } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import {
   dbTripToType,
@@ -99,8 +99,21 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
         .where(and(eq(events.tripId, trip.id), sql`${events.startAt}::date = ${todayISO}::date`))
         .orderBy(events.position);
 
+      const [{ totalItems }] = await db
+        .select({ totalItems: count() })
+        .from(packingItems)
+        .where(and(eq(packingItems.tripId, trip.id), eq(packingItems.isLabel, false)));
+
+      const [{ checkedItems }] = await db
+        .select({ checkedItems: count() })
+        .from(packingItems)
+        .where(and(eq(packingItems.tripId, trip.id), eq(packingItems.isLabel, false), eq(packingItems.done, true)));
+
+      const packingProgress = totalItems > 0 ? { checked: checkedItems, total: totalItems } : undefined;
+
+      const tripEntry = dbTripToType(trip);
       return {
-        trip: dbTripToType(trip),
+        trip: { ...tripEntry, packingProgress },
         todayEvents: todayEvents.map(dbEventToType),
       };
     })

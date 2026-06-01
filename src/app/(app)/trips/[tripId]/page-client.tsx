@@ -254,6 +254,7 @@ export function TripDetailClient({
             onToggleChecklistItem={handlers.handleToggleChecklistItem}
             onAddPackingItem={handlers.handleAddPackingItem}
             onRemovePackingItem={handlers.handleRemovePackingItem}
+            onTogglePackingItem={handlers.handleTogglePackingItem}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

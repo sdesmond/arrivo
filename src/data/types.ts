@@ -341,11 +341,17 @@ export interface Budget {
   perPerson?: number;
 }
 
+export interface PackingProgress {
+  checked: number;
+  total: number;
+}
+
 export interface Trip {
   id: string;
   status: TripStatus;
   name: string;
   tags?: string[];
+  packingProgress?: PackingProgress;
 
   // Canonical ISO dates. Prototype data still stores display strings
   // ("Apr 24", "May 1, 2026"); those will move to a UI formatting layer.

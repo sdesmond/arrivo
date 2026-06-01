@@ -14,7 +14,7 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { addPackingItem, deleteTrip, removePackingItem, updateTripMetadata } from "../actions";
+import { addPackingItem, deleteTrip, removePackingItem, togglePackingItem, updateTripMetadata } from "../actions";
 import {
   createChecklist,
   createChecklistItem,
@@ -59,6 +59,7 @@ export interface TripDetailHandlers {
   handleToggleChecklistItem: (itemId: string) => void;
   handleAddPackingItem: (name: string, isLabel?: boolean) => void;
   handleRemovePackingItem: (id: string) => void;
+  handleTogglePackingItem: (id: string) => void;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -231,6 +232,16 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
+  function handleTogglePackingItem(id: string): void {
+    React.startTransition(async () => {
+      try {
+        await togglePackingItem(id);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to update packing item. Please try again.");
+      }
+    });
+  }
+
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -308,6 +319,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleToggleChecklistItem,
     handleAddPackingItem,
     handleRemovePackingItem,
+    handleTogglePackingItem,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,
