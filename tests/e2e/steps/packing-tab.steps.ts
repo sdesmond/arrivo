@@ -189,8 +189,25 @@ When("I keyboard-move the item {string} down one position", async ({ page }, nam
   const dragHandle = page.getByTitle(`Reorder ${name}`);
   await expect(dragHandle).toBeVisible();
   await dragHandle.focus();
+
+  // dnd-kit's KeyboardSensor only starts listening for arrow keys once the
+  // drag-start has committed (and the droppable rects are measured). Firing
+  // ArrowDown before that leaves the move computing against itself, so the item
+  // is "dropped over" its own position and nothing reorders — the sporadic
+  // failure. Gate the keys on dnd-kit's live region: it announces a pickup, then
+  // immediately an over-self ("...moved over droppable area {sameId}"). Wait for
+  // that active state, then for ArrowDown to move the item over a *different*
+  // droppable before committing with Enter.
+  const liveRegion = page.getByRole("status").filter({ hasText: "draggable item" });
+
   await page.keyboard.press("Space");
+  await expect(liveRegion).toContainText("was moved over", { timeout: 10_000 });
+  const pickupText = (await liveRegion.textContent()) ?? "";
+  const activeId = pickupText.match(/[0-9a-f-]{36}/i)?.[0] ?? "";
+
   await page.keyboard.press("ArrowDown");
+  await expect(liveRegion).not.toContainText(`area ${activeId}`, { timeout: 10_000 });
+
   await page.keyboard.press("Enter");
 
   await expect(async () => {

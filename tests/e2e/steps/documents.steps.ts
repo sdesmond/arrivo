@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
 import { collaborators, trips, users } from "../../../src/db/schema";
-import { E2E_TRIP, E2E_USER } from "../e2e-seed-data";
+import { E2E_USER } from "../e2e-seed-data";
 import { Given, When, Then, Before, After } from "../fixtures";
 import { clearTripIdOverride, setTripIdOverride } from "./scenario-state";
 
@@ -28,8 +28,12 @@ Before({ tags: "@docs-empty" }, async () => {
       .values({
         ownerId: user.id,
         name: "E2E Docs Empty Trip",
-        startDate: E2E_TRIP.startDate,
-        endDate: E2E_TRIP.endDate,
+        // Distinct dates so this dedicated trip never collides with the base
+        // seed trip's startDate, which other features use to look it up. A
+        // shared startDate made base-trip queries non-deterministic under
+        // parallel workers (picked this dayless trip → "Seeded E2E trip not found").
+        startDate: "2026-10-01",
+        endDate: "2026-10-03",
       })
       .returning({ id: trips.id });
     await db.insert(collaborators).values({

@@ -2,6 +2,7 @@ Feature: Trip Management
   Background:
     Given I am signed in
 
+  @trip-rename
   Scenario: User edits a trip's name
     Given I have an existing trip
     When I open the trip edit sheet
