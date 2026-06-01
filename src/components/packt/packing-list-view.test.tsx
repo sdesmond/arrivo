@@ -1,4 +1,43 @@
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const useSortableMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    attributes: { "aria-roledescription": "sortable" },
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+  }))
+);
+
+vi.mock("@dnd-kit/core", () => ({
+  DndContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DragOverlay: ({ children }: { children: ReactNode }) => <>{children}</>,
+  closestCenter: {},
+  PointerSensor: class {},
+  KeyboardSensor: class {},
+  useSensor: vi.fn(),
+  useSensors: vi.fn(() => []),
+}));
+
+vi.mock("@dnd-kit/sortable", () => ({
+  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useSortable: useSortableMock,
+  verticalListSortingStrategy: {},
+  arrayMove: vi.fn((items: unknown[], from: number, to: number) => {
+    const reordered = [...items];
+    reordered.splice(to, 0, reordered.splice(from, 1)[0]);
+    return reordered;
+  }),
+  sortableKeyboardCoordinates: vi.fn(),
+}));
+
+vi.mock("@dnd-kit/utilities", () => ({
+  CSS: { Transform: { toString: vi.fn(() => undefined) } },
+}));
+
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
@@ -17,6 +56,10 @@ function createToggleItemHandler() {
 }
 
 describe("PackingListView", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders the empty state prompt when there are no items", () => {
     render(
       <PackingListView
@@ -25,6 +68,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -42,6 +86,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -69,6 +114,7 @@ describe("PackingListView", () => {
         onAddItem={onAddItem}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -90,6 +136,7 @@ describe("PackingListView", () => {
         onAddItem={onAddItem}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -110,6 +157,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={onRemoveItem}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -126,6 +174,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -146,6 +195,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -163,6 +213,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -182,6 +233,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -198,6 +250,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -214,6 +267,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -236,6 +290,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -263,6 +318,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -288,6 +344,7 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
+        onReorderItems={vi.fn()}
       />
     );
 
@@ -307,11 +364,90 @@ describe("PackingListView", () => {
         onAddItem={vi.fn()}
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
       />
     );
 
     const checkbox = screen.getByRole("checkbox", { name: "Pack Passport" });
     expect(checkbox.className).toContain("min-h-11");
     expect(checkbox.className).toContain("min-w-11");
+  });
+
+  it("renders a drag handle on item rows but not on label rows", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTitle("Reorder Passport")).toBeInTheDocument();
+    expect(screen.getByTitle("Reorder Phone charger")).toBeInTheDocument();
+    expect(screen.getByTitle("Reorder Socks")).toBeInTheDocument();
+    expect(screen.queryByTitle("Reorder Documents")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Reorder Clothes")).not.toBeInTheDocument();
+  });
+
+  it("drag handle button has min-h-11 and min-w-11 classes", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    const dragHandle = screen.getByTitle("Reorder Passport");
+    expect(dragHandle.className).toContain("min-h-11");
+    expect(dragHandle.className).toContain("min-w-11");
+  });
+
+  it("calls useSortable with disabled:true for section labels", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    const sortableCalls = useSortableMock.mock.calls as unknown[][];
+    const labelCalls = sortableCalls.filter((call) => {
+      const options = call[0] as { disabled?: boolean } | undefined;
+      return options?.disabled === true;
+    });
+    expect(labelCalls.length).toBeGreaterThan(0);
+  });
+
+  it("calls useSortable with animateLayoutChanges that returns false", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    const sortableCalls = useSortableMock.mock.calls as unknown[][];
+    const itemCall = sortableCalls.find((call) => {
+      const options = call[0] as { disabled?: boolean } | undefined;
+      return options?.disabled !== true;
+    });
+    expect(itemCall).toBeDefined();
+    const config = itemCall?.[0] as { animateLayoutChanges?: () => boolean } | undefined;
+    expect(config?.animateLayoutChanges?.()).toBe(false);
   });
 });

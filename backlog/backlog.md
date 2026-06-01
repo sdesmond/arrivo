@@ -14,6 +14,10 @@ use proper breadcrumbs as shown at https://ui.shadcn.com/docs/components/base/br
 
 ## Bugs
 
+### Counts on the trip preview cards
+
+Counts for Days, Docs, Collaborators are not working. Add Places in there to match the trip hero card as well.
+
 ### Trip Notes
 
 The Notes tab exists on the trip detail page as a placeholder. The trip-level `notes` field is stored in the DB and wired through the backend, but has no display surface or editing UI yet (the edit sheet input was removed to avoid orphaned data entry).

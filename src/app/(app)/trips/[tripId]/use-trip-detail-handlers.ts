@@ -13,7 +13,14 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { addPackingItem, deleteTrip, removePackingItem, togglePackingItem, updateTripMetadata } from "../actions";
+import {
+  addPackingItem,
+  deleteTrip,
+  removePackingItem,
+  reorderPackingItems,
+  togglePackingItem,
+  updateTripMetadata,
+} from "../actions";
 import {
   createChecklist,
   createChecklistItem,
@@ -59,6 +66,7 @@ export interface TripDetailHandlers {
   handleAddPackingItem: (name: string, isLabel?: boolean) => void;
   handleRemovePackingItem: (id: string) => void;
   handleTogglePackingItem: (id: string) => Promise<void>;
+  handleReorderPackingItems: (orderedItemIds: string[]) => void;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -246,6 +254,18 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
+  function handleReorderPackingItems(orderedItemIds: string[]): void {
+    React.startTransition(async () => {
+      try {
+        await reorderPackingItems(trip.id, orderedItemIds);
+        router.refresh();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to reorder packing items. Please try again.");
+        router.refresh();
+      }
+    });
+  }
+
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -324,6 +344,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleAddPackingItem,
     handleRemovePackingItem,
     handleTogglePackingItem,
+    handleReorderPackingItems,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,

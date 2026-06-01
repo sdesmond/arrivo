@@ -14,7 +14,7 @@ import {
   itineraryChecklists,
   users,
 } from "@/db/schema";
-import { asc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, eq, inArray, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
@@ -487,6 +487,22 @@ export async function removePackingItem(itemId: string) {
   await assertTripAccess(item.tripId, user.id!, "editor");
   await db.delete(packingItems).where(eq(packingItems.id, itemId));
   revalidatePath(`/trips/${item.tripId}`);
+  revalidatePath("/trips");
+}
+
+export async function reorderPackingItems(tripId: string, orderedItemIds: string[]): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+  if (orderedItemIds.length === 0) return;
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < orderedItemIds.length; i++) {
+      await tx
+        .update(packingItems)
+        .set({ position: i })
+        .where(and(eq(packingItems.id, orderedItemIds[i]), eq(packingItems.tripId, tripId)));
+    }
+  });
+  revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
 }
 

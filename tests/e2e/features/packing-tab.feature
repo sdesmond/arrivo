@@ -76,3 +76,11 @@ Feature: Packing tab
     Given I have pre-seeded packing items with labels for the trip
     When I navigate to the trips list
     Then the trip card for "E2E Test Trip" should show "0 / 2 packed"
+
+  Scenario: User keyboard-reorders an item and the new position persists after reload
+    Given I have pre-seeded packing reorder items for the trip
+    When I open the Packing tab
+    And I keyboard-move the item "Item A" down one position
+    Then the packing list order should be "Item B" then "Item A" then "Item C"
+    When I reload the trip page
+    Then the packing list order should be "Item B" then "Item A" then "Item C"

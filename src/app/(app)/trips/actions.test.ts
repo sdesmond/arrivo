@@ -71,6 +71,7 @@ import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDate
 import {
   addPackingItem,
   createTrip,
+  reorderPackingItems,
   removePackingItem,
   retrieveLocation,
   searchLocations,
@@ -835,6 +836,33 @@ describe("packing actions", () => {
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
     expect(db.update).toHaveBeenCalledWith(packingItems);
     expect(updateWhere).toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("reorders packing entries after access checks and revalidates the trip detail route", async () => {
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const transaction = {
+      update: vi.fn(() => ({
+        set: (values: unknown) => ({
+          where: async () => {
+            updateWhere(values);
+          },
+        }),
+      })),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await reorderPackingItems("trip-1", ["pack-2", "pack-1", "pack-3"]);
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(transaction.update).toHaveBeenCalledTimes(3);
+    expect(updateWhere).toHaveBeenNthCalledWith(1, { position: 0 });
+    expect(updateWhere).toHaveBeenNthCalledWith(2, { position: 1 });
+    expect(updateWhere).toHaveBeenNthCalledWith(3, { position: 2 });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
   });

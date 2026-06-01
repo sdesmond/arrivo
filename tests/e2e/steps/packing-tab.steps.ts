@@ -3,7 +3,13 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
 import { packingItems, trips, users } from "../../../src/db/schema";
-import { E2E_PACKING_ITEMS, E2E_PACKING_ITEMS_WITH_LABELS, E2E_TRIP, E2E_USER } from "../e2e-seed-data";
+import {
+  E2E_PACKING_ITEMS,
+  E2E_PACKING_ITEMS_WITH_LABELS,
+  E2E_PACKING_REORDER_ITEMS,
+  E2E_TRIP,
+  E2E_USER,
+} from "../e2e-seed-data";
 import { After, Before, Given, Then, When } from "../fixtures";
 
 async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
@@ -142,6 +148,16 @@ Given("I have pre-seeded packing items with labels for the trip", async ({ page 
   await page.waitForURL(/\/trips/);
 });
 
+Given("I have pre-seeded packing reorder items for the trip", async ({ page }) => {
+  await withE2EDb(async (db) => {
+    const tripId = await getBaseTripId(db);
+    if (!tripId) throw new Error("E2E trip not found — cannot seed reorder items");
+    await seedPackingItems(db, tripId, E2E_PACKING_REORDER_ITEMS);
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
+});
+
 Given("the packing item {string} is already checked", async ({ page }, name: string) => {
   await withE2EDb(async (db) => {
     const tripId = await getBaseTripId(db);
@@ -167,6 +183,20 @@ When("I uncheck the packing item named {string}", async ({ page }, name: string)
   await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "false", {
     timeout: 10_000,
   });
+});
+
+When("I keyboard-move the item {string} down one position", async ({ page }, name: string) => {
+  const dragHandle = page.getByTitle(`Reorder ${name}`);
+  await dragHandle.focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+
+  await expect(async () => {
+    const names = await page.locator("[data-packing-name]").allTextContents();
+    const index = names.map((itemName) => itemName.trim()).indexOf(name);
+    expect(index).toBe(1);
+  }).toPass({ timeout: 10_000 });
 });
 
 Then("the packing item {string} should be checked", async ({ page }, name: string) => {

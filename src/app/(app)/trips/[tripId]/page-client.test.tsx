@@ -69,6 +69,8 @@ vi.mock("./use-trip-detail-handlers", () => ({
     handleToggleChecklistItem: vi.fn(),
     handleAddPackingItem: vi.fn(),
     handleRemovePackingItem: vi.fn(),
+    handleTogglePackingItem: vi.fn(),
+    handleReorderPackingItems: vi.fn(),
     handleTripSave: vi.fn(),
     handleTripSaveResolution: vi.fn(),
     handleDeleteTrip: vi.fn(),
