@@ -314,18 +314,3 @@ export const packingTemplates = pgTable(
   },
   (table) => [index().on(table.userId)]
 );
-
-export const packingTemplates = pgTable(
-  "packing_templates",
-  {
-    id: uuid("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
-  },
-  (table) => [index().on(table.userId)]
-);
