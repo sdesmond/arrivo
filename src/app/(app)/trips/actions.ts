@@ -14,7 +14,7 @@ import {
   itineraryChecklists,
   users,
 } from "@/db/schema";
-import { and, asc, eq, gt, inArray, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
@@ -465,6 +465,8 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
   const name = normalizePackingItemName(input.name);
+  // A label belongs to no section; otherwise membership is explicit via labelId.
+  const labelId = input.isLabel ? null : (input.labelId ?? null);
 
   if (input.afterItemId) {
     const afterItemId = input.afterItemId;
@@ -485,6 +487,7 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
         done: false,
         isLabel: input.isLabel ?? false,
         position: targetItem.position + 1,
+        labelId,
       });
     });
   } else if (input.beforeItemId) {
@@ -506,6 +509,7 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
         done: false,
         isLabel: input.isLabel ?? false,
         position: targetItem.position,
+        labelId,
       });
     });
   } else {
@@ -513,12 +517,25 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
       .select({ maxPos: max(packingItems.position) })
       .from(packingItems)
       .where(eq(packingItems.tripId, tripId));
+    // Quick-add with no explicit section preference appends under the last
+    // section (the highest-position label), matching the contextual add UX.
+    let resolvedLabelId = labelId;
+    if (!input.isLabel && input.labelId === undefined) {
+      const [lastLabel] = await db
+        .select({ id: packingItems.id })
+        .from(packingItems)
+        .where(and(eq(packingItems.tripId, tripId), eq(packingItems.isLabel, true)))
+        .orderBy(desc(packingItems.position))
+        .limit(1);
+      resolvedLabelId = lastLabel?.id ?? null;
+    }
     await db.insert(packingItems).values({
       tripId,
       name,
       done: false,
       isLabel: input.isLabel ?? false,
       position: (maxPos ?? -1) + 1,
+      labelId: resolvedLabelId,
     });
   }
 
@@ -557,16 +574,19 @@ export async function removePackingItem(itemId: string) {
   revalidatePath("/trips");
 }
 
-export async function reorderPackingItems(tripId: string, orderedItemIds: string[]): Promise<void> {
+export async function reorderPackingItems(
+  tripId: string,
+  ordered: { id: string; labelId: string | null; position: number }[]
+): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
-  if (orderedItemIds.length === 0) return;
+  if (ordered.length === 0) return;
   await db.transaction(async (tx) => {
-    for (let i = 0; i < orderedItemIds.length; i++) {
+    for (const entry of ordered) {
       await tx
         .update(packingItems)
-        .set({ position: i })
-        .where(and(eq(packingItems.id, orderedItemIds[i]), eq(packingItems.tripId, tripId)));
+        .set({ position: entry.position, labelId: entry.labelId })
+        .where(and(eq(packingItems.id, entry.id), eq(packingItems.tripId, tripId)));
     }
   });
   revalidatePath(`/trips/${tripId}`);

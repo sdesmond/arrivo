@@ -391,6 +391,7 @@ export interface PackingItem {
   tripId?: string;
   position?: number;
   isLabel?: boolean;
+  labelId?: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -564,6 +565,7 @@ export interface AddPackingItemInput {
   isLabel?: boolean;
   afterItemId?: string;
   beforeItemId?: string;
+  labelId?: string | null;
 }
 
 export interface UpdatePackingItemInput {

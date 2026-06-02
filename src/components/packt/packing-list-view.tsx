@@ -10,10 +10,16 @@ import { PackingListSortable } from "./packing-list-sortable";
 export interface PackingListViewProps {
   tripId: string;
   items: PackingItem[];
-  onAddItem: (name: string, isLabel?: boolean, afterItemId?: string, beforeItemId?: string) => void;
+  onAddItem: (
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ) => void;
   onRemoveItem: (id: string) => void;
   onToggleItem: (id: string) => Promise<void>;
-  onReorderItems: (orderedItemIds: string[], onError?: () => void) => void;
+  onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onEditItem?: (id: string, name: string) => void;
 }
 
@@ -113,6 +119,11 @@ export function PackingListView({
     setDraftName(event.target.value);
   }
 
+  function announceMove(message: string): void {
+    setAnnouncement(message);
+    setAnnouncementId((id) => id + 1);
+  }
+
   function submitEntry(isLabel?: boolean): void {
     const trimmedName = draftName.trim();
     if (!trimmedName || isSubmitting) return;
@@ -124,12 +135,18 @@ export function PackingListView({
     setDraftName("");
   }
 
-  function handleContextualAdd(name: string, isLabel?: boolean, afterItemId?: string, beforeItemId?: string): void {
+  function handleContextualAdd(
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ): void {
     const trimmedName = name.trim();
     if (!trimmedName || isSubmitting) return;
 
     setIsSubmitting(true);
-    onAddItem(trimmedName, isLabel, afterItemId, beforeItemId);
+    onAddItem(trimmedName, isLabel, afterItemId, beforeItemId, labelId);
     setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
     setAnnouncementId((id) => id + 1);
   }
@@ -200,6 +217,7 @@ export function PackingListView({
             onToggleItem={handleToggle}
             onOptimisticReorder={setLocalItems}
             onReorderItems={onReorderItems}
+            onAnnounceMove={announceMove}
             isAdding={isSubmitting}
             onEditItem={onEditItem}
             onAddItem={handleContextualAdd}

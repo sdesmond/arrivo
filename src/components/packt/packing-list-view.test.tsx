@@ -12,25 +12,28 @@ const useSortableMock = vi.hoisted(() =>
   }))
 );
 
+const dndContextState = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+
 vi.mock("@dnd-kit/core", () => ({
-  DndContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DndContext: (props: { children: ReactNode }) => {
+    dndContextState.props = props;
+    return <>{props.children}</>;
+  },
   DragOverlay: ({ children }: { children: ReactNode }) => <>{children}</>,
-  closestCenter: {},
+  closestCenter: vi.fn(() => []),
+  pointerWithin: vi.fn(() => []),
+  rectIntersection: vi.fn(() => []),
   PointerSensor: class {},
   KeyboardSensor: class {},
   useSensor: vi.fn(),
   useSensors: vi.fn(() => []),
+  useDroppable: vi.fn(() => ({ setNodeRef: vi.fn() })),
 }));
 
 vi.mock("@dnd-kit/sortable", () => ({
   SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
   useSortable: useSortableMock,
   verticalListSortingStrategy: {},
-  arrayMove: vi.fn((items: unknown[], from: number, to: number) => {
-    const reordered = [...items];
-    reordered.splice(to, 0, reordered.splice(from, 1)[0]);
-    return reordered;
-  }),
   sortableKeyboardCoordinates: vi.fn(),
 }));
 
@@ -38,17 +41,17 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }));
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
 import type { PackingItem } from "@/data/types";
 
 const groupedItems: PackingItem[] = [
-  { id: "ungrouped-1", name: "Passport", done: false, position: 0 },
-  { id: "label-1", name: "Documents", done: false, position: 1, isLabel: true },
-  { id: "item-1", name: "Phone charger", done: false, position: 2 },
-  { id: "label-2", name: "Clothes", done: false, position: 3, isLabel: true },
-  { id: "item-2", name: "Socks", done: false, position: 4 },
+  { id: "ungrouped-1", name: "Passport", done: false, position: 0, labelId: null },
+  { id: "label-1", name: "Documents", done: false, position: 1, isLabel: true, labelId: null },
+  { id: "item-1", name: "Phone charger", done: false, position: 2, labelId: "label-1" },
+  { id: "label-2", name: "Clothes", done: false, position: 3, isLabel: true, labelId: null },
+  { id: "item-2", name: "Socks", done: false, position: 4, labelId: "label-2" },
 ];
 
 function createToggleItemHandler() {
@@ -148,6 +151,72 @@ describe("PackingListView", () => {
     await user.click(screen.getByRole("button", { name: "Add label" }));
 
     expect(onAddItem).toHaveBeenCalledWith("Documents", true);
+  });
+
+  it("submits an item from the entry form when the list already has items", async () => {
+    const user = userEvent.setup();
+    const onAddItem = vi.fn();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+    expect(onAddItem).toHaveBeenCalledWith("Tent", undefined);
+  });
+
+  it("submits a label from the entry form when the list already has items", async () => {
+    const user = userEvent.setup();
+    const onAddItem = vi.fn();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
+    await user.click(screen.getByRole("button", { name: "Add label" }));
+    expect(onAddItem).toHaveBeenCalledWith("Camping", true);
+  });
+
+  it("announces a cross-section move via the aria-live region on drag end", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    act(() => {
+      (
+        dndContextState.props as {
+          onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void;
+        }
+      ).onDragEnd?.({ active: { id: "item-1" }, over: { id: "container:__ungrouped__" } });
+    });
+
+    expect(screen.getByText("Moved Phone charger to Ungrouped.")).toBeInTheDocument();
   });
 
   it("removes an item when the remove button is clicked", async () => {
@@ -474,9 +543,9 @@ describe("PackingListView", () => {
 
   it("renders strikethrough on label when all items beneath it are checked", () => {
     const allDoneItems: PackingItem[] = [
-      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true },
-      { id: "item-1", name: "Passport", done: true, position: 1 },
-      { id: "item-2", name: "Visa", done: true, position: 2 },
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: true, position: 1, labelId: "label-1" },
+      { id: "item-2", name: "Visa", done: true, position: 2, labelId: "label-1" },
     ];
 
     render(
@@ -496,9 +565,9 @@ describe("PackingListView", () => {
 
   it("removes strikethrough from label when any item beneath it is unchecked", () => {
     const partialDoneItems: PackingItem[] = [
-      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true },
-      { id: "item-1", name: "Passport", done: true, position: 1 },
-      { id: "item-2", name: "Visa", done: false, position: 2 },
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: true, position: 1, labelId: "label-1" },
+      { id: "item-2", name: "Visa", done: false, position: 2, labelId: "label-1" },
     ];
 
     render(
@@ -653,8 +722,8 @@ describe("PackingListView", () => {
 
   it("contextual add form appears after section items", () => {
     const sectionItems: PackingItem[] = [
-      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true },
-      { id: "item-1", name: "Passport", done: false, position: 1 },
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
     ];
 
     render(
@@ -676,8 +745,8 @@ describe("PackingListView", () => {
     const onAddItem = vi.fn();
     const user = userEvent.setup();
     const sectionItems: PackingItem[] = [
-      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true },
-      { id: "item-1", name: "Passport", done: false, position: 1 },
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
     ];
 
     render(
@@ -696,15 +765,15 @@ describe("PackingListView", () => {
     await user.type(contextInput, "Visa");
     await user.keyboard("{Enter}");
 
-    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined);
+    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined, "label-1");
   });
 
   it("contextual add form shares the add pending guard after submit", async () => {
     const onAddItem = vi.fn();
     const user = userEvent.setup();
     const sectionItems: PackingItem[] = [
-      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true },
-      { id: "item-1", name: "Passport", done: false, position: 1 },
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
     ];
 
     render(
@@ -725,7 +794,7 @@ describe("PackingListView", () => {
 
     const contextualForm = contextInput.closest("form");
     expect(contextualForm).not.toBeNull();
-    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined);
+    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined, "label-1");
     expect(contextInput).toBeDisabled();
     expect(within(contextualForm!).getByRole("button", { name: "Add item here" })).toBeDisabled();
   });

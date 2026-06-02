@@ -11,6 +11,7 @@ import {
   jsonb,
   index,
   unique,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -224,6 +225,7 @@ export const packingItems = pgTable("packing_items", {
   done: boolean("done").default(false),
   isLabel: boolean("is_label").default(false).notNull(),
   position: integer("position").notNull(),
+  labelId: uuid("label_id").references((): AnyPgColumn => packingItems.id, { onDelete: "set null" }),
 });
 
 export const itineraryChecklists = pgTable(

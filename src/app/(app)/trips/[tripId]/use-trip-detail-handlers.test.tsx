@@ -153,11 +153,16 @@ describe("useTripDetailHandlers", () => {
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
+    const ordered = [
+      { id: "pack-2", labelId: null, position: 0 },
+      { id: "pack-1", labelId: null, position: 1 },
+    ];
+
     act(() => {
-      result.current.handleReorderPackingItems(["pack-2", "pack-1"]);
+      result.current.handleReorderPackingItems(ordered);
     });
 
-    await waitFor(() => expect(reorderPackingItems).toHaveBeenCalledWith("trip-1", ["pack-2", "pack-1"]));
+    await waitFor(() => expect(reorderPackingItems).toHaveBeenCalledWith("trip-1", ordered));
     expect(toast.error).not.toHaveBeenCalled();
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });
@@ -168,7 +173,7 @@ describe("useTripDetailHandlers", () => {
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     act(() => {
-      result.current.handleReorderPackingItems(["pack-2", "pack-1"]);
+      result.current.handleReorderPackingItems([{ id: "pack-2", labelId: null, position: 0 }]);
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Reorder failed"));
@@ -182,7 +187,7 @@ describe("useTripDetailHandlers", () => {
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     act(() => {
-      result.current.handleReorderPackingItems(["pack-2", "pack-1"], onError);
+      result.current.handleReorderPackingItems([{ id: "pack-2", labelId: null, position: 0 }], onError);
     });
 
     await waitFor(() => expect(onError).toHaveBeenCalledOnce());
