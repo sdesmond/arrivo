@@ -102,15 +102,15 @@ export function PackingRow({
                 color: "var(--fg)",
                 outline: "none",
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitEdit(e.currentTarget.value);
-                if (e.key === "Escape") cancelEdit();
+              onKeyDown={(event) => {
+                if (event.key === "Enter") commitEdit(event.currentTarget.value);
+                if (event.key === "Escape") cancelEdit();
               }}
-              onBlur={(e) => {
+              onBlur={(event) => {
                 // don't commit on blur if focus moved to the delete button inside this row
-                const relatedTarget = e.relatedTarget as HTMLElement | null;
+                const relatedTarget = event.relatedTarget as HTMLElement | null;
                 if (relatedTarget?.dataset.packingDeleteBtn) return;
-                commitEdit(e.target.value);
+                commitEdit(event.target.value);
               }}
             />
             {isLabel ? (

@@ -10,16 +10,16 @@ function makeCookieDocument() {
   return {
     get cookie() {
       return Array.from(store.entries())
-        .map(([k, v]) => `${k}=${v}`)
+        .map(([k, val]) => `${k}=${val}`)
         .join("; ");
     },
     set cookie(str: string) {
-      const parts = str.split(";").map((s) => s.trim());
+      const parts = str.split(";").map((segment) => segment.trim());
       const first = parts[0];
       const eqIdx = first.indexOf("=");
       const name = first.slice(0, eqIdx);
       const value = first.slice(eqIdx + 1);
-      const maxAgePart = parts.find((p) => /^max-age=/i.test(p));
+      const maxAgePart = parts.find((part) => /^max-age=/i.test(part));
       const maxAge = maxAgePart ? parseInt(maxAgePart.split("=")[1], 10) : undefined;
       if (maxAge !== undefined && maxAge <= 0) {
         store.delete(name);

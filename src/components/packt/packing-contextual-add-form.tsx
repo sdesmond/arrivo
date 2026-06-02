@@ -47,7 +47,7 @@ export function ContextualAddForm({
         placeholder={placeholder}
         style={{ background: "var(--surface-2)", color: "var(--fg)" }}
         value={value}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
+        onChange={(event: ChangeEvent<HTMLInputElement>) => setValue(event.target.value)}
       />
       <Button
         className="h-9 min-w-9 rounded-xl px-2"

@@ -33,7 +33,7 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
     <div className="flex flex-col gap-2">
       {collaborators.length > 0 ? (
         <div className="flex flex-col gap-2">
-          {collaborators.map((c, i) => (
+          {collaborators.map((collaborator, i) => (
             <div
               key={i}
               className="flex items-center gap-2"
@@ -47,20 +47,25 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
                   fontSize: "calc(10px * var(--font-scale))",
                   fontWeight: 700,
                   letterSpacing: "0.04em",
-                  background: c.tint?.bg ?? "var(--surface-3)",
-                  color: c.tint?.fg ?? "var(--fg-2)",
+                  background: collaborator.tint?.bg ?? "var(--surface-3)",
+                  color: collaborator.tint?.fg ?? "var(--fg-2)",
                 }}
               >
-                {c.initials}
+                {collaborator.initials}
               </span>
               <div className="flex-1 min-w-0">
                 <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
-                  {c.name}
+                  {collaborator.name}
                 </div>
-                <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>{c.email}</div>
+                <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+                  {collaborator.email}
+                </div>
               </div>
-              <Select value={c.role} onValueChange={(v) => onUpdateRole(i, v as CollaboratorRole)}>
-                <SelectTrigger disabled={c.role === "owner"} aria-label={`Role for ${c.name}`}>
+              <Select
+                value={collaborator.role}
+                onValueChange={(selectedValue) => onUpdateRole(i, selectedValue as CollaboratorRole)}
+              >
+                <SelectTrigger disabled={collaborator.role === "owner"} aria-label={`Role for ${collaborator.name}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -70,14 +75,14 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
                 </SelectContent>
               </Select>
               <button
-                disabled={c.role === "owner"}
+                disabled={collaborator.role === "owner"}
                 onClick={() => onRemove(i)}
                 className="p-1 rounded-[5px] transition-colors"
                 style={{
-                  color: c.role === "owner" ? "var(--fg-5)" : "var(--fg-3)",
-                  cursor: c.role === "owner" ? "not-allowed" : "pointer",
+                  color: collaborator.role === "owner" ? "var(--fg-5)" : "var(--fg-3)",
+                  cursor: collaborator.role === "owner" ? "not-allowed" : "pointer",
                 }}
-                title={c.role === "owner" ? "Owner cannot be removed" : "Remove"}
+                title={collaborator.role === "owner" ? "Owner cannot be removed" : "Remove"}
               >
                 <Trash2 size={13} strokeWidth={1.5} />
               </button>
@@ -98,11 +103,16 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
       >
         <span>Add person</span>
         <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <Input placeholder="Email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+          <Input placeholder="Name" value={newName} onChange={(event) => setNewName(event.target.value)} />
+          <Input
+            placeholder="Email"
+            type="email"
+            value={newEmail}
+            onChange={(event) => setNewEmail(event.target.value)}
+          />
         </div>
         <div className="flex items-center gap-2">
-          <Select value={newRole} onValueChange={(v) => setNewRole(v as CollaboratorRole)}>
+          <Select value={newRole} onValueChange={(selectedValue) => setNewRole(selectedValue as CollaboratorRole)}>
             <SelectTrigger aria-label="New person role">
               <SelectValue />
             </SelectTrigger>

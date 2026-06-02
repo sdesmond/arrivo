@@ -98,7 +98,7 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
               id="pw-current"
               type="password"
               value={currentPassword}
-              onChange={(e) => handleCurrentPasswordChange(e.target.value)}
+              onChange={(event) => handleCurrentPasswordChange(event.target.value)}
               autoComplete="current-password"
             />
           </Field>
@@ -108,7 +108,7 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
               id="pw-new"
               type="password"
               value={newPassword}
-              onChange={(e) => handleNewPasswordChange(e.target.value)}
+              onChange={(event) => handleNewPasswordChange(event.target.value)}
               autoComplete="new-password"
               aria-invalid={!!newPasswordError || undefined}
               aria-describedby={newPasswordError ? "pw-new-error" : undefined}
@@ -120,7 +120,7 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
               id="pw-confirm"
               type="password"
               value={confirmPassword}
-              onChange={(e) => handleConfirmPasswordChange(e.target.value)}
+              onChange={(event) => handleConfirmPasswordChange(event.target.value)}
               autoComplete="new-password"
               aria-invalid={!!confirmPasswordError || undefined}
               aria-describedby={confirmPasswordError ? "pw-confirm-error" : undefined}
@@ -164,10 +164,10 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
                 background: "transparent",
                 fontSize: "calc(13px * var(--font-scale))",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "color-mix(in srgb, var(--destructive) 10%, transparent)")
+              onMouseEnter={(event) =>
+                (event.currentTarget.style.background = "color-mix(in srgb, var(--destructive) 10%, transparent)")
               }
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}
             >
               <Trash2 size={14} strokeWidth={1.5} />
               Delete account

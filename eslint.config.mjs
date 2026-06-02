@@ -16,6 +16,18 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "coverage/**",
   ]),
+  {
+    rules: {
+      "id-length": [
+        "error",
+        {
+          min: 2,
+          exceptions: ["i", "j", "k", "_"],
+          properties: "never",
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
 ]);
 

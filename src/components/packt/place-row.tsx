@@ -34,7 +34,7 @@ export interface PlaceRowProps {
 }
 
 export function PlaceRow({
-  place: p,
+  place,
   dayDate,
   isLast,
   onUpdate,
@@ -50,10 +50,10 @@ export function PlaceRow({
   const [isHovered, setIsHovered] = useState(false);
 
   const [isEditingName, setIsEditingName] = useState(isDraft ?? false);
-  const [draftName, setDraftName] = useState(p.name);
+  const [draftName, setDraftName] = useState(place.name);
 
   const [isEditingNote, setIsEditingNote] = useState(false);
-  const [draftNote, setDraftNote] = useState(p.note ?? "");
+  const [draftNote, setDraftNote] = useState(place.note ?? "");
 
   const [showTimeDialog, setShowTimeDialog] = useState(false);
   const [showCostDialog, setShowCostDialog] = useState(false);
@@ -62,8 +62,8 @@ export function PlaceRow({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const now = useNow();
-  const hasDocs = (p.docs?.length ?? 0) > 0;
-  const isNow = isEventNow(p, now);
+  const hasDocs = (place.docs?.length ?? 0) > 0;
+  const isNow = isEventNow(place, now);
 
   function saveName() {
     const trimmed = draftName.trim();
@@ -72,14 +72,14 @@ export function PlaceRow({
       else onCancelDraft?.();
       return;
     }
-    if (trimmed && trimmed !== p.name) onUpdate({ ...p, name: trimmed });
-    else setDraftName(p.name);
+    if (trimmed && trimmed !== place.name) onUpdate({ ...place, name: trimmed });
+    else setDraftName(place.name);
     setIsEditingName(false);
   }
 
   function saveNote() {
     const val = draftNote.trim() || undefined;
-    if (val !== p.note) onUpdate({ ...p, note: val });
+    if (val !== place.note) onUpdate({ ...place, note: val });
     setIsEditingNote(false);
   }
 
@@ -114,22 +114,22 @@ export function PlaceRow({
             draftName={draftName}
             onDraftChange={setDraftName}
             onBlur={saveName}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveName();
-              if (e.key === "Escape") {
+            onKeyDown={(event) => {
+              if (event.key === "Enter") saveName();
+              if (event.key === "Escape") {
                 if (isDraft) {
                   onCancelDraft?.();
                   return;
                 }
-                setDraftName(p.name);
+                setDraftName(place.name);
                 setIsEditingName(false);
               }
             }}
-            displayName={p.name}
+            displayName={place.name}
             isHovered={isHovered}
             isDraft={isDraft}
             onStartEdit={() => {
-              setDraftName(p.name);
+              setDraftName(place.name);
               setIsEditingName(true);
             }}
           />
@@ -140,11 +140,11 @@ export function PlaceRow({
               <textarea
                 autoFocus
                 value={draftNote}
-                onChange={(e) => setDraftNote(e.target.value)}
+                onChange={(event) => setDraftNote(event.target.value)}
                 onBlur={saveNote}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setDraftNote(p.note ?? "");
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setDraftNote(place.note ?? "");
                     setIsEditingNote(false);
                   }
                 }}
@@ -169,12 +169,12 @@ export function PlaceRow({
                 role="button"
                 tabIndex={0}
                 onClick={() => {
-                  setDraftNote(p.note ?? "");
+                  setDraftNote(place.note ?? "");
                   setIsEditingNote(true);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    setDraftNote(p.note ?? "");
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    setDraftNote(place.note ?? "");
                     setIsEditingNote(true);
                   }
                 }}
@@ -185,25 +185,25 @@ export function PlaceRow({
                   padding: "4px 10px",
                   lineHeight: 1.5,
                   whiteSpace: "pre-wrap",
-                  color: p.note ? "var(--fg-2)" : "var(--fg-4)",
+                  color: place.note ? "var(--fg-2)" : "var(--fg-4)",
                 }}
               >
-                {p.note ?? "Add a note…"}
+                {place.note ?? "Add a note…"}
               </div>
             )}
           </div>
 
           <PlaceRowActionBar
-            place={p}
+            place={place}
             showDocs={showDocs}
-            onToggleDocs={() => setShowDocs((v) => !v)}
+            onToggleDocs={() => setShowDocs((prev) => !prev)}
             onOpenTime={() => setShowTimeDialog(true)}
             onOpenLocation={() => setShowLocationDialog(true)}
             onOpenCost={() => setShowCostDialog(true)}
             onOpenAddDoc={() => setShowAddDocDialog(true)}
           />
 
-          {showDocs && hasDocs && <DocsBlock docs={p.docs!} onAdd={() => setShowAddDocDialog(true)} />}
+          {showDocs && hasDocs && <DocsBlock docs={place.docs!} onAdd={() => setShowAddDocDialog(true)} />}
         </div>
 
         {/* Drag handle — always visible on mobile, hover-only on desktop */}
@@ -222,7 +222,7 @@ export function PlaceRow({
             if (hasDocs) {
               setShowDeleteDialog(true);
             } else {
-              onDelete(p.id);
+              onDelete(place.id);
             }
           }}
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
@@ -242,23 +242,23 @@ export function PlaceRow({
       </div>
 
       <PlaceRowDialogs
-        place={p}
+        place={place}
         tripDocs={tripDocs}
         showTimeDialog={showTimeDialog}
         onTimeOpenChange={setShowTimeDialog}
-        onTimeSave={(t, et) => {
-          if (!t) {
-            onUpdate({ ...p, startAt: undefined, endAt: undefined });
+        onTimeSave={(time, et) => {
+          if (!time) {
+            onUpdate({ ...place, startAt: undefined, endAt: undefined });
           } else {
-            onUpdate({ ...p, ...composeStartEndAt(dayDate, t, et ?? t) });
+            onUpdate({ ...place, ...composeStartEndAt(dayDate, time, et ?? time) });
           }
         }}
         showCostDialog={showCostDialog}
         onCostOpenChange={setShowCostDialog}
-        onCostSave={(cost) => onUpdate({ ...p, cost })}
+        onCostSave={(cost) => onUpdate({ ...place, cost })}
         showLocationDialog={showLocationDialog}
         onLocationOpenChange={setShowLocationDialog}
-        onLocationSave={(address) => onUpdate({ ...p, locationAddress: address })}
+        onLocationSave={(address) => onUpdate({ ...place, locationAddress: address })}
         showAddDocDialog={showAddDocDialog}
         onAddDocOpenChange={setShowAddDocDialog}
         showDeleteDialog={showDeleteDialog}

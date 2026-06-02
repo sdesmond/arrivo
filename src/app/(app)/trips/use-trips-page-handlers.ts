@@ -37,15 +37,19 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     }
   }
 
-  const activeEntries = datedEntries.filter((e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "active");
-  const upcomingEntries = datedEntries.filter(
-    (e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "upcoming"
+  const activeEntries = datedEntries.filter(
+    (entry) => getTripStatus(entry.trip.startDate, entry.trip.endDate, now) === "active"
   );
-  const pastEntries = datedEntries.filter((e) => getTripStatus(e.trip.startDate, e.trip.endDate, now) === "past");
+  const upcomingEntries = datedEntries.filter(
+    (entry) => getTripStatus(entry.trip.startDate, entry.trip.endDate, now) === "upcoming"
+  );
+  const pastEntries = datedEntries.filter(
+    (entry) => getTripStatus(entry.trip.startDate, entry.trip.endDate, now) === "past"
+  );
 
   const activeEntry = activeEntries[0] ?? null;
-  const upcomingTrips = upcomingEntries.map((e) => e.trip);
-  const pastTrips = pastEntries.map((e) => e.trip);
+  const upcomingTrips = upcomingEntries.map((entry) => entry.trip);
+  const pastTrips = pastEntries.map((entry) => entry.trip);
 
   const defaultTab: MobileTab =
     activeEntry !== null ? "Active" : unscheduledEntries.length > 0 ? "Unscheduled" : "Upcoming";
@@ -92,8 +96,8 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
           destinationCountryCode: draft.destinationCountryCode,
           destinationCenter: draft.destinationCenter,
         });
-      } catch (e) {
-        if (e && typeof e === "object" && "digest" in e) throw e;
+      } catch (err) {
+        if (err && typeof err === "object" && "digest" in err) throw err;
         toast.error("Failed to create trip. Please try again.");
       }
     });
@@ -167,7 +171,7 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     });
   }
 
-  const editingEntry = editingTrip ? (initialEntries.find((e) => e.trip.id === editingTrip) ?? null) : null;
+  const editingEntry = editingTrip ? (initialEntries.find((entry) => entry.trip.id === editingTrip) ?? null) : null;
 
   return {
     unscheduledEntries,

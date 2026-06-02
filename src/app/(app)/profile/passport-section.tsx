@@ -68,8 +68,8 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
           id="passport-number"
           type="text"
           value={passportNumber}
-          onChange={(e) => {
-            const next = e.target.value;
+          onChange={(event) => {
+            const next = event.target.value;
             if (next === passportNumber) return;
             setPassportNumber(next);
             onDirtyChange?.(computeDirty(next, passportExpiry, passportNationality, knownTravelerNumber));
@@ -84,10 +84,10 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
       <Field label="Expiry date">
         <DatePicker
           value={passportExpiry}
-          onChange={(v) => {
-            if (v === passportExpiry) return;
-            setPassportExpiry(v);
-            onDirtyChange?.(computeDirty(passportNumber, v, passportNationality, knownTravelerNumber));
+          onChange={(value) => {
+            if (value === passportExpiry) return;
+            setPassportExpiry(value);
+            onDirtyChange?.(computeDirty(passportNumber, value, passportNationality, knownTravelerNumber));
           }}
           placeholder="Expiry date"
         />
@@ -98,8 +98,8 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
           id="passport-nationality"
           type="text"
           value={passportNationality}
-          onChange={(e) => {
-            const next = e.target.value;
+          onChange={(event) => {
+            const next = event.target.value;
             if (next === passportNationality) return;
             setPassportNationality(next);
             onDirtyChange?.(computeDirty(passportNumber, passportExpiry, next, knownTravelerNumber));
@@ -115,8 +115,8 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
           id="ktn"
           type="text"
           value={knownTravelerNumber}
-          onChange={(e) => {
-            const next = e.target.value;
+          onChange={(event) => {
+            const next = event.target.value;
             if (next === knownTravelerNumber) return;
             setKnownTravelerNumber(next);
             onDirtyChange?.(computeDirty(passportNumber, passportExpiry, passportNationality, next));

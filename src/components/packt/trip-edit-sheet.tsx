@@ -172,7 +172,7 @@ export function TripEditSheet({
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
             <Section title="Basic">
               <Field label="Trip name">
-                <Input disabled={isBusy} value={draft.name} onChange={(e) => set("name", e.target.value)} />
+                <Input disabled={isBusy} value={draft.name} onChange={(event) => set("name", event.target.value)} />
               </Field>
             </Section>
 

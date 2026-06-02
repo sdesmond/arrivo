@@ -16,12 +16,12 @@ vi.mock("@/components/ui/date-range-picker", () => ({
       <input
         data-testid="date-range-start"
         value={start ?? ""}
-        onChange={(e) => onChange(e.target.value || undefined, end)}
+        onChange={(event) => onChange(event.target.value || undefined, end)}
       />
       <input
         data-testid="date-range-end"
         value={end ?? ""}
-        onChange={(e) => onChange(start, e.target.value || undefined)}
+        onChange={(event) => onChange(start, event.target.value || undefined)}
       />
     </>
   ),
@@ -91,7 +91,7 @@ vi.mock("./trip-edit-destination", () => ({
     onClear: () => void;
   }) => (
     <div>
-      <input data-testid="destination-input" value={value} onChange={(e) => onInputChange(e.target.value)} />
+      <input data-testid="destination-input" value={value} onChange={(event) => onInputChange(event.target.value)} />
       <button onClick={() => onSelect({ name: "Tokyo", country: "Japan", countryCode: "JP", center: [139.69, 35.68] })}>
         select-destination
       </button>

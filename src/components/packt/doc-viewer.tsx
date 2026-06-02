@@ -119,8 +119,8 @@ export function DocViewer({ doc, open, onClose, finalFocusRef }: DocViewerProps)
   return (
     <Dialog
       open={open}
-      onOpenChange={(o) => {
-        if (!o) onClose();
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose();
       }}
     >
       <DialogPortal>

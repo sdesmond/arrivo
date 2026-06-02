@@ -156,8 +156,8 @@ describe("CoverImagePickerUpload", () => {
   it("shows loading indicator during upload", async () => {
     let resolveUpload: (url: string) => void = () => {};
     vi.mocked(uploadCoverImage).mockReturnValueOnce(
-      new Promise((r) => {
-        resolveUpload = r;
+      new Promise((resolve) => {
+        resolveUpload = resolve;
       })
     );
 

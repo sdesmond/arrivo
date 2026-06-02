@@ -181,9 +181,9 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, dateForma
           <span className="flex-1" />
           {trip.collaborators && (
             <AvatarStack
-              initials={trip.collaborators.map((c) => c.initials)}
+              initials={trip.collaborators.map((collaborator) => collaborator.initials)}
               size="sm"
-              aria-label={trip.collaborators.map((c) => c.name).join(", ")}
+              aria-label={trip.collaborators.map((collaborator) => collaborator.name).join(", ")}
             />
           )}
         </div>
@@ -193,7 +193,7 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, dateForma
           <Link
             href={`/trips/${trip.id}?focus=${displayEvent.id}`}
             className="block mt-4 rounded-[8px] group"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
             style={{
               background: "var(--accent-soft)",
               border: "1px solid var(--line)",

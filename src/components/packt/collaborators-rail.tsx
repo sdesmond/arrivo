@@ -13,26 +13,28 @@ export function CollaboratorsRail({ collaborators }: CollaboratorsRailProps) {
   return (
     <RailPanel header="Collaborators" meta={String(collaborators.length)}>
       <div className="flex flex-col gap-1">
-        {collaborators.map((c, i) => (
+        {collaborators.map((collaborator, i) => (
           <div key={i} className="flex items-center gap-2.5 rounded-[6px] px-2 py-2">
             <span
               className="flex items-center justify-center rounded-full shrink-0 text-xs font-semibold"
               style={{
                 width: 30,
                 height: 30,
-                background: c.tint?.bg,
-                color: c.tint?.fg,
+                background: collaborator.tint?.bg,
+                color: collaborator.tint?.fg,
                 fontFamily: "var(--font-mono-family, ui-monospace)",
                 fontSize: "calc(11px * var(--font-scale))",
               }}
             >
-              {c.initials}
+              {collaborator.initials}
             </span>
             <div className="flex-1 min-w-0">
               <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 600, color: "var(--fg)" }}>
-                {c.name}
+                {collaborator.name}
               </div>
-              <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>{c.email}</div>
+              <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>
+                {collaborator.email}
+              </div>
             </div>
             <span
               style={{
@@ -43,7 +45,7 @@ export function CollaboratorsRail({ collaborators }: CollaboratorsRailProps) {
                 letterSpacing: "0.04em",
               }}
             >
-              {c.role}
+              {collaborator.role}
             </span>
           </div>
         ))}

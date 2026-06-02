@@ -16,7 +16,7 @@ export function TimePicker({ value, onChange, disabled }: TimePickerProps) {
       value={value ?? ""}
       disabled={disabled}
       className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-      onChange={(e) => onChange(e.target.value || undefined)}
+      onChange={(event) => onChange(event.target.value || undefined)}
     />
   );
 }

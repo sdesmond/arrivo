@@ -129,7 +129,7 @@ export function TripsMobileLayout({
 
       <div className="flex-1 overflow-y-auto scroll-thin p-4">
         {mobileTab === "Unscheduled" && (
-          <MobileUnscheduledTab trips={unscheduledEntries.map((e) => e.trip)} dateFormat={dateFormat} />
+          <MobileUnscheduledTab trips={unscheduledEntries.map((entry) => entry.trip)} dateFormat={dateFormat} />
         )}
         {mobileTab === "Active" && (
           <MobileActiveTab trip={activeEntry?.trip ?? null} todayEvents={activeEntry?.todayEvents ?? []} now={now} />

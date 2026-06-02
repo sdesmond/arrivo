@@ -56,9 +56,9 @@ export function MobilePastTab({ trips, dateFormat, onEditTrip, onDeleteTrip }: M
                   title="Trip options"
                   className="rounded-[6px] p-1 text-fg-4 transition-colors hover:bg-surface-2 hover:text-fg"
                   style={{ minHeight: 44, minWidth: 44 }}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
                   }}
                 >
                   <MoreHorizontal size={14} strokeWidth={1.5} />

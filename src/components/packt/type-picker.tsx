@@ -13,11 +13,11 @@ export function TypePicker({ onSelect, onDismiss }: TypePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onDismiss();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onDismiss();
     }
-    function handleMouseDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    function handleMouseDown(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
         onDismiss();
       }
     }

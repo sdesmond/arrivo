@@ -48,8 +48,8 @@ vi.mock("@/components/ui/dialog", () => ({
   }) => {
     if (renderProp) {
       const originalOnClick = renderProp.props.onClick;
-      const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-        originalOnClick?.(e);
+      const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        originalOnClick?.(event);
         const backdrop = document.querySelector<HTMLButtonElement>('[data-testid="dialog-backdrop-close"]');
         backdrop?.click();
       };

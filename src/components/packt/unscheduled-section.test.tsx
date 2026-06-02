@@ -115,8 +115,8 @@ describe("UnscheduledSection", () => {
       }
     );
     const links = screen.getAllByRole("link");
-    expect(links.some((l) => l.getAttribute("href") === "/trips/trip-1")).toBe(true);
-    expect(links.some((l) => l.getAttribute("href") === "/trips/trip-2")).toBe(true);
+    expect(links.some((link) => link.getAttribute("href") === "/trips/trip-1")).toBe(true);
+    expect(links.some((link) => link.getAttribute("href") === "/trips/trip-2")).toBe(true);
   });
 
   it("renders CalendarOff icon", () => {

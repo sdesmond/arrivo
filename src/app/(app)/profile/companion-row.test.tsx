@@ -25,7 +25,7 @@ vi.mock("@/components/ui/date-picker", () => ({
       data-testid="date-picker"
       type="text"
       value={value ?? ""}
-      onChange={(e) => onChange(e.target.value || undefined)}
+      onChange={(event) => onChange(event.target.value || undefined)}
     />
   ),
 }));

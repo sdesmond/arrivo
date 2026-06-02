@@ -13,7 +13,7 @@ const PHOTO_PAGE_SIZE = 19;
 function simplifyLocationName(name: string): string {
   const parts = name
     .split(",")
-    .map((p) => p.trim())
+    .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length <= 2) return name;
   return `${parts[0]}, ${parts[1]}`;
@@ -205,8 +205,8 @@ export function CoverImagePickerSearchTab({
             value={searchInput}
             placeholder="Search location"
             autoComplete="off"
-            onChange={(e) => {
-              setSearchInput(e.target.value);
+            onChange={(event) => {
+              setSearchInput(event.target.value);
             }}
             onKeyDown={handleKeyDown}
             style={{
@@ -255,8 +255,8 @@ export function CoverImagePickerSearchTab({
                   color: "var(--fg)",
                   background: highlightedIndex === index ? "var(--accent-soft)" : "transparent",
                 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onMouseDown={(event) => {
+                  event.preventDefault();
                   void handleSuggestionSelect(suggestion);
                 }}
               >

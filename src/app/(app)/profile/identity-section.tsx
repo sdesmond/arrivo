@@ -78,7 +78,7 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
           id="profile-name"
           type="text"
           value={name}
-          onChange={(e) => handleNameChange(e.target.value)}
+          onChange={(event) => handleNameChange(event.target.value)}
           placeholder="Your name"
           aria-invalid={!!nameError || undefined}
           aria-describedby={nameError ? "profile-name-error" : undefined}

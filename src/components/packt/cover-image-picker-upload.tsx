@@ -50,14 +50,14 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
     }
   }
 
-  function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
+  function onFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
     if (file) void handleFile(file);
   }
 
-  function onDragOver(e: React.DragEvent) {
-    e.preventDefault();
+  function onDragOver(event: React.DragEvent) {
+    event.preventDefault();
     setDragOver(true);
   }
 
@@ -65,19 +65,19 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
     setDragOver(false);
   }
 
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
+  function onDrop(event: React.DragEvent) {
+    event.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
+    const file = event.dataTransfer.files[0];
     if (file) void handleFile(file);
   }
 
-  function onTriggerKeyDown(e: React.KeyboardEvent<HTMLLabelElement>) {
-    if (e.key !== "Enter" && e.key !== " ") {
+  function onTriggerKeyDown(event: React.KeyboardEvent<HTMLLabelElement>) {
+    if (event.key !== "Enter" && event.key !== " ") {
       return;
     }
 
-    e.preventDefault();
+    event.preventDefault();
     fileInputRef.current?.click();
   }
 

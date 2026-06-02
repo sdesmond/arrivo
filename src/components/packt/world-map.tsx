@@ -43,14 +43,14 @@ export function WorldMap({ pins = [], size = "lg", className }: WorldMapProps) {
   const radius = size === "sm" ? 1.6 : 2.2;
 
   const dots: React.ReactNode[] = [];
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      if (MASK[y][x] === "#") {
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (MASK[row][col] === "#") {
         dots.push(
           <circle
-            key={`${x},${y}`}
-            cx={x * CELL_W + CELL_W / 2}
-            cy={y * CELL_H + CELL_H / 2}
+            key={`${col},${row}`}
+            cx={col * CELL_W + CELL_W / 2}
+            cy={row * CELL_H + CELL_H / 2}
             r={radius}
             fill="var(--fg-4)"
           />
@@ -68,10 +68,10 @@ export function WorldMap({ pins = [], size = "lg", className }: WorldMapProps) {
     >
       <g>{dots}</g>
       <g>
-        {pins.map((p, pinIdx) => (
+        {pins.map((pin, pinIdx) => (
           <g key={pinIdx}>
-            <circle cx={p.x} cy={p.y} r={9} fill="var(--accent-brand)" fillOpacity={0.18} />
-            <circle cx={p.x} cy={p.y} r={4.5} fill="var(--accent-brand)" stroke="var(--bg)" strokeWidth={1.5} />
+            <circle cx={pin.x} cy={pin.y} r={9} fill="var(--accent-brand)" fillOpacity={0.18} />
+            <circle cx={pin.x} cy={pin.y} r={4.5} fill="var(--accent-brand)" stroke="var(--bg)" strokeWidth={1.5} />
           </g>
         ))}
       </g>

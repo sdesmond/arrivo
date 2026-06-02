@@ -15,7 +15,7 @@ function makeMql(matches: boolean) {
       if (idx !== -1) handlers.splice(idx, 1);
     }),
     fire(newMatches: boolean) {
-      handlers.forEach((h) => h({ matches: newMatches } as MediaQueryListEvent));
+      handlers.forEach((handler) => handler({ matches: newMatches } as MediaQueryListEvent));
     },
   };
   return mql;

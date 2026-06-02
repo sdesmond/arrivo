@@ -45,8 +45,8 @@ export function CompanionRow({ companion }: CompanionRowProps) {
     editButtonRef.current?.focus();
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
+  function handleKeyDown(event: React.KeyboardEvent) {
+    if (event.key === "Escape") {
       handleCollapse();
     }
   }
@@ -146,7 +146,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 id={`companion-name-${companion.id}`}
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(event) => setName(event.target.value)}
                 autoComplete="off"
                 aria-invalid={!!nameError || undefined}
                 aria-describedby={nameError ? `companion-name-${companion.id}-error` : undefined}
@@ -160,7 +160,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 min={0}
                 max={120}
                 value={age}
-                onChange={(e) => setAge(e.target.value)}
+                onChange={(event) => setAge(event.target.value)}
                 aria-invalid={!!ageError || undefined}
                 aria-describedby={ageError ? `companion-age-${companion.id}-error` : undefined}
               />
@@ -175,7 +175,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 id={`companion-passport-${companion.id}`}
                 type="text"
                 value={passportNumber}
-                onChange={(e) => setPassportNumber(e.target.value)}
+                onChange={(event) => setPassportNumber(event.target.value)}
                 placeholder="e.g. A12345678"
                 autoComplete="off"
                 aria-invalid={!!passportNumberError || undefined}
@@ -184,7 +184,11 @@ export function CompanionRow({ companion }: CompanionRowProps) {
             </Field>
 
             <Field label="Passport expiry">
-              <DatePicker value={passportExpiry} onChange={(v) => setPassportExpiry(v)} placeholder="Passport expiry" />
+              <DatePicker
+                value={passportExpiry}
+                onChange={(value) => setPassportExpiry(value)}
+                placeholder="Passport expiry"
+              />
             </Field>
 
             <Field
@@ -196,7 +200,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 id={`companion-nationality-${companion.id}`}
                 type="text"
                 value={passportNationality}
-                onChange={(e) => setPassportNationality(e.target.value)}
+                onChange={(event) => setPassportNationality(event.target.value)}
                 placeholder="e.g. American"
                 aria-invalid={!!passportNationalityError || undefined}
                 aria-describedby={passportNationalityError ? `companion-nationality-${companion.id}-error` : undefined}
@@ -212,7 +216,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 id={`companion-ktn-${companion.id}`}
                 type="text"
                 value={knownTravelerNumber}
-                onChange={(e) => setKnownTravelerNumber(e.target.value)}
+                onChange={(event) => setKnownTravelerNumber(event.target.value)}
                 placeholder="e.g. 123456789"
                 autoComplete="off"
                 aria-invalid={!!ktnError || undefined}
@@ -226,7 +230,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
               id={`companion-packt-${companion.id}`}
               type="text"
               value={packtUsername}
-              onChange={(e) => setPacktUsername(e.target.value)}
+              onChange={(event) => setPacktUsername(event.target.value)}
               placeholder="@username"
               autoComplete="off"
             />
