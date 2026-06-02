@@ -114,7 +114,8 @@ function sameOrder(before: PackingItem[], after: PackingItem[]): boolean {
   );
 }
 
-function arrayMove<T>(items: T[], from: number, to: number): T[] {
+export function arrayMove<T>(items: T[], from: number, to: number): T[] {
+  if (from < 0 || from >= items.length) return [...items];
   const copy = [...items];
   const [moved] = copy.splice(from, 1);
   copy.splice(to, 0, moved);
@@ -152,7 +153,12 @@ function computeReorder(working: PackingItem[], activeId: string, overId: string
   if (activeKey === overKey) {
     containers.set(activeKey, arrayMove(sourceArr, oldIndex, newIndex));
   } else {
-    sourceArr.splice(oldIndex, 1);
+    // Remove the active item by id (index-independent) to avoid a -1 splice
+    // foot-gun, then insert into the target at the resolved slot.
+    containers.set(
+      activeKey,
+      sourceArr.filter((item) => item.id !== activeId)
+    );
     targetArr.splice(newIndex, 0, active);
   }
 

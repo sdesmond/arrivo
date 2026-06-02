@@ -789,16 +789,6 @@ describe("packing actions", () => {
         where: async () => [{ maxPos: null }],
       }),
     });
-    // Quick-add resolves the last section label; none exists here.
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: () => ({
-            limit: async () => [],
-          }),
-        }),
-      }),
-    });
     db.insert.mockReturnValueOnce({
       values: insertValues,
     });
@@ -808,27 +798,18 @@ describe("packing actions", () => {
     expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 0, labelId: null }));
   });
 
-  it("quick-add appends a plain item under the last section label", async () => {
+  it("quick-add appends a plain item ungrouped at the bottom (AC4), not under the last section", async () => {
     const insertValues = vi.fn().mockResolvedValue(undefined);
     db.select.mockReturnValueOnce({
       from: () => ({
         where: async () => [{ maxPos: 4 }],
       }),
     });
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: () => ({
-            limit: async () => [{ id: "label-last" }],
-          }),
-        }),
-      }),
-    });
     db.insert.mockReturnValueOnce({ values: insertValues });
 
     await addPackingItem("trip-1", { name: "Phone charger" });
 
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 5, labelId: "label-last" }));
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 5, labelId: null }));
   });
 
   it("removes a packing entry only after loading the item and checking trip access", async () => {

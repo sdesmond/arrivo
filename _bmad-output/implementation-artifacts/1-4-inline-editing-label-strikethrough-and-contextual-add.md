@@ -149,6 +149,31 @@ And items that were beneath that label remain in the list as ungrouped items
 - [ ] [Review][Patch] Non-null assertion on `item.id!` in callbacks — if an item lacks an ID, `undefined` propagates to server action [src/components/packt/packing-list-sortable.tsx]
 - [ ] [Review][Patch] E2E inline-edit locator `input[maxlength="100"]` first() is overly broad — matches all add-form inputs, not just the edit input [tests/e2e/steps/packing-tab.steps.ts]
 
+### Review Findings (Third Pass — labelId section membership, 2026-06-01)
+
+_Adversarial review of commit `24373c3` (explicit `labelId` section membership) against this story. 2 decision-needed, 1 patch, 5 deferred, 10 dismissed as noise._
+
+**Decision needed**
+
+- [x] [Review][Decision] Quick-add ("Add item" catch-all form) files items under the last section instead of ungrouped — Contradicts **AC4** ("the new item appears at the bottom of the list, below all sections") and Tasks line 90 ("bottom form remains a catch-all — appends at end without afterItemId"). `submitEntry` passes no `labelId` [packing-list-view.tsx:127-136], so `addPackingItem`'s quick-add branch resolves `resolvedLabelId = lastLabel.id` [actions.ts:520-531]. The commit comment states this is intentional ("matching the contextual add UX"). An explicit ungrouped path still exists via the "Add item…" form in the Ungrouped area (labelId=null). Decide: honor AC4 (bottom form → ungrouped) or update the story to bless quick-add-into-last-section. → **Resolved 2026-06-01: honor AC4 — patch quick-add to default ungrouped (`labelId = null`). See Patch below.**
+- [x] [Review][Decision] Commit re-architects to an explicit `labelId` section-membership model, reversing three explicit "What NOT to do" constraints — (a) flat position model / "items can move anywhere" + no cross-section restrictions; (b) "Do NOT modify `reorderPackingItems`"; plus a new canonical `labelId` field on `PackingItem`/`AddPackingItemInput` not in the story's Types scope. Evidence: schema self-FK [schema.ts:228], `reorderPackingItems` signature/body change [actions.ts:577-594], `DroppablePackingSection` + tuned `collisionDetection` [droppable-packing-section.tsx, packing-list-sortable.tsx:167-173]. Code is coherent and tested, but the story is still marked `done` with unchanged ACs. Decide: update Story 1.4 to the section-membership model (re-derive ACs), or roll back toward the flat model. → **Resolved 2026-06-01: code accepted as-is; Story 1.4 updated to document the section-membership model (see the "What NOT to do" annotations and the "Post-1.4 Architecture Change" subsection).**
+
+**Patch**
+
+- [x] [Review][Patch] `arrayMove`/`computeReorder` lack an `oldIndex === -1` guard — `splice(-1, 1)` would silently drop the last element if `findIndex` ever misses [packing-list-sortable.tsx:148-157]. → **Applied 2026-06-01:** `arrayMove` now bounds-checks `from` (returns an unchanged copy), and the cross-container branch removes the active item by id (index-independent) instead of `splice(oldIndex, 1)`; added a direct `arrayMove` unit test.
+
+**Deferred**
+
+- [x] [Review][Defer] Section labels are draggable but cannot be reordered (snap back) — label id is in each section's `sortableIds` and renders as `SortablePackingRow`, but `computeReorder` rejects label drags; conflicts with "Do NOT add drag-to-reorder section labels." Cosmetic, likely partly pre-existing from 1.3 [packing-list-sortable.tsx:273-276] — deferred.
+- [x] [Review][Defer] Server actions don't validate that a supplied `labelId` references a label row in the same trip — self-FK only guarantees row existence, not `isLabel`/same-trip; legit UI never sends a bad value [actions.ts addPackingItem/reorderPackingItems; schema.ts:228] — deferred, defense-in-depth.
+- [x] [Review][Defer] Optimistic reorder is last-write-wins — full-list position rewrite can clobber a concurrent reorder/add from another tab/session; inherent to the 1.3 optimistic pattern [actions.ts:577-594] — deferred, pre-existing.
+- [x] [Review][Defer] Non-null assertions (`item.id!`, `item.position!`) persist and grow in new code — open Second Pass item; project-wide pattern, not a regression [packing-list-sortable.tsx] — deferred, pre-existing.
+- [x] [Review][Defer] E2E drag helper `if (!box) break` abandons a vanished target and relies on `.toPass()` retries — minor test-robustness [tests/e2e/steps/packing-tab.steps.ts] — deferred.
+
+**Action (operational — before merge/deploy)**
+
+- [ ] [Review][Action] Push the new `label_id` column to each DB — `npm run db:migrate` (dev) and `npm run db:migrate:e2e` (E2E). No migration file is expected (drizzle-kit push convention), but without the push every `packing_items` read/write fails on the missing column [schema.ts:228].
+
 ## Dev Notes
 
 ### Existing State (Brownfield)
@@ -172,16 +197,36 @@ Everything from Stories 1.1–1.3 is in place. Files you'll modify:
 ### What NOT to do
 
 - Do NOT add drag-to-reorder section labels (Phase 1: items only — confirmed in 1.3)
-- Do NOT add cross-section drag restrictions (items can move anywhere in flat position model)
+- ~~Do NOT add cross-section drag restrictions (items can move anywhere in flat position model)~~ **SUPERSEDED 2026-06-01:** the flat model was replaced by explicit `labelId` section membership; items now carry a `labelId` and can be dragged between sections, with membership persisted (see "Post-1.4 Architecture Change" below)
 - Do NOT add template-related features (Epic 2 — deferred)
 - Do NOT add optimistic UI for inline edit updates (accept server round-trip; pattern from 1.2 toggle)
 - Do NOT use `window.confirm` for any action (project convention — confirmed in 1.1 review)
 - Do NOT modify `PackingRail` (sidebar, remains read-only)
-- Do NOT modify `togglePackingItem`, `removePackingItem`, `reorderPackingItems` actions — they're correct as-is
+- Do NOT modify `togglePackingItem`, `removePackingItem` actions — they're correct as-is (~~`reorderPackingItems`~~ **SUPERSEDED 2026-06-01:** `reorderPackingItems` now takes `{ id, labelId, position }[]` and persists section membership per item)
 - Do NOT add keyboard shortcut for save (Enter), cancel (Escape) — these are default input behavior
 - Do NOT add native `<form>` around inline edit — single input, controlled component
 - Do NOT hardcode hex/rgb colors — all colors via CSS custom properties
 - Do NOT add ARIA live announcements for inline edit — the edit itself is a direct interaction, no need for announcement
+
+### Post-1.4 Architecture Change — Section Membership via `labelId` (added 2026-06-01)
+
+Story 1.4 originally shipped a flat, position-only model. A follow-up commit (`24373c3`) replaced it with **explicit section membership**, which is now the design of record. This supersedes the two struck-through "What NOT to do" entries above.
+
+**Data model**
+
+- `packing_items` gains a self-referencing `label_id uuid` FK (`onDelete: "set null"`) [src/db/schema.ts]. A non-label item's `labelId` names the section label it belongs to; labels and ungrouped items have `labelId = null`.
+- `PackingItem` and `AddPackingItemInput` gain `labelId?: string | null` [src/data/types.ts]. `db-mappers.ts` maps the column through.
+- Grouping is by `labelId` (not position adjacency); `position` only orders within a group. Items whose `labelId` is null or points at a missing label render as ungrouped.
+
+**Behavior**
+
+- Items can be dragged between sections; `reorderPackingItems` now takes `{ id, labelId, position }[]` and persists membership + order per item.
+- Contextual "Add item under <section>" passes `labelId = <section label id>`; the Ungrouped "Add item…" form passes `labelId = null`.
+- Quick-add (bottom catch-all form, no `labelId`) appends **ungrouped at the bottom**, per AC4 (Decision ① resolution).
+
+**Note on `isComplete`**
+
+The label-strikethrough `isComplete` is a render-only `PackingRowProps` value derived in `packing-list-sortable.tsx` (`completeLabelIds`); it is intentionally **not** a field on the canonical `PackingItem` type — this resolves the open Second-Pass finding rather than implementing the original Task line 53.
 
 ### Label Strikethrough — Client-Side Derivation
 

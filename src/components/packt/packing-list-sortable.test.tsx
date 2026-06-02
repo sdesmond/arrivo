@@ -3,7 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { closestCenter, pointerWithin, rectIntersection } from "@dnd-kit/core";
-import { PackingListSortable, collisionDetection } from "./packing-list-sortable";
+import { PackingListSortable, collisionDetection, arrayMove } from "./packing-list-sortable";
 import type { PackingItem } from "@/data/types";
 
 const dndContextState = vi.hoisted(() => ({
@@ -643,5 +643,20 @@ describe("collisionDetection", () => {
     vi.mocked(rectIntersection).mockReturnValueOnce([]);
     vi.mocked(closestCenter).mockReturnValueOnce([{ id: "c" }]);
     expect(collisionDetection(args)).toEqual([{ id: "c" }]);
+  });
+});
+
+describe("arrayMove", () => {
+  it("moves an item from one index to another", () => {
+    expect(arrayMove(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]);
+    expect(arrayMove(["a", "b", "c"], 2, 0)).toEqual(["c", "a", "b"]);
+  });
+
+  it("returns an unchanged copy when the source index is out of bounds", () => {
+    const input = ["a", "b", "c"];
+    const result = arrayMove(input, -1, 1);
+    expect(result).toEqual(["a", "b", "c"]);
+    expect(result).not.toBe(input);
+    expect(arrayMove(input, 5, 0)).toEqual(["a", "b", "c"]);
   });
 });

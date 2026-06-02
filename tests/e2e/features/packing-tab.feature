@@ -24,19 +24,21 @@ Feature: Packing tab
     When I reload the trip page
     Then the packing list should not contain "Documents"
 
-  Scenario: Items added after a section label appear under that label
+  Scenario: Items added via the general form are ungrouped, not filed under a section
     When I open the Packing tab
     And I add a packing label named "Electronics"
     And I add a packing item named "Phone charger"
     And I add a packing item named "Earbuds"
-    Then the packing list order should be "Electronics" then "Phone charger" then "Earbuds"
+    Then the section "Electronics" should have no items
+    And the packing item "Phone charger" should be in the Ungrouped section
+    And the packing item "Earbuds" should be in the Ungrouped section
 
   Scenario: Ungrouped items render below labeled sections
     When I open the Packing tab
     And I add a packing item named "Passport"
     And I add a packing label named "Documents"
     And I add a packing item named "Phone charger"
-    Then the packing list order should be "Documents" then "Phone charger" then "Passport"
+    Then the packing list order should be "Documents" then "Passport" then "Phone charger"
 
   Scenario: User removes a packing item and the removal persists after reload
     When I open the Packing tab

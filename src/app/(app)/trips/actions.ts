@@ -14,7 +14,7 @@ import {
   itineraryChecklists,
   users,
 } from "@/db/schema";
-import { and, asc, desc, eq, gt, inArray, max, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
@@ -517,25 +517,14 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
       .select({ maxPos: max(packingItems.position) })
       .from(packingItems)
       .where(eq(packingItems.tripId, tripId));
-    // Quick-add with no explicit section preference appends under the last
-    // section (the highest-position label), matching the contextual add UX.
-    let resolvedLabelId = labelId;
-    if (!input.isLabel && input.labelId === undefined) {
-      const [lastLabel] = await db
-        .select({ id: packingItems.id })
-        .from(packingItems)
-        .where(and(eq(packingItems.tripId, tripId), eq(packingItems.isLabel, true)))
-        .orderBy(desc(packingItems.position))
-        .limit(1);
-      resolvedLabelId = lastLabel?.id ?? null;
-    }
+    // Quick-add with no explicit section (AC4): append ungrouped at the bottom.
     await db.insert(packingItems).values({
       tripId,
       name,
       done: false,
       isLabel: input.isLabel ?? false,
       position: (maxPos ?? -1) + 1,
-      labelId: resolvedLabelId,
+      labelId,
     });
   }
 
