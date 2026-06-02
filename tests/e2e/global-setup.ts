@@ -15,6 +15,7 @@ import {
 } from "../../src/db/schema";
 import {
   E2E_USER,
+  E2E_TEMPLATE_USER,
   E2E_TRIP,
   E2E_DAYS,
   E2E_LOYALTY_NUMBER,
@@ -38,7 +39,7 @@ export default async function globalSetup() {
   // Wipe all tables — CASCADE handles FK chain from users → trips → days/events/etc.
   await db.execute(sql`
     TRUNCATE users, accounts, sessions, verification_tokens,
-             trips, days, events, documents, collaborators, packing_items, packing_templates
+             trips, days, events, documents, collaborators, packing_items, packing_templates, packing_template_items
     CASCADE
   `);
 
@@ -48,6 +49,13 @@ export default async function globalSetup() {
     .insert(users)
     .values({ email: E2E_USER.email, name: E2E_USER.name, passwordHash, dateFormat: "MM/DD/YYYY" })
     .returning();
+
+  await db.insert(users).values({
+    email: E2E_TEMPLATE_USER.email,
+    name: E2E_TEMPLATE_USER.name,
+    passwordHash,
+    dateFormat: "MM/DD/YYYY",
+  });
 
   // Insert seed trip
   const [trip] = await db
