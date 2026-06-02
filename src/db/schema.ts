@@ -314,3 +314,20 @@ export const packingTemplates = pgTable(
   },
   (table) => [index().on(table.userId)]
 );
+
+export const packingTemplateItems = pgTable(
+  "packing_template_items",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => packingTemplates.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    isLabel: boolean("is_label").default(false).notNull(),
+    position: integer("position").notNull(),
+    labelId: uuid("label_id").references((): AnyPgColumn => packingTemplateItems.id, { onDelete: "set null" }),
+  },
+  (table) => [index().on(table.templateId, table.position)]
+);
