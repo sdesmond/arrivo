@@ -6,12 +6,8 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
-  closestCenter,
-  pointerWithin,
-  rectIntersection,
   useSensor,
   useSensors,
-  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -21,22 +17,22 @@ import type { PackingItem } from "@/data/types";
 import { PackingRow, SortablePackingRow } from "./packing-list-row";
 import { ContextualAddForm } from "./packing-contextual-add-form";
 import { DroppablePackingSection } from "./droppable-packing-section";
-
-interface PackingSection {
-  label: PackingItem;
-  items: PackingItem[];
-}
-
-interface GroupedPackingItems {
-  sections: PackingSection[];
-  ungroupedItems: PackingItem[];
-}
+import {
+  collisionDetection,
+  computeReorder,
+  containerDomId,
+  groupPackingItems,
+  flatten,
+  resolveContainerKey,
+  sameOrder,
+  UNGROUPED_KEY,
+} from "./packing-sort-utils";
 
 export interface PackingListSortableProps {
   items: PackingItem[];
   pendingItemIds: Set<string>;
   onRemoveItem: (item: PackingItem) => void;
-  onToggleItem: (item: PackingItem) => Promise<void>;
+  onToggleItem?: (item: PackingItem) => Promise<void>;
   onOptimisticReorder: (reorderedItems: PackingItem[] | null) => void;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onEditItem?: (id: string, name: string) => void;
@@ -50,133 +46,6 @@ export interface PackingListSortableProps {
   onAnnounceMove?: (message: string) => void;
   isAdding?: boolean;
 }
-
-const UNGROUPED_KEY = "__ungrouped__";
-const CONTAINER_PREFIX = "container:";
-
-function containerDomId(key: string): string {
-  return `${CONTAINER_PREFIX}${key}`;
-}
-
-function byPosition(first: PackingItem, second: PackingItem): number {
-  return (first.position ?? Infinity) - (second.position ?? Infinity);
-}
-
-function groupPackingItems(items: PackingItem[]): GroupedPackingItems {
-  const labels = items.filter((item) => item.isLabel).sort(byPosition);
-  const labelIds = new Set(labels.map((label) => label.id));
-  const sections: PackingSection[] = labels.map((label) => ({
-    label,
-    items: items.filter((item) => !item.isLabel && item.labelId === label.id).sort(byPosition),
-  }));
-  const ungroupedItems = items
-    .filter((item) => !item.isLabel && (item.labelId == null || !labelIds.has(item.labelId)))
-    .sort(byPosition);
-  return { sections, ungroupedItems };
-}
-
-function containerKeyOfItem(grouped: GroupedPackingItems, itemId: string): string | null {
-  for (const section of grouped.sections) {
-    if (section.label.id === itemId || section.items.some((item) => item.id === itemId)) {
-      return section.label.id ?? null;
-    }
-  }
-  if (grouped.ungroupedItems.some((item) => item.id === itemId)) return UNGROUPED_KEY;
-  return null;
-}
-
-function resolveContainerKey(grouped: GroupedPackingItems, id: string): string | null {
-  if (id.startsWith(CONTAINER_PREFIX)) return id.slice(CONTAINER_PREFIX.length);
-  return containerKeyOfItem(grouped, id);
-}
-
-// Walk sections (label then its items) then ungrouped, assigning a single
-// increasing position and an explicit labelId per non-label item.
-function flatten(grouped: GroupedPackingItems): PackingItem[] {
-  const result: PackingItem[] = [];
-  let position = 0;
-  for (const section of grouped.sections) {
-    result.push({ ...section.label, position: position++, labelId: null });
-    for (const item of section.items) {
-      result.push({ ...item, position: position++, labelId: section.label.id ?? null });
-    }
-  }
-  for (const item of grouped.ungroupedItems) {
-    result.push({ ...item, position: position++, labelId: null });
-  }
-  return result;
-}
-
-function sameOrder(before: PackingItem[], after: PackingItem[]): boolean {
-  if (before.length !== after.length) return false;
-  return before.every(
-    (item, index) => item.id === after[index].id && (item.labelId ?? null) === (after[index].labelId ?? null)
-  );
-}
-
-export function arrayMove<T>(items: T[], from: number, to: number): T[] {
-  if (from < 0 || from >= items.length) return [...items];
-  const copy = [...items];
-  const [moved] = copy.splice(from, 1);
-  copy.splice(to, 0, moved);
-  return copy;
-}
-
-/**
- * Move `activeId` to the container/position implied by `overId` and return the
- * full re-flattened item list, or null when the drop is a no-op. Pure so it can
- * be unit-tested and reused for both live preview (drag over) and persistence.
- */
-function computeReorder(working: PackingItem[], activeId: string, overId: string): PackingItem[] | null {
-  if (activeId === overId) return null;
-  const grouped = groupPackingItems(working);
-  const activeKey = resolveContainerKey(grouped, activeId);
-  const overKey = resolveContainerKey(grouped, overId);
-  if (!activeKey || !overKey) return null;
-
-  const active = working.find((item) => item.id === activeId);
-  if (!active || active.isLabel) return null;
-
-  // Mutable per-container item arrays keyed by container key.
-  const containers = new Map<string, PackingItem[]>();
-  for (const section of grouped.sections) containers.set(section.label.id!, [...section.items]);
-  containers.set(UNGROUPED_KEY, [...grouped.ungroupedItems]);
-
-  const sourceArr = containers.get(activeKey);
-  const targetArr = containers.get(overKey);
-  if (!sourceArr || !targetArr) return null;
-
-  const oldIndex = sourceArr.findIndex((item) => item.id === activeId);
-  const overIndex = overId.startsWith(CONTAINER_PREFIX) ? -1 : targetArr.findIndex((item) => item.id === overId);
-  const newIndex = overIndex === -1 ? targetArr.length : overIndex;
-
-  if (activeKey === overKey) {
-    containers.set(activeKey, arrayMove(sourceArr, oldIndex, newIndex));
-  } else {
-    // Remove the active item by id (index-independent) to avoid a -1 splice
-    // foot-gun, then insert into the target at the resolved slot.
-    containers.set(
-      activeKey,
-      sourceArr.filter((item) => item.id !== activeId)
-    );
-    targetArr.splice(newIndex, 0, active);
-  }
-
-  const after = flatten({
-    sections: grouped.sections.map((section) => ({ label: section.label, items: containers.get(section.label.id!)! })),
-    ungroupedItems: containers.get(UNGROUPED_KEY)!,
-  });
-  if (sameOrder(flatten(grouped), after)) return null;
-  return after;
-}
-
-export const collisionDetection: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args);
-  if (pointerCollisions.length > 0) return pointerCollisions;
-  const rectCollisions = rectIntersection(args);
-  if (rectCollisions.length > 0) return rectCollisions;
-  return closestCenter(args);
-};
 
 export function PackingListSortable({
   items,
@@ -297,7 +166,7 @@ export function PackingListSortable({
                     item={item}
                     isPending={item.id ? pendingItemIds.has(item.id) : false}
                     onRemove={() => onRemoveItem(item)}
-                    onToggle={() => void onToggleItem(item)}
+                    onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
                     onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
                   />
                 ))}
@@ -334,7 +203,7 @@ export function PackingListSortable({
                 item={item}
                 isPending={item.id ? pendingItemIds.has(item.id) : false}
                 onRemove={() => onRemoveItem(item)}
-                onToggle={() => void onToggleItem(item)}
+                onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
                 onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
               />
             ))}

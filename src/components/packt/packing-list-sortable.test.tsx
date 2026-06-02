@@ -3,7 +3,8 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { closestCenter, pointerWithin, rectIntersection } from "@dnd-kit/core";
-import { PackingListSortable, collisionDetection, arrayMove } from "./packing-list-sortable";
+import { PackingListSortable } from "./packing-list-sortable";
+import { arrayMove, collisionDetection } from "./packing-sort-utils";
 import type { PackingItem } from "@/data/types";
 
 const dndContextState = vi.hoisted(() => ({
@@ -590,6 +591,20 @@ describe("PackingListSortable", () => {
     await user.type(labelInput, "Travel docs");
     await user.keyboard("{Enter}");
     expect(onEditItem).toHaveBeenCalledWith("label-1", "Travel docs");
+  });
+
+  it("renders without checkboxes when onToggleItem is omitted", () => {
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
 
   it("calls onEditItem with item id and new name when item inline edit commits", async () => {
