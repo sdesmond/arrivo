@@ -14,6 +14,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - No introductions, filler, or pleasantries
 - Code requests: output code only, no preamble
 - Exploratory questions ("what should we do?"): 2–3 sentences max, recommendation + tradeoff, no headers
+- NEVER add `Co-Authored-By` trailers to commits or pull requests — omit them entirely
 
 ## Windows Shell Rules
 
