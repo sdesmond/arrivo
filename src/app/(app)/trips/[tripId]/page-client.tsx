@@ -15,6 +15,7 @@ import type {
   TripDateConflictResolution,
   UpdateTripPatch,
   TripDetailTab,
+  PackingTemplate,
 } from "@/data/types";
 import { getTripStatus, getTripDays, formatDate, pluralize } from "@/lib/utils";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
@@ -34,6 +35,7 @@ interface TripDetailClientProps {
   dateFormat: string;
   initialExpandedDayNumber?: number;
   isNew?: boolean;
+  templates?: PackingTemplate[];
 }
 
 export function TripDetailClient({
@@ -42,6 +44,7 @@ export function TripDetailClient({
   dateFormat,
   initialExpandedDayNumber,
   isNew,
+  templates = [],
 }: TripDetailClientProps): ReactElement {
   const now = new Date(nowISO);
   useFocusScroll();
@@ -257,6 +260,8 @@ export function TripDetailClient({
             onTogglePackingItem={handlers.handleTogglePackingItem}
             onReorderPackingItems={handlers.handleReorderPackingItems}
             onEditPackingItem={handlers.handleUpdatePackingItem}
+            templates={templates}
+            onPullTemplates={handlers.handlePullTemplates}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

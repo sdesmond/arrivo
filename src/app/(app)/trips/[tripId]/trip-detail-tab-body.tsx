@@ -4,7 +4,16 @@ import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
 import { TripDocsTab } from "@/components/packt/trip-docs-tab";
 import { PackingListView } from "@/components/packt/packing-list-view";
-import type { DayItinerary, TripEvent, DayItemType, Document, PackingItem, TripDetailTab } from "@/data/types";
+import type {
+  DayItinerary,
+  TripEvent,
+  DayItemType,
+  Document,
+  PackingItem,
+  PackingTemplate,
+  PullTemplatesResult,
+  TripDetailTab,
+} from "@/data/types";
 
 export interface TripDetailTabBodyProps {
   tripId: string;
@@ -46,6 +55,8 @@ export interface TripDetailTabBodyProps {
     onError?: () => void
   ) => void;
   onEditPackingItem: (id: string, name: string) => void;
+  templates: PackingTemplate[];
+  onPullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -86,6 +97,8 @@ export function TripDetailTabBody({
   onTogglePackingItem,
   onReorderPackingItems,
   onEditPackingItem,
+  templates,
+  onPullTemplates,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -138,6 +151,8 @@ export function TripDetailTabBody({
           onToggleItem={onTogglePackingItem}
           onReorderItems={onReorderPackingItems}
           onEditItem={onEditPackingItem}
+          templates={templates}
+          onPullTemplates={onPullTemplates}
         />
       )}
       {activeTab === "notes" && (
