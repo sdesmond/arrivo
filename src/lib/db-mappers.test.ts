@@ -12,6 +12,7 @@ import {
   dbCompanionToType,
   dbUserToType,
   dbPackingItemToType,
+  dbTemplateToType,
 } from "@/lib/db-mappers";
 import type {
   trips,
@@ -19,6 +20,7 @@ import type {
   documents,
   collaborators,
   packingItems,
+  packingTemplates,
   users,
   itineraryNotes,
   itineraryChecklists,
@@ -33,6 +35,7 @@ type EventRow = typeof events.$inferSelect;
 type DocRow = typeof documents.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
 type PackingItemRow = typeof packingItems.$inferSelect;
+type PackingTemplateRow = typeof packingTemplates.$inferSelect;
 type UserRow = typeof users.$inferSelect;
 
 // ── dbTripToType ──────────────────────────────────────────────────────────────
@@ -352,6 +355,34 @@ describe("dbPackingItemToType", () => {
 
     expect(result.done).toBe(false);
     expect(result.isLabel).toBe(false);
+  });
+});
+
+// ── dbTemplateToType ─────────────────────────────────────────────────────────
+
+const BASE_TEMPLATE: PackingTemplateRow = {
+  id: "template-1",
+  userId: "user-1",
+  name: "Beach Weekend",
+  createdAt: null,
+};
+
+describe("dbTemplateToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbTemplateToType(BASE_TEMPLATE);
+
+    expect(result).toEqual({
+      id: "template-1",
+      name: "Beach Weekend",
+      createdAt: undefined,
+    });
+  });
+
+  it("converts createdAt to an ISO string", () => {
+    const createdAt = new Date("2026-06-02T10:00:00.000Z");
+    const result = dbTemplateToType({ ...BASE_TEMPLATE, createdAt });
+
+    expect(result.createdAt).toBe(createdAt.toISOString());
   });
 });
 

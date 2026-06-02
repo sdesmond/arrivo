@@ -38,7 +38,7 @@ export default async function globalSetup() {
   // Wipe all tables — CASCADE handles FK chain from users → trips → days/events/etc.
   await db.execute(sql`
     TRUNCATE users, accounts, sessions, verification_tokens,
-             trips, days, events, documents, collaborators, packing_items
+             trips, days, events, documents, collaborators, packing_items, packing_templates
     CASCADE
   `);
 
