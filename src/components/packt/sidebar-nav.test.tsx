@@ -61,6 +61,13 @@ describe("SidebarNav", () => {
     expect(screen.getByText("Search")).toBeInTheDocument();
   });
 
+  it("renders Packing Templates nav item linking to /packing", () => {
+    render(<SidebarNav user={baseUser} />);
+    const link = screen.getByRole("link", { name: "Packing Templates" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/packing");
+  });
+
   it("renders the Packt brand name", () => {
     render(<SidebarNav user={baseUser} />);
     expect(screen.getByText("Packt")).toBeInTheDocument();

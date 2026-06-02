@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Search, Clock, LogOut } from "lucide-react";
+import { Briefcase, Search, Clock, LogOut, LayoutTemplate } from "lucide-react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { NavItem } from "./nav-item";
@@ -10,6 +10,7 @@ import type { UserProfile } from "@/data/types";
 
 const NAV_ITEMS = [
   { id: "trips", label: "Trips", icon: Briefcase, href: "/trips" },
+  { id: "templates", label: "Packing Templates", icon: LayoutTemplate, href: "/packing" },
   { id: "search", label: "Search", icon: Search, href: "/search" },
   { id: "travel-history", label: "Travel History", icon: Clock, href: "/travel-history" },
 ];
@@ -78,7 +79,11 @@ export function SidebarNav({ user }: SidebarNavProps) {
             icon={item.icon}
             label={item.label}
             href={item.href}
-            active={pathname === item.href || (item.href === "/trips" && pathname.startsWith("/trips"))}
+            active={
+              pathname === item.href ||
+              (item.href === "/trips" && pathname.startsWith("/trips")) ||
+              (item.href === "/packing" && (pathname === "/packing" || pathname.startsWith("/packing/")))
+            }
           />
         ))}
       </div>

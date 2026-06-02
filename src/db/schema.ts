@@ -299,3 +299,18 @@ export const userCompanions = pgTable(
   },
   (t) => [index().on(t.userId, t.position)]
 );
+
+export const packingTemplates = pgTable(
+  "packing_templates",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+  },
+  (t) => [index().on(t.userId)]
+);

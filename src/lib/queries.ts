@@ -14,6 +14,7 @@ import {
   userLoyaltyNumbers,
   userWishlistDestinations,
   userCompanions,
+  packingTemplates,
 } from "@/db/schema";
 import { eq, and, sql, inArray, asc, count } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
@@ -27,9 +28,10 @@ import {
   dbWishlistToType,
   dbCompanionToType,
   dbPackingItemToType,
+  dbTemplateToType,
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
-import type { TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
+import type { PackingTemplate, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
 
@@ -120,6 +122,16 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
   );
 
   return result;
+}
+
+export async function listTemplatesForUser(userId: string): Promise<PackingTemplate[]> {
+  const rows = await db
+    .select()
+    .from(packingTemplates)
+    .where(eq(packingTemplates.userId, userId))
+    .orderBy(asc(packingTemplates.name), asc(packingTemplates.createdAt));
+
+  return rows.map(dbTemplateToType);
 }
 
 export async function getTripDetail(tripId: string, userId: string): Promise<TripDetailPayload> {

@@ -395,6 +395,24 @@ export interface PackingItem {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PACKING TEMPLATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PackingTemplate {
+  id: string;
+  name: string;
+  createdAt?: string;
+}
+
+export interface CreatePackingTemplateInput {
+  name: string;
+}
+
+export interface UpdatePackingTemplatePatch {
+  name: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // VISUAL / THEME HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
