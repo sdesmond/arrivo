@@ -71,6 +71,7 @@ import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDate
 import {
   addPackingItem,
   createTrip,
+  pullTemplatesOntoTrip,
   reorderPackingItems,
   removePackingItem,
   retrieveLocation,
@@ -1053,6 +1054,206 @@ describe("packing actions", () => {
     await expect(addPackingItem("trip-1", { name: "   " })).rejects.toThrow("Packing item name is required");
 
     expect(db.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("pullTemplatesOntoTrip", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  it("returns {added:0,skipped:0} immediately for empty templateIds without DB calls", async () => {
+    const result = await pullTemplatesOntoTrip("trip-1", []);
+
+    expect(result).toEqual({ added: 0, skipped: 0 });
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("enforces requireUser and assertTripAccess with editor role", async () => {
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
+      cb({ select: vi.fn(() => ({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })), insert: vi.fn() })
+    );
+
+    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("inserts all template items when the trip list is empty", async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
+    const insertValues = vi.fn(() => ({ returning }));
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [
+              { id: "ti-1", text: "Passport", isLabel: false, position: 0, labelId: null },
+              { id: "ti-2", text: "Phone Charger", isLabel: false, position: 1, labelId: null },
+            ],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) }); // existing items
+    db.select.mockReturnValueOnce({
+      from: () => ({ where: async () => [{ id: "tmpl-1" }] }),
+    }); // owned templates
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) }); // max pos
+    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
+
+    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
+
+    expect(result).toEqual({ added: 2, skipped: 0 });
+    expect(insertValues).toHaveBeenCalledTimes(2);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("skips a duplicate when existing item name matches case-insensitively", async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
+    const insertValues = vi.fn(() => ({ returning }));
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [{ id: "ti-1", text: "sunscreen", isLabel: false, position: 0, labelId: null }],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+
+    db.select.mockReturnValueOnce({
+      from: () => ({ where: async () => [{ name: "Sunscreen" }] }),
+    }); // existing items contain "Sunscreen"
+    db.select.mockReturnValueOnce({
+      from: () => ({ where: async () => [{ id: "tmpl-1" }] }),
+    });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 0 }] }) });
+    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
+
+    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
+
+    expect(result).toEqual({ added: 0, skipped: 1 });
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates across two templates sharing an item text", async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
+    const insertValues = vi.fn(() => ({ returning }));
+    let callCount = 0;
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => {
+              callCount++;
+              // Both templates contain "Toothbrush"
+              return [{ id: `ti-${callCount}`, text: "Toothbrush", isLabel: false, position: 0, labelId: null }];
+            },
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+    db.select.mockReturnValueOnce({
+      from: () => ({ where: async () => [{ id: "tmpl-1" }, { id: "tmpl-2" }] }),
+    });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
+    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
+
+    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1", "tmpl-2"]);
+
+    expect(result).toEqual({ added: 1, skipped: 1 });
+  });
+
+  it("silently skips a template not owned by the current user", async () => {
+    const transaction = {
+      select: vi.fn(),
+      insert: vi.fn(),
+    };
+
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+    db.select.mockReturnValueOnce({
+      from: () => ({ where: async () => [] }),
+    }); // no owned templates returned
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
+    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
+
+    const result = await pullTemplatesOntoTrip("trip-1", ["foreign-tmpl"]);
+
+    expect(result).toEqual({ added: 0, skipped: 0 });
+    expect(transaction.select).not.toHaveBeenCalled();
+  });
+
+  it("appends after the last existing item position", async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
+    const insertValues = vi.fn(() => ({ returning }));
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [{ id: "ti-1", text: "Tent", isLabel: false, position: 0, labelId: null }],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ name: "Laptop" }] }) });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 3 }] }) });
+    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
+
+    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
+
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 4 }));
+  });
+
+  it("maps label cross-references: inserted label id becomes labelId for child items", async () => {
+    const labelReturning = vi.fn().mockResolvedValue([{ id: "new-label-id" }]);
+    const itemReturning = vi.fn().mockResolvedValue([{ id: "new-item-id" }]);
+    let insertCallIndex = 0;
+    const insertValues = vi.fn(() => {
+      insertCallIndex++;
+      return { returning: insertCallIndex === 1 ? labelReturning : itemReturning };
+    });
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [
+              { id: "label-tmpl-id", text: "Toiletries", isLabel: true, position: 0, labelId: null },
+              { id: "item-tmpl-id", text: "Toothbrush", isLabel: false, position: 1, labelId: "label-tmpl-id" },
+            ],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
+    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
+
+    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
+
+    // Second insert (Toothbrush) should reference the new label id
+    expect(insertValues).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ labelId: "new-label-id", name: "Toothbrush" })
+    );
   });
 });
 
