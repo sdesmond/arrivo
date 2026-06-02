@@ -4,6 +4,12 @@ export const E2E_USER = {
   initials: "ET",
 };
 
+export const E2E_TEMPLATE_USER = {
+  email: "e2e-templates@packt.local",
+  name: "E2E Template User",
+  initials: "TT",
+};
+
 export const E2E_TRIP = {
   name: "E2E Test Trip",
   startDate: "2026-07-01",
@@ -183,6 +189,20 @@ export const E2E_TEMPLATE_RENAMED = {
 };
 
 export const E2E_TEMPLATE_LIST = [{ name: "Business Trip" }, { name: "Winter Ski" }];
+
+export const E2E_TEMPLATE_EDITOR = {
+  name: "Editor Template",
+};
+
+export const E2E_TEMPLATE_EDITOR_ITEMS = [
+  { text: "Sunscreen", isLabel: false, position: 0 },
+  { text: "Sunglasses", isLabel: false, position: 1 },
+];
+
+export const E2E_TEMPLATE_LABEL_ITEMS = [
+  { text: "Beach Gear", isLabel: true, position: 0 },
+  { text: "Towel", isLabel: false, position: 1 },
+];
 
 export const E2E_PACKING_DELETE_LABEL_ITEMS = [
   { name: "Documents", isLabel: true, done: false, position: 0 },

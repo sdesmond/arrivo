@@ -9,6 +9,7 @@ import {
   itineraryNotes,
   packingItems,
   packingTemplates,
+  packingTemplateItems,
   userLoyaltyNumbers,
   userWishlistDestinations,
   userCompanions,
@@ -29,6 +30,7 @@ import type {
   Companion,
   PackingItem,
   PackingTemplate,
+  PackingTemplateItem,
 } from "@/data/types";
 import { CoverType } from "@/data/types";
 
@@ -204,6 +206,17 @@ export function dbTemplateToType(row: typeof packingTemplates.$inferSelect): Pac
     id: row.id,
     name: row.name,
     createdAt: row.createdAt?.toISOString() ?? undefined,
+  };
+}
+
+export function dbTemplateItemToType(row: typeof packingTemplateItems.$inferSelect): PackingTemplateItem {
+  return {
+    id: row.id,
+    templateId: row.templateId,
+    text: row.text,
+    isLabel: row.isLabel,
+    position: row.position,
+    labelId: row.labelId ?? null,
   };
 }
 

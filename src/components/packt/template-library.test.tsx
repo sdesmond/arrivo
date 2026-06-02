@@ -26,6 +26,8 @@ describe("TemplateLibrary", () => {
 
     expect(screen.getByText("Beach Weekend")).toBeInTheDocument();
     expect(screen.getByText("Carry-on Only")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Beach Weekend" })).toHaveAttribute("href", "/packing/template-1");
+    expect(screen.getByRole("link", { name: "Carry-on Only" })).toHaveAttribute("href", "/packing/template-2");
     expect(screen.getByRole("button", { name: "Rename Beach Weekend" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete Beach Weekend" })).toBeInTheDocument();
   });

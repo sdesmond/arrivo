@@ -116,14 +116,18 @@ Pass the original request as context so scope and test checks have what they nee
 **Testing-first gate — NON-NEGOTIABLE:**
 For every coding change, tests are first-class deliverables, not cleanup work after implementation. A change is incomplete until the required unit/component tests and any required E2E coverage have been identified and authored in the same change. Coverage thresholds and validator failures are enforcement backstops, not the reason tests get written. If you cannot name the tests you will add or update before coding, stop and resolve that first.
 
+**Branch-confirmation gate — NON-NEGOTIABLE:**
+Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
+
 **Default workflow for any coding task:**
 
-1. Identify the required tests, then implement the change and write/update those tests in the same change — tests are part of implementation, not something added after a coverage miss
+1. Ask whether the user wants a branch created before development begins
+2. Identify the required tests, then implement the change and write/update those tests in the same change — tests are part of implementation, not something added after a coverage miss
    - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create the matching colocated `*.test.ts` / `*.test.tsx` alongside it in the same change
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend the `.feature` file and matching step definitions in `tests/e2e/` in the same change
    - If you cannot name the exact tests you are adding or updating, pause and resolve that before editing production code
-2. Run `packt-build-validator` to verify the completed change: lint, TypeScript, coverage, build, and Playwright E2E should confirm work that is already fully implemented and tested
-3. Fix any flagged issues, then re-run `packt-build-validator` again before the final commit
+3. Run `packt-build-validator` to verify the completed change: lint, TypeScript, coverage, build, and Playwright E2E should confirm work that is already fully implemented and tested
+4. Fix any flagged issues, then re-run `packt-build-validator` again before the final commit
 
 ## Key Conventions
 

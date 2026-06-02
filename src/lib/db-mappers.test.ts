@@ -13,6 +13,7 @@ import {
   dbUserToType,
   dbPackingItemToType,
   dbTemplateToType,
+  dbTemplateItemToType,
 } from "@/lib/db-mappers";
 import type {
   trips,
@@ -21,6 +22,7 @@ import type {
   collaborators,
   packingItems,
   packingTemplates,
+  packingTemplateItems,
   users,
   itineraryNotes,
   itineraryChecklists,
@@ -36,6 +38,7 @@ type DocRow = typeof documents.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
 type PackingItemRow = typeof packingItems.$inferSelect;
 type PackingTemplateRow = typeof packingTemplates.$inferSelect;
+type PackingTemplateItemRow = typeof packingTemplateItems.$inferSelect;
 type UserRow = typeof users.$inferSelect;
 
 // ── dbTripToType ──────────────────────────────────────────────────────────────
@@ -383,6 +386,44 @@ describe("dbTemplateToType", () => {
     const result = dbTemplateToType({ ...BASE_TEMPLATE, createdAt });
 
     expect(result.createdAt).toBe(createdAt.toISOString());
+  });
+});
+
+// ── dbTemplateItemToType ─────────────────────────────────────────────────────
+
+const BASE_TEMPLATE_ITEM: PackingTemplateItemRow = {
+  id: "template-item-1",
+  templateId: "template-1",
+  text: "Passport",
+  isLabel: false,
+  position: 1,
+  labelId: null,
+};
+
+describe("dbTemplateItemToType", () => {
+  it("maps template item fields including label membership", () => {
+    const result = dbTemplateItemToType({
+      ...BASE_TEMPLATE_ITEM,
+      text: "Documents",
+      isLabel: true,
+      position: 0,
+      labelId: "label-1",
+    });
+
+    expect(result).toEqual({
+      id: "template-item-1",
+      templateId: "template-1",
+      text: "Documents",
+      isLabel: true,
+      position: 0,
+      labelId: "label-1",
+    });
+  });
+
+  it("normalizes a null labelId to null", () => {
+    const result = dbTemplateItemToType(BASE_TEMPLATE_ITEM);
+
+    expect(result.labelId).toBeNull();
   });
 });
 

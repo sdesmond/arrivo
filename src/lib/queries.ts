@@ -15,6 +15,7 @@ import {
   userWishlistDestinations,
   userCompanions,
   packingTemplates,
+  packingTemplateItems,
 } from "@/db/schema";
 import { eq, and, sql, inArray, asc, count } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
@@ -29,9 +30,10 @@ import {
   dbCompanionToType,
   dbPackingItemToType,
   dbTemplateToType,
+  dbTemplateItemToType,
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
-import type { PackingTemplate, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
+import type { PackingTemplate, PackingTemplateItem, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
 
@@ -132,6 +134,31 @@ export async function listTemplatesForUser(userId: string): Promise<PackingTempl
     .orderBy(asc(packingTemplates.name), asc(packingTemplates.createdAt));
 
   return rows.map(dbTemplateToType);
+}
+
+export async function getTemplateWithItems(
+  templateId: string,
+  userId: string
+): Promise<{ template: PackingTemplate; items: PackingTemplateItem[] } | null> {
+  const [templateRow] = await db
+    .select()
+    .from(packingTemplates)
+    .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, userId)));
+
+  if (!templateRow) {
+    return null;
+  }
+
+  const itemRows = await db
+    .select()
+    .from(packingTemplateItems)
+    .where(eq(packingTemplateItems.templateId, templateId))
+    .orderBy(asc(packingTemplateItems.position));
+
+  return {
+    template: dbTemplateToType(templateRow),
+    items: itemRows.map(dbTemplateItemToType),
+  };
 }
 
 export async function getTripDetail(tripId: string, userId: string): Promise<TripDetailPayload> {

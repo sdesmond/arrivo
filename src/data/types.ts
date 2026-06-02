@@ -413,6 +413,31 @@ export interface UpdatePackingTemplatePatch {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PACKING TEMPLATE ITEM
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PackingTemplateItem {
+  id: string;
+  templateId: string;
+  text: string;
+  isLabel: boolean;
+  position: number;
+  labelId?: string | null;
+}
+
+export interface AddTemplateItemInput {
+  text: string;
+  isLabel?: boolean;
+  afterItemId?: string;
+  beforeItemId?: string;
+  labelId?: string | null;
+}
+
+export interface UpdateTemplateItemInput {
+  text: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // VISUAL / THEME HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 

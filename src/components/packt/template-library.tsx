@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LayoutTemplate, PencilLine, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -64,8 +65,9 @@ export function TemplateLibrary({ templates, onNew, onRename, onDelete }: Templa
               style={{ borderColor: "var(--line)", background: "var(--surface)" }}
             >
               <div className="min-w-0 flex-1">
-                <p
-                  className="truncate"
+                <Link
+                  href={`/packing/${template.id}`}
+                  className="block truncate"
                   style={{
                     color: "var(--fg)",
                     fontFamily: "var(--font-body, ui-sans-serif)",
@@ -74,7 +76,7 @@ export function TemplateLibrary({ templates, onNew, onRename, onDelete }: Templa
                   }}
                 >
                   {template.name}
-                </p>
+                </Link>
               </div>
               <div className="flex items-center gap-1">
                 <Button

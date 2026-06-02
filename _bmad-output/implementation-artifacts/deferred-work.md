@@ -35,6 +35,16 @@
 - Touch target test uses class presence not rendered size — jsdom cannot measure computed pixel dimensions
 - Optimistic announcement not rolled back on server error — requires `onAddItem`/`onRemoveItem` props to return `Promise<void>` and handlers to reject on failure; that's a cross-cutting refactor better suited to a dedicated story
 
+## Deferred from: code review of 2-2-template-item-and-label-management (2026-06-02)
+
+- `computeReorder.flatten` reassigns all positions from 0 — on optimistic rollback, original DB positions are lost; the rollback payload carries freshly numbered positions that may not match persisted state.
+- No `labelId` index on `packingTemplateItems` — the composite index `(templateId, position)` covers template-scoped queries but queries filtering by `labelId` alone would scan all rows.
+- computeReorder silently swallows label drags with no feedback — when `active.isLabel` is true, the function returns `null` with no event, error, or UI feedback; user sees the drag do nothing.
+- `byPosition` uses `Infinity` fallback — when ALL items in a sort group have `undefined` position, `Infinity - Infinity` produces `NaN`, making sort order undefined.
+- Label with undefined `id` added to `Set` — if a label `PackingItem` lacks an `id`, it's inserted into the labelIds Set as `"undefined"`, causing downstream containment checks to silently fail.
+- `containerKeyOfItem` returns null when label `id` is undefined — the `section.label.id ?? null` coalesce produces null when a label has a falsy id, making `activeKey` null and causing `computeReorder` to return null silently.
+- Item in reorder array with undefined `id` or `position` — `onReorderItems` callback in `PackingListSortable` can be invoked with `id: undefined` or `position: undefined` for items missing those fields.
+
 ## Deferred from: code review of 1-2-check-items-as-packed-with-session-persistence-and-trip-card-progress (2026-05-31)
 
 - Optimistic `aria-live` announcement fires before server action resolves — matches pre-existing pattern from other packing handlers
