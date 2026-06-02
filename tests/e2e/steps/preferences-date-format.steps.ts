@@ -9,6 +9,7 @@ When("I select the {string} date format", async ({ page }, label: string) => {
 When("I navigate to the trips page", async ({ page }) => {
   await page.goto("/trips");
   await expect(page).toHaveURL(/\/trips/);
+  await page.waitForLoadState("networkidle");
 });
 
 function toReadableDate(dateStr: string, format: "MM/DD/YYYY" | "DD/MM/YYYY"): string {

@@ -29,6 +29,7 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
   const initials = getInitials({ ...user, name: name || null });
 
   function handleNameChange(next: string) {
+    if (next === name) return;
     setName(next);
     const dirty = next !== (user.name ?? "");
     onDirtyChange?.(dirty);

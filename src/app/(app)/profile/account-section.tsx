@@ -44,16 +44,19 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
   }
 
   function handleCurrentPasswordChange(next: string) {
+    if (next === currentPassword) return;
     setCurrentPassword(next);
     onDirtyChange?.(computeDirty(next, newPassword, confirmPassword));
   }
 
   function handleNewPasswordChange(next: string) {
+    if (next === newPassword) return;
     setNewPassword(next);
     onDirtyChange?.(computeDirty(currentPassword, next, confirmPassword));
   }
 
   function handleConfirmPasswordChange(next: string) {
+    if (next === confirmPassword) return;
     setConfirmPassword(next);
     onDirtyChange?.(computeDirty(currentPassword, newPassword, next));
   }

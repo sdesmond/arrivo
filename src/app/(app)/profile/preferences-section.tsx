@@ -44,21 +44,25 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   }
 
   function handleDateFormatChange(next: string) {
+    if (next === dateFormat) return;
     setDateFormat(next);
     onDirtyChange?.(computeDirty(next, currency, distanceUnit, coverType));
   }
 
   function handleCurrencyChange(next: string) {
+    if (next === currency) return;
     setCurrency(next);
     onDirtyChange?.(computeDirty(dateFormat, next, distanceUnit, coverType));
   }
 
   function handleDistanceUnitChange(next: string) {
+    if (next === distanceUnit) return;
     setDistanceUnit(next);
     onDirtyChange?.(computeDirty(dateFormat, currency, next, coverType));
   }
 
   function handleCoverTypeChange(next: string) {
+    if (next === coverType) return;
     setCoverType(next);
     onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, next));
   }

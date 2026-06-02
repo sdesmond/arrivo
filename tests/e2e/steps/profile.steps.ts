@@ -24,6 +24,9 @@ When("I navigate to the Traveler section", async ({ page }) => {
 
 When("I navigate to the Preferences section", async ({ page }) => {
   await page.getByRole("tab", { name: "Preferences" }).click();
+  // Verify the panel actually switched (Base UI Tabs can set data-active on the
+  // trigger without switching the panel under load — see profile-page-client.tsx)
+  await expect(page.getByRole("tabpanel", { name: "Preferences" })).toBeVisible({ timeout: 5000 });
 });
 
 When("I update my name to {string}", async ({ page }, name: string) => {
@@ -49,7 +52,8 @@ When("I set currency to {string}", async ({ page }, currency: string) => {
 
 When("I save the Preferences section", async ({ page }) => {
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("status")).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole("button", { name: "Saving…" })).toBeVisible({ timeout: 3000 });
+  await expect(page.getByText("Saved")).toBeVisible({ timeout: 10000 });
 });
 
 Then("the currency preference should persist after reload", async ({ page }) => {

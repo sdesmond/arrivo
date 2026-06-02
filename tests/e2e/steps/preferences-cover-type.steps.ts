@@ -8,5 +8,7 @@ When("I select the {string} cover type", async ({ page }, label: string) => {
 Then("the {string} cover type should be selected after reload", async ({ page }, label: string) => {
   await page.reload();
   await page.getByRole("tab", { name: "Preferences" }).click();
-  await expect(page.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-pressed", "true");
+  const toggle = page.getByRole("button", { name: label, exact: true });
+  await expect(toggle).toBeAttached({ timeout: 5000 });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
 });
