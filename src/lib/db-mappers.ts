@@ -193,6 +193,7 @@ export function dbPackingItemToType(row: typeof packingItems.$inferSelect): Pack
     tripId: row.tripId,
     position: row.position,
     isLabel: row.isLabel,
+    labelId: row.labelId,
   };
 }
 

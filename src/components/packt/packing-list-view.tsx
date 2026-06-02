@@ -7,13 +7,20 @@ import { Input } from "@/components/ui/input";
 import type { PackingItem } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
 
-interface PackingListViewProps {
+export interface PackingListViewProps {
   tripId: string;
   items: PackingItem[];
-  onAddItem: (name: string, isLabel?: boolean) => void;
+  onAddItem: (
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ) => void;
   onRemoveItem: (id: string) => void;
   onToggleItem: (id: string) => Promise<void>;
-  onReorderItems: (orderedItemIds: string[], onError?: () => void) => void;
+  onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
+  onEditItem?: (id: string, name: string) => void;
 }
 
 interface PackingEntryFormProps {
@@ -88,6 +95,7 @@ export function PackingListView({
   onRemoveItem,
   onToggleItem,
   onReorderItems,
+  onEditItem,
 }: PackingListViewProps): ReactElement {
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -111,6 +119,11 @@ export function PackingListView({
     setDraftName(event.target.value);
   }
 
+  function announceMove(message: string): void {
+    setAnnouncement(message);
+    setAnnouncementId((id) => id + 1);
+  }
+
   function submitEntry(isLabel?: boolean): void {
     const trimmedName = draftName.trim();
     if (!trimmedName || isSubmitting) return;
@@ -120,6 +133,22 @@ export function PackingListView({
     setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
     setAnnouncementId((id) => id + 1);
     setDraftName("");
+  }
+
+  function handleContextualAdd(
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ): void {
+    const trimmedName = name.trim();
+    if (!trimmedName || isSubmitting) return;
+
+    setIsSubmitting(true);
+    onAddItem(trimmedName, isLabel, afterItemId, beforeItemId, labelId);
+    setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
+    setAnnouncementId((id) => id + 1);
   }
 
   function handleRemove(item: PackingItem): void {
@@ -188,6 +217,10 @@ export function PackingListView({
             onToggleItem={handleToggle}
             onOptimisticReorder={setLocalItems}
             onReorderItems={onReorderItems}
+            onAnnounceMove={announceMove}
+            isAdding={isSubmitting}
+            onEditItem={onEditItem}
+            onAddItem={handleContextualAdd}
           />
 
           <PackingEntryForm

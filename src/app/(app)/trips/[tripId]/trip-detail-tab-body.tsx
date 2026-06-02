@@ -32,10 +32,20 @@ export interface TripDetailTabBodyProps {
   onUpdateChecklistItem: (itemId: string, content: string) => void;
   onDeleteChecklistItem: (itemId: string) => void;
   onToggleChecklistItem: (itemId: string) => void;
-  onAddPackingItem: (name: string, isLabel?: boolean) => void;
+  onAddPackingItem: (
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ) => void;
   onRemovePackingItem: (id: string) => void;
   onTogglePackingItem: (id: string) => Promise<void>;
-  onReorderPackingItems: (orderedItemIds: string[], onError?: () => void) => void;
+  onReorderPackingItems: (
+    ordered: { id: string; labelId: string | null; position: number }[],
+    onError?: () => void
+  ) => void;
+  onEditPackingItem: (id: string, name: string) => void;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -75,6 +85,7 @@ export function TripDetailTabBody({
   onRemovePackingItem,
   onTogglePackingItem,
   onReorderPackingItems,
+  onEditPackingItem,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -126,6 +137,7 @@ export function TripDetailTabBody({
           onRemoveItem={onRemovePackingItem}
           onToggleItem={onTogglePackingItem}
           onReorderItems={onReorderPackingItems}
+          onEditItem={onEditPackingItem}
         />
       )}
       {activeTab === "notes" && (

@@ -76,6 +76,7 @@ import {
   retrieveLocation,
   searchLocations,
   togglePackingItem,
+  updatePackingItem,
   updateTripMetadata,
 } from "./actions";
 import { searchCoverImages } from "./cover-image-search-actions";
@@ -775,12 +776,13 @@ describe("packing actions", () => {
       done: false,
       isLabel: true,
       position: 3,
+      labelId: null,
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
   });
 
-  it("assigns position 0 when the trip has no existing packing items", async () => {
+  it("assigns position 0 and ungrouped when the trip has no existing packing items", async () => {
     const insertValues = vi.fn().mockResolvedValue(undefined);
     db.select.mockReturnValueOnce({
       from: () => ({
@@ -793,7 +795,21 @@ describe("packing actions", () => {
 
     await addPackingItem("trip-1", { name: "Passport" });
 
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 0 }));
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 0, labelId: null }));
+  });
+
+  it("quick-add appends a plain item ungrouped at the bottom (AC4), not under the last section", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ maxPos: 4 }],
+      }),
+    });
+    db.insert.mockReturnValueOnce({ values: insertValues });
+
+    await addPackingItem("trip-1", { name: "Phone charger" });
+
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 5, labelId: null }));
   });
 
   it("removes a packing entry only after loading the item and checking trip access", async () => {
@@ -855,16 +871,188 @@ describe("packing actions", () => {
       callback(transaction)
     );
 
-    await reorderPackingItems("trip-1", ["pack-2", "pack-1", "pack-3"]);
+    await reorderPackingItems("trip-1", [
+      { id: "pack-2", labelId: null, position: 0 },
+      { id: "pack-1", labelId: "label-1", position: 1 },
+      { id: "pack-3", labelId: null, position: 2 },
+    ]);
 
     expect(requireUser).toHaveBeenCalled();
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
     expect(transaction.update).toHaveBeenCalledTimes(3);
-    expect(updateWhere).toHaveBeenNthCalledWith(1, { position: 0 });
-    expect(updateWhere).toHaveBeenNthCalledWith(2, { position: 1 });
-    expect(updateWhere).toHaveBeenNthCalledWith(3, { position: 2 });
+    expect(updateWhere).toHaveBeenNthCalledWith(1, { position: 0, labelId: null });
+    expect(updateWhere).toHaveBeenNthCalledWith(2, { position: 1, labelId: "label-1" });
+    expect(updateWhere).toHaveBeenNthCalledWith(3, { position: 2, labelId: null });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("reorderPackingItems is a no-op for an empty ordering", async () => {
+    await reorderPackingItems("trip-1", []);
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("updatePackingItem trims the name before updating it in DB", async () => {
+    const updateSet = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ id: "pack-1", tripId: "trip-1", name: "Passport" }],
+      }),
+    });
+    db.update.mockReturnValueOnce({ set: updateSet });
+
+    await updatePackingItem("pack-1", { name: "  Passport (renewed)  " });
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(db.update).toHaveBeenCalledWith(packingItems);
+    expect(updateSet).toHaveBeenCalledWith({ name: "Passport (renewed)" });
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("updatePackingItem throws when item not found", async () => {
+    db.select.mockReturnValueOnce({
+      from: () => ({ where: async () => [] }),
+    });
+
+    await expect(updatePackingItem("nonexistent", { name: "New name" })).rejects.toThrow("Packing item not found");
+
+    expect(assertTripAccess).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("updatePackingItem rejects a blank trimmed name", async () => {
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ id: "pack-1", tripId: "trip-1", name: "Passport" }],
+      }),
+    });
+
+    await expect(updatePackingItem("pack-1", { name: "   " })).rejects.toThrow("Packing item name is required");
+
+    expect(assertTripAccess).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("addPackingItem with afterItemId inserts at targetPos + 1 and shifts later items", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    const shiftWhere = vi.fn().mockResolvedValue(undefined);
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: async () => [{ id: "label-1", tripId: "trip-1", position: 2 }],
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: shiftWhere,
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await addPackingItem("trip-1", { name: "Visa", afterItemId: "label-1" });
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(transaction.select).toHaveBeenCalled();
+    expect(transaction.update).toHaveBeenCalled();
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ name: "Visa", position: 3, tripId: "trip-1" }));
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("addPackingItem stores the section labelId for a contextual add under a label", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: async () => [{ id: "label-1", tripId: "trip-1", position: 2 }],
+        }),
+      })),
+      update: vi.fn(() => ({ set: () => ({ where: vi.fn().mockResolvedValue(undefined) }) })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await addPackingItem("trip-1", { name: "Visa", afterItemId: "label-1", labelId: "label-1" });
+
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ labelId: "label-1" }));
+  });
+
+  it("addPackingItem forces labelId to null for a section label even if one is passed", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ maxPos: 1 }],
+      }),
+    });
+    db.insert.mockReturnValueOnce({ values: insertValues });
+
+    await addPackingItem("trip-1", { name: "Toiletries", isLabel: true, labelId: "label-1" });
+
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ isLabel: true, labelId: null }));
+  });
+
+  it("addPackingItem with beforeItemId inserts before the target to create an ungrouped item", async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    const shiftWhere = vi.fn().mockResolvedValue(undefined);
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: async () => [{ id: "label-1", tripId: "trip-1", position: 0 }],
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: shiftWhere,
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await addPackingItem("trip-1", { name: " Travel adapter ", beforeItemId: "label-1" });
+
+    expect(transaction.select).toHaveBeenCalled();
+    expect(transaction.update).toHaveBeenCalled();
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Travel adapter", position: 0, tripId: "trip-1" })
+    );
+  });
+
+  it("addPackingItem with afterItemId throws when target item not found", async () => {
+    const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: async () => [],
+        }),
+      })),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(addPackingItem("trip-1", { name: "Visa", afterItemId: "bad-id" })).rejects.toThrow(
+      "Target item not found"
+    );
+  });
+
+  it("addPackingItem rejects a blank trimmed name", async () => {
+    await expect(addPackingItem("trip-1", { name: "   " })).rejects.toThrow("Packing item name is required");
+
+    expect(db.insert).not.toHaveBeenCalled();
   });
 });
 

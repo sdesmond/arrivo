@@ -14,7 +14,7 @@ import {
   itineraryChecklists,
   users,
 } from "@/db/schema";
-import { and, asc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
@@ -22,6 +22,7 @@ import type {
   UpdateTripPatch,
   AddCollaboratorInput,
   AddPackingItemInput,
+  UpdatePackingItemInput,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
@@ -452,21 +453,93 @@ export async function updateCollaboratorRole(collabId: string, role: "editor" | 
   revalidatePath(`/trips/${collab.tripId}`);
 }
 
+function normalizePackingItemName(name: string | undefined): string {
+  const trimmedName = name?.trim() ?? "";
+  if (!trimmedName) {
+    throw new Error("Packing item name is required");
+  }
+  return trimmedName;
+}
+
 export async function addPackingItem(tripId: string, input: AddPackingItemInput) {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
-  const [{ maxPos }] = await db
-    .select({ maxPos: max(packingItems.position) })
-    .from(packingItems)
-    .where(eq(packingItems.tripId, tripId));
-  await db.insert(packingItems).values({
-    tripId,
-    name: input.name,
-    done: false,
-    isLabel: input.isLabel ?? false,
-    position: (maxPos ?? -1) + 1,
-  });
+  const name = normalizePackingItemName(input.name);
+  // A label belongs to no section; otherwise membership is explicit via labelId.
+  const labelId = input.isLabel ? null : (input.labelId ?? null);
+
+  if (input.afterItemId) {
+    const afterItemId = input.afterItemId;
+    await db.transaction(async (tx) => {
+      const [targetItem] = await tx
+        .select()
+        .from(packingItems)
+        .where(and(eq(packingItems.id, afterItemId), eq(packingItems.tripId, tripId)));
+      if (!targetItem) throw new Error("Target item not found");
+
+      await tx
+        .update(packingItems)
+        .set({ position: sql`${packingItems.position} + 1` })
+        .where(and(eq(packingItems.tripId, tripId), gt(packingItems.position, targetItem.position)));
+      await tx.insert(packingItems).values({
+        tripId,
+        name,
+        done: false,
+        isLabel: input.isLabel ?? false,
+        position: targetItem.position + 1,
+        labelId,
+      });
+    });
+  } else if (input.beforeItemId) {
+    const beforeItemId = input.beforeItemId;
+    await db.transaction(async (tx) => {
+      const [targetItem] = await tx
+        .select()
+        .from(packingItems)
+        .where(and(eq(packingItems.id, beforeItemId), eq(packingItems.tripId, tripId)));
+      if (!targetItem) throw new Error("Target item not found");
+
+      await tx
+        .update(packingItems)
+        .set({ position: sql`${packingItems.position} + 1` })
+        .where(and(eq(packingItems.tripId, tripId), gt(packingItems.position, targetItem.position - 1)));
+      await tx.insert(packingItems).values({
+        tripId,
+        name,
+        done: false,
+        isLabel: input.isLabel ?? false,
+        position: targetItem.position,
+        labelId,
+      });
+    });
+  } else {
+    const [{ maxPos }] = await db
+      .select({ maxPos: max(packingItems.position) })
+      .from(packingItems)
+      .where(eq(packingItems.tripId, tripId));
+    // Quick-add with no explicit section (AC4): append ungrouped at the bottom.
+    await db.insert(packingItems).values({
+      tripId,
+      name,
+      done: false,
+      isLabel: input.isLabel ?? false,
+      position: (maxPos ?? -1) + 1,
+      labelId,
+    });
+  }
+
   revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+}
+
+export async function updatePackingItem(itemId: string, input: UpdatePackingItemInput): Promise<void> {
+  const user = await requireUser();
+  const name = normalizePackingItemName(input.name);
+  const [item] = await db.select({ tripId: packingItems.tripId }).from(packingItems).where(eq(packingItems.id, itemId));
+  if (!item) throw new Error("Packing item not found");
+  await assertTripAccess(item.tripId, user.id!, "editor");
+  await db.update(packingItems).set({ name }).where(eq(packingItems.id, itemId));
+  revalidatePath(`/trips/${item.tripId}`);
   revalidatePath("/trips");
 }
 
@@ -490,16 +563,19 @@ export async function removePackingItem(itemId: string) {
   revalidatePath("/trips");
 }
 
-export async function reorderPackingItems(tripId: string, orderedItemIds: string[]): Promise<void> {
+export async function reorderPackingItems(
+  tripId: string,
+  ordered: { id: string; labelId: string | null; position: number }[]
+): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
-  if (orderedItemIds.length === 0) return;
+  if (ordered.length === 0) return;
   await db.transaction(async (tx) => {
-    for (let i = 0; i < orderedItemIds.length; i++) {
+    for (const entry of ordered) {
       await tx
         .update(packingItems)
-        .set({ position: i })
-        .where(and(eq(packingItems.id, orderedItemIds[i]), eq(packingItems.tripId, tripId)));
+        .set({ position: entry.position, labelId: entry.labelId })
+        .where(and(eq(packingItems.id, entry.id), eq(packingItems.tripId, tripId)));
     }
   });
   revalidatePath(`/trips/${tripId}`);

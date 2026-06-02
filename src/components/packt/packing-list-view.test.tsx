@@ -12,25 +12,28 @@ const useSortableMock = vi.hoisted(() =>
   }))
 );
 
+const dndContextState = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+
 vi.mock("@dnd-kit/core", () => ({
-  DndContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DndContext: (props: { children: ReactNode }) => {
+    dndContextState.props = props;
+    return <>{props.children}</>;
+  },
   DragOverlay: ({ children }: { children: ReactNode }) => <>{children}</>,
-  closestCenter: {},
+  closestCenter: vi.fn(() => []),
+  pointerWithin: vi.fn(() => []),
+  rectIntersection: vi.fn(() => []),
   PointerSensor: class {},
   KeyboardSensor: class {},
   useSensor: vi.fn(),
   useSensors: vi.fn(() => []),
+  useDroppable: vi.fn(() => ({ setNodeRef: vi.fn() })),
 }));
 
 vi.mock("@dnd-kit/sortable", () => ({
   SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
   useSortable: useSortableMock,
   verticalListSortingStrategy: {},
-  arrayMove: vi.fn((items: unknown[], from: number, to: number) => {
-    const reordered = [...items];
-    reordered.splice(to, 0, reordered.splice(from, 1)[0]);
-    return reordered;
-  }),
   sortableKeyboardCoordinates: vi.fn(),
 }));
 
@@ -38,17 +41,17 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }));
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
 import type { PackingItem } from "@/data/types";
 
 const groupedItems: PackingItem[] = [
-  { id: "ungrouped-1", name: "Passport", done: false, position: 0 },
-  { id: "label-1", name: "Documents", done: false, position: 1, isLabel: true },
-  { id: "item-1", name: "Phone charger", done: false, position: 2 },
-  { id: "label-2", name: "Clothes", done: false, position: 3, isLabel: true },
-  { id: "item-2", name: "Socks", done: false, position: 4 },
+  { id: "ungrouped-1", name: "Passport", done: false, position: 0, labelId: null },
+  { id: "label-1", name: "Documents", done: false, position: 1, isLabel: true, labelId: null },
+  { id: "item-1", name: "Phone charger", done: false, position: 2, labelId: "label-1" },
+  { id: "label-2", name: "Clothes", done: false, position: 3, isLabel: true, labelId: null },
+  { id: "item-2", name: "Socks", done: false, position: 4, labelId: "label-2" },
 ];
 
 function createToggleItemHandler() {
@@ -69,6 +72,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -87,6 +91,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -115,6 +120,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -137,6 +143,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -144,6 +151,72 @@ describe("PackingListView", () => {
     await user.click(screen.getByRole("button", { name: "Add label" }));
 
     expect(onAddItem).toHaveBeenCalledWith("Documents", true);
+  });
+
+  it("submits an item from the entry form when the list already has items", async () => {
+    const user = userEvent.setup();
+    const onAddItem = vi.fn();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+    expect(onAddItem).toHaveBeenCalledWith("Tent", undefined);
+  });
+
+  it("submits a label from the entry form when the list already has items", async () => {
+    const user = userEvent.setup();
+    const onAddItem = vi.fn();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
+    await user.click(screen.getByRole("button", { name: "Add label" }));
+    expect(onAddItem).toHaveBeenCalledWith("Camping", true);
+  });
+
+  it("announces a cross-section move via the aria-live region on drag end", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    act(() => {
+      (
+        dndContextState.props as {
+          onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void;
+        }
+      ).onDragEnd?.({ active: { id: "item-1" }, over: { id: "container:__ungrouped__" } });
+    });
+
+    expect(screen.getByText("Moved Phone charger to Ungrouped.")).toBeInTheDocument();
   });
 
   it("removes an item when the remove button is clicked", async () => {
@@ -158,6 +231,7 @@ describe("PackingListView", () => {
         onRemoveItem={onRemoveItem}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -175,6 +249,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -196,6 +271,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -214,6 +290,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -234,6 +311,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -251,6 +329,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -268,6 +347,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -291,6 +371,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -319,6 +400,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -345,6 +427,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -365,6 +448,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -382,6 +466,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -401,6 +486,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -418,6 +504,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -438,6 +525,7 @@ describe("PackingListView", () => {
         onRemoveItem={vi.fn()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
       />
     );
 
@@ -449,5 +537,307 @@ describe("PackingListView", () => {
     expect(itemCall).toBeDefined();
     const config = itemCall?.[0] as { animateLayoutChanges?: () => boolean } | undefined;
     expect(config?.animateLayoutChanges?.()).toBe(false);
+  });
+
+  // ── Story 1.4 — Label strikethrough ──────────────────────────────────────────
+
+  it("renders strikethrough on label when all items beneath it are checked", () => {
+    const allDoneItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: true, position: 1, labelId: "label-1" },
+      { id: "item-2", name: "Visa", done: true, position: 2, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={allDoneItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Documents" }).className).toContain("line-through");
+  });
+
+  it("removes strikethrough from label when any item beneath it is unchecked", () => {
+    const partialDoneItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: true, position: 1, labelId: "label-1" },
+      { id: "item-2", name: "Visa", done: false, position: 2, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={partialDoneItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Documents" }).className).not.toContain("line-through");
+  });
+
+  it("does not render strikethrough on label with no items", () => {
+    const emptySection: PackingItem[] = [{ id: "label-1", name: "Documents", done: false, position: 0, isLabel: true }];
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={emptySection}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Documents" }).className).not.toContain("line-through");
+  });
+
+  // ── Story 1.4 — Inline editing ───────────────────────────────────────────────
+
+  it("clicking item name enters edit mode with pre-filled input", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByText("Passport"));
+    expect(screen.getByDisplayValue("Passport")).toBeInTheDocument();
+  });
+
+  it("pressing Enter in edit mode calls onEditItem with new name", async () => {
+    const onEditItem = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={onEditItem}
+      />
+    );
+
+    await user.click(screen.getByText("Passport"));
+    const input = screen
+      .getAllByRole("textbox")
+      .find((el) => el !== screen.queryByRole("textbox", { name: "Packing item name" }));
+    await user.clear(input!);
+    await user.type(input!, "Passport (renewed)");
+    await user.keyboard("{Enter}");
+
+    expect(onEditItem).toHaveBeenCalledWith("item-1", "Passport (renewed)");
+  });
+
+  it("pressing Escape in edit mode cancels and reverts name without calling onEditItem", async () => {
+    const onEditItem = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={onEditItem}
+      />
+    );
+
+    await user.click(screen.getByText("Passport"));
+    const inputs = screen.getAllByRole("textbox");
+    const editInput = inputs.find((el) => (el as HTMLInputElement).value === "Passport");
+    await user.clear(editInput!);
+    await user.type(editInput!, "Something else");
+    await user.keyboard("{Escape}");
+
+    expect(onEditItem).not.toHaveBeenCalled();
+    expect(screen.getByText("Passport")).toBeInTheDocument();
+  });
+
+  it("label in edit mode shows delete button", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "label-1", name: "Documents", done: false, position: 0, isLabel: true }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("heading", { name: "Documents" }));
+    expect(screen.getByRole("button", { name: "Delete label" })).toBeInTheDocument();
+  });
+
+  it("clicking delete label button in edit mode calls onRemoveItem", async () => {
+    const onRemoveItem = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "label-1", name: "Documents", done: false, position: 0, isLabel: true }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={onRemoveItem}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("heading", { name: "Documents" }));
+    await user.click(screen.getByRole("button", { name: "Delete label" }));
+    expect(onRemoveItem).toHaveBeenCalledWith("label-1");
+  });
+
+  // ── Story 1.4 — Contextual add ───────────────────────────────────────────────
+
+  it("contextual add form appears after section items", () => {
+    const sectionItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={sectionItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByPlaceholderText('Add item under "Documents"…')).toBeInTheDocument();
+  });
+
+  it("submitting contextual add form under a section passes afterItemId", async () => {
+    const onAddItem = vi.fn();
+    const user = userEvent.setup();
+    const sectionItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={sectionItems}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    const contextInput = screen.getByPlaceholderText('Add item under "Documents"…');
+    await user.type(contextInput, "Visa");
+    await user.keyboard("{Enter}");
+
+    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined, "label-1");
+  });
+
+  it("contextual add form shares the add pending guard after submit", async () => {
+    const onAddItem = vi.fn();
+    const user = userEvent.setup();
+    const sectionItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={sectionItems}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    const contextInput = screen.getByPlaceholderText('Add item under "Documents"…');
+    await user.type(contextInput, "Visa");
+    await user.keyboard("{Enter}");
+
+    const contextualForm = contextInput.closest("form");
+    expect(contextualForm).not.toBeNull();
+    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined, "label-1");
+    expect(contextInput).toBeDisabled();
+    expect(within(contextualForm!).getByRole("button", { name: "Add item here" })).toBeDisabled();
+  });
+
+  it("contextual add form appears in ungrouped area", () => {
+    const ungroupedItems: PackingItem[] = [
+      { id: "item-1", name: "Passport", done: false, position: 0 },
+      { id: "item-2", name: "Sunscreen", done: false, position: 1 },
+    ];
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={ungroupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByPlaceholderText("Add item…")).toBeInTheDocument();
+  });
+
+  it("inline edit input has maxLength=100", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByText("Passport"));
+    const inputs = screen.getAllByRole("textbox");
+    const editInput = inputs.find((el) => (el as HTMLInputElement).value === "Passport");
+    expect(editInput).toHaveAttribute("maxLength", "100");
   });
 });

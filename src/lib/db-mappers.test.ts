@@ -323,6 +323,7 @@ const BASE_PACKING_ITEM: PackingItemRow = {
   done: false,
   isLabel: false,
   position: 0,
+  labelId: null,
 };
 
 describe("dbPackingItemToType", () => {
@@ -336,7 +337,14 @@ describe("dbPackingItemToType", () => {
       done: false,
       isLabel: true,
       position: 3,
+      labelId: null,
     });
+  });
+
+  it("maps a non-null labelId for items that belong to a section", () => {
+    const result = dbPackingItemToType({ ...BASE_PACKING_ITEM, labelId: "label-1" });
+
+    expect(result.labelId).toBe("label-1");
   });
 
   it("defaults nullable done values to false", () => {

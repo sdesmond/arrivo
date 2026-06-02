@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import { reorderDayItems } from "./actions";
-import { addPackingItem, deleteTrip, removePackingItem, reorderPackingItems } from "../actions";
+import { addPackingItem, deleteTrip, removePackingItem, reorderPackingItems, updatePackingItem } from "../actions";
 import type { TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
@@ -24,6 +24,7 @@ vi.mock("../actions", () => ({
   deleteTrip: vi.fn(),
   removePackingItem: vi.fn(),
   reorderPackingItems: vi.fn(),
+  updatePackingItem: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
 
@@ -152,11 +153,16 @@ describe("useTripDetailHandlers", () => {
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
+    const ordered = [
+      { id: "pack-2", labelId: null, position: 0 },
+      { id: "pack-1", labelId: null, position: 1 },
+    ];
+
     act(() => {
-      result.current.handleReorderPackingItems(["pack-2", "pack-1"]);
+      result.current.handleReorderPackingItems(ordered);
     });
 
-    await waitFor(() => expect(reorderPackingItems).toHaveBeenCalledWith("trip-1", ["pack-2", "pack-1"]));
+    await waitFor(() => expect(reorderPackingItems).toHaveBeenCalledWith("trip-1", ordered));
     expect(toast.error).not.toHaveBeenCalled();
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });
@@ -167,7 +173,7 @@ describe("useTripDetailHandlers", () => {
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     act(() => {
-      result.current.handleReorderPackingItems(["pack-2", "pack-1"]);
+      result.current.handleReorderPackingItems([{ id: "pack-2", labelId: null, position: 0 }]);
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Reorder failed"));
@@ -181,7 +187,7 @@ describe("useTripDetailHandlers", () => {
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     act(() => {
-      result.current.handleReorderPackingItems(["pack-2", "pack-1"], onError);
+      result.current.handleReorderPackingItems([{ id: "pack-2", labelId: null, position: 0 }], onError);
     });
 
     await waitFor(() => expect(onError).toHaveBeenCalledOnce());
@@ -199,5 +205,66 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Delete failed"));
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("handleUpdatePackingItem calls updatePackingItem server action with id and name", async () => {
+    vi.mocked(updatePackingItem).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleUpdatePackingItem("pack-1", "Passport (renewed)");
+    });
+
+    await waitFor(() => expect(updatePackingItem).toHaveBeenCalledWith("pack-1", { name: "Passport (renewed)" }));
+  });
+
+  it("handleUpdatePackingItem surfaces a toast when the server action fails", async () => {
+    vi.mocked(updatePackingItem).mockRejectedValueOnce(new Error("Update failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleUpdatePackingItem("pack-1", "Passport (renewed)");
+    });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Update failed"));
+  });
+
+  it("handleAddPackingItem passes afterItemId to the server action when provided", async () => {
+    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleAddPackingItem("Visa", false, "label-1");
+    });
+
+    await waitFor(() =>
+      expect(addPackingItem).toHaveBeenCalledWith("trip-1", {
+        name: "Visa",
+        isLabel: false,
+        afterItemId: "label-1",
+      })
+    );
+  });
+
+  it("handleAddPackingItem passes beforeItemId to the server action when provided", async () => {
+    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleAddPackingItem("Travel adapter", false, undefined, "label-1");
+    });
+
+    await waitFor(() =>
+      expect(addPackingItem).toHaveBeenCalledWith("trip-1", {
+        name: "Travel adapter",
+        isLabel: false,
+        afterItemId: undefined,
+        beforeItemId: "label-1",
+      })
+    );
   });
 });

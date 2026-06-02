@@ -19,6 +19,7 @@ import {
   removePackingItem,
   reorderPackingItems,
   togglePackingItem,
+  updatePackingItem,
   updateTripMetadata,
 } from "../actions";
 import {
@@ -63,10 +64,20 @@ export interface TripDetailHandlers {
   handleUpdateChecklistItem: (itemId: string, content: string) => void;
   handleDeleteChecklistItem: (itemId: string) => void;
   handleToggleChecklistItem: (itemId: string) => void;
-  handleAddPackingItem: (name: string, isLabel?: boolean) => void;
+  handleAddPackingItem: (
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ) => void;
   handleRemovePackingItem: (id: string) => void;
   handleTogglePackingItem: (id: string) => Promise<void>;
-  handleReorderPackingItems: (orderedItemIds: string[], onError?: () => void) => void;
+  handleReorderPackingItems: (
+    ordered: { id: string; labelId: string | null; position: number }[],
+    onError?: () => void
+  ) => void;
+  handleUpdatePackingItem: (id: string, name: string) => void;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -219,12 +230,29 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleAddPackingItem(name: string, isLabel?: boolean): void {
+  function handleAddPackingItem(
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ): void {
     React.startTransition(async () => {
       try {
-        await addPackingItem(trip.id, { name, isLabel });
+        await addPackingItem(trip.id, { name, isLabel, afterItemId, beforeItemId, labelId });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to add packing entry. Please try again.");
+        router.refresh();
+      }
+    });
+  }
+
+  function handleUpdatePackingItem(id: string, name: string): void {
+    React.startTransition(async () => {
+      try {
+        await updatePackingItem(id, { name });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to update packing item. Please try again.");
       }
     });
   }
@@ -254,10 +282,13 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleReorderPackingItems(orderedItemIds: string[], onError?: () => void): void {
+  function handleReorderPackingItems(
+    ordered: { id: string; labelId: string | null; position: number }[],
+    onError?: () => void
+  ): void {
     React.startTransition(async () => {
       try {
-        await reorderPackingItems(trip.id, orderedItemIds);
+        await reorderPackingItems(trip.id, ordered);
         router.refresh();
       } catch (error) {
         onError?.();
@@ -346,6 +377,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleRemovePackingItem,
     handleTogglePackingItem,
     handleReorderPackingItems,
+    handleUpdatePackingItem,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,

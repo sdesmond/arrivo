@@ -133,6 +133,52 @@ export const E2E_PACKING_REORDER_ITEMS = [
   { name: "Item C", isLabel: false, done: false, position: 2 },
 ];
 
+export const E2E_PACKING_STRIKETHROUGH_ITEMS = [
+  { name: "Documents", isLabel: true, done: false, position: 0 },
+  { name: "Passport", isLabel: false, done: false, position: 1 },
+  { name: "Visa", isLabel: false, done: false, position: 2 },
+];
+
+export const E2E_PACKING_CONTEXTUAL_ADD_ITEMS = [
+  { name: "Documents", isLabel: true, done: false, position: 0 },
+  { name: "Passport", isLabel: false, done: false, position: 1 },
+];
+
+// Drag-and-drop regression seeds. `under` links a non-label item to its section
+// label by name; items without `under` are ungrouped (labelId = null). This lets
+// us seed ungrouped items that sort *after* a section — impossible to express
+// with purely positional grouping.
+export const E2E_PACKING_DRAG_ITEMS = [
+  { name: "Clothes", isLabel: true, done: false, position: 0 },
+  { name: "Shirt", isLabel: false, done: false, position: 1, under: "Clothes" },
+  { name: "Pants", isLabel: false, done: false, position: 2, under: "Clothes" },
+  { name: "Charger", isLabel: false, done: false, position: 3 },
+  { name: "Adapter", isLabel: false, done: false, position: 4 },
+];
+
+export const E2E_PACKING_DRAG_EMPTY_UNGROUPED = [
+  { name: "Clothes", isLabel: true, done: false, position: 0 },
+  { name: "Shirt", isLabel: false, done: false, position: 1, under: "Clothes" },
+  { name: "Pants", isLabel: false, done: false, position: 2, under: "Clothes" },
+];
+
+export const E2E_PACKING_DRAG_TWO_SECTIONS = [
+  { name: "Clothes", isLabel: true, done: false, position: 0 },
+  { name: "Shirt", isLabel: false, done: false, position: 1, under: "Clothes" },
+  { name: "Pants", isLabel: false, done: false, position: 2, under: "Clothes" },
+  { name: "Toiletries", isLabel: true, done: false, position: 3 },
+  { name: "Toothbrush", isLabel: false, done: false, position: 4, under: "Toiletries" },
+];
+
+export const E2E_PACKING_INLINE_EDIT_ITEMS = [{ name: "Passport", isLabel: false, done: false, position: 0 }];
+
+export const E2E_PACKING_RENAME_LABEL_ITEMS = [{ name: "Documents", isLabel: true, done: false, position: 0 }];
+
+export const E2E_PACKING_DELETE_LABEL_ITEMS = [
+  { name: "Documents", isLabel: true, done: false, position: 0 },
+  { name: "Passport", isLabel: false, done: false, position: 1 },
+];
+
 export const E2E_MANAGE_DOC = {
   name: "E2E Manage Doc",
   kind: "pdf",

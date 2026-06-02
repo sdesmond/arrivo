@@ -1,3 +1,11 @@
+## Deferred from: code review of 1-4-inline-editing-label-strikethrough-and-contextual-add (2026-06-01)
+
+- Section labels are draggable but cannot be reordered (snap back) — label id is in each section's SortableContext and renders as SortablePackingRow, but computeReorder rejects label drags; conflicts with "Do NOT add drag-to-reorder section labels." Cosmetic, likely partly pre-existing from 1.3
+- Server actions don't validate that a supplied labelId references a label row in the same trip — self-FK only guarantees row existence, not isLabel/same-trip; legit UI never sends a bad value — defense-in-depth
+- Optimistic reorder is last-write-wins — full-list position rewrite can clobber a concurrent reorder/add from another tab/session; inherent to the 1.3 optimistic pattern
+- Non-null assertions (item.id!, item.position!) persist and grow in new code — open Second Pass item; project-wide pattern, not a regression
+- E2E drag helper `if (!box) break` abandons a vanished target and relies on `.toPass()` retries — minor test-robustness
+
 ## Deferred from: code review of 1-3-drag-to-reorder-items-with-position-persistence second pass (2026-06-01)
 
 - Non-label item dragged over disabled label may bypass snap-to-nearest, corrupting section grouping — spec-acknowledged collision behavior, Phase 1 flat position model
