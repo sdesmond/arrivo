@@ -1,3 +1,11 @@
+## Deferred from: code review of 2-1-template-library-create-rename-and-delete-templates (2026-06-02)
+
+- `renameTemplate`/`deleteTemplate` silent no-op on missing/wrong-user ID — intentional per spec ("silent no-op, never a cross-user mutation"); established codebase pattern
+- Server action errors leak raw message to client via Next.js serialization — systemic, pre-existing across all actions in codebase
+- Duplicate template names produce ambiguous aria-labels — spec explicitly forbids uniqueness constraint; "duplicate template names are allowed"
+- Anonymous index name on `packingTemplates.userId` — pre-existing pattern throughout schema.ts (`index().on(...)` without a name)
+- Case-sensitive collation on template name sort — pre-existing PostgreSQL default; `lower()` or `COLLATE` can be applied in a future story when list grows
+
 ## Deferred from: code review of 1-4-inline-editing-label-strikethrough-and-contextual-add (2026-06-01)
 
 - Section labels are draggable but cannot be reordered (snap back) — label id is in each section's SortableContext and renders as SortablePackingRow, but computeReorder rejects label drags; conflicts with "Do NOT add drag-to-reorder section labels." Cosmetic, likely partly pre-existing from 1.3
