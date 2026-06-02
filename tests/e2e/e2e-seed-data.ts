@@ -10,6 +10,12 @@ export const E2E_TEMPLATE_USER = {
   initials: "TT",
 };
 
+export const E2E_PULL_USER = {
+  email: "e2e-pull@packt.local",
+  name: "E2E Pull User",
+  initials: "PU",
+};
+
 export const E2E_TRIP = {
   name: "E2E Test Trip",
   startDate: "2026-07-01",
@@ -215,3 +221,16 @@ export const E2E_MANAGE_DOC = {
   size: "0.3 MB",
   url: "https://example.com/manage-doc.pdf",
 };
+
+export const E2E_TEMPLATE_PULL = { name: "Pull Template" };
+export const E2E_TEMPLATE_PULL_ITEMS = [
+  { text: "Passport", isLabel: false, position: 0 },
+  { text: "Phone Charger", isLabel: false, position: 1 },
+  { text: "Toothbrush", isLabel: false, position: 2 },
+];
+
+export const E2E_TEMPLATE_PULL_2 = { name: "Pull Template 2" };
+export const E2E_TEMPLATE_PULL_2_ITEMS = [
+  { text: "Toothbrush", isLabel: false, position: 0 },
+  { text: "Shampoo", isLabel: false, position: 1 },
+];
