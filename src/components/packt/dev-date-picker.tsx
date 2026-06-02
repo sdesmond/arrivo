@@ -73,7 +73,7 @@ function DevDatePickerInner() {
           <input
             type="datetime-local"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(event) => setInputValue(event.target.value)}
             style={{
               background: "#2a1000",
               border: "1px solid #ff6a00",
@@ -127,7 +127,7 @@ function DevDatePickerInner() {
 
       <button
         data-testid="dev-date-picker-toggle"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((prev) => !prev)}
         title="Dev date mock"
         style={{
           background: isMocked ? "#ff6a00" : "#1a0a00",

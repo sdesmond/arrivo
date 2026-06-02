@@ -31,7 +31,7 @@ const LOCATION_TYPES: SearchBoxAdministrativeUnitTypes[] = ["place", "locality",
 function simplifySearchQuery(query: string): string {
   const parts = query
     .split(",")
-    .map((p) => p.trim())
+    .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length <= 2) return query;
   return `${parts[0]}, ${parts[1]}`;

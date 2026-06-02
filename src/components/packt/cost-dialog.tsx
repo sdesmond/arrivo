@@ -30,7 +30,7 @@ export function CostDialog({ cost, eventName, open, onOpenChange, onSave }: Cost
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => onOpenChange(o as boolean)}>
+    <Dialog open={open} onOpenChange={(isOpen) => onOpenChange(isOpen as boolean)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Cost</DialogTitle>
@@ -48,9 +48,9 @@ export function CostDialog({ cost, eventName, open, onOpenChange, onSave }: Cost
             step="0.01"
             placeholder="0.00"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handleSave();
             }}
             autoFocus
           />

@@ -53,7 +53,7 @@ export const accounts = pgTable(
     idToken: text("id_token"),
     sessionState: text("session_state"),
   },
-  (t) => [unique().on(t.provider, t.providerAccountId)]
+  (table) => [unique().on(table.provider, table.providerAccountId)]
 );
 
 export const sessions = pgTable("sessions", {
@@ -71,7 +71,7 @@ export const verificationTokens = pgTable(
     token: text("token").notNull(),
     expires: timestamp("expires", { withTimezone: true }).notNull(),
   },
-  (t) => [unique().on(t.identifier, t.token)]
+  (table) => [unique().on(table.identifier, table.token)]
 );
 
 // ── App tables ───────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ export const days = pgTable(
     weather: text("weather"),
     travelSummary: text("travel_summary"),
   },
-  (t) => [unique().on(t.tripId, t.dayNumber)]
+  (table) => [unique().on(table.tripId, table.dayNumber)]
 );
 
 export const events = pgTable(
@@ -145,7 +145,7 @@ export const events = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
   },
-  (t) => [index().on(t.dayId, t.position)]
+  (table) => [index().on(table.dayId, table.position)]
 );
 
 export const documents = pgTable("documents", {
@@ -180,7 +180,7 @@ export const collaborators = pgTable(
     tintBg: text("tint_bg"),
     tintFg: text("tint_fg"),
   },
-  (t) => [unique().on(t.tripId, t.email)]
+  (table) => [unique().on(table.tripId, table.email)]
 );
 
 export const userLoyaltyNumbers = pgTable(
@@ -196,7 +196,7 @@ export const userLoyaltyNumbers = pgTable(
     memberNumber: text("member_number").notNull(),
     position: integer("position").notNull(),
   },
-  (t) => [index().on(t.userId, t.position)]
+  (table) => [index().on(table.userId, table.position)]
 );
 
 export const userWishlistDestinations = pgTable(
@@ -211,7 +211,7 @@ export const userWishlistDestinations = pgTable(
     name: text("name").notNull(),
     position: integer("position").notNull(),
   },
-  (t) => [index().on(t.userId, t.position)]
+  (table) => [index().on(table.userId, table.position)]
 );
 
 export const packingItems = pgTable("packing_items", {
@@ -242,7 +242,7 @@ export const itineraryChecklists = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
   },
-  (t) => [index().on(t.dayId, t.position)]
+  (table) => [index().on(table.dayId, table.position)]
 );
 
 export const checklistItems = pgTable(
@@ -258,7 +258,7 @@ export const checklistItems = pgTable(
     isChecked: boolean("is_checked").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
   },
-  (t) => [index().on(t.checklistId, t.createdAt)]
+  (table) => [index().on(table.checklistId, table.createdAt)]
 );
 
 export const itineraryNotes = pgTable(
@@ -275,7 +275,7 @@ export const itineraryNotes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
   },
-  (t) => [index().on(t.dayId, t.position)]
+  (table) => [index().on(table.dayId, table.position)]
 );
 
 export const userCompanions = pgTable(
@@ -297,7 +297,22 @@ export const userCompanions = pgTable(
     position: integer("position").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
   },
-  (t) => [index().on(t.userId, t.position)]
+  (table) => [index().on(table.userId, table.position)]
+);
+
+export const packingTemplates = pgTable(
+  "packing_templates",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+  },
+  (table) => [index().on(table.userId)]
 );
 
 export const packingTemplates = pgTable(

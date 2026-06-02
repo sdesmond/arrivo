@@ -168,7 +168,7 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         {/* Footer */}
         {trip.collaborators && (
           <div className="mt-0.5">
-            <AvatarStack initials={trip.collaborators.map((c) => c.initials)} size="sm" />
+            <AvatarStack initials={trip.collaborators.map((collaborator) => collaborator.initials)} size="sm" />
           </div>
         )}
       </div>

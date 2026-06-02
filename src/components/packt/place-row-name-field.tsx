@@ -32,7 +32,7 @@ export function PlaceRowNameField({
           autoFocus
           placeholder={isDraft ? "Event name" : undefined}
           value={draftName}
-          onChange={(e) => onDraftChange(e.target.value)}
+          onChange={(event) => onDraftChange(event.target.value)}
           onBlur={onBlur}
           onKeyDown={onKeyDown}
           style={{

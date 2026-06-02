@@ -5,13 +5,13 @@ import type { TripEvent } from "@/data/types";
 import { toHHMM, pluralize } from "@/lib/utils";
 import { IconSize } from "@/lib/size-tokens";
 
-function formatTime(t: string): string {
-  if (!t) return "—";
-  const [h, m] = t.split(":").map(Number);
-  if (isNaN(h) || isNaN(m)) return "—";
-  const suffix = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
+function formatTime(timeStr: string): string {
+  if (!timeStr) return "—";
+  const [hour24, minute] = timeStr.split(":").map(Number);
+  if (isNaN(hour24) || isNaN(minute)) return "—";
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const hour = hour24 % 12 || 12;
+  return `${hour}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
 export interface PlaceRowActionBarProps {
@@ -25,7 +25,7 @@ export interface PlaceRowActionBarProps {
 }
 
 export function PlaceRowActionBar({
-  place: p,
+  place,
   showDocs,
   onToggleDocs,
   onOpenTime,
@@ -33,13 +33,13 @@ export function PlaceRowActionBar({
   onOpenCost,
   onOpenAddDoc,
 }: PlaceRowActionBarProps) {
-  const docs = p.docs ?? [];
+  const docs = place.docs ?? [];
   const hasDocs = docs.length > 0;
 
-  const timeLabel = p.startAt
-    ? p.endAt
-      ? `${formatTime(toHHMM(p.startAt))} – ${formatTime(toHHMM(p.endAt))}`
-      : formatTime(toHHMM(p.startAt))
+  const timeLabel = place.startAt
+    ? place.endAt
+      ? `${formatTime(toHHMM(place.startAt))} – ${formatTime(toHHMM(place.endAt))}`
+      : formatTime(toHHMM(place.startAt))
     : null;
 
   return (
@@ -50,8 +50,8 @@ export function PlaceRowActionBar({
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: p.startAt ? "var(--accent-ink)" : "var(--fg-4)",
-          background: p.startAt ? "var(--accent-soft)" : "none",
+          color: place.startAt ? "var(--accent-ink)" : "var(--fg-4)",
+          background: place.startAt ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
         }}
       >
@@ -65,14 +65,14 @@ export function PlaceRowActionBar({
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: p.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
-          background: p.locationAddress ? "var(--accent-soft)" : "none",
+          color: place.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
+          background: place.locationAddress ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
           maxWidth: 160,
         }}
       >
         <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-        <span className="truncate">{p.locationAddress ?? "Add location"}</span>
+        <span className="truncate">{place.locationAddress ?? "Add location"}</span>
       </button>
 
       {/* Cost */}
@@ -81,14 +81,14 @@ export function PlaceRowActionBar({
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: p.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
-          background: p.cost !== undefined ? "var(--accent-soft)" : "none",
+          color: place.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
+          background: place.cost !== undefined ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
         }}
       >
         <DollarSign size={IconSize.actionChip} strokeWidth={1.5} />
-        {p.cost !== undefined
-          ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(p.cost)
+        {place.cost !== undefined
+          ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(place.cost)
           : "Add cost"}
       </button>
 

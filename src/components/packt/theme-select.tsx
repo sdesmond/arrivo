@@ -20,7 +20,10 @@ export function ThemeSelect() {
   );
 
   return (
-    <Select value={mounted ? (theme ?? "system") : "system"} onValueChange={(v) => setTheme(v ?? "system")}>
+    <Select
+      value={mounted ? (theme ?? "system") : "system"}
+      onValueChange={(selectedValue) => setTheme(selectedValue ?? "system")}
+    >
       <SelectTrigger aria-label="Theme" disabled={!mounted} className="w-full">
         <SelectValue className="capitalize" />
       </SelectTrigger>

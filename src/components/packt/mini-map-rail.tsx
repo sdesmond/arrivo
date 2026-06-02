@@ -9,11 +9,11 @@ export function MiniMapRail() {
       <div className="rounded-[8px] overflow-hidden relative" style={{ height: 120, background: "var(--surface-2)" }}>
         <svg viewBox="0 0 320 120" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
           {/* Grid lines */}
-          {[30, 60, 90].map((y) => (
-            <line key={y} x1="0" y1={y} x2="320" y2={y} stroke="var(--line)" strokeWidth="0.5" />
+          {[30, 60, 90].map((yPos) => (
+            <line key={yPos} x1="0" y1={yPos} x2="320" y2={yPos} stroke="var(--line)" strokeWidth="0.5" />
           ))}
-          {[80, 160, 240].map((x) => (
-            <line key={x} x1={x} y1="0" x2={x} y2="120" stroke="var(--line)" strokeWidth="0.5" />
+          {[80, 160, 240].map((xPos) => (
+            <line key={xPos} x1={xPos} y1="0" x2={xPos} y2="120" stroke="var(--line)" strokeWidth="0.5" />
           ))}
           {/* Route path */}
           <path

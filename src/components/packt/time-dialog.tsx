@@ -34,7 +34,7 @@ export function TimeDialog({ time, endTime, eventName, open, onOpenChange, onSav
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => onOpenChange(o as boolean)}>
+    <Dialog open={open} onOpenChange={(isOpen) => onOpenChange(isOpen as boolean)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Time</DialogTitle>
@@ -46,10 +46,10 @@ export function TimeDialog({ time, endTime, eventName, open, onOpenChange, onSav
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start time">
-            <TimePicker value={draftTime || undefined} onChange={(v) => setDraftTime(v ?? "")} />
+            <TimePicker value={draftTime || undefined} onChange={(value) => setDraftTime(value ?? "")} />
           </Field>
           <Field label="End time">
-            <TimePicker value={draftEnd || undefined} onChange={(v) => setDraftEnd(v ?? "")} />
+            <TimePicker value={draftEnd || undefined} onChange={(value) => setDraftEnd(value ?? "")} />
           </Field>
         </div>
         <DialogFooter>

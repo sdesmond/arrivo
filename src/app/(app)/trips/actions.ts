@@ -406,7 +406,7 @@ export async function deleteTrip(tripId: string) {
 
   await db.delete(trips).where(eq(trips.id, tripId));
 
-  const urlsToCleanup = tripDocs.map((d) => d.url).filter((u): u is string => !!u);
+  const urlsToCleanup = tripDocs.map((doc) => doc.url).filter((url): url is string => !!url);
   if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
     const { del } = await import("@vercel/blob");
     await Promise.all(
@@ -657,13 +657,13 @@ export async function searchLocations(query: string, sessionToken: string): Prom
       signal: controller.signal,
     });
 
-    return response.suggestions.map((s) => {
-      const placeName = buildPlaceName(s);
+    return response.suggestions.map((suggestion) => {
+      const placeName = buildPlaceName(suggestion);
       return {
         placeName,
-        country: s.context?.country?.name ?? "",
-        countryCode: s.context?.country?.country_code ?? "",
-        mapboxId: s.mapbox_id,
+        country: suggestion.context?.country?.name ?? "",
+        countryCode: suggestion.context?.country?.country_code ?? "",
+        mapboxId: suggestion.mapbox_id,
       };
     });
   } catch (error) {

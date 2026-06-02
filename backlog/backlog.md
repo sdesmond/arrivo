@@ -32,3 +32,16 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 ?????????
 
 - The active trip should always be at the top of the list
+
+## Packing Template stuff
+
+### Character caps
+
+1. Titles capped at 50 chars
+1. Items capped at 50 chars
+
+## Trip packing list
+
+### Ability to have multiples lists
+
+1. create multiple lists like packing templates page

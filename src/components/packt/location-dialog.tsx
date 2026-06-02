@@ -29,7 +29,7 @@ export function LocationDialog({ address, eventName, open, onOpenChange, onSave 
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => onOpenChange(o as boolean)}>
+    <Dialog open={open} onOpenChange={(isOpen) => onOpenChange(isOpen as boolean)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Location</DialogTitle>
@@ -42,9 +42,9 @@ export function LocationDialog({ address, eventName, open, onOpenChange, onSave 
         <Input
           placeholder="Enter address or place name"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSave();
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") handleSave();
           }}
           autoFocus
         />

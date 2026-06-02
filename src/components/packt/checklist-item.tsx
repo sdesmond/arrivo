@@ -92,8 +92,8 @@ export function ChecklistItem({
     setEditingItemId(null);
   }
 
-  function handleWrapperBlur(e: React.FocusEvent<HTMLDivElement>) {
-    const relatedTarget = e.relatedTarget as Element | null;
+  function handleWrapperBlur(event: React.FocusEvent<HTMLDivElement>) {
+    const relatedTarget = event.relatedTarget as Element | null;
     if (wrapperRef.current?.contains(relatedTarget)) return;
     if (isDraft) {
       const trimmed = itemInput.trim();
@@ -104,9 +104,9 @@ export function ChecklistItem({
     }
   }
 
-  function handleItemKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
+  function handleItemKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
       const trimmed = itemInput.trim();
       if (isDraft) {
         if (trimmed) onCommitDraft?.(trimmed);
@@ -115,8 +115,8 @@ export function ChecklistItem({
         if (trimmed) commitNewItem();
       }
     }
-    if (e.key === "Escape") {
-      e.preventDefault();
+    if (event.key === "Escape") {
+      event.preventDefault();
       if (isDraft) onCancelDraft?.();
       else setItemInput("");
     }
@@ -138,7 +138,7 @@ export function ChecklistItem({
         )}
         style={{ background: "none", border: "none", cursor: "pointer" }}
         onClick={() => {
-          if (!isDraft) setIsExpanded((v) => !v);
+          if (!isDraft) setIsExpanded((prev) => !prev);
         }}
       >
         <span
@@ -205,11 +205,11 @@ export function ChecklistItem({
               autoFocus
               value={draftTitle}
               placeholder="Add title..."
-              onChange={(e) => setDraftTitle(e.target.value)}
+              onChange={(event) => setDraftTitle(event.target.value)}
               onBlur={saveTitle}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveTitle();
-                if (e.key === "Escape") {
+              onKeyDown={(event) => {
+                if (event.key === "Enter") saveTitle();
+                if (event.key === "Escape") {
                   setDraftTitle(checklist.title ?? "");
                   setIsEditingTitle(false);
                 }
@@ -237,9 +237,9 @@ export function ChecklistItem({
                 setDraftTitle(checklist.title ?? "");
                 setIsEditingTitle(true);
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
                   setDraftTitle(checklist.title ?? "");
                   setIsEditingTitle(true);
                 }
@@ -287,15 +287,15 @@ export function ChecklistItem({
                 <input
                   autoFocus
                   value={editingItemContent}
-                  onChange={(e) => setEditingItemContent(e.target.value)}
+                  onChange={(event) => setEditingItemContent(event.target.value)}
                   onBlur={saveItemEdit}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
                       saveItemEdit();
                     }
-                    if (e.key === "Escape") {
-                      e.preventDefault();
+                    if (event.key === "Escape") {
+                      event.preventDefault();
                       setEditingItemId(null);
                     }
                   }}
@@ -319,9 +319,9 @@ export function ChecklistItem({
                     setEditingItemContent(item.content);
                     setEditingItemId(item.id);
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
                       setEditingItemContent(item.content);
                       setEditingItemId(item.id);
                     }
@@ -359,7 +359,7 @@ export function ChecklistItem({
             autoFocus={!!isDraft}
             value={itemInput}
             placeholder="Add an item…"
-            onChange={(e) => setItemInput(e.target.value)}
+            onChange={(event) => setItemInput(event.target.value)}
             onKeyDown={handleItemKeyDown}
             onBlur={!isDraft ? commitNewItem : undefined}
             style={{

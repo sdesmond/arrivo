@@ -6,7 +6,7 @@ const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/api/auth"];
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isPublic =
-    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    PUBLIC_PATHS.some((path) => pathname.startsWith(path)) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon");
   if (!req.auth && !isPublic) {

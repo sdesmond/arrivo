@@ -68,9 +68,11 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
           id="passport-number"
           type="text"
           value={passportNumber}
-          onChange={(e) => {
-            setPassportNumber(e.target.value);
-            onDirtyChange?.(computeDirty(e.target.value, passportExpiry, passportNationality, knownTravelerNumber));
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next === passportNumber) return;
+            setPassportNumber(next);
+            onDirtyChange?.(computeDirty(next, passportExpiry, passportNationality, knownTravelerNumber));
           }}
           placeholder="e.g. A12345678"
           autoComplete="off"
@@ -82,9 +84,10 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
       <Field label="Expiry date">
         <DatePicker
           value={passportExpiry}
-          onChange={(v) => {
-            setPassportExpiry(v);
-            onDirtyChange?.(computeDirty(passportNumber, v, passportNationality, knownTravelerNumber));
+          onChange={(value) => {
+            if (value === passportExpiry) return;
+            setPassportExpiry(value);
+            onDirtyChange?.(computeDirty(passportNumber, value, passportNationality, knownTravelerNumber));
           }}
           placeholder="Expiry date"
         />
@@ -95,9 +98,11 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
           id="passport-nationality"
           type="text"
           value={passportNationality}
-          onChange={(e) => {
-            setPassportNationality(e.target.value);
-            onDirtyChange?.(computeDirty(passportNumber, passportExpiry, e.target.value, knownTravelerNumber));
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next === passportNationality) return;
+            setPassportNationality(next);
+            onDirtyChange?.(computeDirty(passportNumber, passportExpiry, next, knownTravelerNumber));
           }}
           placeholder="e.g. American"
           aria-invalid={!!nationalityError || undefined}
@@ -110,9 +115,11 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
           id="ktn"
           type="text"
           value={knownTravelerNumber}
-          onChange={(e) => {
-            setKnownTravelerNumber(e.target.value);
-            onDirtyChange?.(computeDirty(passportNumber, passportExpiry, passportNationality, e.target.value));
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next === knownTravelerNumber) return;
+            setKnownTravelerNumber(next);
+            onDirtyChange?.(computeDirty(passportNumber, passportExpiry, passportNationality, next));
           }}
           placeholder="e.g. 123456789"
           autoComplete="off"

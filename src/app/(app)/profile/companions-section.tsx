@@ -61,9 +61,9 @@ export function CompanionsSection({ companions }: CompanionsSectionProps) {
             type="text"
             placeholder="Name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handleAdd();
             }}
             aria-describedby={nameError ? "companion-name-error" : "companion-name-hint"}
             aria-invalid={!!nameError || undefined}

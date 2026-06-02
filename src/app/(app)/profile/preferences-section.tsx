@@ -107,7 +107,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
           id="pref-currency"
           type="text"
           value={currency}
-          onChange={(e) => handleCurrencyChange(e.target.value.toUpperCase().slice(0, 3))}
+          onChange={(event) => handleCurrencyChange(event.target.value.toUpperCase().slice(0, 3))}
           placeholder="USD"
           maxLength={3}
           aria-invalid={!!currencyError || undefined}

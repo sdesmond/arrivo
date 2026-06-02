@@ -71,18 +71,18 @@ export function UnscheduledSection({
                 <DropdownMenuTrigger
                   title="Trip options"
                   className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
                   }}
                 >
                   <MoreHorizontal size={14} strokeWidth={1.5} />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="bottom" align="end">
                   <DropdownMenuItem
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
                       onEditTrip(trip);
                     }}
                   >
@@ -91,9 +91,9 @@ export function UnscheduledSection({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
                       onDeleteTrip(trip);
                     }}
                   >

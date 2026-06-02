@@ -78,15 +78,15 @@ export function NoteItem({
           autoFocus
           placeholder="Add a note…"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
               commit();
             }
-            if (e.key === "Escape") {
-              e.preventDefault();
+            if (event.key === "Escape") {
+              event.preventDefault();
               cancel();
             }
           }}
@@ -110,8 +110,8 @@ export function NoteItem({
           role="button"
           tabIndex={0}
           onClick={startEdit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") startEdit();
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") startEdit();
           }}
           style={{ flex: 1, lineHeight: 1.5, paddingTop: 2, cursor: "text" }}
         >
