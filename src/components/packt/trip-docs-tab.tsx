@@ -29,8 +29,8 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
     });
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) {
       toast.error("File is too large. Max 25 MB.");
@@ -149,7 +149,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
               id="doc-search"
               type="search"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Search"
               style={{
                 width: "100%",

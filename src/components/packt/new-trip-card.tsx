@@ -18,13 +18,13 @@ export function NewTripCard({ onNewTrip }: NewTripCardProps) {
         minHeight: 280,
         cursor: "pointer",
       }}
-      onMouseEnter={(e) => {
-        const element = e.currentTarget;
+      onMouseEnter={(event) => {
+        const element = event.currentTarget;
         element.style.borderColor = "var(--accent-brand)";
         element.style.background = "var(--accent-soft)";
       }}
-      onMouseLeave={(e) => {
-        const element = e.currentTarget;
+      onMouseLeave={(event) => {
+        const element = event.currentTarget;
         element.style.borderColor = "var(--line-strong)";
         element.style.background = "transparent";
       }}

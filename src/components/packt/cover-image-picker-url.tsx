@@ -40,7 +40,7 @@ export function CoverImagePickerUrl({ onImageSelected, onClose }: CoverImagePick
         type="url"
         placeholder="https://..."
         value={urlInput}
-        onChange={(e) => setUrlInput(e.target.value)}
+        onChange={(event) => setUrlInput(event.target.value)}
         style={{
           border: "1px solid var(--line)",
           borderRadius: 6,

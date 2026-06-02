@@ -371,7 +371,7 @@ When("I add an ungrouped item named {string}", async ({ page }, itemName: string
 Then("{string} should appear after {string} in the list", async ({ page }, afterName: string, beforeName: string) => {
   await expect(async () => {
     const names = await page.locator("[data-packing-name]").allTextContents();
-    const trimmed = names.map((n) => n.trim());
+    const trimmed = names.map((name) => name.trim());
     const beforeIdx = trimmed.indexOf(beforeName);
     const afterIdx = trimmed.indexOf(afterName);
     expect(beforeIdx).toBeGreaterThanOrEqual(0);

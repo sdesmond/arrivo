@@ -14,7 +14,7 @@ const STORAGE_KEY = "packt-font-size";
 const DEFAULT: FontSizeValue = "medium";
 
 function applyFontSize(value: FontSizeValue) {
-  const size = SIZES.find((s) => s.value === value) ?? SIZES[1];
+  const size = SIZES.find((sizeOption) => sizeOption.value === value) ?? SIZES[1];
   document.documentElement.style.setProperty("--font-size-base", size.px);
   document.documentElement.dataset.fontSize = value;
 }
@@ -60,7 +60,7 @@ export function FontSizeSelect() {
   }
 
   return (
-    <Select value={value} onValueChange={(v) => handleChange(v as FontSizeValue)}>
+    <Select value={value} onValueChange={(selectedValue) => handleChange(selectedValue as FontSizeValue)}>
       <SelectTrigger aria-label="Font size" disabled={!mounted} className="w-full">
         <SelectValue className="capitalize" />
       </SelectTrigger>

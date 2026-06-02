@@ -57,9 +57,9 @@ export function WishlistSection({ wishlistDestinations }: WishlistSectionProps) 
           type="text"
           placeholder="e.g. Kyoto, Japan"
           value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleAdd();
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") handleAdd();
           }}
           className="flex-1 rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={{

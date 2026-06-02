@@ -27,7 +27,7 @@ export interface PlaceRowDialogsProps {
 }
 
 export function PlaceRowDialogs({
-  place: p,
+  place,
   tripDocs,
   showTimeDialog,
   onTimeOpenChange,
@@ -46,38 +46,38 @@ export function PlaceRowDialogs({
   return (
     <>
       <TimeDialog
-        time={p.startAt ? toHHMM(p.startAt) : undefined}
-        endTime={p.endAt ? toHHMM(p.endAt) : undefined}
-        eventName={p.name}
+        time={place.startAt ? toHHMM(place.startAt) : undefined}
+        endTime={place.endAt ? toHHMM(place.endAt) : undefined}
+        eventName={place.name}
         open={showTimeDialog}
         onOpenChange={onTimeOpenChange}
         onSave={onTimeSave}
       />
       <CostDialog
-        cost={p.cost}
-        eventName={p.name}
+        cost={place.cost}
+        eventName={place.name}
         open={showCostDialog}
         onOpenChange={onCostOpenChange}
         onSave={onCostSave}
       />
       <LocationDialog
-        address={p.locationAddress}
-        eventName={p.name}
+        address={place.locationAddress}
+        eventName={place.name}
         open={showLocationDialog}
         onOpenChange={onLocationOpenChange}
         onSave={onLocationSave}
       />
       <AddDocDialog
-        eventId={p.id}
-        eventName={p.name}
+        eventId={place.id}
+        eventName={place.name}
         open={showAddDocDialog}
         onOpenChange={onAddDocOpenChange}
         tripDocs={tripDocs}
       />
       <DeleteEventDialog
-        eventId={p.id}
-        eventName={p.name}
-        docCount={p.docs?.length ?? 0}
+        eventId={place.id}
+        eventName={place.name}
+        docCount={place.docs?.length ?? 0}
         open={showDeleteDialog}
         onOpenChange={onDeleteOpenChange}
       />

@@ -138,7 +138,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(documents.tripId, tripId))
     .orderBy(sql`${documents.addedAt} desc nulls last`, asc(documents.id));
   const tripCollaborators = (await db.select().from(collaborators).where(eq(collaborators.tripId, tripId))).filter(
-    (c) => c.userId !== userId
+    (collaborator) => collaborator.userId !== userId
   );
   const tripPackingItems = await db
     .select()
@@ -154,7 +154,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
           .where(
             inArray(
               itineraryNotes.dayId,
-              tripDays.map((d) => d.id)
+              tripDays.map((day) => day.id)
             )
           )
           .orderBy(itineraryNotes.position)
@@ -168,7 +168,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
           .where(
             inArray(
               itineraryChecklists.dayId,
-              tripDays.map((d) => d.id)
+              tripDays.map((day) => day.id)
             )
           )
           .orderBy(itineraryChecklists.position)
@@ -184,7 +184,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
           .orderBy(checklistItems.createdAt)
       : [];
 
-  const eventIds = tripEvents.map((e) => e.id);
+  const eventIds = tripEvents.map((event) => event.id);
   const eventDocs =
     eventIds.length > 0 ? await db.select().from(documents).where(inArray(documents.eventId, eventIds)) : [];
 
@@ -250,10 +250,10 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
         ...dbEventToType(event),
         docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
       })),
-      notes: (notesByDay.get(day.id) ?? []).map((n) => ({
-        id: n.id,
-        content: n.content,
-        position: n.position,
+      notes: (notesByDay.get(day.id) ?? []).map((note) => ({
+        id: note.id,
+        content: note.content,
+        position: note.position,
       })),
       checklists: (checklistsByDay.get(day.id) ?? []).map((checklist) =>
         dbChecklistToType(checklist, itemsByChecklistId.get(checklist.id) ?? [])

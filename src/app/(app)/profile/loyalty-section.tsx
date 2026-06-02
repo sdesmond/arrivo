@@ -98,7 +98,7 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
           type="text"
           placeholder="Program name"
           value={program}
-          onChange={(e) => setProgram(e.target.value)}
+          onChange={(event) => setProgram(event.target.value)}
           className="flex-1 rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={INPUT_STYLE}
         />
@@ -106,9 +106,9 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
           type="text"
           placeholder="Member #"
           value={memberNum}
-          onChange={(e) => setMemberNum(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleAdd();
+          onChange={(event) => setMemberNum(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") handleAdd();
           }}
           className="w-28 rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={INPUT_STYLE}

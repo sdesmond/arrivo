@@ -15,8 +15,8 @@ vi.mock("lucide-react", async (importOriginal) => {
 vi.mock("./docs-block", () => ({
   DocsBlock: ({ docs, onAdd }: { docs: { id: string; name: string }[]; onAdd: () => void }) => (
     <div data-testid="docs-block">
-      {docs.map((d) => (
-        <span key={d.id}>{d.name}</span>
+      {docs.map((doc) => (
+        <span key={doc.id}>{doc.name}</span>
       ))}
       <button onClick={onAdd}>add-doc-in-block</button>
     </div>
@@ -282,7 +282,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    const timeBtn = screen.getAllByRole("button").find((b) => /\d:\d{2}\s*(AM|PM)/.test(b.textContent ?? ""))!;
+    const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
     await user.click(timeBtn);
     expect(screen.getByTestId("time-dialog")).toBeInTheDocument();
   });
@@ -293,7 +293,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} dayDate="2026-05-13" onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    const timeBtn = screen.getAllByRole("button").find((b) => /\d:\d{2}\s*(AM|PM)/.test(b.textContent ?? ""))!;
+    const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
     await user.click(timeBtn);
     await user.click(screen.getByRole("button", { name: "picker-save" }));
     expect(onUpdate).toHaveBeenCalledOnce();
@@ -306,7 +306,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    const timeBtn = screen.getAllByRole("button").find((b) => /\d:\d{2}\s*(AM|PM)/.test(b.textContent ?? ""))!;
+    const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
     await user.click(timeBtn);
     await user.click(screen.getByRole("button", { name: "picker-save" }));
     expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ startAt: undefined, endAt: undefined }));
@@ -318,7 +318,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    const timeBtn = screen.getAllByRole("button").find((b) => /\d:\d{2}\s*(AM|PM)/.test(b.textContent ?? ""))!;
+    const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
     await user.click(timeBtn);
     await user.click(screen.getByRole("button", { name: "picker-clear" }));
     expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ startAt: undefined, endAt: undefined }));
@@ -330,7 +330,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    const timeBtn = screen.getAllByRole("button").find((b) => /\d:\d{2}\s*(AM|PM)/.test(b.textContent ?? ""))!;
+    const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
     await user.click(timeBtn);
     await user.click(screen.getByRole("button", { name: "picker-close" }));
     expect(screen.queryByTestId("time-dialog")).not.toBeInTheDocument();

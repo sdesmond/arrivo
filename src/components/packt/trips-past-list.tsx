@@ -88,9 +88,9 @@ export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip, vie
             <DropdownMenuTrigger
               title="Trip options"
               className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
               }}
             >
               <MoreHorizontal size={14} strokeWidth={1.5} />

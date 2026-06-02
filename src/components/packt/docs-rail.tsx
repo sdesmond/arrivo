@@ -16,7 +16,7 @@ interface DocsRailProps {
 }
 
 export function DocsRail({ docs }: DocsRailProps) {
-  const offlineCount = docs.filter((d) => d.cached).length;
+  const offlineCount = docs.filter((doc) => doc.cached).length;
   return (
     <RailPanel header="Documents" meta={`${offlineCount} / ${docs.length} OFFLINE`}>
       <div className="flex flex-col gap-0.5">

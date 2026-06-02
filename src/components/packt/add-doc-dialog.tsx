@@ -36,12 +36,12 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
     }
   }, [open, mode]);
 
-  function handleClose(o: boolean) {
-    if (!o) {
+  function handleClose(open: boolean) {
+    if (!open) {
       setMode(defaultMode());
       setPendingFile(null);
     }
-    onOpenChange(o);
+    onOpenChange(open);
   }
 
   function handlePickDoc(docId: string) {
@@ -51,8 +51,8 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
     handleClose(false);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) {
       toast.error("File is too large. Max 25 MB.");
@@ -77,7 +77,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => handleClose(o as boolean)}>
+    <Dialog open={open} onOpenChange={(isOpen) => handleClose(isOpen as boolean)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Attach document</DialogTitle>
@@ -156,8 +156,8 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
                 onClick={() => fileInputRef.current?.click()}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click();
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") fileInputRef.current?.click();
                 }}
                 style={{
                   border: "1.5px dashed var(--line-strong)",

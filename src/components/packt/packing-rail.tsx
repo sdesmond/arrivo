@@ -10,27 +10,27 @@ interface PackingRailProps {
 }
 
 export function PackingRail({ items }: PackingRailProps) {
-  const done = items.filter((p) => p.done).length;
+  const done = items.filter((item) => item.done).length;
   return (
     <RailPanel header="Packing" meta={`${done} / ${items.length} PACKED`}>
       <div className="flex flex-col gap-0.5">
-        {items.slice(0, 6).map((p, i) => (
+        {items.slice(0, 6).map((item, i) => (
           <div
             key={i}
             className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5"
-            style={{ opacity: p.done ? 0.55 : 1 }}
+            style={{ opacity: item.done ? 0.55 : 1 }}
           >
             <span
               className="flex items-center justify-center rounded-full shrink-0"
               style={{
                 width: 16,
                 height: 16,
-                background: p.done ? "var(--accent-brand)" : "var(--surface-2)",
-                border: p.done ? "none" : "1.5px solid var(--line-strong)",
-                color: p.done ? "#fff" : "transparent",
+                background: item.done ? "var(--accent-brand)" : "var(--surface-2)",
+                border: item.done ? "none" : "1.5px solid var(--line-strong)",
+                color: item.done ? "#fff" : "transparent",
               }}
             >
-              {p.done && <Check size={9} strokeWidth={2.5} />}
+              {item.done && <Check size={9} strokeWidth={2.5} />}
             </span>
             <span
               style={{
@@ -38,10 +38,10 @@ export function PackingRail({ items }: PackingRailProps) {
                 fontSize: "calc(12.5px * var(--font-scale))",
                 fontWeight: 500,
                 color: "var(--fg)",
-                textDecoration: p.done ? "line-through" : "none",
+                textDecoration: item.done ? "line-through" : "none",
               }}
             >
-              {p.name}
+              {item.name}
             </span>
             <span
               style={{

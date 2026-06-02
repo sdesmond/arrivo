@@ -14,9 +14,9 @@ export async function signInAction(_prev: ActionState, formData: FormData): Prom
   const password = formData.get("password") as string;
   try {
     await signIn("credentials", { email, password, redirectTo: "/trips" });
-  } catch (e) {
-    if (e instanceof AuthError) return { error: "Invalid email or password." };
-    throw e;
+  } catch (err) {
+    if (err instanceof AuthError) return { error: "Invalid email or password." };
+    throw err;
   }
 }
 

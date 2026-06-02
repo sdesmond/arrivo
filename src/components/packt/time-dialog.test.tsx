@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/components/ui/time-picker", () => ({
   TimePicker: ({ value, onChange }: { value?: string; onChange: (v: string | undefined) => void }) => (
-    <input data-testid="time-picker" value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)} />
+    <input
+      data-testid="time-picker"
+      value={value ?? ""}
+      onChange={(event) => onChange(event.target.value || undefined)}
+    />
   ),
 }));
 

@@ -47,12 +47,12 @@ export function DocRow({ doc }: DocRowProps) {
     setIsEditing(false);
   }
 
-  function handleRenameKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
+  function handleRenameKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
       handleSave();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
       cancelRef.current = true;
       setIsEditing(false);
     }
@@ -72,10 +72,10 @@ export function DocRow({ doc }: DocRowProps) {
     });
   }
 
-  function handleOpenChange(o: boolean) {
+  function handleOpenChange(isOpen: boolean) {
     if (isPending) return;
-    if (!o) setError(null);
-    setConfirmOpen(o);
+    if (!isOpen) setError(null);
+    setConfirmOpen(isOpen);
   }
 
   return (
@@ -113,7 +113,7 @@ export function DocRow({ doc }: DocRowProps) {
         <input
           autoFocus
           value={editName}
-          onChange={(e) => setEditName(e.target.value)}
+          onChange={(event) => setEditName(event.target.value)}
           onBlur={handleSave}
           onKeyDown={handleRenameKeyDown}
           style={{

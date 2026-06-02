@@ -72,7 +72,7 @@ export function TripsDesktopLayout({
               <NowCard
                 trip={activeEntry.trip}
                 todayEvents={activeEntry.todayEvents}
-                onEditTrip={(t) => onEditTrip(t.id)}
+                onEditTrip={(trip) => onEditTrip(trip.id)}
                 onDeleteTrip={onDeleteTrip}
                 dateFormat={dateFormat}
               />
@@ -100,8 +100,8 @@ export function TripsDesktopLayout({
 
           {/* Unscheduled */}
           <UnscheduledSection
-            trips={unscheduledEntries.map((e) => e.trip)}
-            onEditTrip={(t) => onEditTrip(t.id)}
+            trips={unscheduledEntries.map((entry) => entry.trip)}
+            onEditTrip={(trip) => onEditTrip(trip.id)}
             onDeleteTrip={onDeleteTrip}
             dateFormat={dateFormat}
             viewMode={viewMode}
@@ -116,7 +116,7 @@ export function TripsDesktopLayout({
                   <TripCard
                     key={trip.id}
                     trip={trip}
-                    onEditTrip={(t) => onEditTrip(t.id)}
+                    onEditTrip={(trip) => onEditTrip(trip.id)}
                     onDeleteTrip={onDeleteTrip}
                     dateFormat={dateFormat}
                   />
@@ -170,18 +170,18 @@ export function TripsDesktopLayout({
                       <DropdownMenuTrigger
                         title="Trip options"
                         className="p-1 rounded-[6px] text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
                         }}
                       >
                         <MoreHorizontal size={14} strokeWidth={1.5} />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent side="bottom" align="end">
                         <DropdownMenuItem
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
                             onEditTrip(trip.id);
                           }}
                         >
@@ -190,9 +190,9 @@ export function TripsDesktopLayout({
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
                             onDeleteTrip(trip);
                           }}
                         >
@@ -213,7 +213,7 @@ export function TripsDesktopLayout({
             <PastTripsList
               trips={pastTrips}
               dateFormat={dateFormat}
-              onEditTrip={(t) => onEditTrip(t.id)}
+              onEditTrip={(trip) => onEditTrip(trip.id)}
               onDeleteTrip={onDeleteTrip}
               viewMode={viewMode}
             />
