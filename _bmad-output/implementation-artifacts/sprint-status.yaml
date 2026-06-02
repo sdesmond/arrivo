@@ -50,8 +50,8 @@ development_status:
   epic-1-retrospective: optional
 
   epic-2: in-progress
-  2-1-template-library-create-rename-and-delete-templates: review
+  2-1-template-library-create-rename-and-delete-templates: done
   2-2-template-item-and-label-management: done
-  2-3-pull-templates-onto-a-trip-packing-list: backlog
+  2-3-pull-templates-onto-a-trip-packing-list: ready-for-dev
   2-4-save-trip-list-as-template: backlog
   epic-2-retrospective: optional
