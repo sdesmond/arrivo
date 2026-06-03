@@ -146,6 +146,33 @@ describe("useTripDetailHandlers", () => {
     await waitFor(() => expect(addPackingItem).toHaveBeenCalledWith("trip-1", { name: "Passport", isLabel: true }));
   });
 
+  it("handleAddPackingItem resolves the returned promise on success", async () => {
+    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddPackingItem("Passport");
+    });
+
+    await expect(addPromise).resolves.toBeUndefined();
+  });
+
+  it("handleAddPackingItem rejects the returned promise and shows a toast on failure", async () => {
+    vi.mocked(addPackingItem).mockRejectedValueOnce(new Error("Add failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddPackingItem("Passport");
+    });
+
+    await expect(addPromise).rejects.toThrow("Add failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add failed"));
+  });
+
   it("removes packing items by id", async () => {
     vi.mocked(removePackingItem).mockResolvedValueOnce(undefined);
 
@@ -156,6 +183,33 @@ describe("useTripDetailHandlers", () => {
     });
 
     await waitFor(() => expect(removePackingItem).toHaveBeenCalledWith("pack-1"));
+  });
+
+  it("handleRemovePackingItem resolves the returned promise on success", async () => {
+    vi.mocked(removePackingItem).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let removePromise: Promise<void> | undefined;
+    act(() => {
+      removePromise = result.current.handleRemovePackingItem("pack-1");
+    });
+
+    await expect(removePromise).resolves.toBeUndefined();
+  });
+
+  it("handleRemovePackingItem rejects the returned promise and shows a toast on failure", async () => {
+    vi.mocked(removePackingItem).mockRejectedValueOnce(new Error("Remove failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let removePromise: Promise<void> | undefined;
+    act(() => {
+      removePromise = result.current.handleRemovePackingItem("pack-1");
+    });
+
+    await expect(removePromise).rejects.toThrow("Remove failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Remove failed"));
   });
 
   it("persists reordered packing items against the current trip", async () => {

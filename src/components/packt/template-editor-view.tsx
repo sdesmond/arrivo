@@ -185,7 +185,7 @@ export function TemplateEditorView({
           <PackingListSortable
             items={items.map(toPackingItem)}
             pendingItemIds={new Set()}
-            onRemoveItem={(item) => {
+            onRemoveItem={async (item) => {
               if (item.id) {
                 onRemoveItem(item.id);
               }

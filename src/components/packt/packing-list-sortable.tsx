@@ -31,7 +31,7 @@ import {
 export interface PackingListSortableProps {
   items: PackingItem[];
   pendingItemIds: Set<string>;
-  onRemoveItem: (item: PackingItem) => void;
+  onRemoveItem: (item: PackingItem) => Promise<void>;
   onToggleItem?: (item: PackingItem) => Promise<void>;
   onOptimisticReorder: (reorderedItems: PackingItem[] | null) => void;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;

@@ -47,8 +47,8 @@ export interface TripDetailTabBodyProps {
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ) => void;
-  onRemovePackingItem: (id: string) => void;
+  ) => Promise<void>;
+  onRemovePackingItem: (id: string) => Promise<void>;
   onTogglePackingItem: (id: string) => Promise<void>;
   onReorderPackingItems: (
     ordered: { id: string; labelId: string | null; position: number }[],

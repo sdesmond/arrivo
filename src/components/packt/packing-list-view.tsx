@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
 import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,8 @@ export interface PackingListViewProps {
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ) => void;
-  onRemoveItem: (id: string) => void;
+  ) => Promise<void>;
+  onRemoveItem: (id: string) => Promise<void>;
   onToggleItem: (id: string) => Promise<void>;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onEditItem?: (id: string, name: string) => void;
@@ -117,6 +117,7 @@ export function PackingListView({
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
+  const mutationSeqRef = useRef(0);
 
   useEffect(() => {
     if (!resultNotice) return;
@@ -128,7 +129,10 @@ export function PackingListView({
 
   // Reset double-submit guard when the items prop changes (server revalidation completed).
   // React's "derive state from props" pattern: setState during render triggers an immediate re-render.
-  if (prevItems !== items) {
+  // ID-based comparison handles same-length re-renders where the array reference stays stable.
+  const itemsKey = items.map((item) => item.id).join(",");
+  const prevItemsKey = prevItems.map((item) => item.id).join(",");
+  if (prevItems !== items || itemsKey !== prevItemsKey) {
     setPrevItems(items);
     setIsSubmitting(false);
     setPendingItemIds(new Set());
@@ -144,38 +148,55 @@ export function PackingListView({
     setAnnouncementId((id) => id + 1);
   }
 
-  function submitEntry(isLabel?: boolean): void {
+  async function submitEntry(isLabel?: boolean): Promise<void> {
     const trimmedName = draftName.trim();
     if (!trimmedName || isSubmitting) return;
 
     setIsSubmitting(true);
-    onAddItem(trimmedName, isLabel);
-    setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
-    setAnnouncementId((id) => id + 1);
-    setDraftName("");
+    try {
+      await onAddItem(trimmedName, isLabel);
+      setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
+      setAnnouncementId((id) => id + 1);
+      setDraftName("");
+    } catch {
+      setAnnouncement(`Failed to add ${isLabel ? "section" : "item"}.`);
+      setAnnouncementId((id) => id + 1);
+      setIsSubmitting(false);
+    }
   }
 
-  function handleContextualAdd(
+  async function handleContextualAdd(
     name: string,
     isLabel?: boolean,
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ): void {
+  ): Promise<void> {
     const trimmedName = name.trim();
     if (!trimmedName || isSubmitting) return;
 
     setIsSubmitting(true);
-    onAddItem(trimmedName, isLabel, afterItemId, beforeItemId, labelId);
-    setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
-    setAnnouncementId((id) => id + 1);
+    try {
+      await onAddItem(trimmedName, isLabel, afterItemId, beforeItemId, labelId);
+      setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
+      setAnnouncementId((id) => id + 1);
+    } catch {
+      setAnnouncement(`Failed to add ${isLabel ? "section" : "item"}.`);
+      setAnnouncementId((id) => id + 1);
+      setIsSubmitting(false);
+    }
   }
 
-  function handleRemove(item: PackingItem): void {
+  async function handleRemove(item: PackingItem): Promise<void> {
     if (!item.id) return;
-    onRemoveItem(item.id);
-    setAnnouncement(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
-    setAnnouncementId((id) => id + 1);
+    try {
+      await onRemoveItem(item.id);
+      setAnnouncement(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
+      setAnnouncementId((id) => id + 1);
+    } catch {
+      setAnnouncement(`Failed to remove ${item.isLabel ? "section" : "item"}.`);
+      setAnnouncementId((id) => id + 1);
+    }
   }
 
   async function handleToggle(item: PackingItem): Promise<void> {
@@ -211,6 +232,30 @@ export function PackingListView({
     } catch {
       return undefined;
     }
+  }
+
+  function handleOptimisticReorder(reorderedItems: PackingItem[] | null): void {
+    if (reorderedItems !== null) {
+      mutationSeqRef.current += 1;
+    }
+    setLocalItems(reorderedItems);
+  }
+
+  function handleReorderItemsWithSeqGuard(
+    ordered: { id: string; labelId: string | null; position: number }[],
+    onError?: () => void
+  ): void {
+    const capturedSeq = mutationSeqRef.current;
+    onReorderItems(
+      ordered,
+      onError !== undefined
+        ? (): void => {
+            if (mutationSeqRef.current === capturedSeq) {
+              onError();
+            }
+          }
+        : undefined
+    );
   }
 
   function openPullDialog(): void {
@@ -258,8 +303,8 @@ export function PackingListView({
             pendingItemIds={pendingItemIds}
             onRemoveItem={handleRemove}
             onToggleItem={handleToggle}
-            onOptimisticReorder={setLocalItems}
-            onReorderItems={onReorderItems}
+            onOptimisticReorder={handleOptimisticReorder}
+            onReorderItems={handleReorderItemsWithSeqGuard}
             onAnnounceMove={announceMove}
             isAdding={isSubmitting}
             onEditItem={onEditItem}
