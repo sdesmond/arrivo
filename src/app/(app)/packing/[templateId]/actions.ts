@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { packingTemplateItems, packingTemplates } from "@/db/schema";
 import { requireUser } from "@/lib/auth-helpers";
+import { withErrorHandling } from "@/lib/error-utils";
 import type { AddTemplateItemInput, UpdateTemplateItemInput } from "@/data/types";
 
 const ITEM_TEXT_MAX = 100;
@@ -51,7 +52,7 @@ async function assertItemOwnership(itemId: string, userId: string): Promise<{ te
   return item;
 }
 
-export async function addTemplateItem(templateId: string, input: AddTemplateItemInput): Promise<{ id: string }> {
+async function addTemplateItemImpl(templateId: string, input: AddTemplateItemInput): Promise<{ id: string }> {
   const user = await requireUser();
   await assertTemplateOwnership(templateId, user.id!);
   const text = normalizeItemText(input.text);
@@ -154,7 +155,7 @@ export async function addTemplateItem(templateId: string, input: AddTemplateItem
   return { id: newItem.id };
 }
 
-export async function updateTemplateItem(itemId: string, input: UpdateTemplateItemInput): Promise<void> {
+async function updateTemplateItemImpl(itemId: string, input: UpdateTemplateItemInput): Promise<void> {
   const user = await requireUser();
   const { templateId } = await assertItemOwnership(itemId, user.id!);
   const text = normalizeItemText(input.text);
@@ -164,7 +165,7 @@ export async function updateTemplateItem(itemId: string, input: UpdateTemplateIt
   revalidatePath(`/packing/${templateId}`);
 }
 
-export async function removeTemplateItem(itemId: string): Promise<void> {
+async function removeTemplateItemImpl(itemId: string): Promise<void> {
   const user = await requireUser();
   const { templateId } = await assertItemOwnership(itemId, user.id!);
 
@@ -173,7 +174,7 @@ export async function removeTemplateItem(itemId: string): Promise<void> {
   revalidatePath(`/packing/${templateId}`);
 }
 
-export async function reorderTemplateItems(
+async function reorderTemplateItemsImpl(
   templateId: string,
   ordered: { id: string; labelId: string | null; position: number }[]
 ): Promise<void> {
@@ -194,4 +195,28 @@ export async function reorderTemplateItems(
   });
 
   revalidatePath(`/packing/${templateId}`);
+}
+
+const addTemplateItemWithErrorHandling = withErrorHandling(addTemplateItemImpl);
+const updateTemplateItemWithErrorHandling = withErrorHandling(updateTemplateItemImpl);
+const removeTemplateItemWithErrorHandling = withErrorHandling(removeTemplateItemImpl);
+const reorderTemplateItemsWithErrorHandling = withErrorHandling(reorderTemplateItemsImpl);
+
+export async function addTemplateItem(templateId: string, input: AddTemplateItemInput): Promise<{ id: string }> {
+  return addTemplateItemWithErrorHandling(templateId, input);
+}
+
+export async function updateTemplateItem(itemId: string, input: UpdateTemplateItemInput): Promise<void> {
+  return updateTemplateItemWithErrorHandling(itemId, input);
+}
+
+export async function removeTemplateItem(itemId: string): Promise<void> {
+  return removeTemplateItemWithErrorHandling(itemId);
+}
+
+export async function reorderTemplateItems(
+  templateId: string,
+  ordered: { id: string; labelId: string | null; position: number }[]
+): Promise<void> {
+  return reorderTemplateItemsWithErrorHandling(templateId, ordered);
 }
