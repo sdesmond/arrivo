@@ -166,6 +166,12 @@ Users can build a personal template library of reusable item collections, pull o
 
 **FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR8, FR9, FR10, FR11, FR14, FR15, FR16, FR20, FR38
 
+### Epic 3: Technical Debt & Polish
+
+Resolve deferred technical debt across the packing feature: core sort algorithm bug fixes, server action hardening, optimistic update reliability, schema housekeeping, test improvements, and UX polish.
+
+**FRs covered:** None (internal quality improvements)
+
 ---
 
 ## Epic 1: Trip Packing List
@@ -460,3 +466,235 @@ So that future trips of the same type start from this list rather than from scra
 
 **Given** the save-as-template action is called
 **Then** `requireUser()` + `assertTripAccess()` are enforced and the resulting template is owned by the authenticated user
+
+---
+
+## Epic 3: Technical Debt & Polish
+
+Resolve deferred technical debt across the packing feature: core sort algorithm bug fixes, server action hardening, optimistic update reliability, schema housekeeping, test improvements, and UX polish.
+
+### Story 3.1: Packing Sort Utils Bug Fixes
+
+As a developer,
+I want to fix core algorithm bugs in the packing sort utilities,
+So that data corruption risks from `computeReorder`, `flatten`, and `byPosition` are eliminated and drag-reorder works reliably.
+
+**Acceptance Criteria:**
+
+**Given** a packing list has items at positions [0, 10, 20]
+**When** a drag triggers `computeReorder` and the server rejects the reorder
+**Then** the rollback payload restores the original positions [0, 10, 20]
+**And** `flatten()` does not renumber all positions from 0
+
+**Given** a label has `id: undefined`
+**When** `groupPackingItems` builds `labelIds`
+**Then** the label is not added to the `Set` as the string `"undefined"`
+
+**Given** a section label has an undefined `id`
+**When** `containerKeyOfItem` resolves the container for an item beneath it
+**Then** it returns a valid container key, not `null`
+
+**Given** a drag ends and `onReorderItems` is invoked
+**Then** every entry in the ordered array has a defined `id` and `position`
+**And** no item is passed with `id: undefined` or `position: undefined`
+
+**Given** all items in a sort group have `position: undefined`
+**When** `byPosition` compares them
+**Then** the sort produces a deterministic order, not `NaN`
+
+**Given** the user drags a non-label item over a disabled label
+**When** the drag ends
+**Then** the item is placed at the nearest valid position outside the label's section
+
+**Given** a label drag is attempted
+**Then** the user receives visual feedback that labels cannot be reordered (or the label is non-draggable)
+**And** `computeReorder` does not return `null` silently with no feedback path
+
+*(Deferred item #15 — optimistic reorder clearing on concurrent add/remove — is acknowledged as accepted Phase 1 behavior. No change required.)*
+
+**Tasks:**
+- [ ] Fix `flatten()` to preserve original `position` values instead of sequential renumbering (AC: #1)
+- [ ] Fix `groupPackingItems` to filter undefined label IDs from the `labelIds` Set (AC: #2)
+- [ ] Fix `containerKeyOfItem` to handle undefined `label.id` with a fallback key (AC: #3)
+- [ ] Fix `handleDragEnd` to guard against undefined `id`/`position` in `onReorderItems` callback (AC: #4)
+- [ ] Fix `byPosition` to handle `Infinity - Infinity` = `NaN` edge case (AC: #5)
+- [ ] Fix collision detection or `computeReorder` to handle non-label over disabled label (AC: #6)
+- [ ] Add visual feedback or make labels non-draggable for label drag attempts (AC: #7)
+
+**Files to modify:**
+- `src/components/packt/packing-sort-utils.ts`
+- `src/components/packt/packing-list-sortable.tsx`
+
+**Existing tests:**
+- `src/components/packt/packing-list-sortable.test.tsx` (677 lines)
+
+---
+
+### Story 3.2: Server Action Hardening
+
+As a developer,
+I want to harden packing server actions with labelId validation, sanitized error messages, and idempotency support,
+So that invalid data cannot enter the system and internal details are not leaked to clients.
+
+**Acceptance Criteria:**
+
+**Given** a packing server action receives a `labelId`
+**When** the `labelId` references a row that is not marked `isLabel = true` or belongs to a different trip
+**Then** the action rejects with a validation error
+**And** the mutation is not performed
+
+**Given** a packing server action throws an unexpected error
+**When** the error is serialized to the client
+**Then** only a sanitized message is sent, not the raw internal details
+
+**Given** `saveTripListAsTemplate` is called with an idempotency key
+**When** the same key is used again within the expiry window
+**Then** the action returns the existing result without creating a duplicate template
+
+**Tasks:**
+- [ ] Add labelId validation to `addPackingItem` checking `isLabel=true` and same `tripId` (AC: #1)
+- [ ] Create `sanitizeError()` wrapper and apply to all packing server actions (AC: #2)
+- [ ] Add idempotency key support to `saveTripListAsTemplate` (AC: #3)
+
+**Files to modify:**
+- `src/app/(app)/trips/actions.ts`
+- `src/app/(app)/packing/[templateId]/actions.ts`
+- `src/app/(app)/packing/actions.ts`
+
+---
+
+### Story 3.3: Optimistic Update Reliability
+
+As a developer,
+I want to fix race conditions and edge cases in packing optimistic updates,
+So that announcement rollback, server-triggered re-renders, and concurrent mutation handling work correctly.
+
+**Acceptance Criteria:**
+
+**Given** a packing add/remove optimistic update triggers an `aria-live` announcement
+**When** the server action fails
+**Then** the announcement is rolled back or indicates failure
+
+**Given** an `aria-live` announcement is queued
+**When** the server action resolves successfully
+**Then** the announcement fires after confirmation, not before
+
+**Given** the server triggers a re-render of packing items
+**When** optimistic state uses referential equality to detect changes
+**Then** the optimistic state detects the server-triggered change correctly
+
+**Given** two tabs both reorder the same packing list
+**When** one mutation resolves
+**Then** the other tab's optimistic state does not clobber the persisted order
+
+**Tasks:**
+- [ ] Refactor `onAddItem`/`onRemoveItem` to return `Promise<void>` for error-based rollback (AC: #1)
+- [ ] Defer `aria-live` announcement until server confirms success (AC: #2)
+- [ ] Replace referential equality with key-based or shallow comparison (AC: #3)
+- [ ] Add scope/sequence check for concurrent mutation protection (AC: #4)
+
+**Files to modify:**
+- `src/components/packt/packing-list-view.tsx`
+- `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts`
+- `src/components/packt/packing-list-sortable.tsx`
+
+---
+
+### Story 3.4: Database Schema Housekeeping
+
+As a developer,
+I want to add missing indexes and name anonymous indexes in the packing schema,
+So that query performance is predictable and schema is self-documenting.
+
+**Acceptance Criteria:**
+
+**Given** the `packingTemplateItems` table
+**When** a query filters by `labelId` alone
+**Then** it uses an index (not a full table scan)
+
+**Given** the `packingTemplates.userId` index exists
+**When** the schema is inspected
+**Then** it has an explicit name (`packing_templates_user_id_idx`)
+
+**Tasks:**
+- [ ] Add named `labelId` index on `packingTemplateItems` (AC: #1)
+- [ ] Rename anonymous index on `packingTemplates.userId` to explicit name (AC: #2)
+
+**Files to modify:**
+- `src/db/schema.ts`
+
+---
+
+### Story 3.5: Test Quality Improvements
+
+As a developer,
+I want to fill gaps and improve robustness in packing tests,
+So that edge cases are covered and tests are less brittle.
+
+**Acceptance Criteria:**
+
+**Given** drag-to-reorder functionality
+**When** E2E tests run
+**Then** there is at least one mouse-based pointer-drag scenario (not just keyboard)
+
+**Given** the `groupPackingItems` utility
+**When** unit tests run
+**Then** there is a dedicated pure-function test covering edge cases (undefined ids, empty groups, mixed labels/items)
+
+**Given** a touch target test
+**When** it asserts 44×44px minimum
+**Then** it uses rendered size measurement (E2E) or `getComputedStyle`, not class presence
+
+**Given** the keyboard-move E2E step
+**When** it asserts item position
+**Then** the expected index is parameterized, not hardcoded to 1
+
+**Given** the E2E drag helper encounters a vanished target
+**When** `if (!box)` triggers
+**Then** it retries instead of breaking out of the loop
+
+**Tasks:**
+- [ ] Add mouse/touch pointer-drag E2E scenario (AC: #1)
+- [ ] Add dedicated `groupPackingItems` unit test (AC: #2)
+- [ ] Fix touch target test approach (AC: #3)
+- [ ] Parameterize keyboard-move E2E assertion (AC: #4)
+- [ ] Improve E2E drag helper retry logic (AC: #5)
+- [ ] Add optimistic update pattern test coverage
+
+**Files to modify:**
+- `tests/e2e/features/packing-tab.feature`
+- `src/components/packt/packing-sort-utils.test.ts` (new)
+- `src/components/packt/packing-list-view.test.tsx`
+- `tests/e2e/steps/packing-tab-steps.ts`
+
+---
+
+### Story 3.6: UX/Cosmetic Polish
+
+As a user,
+I want consistent and polished packing UI behavior,
+So that section labels behave correctly, template names are distinguishable, and sort order is case-insensitive.
+
+**Acceptance Criteria:**
+
+**Given** a section label in the packing list
+**When** the user attempts to drag it
+**Then** the label does not move at all (non-draggable, no snap-back)
+
+**Given** two or more templates share the same name
+**When** they render in the library
+**Then** their `aria-label` attributes are distinct (e.g., include the template `id`)
+
+**Given** a list of templates sorted by name
+**Then** the sort is case-insensitive
+**And** "beach trip" and "Beach Trip" appear adjacent rather than separated by case
+
+**Tasks:**
+- [ ] Remove drag affordance from section labels (AC: #1)
+- [ ] Disambiguate `aria-labels` for duplicate template names (AC: #2)
+- [ ] Apply `lower()` case-insensitive sort on template names (AC: #3)
+
+**Files to modify:**
+- `src/components/packt/packing-list-sortable.tsx`
+- `src/components/packt/template-library.tsx`
+- `src/lib/queries.ts`
