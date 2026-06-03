@@ -878,6 +878,11 @@ describe("packing actions", () => {
   it("reorders packing entries after access checks and revalidates the trip detail route", async () => {
     const updateWhere = vi.fn().mockResolvedValue(undefined);
     const transaction = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: async () => [{ id: "label-1" }],
+        }),
+      })),
       update: vi.fn(() => ({
         set: (values: unknown) => ({
           where: async () => {

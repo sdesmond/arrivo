@@ -3,29 +3,13 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import {
-  trips,
-  collaborators,
-  packingItems,
-  packingTemplates,
-  packingTemplateItems,
-  documents,
-  days,
-  events,
-  itineraryNotes,
-  itineraryChecklists,
-  users,
-} from "@/db/schema";
-import { and, asc, eq, gt, inArray, max, sql } from "drizzle-orm";
+import { trips, collaborators, documents, days, events, itineraryNotes, itineraryChecklists, users } from "@/db/schema";
+import { asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type {
   CreateTripInput,
   UpdateTripPatch,
   AddCollaboratorInput,
-  AddPackingItemInput,
-  UpdatePackingItemInput,
-  PullTemplatesResult,
-  SaveTripAsTemplateResult,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
@@ -37,6 +21,15 @@ import { CoverType } from "@/data/types";
 import { buildDayRows } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import { searchCoverImages } from "./cover-image-search-actions";
+import {
+  addPackingItem as addPackingItemAction,
+  pullTemplatesOntoTrip as pullTemplatesOntoTripAction,
+  removePackingItem as removePackingItemAction,
+  reorderPackingItems as reorderPackingItemsAction,
+  saveTripListAsTemplate as saveTripListAsTemplateAction,
+  togglePackingItem as togglePackingItemAction,
+  updatePackingItem as updatePackingItemAction,
+} from "./packing-actions";
 
 const DAY_NUMBER_TEMP_OFFSET = 1000;
 const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
@@ -468,305 +461,45 @@ export async function updateCollaboratorRole(collabId: string, role: "editor" | 
   revalidatePath(`/trips/${collab.tripId}`);
 }
 
-function normalizePackingItemName(name: string | undefined): string {
-  const trimmedName = name?.trim() ?? "";
-  if (!trimmedName) {
-    throw new Error("Packing item name is required");
-  }
-  return trimmedName;
+export async function addPackingItem(tripId: string, input: import("@/data/types").AddPackingItemInput): Promise<void> {
+  return addPackingItemAction(tripId, input);
 }
 
-export async function addPackingItem(tripId: string, input: AddPackingItemInput) {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-  const name = normalizePackingItemName(input.name);
-  // A label belongs to no section; otherwise membership is explicit via labelId.
-  const labelId = input.isLabel ? null : (input.labelId ?? null);
-
-  if (input.afterItemId) {
-    const afterItemId = input.afterItemId;
-    await db.transaction(async (tx) => {
-      const [targetItem] = await tx
-        .select()
-        .from(packingItems)
-        .where(and(eq(packingItems.id, afterItemId), eq(packingItems.tripId, tripId)));
-      if (!targetItem) throw new Error("Target item not found");
-
-      await tx
-        .update(packingItems)
-        .set({ position: sql`${packingItems.position} + 1` })
-        .where(and(eq(packingItems.tripId, tripId), gt(packingItems.position, targetItem.position)));
-      await tx.insert(packingItems).values({
-        tripId,
-        name,
-        done: false,
-        isLabel: input.isLabel ?? false,
-        position: targetItem.position + 1,
-        labelId,
-      });
-    });
-  } else if (input.beforeItemId) {
-    const beforeItemId = input.beforeItemId;
-    await db.transaction(async (tx) => {
-      const [targetItem] = await tx
-        .select()
-        .from(packingItems)
-        .where(and(eq(packingItems.id, beforeItemId), eq(packingItems.tripId, tripId)));
-      if (!targetItem) throw new Error("Target item not found");
-
-      await tx
-        .update(packingItems)
-        .set({ position: sql`${packingItems.position} + 1` })
-        .where(and(eq(packingItems.tripId, tripId), gt(packingItems.position, targetItem.position - 1)));
-      await tx.insert(packingItems).values({
-        tripId,
-        name,
-        done: false,
-        isLabel: input.isLabel ?? false,
-        position: targetItem.position,
-        labelId,
-      });
-    });
-  } else {
-    const [{ maxPos }] = await db
-      .select({ maxPos: max(packingItems.position) })
-      .from(packingItems)
-      .where(eq(packingItems.tripId, tripId));
-    // Quick-add with no explicit section (AC4): append ungrouped at the bottom.
-    await db.insert(packingItems).values({
-      tripId,
-      name,
-      done: false,
-      isLabel: input.isLabel ?? false,
-      position: (maxPos ?? -1) + 1,
-      labelId,
-    });
-  }
-
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
+export async function updatePackingItem(
+  itemId: string,
+  input: import("@/data/types").UpdatePackingItemInput
+): Promise<void> {
+  return updatePackingItemAction(itemId, input);
 }
 
-export async function updatePackingItem(itemId: string, input: UpdatePackingItemInput): Promise<void> {
-  const user = await requireUser();
-  const name = normalizePackingItemName(input.name);
-  const [item] = await db.select({ tripId: packingItems.tripId }).from(packingItems).where(eq(packingItems.id, itemId));
-  if (!item) throw new Error("Packing item not found");
-  await assertTripAccess(item.tripId, user.id!, "editor");
-  await db.update(packingItems).set({ name }).where(eq(packingItems.id, itemId));
-  revalidatePath(`/trips/${item.tripId}`);
-  revalidatePath("/trips");
+export async function togglePackingItem(itemId: string): Promise<void> {
+  return togglePackingItemAction(itemId);
 }
 
-export async function togglePackingItem(itemId: string) {
-  const user = await requireUser();
-  const [item] = await db.select().from(packingItems).where(eq(packingItems.id, itemId));
-  if (!item) return;
-  await assertTripAccess(item.tripId, user.id!, "editor");
-  await db.update(packingItems).set({ done: !item.done }).where(eq(packingItems.id, itemId));
-  revalidatePath(`/trips/${item.tripId}`);
-  revalidatePath("/trips");
-}
-
-export async function removePackingItem(itemId: string) {
-  const user = await requireUser();
-  const [item] = await db.select().from(packingItems).where(eq(packingItems.id, itemId));
-  if (!item) return;
-  await assertTripAccess(item.tripId, user.id!, "editor");
-  await db.delete(packingItems).where(eq(packingItems.id, itemId));
-  revalidatePath(`/trips/${item.tripId}`);
-  revalidatePath("/trips");
+export async function removePackingItem(itemId: string): Promise<void> {
+  return removePackingItemAction(itemId);
 }
 
 export async function reorderPackingItems(
   tripId: string,
   ordered: { id: string; labelId: string | null; position: number }[]
 ): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-  if (ordered.length === 0) return;
-  await db.transaction(async (tx) => {
-    for (const entry of ordered) {
-      await tx
-        .update(packingItems)
-        .set({ position: entry.position, labelId: entry.labelId })
-        .where(and(eq(packingItems.id, entry.id), eq(packingItems.tripId, tripId)));
-    }
-  });
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
+  return reorderPackingItemsAction(tripId, ordered);
 }
 
-export async function pullTemplatesOntoTrip(tripId: string, templateIds: string[]): Promise<PullTemplatesResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-  const uniqueIds = [...new Set(templateIds)];
-  if (uniqueIds.length === 0) return { added: 0, skipped: 0 };
-
-  const existingRows = await db
-    .select({ name: packingItems.name, id: packingItems.id, isLabel: packingItems.isLabel })
-    .from(packingItems)
-    .where(eq(packingItems.tripId, tripId));
-  const existingNames = new Set(existingRows.map((row) => row.name.toLowerCase().trim()));
-  const existingLabelNameToId = new Map<string, string>();
-  for (const row of existingRows) {
-    if (row.isLabel) {
-      existingLabelNameToId.set(row.name.toLowerCase().trim(), row.id);
-    }
-  }
-
-  const ownedTemplates = await db
-    .select({ id: packingTemplates.id })
-    .from(packingTemplates)
-    .where(and(inArray(packingTemplates.id, uniqueIds), eq(packingTemplates.userId, user.id!)));
-  const ownedIds = new Set(ownedTemplates.map((tmpl) => tmpl.id));
-
-  let added = 0;
-  let skipped = 0;
-
-  await db.transaction(async (tx) => {
-    const [maxPosRow] = await tx
-      .select({ maxPos: max(packingItems.position) })
-      .from(packingItems)
-      .where(eq(packingItems.tripId, tripId));
-    let nextPosition = (maxPosRow.maxPos ?? -1) + 1;
-
-    const labelIdMap = new Map<string, string>();
-
-    for (const templateId of uniqueIds) {
-      if (!ownedIds.has(templateId)) continue;
-
-      const items = await tx
-        .select()
-        .from(packingTemplateItems)
-        .where(eq(packingTemplateItems.templateId, templateId))
-        .orderBy(asc(packingTemplateItems.position));
-
-      for (const item of items) {
-        const normalizedText = item.text.trim().toLowerCase();
-        if (existingNames.has(normalizedText)) {
-          if (item.isLabel) {
-            const existingId = existingLabelNameToId.get(normalizedText);
-            if (existingId) {
-              labelIdMap.set(item.id, existingId);
-            }
-          }
-          skipped++;
-          continue;
-        }
-
-        const newLabelId = item.isLabel ? null : item.labelId ? (labelIdMap.get(item.labelId) ?? null) : null;
-
-        const [inserted] = await tx
-          .insert(packingItems)
-          .values({
-            tripId,
-            name: item.text.trim(),
-            done: false,
-            isLabel: item.isLabel,
-            position: nextPosition++,
-            labelId: newLabelId,
-          })
-          .returning({ id: packingItems.id });
-
-        if (!inserted) throw new Error("Failed to insert packing item during template pull");
-
-        if (item.isLabel) {
-          labelIdMap.set(item.id, inserted.id);
-        }
-
-        added++;
-        existingNames.add(normalizedText);
-      }
-    }
-  });
-
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
-
-  return { added, skipped };
+export async function pullTemplatesOntoTrip(
+  tripId: string,
+  templateIds: string[]
+): Promise<import("@/data/types").PullTemplatesResult> {
+  return pullTemplatesOntoTripAction(tripId, templateIds);
 }
 
-export async function saveTripListAsTemplate(tripId: string, name: string): Promise<SaveTripAsTemplateResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const trimmedName = name.trim();
-  if (trimmedName.length === 0) {
-    throw new Error("Template name is required");
-  }
-  if (trimmedName.length > 100) {
-    throw new Error("Template name must be 100 characters or fewer");
-  }
-
-  const tripItems = await db
-    .select()
-    .from(packingItems)
-    .where(eq(packingItems.tripId, tripId))
-    .orderBy(asc(packingItems.position));
-
-  if (tripItems.length === 0) {
-    throw new Error("Cannot save an empty packing list as a template");
-  }
-
-  let templateId: string | undefined;
-
-  await db.transaction(async (tx) => {
-    const [template] = await tx
-      .insert(packingTemplates)
-      .values({ userId: user.id!, name: trimmedName })
-      .returning({ id: packingTemplates.id });
-
-    if (!template) throw new Error("Failed to create template");
-    templateId = template.id;
-
-    const labelIdMap = new Map<string, string>();
-
-    for (const item of tripItems) {
-      if (item.isLabel) {
-        const [inserted] = await tx
-          .insert(packingTemplateItems)
-          .values({
-            templateId: template.id,
-            text: item.name,
-            isLabel: true,
-            position: item.position,
-            labelId: null,
-          })
-          .returning({ id: packingTemplateItems.id });
-
-        if (!inserted) throw new Error(`Failed to insert template label for item "${item.name}" (${item.id})`);
-        labelIdMap.set(item.id, inserted.id);
-      }
-    }
-
-    for (const item of tripItems) {
-      if (!item.isLabel) {
-        if (item.labelId && !labelIdMap.has(item.labelId)) {
-          throw new Error(`Item "${item.name}" (${item.id}) references a section label that no longer exists`);
-        }
-        const newLabelId = item.labelId ? labelIdMap.get(item.labelId)! : null;
-
-        const [inserted] = await tx
-          .insert(packingTemplateItems)
-          .values({
-            templateId: template.id,
-            text: item.name,
-            isLabel: false,
-            position: item.position,
-            labelId: newLabelId,
-          })
-          .returning({ id: packingTemplateItems.id });
-
-        if (!inserted) throw new Error(`Failed to insert template item "${item.name}" (${item.id})`);
-      }
-    }
-  });
-
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
-
-  return { templateId: templateId! };
+export async function saveTripListAsTemplate(
+  tripId: string,
+  name: string,
+  idempotencyKey?: string
+): Promise<import("@/data/types").SaveTripAsTemplateResult> {
+  return saveTripListAsTemplateAction(tripId, name, idempotencyKey);
 }
 
 export interface LocationSuggestion {

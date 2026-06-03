@@ -331,3 +331,11 @@ export const packingTemplateItems = pgTable(
   },
   (table) => [index().on(table.templateId, table.position)]
 );
+
+export const idempotencyKeys = pgTable("idempotency_keys", {
+  key: text("key").primaryKey(),
+  result: jsonb("result").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+});
