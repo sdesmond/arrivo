@@ -1,42 +1,12 @@
 import { expect, type Page } from "@playwright/test";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
-import { packingTemplateItems, packingTemplates, users } from "../../../src/db/schema";
-import { E2E_TEMPLATE_EDITOR_ITEMS, E2E_TEMPLATE_LABEL_ITEMS, E2E_TEMPLATE_USER } from "../e2e-seed-data";
-import { After, Before, Given, Then, When } from "../fixtures";
-
-type TemplateSeedItem = { text: string; isLabel: boolean; position: number; under?: string };
-
-async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-
-  try {
-    return await fn(db);
-  } finally {
-    await client.end();
-  }
-}
-
-async function getTemplateUserId(db: ReturnType<typeof drizzle>): Promise<string> {
-  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_TEMPLATE_USER.email));
-  if (!user) {
-    throw new Error("Template E2E user not found");
-  }
-
-  return user.id;
-}
-
-async function clearTemplateEditors(): Promise<void> {
-  await withE2EDb(async (db) => {
-    const userId = await getTemplateUserId(db);
-    await db.delete(packingTemplates).where(eq(packingTemplates.userId, userId));
-  });
-}
+import { packingTemplateItems, packingTemplates } from "../../../src/db/schema";
+import { type E2EDb, withE2EDb } from "../e2e-db";
+import { E2E_TEMPLATE_EDITOR_ITEMS, E2E_TEMPLATE_LABEL_ITEMS, type TemplateItemSeed } from "../e2e-seed-data";
+import { Given, Then, When } from "../fixtures";
 
 async function insertTemplateItem(
-  db: ReturnType<typeof drizzle>,
+  db: E2EDb,
   values: {
     templateId: string;
     text: string;
@@ -52,9 +22,8 @@ async function insertTemplateItem(
   return rows[0].id;
 }
 
-async function seedTemplateEditor(name: string, items: TemplateSeedItem[] = []): Promise<string> {
+async function seedTemplateEditor(userId: string, name: string, items: TemplateItemSeed[] = []): Promise<string> {
   return withE2EDb(async (db) => {
-    const userId = await getTemplateUserId(db);
     const [template] = await db
       .insert(packingTemplates)
       .values({ userId, name })
@@ -80,9 +49,8 @@ async function seedTemplateEditor(name: string, items: TemplateSeedItem[] = []):
   });
 }
 
-async function getTemplateEditorId(name: string): Promise<string> {
+async function getTemplateEditorId(userId: string, name: string): Promise<string> {
   return withE2EDb(async (db) => {
-    const userId = await getTemplateUserId(db);
     const [template] = await db
       .select({ id: packingTemplates.id })
       .from(packingTemplates)
@@ -119,62 +87,65 @@ async function dragTemplateItemOntoTarget(
   await page.mouse.up();
 }
 
-Before({ tags: "@template-items" }, async () => {
-  await clearTemplateEditors();
+Given("I am signed in as the template editor user", async ({ page, scenario }) => {
+  await scenario.signIn(page);
 });
 
-After({ tags: "@template-items" }, async () => {
-  await clearTemplateEditors();
+Given("the template editor {string} exists", async ({ scenario }, name: string) => {
+  const currentUser = await scenario.ensureCurrentUser();
+  const templateId = await seedTemplateEditor(currentUser.id, name);
+  scenario.setValue("templateEditorId", templateId);
+  scenario.setValue("templateEditorName", name);
 });
 
-Given("I am signed in as the template editor user", async ({ page }) => {
-  await page.context().clearCookies();
-  await page.goto("/sign-in");
-  await page.getByRole("textbox", { name: "Email" }).fill(E2E_TEMPLATE_USER.email);
-  await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/trips/, { timeout: 15_000 });
+Given("the template editor {string} has no items", async ({ scenario }, name: string) => {
+  const currentUser = await scenario.ensureCurrentUser();
+  const templateId = await seedTemplateEditor(currentUser.id, name);
+  scenario.setValue("templateEditorId", templateId);
+  scenario.setValue("templateEditorName", name);
 });
 
-Given("the template editor {string} exists", async ({}, name: string) => {
-  await clearTemplateEditors();
-  await seedTemplateEditor(name);
+Given("the template editor {string} has an item {string}", async ({ scenario }, name: string, itemText: string) => {
+  const currentUser = await scenario.ensureCurrentUser();
+  const templateId = await seedTemplateEditor(currentUser.id, name, [
+    { ...E2E_TEMPLATE_EDITOR_ITEMS[0], text: itemText },
+  ]);
+  scenario.setValue("templateEditorId", templateId);
+  scenario.setValue("templateEditorName", name);
 });
 
-Given("the template editor {string} has no items", async ({}, name: string) => {
-  await clearTemplateEditors();
-  await seedTemplateEditor(name);
-});
-
-Given("the template editor {string} has an item {string}", async ({}, name: string, itemText: string) => {
-  await clearTemplateEditors();
-  await seedTemplateEditor(name, [{ ...E2E_TEMPLATE_EDITOR_ITEMS[0], text: itemText }]);
-});
-
-Given("the template editor {string} has a label {string}", async ({}, name: string, labelText: string) => {
-  await clearTemplateEditors();
-  await seedTemplateEditor(name, [{ ...E2E_TEMPLATE_LABEL_ITEMS[0], text: labelText }]);
+Given("the template editor {string} has a label {string}", async ({ scenario }, name: string, labelText: string) => {
+  const currentUser = await scenario.ensureCurrentUser();
+  const templateId = await seedTemplateEditor(currentUser.id, name, [
+    { ...E2E_TEMPLATE_LABEL_ITEMS[0], text: labelText },
+  ]);
+  scenario.setValue("templateEditorId", templateId);
+  scenario.setValue("templateEditorName", name);
 });
 
 Given(
   "the template editor {string} has a label {string} with item {string}",
-  async ({}, name: string, labelText: string, itemText: string) => {
-    await clearTemplateEditors();
-    await seedTemplateEditor(name, [
+  async ({ scenario }, name: string, labelText: string, itemText: string) => {
+    const currentUser = await scenario.ensureCurrentUser();
+    const templateId = await seedTemplateEditor(currentUser.id, name, [
       { text: labelText, isLabel: true, position: 0 },
       { text: itemText, isLabel: false, position: 1, under: labelText },
     ]);
+    scenario.setValue("templateEditorId", templateId);
+    scenario.setValue("templateEditorName", name);
   }
 );
 
 Given(
   "the template editor {string} has items {string} and {string}",
-  async ({}, name: string, first: string, second: string) => {
-    await clearTemplateEditors();
-    await seedTemplateEditor(name, [
+  async ({ scenario }, name: string, first: string, second: string) => {
+    const currentUser = await scenario.ensureCurrentUser();
+    const templateId = await seedTemplateEditor(currentUser.id, name, [
       { text: first, isLabel: false, position: 0 },
       { text: second, isLabel: false, position: 1 },
     ]);
+    scenario.setValue("templateEditorId", templateId);
+    scenario.setValue("templateEditorName", name);
   }
 );
 
@@ -182,8 +153,10 @@ When("I click the template editor {string}", async ({ page }, name: string) => {
   await Promise.all([page.waitForURL(/\/packing\/.+/, { timeout: 10_000 }), page.getByRole("link", { name }).click()]);
 });
 
-When("I open the template editor for {string}", async ({ page }, name: string) => {
-  const templateId = await getTemplateEditorId(name);
+When("I open the template editor for {string}", async ({ page, scenario }, name: string) => {
+  const currentUser = await scenario.ensureCurrentUser();
+  const templateId = await getTemplateEditorId(currentUser.id, name);
+  scenario.setValue("templateEditorId", templateId);
   await page.goto(`/packing/${templateId}`);
   await expect(page).toHaveURL(new RegExp(`/packing/${templateId}$`));
   await expect(page.getByRole("heading", { name })).toBeVisible();

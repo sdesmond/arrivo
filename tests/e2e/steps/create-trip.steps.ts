@@ -1,21 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
-import { eq } from "drizzle-orm";
-import { trips } from "../../../src/db/schema";
-import { When, Then, After } from "../fixtures";
-
-let createdTripName: string | undefined;
-
-async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-  try {
-    return await fn(db);
-  } finally {
-    await client.end();
-  }
-}
+import { When, Then } from "../fixtures";
 
 async function clickDate(page: Page, isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00`);
@@ -42,20 +26,11 @@ function formatRangeLabel(isoDate: string): string {
   });
 }
 
-After({ tags: "@cleanup-created-trip" }, async () => {
-  if (!createdTripName) return;
-  await withE2EDb(async (db) => {
-    await db.delete(trips).where(eq(trips.name, createdTripName!));
-  });
-  createdTripName = undefined;
-});
-
 When("I open the New Trip dialog", async ({ page }) => {
   await page.getByRole("button", { name: "New trip", exact: true }).click();
 });
 
 When("I type {string} in the title field", async ({ page }, title: string) => {
-  createdTripName = title;
   await page.getByRole("dialog").getByLabel("Title").fill(title);
 });
 
@@ -78,14 +53,26 @@ When("I select dates {string} to {string}", async ({ page }, startDate: string, 
 });
 
 When("I click the Create button", async ({ page }) => {
+  const responsePromise = page.waitForResponse(
+    (response) => response.request().method() === "POST" && response.url().includes("/trips"),
+    { timeout: 15_000 }
+  );
+
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /^Create$/ })
     .click();
+
+  const response = await responsePromise;
+  if (!response.ok()) {
+    const body = (await response.text()).slice(0, 1500);
+    throw new Error(`Create trip action failed with ${response.status()}: ${body}`);
+  }
 });
 
-Then("I am on the trip detail page for {string}", async ({ page }, title: string) => {
+Then("I am on the trip detail page for {string}", async ({ page, scenario }, title: string) => {
   await expect(page).toHaveURL(/\/trips\/[^/?]+(\?new=1)?$/, { timeout: 15_000 });
+  await scenario.rememberTripByName(title);
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
 });
 

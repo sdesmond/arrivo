@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
 
-Given("I am on the profile page", async ({ page }) => {
+Given("I am on the profile page", async ({ page, scenario }) => {
+  await scenario.signIn(page);
   await page.goto("/profile");
   await expect(page).toHaveURL(/\/profile/);
 });

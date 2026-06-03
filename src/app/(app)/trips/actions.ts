@@ -18,7 +18,6 @@ import {
 } from "@/db/schema";
 import { and, asc, eq, gt, inArray, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type {
   CreateTripInput,
   UpdateTripPatch,
@@ -152,23 +151,35 @@ async function summarizeRemovedDayContent(
   };
 }
 
-export async function createTrip(input: CreateTripInput) {
-  const user = await requireUser();
+export async function createTrip(input: CreateTripInput): Promise<{ tripId: string }> {
+  const sessionUser = await requireUser();
+  const [user] = await db
+    .select({ id: users.id, email: users.email, name: users.name })
+    .from(users)
+    .where(eq(users.email, sessionUser.email!));
+
+  if (!user?.id || !user.email) {
+    throw new Error("Signed-in user could not be resolved before trip creation.");
+  }
+  const userId = user.id;
+  const userEmail = user.email;
+  const userName = user.name ?? userEmail;
+
   let tripId = "";
   await db.transaction(async (tx) => {
     const [trip] = await tx
       .insert(trips)
       .values({
-        ownerId: user.id!,
+        ownerId: userId,
         name: input.name,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        coverImageUrl: input.coverImageUrl,
-        destinationName: input.destinationName,
-        destinationCountry: input.destinationCountry,
-        destinationCountryCode: input.destinationCountryCode,
-        notes: input.notes,
-        budgetCurrency: input.budgetCurrency,
+        startDate: input.startDate ?? null,
+        endDate: input.endDate ?? null,
+        coverImageUrl: input.coverImageUrl ?? null,
+        destinationName: input.destinationName ?? null,
+        destinationCountry: input.destinationCountry ?? null,
+        destinationCountryCode: input.destinationCountryCode ?? null,
+        notes: input.notes ?? null,
+        budgetCurrency: input.budgetCurrency ?? null,
         budgetTotal: input.budgetTotal?.toString(),
         budgetPerPerson: input.budgetPerPerson?.toString(),
         tags: input.tags ?? [],
@@ -177,10 +188,10 @@ export async function createTrip(input: CreateTripInput) {
     tripId = trip.id;
     await tx.insert(collaborators).values({
       tripId: trip.id,
-      userId: user.id!,
-      email: user.email!,
-      name: user.name ?? user.email!,
-      initials: (user.name ?? user.email!).slice(0, 2).toUpperCase(),
+      userId,
+      email: userEmail,
+      name: userName,
+      initials: userName.slice(0, 2).toUpperCase(),
       role: "owner",
     });
     const dayRows = buildDayRows(trip.id, input.startDate, input.endDate);
@@ -198,7 +209,7 @@ export async function createTrip(input: CreateTripInput) {
       const [userRow] = await db
         .select({ defaultCoverType: users.defaultCoverType })
         .from(users)
-        .where(eq(users.id, user.id!));
+        .where(eq(users.id, userId));
       const storedCoverType = userRow?.defaultCoverType;
       const coverType =
         (storedCoverType && VALID_COVER_TYPES.has(storedCoverType) ? (storedCoverType as CoverType) : null) ??
@@ -234,7 +245,7 @@ export async function createTrip(input: CreateTripInput) {
   }
 
   revalidatePath("/trips");
-  redirect(`/trips/${tripId}?new=1`);
+  return { tripId };
 }
 
 export async function updateTripMetadata(
