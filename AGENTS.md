@@ -136,7 +136,8 @@ Before starting any new development task, you MUST ask the user whether they wan
 
 - All domain types live in `src/data/types.ts` — import from there, don't redefine
 - Enums: const object + union type (`const Foo = {} as const; type Foo = ...`) — never the `enum` keyword
-- No `any` types; no single-letter variable names (except `for` loop `i`)
+- No `any` types
+- **No single-letter variable names — ESLint enforces this and will fail the build.** The only permitted exception is `i` in a `for` loop index. Use descriptive names everywhere else: `item` not `i`, `event` not `e`, `error` not `e`, `key` not `k`, `value` not `v`, `result` not `r`, `callback` not `cb`. Do not write the code first and rename after a lint failure — name correctly from the start.
 - Optional fields use `?:` not `| undefined`
 - ISO 8601 dates/times; durations always in minutes as `number`
 
