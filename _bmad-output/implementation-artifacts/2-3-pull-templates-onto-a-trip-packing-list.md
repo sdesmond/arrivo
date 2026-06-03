@@ -1,6 +1,6 @@
 # Story 2.3: Pull Templates onto a Trip Packing List
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -106,6 +106,39 @@ And the dialog has a descriptive `aria-label` or `aria-labelledby`
   - [ ] `tests/e2e/features/pull-templates.feature` — BDD scenarios (tag `@pull-templates`)
   - [ ] `tests/e2e/steps/pull-templates.steps.ts` — step defs + self-seeding `Before`/`After` DB hooks
 - [ ] **Operational** — schema already has `packingTemplateItems` from Story 2.2; no schema change needed
+
+### Review Findings
+
+#### decision-needed
+
+- [x] [Review][Decision] `startTransition` wrapping async server action — resolved: removed `startTransition`, simplified to direct async call in `handlePullTemplates`.
+
+#### patch (all resolved)
+
+- [x] [Review][Patch] Race condition on position assignment across concurrent pulls — moved maxPos query inside the transaction. [`src/app/(app)/trips/actions.ts`]
+- [x] [Review][Patch] Unit test mock missing `.values()` chain — fixed transaction mock in "enforces requireUser" test. [`src/app/(app)/trips/actions.test.ts`]
+- [x] [Review][Patch] Unhandled promise rejection when `onPullTemplates` throws — added try/catch in `handleDialogPull`. [`src/components/packt/packing-list-view.tsx`]
+- [x] [Review][Patch] `router.refresh()` called on error path — removed `router.refresh()` from error path in `handlePullTemplates`. [`src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts`]
+- [x] [Review][Patch] `PullTemplatesInput` is dead code — removed unused type. [`src/data/types.ts`]
+- [x] [Review][Patch] Duplicate `templateIds` produces misleading skipped count — added `[...new Set(templateIds)]` guard. [`src/app/(app)/trips/actions.ts`]
+- [x] [Review][Patch] Label dedup loses child item grouping — when label is skipped as duplicate, its template ID is mapped to the existing packing item's ID. [`src/app/(app)/trips/actions.ts`]
+- [x] [Review][Patch] Dialog can be closed during active pull — guarded `onOpenChange` when `isPulling`. [`src/components/packt/template-pull-dialog.tsx`]
+- [x] [Review][Patch] Pull resolving `undefined` leaves dialog open — `handleDialogPull` now closes the dialog in both success and error paths. [`src/components/packt/packing-list-view.tsx`]
+- [x] [Review][Patch] Template item text not trimmed before dedup or insert — added `.trim()` to normalization and value. [`src/app/(app)/trips/actions.ts`]
+- [x] [Review][Patch] `labelIdMap` reset per template loses cross-template references — moved `labelIdMap` outside the template loop. [`src/app/(app)/trips/actions.ts`]
+- [x] [Review][Patch] `setTimeout` result-notice not cancelled on unmount — replaced with `useEffect` cleanup pattern. [`src/components/packt/packing-list-view.tsx`]
+- [x] [Review][Patch] Two `aria-live="polite"` regions may interleave — replaced `aria-live` on the result notice with `role="status"`. [`src/components/packt/packing-list-view.tsx`]
+- [x] [Review][Patch] Non-owned template IDs silently skipped — tracked `notOwnedCount` and included in the `skipped` total. [`src/app/(app)/trips/actions.ts`]
+- [x] [Review][Patch] E2E missing pre-seeded item assertion — added "Laptop" assertion to the "Pull appends" scenario. [`tests/e2e/features/pull-templates.feature`]
+- [x] [Review][Patch] Populated-state "Pull templates" button below 44px — changed `min-h-9` to `min-h-11`. [`src/components/packt/packing-list-view.tsx`]
+
+#### patch
+
+- [x] [Review][Patch] Skipped label can attach children to a non-label existing item — existing label remapping now only reuses rows where `isLabel` is true, with regression coverage for duplicate-label reuse and non-label collisions. [src/app/(app)/trips/actions.ts:599]
+- [x] [Review][Patch] Failed pulls close the dialog and discard the current selection — dialog close now happens only on successful pulls, preserving retry context on errors. [src/components/packt/packing-list-view.tsx:199]
+- [x] [Review][Patch] In-flight pull blocks Escape and cancel dismissal — removed the close guard during pending pulls and added dismissal coverage for pending state. [src/components/packt/template-pull-dialog.tsx:44]
+- [x] [Review][Patch] Non-owned template IDs are counted as duplicates skipped — unauthorized template IDs are silently ignored again instead of inflating duplicate counts. [src/app/(app)/trips/actions.ts:612]
+- [x] [Review][Patch] Auto-dismiss timer refactor is missing regression coverage — added a notice auto-dismiss test that waits for the 4-second clear path. [src/components/packt/packing-list-view.tsx:115]
 
 ## Dev Notes
 
