@@ -47,20 +47,6 @@ function mockOrderedSelect(rows: unknown[]) {
   };
 }
 
-function createSaveTemplateTransaction(templateId: string) {
-  const insertValues = vi.fn();
-  insertValues
-    .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: templateId }]) })
-    .mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: `${templateId}-item` }]) });
-
-  return {
-    insertValues,
-    transaction: {
-      insert: vi.fn(() => ({ values: insertValues })),
-    },
-  };
-}
-
 describe("packing actions hardening", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -137,80 +123,111 @@ describe("packing actions hardening", () => {
   });
 
   it("returns the cached template result when the same idempotency key is reused within 24 hours", async () => {
-    db.select.mockReturnValueOnce(
-      mockSimpleSelect([
-        {
-          result: { templateId: "tmpl-existing" },
-          createdAt: new Date(Date.now() - 5 * 60 * 1000),
-        },
-      ])
+    const transaction = {
+      insert: vi.fn(),
+      select: vi.fn().mockReturnValueOnce(
+        mockSimpleSelect([
+          {
+            result: { templateId: "tmpl-existing" },
+            createdAt: new Date(Date.now() - 5 * 60 * 1000),
+          },
+        ])
+      ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
     );
 
     await expect(saveTripListAsTemplate("trip-1", "Beach", "same-key")).resolves.toEqual({
       templateId: "tmpl-existing",
     });
 
-    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(transaction.insert).not.toHaveBeenCalled();
   });
 
   it("creates distinct templates for different idempotency keys", async () => {
-    const firstTransaction = createSaveTemplateTransaction("tmpl-1");
-    const secondTransaction = createSaveTemplateTransaction("tmpl-2");
-    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
-    const values = vi.fn(() => ({ onConflictDoUpdate }));
-
-    db.select
-      .mockReturnValueOnce(mockSimpleSelect([]))
-      .mockReturnValueOnce(
-        mockOrderedSelect([{ id: "item-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null }])
-      )
-      .mockReturnValueOnce(mockSimpleSelect([]))
-      .mockReturnValueOnce(
-        mockOrderedSelect([{ id: "item-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null }])
-      );
+    const firstInsertValues = vi.fn();
+    firstInsertValues
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1-item" }]) })
+      .mockReturnValueOnce({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
+    const firstTransaction = {
+      insert: vi.fn(() => ({ values: firstInsertValues })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([]))
+        .mockReturnValueOnce(
+          mockOrderedSelect([
+            { id: "item-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
+          ])
+        ),
+    };
+    const secondInsertValues = vi.fn();
+    secondInsertValues
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-2" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-2-item" }]) })
+      .mockReturnValueOnce({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
+    const secondTransaction = {
+      insert: vi.fn(() => ({ values: secondInsertValues })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([]))
+        .mockReturnValueOnce(
+          mockOrderedSelect([
+            { id: "item-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
+          ])
+        ),
+    };
     db.transaction
-      .mockImplementationOnce(async (callback: (transaction: typeof firstTransaction.transaction) => Promise<void>) =>
-        callback(firstTransaction.transaction)
+      .mockImplementationOnce(async (callback: (tx: typeof firstTransaction) => Promise<void>) =>
+        callback(firstTransaction)
       )
-      .mockImplementationOnce(async (callback: (transaction: typeof secondTransaction.transaction) => Promise<void>) =>
-        callback(secondTransaction.transaction)
+      .mockImplementationOnce(async (callback: (tx: typeof secondTransaction) => Promise<void>) =>
+        callback(secondTransaction)
       );
-    db.insert.mockReturnValue({ values });
 
     await expect(saveTripListAsTemplate("trip-1", "Beach", "key-1")).resolves.toEqual({ templateId: "tmpl-1" });
     await expect(saveTripListAsTemplate("trip-1", "Beach", "key-2")).resolves.toEqual({ templateId: "tmpl-2" });
 
     expect(db.transaction).toHaveBeenCalledTimes(2);
-    expect(values).toHaveBeenCalledTimes(2);
+    expect(firstInsertValues).toHaveBeenCalledTimes(3);
+    expect(secondInsertValues).toHaveBeenCalledTimes(3);
   });
 
   it("creates a new template when a cached idempotency key has expired", async () => {
-    const { transaction } = createSaveTemplateTransaction("tmpl-new");
-    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
-    const values = vi.fn(() => ({ onConflictDoUpdate }));
-
-    db.select
-      .mockReturnValueOnce(
-        mockSimpleSelect([
-          {
-            result: { templateId: "tmpl-old" },
-            createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
-          },
-        ])
-      )
-      .mockReturnValueOnce(
-        mockOrderedSelect([{ id: "item-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null }])
-      );
+    const insertValues = vi.fn();
+    insertValues
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new-item" }]) })
+      .mockReturnValueOnce({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
+    const transaction = {
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(
+          mockSimpleSelect([
+            {
+              result: { templateId: "tmpl-old" },
+              createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+            },
+          ])
+        )
+        .mockReturnValueOnce(
+          mockOrderedSelect([
+            { id: "item-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
+          ])
+        ),
+    };
     db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
       callback(transaction)
     );
-    db.insert.mockReturnValue({ values });
 
     await expect(saveTripListAsTemplate("trip-1", "Beach", "expired-key")).resolves.toEqual({
       templateId: "tmpl-new",
     });
 
     expect(db.transaction).toHaveBeenCalledOnce();
-    expect(values).toHaveBeenCalledOnce();
+    expect(insertValues).toHaveBeenCalledTimes(3);
   });
 });
