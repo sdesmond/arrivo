@@ -45,4 +45,24 @@ describe("withErrorHandling", () => {
 
     await expect(wrapped()).rejects.toBe(redirectSignal);
   });
+
+  it("preserves Next.js redirect Error instances with digest", async () => {
+    const redirectError = new Error("NEXT_REDIRECT");
+    (redirectError as Error & { digest: string }).digest = "NEXT_REDIRECT;push;/sign-in;307;";
+    const wrapped = withErrorHandling(async () => {
+      throw redirectError;
+    });
+
+    await expect(wrapped()).rejects.toThrow("NEXT_REDIRECT");
+  });
+
+  it("preserves Next.js notFound Error instances with digest", async () => {
+    const notFoundError = new Error("NEXT_NOT_FOUND");
+    (notFoundError as Error & { digest: string }).digest = "NEXT_NOT_FOUND";
+    const wrapped = withErrorHandling(async () => {
+      throw notFoundError;
+    });
+
+    await expect(wrapped()).rejects.toThrow("NEXT_NOT_FOUND");
+  });
 });

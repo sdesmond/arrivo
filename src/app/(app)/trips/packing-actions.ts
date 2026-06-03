@@ -52,14 +52,17 @@ function isSaveTripAsTemplateResult(value: unknown): value is SaveTripAsTemplate
   return "templateId" in value && typeof value.templateId === "string";
 }
 
-async function getCachedTemplateResult(idempotencyKey: string): Promise<SaveTripAsTemplateResult | null> {
+async function getCachedTemplateResult(
+  idempotencyKey: string,
+  userId: string
+): Promise<SaveTripAsTemplateResult | null> {
   const [existing] = await db
     .select({
       result: idempotencyKeys.result,
       createdAt: idempotencyKeys.createdAt,
     })
     .from(idempotencyKeys)
-    .where(eq(idempotencyKeys.key, idempotencyKey));
+    .where(and(eq(idempotencyKeys.key, idempotencyKey), eq(idempotencyKeys.userId, userId)));
 
   if (!existing) {
     return null;
@@ -78,11 +81,11 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
   const name = normalizePackingItemName(input.name);
   const labelId = input.isLabel ? null : (input.labelId ?? null);
 
-  await validateLabelId(tripId, labelId);
-
   if (input.afterItemId) {
     const afterItemId = input.afterItemId;
     await db.transaction(async (tx) => {
+      await validateLabelId(tripId, labelId, tx);
+
       const [targetItem] = await tx
         .select()
         .from(packingItems)
@@ -107,6 +110,8 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
   } else if (input.beforeItemId) {
     const beforeItemId = input.beforeItemId;
     await db.transaction(async (tx) => {
+      await validateLabelId(tripId, labelId, tx);
+
       const [targetItem] = await tx
         .select()
         .from(packingItems)
@@ -129,6 +134,8 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
       });
     });
   } else {
+    await validateLabelId(tripId, labelId);
+
     const [{ maxPos }] = await db
       .select({ maxPos: max(packingItems.position) })
       .from(packingItems)
@@ -320,26 +327,34 @@ async function saveTripListAsTemplateImpl(
     throw new Error("Template name must be 100 characters or fewer");
   }
 
-  if (idempotencyKey) {
-    const cachedResult = await getCachedTemplateResult(idempotencyKey);
-    if (cachedResult) {
-      return cachedResult;
-    }
-  }
-
-  const tripItems = await db
-    .select()
-    .from(packingItems)
-    .where(eq(packingItems.tripId, tripId))
-    .orderBy(asc(packingItems.position));
-
-  if (tripItems.length === 0) {
-    throw new Error("Cannot save an empty packing list as a template");
-  }
-
-  let templateId: string | undefined;
+  let result: SaveTripAsTemplateResult = { templateId: "" };
 
   await db.transaction(async (tx) => {
+    if (idempotencyKey) {
+      const [existing] = await tx
+        .select({ result: idempotencyKeys.result, createdAt: idempotencyKeys.createdAt })
+        .from(idempotencyKeys)
+        .where(and(eq(idempotencyKeys.key, idempotencyKey), eq(idempotencyKeys.userId, user.id!)));
+
+      if (existing && Date.now() - existing.createdAt.getTime() < IDEMPOTENCY_WINDOW_MS) {
+        const cached = isSaveTripAsTemplateResult(existing.result) ? existing.result : null;
+        if (cached) {
+          result = cached;
+          return;
+        }
+      }
+    }
+
+    const tripItems = await tx
+      .select()
+      .from(packingItems)
+      .where(eq(packingItems.tripId, tripId))
+      .orderBy(asc(packingItems.position));
+
+    if (tripItems.length === 0) {
+      throw new Error("Cannot save an empty packing list as a template");
+    }
+
     const [template] = await tx
       .insert(packingTemplates)
       .values({ userId: user.id!, name: trimmedName })
@@ -348,7 +363,6 @@ async function saveTripListAsTemplateImpl(
     if (!template) {
       throw new Error("Failed to create template");
     }
-    templateId = template.id;
 
     const labelIdMap = new Map<string, string>();
 
@@ -395,27 +409,21 @@ async function saveTripListAsTemplateImpl(
         }
       }
     }
+
+    if (idempotencyKey) {
+      await tx
+        .insert(idempotencyKeys)
+        .values({
+          key: idempotencyKey,
+          userId: user.id!,
+          result: { templateId: template.id },
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing();
+    }
+
+    result = { templateId: template.id };
   });
-
-  const result = { templateId: templateId! };
-
-  if (idempotencyKey) {
-    const createdAt = new Date();
-    await db
-      .insert(idempotencyKeys)
-      .values({
-        key: idempotencyKey,
-        result,
-        createdAt,
-      })
-      .onConflictDoUpdate({
-        target: idempotencyKeys.key,
-        set: {
-          result,
-          createdAt,
-        },
-      });
-  }
 
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");

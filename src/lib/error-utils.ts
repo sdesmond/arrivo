@@ -24,6 +24,15 @@ export function sanitizeError(error: unknown): Error {
   return new Error(GENERIC_ERROR_MESSAGE);
 }
 
+function isNextJsSignal(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as Record<string, unknown>).digest === "string"
+  );
+}
+
 export function withErrorHandling<Args extends unknown[], Result>(
   fn: (...args: Args) => Promise<Result>
 ): (...args: Args) => Promise<Result> {
@@ -32,6 +41,10 @@ export function withErrorHandling<Args extends unknown[], Result>(
       return await fn(...args);
     } catch (error) {
       if (!(error instanceof Error)) {
+        throw error;
+      }
+
+      if (isNextJsSignal(error)) {
         throw error;
       }
 

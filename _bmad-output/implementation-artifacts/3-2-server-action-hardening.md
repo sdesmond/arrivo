@@ -1,6 +1,6 @@
 # Story 3.2: Server Action Hardening
 
-Status: review
+Status: done
 
 ## Story
 
@@ -349,3 +349,17 @@ opencode/big-pickle
 ## Change Log
 
 - 2026-06-03: Extracted packing actions, added label validation and error sanitization, and implemented idempotent template-save handling with test coverage.
+
+### Review Findings
+
+- [x] [Review][Patch] withErrorHandling sanitizes redirect()/notFound() signals, breaking auth flow [src/lib/error-utils.ts:33-39] — `redirect()` and `notFound()` throw `new Error(...)` instances, not plain objects. The `instanceof Error` check catches them and passes to `sanitizeError()`, which replaces them with the generic message. Fixed: added `isNextJsSignal()` check in `withErrorHandling` to pass through errors with a `digest` property.
+- [x] [Review][Patch] Idempotency keys unscoped — no userId/tripId filter, allowing cross-user cache hits [src/app/(app)/trips/packing-actions.ts:292-296] — `idempotencyKeys` table has no `userId` or `tripId` column. Two users (or same user on different trips) with the same idempotency key get each other's cached templateId. Fixed: added `userId` column, composite PK `(key, userId)`, scoped cache lookups.
+- [x] [Review][Patch] TOCTOU race: idempotency check outside transaction allows duplicate template creation [src/app/(app)/trips/packing-actions.ts:323-328, 393-407] — Concurrent requests both pass the SELECT cache check before either reaches INSERT. `ON CONFLICT DO UPDATE` only fixes the cache row, not the duplicate template. Fixed: moved cache check+insert into the main transaction.
+- [x] [Review][Patch] addPackingItem validates labelId outside transaction (TOCTOU) [src/app/(app)/trips/packing-actions.ts:81, 85-106] — `validateLabelId()` runs before any transaction. A concurrent label deletion between validation and insert causes FK violations. Fixed: moved `validateLabelId` inside transaction for `afterItemId`/`beforeItemId` paths.
+- [x] [Review][Patch] saveTripListAsTemplateImpl reads tripItems outside transaction (stale snapshot) [src/app/(app)/trips/packing-actions.ts:298-305, 314] — The trip items snapshot is captured before the transaction. Concurrent adds/deletes between snapshot and commit produce a stale template. Fixed: re-read inside the transaction (resolved as part of Patch 3 refactor).
+
+- [x] [Review][Defer] N+1 query in reorderPackingItemsImpl loop [packing-actions.ts:249-257] — deferred, pre-existing pattern (original also used N updates in a loop)
+- [x] [Review][Defer] idempotencyKeys table grows unbounded with no cleanup [db/schema.ts:337-341]
+- [x] [Review][Defer] isSaveTripAsTemplateResult type guard has false-positive risk [packing-actions.ts:118-124]
+- [x] [Review][Defer] Stale idempotency cache returns deleted-template ID [packing-actions.ts:55-73]
+- [x] [Review][Defer] reorderPackingItems does not validate entry IDs exist [packing-actions.ts:198-206] — deferred, pre-existing issue
