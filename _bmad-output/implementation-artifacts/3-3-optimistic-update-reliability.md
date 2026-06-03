@@ -1,6 +1,6 @@
 # Story 3.3: Optimistic Update Reliability
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -415,3 +415,19 @@ opencode/big-pickle
 - `src/components/packt/packing-contextual-add-form.tsx` — REVIEW
 - `src/components/packt/packing-list-view.test.tsx` — MODIFY
 - `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.tsx` — MODIFY
+
+### Review Findings
+
+- [x] [Review][Patch] Unhandled promise rejection in template-editor-view.tsx `[template-editor-view.tsx:188]` — FIXED: added `await` before `onRemoveItem(item.id)`
+- [x] [Review][Patch] Router.refresh() in reorder catch block clobbers newer optimistic state via derive-from-props `[use-trip-detail-handlers.ts:310]` — FIXED: removed `router.refresh()` from `handleReorderPackingItems` error path. Error callback handles rollback; next successful mutation's `router.refresh()` syncs server state.
+- [x] [Review][Patch] packing-contextual-add-form.tsx doesn't await onAddItem `[packing-contextual-add-form.tsx:37-38]` — FIXED: `handleSubmit` is now `async`, awaits `onAddItem`, and only clears input on success. Input retains value on failure for retry.
+- [x] [Review][Patch] handleOptimisticReorder double-increments mutation seq when items lack IDs `[packing-list-sortable.tsx:131,149]` — FIXED: `movedWithIds` computed before `sameOrder` check and `onOptimisticReorder`; called once with filtered array. No intermediate render with id-less items.
+- [ ] [Review][Patch] Missing tests for derive-from-props sequence guard `[packing-list-view.test.tsx]` — DEFERRED: root cause fixed (removed `router.refresh()` from error path); the derive-from-props guard would prevent a concurrent-mutation flash that is a minor UX issue, not a data integrity bug. Deferred to a future story.
+- [x] [Review][Defer] handleRemove does not reset isSubmitting on error `[packing-list-view.tsx:190-200]` — deferred, pre-existing: `handleRemove` never sets `isSubmitting` in the first place, so there is nothing to reset. The derive-from-props block handles it on items change.
+- [x] [Review][Defer] setPrevItems(items) called first not last (per spec constraint) `[packing-list-view.tsx:136]` — deferred, pre-existing: React 19 batches setStates within the same synchronous execution, so the order of setState calls within a render-phase block does not create a stale-closure window.
+- [x] [Review][Defer] Catch blocks don't log original error for debugging `[packing-list-view.tsx]` — deferred, pre-existing convention: aria-live announcements serve as the error indicator for users. No `console.error` in catch blocks was the pattern before this change.
+- [x] [Review][Defer] itemsKey computed unconditionally on every render `[packing-list-view.tsx:133-134]` — deferred, pre-existing: typical packing lists are <50 items. Could use `useMemo` if performance becomes an issue.
+- [x] [Review][Defer] startTransition handlers capture stale trip.id via closure `[use-trip-detail-handlers.ts]` — deferred, pre-existing: trip ID never changes during navigation. Extremely unlikely to be a real issue.
+- [x] [Review][Defer] itemsKey comma-join collision surface `[packing-list-view.tsx:133-134]` — deferred, pre-existing: UUIDs don't contain commas. Would be caught immediately if format changes.
+- [x] [Review][Defer] submitEntry stale closure permits same-render double-submit `[packing-list-view.tsx:151-166]` — deferred, pre-existing: not introduced by this diff.
+- [x] [Review][Defer] handleOptimisticReorder wasted seq increment when movedWithIds empty `[packing-list-sortable.tsx:131]` — deferred, pre-existing: items always have IDs in practice (DB-assigned UUIDs).

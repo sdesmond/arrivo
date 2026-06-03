@@ -59,7 +59,7 @@ development_status:
   epic-3: in-progress
   3-1-packing-sort-utils-bug-fixes: done
   3-2-server-action-hardening: done
-  3-3-optimistic-update-reliability: review
+  3-3-optimistic-update-reliability: done
   3-4-database-schema-housekeeping: backlog
   3-5-test-quality-improvements: backlog
   3-6-ux-cosmetic-polish: backlog

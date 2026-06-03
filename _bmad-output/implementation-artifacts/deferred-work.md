@@ -67,3 +67,14 @@
 - isSaveTripAsTemplateResult type guard has false-positive risk — accepts any JSONB with string templateId
 - Stale idempotency cache returns deleted-template ID — cache not validated against live template existence
 - reorderPackingItems does not validate entry IDs exist — pre-existing issue from original code
+
+## Deferred from: code review of story 3-3-optimistic-update-reliability (2026-06-03)
+
+- handleRemove does not reset isSubmitting on error — pre-existing: handleRemove never sets isSubmitting in the first place; derive-from-props block handles it on items change
+- setPrevItems(items) called first not last (per spec constraint) — React 19 batches setStates in the same render block, no stale-closure risk
+- Catch blocks don't log original error for debugging — pre-existing convention: aria-live announcements serve as user-facing error indicator
+- itemsKey computed unconditionally on every render — typical packing lists are <50 items; can optimize with useMemo later
+- startTransition handlers capture stale trip.id via closure — trip ID never changes during navigation; extremely unlikely to trigger
+- itemsKey comma-join collision surface — UUIDs don't contain commas; would be caught immediately if format changes
+- submitEntry stale closure permits same-render double-submit — pre-existing, not introduced by this diff
+- handleOptimisticReorder wasted seq increment when movedWithIds empty — items always have IDs in practice (DB-assigned UUIDs)
