@@ -87,6 +87,16 @@ describe("template actions", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
+  it("sanitizes unexpected createTemplate failures", async () => {
+    const returning = vi.fn().mockRejectedValue(new Error("database exploded"));
+    const values = vi.fn(() => ({ returning }));
+    db.insert.mockReturnValue({ values });
+
+    await expect(createTemplate({ name: "Beach Weekend" })).rejects.toThrow(
+      "An unexpected error occurred. Please try again."
+    );
+  });
+
   it("renames a template with user scoping and revalidation", async () => {
     const where = vi.fn().mockResolvedValue(undefined);
     const set = vi.fn(() => ({ where }));
@@ -109,6 +119,16 @@ describe("template actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/packing");
   });
 
+  it("sanitizes unexpected renameTemplate failures", async () => {
+    const where = vi.fn().mockRejectedValue(new Error("database exploded"));
+    const set = vi.fn(() => ({ where }));
+    db.update.mockReturnValue({ set });
+
+    await expect(renameTemplate("template-1", { name: "Carry-on Only" })).rejects.toThrow(
+      "An unexpected error occurred. Please try again."
+    );
+  });
+
   it("deletes a template with user scoping and revalidation", async () => {
     const where = vi.fn().mockResolvedValue(undefined);
     db.delete.mockReturnValue({ where });
@@ -127,5 +147,12 @@ describe("template actions", () => {
       ],
     });
     expect(revalidatePath).toHaveBeenCalledWith("/packing");
+  });
+
+  it("sanitizes unexpected deleteTemplate failures", async () => {
+    const where = vi.fn().mockRejectedValue(new Error("database exploded"));
+    db.delete.mockReturnValue({ where });
+
+    await expect(deleteTemplate("template-1")).rejects.toThrow("An unexpected error occurred. Please try again.");
   });
 });

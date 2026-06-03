@@ -82,6 +82,20 @@ describe("template item actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
   });
 
+  it("sanitizes unexpected addTemplateItem failures", async () => {
+    db.select
+      .mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]))
+      .mockReturnValueOnce(mockSelectWhere([{ maxPos: 2 }]));
+
+    const returning = vi.fn().mockRejectedValue(new Error("database exploded"));
+    const values = vi.fn(() => ({ returning }));
+    db.insert.mockReturnValue({ values });
+
+    await expect(addTemplateItem("template-1", { text: "Passport" })).rejects.toThrow(
+      "An unexpected error occurred. Please try again."
+    );
+  });
+
   it("rejects add when the template is not owned by the current user", async () => {
     db.select.mockReturnValueOnce(mockSelectWhere([]));
 
@@ -158,6 +172,18 @@ describe("template item actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
   });
 
+  it("sanitizes unexpected updateTemplateItem failures", async () => {
+    db.select.mockReturnValueOnce(mockSelectWhere([{ templateId: "template-1" }]));
+
+    const where = vi.fn().mockRejectedValue(new Error("database exploded"));
+    const set = vi.fn(() => ({ where }));
+    db.update.mockReturnValue({ set });
+
+    await expect(updateTemplateItem("item-1", { text: "Passport" })).rejects.toThrow(
+      "An unexpected error occurred. Please try again."
+    );
+  });
+
   it("rejects update when the trimmed text is blank", async () => {
     db.select.mockReturnValueOnce(mockSelectWhere([{ templateId: "template-1" }]));
 
@@ -178,6 +204,15 @@ describe("template item actions", () => {
     expect(db.delete).toHaveBeenCalledWith(packingTemplateItems);
     expect(where).toHaveBeenCalledWith({ type: "eq", left: packingTemplateItems.id, right: "item-1" });
     expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
+  });
+
+  it("sanitizes unexpected removeTemplateItem failures", async () => {
+    db.select.mockReturnValueOnce(mockSelectWhere([{ templateId: "template-1" }]));
+
+    const where = vi.fn().mockRejectedValue(new Error("database exploded"));
+    db.delete.mockReturnValue({ where });
+
+    await expect(removeTemplateItem("item-1")).rejects.toThrow("An unexpected error occurred. Please try again.");
   });
 
   it("reorderTemplateItems is a no-op for an empty ordering", async () => {
@@ -213,5 +248,15 @@ describe("template item actions", () => {
       { type: "eq", left: packingTemplateItems.templateId, right: "template-1" }
     );
     expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
+  });
+
+  it("sanitizes unexpected reorderTemplateItems failures", async () => {
+    db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]));
+
+    db.transaction.mockRejectedValue(new Error("database exploded"));
+
+    await expect(reorderTemplateItems("template-1", [{ id: "item-1", labelId: null, position: 0 }])).rejects.toThrow(
+      "An unexpected error occurred. Please try again."
+    );
   });
 });

@@ -59,3 +59,11 @@
 - Optimistic `aria-live` announcement fires before server action resolves — matches pre-existing pattern from other packing handlers
 - Race condition between two COUNT queries in `listTripsForUser` — pre-existing architectural decision (accepted for Phase 1 per spec)
 - Test asserts hardcoded `"ungrouped-1"` ID not visible in diff — pre-existing test data context from Story 1.1
+
+## Deferred from: code review of 3-2-server-action-hardening (2026-06-03)
+
+- N+1 query in reorderPackingItemsImpl loop — pre-existing pattern (original also used N updates in a loop)
+- idempotencyKeys table grows unbounded with no cleanup — no TTL/cron for expired rows
+- isSaveTripAsTemplateResult type guard has false-positive risk — accepts any JSONB with string templateId
+- Stale idempotency cache returns deleted-template ID — cache not validated against live template existence
+- reorderPackingItems does not validate entry IDs exist — pre-existing issue from original code

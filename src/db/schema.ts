@@ -11,6 +11,7 @@ import {
   jsonb,
   index,
   unique,
+  primaryKey,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -330,4 +331,17 @@ export const packingTemplateItems = pgTable(
     labelId: uuid("label_id").references((): AnyPgColumn => packingTemplateItems.id, { onDelete: "set null" }),
   },
   (table) => [index().on(table.templateId, table.position)]
+);
+
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    key: text("key").notNull(),
+    userId: text("user_id").notNull(),
+    result: jsonb("result").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`now()`)
+      .notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.key, table.userId] })]
 );
