@@ -231,7 +231,7 @@ describe("useTripDetailHandlers", () => {
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });
 
-  it("surfaces a toast and refreshes the route when packing reorder fails", async () => {
+  it("surfaces a toast when packing reorder fails", async () => {
     vi.mocked(reorderPackingItems).mockRejectedValueOnce(new Error("Reorder failed"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
@@ -241,10 +241,10 @@ describe("useTripDetailHandlers", () => {
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Reorder failed"));
-    expect(mockRefresh).toHaveBeenCalledOnce();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it("calls onError callback before refresh when packing reorder fails", async () => {
+  it("calls onError callback when packing reorder fails", async () => {
     vi.mocked(reorderPackingItems).mockRejectedValueOnce(new Error("Reorder failed"));
     const onError = vi.fn();
 
@@ -255,7 +255,7 @@ describe("useTripDetailHandlers", () => {
     });
 
     await waitFor(() => expect(onError).toHaveBeenCalledOnce());
-    expect(mockRefresh).toHaveBeenCalledOnce();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("surfaces a toast when trip deletion fails", async () => {
