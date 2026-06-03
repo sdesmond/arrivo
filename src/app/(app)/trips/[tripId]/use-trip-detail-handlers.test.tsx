@@ -9,6 +9,7 @@ import {
   pullTemplatesOntoTrip,
   removePackingItem,
   reorderPackingItems,
+  saveTripListAsTemplate,
   updatePackingItem,
 } from "../actions";
 import type { TripDetailPayload } from "@/data/types";
@@ -32,6 +33,7 @@ vi.mock("../actions", () => ({
   pullTemplatesOntoTrip: vi.fn(),
   removePackingItem: vi.fn(),
   reorderPackingItems: vi.fn(),
+  saveTripListAsTemplate: vi.fn(),
   updatePackingItem: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
@@ -303,5 +305,33 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Pull failed"));
     expect(pullResult).toBeUndefined();
+  });
+
+  it("handleSaveAsTemplate calls saveTripListAsTemplate with trip id and name, resolves with templateId", async () => {
+    vi.mocked(saveTripListAsTemplate).mockResolvedValueOnce({ templateId: "tmpl-abc" });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let saveResult: Awaited<ReturnType<typeof result.current.handleSaveAsTemplate>>;
+    await act(async () => {
+      saveResult = await result.current.handleSaveAsTemplate("My Template");
+    });
+
+    expect(saveTripListAsTemplate).toHaveBeenCalledWith("trip-1", "My Template");
+    await waitFor(() => expect(saveResult).toBe("tmpl-abc"));
+  });
+
+  it("handleSaveAsTemplate shows toast.error and resolves undefined when action throws", async () => {
+    vi.mocked(saveTripListAsTemplate).mockRejectedValueOnce(new Error("Save failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let saveResult: Awaited<ReturnType<typeof result.current.handleSaveAsTemplate>>;
+    await act(async () => {
+      saveResult = await result.current.handleSaveAsTemplate("My Template");
+    });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"));
+    expect(saveResult).toBeUndefined();
   });
 });

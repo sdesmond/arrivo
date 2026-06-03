@@ -69,6 +69,25 @@ vi.mock("./template-pull-dialog", () => ({
     ) : null,
 }));
 
+vi.mock("./save-as-template-dialog", () => ({
+  SaveAsTemplateDialog: ({
+    open,
+    onClose,
+    onSave,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    onSave: (name: string) => Promise<string | undefined>;
+    itemCount: number;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="Save as template">
+        <button onClick={() => void onSave("Test Template")}>Trigger save</button>
+        <button onClick={onClose}>Close save dialog</button>
+      </div>
+    ) : null,
+}));
+
 const groupedItems: PackingItem[] = [
   { id: "ungrouped-1", name: "Passport", done: false, position: 0, labelId: null },
   { id: "label-1", name: "Documents", done: false, position: 1, isLabel: true, labelId: null },
@@ -1043,4 +1062,83 @@ describe("PackingListView", () => {
       { timeout: 4500 }
     );
   }, 7000);
+});
+
+// ── Story 2.4 — Save as template ─────────────────────────────────────────────
+
+describe("PackingListView save-as-template", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows 'Save as template' button in populated state when onSaveAsTemplate is provided", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        onSaveAsTemplate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Save as template" })).toBeInTheDocument();
+  });
+
+  it("does not show 'Save as template' button in populated state when onSaveAsTemplate is absent", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Save as template" })).not.toBeInTheDocument();
+  });
+
+  it("does not show 'Save as template' button in empty state", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        onSaveAsTemplate={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Save as template" })).not.toBeInTheDocument();
+  });
+
+  it("clicking 'Save as template' button opens the save dialog", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        onSaveAsTemplate={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save as template" }));
+
+    expect(screen.getByRole("dialog", { name: "Save as template" })).toBeInTheDocument();
+  });
 });

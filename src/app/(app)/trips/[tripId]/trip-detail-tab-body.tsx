@@ -57,6 +57,7 @@ export interface TripDetailTabBodyProps {
   onEditPackingItem: (id: string, name: string) => void;
   templates: PackingTemplate[];
   onPullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
+  onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -99,6 +100,7 @@ export function TripDetailTabBody({
   onEditPackingItem,
   templates,
   onPullTemplates,
+  onSaveAsTemplate,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -153,6 +155,7 @@ export function TripDetailTabBody({
           onEditItem={onEditPackingItem}
           templates={templates}
           onPullTemplates={onPullTemplates}
+          onSaveAsTemplate={onSaveAsTemplate}
         />
       )}
       {activeTab === "notes" && (

@@ -262,6 +262,7 @@ export function TripDetailClient({
             onEditPackingItem={handlers.handleUpdatePackingItem}
             templates={templates}
             onPullTemplates={handlers.handlePullTemplates}
+            onSaveAsTemplate={handlers.handleSaveAsTemplate}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

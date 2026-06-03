@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
-import { FolderOpen, Plus, Tag } from "lucide-react";
+import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { PackingItem, PackingTemplate, PullTemplatesResult } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
 import { TemplatePullDialog } from "./template-pull-dialog";
+import { PackingListToolbar } from "./packing-list-toolbar";
+import { PackingListEmptyState } from "./packing-list-empty-state";
+import { SaveAsTemplateDialog } from "./save-as-template-dialog";
 
 export interface PackingListViewProps {
   tripId: string;
@@ -24,6 +27,7 @@ export interface PackingListViewProps {
   onEditItem?: (id: string, name: string) => void;
   templates?: PackingTemplate[];
   onPullTemplates?: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
+  onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
 }
 
 interface PackingEntryFormProps {
@@ -101,11 +105,13 @@ export function PackingListView({
   onEditItem,
   templates,
   onPullTemplates,
+  onSaveAsTemplate,
 }: PackingListViewProps): ReactElement {
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogKey, setDialogKey] = useState(0);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
   const [prevItems, setPrevItems] = useState(items);
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
@@ -207,6 +213,11 @@ export function PackingListView({
     }
   }
 
+  function openPullDialog(): void {
+    setDialogKey((k) => k + 1);
+    setDialogOpen(true);
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div aria-live="polite" className="sr-only">
@@ -225,62 +236,22 @@ export function PackingListView({
       )}
 
       {effectiveItems.length === 0 ? (
-        <section
-          className="flex flex-col gap-4 rounded-3xl border p-5"
-          style={{ background: "var(--surface)", borderColor: "var(--line)" }}
-        >
-          <div className="flex flex-col gap-1">
-            <h2 style={{ color: "var(--fg)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 700 }}>
-              Your packing list is empty
-            </h2>
-            <p style={{ color: "var(--fg-2)", fontSize: "calc(14px * var(--font-scale))" }}>
-              Start with a quick item or create a section label for this trip.
-            </p>
-          </div>
-          <PackingEntryForm
-            tripId={tripId}
-            draftName={draftName}
-            hasItems={false}
-            isSubmitting={isSubmitting}
-            onDraftNameChange={handleDraftNameChange}
-            onSubmitItem={() => submitEntry()}
-            onSubmitLabel={() => submitEntry(true)}
-          />
-          {onPullTemplates && (
-            <Button
-              className="min-h-11 min-w-11 rounded-2xl"
-              variant="outline"
-              onClick={() => {
-                setDialogKey((k) => k + 1);
-                setDialogOpen(true);
-              }}
-            >
-              <FolderOpen size={16} strokeWidth={1.5} />
-              Pull from a template
-            </Button>
-          )}
-        </section>
+        <PackingListEmptyState
+          tripId={tripId}
+          draftName={draftName}
+          isSubmitting={isSubmitting}
+          onDraftNameChange={handleDraftNameChange}
+          onSubmitItem={() => submitEntry()}
+          onSubmitLabel={() => submitEntry(true)}
+          onOpenPullDialog={onPullTemplates ? openPullDialog : undefined}
+        />
       ) : (
         <>
-          {onPullTemplates && (
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))" }}>
-                {effectiveItems.length} item{effectiveItems.length !== 1 ? "s" : ""}
-              </span>
-              <Button
-                className="min-h-11 min-w-11 rounded-xl"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setDialogKey((k) => k + 1);
-                  setDialogOpen(true);
-                }}
-              >
-                <FolderOpen size={14} strokeWidth={1.5} />
-                Pull templates
-              </Button>
-            </div>
-          )}
+          <PackingListToolbar
+            itemCount={effectiveItems.length}
+            onOpenPullDialog={onPullTemplates ? openPullDialog : undefined}
+            onOpenSaveDialog={onSaveAsTemplate ? () => setSaveDialogOpen(true) : undefined}
+          />
 
           <PackingListSortable
             items={effectiveItems}
@@ -314,6 +285,16 @@ export function PackingListView({
           onOpenChange={setDialogOpen}
           templates={templates ?? []}
           onPull={handleDialogPull}
+        />
+      )}
+
+      {onSaveAsTemplate && (
+        <SaveAsTemplateDialog
+          key={String(saveDialogOpen)}
+          open={saveDialogOpen && effectiveItems.length > 0}
+          onClose={() => setSaveDialogOpen(false)}
+          onSave={onSaveAsTemplate}
+          itemCount={effectiveItems.length}
         />
       )}
     </div>

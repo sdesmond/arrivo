@@ -619,3 +619,7 @@ export interface PullTemplatesResult {
   added: number;
   skipped: number;
 }
+
+export interface SaveTripAsTemplateResult {
+  templateId: string;
+}
