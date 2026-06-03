@@ -62,7 +62,13 @@ export function PackingListSortable({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
   const workingItems = localItems ?? items;
-  const { sections, ungroupedItems } = useMemo(() => groupPackingItems(workingItems), [workingItems]);
+  // When localItems is set (drag in progress), preserve array order rather than re-sorting by
+  // position — flatten() now preserves original DB positions, so position-based sorting would
+  // undo the intended preview order.
+  const { sections, ungroupedItems } = useMemo(
+    () => groupPackingItems(workingItems, localItems !== null),
+    [workingItems, localItems]
+  );
   const completeLabelIds = useMemo(
     () =>
       new Set(
@@ -111,7 +117,10 @@ export function PackingListSortable({
     // The no-op decision must compare against the original props order, not the
     // live preview — otherwise a cross-container drop whose final slot matches
     // the preview is discarded and the item snaps back.
-    if (sameOrder(flatten(groupPackingItems(items)), flatten(groupPackingItems(moved)))) return;
+    // Bug #1: compare `moved` directly (not via groupPackingItems+flatten) because
+    // flatten now preserves original position values; re-grouping would re-sort by
+    // position and produce the original order, making every reorder look like a no-op.
+    if (sameOrder(flatten(groupPackingItems(items)), moved)) return;
     onOptimisticReorder(moved);
 
     const movedActive = moved.find((item) => item.id === String(active.id));
@@ -122,8 +131,14 @@ export function PackingListSortable({
       onAnnounceMove(`Moved ${movedActive.name} to ${destination}.`);
     }
 
+    // Bug #1: use array index as position so the server receives the new order correctly;
+    // item.position carries the original DB value (preserved by flatten) which would be
+    // a no-op if saved back unchanged.
+    // Bug #4: filter out any items with undefined id before invoking the callback.
     onReorderItems(
-      moved.map((item) => ({ id: item.id!, labelId: item.labelId ?? null, position: item.position! })),
+      moved
+        .filter((item): item is PackingItem & { id: string } => item.id !== undefined)
+        .map((item, index) => ({ id: item.id, labelId: item.labelId ?? null, position: index })),
       () => onOptimisticReorder(null)
     );
   }

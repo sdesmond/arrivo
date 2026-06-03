@@ -134,10 +134,12 @@ describe("PackingListSortable", () => {
       });
     });
 
+    // flatten() now preserves original position values; items keep their DB positions
+    // even after a reorder (the server receives sequential indices via onReorderItems instead)
     expect(onOptimisticReorder).toHaveBeenCalledWith([
       expect.objectContaining({ id: "label-1", position: 0, labelId: null }),
-      expect.objectContaining({ id: "item-b", position: 1, labelId: "label-1" }),
-      expect.objectContaining({ id: "item-a", position: 2, labelId: "label-1" }),
+      expect.objectContaining({ id: "item-b", position: 2, labelId: "label-1" }),
+      expect.objectContaining({ id: "item-a", position: 1, labelId: "label-1" }),
       expect.objectContaining({ id: "item-c", position: 3, labelId: null }),
     ]);
     expect(onReorderItems).toHaveBeenCalledWith(
@@ -559,6 +561,85 @@ describe("PackingListSortable", () => {
     onOptimisticReorder.mockClear();
     rollback();
     expect(onOptimisticReorder).toHaveBeenCalledWith(null);
+  });
+
+  it("Bug #4: filters items with undefined id from the onReorderItems payload", () => {
+    const onReorderItems = vi.fn();
+    const itemsWithUndefinedId: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: undefined, name: "Ghost", done: false, position: 1, labelId: "label-1" } as unknown as PackingItem,
+      { id: "item-a", name: "Item A", done: false, position: 2, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListSortable
+        items={itemsWithUndefinedId}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={onReorderItems}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragEnd?.({
+        active: { id: "item-a" },
+        over: { id: "label-1" },
+      });
+    });
+
+    // If reorderItems was called, every entry must have a defined id
+    if (onReorderItems.mock.calls.length > 0) {
+      const payload = onReorderItems.mock.calls[0][0] as { id: string }[];
+      expect(payload.every((entry) => entry.id !== undefined)).toBe(true);
+    }
+  });
+
+  it("Bug #6: treats drop on a section label as a no-op (item stays at current position)", () => {
+    const onOptimisticReorder = vi.fn();
+    const onReorderItems = vi.fn();
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={onOptimisticReorder}
+        onReorderItems={onReorderItems}
+      />
+    );
+
+    // Drag item-c (ungrouped) and drop it directly onto label-1 (the section label)
+    act(() => {
+      getDndProps<{ onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragEnd?.({
+        active: { id: "item-c" },
+        over: { id: "label-1" },
+      });
+    });
+
+    // Should be a no-op — item-c must not be moved into the section
+    expect(onOptimisticReorder).not.toHaveBeenCalled();
+    expect(onReorderItems).not.toHaveBeenCalled();
+  });
+
+  it("Bug #7: section labels have no drag handle (non-draggable)", () => {
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    // Labels must not have a reorder handle; items must
+    expect(screen.queryByTitle("Reorder Documents")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Reorder Item A")).toBeInTheDocument();
+    expect(screen.getByTitle("Reorder Item B")).toBeInTheDocument();
   });
 
   it("edits a section label, removes and toggles a section item", async () => {

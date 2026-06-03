@@ -19,26 +19,36 @@ export function containerDomId(key: string): string {
 }
 
 function byPosition(first: PackingItem, second: PackingItem): number {
-  return (first.position ?? Infinity) - (second.position ?? Infinity);
+  const posA = first.position ?? Infinity;
+  const posB = second.position ?? Infinity;
+  // Bug #5: Infinity - Infinity = NaN causes unstable sort; use 0 (stable) as tiebreaker
+  if (posA === Infinity && posB === Infinity) return 0;
+  return posA - posB;
 }
 
-export function groupPackingItems(items: PackingItem[]): GroupedPackingItems {
-  const labels = items.filter((item) => item.isLabel).sort(byPosition);
-  const labelIds = new Set(labels.map((label) => label.id));
-  const sections: PackingSection[] = labels.map((label) => ({
-    label,
-    items: items.filter((item) => !item.isLabel && item.labelId === label.id).sort(byPosition),
-  }));
-  const ungroupedItems = items
-    .filter((item) => !item.isLabel && (item.labelId == null || !labelIds.has(item.labelId)))
-    .sort(byPosition);
+// preserveOrder=true skips byPosition sorting so that drag-preview state (localItems) is
+// displayed in array order rather than being re-sorted back to the original DB order.
+export function groupPackingItems(items: PackingItem[], preserveOrder = false): GroupedPackingItems {
+  const labels = items.filter((item) => item.isLabel);
+  if (!preserveOrder) labels.sort(byPosition);
+  // Bug #2: filter out undefined ids before building the Set to prevent "undefined" string collisions
+  const labelIds = new Set(labels.map((label) => label.id).filter((id): id is string => id !== undefined));
+  const sections: PackingSection[] = labels.map((label) => {
+    const sectionItems = items.filter((item) => !item.isLabel && item.labelId === label.id);
+    if (!preserveOrder) sectionItems.sort(byPosition);
+    return { label, items: sectionItems };
+  });
+  const ungroupedItems = items.filter((item) => !item.isLabel && (item.labelId == null || !labelIds.has(item.labelId)));
+  if (!preserveOrder) ungroupedItems.sort(byPosition);
   return { sections, ungroupedItems };
 }
 
 export function containerKeyOfItem(grouped: GroupedPackingItems, itemId: string): string | null {
   for (const section of grouped.sections) {
     if (section.label.id === itemId || section.items.some((item) => item.id === itemId)) {
-      return section.label.id ?? null;
+      // Bug #3: label.id may be undefined; return a synthetic key rather than null so the caller
+      // gets a non-null result (computeReorder will still bail when it can't find the container)
+      return section.label.id ?? `section:${section.label.name ?? "unknown"}`;
     }
   }
   if (grouped.ungroupedItems.some((item) => item.id === itemId)) {
@@ -56,17 +66,18 @@ export function resolveContainerKey(grouped: GroupedPackingItems, id: string): s
 
 export function flatten(grouped: GroupedPackingItems): PackingItem[] {
   const result: PackingItem[] = [];
-  let position = 0;
 
   for (const section of grouped.sections) {
-    result.push({ ...section.label, position: position++, labelId: null });
+    // Bug #1: preserve each item's original position value rather than assigning sequential 0,1,2…
+    // Callers that need ordered positions for persistence use array index, not item.position.
+    result.push({ ...section.label, labelId: null });
     for (const item of section.items) {
-      result.push({ ...item, position: position++, labelId: section.label.id ?? null });
+      result.push({ ...item, labelId: section.label.id ?? null });
     }
   }
 
   for (const item of grouped.ungroupedItems) {
-    result.push({ ...item, position: position++, labelId: null });
+    result.push({ ...item, labelId: null });
   }
 
   return result;
@@ -98,6 +109,14 @@ export function computeReorder(working: PackingItem[], activeId: string, overId:
     return null;
   }
 
+  // Bug #6: dropping a non-label item onto a label header should not move it into the section;
+  // treat it as a no-op so the item stays at its current (valid, non-section) position
+  const overIsLabel =
+    !overId.startsWith(CONTAINER_PREFIX) && (working.find((item) => item.id === overId)?.isLabel ?? false);
+  if (overIsLabel) {
+    return null;
+  }
+
   const grouped = groupPackingItems(working);
   const activeKey = resolveContainerKey(grouped, activeId);
   const overKey = resolveContainerKey(grouped, overId);
@@ -106,6 +125,8 @@ export function computeReorder(working: PackingItem[], activeId: string, overId:
   }
 
   const active = working.find((item) => item.id === activeId);
+  // Bug #7: labels cannot be reordered; this path is guarded upstream (labels have no drag handle)
+  // but the explicit check keeps computeReorder safe for programmatic callers
   if (!active || active.isLabel) {
     return null;
   }
