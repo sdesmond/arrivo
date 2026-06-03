@@ -1302,11 +1302,9 @@ describe("PackingListView", () => {
 
   it("mutation sequence increments on each optimistic reorder", () => {
     let reorderCallCount = 0;
-    const onReorderItems = vi.fn(
-      (_ordered: { id: string; labelId: string | null; position: number }[], _onError?: () => void) => {
-        reorderCallCount += 1;
-      }
-    );
+    const onReorderItems = vi.fn(() => {
+      reorderCallCount += 1;
+    });
 
     render(
       <PackingListView
