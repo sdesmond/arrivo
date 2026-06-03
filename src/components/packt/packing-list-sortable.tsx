@@ -62,7 +62,13 @@ export function PackingListSortable({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
   const workingItems = localItems ?? items;
-  const { sections, ungroupedItems } = useMemo(() => groupPackingItems(workingItems), [workingItems]);
+  // When localItems is set (drag in progress), preserve array order rather than re-sorting by
+  // position — flatten() now preserves original DB positions, so position-based sorting would
+  // undo the intended preview order.
+  const { sections, ungroupedItems } = useMemo(
+    () => groupPackingItems(workingItems, localItems !== null),
+    [workingItems, localItems]
+  );
   const completeLabelIds = useMemo(
     () =>
       new Set(
@@ -103,6 +109,13 @@ export function PackingListSortable({
     const working = localItems ?? items;
     setLocalItems(null);
     if (!over) return;
+
+    // AC7: provide feedback when a label drag is attempted (labels are non-draggable)
+    const draggedItem = working.find((item) => item.id === String(active.id));
+    if (draggedItem?.isLabel) {
+      onAnnounceMove?.("Labels cannot be reordered.");
+      return;
+    }
     // `working` already reflects the live cross-container preview from
     // handleDragOver. Apply any final within-container move implied by `over`,
     // falling back to the preview itself when `over` resolves to the slot the
@@ -111,7 +124,10 @@ export function PackingListSortable({
     // The no-op decision must compare against the original props order, not the
     // live preview — otherwise a cross-container drop whose final slot matches
     // the preview is discarded and the item snaps back.
-    if (sameOrder(flatten(groupPackingItems(items)), flatten(groupPackingItems(moved)))) return;
+    // Bug #1: compare `moved` directly (not via groupPackingItems+flatten) because
+    // flatten now preserves original position values; re-grouping would re-sort by
+    // position and produce the original order, making every reorder look like a no-op.
+    if (sameOrder(flatten(groupPackingItems(items)), moved)) return;
     onOptimisticReorder(moved);
 
     const movedActive = moved.find((item) => item.id === String(active.id));
@@ -122,8 +138,22 @@ export function PackingListSortable({
       onAnnounceMove(`Moved ${movedActive.name} to ${destination}.`);
     }
 
+    // Bug #4: filter out items with undefined id before invoking callbacks to prevent
+    // server-server mismatches and silent data corruption.
+    const movedWithIds = moved.filter((item): item is PackingItem & { id: string } => item.id !== undefined);
+    if (movedWithIds.length === 0) return;
+
+    // Recompute optimistic state with only persistable items so the preview matches what
+    // the server actually receives — id-less items were never persisted.
+    if (movedWithIds.length !== moved.length) {
+      onOptimisticReorder(movedWithIds);
+    }
+
+    // Bug #1: use array index as position so the server receives the new order correctly;
+    // item.position carries the original DB value (preserved by flatten) which would be
+    // a no-op if saved back unchanged.
     onReorderItems(
-      moved.map((item) => ({ id: item.id!, labelId: item.labelId ?? null, position: item.position! })),
+      movedWithIds.map((item, index) => ({ id: item.id, labelId: item.labelId ?? null, position: index })),
       () => onOptimisticReorder(null)
     );
   }
