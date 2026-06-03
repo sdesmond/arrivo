@@ -1,4 +1,3 @@
-@cleanup-created-trip
 Feature: Create Trip
 
   Background:

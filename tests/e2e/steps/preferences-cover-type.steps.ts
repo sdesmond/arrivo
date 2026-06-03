@@ -1,8 +1,26 @@
 import { expect } from "@playwright/test";
-import { When, Then } from "../fixtures";
+import { Before, When, Then } from "../fixtures";
+
+Before({ tags: "@cover-type-initial-map" }, async ({ scenario }) => {
+  await scenario.materialize({
+    user: {
+      overrides: {
+        user: {
+          defaultCoverType: "map",
+        },
+      },
+      setCurrent: true,
+    },
+  });
+});
 
 When("I select the {string} cover type", async ({ page }, label: string) => {
-  await page.getByRole("button", { name: label, exact: true }).click();
+  const targetToggle = page.getByRole("button", { name: label, exact: true });
+  if ((await targetToggle.getAttribute("aria-pressed")) === "true") {
+    const alternateLabel = label === "Map" ? "Graphic" : "Map";
+    await page.getByRole("button", { name: alternateLabel, exact: true }).click();
+  }
+  await targetToggle.click();
 });
 
 Then("the {string} cover type should be selected after reload", async ({ page }, label: string) => {

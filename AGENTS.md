@@ -171,6 +171,11 @@ Before starting any new development task, you MUST ask the user whether they wan
 - Any new or materially changed user-facing flow must include the `.feature` update and matching step-definition update in the same change
 - Use Vitest (`vitest`, `@testing-library/react`) for unit/component tests
 - Use `playwright-bdd` + Playwright for E2E — write scenarios in `.feature` files, implement in step `.ts` files
+- E2E fixture setup must use Object Mothers and scenario-owned fixture creation under `tests/e2e/` rather than permanent feature-specific seed rows
+- Reusable E2E starting states belong in the mother/materializer helpers in `tests/e2e/e2e-seed-data.ts`, `tests/e2e/scenario-fixture.ts`, and related helpers — extend those instead of inventing ad hoc shared setup
+- `tests/e2e/global-setup.ts` is for minimal bootstrap data only, such as baseline auth prerequisites; do not add feature-specific shared trips, templates, documents, or profile rows there
+- Do not fix E2E flakiness with ordering tags, serial execution, or shared-record reseeding; each scenario must create the mutable rows it depends on and rely on scenario cleanup
+- If a scenario needs a 3-day trip, template, document set, or profile shape, clone a mother with overrides and materialize fresh rows for that scenario
 - Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
 - Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`, but treat those thresholds as backstops rather than the trigger for adding tests
 - `src/components/ui/**`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, and `src/lib/server-now.ts` are excluded from coverage

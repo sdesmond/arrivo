@@ -7,6 +7,7 @@ dotenv.config();
 const testDir = defineBddConfig({
   features: "tests/e2e/features/**/*.feature",
   steps: "tests/e2e/steps/**/*.ts",
+  importTestFrom: { file: "tests/e2e/fixtures.ts", varName: "test" },
 });
 
 export default defineConfig({
@@ -18,10 +19,11 @@ export default defineConfig({
   webServer: {
     command: "npm run dev -- -p 3001",
     url: "http://localhost:3001",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       DATABASE_URL: process.env.E2E_DATABASE_URL!,
+      NEXTAUTH_URL: "http://localhost:3001",
       NEXT_DISTDIR: ".next-e2e",
       E2E_MAPBOX_STUB: "true",
       UPLOAD_STUB: "true",

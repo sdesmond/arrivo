@@ -9,6 +9,7 @@ Feature: Date format preference
     And I navigate to the trips page
     Then the trip card dates should be in DD/MM/YYYY format
 
+  @date-format-initial-day-month
   Scenario: Setting Month/Day format applies to trip cards
     Given I am signed in
     And I am on the profile page

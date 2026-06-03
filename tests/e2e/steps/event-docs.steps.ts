@@ -1,84 +1,44 @@
 import { expect } from "@playwright/test";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
-import { and, eq } from "drizzle-orm";
 import { Before, Given, When, Then } from "../fixtures";
-import { documents, events, days, trips, users } from "../../../src/db/schema";
 import {
-  E2E_USER,
-  E2E_TRIP,
-  E2E_PICK_DOC,
-  E2E_EVENT_KEEP,
-  E2E_EVENT_ERASE,
-  E2E_KEEP_DOC,
+  E2E_DOCUMENT,
   E2E_ERASE_DOC,
+  E2E_EVENT,
+  E2E_EVENT_ERASE,
+  E2E_EVENT_KEEP,
   E2E_EVENT_MANAGE,
+  E2E_KEEP_DOC,
   E2E_MANAGE_DOC,
+  E2E_PICK_DOC,
 } from "../e2e-seed-data";
 
 function escapeRegex(source: string): string {
   return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-Before({ tags: "@reseed-delete-events" }, async () => {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-  try {
-    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
-    if (!user) return;
-    const [trip] = await db
-      .select({ id: trips.id })
-      .from(trips)
-      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
-    if (!trip) return;
-    const [day1] = await db
-      .select({ id: days.id })
-      .from(days)
-      .where(and(eq(days.tripId, trip.id), eq(days.dayNumber, 1)));
-    if (!day1) return;
-
-    // Drop any existing keep/erase events (cascade deletes their docs)
-    for (const name of [E2E_EVENT_KEEP.name, E2E_EVENT_ERASE.name]) {
-      await db.delete(events).where(and(eq(events.tripId, trip.id), eq(events.name, name)));
-    }
-
-    const [eKeep] = await db
-      .insert(events)
-      .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_KEEP.name, position: E2E_EVENT_KEEP.position })
-      .returning({ id: events.id });
-    const [eErase] = await db
-      .insert(events)
-      .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_ERASE.name, position: E2E_EVENT_ERASE.position })
-      .returning({ id: events.id });
-
-    await db.insert(documents).values({ tripId: trip.id, eventId: eKeep.id, ...E2E_KEEP_DOC });
-    await db.insert(documents).values({ tripId: trip.id, eventId: eErase.id, ...E2E_ERASE_DOC });
-  } finally {
-    await client.end();
-  }
-});
-
-// Resets E2E Pick Doc to trip-level (eventId = null) before each pick-list scenario.
-// E2E_PICK_DOC is a dedicated document for pick-list tests; E2E_DOCUMENT ("E2E Boarding Pass")
-// is never mutated by pick-list scenarios, keeping Documents-tab tests race-free in parallel runs.
-Before({ tags: "@reseed-pick-list" }, async () => {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-  try {
-    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
-    if (!user) return;
-    const [trip] = await db
-      .select({ id: trips.id })
-      .from(trips)
-      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
-    if (!trip) return;
-    await db
-      .update(documents)
-      .set({ eventId: null })
-      .where(and(eq(documents.tripId, trip.id), eq(documents.name, E2E_PICK_DOC.name)));
-  } finally {
-    await client.end();
-  }
+Before({ tags: "@event-docs" }, async ({ scenario }) => {
+  await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        events: [
+          { ...E2E_EVENT, dayNumber: 1 },
+          { ...E2E_EVENT_KEEP, dayNumber: 1 },
+          { ...E2E_EVENT_ERASE, dayNumber: 1 },
+          { ...E2E_EVENT_MANAGE, dayNumber: 1 },
+        ],
+        documents: [
+          E2E_DOCUMENT,
+          E2E_PICK_DOC,
+          { ...E2E_KEEP_DOC, eventName: E2E_EVENT_KEEP.name },
+          { ...E2E_ERASE_DOC, eventName: E2E_EVENT_ERASE.name },
+          { ...E2E_MANAGE_DOC, eventName: E2E_EVENT_MANAGE.name },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
 });
 
 Given("I am on the Itinerary tab", async ({ page }) => {
@@ -87,14 +47,12 @@ Given("I am on the Itinerary tab", async ({ page }) => {
 });
 
 Given("I expand Day 1", async ({ page }) => {
-  // Day 1 is 2026-07-01; header shows "Wed, Jul 1" (MM/DD) or "Wed, 1 Jul" (DD/MM)
   const toggleBtn = page.getByRole("button", { name: /wed.*(jul\s*1|1\s*jul)/i }).first();
   await toggleBtn.click();
-  await expect(page.getByText("E2E Event", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText(E2E_EVENT.name, { exact: true })).toBeVisible({ timeout: 5_000 });
 });
 
 When("I click the Attach button on {string}", async ({ page }, eventName: string) => {
-  // Locate the specific event's Attach button via the action bar sibling of the event name
   await page
     .locator("div")
     .filter({ hasText: new RegExp(eventName) })
@@ -154,37 +112,6 @@ Then("the Documents tab shows {string}", async ({ page }, docName: string) => {
 Then("the Documents tab does not show {string}", async ({ page }, docName: string) => {
   await page.getByRole("button", { name: "Documents" }).click();
   await expect(page.getByText(docName, { exact: true })).not.toBeVisible({ timeout: 5_000 });
-});
-
-// ── Event doc management: view, rename, promote ───────────────────────────
-
-Before({ tags: "@reseed-manage-event" }, async () => {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-  try {
-    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
-    if (!user) return;
-    const [trip] = await db
-      .select({ id: trips.id })
-      .from(trips)
-      .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
-    if (!trip) return;
-    const [day1] = await db
-      .select({ id: days.id })
-      .from(days)
-      .where(and(eq(days.tripId, trip.id), eq(days.dayNumber, 1)));
-    if (!day1) return;
-
-    await db.delete(events).where(and(eq(events.tripId, trip.id), eq(events.name, E2E_EVENT_MANAGE.name)));
-
-    const [eManage] = await db
-      .insert(events)
-      .values({ dayId: day1.id, tripId: trip.id, name: E2E_EVENT_MANAGE.name, position: E2E_EVENT_MANAGE.position })
-      .returning({ id: events.id });
-    await db.insert(documents).values({ tripId: trip.id, eventId: eManage.id, ...E2E_MANAGE_DOC });
-  } finally {
-    await client.end();
-  }
 });
 
 When("I expand the docs for event {string}", async ({ page }, eventName: string) => {

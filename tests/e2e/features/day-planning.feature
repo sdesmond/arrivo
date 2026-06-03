@@ -13,18 +13,18 @@ Feature: Day Planning
     When I edit the event name to "New Event Name"
     Then the day should show "New Event Name"
 
-  @seed-untimed-event
+  @trip-with-untimed-event
   Scenario: User sets a time on an event
     Given a day has an event without a time
     When I open the time picker and set a start time
     Then the event should display the time
 
-  @reseed-day-delete
+  @trip-with-deletable-event
   Scenario: User deletes an event
     When I delete the event named "Event to Remove"
     Then the day should not contain "Event to Remove"
 
-  @seed-reorder-events
+  @trip-with-reorder-events
   Scenario: User reorders events by dragging
     Given a day has events "Drag First" and "Drag Second" in order
     When I drag "Drag Second" above "Drag First"

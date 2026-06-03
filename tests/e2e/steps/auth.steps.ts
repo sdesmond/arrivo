@@ -19,9 +19,10 @@ Then("I should see a sign-in error message", async ({ page }) => {
   await expect(page.getByRole("alert")).toBeVisible();
 });
 
-When("I sign out", async ({ page }) => {
+When("I sign out", async ({ page, scenario }) => {
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.waitForURL("**/sign-in");
+  scenario.signOut();
 });
 
 When("I tab to the email field and type valid credentials", async ({ page }) => {
