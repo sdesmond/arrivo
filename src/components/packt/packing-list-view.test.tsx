@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useSortableMock = vi.hoisted(() =>
   vi.fn(() => ({
@@ -41,7 +41,7 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }));
 
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
 import type { PackingItem, PackingTemplate } from "@/data/types";
@@ -84,6 +84,10 @@ function createToggleItemHandler() {
 describe("PackingListView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the empty state prompt when there are no items", () => {
@@ -1010,5 +1014,33 @@ describe("PackingListView", () => {
 
     await waitFor(() => expect(onPullTemplates).toHaveBeenCalledWith(["t1"]));
     expect(screen.queryByText(/item\(s\) added/)).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
   });
+
+  it("auto-dismisses the result notice after four seconds", async () => {
+    const onPullTemplates = vi.fn().mockResolvedValue({ added: 3, skipped: 1 });
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={onPullTemplates}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pull from a template" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Trigger pull" }));
+
+    await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
+    await waitFor(
+      () => expect(screen.queryByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).not.toBeInTheDocument(),
+      { timeout: 4500 }
+    );
+  }, 7000);
 });

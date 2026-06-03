@@ -31,5 +31,6 @@ Feature: Pull templates onto a trip packing list
     And I have a packing template available for pull
     When I open the packing tab for the pull test trip
     And I pull the template onto the trip
-    Then the packing list should contain "Passport"
+    Then the packing list should contain "Laptop"
+    And the packing list should contain "Passport"
     And the packing list should contain "Phone Charger"

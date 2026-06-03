@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
 import { FolderOpen, Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +111,12 @@ export function PackingListView({
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
+
+  useEffect(() => {
+    if (!resultNotice) return;
+    const timer = setTimeout(() => setResultNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [resultNotice]);
   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
   const effectiveItems = localItems ?? items;
 
@@ -189,13 +195,16 @@ export function PackingListView({
 
   async function handleDialogPull(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
     if (!onPullTemplates) return undefined;
-    const result = await onPullTemplates(templateIds);
-    if (result) {
-      setResultNotice(result);
-      setDialogOpen(false);
-      setTimeout(() => setResultNotice(null), 4000);
+    try {
+      const result = await onPullTemplates(templateIds);
+      if (result) {
+        setResultNotice(result);
+        setDialogOpen(false);
+      }
+      return result;
+    } catch {
+      return undefined;
     }
-    return result;
   }
 
   return (
@@ -206,7 +215,7 @@ export function PackingListView({
 
       {resultNotice && (
         <div
-          aria-live="polite"
+          role="status"
           className="rounded-2xl border p-3 text-sm"
           style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}
         >
@@ -259,7 +268,7 @@ export function PackingListView({
                 {effectiveItems.length} item{effectiveItems.length !== 1 ? "s" : ""}
               </span>
               <Button
-                className="min-h-9 min-w-9 rounded-xl"
+                className="min-h-11 min-w-11 rounded-xl"
                 variant="outline"
                 size="sm"
                 onClick={() => {

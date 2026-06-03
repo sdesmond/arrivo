@@ -3,8 +3,21 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
-    open ? <div role="dialog">{children}</div> : null,
+  Dialog: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="dialog">
+        <button onClick={() => onOpenChange?.(false)}>Dismiss dialog</button>
+        {children}
+      </div>
+    ) : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
@@ -21,14 +34,20 @@ vi.mock("next/link", () => ({
     href: string;
     onClick?: React.MouseEventHandler<HTMLAnchorElement>;
   }) => (
-    <a href={href} onClick={onClick}>
+    <a
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+    >
       {children}
     </a>
   ),
 }));
 
 import { TemplatePullDialog } from "./template-pull-dialog";
-import type { PackingTemplate } from "@/data/types";
+import type { PackingTemplate, PullTemplatesResult } from "@/data/types";
 
 const templates: PackingTemplate[] = [
   { id: "t1", name: "Beach Weekend" },
@@ -134,6 +153,46 @@ describe("TemplatePullDialog", () => {
     render(<TemplatePullDialog open onOpenChange={onOpenChange} templates={[]} onPull={vi.fn()} />);
 
     await user.click(screen.getByRole("link", { name: /create one from the template library/i }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("allows canceling while a pull is still pending", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onPull = vi.fn(
+      () =>
+        new Promise<PullTemplatesResult | undefined>(() => {
+          // Intentionally left pending so the component stays in the loading state.
+        })
+    );
+
+    render(<TemplatePullDialog open onOpenChange={onOpenChange} templates={templates} onPull={onPull} />);
+
+    await user.click(screen.getByLabelText("Beach Weekend"));
+    await user.click(screen.getByRole("button", { name: /Pull selected/ }));
+
+    expect(screen.getByRole("button", { name: "Cancel" })).not.toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("allows dialog dismissal while a pull is still pending", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onPull = vi.fn(
+      () =>
+        new Promise<PullTemplatesResult | undefined>(() => {
+          // Intentionally left pending so the component stays in the loading state.
+        })
+    );
+
+    render(<TemplatePullDialog open onOpenChange={onOpenChange} templates={templates} onPull={onPull} />);
+
+    await user.click(screen.getByLabelText("Beach Weekend"));
+    await user.click(screen.getByRole("button", { name: /Pull selected/ }));
+    await user.click(screen.getByRole("button", { name: "Dismiss dialog" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
