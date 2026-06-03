@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-31
-last_updated: 2026-06-03 # story 2.4 review complete, status: done
+last_updated: 2026-06-03 # story 3.1 created, epic 3 in-progress
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -55,3 +55,11 @@ development_status:
   2-3-pull-templates-onto-a-trip-packing-list: done
   2-4-save-trip-list-as-template: done
   epic-2-retrospective: optional
+
+  epic-3: in-progress
+  3-1-packing-sort-utils-bug-fixes: ready-for-dev
+  3-2-server-action-hardening: backlog
+  3-3-optimistic-update-reliability: backlog
+  3-4-database-schema-housekeeping: backlog
+  3-5-test-quality-improvements: backlog
+  3-6-ux-cosmetic-polish: backlog
