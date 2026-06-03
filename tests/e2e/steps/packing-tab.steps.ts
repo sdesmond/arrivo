@@ -1,8 +1,7 @@
 import { expect, type Page } from "@playwright/test";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
-import { packingItems, trips, users } from "../../../src/db/schema";
+import { packingItems } from "../../../src/db/schema";
+import { type E2EDb, withE2EDb } from "../e2e-db";
 import {
   E2E_PACKING_CONTEXTUAL_ADD_ITEMS,
   E2E_PACKING_DELETE_LABEL_ITEMS,
@@ -15,33 +14,8 @@ import {
   E2E_PACKING_RENAME_LABEL_ITEMS,
   E2E_PACKING_REORDER_ITEMS,
   E2E_PACKING_STRIKETHROUGH_ITEMS,
-  E2E_TRIP,
-  E2E_USER,
 } from "../e2e-seed-data";
-import { After, Before, Given, Then, When } from "../fixtures";
-
-async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-
-  try {
-    return await fn(db);
-  } finally {
-    await client.end();
-  }
-}
-
-async function getBaseTripId(db: ReturnType<typeof drizzle>): Promise<string | undefined> {
-  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
-  if (!user) return undefined;
-
-  const [trip] = await db
-    .select({ id: trips.id })
-    .from(trips)
-    .where(and(eq(trips.ownerId, user.id), eq(trips.startDate, E2E_TRIP.startDate)));
-
-  return trip?.id;
-}
+import { Given, Then, When } from "../fixtures";
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
@@ -52,7 +26,7 @@ async function openPackingTab(page: Page): Promise<void> {
 // explicit return type — the self-referential labelId FK otherwise sends
 // `.returning()` into circular type inference.
 async function insertPackingItem(
-  db: ReturnType<typeof drizzle>,
+  db: E2EDb,
   values: {
     tripId: string;
     name: string;
@@ -66,11 +40,7 @@ async function insertPackingItem(
   return rows[0].id;
 }
 
-async function seedPackingItems(
-  db: ReturnType<typeof drizzle>,
-  tripId: string,
-  itemsToSeed: typeof E2E_PACKING_ITEMS
-): Promise<void> {
+async function seedPackingItems(db: E2EDb, tripId: string, itemsToSeed: typeof E2E_PACKING_ITEMS): Promise<void> {
   await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
   // Positional grouping: each non-label item joins the most recent label.
   let currentLabelId: string | null = null;
@@ -85,11 +55,7 @@ type GroupedSeedItem = { name: string; isLabel: boolean; done: boolean; position
 // Explicit grouping: `under` links a non-label item to its section label by name;
 // items without `under` are ungrouped. Lets us seed ungrouped items that sort
 // after a section.
-async function seedGroupedPackingItems(
-  db: ReturnType<typeof drizzle>,
-  tripId: string,
-  itemsToSeed: GroupedSeedItem[]
-): Promise<void> {
+async function seedGroupedPackingItems(db: E2EDb, tripId: string, itemsToSeed: GroupedSeedItem[]): Promise<void> {
   await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
   const labelIdsByName = new Map<string, string>();
   for (const item of itemsToSeed) {
@@ -138,20 +104,37 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
   await page.mouse.up();
 }
 
-Before({ tags: "@packing-tab" }, async () => {
-  // check-persistence scenarios use pre-seeded items via explicit Given step
-});
+async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promise<void> {
+  const handle = page.getByTitle(`Reorder ${sourceName}`);
+  const ungrouped = page.locator('[data-packing-container="container:__ungrouped__"]');
+  await expect(handle).toBeVisible({ timeout: 10_000 });
+  await expect(ungrouped).toBeVisible({ timeout: 10_000 });
+  await handle.scrollIntoViewIfNeeded();
 
-After({ tags: "@packing-tab" }, async () => {
-  await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) {
-      console.warn("packing-tab After hook: E2E trip not found — packing cleanup skipped");
-      return;
-    }
-    await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
-  });
-});
+  const source = await handle.boundingBox();
+  const destination = await ungrouped.boundingBox();
+  if (!source || !destination) {
+    throw new Error(`Could not measure Ungrouped drop area for ${sourceName}`);
+  }
+
+  const targetX = destination.x + destination.width / 2;
+  const targetY = destination.y + Math.max(destination.height - 16, destination.height / 2);
+
+  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
+  await page.mouse.move(targetX, targetY, { steps: 18 });
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await page.waitForTimeout(80);
+    const box = await ungrouped.boundingBox();
+    if (!box) break;
+    await page.mouse.move(box.x + box.width / 2, box.y + Math.max(box.height - 16, box.height / 2), { steps: 6 });
+  }
+
+  await page.waitForTimeout(60);
+  await page.mouse.up();
+}
 
 When("I open the Packing tab", async ({ page }) => {
   await openPackingTab(page);
@@ -215,44 +198,44 @@ Then(
   }
 );
 
-Given("I have pre-seeded packing items for the trip", async ({ page }) => {
+Given("I have pre-seeded packing items for the trip", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed packing items");
-    await seedPackingItems(db, tripId, E2E_PACKING_ITEMS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
 });
 
-Given("I have pre-seeded packing items with labels for the trip", async ({ page }) => {
+Given("I have pre-seeded packing items with labels for the trip", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed packing items");
-    await seedPackingItems(db, tripId, E2E_PACKING_ITEMS_WITH_LABELS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_ITEMS_WITH_LABELS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
 });
 
-Given("I have pre-seeded packing reorder items for the trip", async ({ page }) => {
+Given("I have pre-seeded packing reorder items for the trip", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed reorder items");
-    await seedPackingItems(db, tripId, E2E_PACKING_REORDER_ITEMS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_REORDER_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
 });
 
-Given("the packing item {string} is already checked", async ({ page }, name: string) => {
+Given("the packing item {string} is already checked", async ({ page, scenario }, name: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found");
     await db
       .update(packingItems)
       .set({ done: true })
-      .where(and(eq(packingItems.tripId, tripId), eq(packingItems.name, name)));
+      .where(and(eq(packingItems.tripId, currentTrip.id), eq(packingItems.name, name)));
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
@@ -314,11 +297,11 @@ Then("the packing item {string} should be unchecked", async ({ page }, name: str
 
 // ── Story 1.4 — Strikethrough seeds & steps ──────────────────────────────────
 
-Given("I have pre-seeded packing items with label and items for strikethrough", async ({ page }) => {
+Given("I have pre-seeded packing items with label and items for strikethrough", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed strikethrough items");
-    await seedPackingItems(db, tripId, E2E_PACKING_STRIKETHROUGH_ITEMS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_STRIKETHROUGH_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
@@ -338,11 +321,11 @@ Then("the section label {string} should have strikethrough", async ({ page }, na
 
 // ── Story 1.4 — Contextual add seeds & steps ─────────────────────────────────
 
-Given("I have pre-seeded packing items for contextual add", async ({ page }) => {
+Given("I have pre-seeded packing items for contextual add", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed contextual add items");
-    await seedPackingItems(db, tripId, E2E_PACKING_CONTEXTUAL_ADD_ITEMS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_CONTEXTUAL_ADD_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
@@ -381,11 +364,11 @@ Then("{string} should appear after {string} in the list", async ({ page }, after
 
 // ── Story 1.4 — Inline edit seeds & steps ────────────────────────────────────
 
-Given("I have pre-seeded packing items for inline editing", async ({ page }) => {
+Given("I have pre-seeded packing items for inline editing", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed inline edit items");
-    await seedPackingItems(db, tripId, E2E_PACKING_INLINE_EDIT_ITEMS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_INLINE_EDIT_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
@@ -410,11 +393,11 @@ Then("the packing item {string} should be visible", async ({ page }, name: strin
 
 // ── Story 1.4 — Rename label seeds & steps ───────────────────────────────────
 
-Given("I have pre-seeded a section label for renaming", async ({ page }) => {
+Given("I have pre-seeded a section label for renaming", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed rename label items");
-    await seedPackingItems(db, tripId, E2E_PACKING_RENAME_LABEL_ITEMS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_RENAME_LABEL_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
@@ -437,11 +420,11 @@ Then("the section label {string} should be visible", async ({ page }, name: stri
 
 // ── Story 1.4 — Delete label seeds & steps ───────────────────────────────────
 
-Given("I have pre-seeded a section label with items beneath it", async ({ page }) => {
+Given("I have pre-seeded a section label with items beneath it", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed delete label items");
-    await seedPackingItems(db, tripId, E2E_PACKING_DELETE_LABEL_ITEMS);
+    await seedPackingItems(db, currentTrip.id, E2E_PACKING_DELETE_LABEL_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
@@ -465,39 +448,38 @@ Then("the section label {string} should not be visible", async ({ page }, name: 
 
 // ── Drag-and-drop regression seeds & steps ───────────────────────────────────
 
-Given("I have pre-seeded a section with items and ungrouped items", async ({ page }) => {
+Given("I have pre-seeded a section with items and ungrouped items", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed drag items");
-    await seedGroupedPackingItems(db, tripId, E2E_PACKING_DRAG_ITEMS);
+    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_ITEMS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
 });
 
-Given("I have pre-seeded a section with no ungrouped items", async ({ page }) => {
+Given("I have pre-seeded a section with no ungrouped items", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed drag items");
-    await seedGroupedPackingItems(db, tripId, E2E_PACKING_DRAG_EMPTY_UNGROUPED);
+    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_EMPTY_UNGROUPED);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
 });
 
-Given("I have pre-seeded two packing sections", async ({ page }) => {
+Given("I have pre-seeded two packing sections", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
   await withE2EDb(async (db) => {
-    const tripId = await getBaseTripId(db);
-    if (!tripId) throw new Error("E2E trip not found — cannot seed drag items");
-    await seedGroupedPackingItems(db, tripId, E2E_PACKING_DRAG_TWO_SECTIONS);
+    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_TWO_SECTIONS);
   });
   await page.goto(page.url());
   await page.waitForURL(/\/trips/);
 });
 
 When("I drag the packing item {string} into the Ungrouped area", async ({ page }, name: string) => {
-  const ungrouped = page.locator('[data-packing-container="container:__ungrouped__"]');
-  await dragItemOntoTarget(page, name, ungrouped);
+  await dragItemIntoUngroupedArea(page, name);
 });
 
 When(
@@ -536,8 +518,10 @@ Then("the trip card for {string} should show {string}", async ({ page }, tripNam
   await expect(card).toContainText(progress);
 });
 
-When("I open the trip and go to the Packing tab", async ({ page }) => {
-  const tripLink = page.locator("a").filter({ hasText: "E2E Test Trip" }).first();
+When("I open the trip and go to the Packing tab", async ({ page, scenario }) => {
+  const tripName = scenario.currentTrip?.name;
+  if (!tripName) throw new Error("Current scenario trip is missing.");
+  const tripLink = page.locator("a").filter({ hasText: tripName }).first();
   await tripLink.click();
   await page.waitForURL(/\/trips\/.+/);
   await openPackingTab(page);

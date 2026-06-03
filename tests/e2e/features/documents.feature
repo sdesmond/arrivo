@@ -61,7 +61,6 @@ Feature: Document Upload
     When I click the share button for "share-click.pdf"
     Then the document viewer is open with title "share-click.pdf"
 
-  @docs-empty
   Scenario: Upload via the empty-state Add document CTA
     Given the Documents tab shows the empty state
     When I upload a file named "empty-cta-upload.pdf" with MIME type "application/pdf"

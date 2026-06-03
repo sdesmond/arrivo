@@ -1,71 +1,31 @@
 import { expect } from "@playwright/test";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
-import { eq } from "drizzle-orm";
-import { collaborators, trips, users } from "../../../src/db/schema";
-import { E2E_USER } from "../e2e-seed-data";
-import { Given, When, Then, Before, After } from "../fixtures";
-import { clearTripIdOverride, setTripIdOverride } from "./scenario-state";
-
-let docsEmptyTripId: string | undefined;
-
-async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client);
-  try {
-    return await fn(db);
-  } finally {
-    await client.end();
-  }
-}
-
-Before({ tags: "@docs-empty" }, async () => {
-  await withE2EDb(async (db) => {
-    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_USER.email));
-    if (!user) return;
-    const [trip] = await db
-      .insert(trips)
-      .values({
-        ownerId: user.id,
-        name: "E2E Docs Empty Trip",
-        // Distinct dates so this dedicated trip never collides with the base
-        // seed trip's startDate, which other features use to look it up. A
-        // shared startDate made base-trip queries non-deterministic under
-        // parallel workers (picked this dayless trip → "Seeded E2E trip not found").
-        startDate: "2026-10-01",
-        endDate: "2026-10-03",
-      })
-      .returning({ id: trips.id });
-    await db.insert(collaborators).values({
-      tripId: trip.id,
-      userId: user.id,
-      email: E2E_USER.email,
-      name: E2E_USER.name,
-      initials: E2E_USER.initials,
-      role: "owner",
-    });
-    docsEmptyTripId = trip.id;
-    setTripIdOverride(trip.id);
-  });
-});
-
-After({ tags: "@docs-empty" }, async () => {
-  clearTripIdOverride();
-  if (!docsEmptyTripId) return;
-  await withE2EDb(async (db) => {
-    await db.delete(trips).where(eq(trips.id, docsEmptyTripId!));
-  });
-  docsEmptyTripId = undefined;
-});
+import { documents } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
+import { E2E_DOCUMENT } from "../e2e-seed-data";
+import { Given, When, Then } from "../fixtures";
 
 Given("I am on the Documents tab", async ({ page }) => {
   await page.getByRole("button", { name: "Documents" }).click();
-  // #doc-upload is always in the DOM regardless of empty/populated state (per Story 4.2 AC3)
   await expect(page.locator("#doc-upload")).toBeAttached({ timeout: 10_000 });
 });
 
 Given("the Documents tab shows the empty state", async ({ page }) => {
   await expect(page.getByText("No documents yet")).toBeVisible({ timeout: 5_000 });
+});
+
+Given("the Documents tab has one seeded document", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) {
+    throw new Error("Missing current scenario trip.");
+  }
+
+  await withE2EDb(async (db) => {
+    await db.insert(documents).values({ tripId: currentTrip.id, ...E2E_DOCUMENT });
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByText(E2E_DOCUMENT.name)).toBeVisible();
 });
 
 When("I upload a file named {string} with MIME type {string}", async ({ page }, filename: string, mimeType: string) => {
@@ -79,10 +39,6 @@ When("I upload a file named {string} with MIME type {string}", async ({ page }, 
 
 Then("the document {string} appears in the Documents list", async ({ page }, filename: string) => {
   await expect(page.getByText(filename)).toBeVisible({ timeout: 10_000 });
-});
-
-Given("the Documents tab has one seeded document", async ({ page }) => {
-  await expect(page.getByText("E2E Boarding Pass")).toBeVisible();
 });
 
 When("I delete the document {string}", async ({ page }, docName: string) => {

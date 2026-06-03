@@ -8,6 +8,7 @@ Feature: Cover type preference
     And I save the Preferences section
     Then the "Map" cover type should be selected after reload
 
+  @cover-type-initial-map
   Scenario: Setting Graphic as default cover type persists after reload
     Given I am signed in
     And I am on the profile page

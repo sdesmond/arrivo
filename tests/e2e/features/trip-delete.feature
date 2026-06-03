@@ -2,7 +2,6 @@ Feature: Trip deletion
   Background:
     Given I am signed in
 
-  @delete-trip-fixture
   Scenario: Delete a trip from the listing page
     Given I have a trip available to delete from the listing page
     When I open the trip options menu for "E2E Delete Trip"
