@@ -11,7 +11,7 @@ import {
   trips,
 } from "@/db/schema";
 
-const { assertTripAccess, db, redirect, requireUser, revalidatePath } = vi.hoisted(() => ({
+const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   db: {
     delete: vi.fn(),
@@ -20,7 +20,6 @@ const { assertTripAccess, db, redirect, requireUser, revalidatePath } = vi.hoist
     transaction: vi.fn(),
     update: vi.fn(),
   },
-  redirect: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -36,10 +35,6 @@ vi.mock("@/db", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath,
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect,
 }));
 
 const { blobPut } = vi.hoisted(() => ({
@@ -369,6 +364,9 @@ describe("createTrip", () => {
   });
 
   afterEach(() => {
+    db.select.mockReset();
+    db.transaction.mockReset();
+    db.update.mockReset();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
@@ -396,11 +394,17 @@ describe("createTrip", () => {
     db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
       callback(transaction)
     );
-    db.select.mockReturnValue({
-      from: () => ({
-        where: async () => [{ defaultCoverType }],
-      }),
-    });
+    db.select
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User" }],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ defaultCoverType }],
+        }),
+      });
     db.update.mockImplementation((table: unknown) => ({
       set: (values: unknown) => ({
         where: async () => {
@@ -430,13 +434,15 @@ describe("createTrip", () => {
       }),
     });
 
-    await createTrip({
-      name: "Paris Trip",
-      destinationName: "Paris, France",
-      destinationCountry: "France",
-      destinationCountryCode: "FR",
-      destinationCenter: [2.35, 48.85],
-    });
+    await expect(
+      createTrip({
+        name: "Paris Trip",
+        destinationName: "Paris, France",
+        destinationCountry: "France",
+        destinationCountryCode: "FR",
+        destinationCenter: [2.35, 48.85],
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
 
     expect(operations.inserts).toEqual(
       expect.arrayContaining([
@@ -465,7 +471,6 @@ describe("createTrip", () => {
       },
     ]);
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
-    expect(redirect).toHaveBeenCalledWith("/trips/trip-1?new=1");
   });
 
   it("fetches the Mapbox static tile server-side and stores the Blob URL when the default is map", async () => {
@@ -476,11 +481,13 @@ describe("createTrip", () => {
     mockFetch.mockResolvedValue({ ok: true, blob: async () => fakeBlob });
     blobPut.mockResolvedValue({ url: "https://blob.vercel.com/mapbox-covers/trip-1.jpg" });
 
-    await createTrip({
-      name: "Map Trip",
-      destinationName: "Paris, France",
-      destinationCenter: [2.3488, 48.8534],
-    });
+    await expect(
+      createTrip({
+        name: "Map Trip",
+        destinationName: "Paris, France",
+        destinationCenter: [2.3488, 48.8534],
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
 
     expect(mockFetch).toHaveBeenCalledOnce();
     expect(mockFetch).toHaveBeenCalledWith(
@@ -500,11 +507,13 @@ describe("createTrip", () => {
     vi.stubEnv("UPLOAD_STUB", "true");
     const operations = setupCreateTripDb("map");
 
-    await createTrip({
-      name: "Map Trip",
-      destinationName: "Paris, France",
-      destinationCenter: [2.3488, 48.8534],
-    });
+    await expect(
+      createTrip({
+        name: "Map Trip",
+        destinationName: "Paris, France",
+        destinationCenter: [2.3488, 48.8534],
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(blobPut).not.toHaveBeenCalled();
@@ -514,10 +523,12 @@ describe("createTrip", () => {
   it("derives a graphic cover without calling external APIs when the default is graphic", async () => {
     const operations = setupCreateTripDb("graphic");
 
-    await createTrip({
-      name: "Road Trip",
-      destinationName: "Paris, France",
-    });
+    await expect(
+      createTrip({
+        name: "Road Trip",
+        destinationName: "Paris, France",
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(operations.updates).toEqual([
@@ -533,24 +544,27 @@ describe("createTrip", () => {
     const operations = setupCreateTripDb("photo");
     mockFetch.mockRejectedValue(new Error("Unsplash unavailable"));
 
-    await createTrip({
-      name: "Fallback Trip",
-      destinationName: "Paris, France",
-    });
+    await expect(
+      createTrip({
+        name: "Fallback Trip",
+        destinationName: "Paris, France",
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
 
     expect(operations.updates).toEqual([]);
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
-    expect(redirect).toHaveBeenCalledWith("/trips/trip-1?new=1");
   });
 
   it("applies graphic cover without loading user preference when no destination is selected (AC6)", async () => {
     const operations = setupCreateTripDb(null);
 
-    await createTrip({
-      name: "No Destination Trip",
-    });
+    await expect(
+      createTrip({
+        name: "No Destination Trip",
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
 
-    expect(db.select).not.toHaveBeenCalled();
+    expect(db.select).toHaveBeenCalledOnce();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(operations.updates).toEqual([
       { table: trips, values: { coverImageUrl: deriveGraphicCover("No Destination Trip") } },
@@ -560,12 +574,14 @@ describe("createTrip", () => {
   it("applies graphic cover preference when trip has coordinates but no destination name", async () => {
     const operations = setupCreateTripDb("graphic");
 
-    await createTrip({
-      name: "Coordinates Trip",
-      destinationCenter: [2.35, 48.85],
-    });
+    await expect(
+      createTrip({
+        name: "Coordinates Trip",
+        destinationCenter: [2.35, 48.85],
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
 
-    expect(db.select).toHaveBeenCalledOnce();
+    expect(db.select).toHaveBeenCalledTimes(2);
     expect(mockFetch).not.toHaveBeenCalled();
     expect(operations.updates).toEqual([
       { table: trips, values: { coverImageUrl: deriveGraphicCover("Coordinates Trip") } },

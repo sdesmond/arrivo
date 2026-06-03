@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   TripDateConflictResolution,
@@ -17,6 +18,7 @@ import { createTrip, deleteTrip, updateTripMetadata } from "./actions";
 export type MobileTab = "Unscheduled" | "Active" | "Upcoming" | "Past";
 
 export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date) {
+  const router = useRouter();
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
   const [deletingTrip, setDeletingTrip] = useState<Trip | null>(null);
   const [newTripOpen, setNewTripOpen] = useState(false);
@@ -86,7 +88,7 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
   async function submitCreateTrip(draft: NewTripDraft) {
     startCreation(async () => {
       try {
-        await createTrip({
+        const { tripId } = await createTrip({
           name: draft.title,
           startDate: draft.startDate,
           endDate: draft.endDate,
@@ -96,9 +98,9 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
           destinationCountryCode: draft.destinationCountryCode,
           destinationCenter: draft.destinationCenter,
         });
+        router.push(`/trips/${tripId}?new=1`);
       } catch (err) {
-        if (err && typeof err === "object" && "digest" in err) throw err;
-        toast.error("Failed to create trip. Please try again.");
+        toast.error(err instanceof Error ? err.message : "Failed to create trip. Please try again.");
       }
     });
   }
