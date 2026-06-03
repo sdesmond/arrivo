@@ -109,6 +109,13 @@ export function PackingListSortable({
     const working = localItems ?? items;
     setLocalItems(null);
     if (!over) return;
+
+    // AC7: provide feedback when a label drag is attempted (labels are non-draggable)
+    const draggedItem = working.find((item) => item.id === String(active.id));
+    if (draggedItem?.isLabel) {
+      onAnnounceMove?.("Labels cannot be reordered.");
+      return;
+    }
     // `working` already reflects the live cross-container preview from
     // handleDragOver. Apply any final within-container move implied by `over`,
     // falling back to the preview itself when `over` resolves to the slot the
@@ -131,14 +138,22 @@ export function PackingListSortable({
       onAnnounceMove(`Moved ${movedActive.name} to ${destination}.`);
     }
 
+    // Bug #4: filter out items with undefined id before invoking callbacks to prevent
+    // server-server mismatches and silent data corruption.
+    const movedWithIds = moved.filter((item): item is PackingItem & { id: string } => item.id !== undefined);
+    if (movedWithIds.length === 0) return;
+
+    // Recompute optimistic state with only persistable items so the preview matches what
+    // the server actually receives — id-less items were never persisted.
+    if (movedWithIds.length !== moved.length) {
+      onOptimisticReorder(movedWithIds);
+    }
+
     // Bug #1: use array index as position so the server receives the new order correctly;
     // item.position carries the original DB value (preserved by flatten) which would be
     // a no-op if saved back unchanged.
-    // Bug #4: filter out any items with undefined id before invoking the callback.
     onReorderItems(
-      moved
-        .filter((item): item is PackingItem & { id: string } => item.id !== undefined)
-        .map((item, index) => ({ id: item.id, labelId: item.labelId ?? null, position: index })),
+      movedWithIds.map((item, index) => ({ id: item.id, labelId: item.labelId ?? null, position: index })),
       () => onOptimisticReorder(null)
     );
   }

@@ -565,10 +565,12 @@ describe("PackingListSortable", () => {
 
   it("Bug #4: filters items with undefined id from the onReorderItems payload", () => {
     const onReorderItems = vi.fn();
+    // Include a valid ungrouped item as the drop target so computeReorder succeeds
     const itemsWithUndefinedId: PackingItem[] = [
       { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
       { id: undefined, name: "Ghost", done: false, position: 1, labelId: "label-1" } as unknown as PackingItem,
       { id: "item-a", name: "Item A", done: false, position: 2, labelId: "label-1" },
+      { id: "item-b", name: "Item B", done: false, position: 3, labelId: null },
     ];
 
     render(
@@ -585,15 +587,17 @@ describe("PackingListSortable", () => {
     act(() => {
       getDndProps<{ onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragEnd?.({
         active: { id: "item-a" },
-        over: { id: "label-1" },
+        over: { id: "item-b" },
       });
     });
 
-    // If reorderItems was called, every entry must have a defined id
-    if (onReorderItems.mock.calls.length > 0) {
-      const payload = onReorderItems.mock.calls[0][0] as { id: string }[];
-      expect(payload.every((entry) => entry.id !== undefined)).toBe(true);
-    }
+    // reorderItems must have been called (non-label drop onto non-label succeeds)
+    expect(onReorderItems).toHaveBeenCalled();
+    const payload = onReorderItems.mock.calls[0][0] as { id: string }[];
+    // Every entry must have a defined id
+    expect(payload.every((entry) => entry.id !== undefined)).toBe(true);
+    // The ghost item (undefined id) must not appear in the payload
+    expect(payload.find((entry) => entry.id === undefined)).toBeUndefined();
   });
 
   it("Bug #6: treats drop on a section label as a no-op (item stays at current position)", () => {

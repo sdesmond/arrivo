@@ -38,9 +38,16 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 ### Character caps
 
 1. Titles capped at 50 chars
-1. Items capped at 50 chars
+1. Items capped at 50 chars (template and trip-level)
 
 ## Trip packing list
+
+1. Items should have checkboxes, not radio buttons
+
+## Adding to a section
+
+1. "add" item at the end of a section should be indented to match the items and have placeholder "add to [section name]"
+1. after adding from any input, focus should return to that same input for easy multi-add
 
 ### Ability to have multiples lists
 

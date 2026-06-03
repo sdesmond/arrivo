@@ -34,7 +34,10 @@ export function groupPackingItems(items: PackingItem[], preserveOrder = false): 
   // Bug #2: filter out undefined ids before building the Set to prevent "undefined" string collisions
   const labelIds = new Set(labels.map((label) => label.id).filter((id): id is string => id !== undefined));
   const sections: PackingSection[] = labels.map((label) => {
-    const sectionItems = items.filter((item) => !item.isLabel && item.labelId === label.id);
+    // Only match items whose labelId is non-null to prevent duplication when
+    // label.id is undefined (items with undefined labelId would match via
+    // undefined === undefined and also pass the ungrouped filter below).
+    const sectionItems = items.filter((item) => !item.isLabel && item.labelId != null && item.labelId === label.id);
     if (!preserveOrder) sectionItems.sort(byPosition);
     return { label, items: sectionItems };
   });
@@ -44,11 +47,12 @@ export function groupPackingItems(items: PackingItem[], preserveOrder = false): 
 }
 
 export function containerKeyOfItem(grouped: GroupedPackingItems, itemId: string): string | null {
-  for (const section of grouped.sections) {
+  for (const [index, section] of grouped.sections.entries()) {
     if (section.label.id === itemId || section.items.some((item) => item.id === itemId)) {
       // Bug #3: label.id may be undefined; return a synthetic key rather than null so the caller
       // gets a non-null result (computeReorder will still bail when it can't find the container)
-      return section.label.id ?? `section:${section.label.name ?? "unknown"}`;
+      // Include index to prevent key collision when multiple sections share a name.
+      return section.label.id ?? `section:${index}:${section.label.name ?? "unknown"}`;
     }
   }
   if (grouped.ungroupedItems.some((item) => item.id === itemId)) {
@@ -133,7 +137,7 @@ export function computeReorder(working: PackingItem[], activeId: string, overId:
 
   const containers = new Map<string, PackingItem[]>();
   for (const section of grouped.sections) {
-    if (!section.label.id) return null;
+    if (!section.label.id) continue;
     containers.set(section.label.id, [...section.items]);
   }
   containers.set(UNGROUPED_KEY, [...grouped.ungroupedItems]);

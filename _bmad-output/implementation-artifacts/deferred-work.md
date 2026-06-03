@@ -45,6 +45,11 @@
 - `containerKeyOfItem` returns null when label `id` is undefined — the `section.label.id ?? null` coalesce produces null when a label has a falsy id, making `activeKey` null and causing `computeReorder` to return null silently.
 - Item in reorder array with undefined `id` or `position` — `onReorderItems` callback in `PackingListSortable` can be invoked with `id: undefined` or `position: undefined` for items missing those fields.
 
+## Deferred from: code review of 3-1-packing-sort-utils-bug-fixes (2026-06-03)
+
+- Stale label order in drag preview with `preserveOrder=true` — labels aren't sorted during preview but DnD library doesn't reorder label entries; visual-only, temporary
+- `byPosition` uses `posA - posB` which loses precision beyond `Number.MAX_SAFE_INTEGER / 2` — DB positions are small integers, theoretical only
+
 ## Deferred from: code review of 2-4-save-trip-list-as-template (2026-06-03)
 
 - No rate limiting or idempotency key on saveTripListAsTemplate server action — pre-existing project-wide concern, not specific to this story

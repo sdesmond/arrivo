@@ -1,6 +1,6 @@
 # Story 3.1: Packing Sort Utils Bug Fixes
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -130,3 +130,23 @@ opencode/big-pickle
 - `src/components/packt/packing-list-sortable.tsx` — MODIFY (label drag feedback, undefined guard)
 - `src/components/packt/packing-sort-utils.test.ts` — CREATE (tests for pure utility fixes)
 - `src/components/packt/packing-list-sortable.test.tsx` — MODIFY (tests for component-level fixes)
+
+### Review Findings (2026-06-03)
+
+#### Decision Needed
+
+- [x] [Review][Decision] AC6: no-op on label drop accepted — user confirmed keeping current behavior (no-op) rather than spec's "reposition outside section"
+- [x] [Review][Patch] AC7: add feedback when programmatic label drag is rejected — Added `onAnnounceMove` call in `handleDragEnd` when active item is a label. [`packing-list-sortable.tsx`]
+
+#### Patch
+
+- [x] [Review][Patch] Bug #4 test passes vacuously due to Bug #6 interaction — Changed drop target to a non-label item (item-b) and added assertion that `onReorderItems` was actually called. [`packing-list-sortable.test.tsx`]
+- [x] [Review][Patch] Synthetic key collision in `containerKeyOfItem` — Added section index to fallback key to disambiguate sections with same name. [`packing-sort-utils.ts`]
+- [x] [Review][Patch] Undefined-id filter regression in `groupPackingItems` — Added `item.labelId != null` check in section items filter to prevent items with undefined labelId from matching sections with undefined id. [`packing-sort-utils.ts`]
+- [x] [Review][Patch] Empty array / silent mismatch for id-less items in reorder flow — Filter before both optimistic and persistence calls; early-return if no persistable items remain. [`packing-list-sortable.tsx`]
+- [x] [Review][Patch] `computeReorder` bails entirely when any section has null/undefined label id — Changed `return null` to `continue` to skip only malformed sections. [`packing-sort-utils.ts`]
+
+#### Deferred
+
+- [x] [Review][Defer] Stale label order in preview with `preserveOrder=true` — labels aren't sorted during drag preview, but the DnD library doesn't reorder label entries in `localItems` either. Visual only, temporary state. [`packing-sort-utils.ts:62-63`]
+- [x] [Review][Defer] `byPosition` subtraction precision for very large positions — uses `posA - posB` which loses precision beyond `Number.MAX_SAFE_INTEGER / 2`. DB positions are small integers — theoretical only. [`packing-sort-utils.ts:26`]
