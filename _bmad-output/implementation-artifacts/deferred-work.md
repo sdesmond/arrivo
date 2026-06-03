@@ -45,6 +45,10 @@
 - `containerKeyOfItem` returns null when label `id` is undefined — the `section.label.id ?? null` coalesce produces null when a label has a falsy id, making `activeKey` null and causing `computeReorder` to return null silently.
 - Item in reorder array with undefined `id` or `position` — `onReorderItems` callback in `PackingListSortable` can be invoked with `id: undefined` or `position: undefined` for items missing those fields.
 
+## Deferred from: code review of 2-4-save-trip-list-as-template (2026-06-03)
+
+- No rate limiting or idempotency key on saveTripListAsTemplate server action — pre-existing project-wide concern, not specific to this story
+
 ## Deferred from: code review of 1-2-check-items-as-packed-with-session-persistence-and-trip-card-progress (2026-05-31)
 
 - Optimistic `aria-live` announcement fires before server action resolves — matches pre-existing pattern from other packing handlers
