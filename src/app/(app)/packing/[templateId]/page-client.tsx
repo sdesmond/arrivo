@@ -27,26 +27,24 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
     setIsAdding(false);
   }
 
-  function handleAddItem(
+  async function handleAddItem(
     text: string,
     isLabel?: boolean,
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ): void {
+  ): Promise<void> {
     if (isAdding) {
       return;
     }
 
     setIsAdding(true);
-    startTransition(async () => {
-      try {
-        await addTemplateItem(template.id, { text, isLabel, afterItemId, beforeItemId, labelId });
-      } catch (error) {
-        setIsAdding(false);
-        toast.error(getActionErrorMessage(error, "Could not add template item"));
-      }
-    });
+    try {
+      await addTemplateItem(template.id, { text, isLabel, afterItemId, beforeItemId, labelId });
+    } catch (error) {
+      setIsAdding(false);
+      toast.error(getActionErrorMessage(error, "Could not add template item"));
+    }
   }
 
   function handleRemoveItem(id: string): void {

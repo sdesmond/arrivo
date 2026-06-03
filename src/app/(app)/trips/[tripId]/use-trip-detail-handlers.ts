@@ -307,7 +307,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
       } catch (error) {
         onError?.();
         toast.error(error instanceof Error ? error.message : "Failed to reorder packing items. Please try again.");
-        router.refresh();
       }
     });
   }

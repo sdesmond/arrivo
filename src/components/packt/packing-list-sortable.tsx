@@ -42,7 +42,7 @@ export interface PackingListSortableProps {
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ) => void;
+  ) => Promise<void>;
   onAnnounceMove?: (message: string) => void;
   isAdding?: boolean;
 }
@@ -124,29 +124,23 @@ export function PackingListSortable({
     // The no-op decision must compare against the original props order, not the
     // live preview — otherwise a cross-container drop whose final slot matches
     // the preview is discarded and the item snaps back.
-    // Bug #1: compare `moved` directly (not via groupPackingItems+flatten) because
-    // flatten now preserves original position values; re-grouping would re-sort by
-    // position and produce the original order, making every reorder look like a no-op.
-    if (sameOrder(flatten(groupPackingItems(items)), moved)) return;
-    onOptimisticReorder(moved);
-
-    const movedActive = moved.find((item) => item.id === String(active.id));
-    if (movedActive && onAnnounceMove) {
-      const destination = movedActive.labelId
-        ? (moved.find((item) => item.id === movedActive.labelId)?.name ?? "a section")
-        : "Ungrouped";
-      onAnnounceMove(`Moved ${movedActive.name} to ${destination}.`);
-    }
-
     // Bug #4: filter out items with undefined id before invoking callbacks to prevent
     // server-server mismatches and silent data corruption.
     const movedWithIds = moved.filter((item): item is PackingItem & { id: string } => item.id !== undefined);
     if (movedWithIds.length === 0) return;
 
-    // Recompute optimistic state with only persistable items so the preview matches what
-    // the server actually receives — id-less items were never persisted.
-    if (movedWithIds.length !== moved.length) {
-      onOptimisticReorder(movedWithIds);
+    // Bug #1: compare `movedWithIds` directly (not via groupPackingItems+flatten) because
+    // flatten now preserves original position values; re-grouping would re-sort by
+    // position and produce the original order, making every reorder look like a no-op.
+    if (sameOrder(flatten(groupPackingItems(items)), movedWithIds)) return;
+    onOptimisticReorder(movedWithIds);
+
+    const movedActive = movedWithIds.find((item) => item.id === String(active.id));
+    if (movedActive && onAnnounceMove) {
+      const destination = movedActive.labelId
+        ? (movedWithIds.find((item) => item.id === movedActive.labelId)?.name ?? "a section")
+        : "Ungrouped";
+      onAnnounceMove(`Moved ${movedActive.name} to ${destination}.`);
     }
 
     // Bug #1: use array index as position so the server receives the new order correctly;
