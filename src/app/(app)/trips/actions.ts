@@ -588,30 +588,40 @@ export async function reorderPackingItems(
 export async function pullTemplatesOntoTrip(tripId: string, templateIds: string[]): Promise<PullTemplatesResult> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
-  if (templateIds.length === 0) return { added: 0, skipped: 0 };
+  const uniqueIds = [...new Set(templateIds)];
+  if (uniqueIds.length === 0) return { added: 0, skipped: 0 };
 
   const existingRows = await db
-    .select({ name: packingItems.name })
+    .select({ name: packingItems.name, id: packingItems.id, isLabel: packingItems.isLabel })
     .from(packingItems)
     .where(eq(packingItems.tripId, tripId));
-  const existingNames = new Set(existingRows.map((row) => row.name.toLowerCase()));
+  const existingNames = new Set(existingRows.map((row) => row.name.toLowerCase().trim()));
+  const existingLabelNameToId = new Map<string, string>();
+  for (const row of existingRows) {
+    if (row.isLabel) {
+      existingLabelNameToId.set(row.name.toLowerCase().trim(), row.id);
+    }
+  }
 
   const ownedTemplates = await db
     .select({ id: packingTemplates.id })
     .from(packingTemplates)
-    .where(and(inArray(packingTemplates.id, templateIds), eq(packingTemplates.userId, user.id!)));
+    .where(and(inArray(packingTemplates.id, uniqueIds), eq(packingTemplates.userId, user.id!)));
   const ownedIds = new Set(ownedTemplates.map((tmpl) => tmpl.id));
 
-  const [maxPosRow] = await db
-    .select({ maxPos: max(packingItems.position) })
-    .from(packingItems)
-    .where(eq(packingItems.tripId, tripId));
-  let nextPosition = (maxPosRow.maxPos ?? -1) + 1;
   let added = 0;
   let skipped = 0;
 
   await db.transaction(async (tx) => {
-    for (const templateId of templateIds) {
+    const [maxPosRow] = await tx
+      .select({ maxPos: max(packingItems.position) })
+      .from(packingItems)
+      .where(eq(packingItems.tripId, tripId));
+    let nextPosition = (maxPosRow.maxPos ?? -1) + 1;
+
+    const labelIdMap = new Map<string, string>();
+
+    for (const templateId of uniqueIds) {
       if (!ownedIds.has(templateId)) continue;
 
       const items = await tx
@@ -620,12 +630,15 @@ export async function pullTemplatesOntoTrip(tripId: string, templateIds: string[
         .where(eq(packingTemplateItems.templateId, templateId))
         .orderBy(asc(packingTemplateItems.position));
 
-      // Map: template item id → new packing item id (for labelId cross-reference)
-      const labelIdMap = new Map<string, string>();
-
       for (const item of items) {
-        const normalizedText = item.text.toLowerCase();
+        const normalizedText = item.text.trim().toLowerCase();
         if (existingNames.has(normalizedText)) {
+          if (item.isLabel) {
+            const existingId = existingLabelNameToId.get(normalizedText);
+            if (existingId) {
+              labelIdMap.set(item.id, existingId);
+            }
+          }
           skipped++;
           continue;
         }
@@ -636,7 +649,7 @@ export async function pullTemplatesOntoTrip(tripId: string, templateIds: string[
           .insert(packingItems)
           .values({
             tripId,
-            name: item.text,
+            name: item.text.trim(),
             done: false,
             isLabel: item.isLabel,
             position: nextPosition++,

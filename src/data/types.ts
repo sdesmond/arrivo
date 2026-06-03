@@ -615,10 +615,6 @@ export interface UpdatePackingItemInput {
   name?: string;
 }
 
-export interface PullTemplatesInput {
-  templateIds: string[];
-}
-
 export interface PullTemplatesResult {
   added: number;
   skipped: number;

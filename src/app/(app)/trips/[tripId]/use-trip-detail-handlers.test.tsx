@@ -303,6 +303,5 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Pull failed"));
     expect(pullResult).toBeUndefined();
-    expect(mockRefresh).toHaveBeenCalled();
   });
 });

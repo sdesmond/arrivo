@@ -301,20 +301,15 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handlePullTemplates(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
-    return new Promise((resolve) => {
-      React.startTransition(async () => {
-        try {
-          const result = await pullTemplatesOntoTrip(trip.id, templateIds);
-          router.refresh();
-          resolve(result);
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to pull templates. Please try again.");
-          router.refresh();
-          resolve(undefined);
-        }
-      });
-    });
+  async function handlePullTemplates(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
+    try {
+      const result = await pullTemplatesOntoTrip(trip.id, templateIds);
+      router.refresh();
+      return result;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to pull templates. Please try again.");
+      return undefined;
+    }
   }
 
   function handleTripSave(
