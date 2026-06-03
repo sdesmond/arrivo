@@ -9,7 +9,7 @@
     "lint": "eslint",
     "setup:dev": "node scripts/setup-dev.mjs",
     "test": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "npm run db:migrate:e2e && vitest run --coverage",
     "test:e2e": "npm run db:reset:e2e && npm run db:migrate:e2e && bddgen && playwright test",
     "test:e2e:ui": "npm run db:reset:e2e && npm run db:migrate:e2e && bddgen && playwright test --ui",
     "db:push": "drizzle-kit push",
