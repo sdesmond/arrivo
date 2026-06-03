@@ -20,6 +20,7 @@ import {
   pullTemplatesOntoTrip,
   removePackingItem,
   reorderPackingItems,
+  saveTripListAsTemplate,
   togglePackingItem,
   updatePackingItem,
   updateTripMetadata,
@@ -81,6 +82,7 @@ export interface TripDetailHandlers {
   ) => void;
   handleUpdatePackingItem: (id: string, name: string) => void;
   handlePullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
+  handleSaveAsTemplate: (name: string) => Promise<string | undefined>;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -312,6 +314,16 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     }
   }
 
+  async function handleSaveAsTemplate(name: string): Promise<string | undefined> {
+    try {
+      const result = await saveTripListAsTemplate(trip.id, name);
+      return result.templateId;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save template. Please try again.");
+      return undefined;
+    }
+  }
+
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -393,6 +405,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleReorderPackingItems,
     handleUpdatePackingItem,
     handlePullTemplates,
+    handleSaveAsTemplate,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,

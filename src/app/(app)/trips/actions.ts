@@ -25,6 +25,7 @@ import type {
   AddPackingItemInput,
   UpdatePackingItemInput,
   PullTemplatesResult,
+  SaveTripAsTemplateResult,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
@@ -684,6 +685,88 @@ export async function pullTemplatesOntoTrip(tripId: string, templateIds: string[
   revalidatePath("/trips");
 
   return { added, skipped };
+}
+
+export async function saveTripListAsTemplate(tripId: string, name: string): Promise<SaveTripAsTemplateResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const trimmedName = name.trim();
+  if (trimmedName.length === 0) {
+    throw new Error("Template name is required");
+  }
+  if (trimmedName.length > 100) {
+    throw new Error("Template name must be 100 characters or fewer");
+  }
+
+  const tripItems = await db
+    .select()
+    .from(packingItems)
+    .where(eq(packingItems.tripId, tripId))
+    .orderBy(asc(packingItems.position));
+
+  if (tripItems.length === 0) {
+    throw new Error("Cannot save an empty packing list as a template");
+  }
+
+  let templateId: string | undefined;
+
+  await db.transaction(async (tx) => {
+    const [template] = await tx
+      .insert(packingTemplates)
+      .values({ userId: user.id!, name: trimmedName })
+      .returning({ id: packingTemplates.id });
+
+    if (!template) throw new Error("Failed to create template");
+    templateId = template.id;
+
+    const labelIdMap = new Map<string, string>();
+
+    for (const item of tripItems) {
+      if (item.isLabel) {
+        const [inserted] = await tx
+          .insert(packingTemplateItems)
+          .values({
+            templateId: template.id,
+            text: item.name,
+            isLabel: true,
+            position: item.position,
+            labelId: null,
+          })
+          .returning({ id: packingTemplateItems.id });
+
+        if (!inserted) throw new Error(`Failed to insert template label for item "${item.name}" (${item.id})`);
+        labelIdMap.set(item.id, inserted.id);
+      }
+    }
+
+    for (const item of tripItems) {
+      if (!item.isLabel) {
+        if (item.labelId && !labelIdMap.has(item.labelId)) {
+          throw new Error(`Item "${item.name}" (${item.id}) references a section label that no longer exists`);
+        }
+        const newLabelId = item.labelId ? labelIdMap.get(item.labelId)! : null;
+
+        const [inserted] = await tx
+          .insert(packingTemplateItems)
+          .values({
+            templateId: template.id,
+            text: item.name,
+            isLabel: false,
+            position: item.position,
+            labelId: newLabelId,
+          })
+          .returning({ id: packingTemplateItems.id });
+
+        if (!inserted) throw new Error(`Failed to insert template item "${item.name}" (${item.id})`);
+      }
+    }
+  });
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+
+  return { templateId: templateId! };
 }
 
 export interface LocationSuggestion {
