@@ -614,3 +614,8 @@ export interface AddPackingItemInput {
 export interface UpdatePackingItemInput {
   name?: string;
 }
+
+export interface PullTemplatesResult {
+  added: number;
+  skipped: number;
+}

@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import { reorderDayItems } from "./actions";
-import { addPackingItem, deleteTrip, removePackingItem, reorderPackingItems, updatePackingItem } from "../actions";
+import {
+  addPackingItem,
+  deleteTrip,
+  pullTemplatesOntoTrip,
+  removePackingItem,
+  reorderPackingItems,
+  updatePackingItem,
+} from "../actions";
 import type { TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
@@ -22,6 +29,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("../actions", () => ({
   addPackingItem: vi.fn(),
   deleteTrip: vi.fn(),
+  pullTemplatesOntoTrip: vi.fn(),
   removePackingItem: vi.fn(),
   reorderPackingItems: vi.fn(),
   updatePackingItem: vi.fn(),
@@ -266,5 +274,34 @@ describe("useTripDetailHandlers", () => {
         beforeItemId: "label-1",
       })
     );
+  });
+
+  it("handlePullTemplates calls pullTemplatesOntoTrip with the trip id and template ids", async () => {
+    vi.mocked(pullTemplatesOntoTrip).mockResolvedValueOnce({ added: 3, skipped: 1 });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let pullResult: Awaited<ReturnType<typeof result.current.handlePullTemplates>>;
+    await act(async () => {
+      pullResult = await result.current.handlePullTemplates(["t1", "t2"]);
+    });
+
+    expect(pullTemplatesOntoTrip).toHaveBeenCalledWith("trip-1", ["t1", "t2"]);
+    await waitFor(() => expect(pullResult).toEqual({ added: 3, skipped: 1 }));
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
+  it("handlePullTemplates shows toast.error and resolves undefined when action throws", async () => {
+    vi.mocked(pullTemplatesOntoTrip).mockRejectedValueOnce(new Error("Pull failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let pullResult: Awaited<ReturnType<typeof result.current.handlePullTemplates>>;
+    await act(async () => {
+      pullResult = await result.current.handlePullTemplates(["t1"]);
+    });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Pull failed"));
+    expect(pullResult).toBeUndefined();
   });
 });

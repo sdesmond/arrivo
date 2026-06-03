@@ -7,6 +7,8 @@ import {
   trips,
   collaborators,
   packingItems,
+  packingTemplates,
+  packingTemplateItems,
   documents,
   days,
   events,
@@ -23,6 +25,7 @@ import type {
   AddCollaboratorInput,
   AddPackingItemInput,
   UpdatePackingItemInput,
+  PullTemplatesResult,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
@@ -580,6 +583,96 @@ export async function reorderPackingItems(
   });
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
+}
+
+export async function pullTemplatesOntoTrip(tripId: string, templateIds: string[]): Promise<PullTemplatesResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+  const uniqueIds = [...new Set(templateIds)];
+  if (uniqueIds.length === 0) return { added: 0, skipped: 0 };
+
+  const existingRows = await db
+    .select({ name: packingItems.name, id: packingItems.id, isLabel: packingItems.isLabel })
+    .from(packingItems)
+    .where(eq(packingItems.tripId, tripId));
+  const existingNames = new Set(existingRows.map((row) => row.name.toLowerCase().trim()));
+  const existingLabelNameToId = new Map<string, string>();
+  for (const row of existingRows) {
+    if (row.isLabel) {
+      existingLabelNameToId.set(row.name.toLowerCase().trim(), row.id);
+    }
+  }
+
+  const ownedTemplates = await db
+    .select({ id: packingTemplates.id })
+    .from(packingTemplates)
+    .where(and(inArray(packingTemplates.id, uniqueIds), eq(packingTemplates.userId, user.id!)));
+  const ownedIds = new Set(ownedTemplates.map((tmpl) => tmpl.id));
+
+  let added = 0;
+  let skipped = 0;
+
+  await db.transaction(async (tx) => {
+    const [maxPosRow] = await tx
+      .select({ maxPos: max(packingItems.position) })
+      .from(packingItems)
+      .where(eq(packingItems.tripId, tripId));
+    let nextPosition = (maxPosRow.maxPos ?? -1) + 1;
+
+    const labelIdMap = new Map<string, string>();
+
+    for (const templateId of uniqueIds) {
+      if (!ownedIds.has(templateId)) continue;
+
+      const items = await tx
+        .select()
+        .from(packingTemplateItems)
+        .where(eq(packingTemplateItems.templateId, templateId))
+        .orderBy(asc(packingTemplateItems.position));
+
+      for (const item of items) {
+        const normalizedText = item.text.trim().toLowerCase();
+        if (existingNames.has(normalizedText)) {
+          if (item.isLabel) {
+            const existingId = existingLabelNameToId.get(normalizedText);
+            if (existingId) {
+              labelIdMap.set(item.id, existingId);
+            }
+          }
+          skipped++;
+          continue;
+        }
+
+        const newLabelId = item.isLabel ? null : item.labelId ? (labelIdMap.get(item.labelId) ?? null) : null;
+
+        const [inserted] = await tx
+          .insert(packingItems)
+          .values({
+            tripId,
+            name: item.text.trim(),
+            done: false,
+            isLabel: item.isLabel,
+            position: nextPosition++,
+            labelId: newLabelId,
+          })
+          .returning({ id: packingItems.id });
+
+        if (!inserted) throw new Error("Failed to insert packing item during template pull");
+
+        if (item.isLabel) {
+          labelIdMap.set(item.id, inserted.id);
+        }
+
+        added++;
+        existingNames.add(normalizedText);
+      }
+    }
+  });
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+
+  return { added, skipped };
 }
 
 export interface LocationSuggestion {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useSortableMock = vi.hoisted(() =>
   vi.fn(() => ({
@@ -41,10 +41,33 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }));
 
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
-import type { PackingItem } from "@/data/types";
+import type { PackingItem, PackingTemplate } from "@/data/types";
+
+vi.mock("./template-pull-dialog", () => ({
+  TemplatePullDialog: ({
+    open,
+    templates,
+    onOpenChange,
+    onPull,
+  }: {
+    open: boolean;
+    templates: PackingTemplate[];
+    onOpenChange: (v: boolean) => void;
+    onPull: (ids: string[]) => Promise<unknown>;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="Pull from templates">
+        {templates.map((template) => (
+          <span key={template.id}>{template.name}</span>
+        ))}
+        <button onClick={() => void onPull(["t1"])}>Trigger pull</button>
+        <button onClick={() => onOpenChange(false)}>Close dialog</button>
+      </div>
+    ) : null,
+}));
 
 const groupedItems: PackingItem[] = [
   { id: "ungrouped-1", name: "Passport", done: false, position: 0, labelId: null },
@@ -61,6 +84,10 @@ function createToggleItemHandler() {
 describe("PackingListView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the empty state prompt when there are no items", () => {
@@ -840,4 +867,180 @@ describe("PackingListView", () => {
     const editInput = inputs.find((el) => (el as HTMLInputElement).value === "Passport");
     expect(editInput).toHaveAttribute("maxLength", "100");
   });
+
+  // ── Story 2.3 — Pull from template ───────────────────────────────────────────
+
+  it("shows 'Pull from a template' button in empty state when onPullTemplates is provided", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[]}
+        onPullTemplates={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Pull from a template" })).toBeInTheDocument();
+  });
+
+  it("does not show pull button in empty state when onPullTemplates is absent", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Pull from a template" })).not.toBeInTheDocument();
+  });
+
+  it("shows 'Pull templates' button in populated state when onPullTemplates is provided", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[]}
+        onPullTemplates={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Pull templates" })).toBeInTheDocument();
+  });
+
+  it("opens the pull dialog when the empty-state pull button is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
+
+    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
+  });
+
+  it("opens the pull dialog when the populated-state pull button is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pull templates" }));
+
+    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
+  });
+
+  it("shows result notice after successful pull and hides the dialog", async () => {
+    const user = userEvent.setup();
+    const onPullTemplates = vi.fn().mockResolvedValue({ added: 3, skipped: 1 });
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={onPullTemplates}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
+    await user.click(screen.getByRole("button", { name: "Trigger pull" }));
+
+    await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
+    expect(screen.queryByRole("dialog", { name: "Pull from templates" })).not.toBeInTheDocument();
+  });
+
+  it("shows no result notice when pull returns undefined", async () => {
+    const user = userEvent.setup();
+    const onPullTemplates = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={onPullTemplates}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
+    await user.click(screen.getByRole("button", { name: "Trigger pull" }));
+
+    await waitFor(() => expect(onPullTemplates).toHaveBeenCalledWith(["t1"]));
+    expect(screen.queryByText(/item\(s\) added/)).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
+  });
+
+  it("auto-dismisses the result notice after four seconds", async () => {
+    const onPullTemplates = vi.fn().mockResolvedValue({ added: 3, skipped: 1 });
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={onPullTemplates}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pull from a template" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Trigger pull" }));
+
+    await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
+    await waitFor(
+      () => expect(screen.queryByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).not.toBeInTheDocument(),
+      { timeout: 4500 }
+    );
+  }, 7000);
 });

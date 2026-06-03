@@ -1,6 +1,6 @@
 # Story 2.1: Template Library — Create, Rename & Delete Templates
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

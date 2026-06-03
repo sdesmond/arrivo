@@ -1,0 +1,2290 @@
+diff --git a/_bmad-output/implementation-artifacts/2-1-template-library-create-rename-and-delete-templates.md b/_bmad-output/implementation-artifacts/2-1-template-library-create-rename-and-delete-templates.md
+index f42e33a..d2668d7 100644
+--- a/_bmad-output/implementation-artifacts/2-1-template-library-create-rename-and-delete-templates.md
++++ b/_bmad-output/implementation-artifacts/2-1-template-library-create-rename-and-delete-templates.md
+@@ -1,6 +1,6 @@
+ # Story 2.1: Template Library — Create, Rename & Delete Templates
+ 
+-Status: review
++Status: done
+ 
+ <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+ 
+diff --git a/_bmad-output/implementation-artifacts/2-3-pull-templates-onto-a-trip-packing-list.md b/_bmad-output/implementation-artifacts/2-3-pull-templates-onto-a-trip-packing-list.md
+new file mode 100644
+index 0000000..9fa755f
+--- /dev/null
++++ b/_bmad-output/implementation-artifacts/2-3-pull-templates-onto-a-trip-packing-list.md
+@@ -0,0 +1,756 @@
++# Story 2.3: Pull Templates onto a Trip Packing List
++
++Status: ready-for-dev
++
++## Story
++
++As a traveler,
++I want to pull one or more templates onto my trip's packing list with automatic deduplication,
++so that I can populate a trip list from my accumulated packing expertise in seconds.
++
++**FRs covered:** FR14, FR15, FR16, NFR2, NFR5, NFR6, NFR7, NFR8, NFR10, NFR12
++
++**This story builds on Story 2.2's template item editor and Story 1.1's trip packing list.** Templates with items exist in the library. The trip packing list (`PackingListView` at `src/components/packt/packing-list-view.tsx`, rendered from `trip-detail-tab-body.tsx` when `activeTab === "pack"`) currently shows an empty state with only a manual-entry form. This story adds a "Pull from template" affordance to the empty state and a pull dialog, a server action `pullTemplatesOntoTrip` in `trips/actions.ts` that copies template items into `packingItems` with case-insensitive deduplication, the handler wiring through `useTripDetailHandlers` → `TripDetailClient` → `TripDetailTabBody` → `PackingListView`, and a reusable `TemplatePullDialog` component.
++
++Do NOT implement save-as-template (Story 2.4) here.
++
++## Acceptance Criteria
++
++**AC1 — Empty state offers template pull**
++Given a trip packing list is empty
++When the user views the Packing tab
++Then the empty state offers both an "Add items manually" path and a "Pull from a template" path
++
++**AC2 — Pull a single template onto an empty list**
++Given the user selects a template to pull onto an empty trip list
++When the pull completes
++Then all items and labels from the template are copied into the trip list in their original order
++
++**AC3 — Multiple templates merge into one flat list**
++Given the user pulls two or more templates
++When the pull completes
++Then items from all selected templates are merged into a single flat list ordered by template selection order then item position
++
++**AC4 — Deduplication with case-insensitive match**
++Given two templates share one or more item texts (case-insensitive match)
++When both are pulled onto the same trip list
++Then duplicate items appear only once
++And a lightweight notice shows "X duplicate(s) skipped"
++
++**AC5 — Dedup against existing items when pulling onto a populated list**
++Given a trip already has packing list items
++When the user pulls an additional template
++Then the template items are appended to the existing list
++And deduplication applies against all existing items, not just within the new template
++
++**AC6 — No templates → message with link**
++Given the user has no templates
++When they attempt to pull a template
++Then they see a message indicating no templates exist with a link to create one
++
++**AC7 — Performance: 200 items within 500ms**
++Given a pull operation involving up to 200 total items across templates
++When the pull completes
++Then it completes within 500ms
++
++**AC8 — Auth enforcement (NFR5, NFR6)**
++Given the pull server action is called
++Then `requireUser()` + `assertTripAccess()` are enforced before writing to the trip list
++And templates are scoped to the authenticated user (NFR7)
++
++**AC9 — Accessibility (NFR8, NFR10, NFR12)**
++Given any interactive element in the pull dialog
++Then all touch targets are at minimum 44×44px on mobile viewports
++And all interactive elements have a visible focus indicator meeting WCAG 2.1 AA contrast
++And the dialog has a descriptive `aria-label` or `aria-labelledby`
++
++## Tasks / Subtasks
++
++- [ ] **Types** — add `PullTemplatesInput` and `PullTemplatesResult` to `src/data/types.ts` (AC1–AC5, AC8)
++- [ ] **Server action** — add `pullTemplatesOntoTrip` to `src/app/(app)/trips/actions.ts` (AC2–AC5, AC7, AC8)
++  - [ ] `requireUser()` + `assertTripAccess(tripId, user.id!, "editor")`
++  - [ ] Fetch existing `packingItems` names as `Set<string>` for dedup
++  - [ ] Fetch each template's items from `packingTemplateItems` (auth check: user owns the template)
++  - [ ] Case-insensitive dedup: lowercased text vs lowercased existing names; labels ARE compared (two identical labels = one)
++  - [ ] Insert deduped items in template-order; each template's items get sequential positions starting after the last existing item position
++  - [ ] Count duplicates across all templates (not per-template)
++  - [ ] Return `{ count: number }` (number of unique items added) for the client notice
++  - [ ] `revalidatePath` on both `/trips/${tripId}` and `/trips`
++- [ ] **Handler** — add `handlePullTemplates` to `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts` (AC1)
++  - [ ] Wraps `pullTemplatesOntoTrip` in `startTransition` with `toast.error` on failure
++  - [ ] `handlePullTemplates(templateIds: string[]): Promise<{ count: number } | undefined>`
++- [ ] **Wiring** — thread `onPullTemplates` through `TripDetailClient` → `TripDetailTabBody` (AC1)
++- [ ] **Component** — new `src/components/packt/template-pull-dialog.tsx` (`"use client"`) (AC1, AC6, AC9)
++  - [ ] Props: `templates: PackingTemplate[]` (from `PackingListView` via `onPullTemplates`)
++  - [ ] Dialog: title "Pull from templates", checkbox list of templates, "Pull selected" button, cancel/close
++  - [ ] Empty state: "No templates yet — create one from the template library" with a `<Link href="/packing">` to create
++  - [ ] Shows "X item(s) added, Y duplicate(s) skipped" notice after successful pull (auto-dismiss after 4 seconds)
++  - [ ] Accessible: `<dialog>` with `aria-labelledby` referencing the title, focus trap, Escape to close
++  - [ ] Touch targets: `min-h-11 min-w-11` on all buttons; checkboxes at least 44×44px
++- [ ] **Modify `PackingListView`** — add pull-button and wire dialog (AC1, AC6)
++  - [ ] New prop: `onPullTemplates: () => Promise<PackingTemplate[]>` (fetches templates via a lightweight wrapper)
++  - [ ] New prop: `templates: PackingTemplate[]` — the full template list for the dialog
++  - [ ] Empty state: add "Pull from a template" `<Button variant="outline">` alongside the existing entry form
++  - [ ] Populated state: add "Pull templates" button above the sortable list (inline with heading area)
++  - [ ] Manage dialog open/close state locally
++  - [ ] On pull complete, close dialog and show inline notice (number of items added / duplicates skipped)
++- [ ] **Fetch templates in trip page** — pass `templates` prop down (AC1)
++  - [ ] `page.tsx` calls `listTemplatesForUser(session.id)` and passes templates through
++  - [ ] Thread through `TripDetailClient` → `TripDetailTabBody` → `PackingListView`
++- [ ] **Unit tests** — colocated, same change
++  - [ ] `src/app/(app)/trips/actions.test.ts` — `pullTemplatesOntoTrip` (auth, dedup, cross-user scoping, empty input, count)
++  - [ ] `src/components/packt/template-pull-dialog.test.tsx` — dialog renders, shows templates, no-templates message, pull button fires
++  - [ ] `src/components/packt/packing-list-view.test.tsx` — pull button in empty state, pull button in populated state
++  - [ ] `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.ts` — handlePullTemplates calls action, error handling
++- [ ] **E2E** — new flow, same change (AC1–AC5, AC8, AC9)
++  - [ ] `tests/e2e/features/pull-templates.feature` — BDD scenarios (tag `@pull-templates`)
++  - [ ] `tests/e2e/steps/pull-templates.steps.ts` — step defs + self-seeding `Before`/`After` DB hooks
++- [ ] **Operational** — schema already has `packingTemplateItems` from Story 2.2; no schema change needed
++
++## Dev Notes
++
++### Existing State — files you touch
++
++| Artifact | Location | Action |
++|---|---|---|
++| `PackingItem` type | `src/data/types.ts:387` | Reference |
++| `AddPackingItemInput` type | `src/data/types.ts:606` | Reference — add `PullTemplatesInput` and `PullTemplatesResult` after it |
++| `packingItems` table | `src/db/schema.ts:217` | Insert target |
++| `packingTemplateItems` table | `src/db/schema.ts:318` | Read source — import for server action |
++| `packingTemplates` table | `src/db/schema.ts:303` | Ownership check |
++| `addPackingItem` action | `src/app/(app)/trips/actions.ts:464` | Colleague — add `pullTemplatesOntoTrip` in the same file |
++| `normalizePackingItemName` | `src/app/(app)/trips/actions.ts:456` | Reuse for name normalization |
++| `PackingListView` | `src/components/packt/packing-list-view.tsx` | Add pull button + dialog state |
++| `packing-list-view.test.tsx` | `src/components/packt/packing-list-view.test.tsx` | Add pull-button tests |
++| `useTripDetailHandlers` | `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts` | Add `handlePullTemplates` |
++| `TripDetailClient` | `src/app/(app)/trips/[tripId]/page-client.tsx` | Thread `templates` prop and `onPullTemplates` |
++| `TripDetailTabBody` | `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx` | Thread `templates` and `onPullTemplates` |
++| `page.tsx` (trip detail) | `src/app/(app)/trips/[tripId]/page.tsx` | Fetch `listTemplatesForUser` |
++| `listTemplatesForUser` | `src/lib/queries.ts:129` | Already exists — import and call from trip page |
++| `templates.steps.ts` | `tests/e2e/steps/templates.steps.ts` | Reference `withE2EDb` + `getE2EUserId` pattern |
++
++### Types — exact shape (`src/data/types.ts`)
++
++Add after `UpdatePackingItemInput` (line 616):
++
++```ts
++export interface PullTemplatesInput {
++  templateIds: string[];
++}
++
++export interface PullTemplatesResult {
++  added: number;
++  skipped: number;
++}
++```
++
++### Server action (`src/app/(app)/trips/actions.ts`)
++
++Add after `reorderPackingItems` (line 583):
++
++```ts
++export async function pullTemplatesOntoTrip(
++  tripId: string,
++  templateIds: string[]
++): Promise<PullTemplatesResult> {
++  const user = await requireUser();
++  await assertTripAccess(tripId, user.id!, "editor");
++  if (templateIds.length === 0) return { added: 0, skipped: 0 };
++
++  // Fetch existing item names for dedup (case-insensitive set)
++  const existingItems = await db
++    .select({ name: packingItems.name })
++    .from(packingItems)
++    .where(eq(packingItems.tripId, tripId));
++  const existingNames = new Set(existingItems.map((r) => r.name.toLowerCase()));
++
++  // Fetch template items for all requested templates (owner-scoped)
++  const templates = await db
++    .select({ id: packingTemplates.id })
++    .from(packingTemplates)
++    .where(
++      and(
++        inArray(packingTemplates.id, templateIds),
++        eq(packingTemplates.userId, user.id!)
++      )
++    );
++  const ownedIds = new Set(templates.map((t) => t.id));
++
++  // Get the max current position for appending
++  const [{ maxPos }] = await db
++    .select({ maxPos: max(packingItems.position) })
++    .from(packingItems)
++    .where(eq(packingItems.tripId, tripId));
++
++  let nextPosition = (maxPos ?? -1) + 1;
++  let added = 0;
++  let skipped = 0;
++
++  await db.transaction(async (tx) => {
++    for (const templateId of templateIds) {
++      if (!ownedIds.has(templateId)) continue; // skip templates not owned by user
++
++      const items = await tx
++        .select()
++        .from(packingTemplateItems)
++        .where(eq(packingTemplateItems.templateId, templateId))
++        .orderBy(asc(packingTemplateItems.position));
++
++      for (const templateItem of items) {
++        const normalizedText = templateItem.text.toLowerCase();
++        if (existingNames.has(normalizedText)) {
++          skipped++;
++          continue;
++        }
++
++        // Build labelId mapping: template labelId → new packing item id
++        // For first pass without cross-reference, labels become ungrouped
++        // (section labels pulled from a template are grouped as they were in the template)
++
++        await tx.insert(packingItems).values({
++          tripId,
++          name: templateItem.text,
++          done: false,
++          isLabel: templateItem.isLabel,
++          position: nextPosition++,
++          // labelId is set null — labels are inserted first where possible,
++          // then a second pass updates item labelIds. For simplicity in v1,
++          // preserve label→item grouping by: (1) collecting label IDs from template,
++          // (2) after inserting all items, updating labelIds.
++          // See "labelId cross-reference" below.
++          labelId: null,
++        });
++        added++;
++        existingNames.add(normalizedText);
++      }
++    }
++
++    // Second pass: update labelId references.
++    // For each template, collect the original template labelId → new packing item id mapping.
++    // For each non-label template item that had a labelId in the template,
++    // find the inserted packing item by matching text + labelId context
++    // (simplified: match by position offset from template).
++    // This is complex — the simplified approach: read back inserted items
++    // by position range and update labelIds.
++  });
++
++  revalidatePath(`/trips/${tripId}`);
++  revalidatePath("/trips");
++
++  return { added, skipped };
++}
++```
++
++**labelId cross-reference in template pull:** The tricky part is preserving the label→item grouping from the template. Template items have `labelId` pointing to another `packingTemplateItems.id`. When copying to `packingItems`, the new item IDs are different. Approach:
++
++1. Collect all template items ordered by position into an array.
++2. Insert items one by one. For each label item, remember its new ID (from `returning()`).
++3. Build a map `templateLabelId → new packingItemId`.
++4. After all inserts, update `labelId` on each inserted non-label item that had a `labelId` — the update uses the map.
++
++Implementation detail: collect items per template into memory, then insert in one batch:
++
++```ts
++// Collect all items from all templates, preserving order
++interface PendingInsert {
++  text: string;
++  isLabel: boolean;
++  position: number;
++  templateLabelId: string | null; // the labelId from the template (self-FK)
++}
++
++const pendingInserts: PendingInsert[] = [];
++let allSkipped = 0;
++
++for (const templateId of templateIds) {
++  if (!ownedIds.has(templateId)) continue;
++  const items = await tx.select()
++    .from(packingTemplateItems)
++    .where(eq(packingTemplateItems.templateId, templateId))
++    .orderBy(asc(packingTemplateItems.position));
++
++  for (const item of items) {
++    if (existingNames.has(item.text.toLowerCase())) {
++      allSkipped++;
++      continue;
++    }
++    pendingInserts.push({
++      text: item.text,
++      isLabel: item.isLabel,
++      position: item.position,
++      templateLabelId: item.labelId,
++    });
++    existingNames.add(item.text.toLowerCase());
++  }
++}
++```
++
++For labels, insert first and capture their new IDs. Then insert non-labels. Then update `labelId`:
++
++```ts
++// Map: old template labelId → new packingItem id
++const labelIdMap = new Map<string, string>();
++
++for (const insert of pendingInserts) {
++  if (insert.isLabel) {
++    const [row] = await tx.insert(packingItems)
++      .values({ tripId, name: insert.text, done: false, isLabel: true, position: nextPosition++, labelId: null })
++      .returning({ id: packingItems.id });
++    if (insert.templateLabelId) {
++      labelIdMap.set(insert.templateLabelId, row.id);
++    }
++  }
++}
++
++for (const insert of pendingInserts) {
++  if (!insert.isLabel) {
++    const newLabelId = insert.templateLabelId ? (labelIdMap.get(insert.templateLabelId) ?? null) : null;
++    await tx.insert(packingItems)
++      .values({ tripId, name: insert.text, done: false, isLabel: false, position: nextPosition++, labelId: newLabelId })
++      .returning({ id: packingItems.id });
++  }
++}
++```
++
++The dedup notice: each template item text that already exists in `existingNames` (lowercased) increments `skipped`. The final `added = pendingInserts.length`.
++
++Import additions needed in `trips/actions.ts`:
++```ts
++import { packingTemplateItems, packingTemplates } from "@/db/schema";
++import type { PullTemplatesResult } from "@/data/types";
++// asc may already be imported; if not add it
++```
++
++### Handler (`src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts`)
++
++Add to the `TripDetailHandlers` return value:
++```ts
++handlePullTemplates: (templateIds: string[]) => Promise<{ added: number; skipped: number } | undefined>;
++```
++
++Implementation:
++```ts
++function handlePullTemplates(templateIds: string[]): Promise<{ added: number; skipped: number } | undefined> {
++  return new Promise((resolve) => {
++    startTransition(async () => {
++      try {
++        const result = await pullTemplatesOntoTrip(trip.id, templateIds);
++        resolve(result);
++      } catch (error) {
++        toast.error(error instanceof Error ? error.message : "Failed to pull templates. Please try again.");
++        resolve(undefined);
++      }
++    });
++  });
++}
++```
++
++Import `pullTemplatesOntoTrip` from `"../actions"` (same import line as other packing actions, line 18).
++
++### Template pull dialog (`src/components/packt/template-pull-dialog.tsx`)
++
++New component, `"use client"`:
++
++```ts
++"use client";
++
++import { useState, type ReactElement } from "react";
++import { Check, FolderOpen } from "lucide-react";
++import { Button } from "@/components/ui/button";
++import type { PackingTemplate } from "@/data/types";
++
++export interface TemplatePullDialogProps {
++  open: boolean;
++  templates: PackingTemplate[];
++  onClose: () => void;
++  onPull: (templateIds: string[]) => Promise<{ added: number; skipped: number } | undefined>;
++}
++```
++
++- Uses a `<dialog>` element with `open` prop, or a controlled overlay div with `aria-*` attributes.
++- If `templates.length === 0`: show "No templates yet" message with `<a href="/packing">` (Link to the template library page).
++- Otherwise: checkbox list of templates. Each row = checkbox + template name.
++- "Pull selected (N)" button (disabled when none selected).
++- Shows result notice inline after pull: "3 item(s) added, 1 duplicate(s) skipped" — auto-hides after 4 seconds via `useEffect` + `setTimeout`.
++- Uses existing style tokens: `var(--surface)`, `var(--line)`, etc.
++- Touch targets: `className="min-h-11 min-w-11"` on buttons. Checkbox rows `className="flex items-center gap-3 py-2 min-h-11"`.
++- The dialog overlay: fixed, full-screen backdrop with centered content panel.
++- Accessible: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` on the title `<h2>`.
++
++### `PackingListView` — integration
++
++Add props:
++```ts
++templates: PackingTemplate[];
++onPullTemplates: (templateIds: string[]) => Promise<{ added: number; skipped: number } | undefined>;
++```
++
++In the empty state (line 188–210), after the `<p>` description, add a second button:
++```tsx
++<Button className="min-h-11 min-w-11 flex-1 rounded-2xl" variant="outline" onClick={() => setDialogOpen(true)}>
++  <FolderOpen size={16} strokeWidth={1.5} />
++  Pull from a template
++</Button>
++```
++
++Local state: `const [dialogOpen, setDialogOpen] = useState(false);` and `const [resultNotice, setResultNotice] = useState<{ added: number; skipped: number } | null>(null);`
++
++On successful pull:
++```tsx
++async function handlePullTemplates(templateIds: string[]): Promise<void> {
++  const result = await onPullTemplates(templateIds);
++  if (result) {
++    setResultNotice(result);
++    setDialogOpen(false);
++    setTimeout(() => setResultNotice(null), 4000);
++  }
++}
++```
++
++Render the result notice inline when non-null:
++```tsx
++{resultNotice && (
++  <div className="rounded-2xl border p-3 text-sm" style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}>
++    {resultNotice.added} item(s) added{resultNotice.skipped > 0 ? `, ${resultNotice.skipped} duplicate(s) skipped` : ""}
++  </div>
++)}
++```
++
++Pass `onAddItem` placeholder warning: the empty state form already works — the pull button is an alternative path, not a replacement.
++
++For the populated state, add a "Pull templates" button above the list heading area (before `PackingListSortable`):
++```tsx
++<div className="flex items-center justify-between">
++  <span className="text-sm" style={{ color: "var(--fg-2)" }}>
++    {effectiveItems.length} item{effectiveItems.length !== 1 ? "s" : ""}
++  </span>
++  <Button className="min-h-9 min-w-9 rounded-xl" variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
++    <FolderOpen size={14} strokeWidth={1.5} />
++    Pull templates
++  </Button>
++</div>
++```
++
++### Wiring — fetch templates in trip page
++
++In `src/app/(app)/trips/[tripId]/page.tsx`:
++
++Add import:
++```ts
++import { listTemplatesForUser } from "@/lib/queries";
++```
++
++Add fetch in the `Promise.all`:
++```ts
++const [detail, profile, now, templates] = await Promise.all([
++  getTripDetail(tripId, session.id!),
++  getUserById(session.id!),
++  getServerNow(),
++  listTemplatesForUser(session.id!),
++]);
++```
++
++Pass to `TripDetailClient`:
++```tsx
++<TripDetailClient
++  detail={detail}
++  nowISO={now.toISOString()}
++  dateFormat={dateFormat}
++  initialExpandedDayNumber={...}
++  isNew={...}
++  templates={templates}
++/>
++```
++
++Thread through `TripDetailClient` → `TripDetailTabBody` → `PackingListView`:
++- `TripDetailClientProps` adds `templates: PackingTemplate[]`
++- `TripDetailTabBodyProps` adds `templates: PackingTemplate[]`
++- `PackingListView` gets them as the `templates` prop
++
++The `onPullTemplates` handler comes from `useTripDetailHandlers`:
++- `TripDetailHandlers` adds `handlePullTemplates`
++- `TripDetailClient` passes `onPullTemplates={handlers.handlePullTemplates}`
++- `TripDetailTabBody` receives and passes `onPullTemplates`
++
++### What NOT to do
++
++- Do NOT implement save-as-template (Story 2.4)
++- Do NOT add per-item cherry-pick — pull is all-or-nothing per template (Phase 1)
++- Do NOT add section-label drag-to-reorder (Phase 1: items only; labels are non-draggable in both template and trip list)
++- Do NOT add "select all" / "deselect all" in the pull dialog — Phase 1 simplicity; user selects individual checkboxes
++- Do NOT use `fetch` or an API route — the pull action is a server action called from the handler
++- Do NOT store `done` on template items — templates are pristine; all pulled items start with `done: false`
++- Do NOT add real-time sync — all mutations via server actions with `revalidatePath`
++- Do NOT hardcode hex/rgb — always CSS custom properties
++- Do NOT redefine types locally — all new types in `src/data/types.ts`
++- Do NOT use `window.confirm` for any confirmation in the dialog — use dialog buttons
++- Do NOT skip the `labelId` cross-reference mapping — without it, pulled section labels will not group their items; all items appear ungrouped at the bottom. The template editor (`template-editor-view.tsx`) correctly groups items, so pulling a template that has sections should preserve that grouping.
++- Do NOT use `assertTripAccess` with a template ID — template access and trip access are separate concerns; the action checks both independently
++
++### Deduplication rules
++
++| Source | Match target | Algorithm |
++|---|---|---|
++| Template item `text` | Existing packing item `name` | `.toLowerCase()` equality |
++| Template label `text` | Existing packing item `name` | `.toLowerCase()` equality (labels CAN be deduped — two labels with same text are a single label) |
++| Template item `text` | Template item `text` (within same pull) | Same `.toLowerCase()` check; deduplication is **global** across all selected templates |
++
++Deduplication is scoped to the trip's existing `packingItems` + all items already added from earlier templates in the same pull call. The `existingNames` Set accumulates as items are added.
++
++### Performance (AC7 — NFR2)
++
++For up to 200 total items:
++- All fetches (existing items + template items) are batched — no N+1 queries
++- Insert is within a single transaction
++- The in-memory dedup Set is O(n) total
++- This is well under the 500ms budget; no additional optimization needed
++
++### Accessibility (AC9 — NFR8, NFR10, NFR12)
++
++- **Dialog**: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` on `<h2>` title; close button has `aria-label="Close"`
++- **Checkbox list**: each checkbox `<input type="checkbox">` with `<label>` wrapping the template name; visible focus ring
++- **"Pull selected" button**: `min-h-11 min-w-11`; disabled when `selectedIds.length === 0`
++- **Result notice**: rendered in a `aria-live="polite"` region for screen reader announcement
++- **"No templates" message**: includes a text link to `/packing` (template library) — not just an icon
++- **Close/Escape**: dialog closes on Escape key press; click-outside close optional but not required
++
++## Previous Story Intelligence (Stories 2.2 & 2.1)
++
++From previous story review findings — patterns that apply here:
++
++- **`requireUser()` must be the first line of every action** — auth before any DB read
++- **Dual auth check**: both `requireUser()` (authentication) and `assertTripAccess()` (trip-level authorization) — templates are user-scoped checked separately via `packingTemplates.userId`
++- **No `window.confirm`** — use dialog buttons/controls
++- **`toast` is globally mounted** — import `toast` from `"sonner"`, never add a second `<Toaster>`
++- **`session.id!`** — the non-null assertion is the established idiom after `requireUser()`
++- **`revalidatePath` after every mutation** — revalidate both `/trips/${tripId}` and `/trips`
++- **Return guard on insert** — check `if (!row) throw new Error(...)` after `returning()`
++- **Do NOT mirror server-driven props in `useState`** — use derive-from-props pattern (Story 2.2 review mandated this)
++- **E2E must self-seed at the DB level in `Before` hooks** — chained UI-driven setup races server-action revalidation. Template and packing item steps seed via DB directly.
++- **`inArray` must handle empty arrays** — `trips/actions.ts` already guards `templateIds.length === 0` at the top of the action
++
++## Git Intelligence
++
++Stories 2.1 and 2.2 are done and merged. Epic 2 is in-progress. The `packingTemplateItems` table and all template infrastructure exist. The trip packing list exists with full CRUD + reorder. No in-flight work conflicts with this story.
++
++The `labelId` cross-reference pattern (mapping old template label IDs to new packing item IDs during pull) is new — no existing pattern in the codebase handles this specific case. The approach described above (two-pass: insert labels first with `returning()`, build map, then update non-labels) is the recommended simple solution.
++
++## Testing
++
++### Test layering (mandatory — no cross-layer duplication)
++
++| Behavior | Layer | File |
++|---|---|---|
++| `PullTemplatesInput`/`PullTemplatesResult` types | Unit | Type-only — verified by compilation |
++| `pullTemplatesOntoTrip` action (auth, dedup, ownership) | Unit | `src/app/(app)/trips/actions.test.ts` |
++| Pull dialog renders, shows templates, no-templates message | Unit | `src/components/packt/template-pull-dialog.test.tsx` |
++| Packing list view shows pull button in empty/populated states | Unit | `src/components/packt/packing-list-view.test.tsx` |
++| `handlePullTemplates` calls action, handles error | Unit | `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.ts` |
++| Pull a template onto empty list, dedup, cross-template merge | E2E | `tests/e2e/features/pull-templates.feature` (+ steps) |
++
++Coverage: `src/components/packt/**` and `src/app/(app)/trips/actions.ts` (packing actions) are enforced (≥95% lines/functions, ≥90% branches). `src/app/(app)/trips/**` is excluded — still author colocated tests per the colocated-test convention.
++
++### Unit test specifics
++
++**`actions.test.ts`** — add `pullTemplatesOntoTrip` test block:
++- Empty `templateIds` → returns `{ added: 0, skipped: 0 }`, no DB calls
++- Template not owned by current user → skipped silently (no error thrown)
++- No existing items + template with 2 items → `{ added: 2, skipped: 0 }`, inserts 2 rows
++- Existing item "Sunscreen" + template item "sunscreen" (lowercase match) → `{ added: 0, skipped: 1 }`
++- Two templates, each with 1 unique item → `{ added: 2, skipped: 0 }`, inserts in order
++- Two templates, each with "Sunscreen" → `{ added: 1, skipped: 1 }`
++- Existing trip item "Passport" + template item "Toothbrush" and "passport" → `{ added: 1, skipped: 1 }`
++- `requireUser()` called; `assertTripAccess` called with "editor" role
++
++**`template-pull-dialog.test.tsx`**:
++- Renders with `open=true` and templates → shows each template name with a checkbox
++- Selecting a template and clicking "Pull selected" calls `onPull` with that template's id
++- No templates → shows "No templates yet" message with link
++- After pull, shows result notice with added/skipped counts
++- Closes on keyboard Escape
++
++**`packing-list-view.test.tsx`**:
++- Empty state: "Pull from a template" button is present
++- Populated state: "Pull templates" button is present
++- Clicking pull button opens dialog (dialog component renders)
++
++**`use-trip-detail-handlers.test.ts`** (model on existing pattern `use-trip-detail-handlers.test.ts`):
++- `handlePullTemplates(['id1', 'id2'])` → calls `pullTemplatesOntoTrip(tripId, ['id1', 'id2'])`
++- On success, resolves with `{ added, skipped }`
++- On error, shows `toast.error` and resolves with `undefined`
++
++### E2E specifics
++
++**Add to `tests/e2e/e2e-seed-data.ts`:**
++
++```ts
++export const E2E_TEMPLATE_PULL = { name: "Pull Template" };
++export const E2E_TEMPLATE_PULL_ITEMS = [
++  { text: "Passport", isLabel: false, position: 0 },
++  { text: "Phone Charger", isLabel: false, position: 1 },
++  { text: "Toothbrush", isLabel: false, position: 2 },
++];
++export const E2E_TEMPLATE_PULL_WITH_LABEL = { name: "Pull Label Template" };
++export const E2E_TEMPLATE_PULL_LABEL_ITEMS = [
++  { text: "Toiletries", isLabel: true, position: 0 },
++  { text: "Toothbrush", isLabel: false, position: 1, labelId: /* resolved at runtime */ null },
++  { text: "Shampoo", isLabel: false, position: 2, labelId: /* resolved at runtime */ null },
++];
++```
++
++**`tests/e2e/global-setup.ts`**: `packing_template_items` is already in the truncate list from Story 2.2.
++
++**`tests/e2e/steps/pull-templates.steps.ts`**: reuse `withE2EDb` + `getE2EUserId` helpers from `templates.steps.ts`.
++
++Seeding `packing_templates` and `packing_template_items`:
++```ts
++async function seedTemplateWithItems(templateName: string): Promise<string> {
++  return withE2EDb(async (db) => {
++    const userId = await getE2EUserId(db);
++    const [template] = await db.insert(packingTemplates)
++      .values({ userId, name: templateName })
++      .returning({ id: packingTemplates.id });
++    for (const item of E2E_TEMPLATE_PULL_ITEMS) {
++      await db.insert(packingTemplateItems)
++        .values({ templateId: template.id, ...item });
++    }
++    return template.id;
++  });
++}
++
++async function seedTemplateWithLabeledItems(templateName: string): Promise<string> {
++  return withE2EDb(async (db) => {
++    const userId = await getE2EUserId(db);
++    const [template] = await db.insert(packingTemplates)
++      .values({ userId, name: templateName })
++      .returning({ id: packingTemplates.id });
++    const [label] = await db.insert(packingTemplateItems)
++      .values({ templateId: template.id, text: "Toiletries", isLabel: true, position: 0 })
++      .returning({ id: packingTemplateItems.id });
++    await db.insert(packingTemplateItems)
++      .values({ templateId: template.id, text: "Toothbrush", isLabel: false, position: 1, labelId: label.id });
++    await db.insert(packingTemplateItems)
++      .values({ templateId: template.id, text: "Shampoo", isLabel: false, position: 2, labelId: label.id });
++    return template.id;
++  });
++}
++```
++
++Tag: `@pull-templates`.
++
++**`tests/e2e/features/pull-templates.feature`:**
++
++```gherkin
++@pull-templates
++Feature: Pull templates onto a trip packing list
++  Background:
++    Given I am signed in
++
++  Scenario: Empty state offers pull from template
++    Given I have a trip with no packing items
++    And I have a packing template "Pull Template" with items
++    When I open the packing tab for the trip
++    Then I see a "Pull from a template" option in the empty state
++
++  Scenario: Pull a template onto an empty trip list
++    Given I have a trip with no packing items
++    And I have a packing template "Pull Template" with items
++    When I open the packing tab for the trip
++    And I pull the template "Pull Template" onto the trip
++    Then the packing list should contain "Passport"
++    And the packing list should contain "Phone Charger"
++    And the packing list should contain "Toothbrush"
++
++  Scenario: Deduplication skips matching items
++    Given I have a trip with no packing items
++    And I have 2 packing templates "Pull Template" and "Pull Template 2" both with item "Toothbrush"
++    When I open the packing tab for the trip
++    And I pull both templates onto the trip
++    Then the packing list should contain "Toothbrush" only once
++    And I should see a notice that "1 duplicate(s) skipped"
++
++  Scenario: Pull onto an already-populated list
++    Given I have a trip with packing item "Laptop"
++    And I have a packing template "Pull Template" with items
++    When I open the packing tab for the trip
++    And I pull the template "Pull Template" onto the trip
++    Then the packing list should contain "Laptop"
++    And the packing list should contain "Passport"
++    And the packing list should contain "Phone Charger"
++```
++
++The E2E web server runs on port 3001 with `NEXT_DISTDIR=.next-e2e`. No DB migration needed — no schema change.
++
++### Project Structure Notes
++
++- All new/modified files follow existing patterns. The pull dialog is a new component in `src/components/packt/` (domain component). The server action goes into the existing `trips/actions.ts` (already has packing actions). No new routes needed.
++- The `templateIds` prop and `onPullTemplates` handler follow the same prop-threading pattern as `onAddPackingItem` / `onTogglePackingItem` through `TripDetailClient` → `TripDetailTabBody`.
++- No conflicts with the unified structure. Shared-file edits are additive: `types.ts`, `trips/actions.ts`, `page.tsx`, `page-client.tsx`, `trip-detail-tab-body.tsx`, `use-trip-detail-handlers.ts`.
++
++### Files to Create
++
++| File | Purpose |
++|---|---|
++| `src/components/packt/template-pull-dialog.tsx` | Pull dialog with template checkbox list + result notice |
++| `src/components/packt/template-pull-dialog.test.tsx` | Dialog component tests |
++| `tests/e2e/features/pull-templates.feature` | BDD scenarios |
++| `tests/e2e/steps/pull-templates.steps.ts` | Step defs + self-seeding `Before`/`After` hooks |
++
++### Files to Modify
++
++| File | Change |
++|---|---|
++| `src/data/types.ts` | Add `PullTemplatesInput`, `PullTemplatesResult` after line 616 |
++| `src/app/(app)/trips/actions.ts` | Add `pullTemplatesOntoTrip` action (after line 583); add import `packingTemplateItems`, `packingTemplates`, `inArray`, `asc`, `PullTemplatesResult` |
++| `src/app/(app)/trips/actions.test.ts` | Add `pullTemplatesOntoTrip` tests |
++| `src/app/(app)/trips/[tripId]/page.tsx` | Import `listTemplatesForUser`, fetch templates, pass to client |
++| `src/app/(app)/trips/[tripId]/page-client.tsx` | Add `templates` to `TripDetailClientProps`; thread to `TripDetailTabBody` |
++| `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx` | Add `templates` prop and `onPullTemplates`; pass to `PackingListView` |
++| `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts` | Add `handlePullTemplates`; import `pullTemplatesOntoTrip` |
++| `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.ts` | Add `handlePullTemplates` test |
++| `src/components/packt/packing-list-view.tsx` | Add `templates` and `onPullTemplates` props; add pull button + dialog + result notice |
++| `src/components/packt/packing-list-view.test.tsx` | Add pull button tests |
++| `tests/e2e/e2e-seed-data.ts` | Add pull template seed constants |
++
++### References
++
++- [Epics doc](_bmad-output/implementation-artifacts/epics.md) — Epic 2, Story 2.3 (lines 398-436); FR14–FR16, NFR2, NFR5–NFR8
++- [Story 2.2](_bmad-output/implementation-artifacts/2-2-template-item-and-label-management.md) — Template item schema, `packingTemplateItems` table, template editor, `PackingListSortable` optional checkbox
++- [Story 1.1](_bmad-output/implementation-artifacts/1-1-packing-tab-foundation-list-display-and-item-label-management.md) — `packingItems` table, `PackingListView`, `PackingListSortable` foundation
++- [Project context](_bmad-output/project-context.md) — stack versions, route split, server-action rules, CSS tokens, coverage rules
++- [packingItems table](src/db/schema.ts:217) — DB insert target for pull
++- [packingTemplateItems table](src/db/schema.ts:318) — DB read source for pull
++- [packingTemplates table](src/db/schema.ts:303) — ownership check for template scope
++- [trips/actions.ts](src/app/(app)/trips/actions.ts) — existing packing action patterns, `addPackingItem` position logic
++- [PackingListView](src/components/packt/packing-list-view.tsx) — empty state, entry form, list rendering
++- [useTripDetailHandlers](src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts) — handler pattern for server action calls
++- [trip-detail-tab-body.tsx](src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx) — tab routing, prop threading
++- [templates.steps.ts](tests/e2e/steps/templates.steps.ts) — `withE2EDb`, `getE2EUserId` helpers
++- [packing-tab.steps.ts](tests/e2e/steps/packing-tab.steps.ts) — self-seeding `Before`/`After` hooks
++- [actions.test.ts](src/app/(app)/trips/actions.test.ts) — action test pattern with `vi.hoisted` mocks
++
++## Dev Agent Record
++
++### Agent Model Used
++
++(To be filled by dev agent)
++
++### Debug Log References
++
++- `npm run db:migrate` (if schema changes — not needed for this story)
++- `npx tsc --noEmit`
++- `npx vitest run src/app/(app)/trips/actions.test.ts src/components/packt/template-pull-dialog.test.tsx src/components/packt/packing-list-view.test.tsx 'src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.ts'`
++- `npx bddgen`
++- `npx playwright test .features-gen/tests/e2e/features/pull-templates.feature.spec.js`
++- `npm run lint`
++- `npm run test:coverage`
++- `npm run test:e2e`
++- `npm run build`
++
++### Completion Notes List
++
++(To be filled by dev agent)
++
++### File List
++
++(To be filled by dev agent)
+diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
+index 8e86002..98eaeb2 100644
+--- a/_bmad-output/implementation-artifacts/sprint-status.yaml
++++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
+@@ -50,8 +50,8 @@ development_status:
+   epic-1-retrospective: optional
+ 
+   epic-2: in-progress
+-  2-1-template-library-create-rename-and-delete-templates: review
++  2-1-template-library-create-rename-and-delete-templates: done
+   2-2-template-item-and-label-management: done
+-  2-3-pull-templates-onto-a-trip-packing-list: backlog
++  2-3-pull-templates-onto-a-trip-packing-list: ready-for-dev
+   2-4-save-trip-list-as-template: backlog
+   epic-2-retrospective: optional
+diff --git a/src/app/(app)/trips/[tripId]/page-client.tsx b/src/app/(app)/trips/[tripId]/page-client.tsx
+index 29a29cd..d627635 100644
+--- a/src/app/(app)/trips/[tripId]/page-client.tsx
++++ b/src/app/(app)/trips/[tripId]/page-client.tsx
+@@ -15,6 +15,7 @@ import type {
+   TripDateConflictResolution,
+   UpdateTripPatch,
+   TripDetailTab,
++  PackingTemplate,
+ } from "@/data/types";
+ import { getTripStatus, getTripDays, formatDate, pluralize } from "@/lib/utils";
+ import { useFocusScroll } from "@/lib/use-focus-scroll";
+@@ -34,6 +35,7 @@ interface TripDetailClientProps {
+   dateFormat: string;
+   initialExpandedDayNumber?: number;
+   isNew?: boolean;
++  templates?: PackingTemplate[];
+ }
+ 
+ export function TripDetailClient({
+@@ -42,6 +44,7 @@ export function TripDetailClient({
+   dateFormat,
+   initialExpandedDayNumber,
+   isNew,
++  templates = [],
+ }: TripDetailClientProps): ReactElement {
+   const now = new Date(nowISO);
+   useFocusScroll();
+@@ -257,6 +260,8 @@ export function TripDetailClient({
+             onTogglePackingItem={handlers.handleTogglePackingItem}
+             onReorderPackingItems={handlers.handleReorderPackingItems}
+             onEditPackingItem={handlers.handleUpdatePackingItem}
++            templates={templates}
++            onPullTemplates={handlers.handlePullTemplates}
+             onAddDay={handlers.handleAddDay}
+             onRemoveLastDay={handlers.handleRemoveLastDay}
+             addingDay={handlers.addingDay}
+diff --git a/src/app/(app)/trips/[tripId]/page.tsx b/src/app/(app)/trips/[tripId]/page.tsx
+index 0584dc6..69b7e00 100644
+--- a/src/app/(app)/trips/[tripId]/page.tsx
++++ b/src/app/(app)/trips/[tripId]/page.tsx
+@@ -1,6 +1,6 @@
+ import { headers } from "next/headers";
+ import { requireUser } from "@/lib/auth-helpers";
+-import { getTripDetail, getUserById } from "@/lib/queries";
++import { getTripDetail, getUserById, listTemplatesForUser } from "@/lib/queries";
+ import { getServerNow } from "@/lib/server-now";
+ import { detectDefaultDateFormat } from "@/lib/utils";
+ import { TripDetailClient } from "./page-client";
+@@ -14,10 +14,11 @@ export default async function TripDetailPage({
+ }) {
+   const session = await requireUser();
+   const { tripId } = await params;
+-  const [detail, profile, now] = await Promise.all([
++  const [detail, profile, now, templates] = await Promise.all([
+     getTripDetail(tripId, session.id!),
+     getUserById(session.id!),
+     getServerNow(),
++    listTemplatesForUser(session.id!),
+   ]);
+   const resolvedSearchParams = await searchParams;
+   const dateFormat = profile?.dateFormat ?? detectDefaultDateFormat((await headers()).get("accept-language") ?? "");
+@@ -28,6 +29,7 @@ export default async function TripDetailPage({
+       dateFormat={dateFormat}
+       initialExpandedDayNumber={resolvedSearchParams.new === "1" ? 1 : undefined}
+       isNew={resolvedSearchParams.new === "1"}
++      templates={templates}
+     />
+   );
+ }
+diff --git a/src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx b/src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx
+index 6b66345..7fa25e9 100644
+--- a/src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx
++++ b/src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx
+@@ -4,7 +4,16 @@ import type { ReactElement } from "react";
+ import { TripItineraryView } from "./trip-itinerary-view";
+ import { TripDocsTab } from "@/components/packt/trip-docs-tab";
+ import { PackingListView } from "@/components/packt/packing-list-view";
+-import type { DayItinerary, TripEvent, DayItemType, Document, PackingItem, TripDetailTab } from "@/data/types";
++import type {
++  DayItinerary,
++  TripEvent,
++  DayItemType,
++  Document,
++  PackingItem,
++  PackingTemplate,
++  PullTemplatesResult,
++  TripDetailTab,
++} from "@/data/types";
+ 
+ export interface TripDetailTabBodyProps {
+   tripId: string;
+@@ -46,6 +55,8 @@ export interface TripDetailTabBodyProps {
+     onError?: () => void
+   ) => void;
+   onEditPackingItem: (id: string, name: string) => void;
++  templates: PackingTemplate[];
++  onPullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
+   onAddDay: () => void;
+   onRemoveLastDay: (
+     confirmedDestructiveRemoval: boolean,
+@@ -86,6 +97,8 @@ export function TripDetailTabBody({
+   onTogglePackingItem,
+   onReorderPackingItems,
+   onEditPackingItem,
++  templates,
++  onPullTemplates,
+   onAddDay,
+   onRemoveLastDay,
+   addingDay,
+@@ -138,6 +151,8 @@ export function TripDetailTabBody({
+           onToggleItem={onTogglePackingItem}
+           onReorderItems={onReorderPackingItems}
+           onEditItem={onEditPackingItem}
++          templates={templates}
++          onPullTemplates={onPullTemplates}
+         />
+       )}
+       {activeTab === "notes" && (
+diff --git a/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.tsx b/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.tsx
+index 87545f7..d87350b 100644
+--- a/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.tsx
++++ b/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.tsx
+@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
+ import { toast } from "sonner";
+ import { useTripDetailHandlers } from "./use-trip-detail-handlers";
+ import { reorderDayItems } from "./actions";
+-import { addPackingItem, deleteTrip, removePackingItem, reorderPackingItems, updatePackingItem } from "../actions";
++import {
++  addPackingItem,
++  deleteTrip,
++  pullTemplatesOntoTrip,
++  removePackingItem,
++  reorderPackingItems,
++  updatePackingItem,
++} from "../actions";
+ import type { TripDetailPayload } from "@/data/types";
+ 
+ const { mockPush, mockRefresh } = vi.hoisted(() => ({
+@@ -22,6 +29,7 @@ vi.mock("next/navigation", () => ({
+ vi.mock("../actions", () => ({
+   addPackingItem: vi.fn(),
+   deleteTrip: vi.fn(),
++  pullTemplatesOntoTrip: vi.fn(),
+   removePackingItem: vi.fn(),
+   reorderPackingItems: vi.fn(),
+   updatePackingItem: vi.fn(),
+@@ -267,4 +275,34 @@ describe("useTripDetailHandlers", () => {
+       })
+     );
+   });
++
++  it("handlePullTemplates calls pullTemplatesOntoTrip with the trip id and template ids", async () => {
++    vi.mocked(pullTemplatesOntoTrip).mockResolvedValueOnce({ added: 3, skipped: 1 });
++
++    const { result } = renderHook(() => useTripDetailHandlers(detail));
++
++    let pullResult: Awaited<ReturnType<typeof result.current.handlePullTemplates>>;
++    await act(async () => {
++      pullResult = await result.current.handlePullTemplates(["t1", "t2"]);
++    });
++
++    expect(pullTemplatesOntoTrip).toHaveBeenCalledWith("trip-1", ["t1", "t2"]);
++    await waitFor(() => expect(pullResult).toEqual({ added: 3, skipped: 1 }));
++    expect(mockRefresh).toHaveBeenCalled();
++  });
++
++  it("handlePullTemplates shows toast.error and resolves undefined when action throws", async () => {
++    vi.mocked(pullTemplatesOntoTrip).mockRejectedValueOnce(new Error("Pull failed"));
++
++    const { result } = renderHook(() => useTripDetailHandlers(detail));
++
++    let pullResult: Awaited<ReturnType<typeof result.current.handlePullTemplates>>;
++    await act(async () => {
++      pullResult = await result.current.handlePullTemplates(["t1"]);
++    });
++
++    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Pull failed"));
++    expect(pullResult).toBeUndefined();
++    expect(mockRefresh).toHaveBeenCalled();
++  });
+ });
+diff --git a/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts b/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts
+index 3ae75fb..14d116f 100644
+--- a/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts
++++ b/src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts
+@@ -12,10 +12,12 @@ import type {
+   TripDateConflictResolution,
+   UpdateTripMetadataResult,
+   UpdateTripPatch,
++  PullTemplatesResult,
+ } from "@/data/types";
+ import {
+   addPackingItem,
+   deleteTrip,
++  pullTemplatesOntoTrip,
+   removePackingItem,
+   reorderPackingItems,
+   togglePackingItem,
+@@ -78,6 +80,7 @@ export interface TripDetailHandlers {
+     onError?: () => void
+   ) => void;
+   handleUpdatePackingItem: (id: string, name: string) => void;
++  handlePullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
+   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
+   handleTripSaveResolution: (
+     patch: UpdateTripPatch,
+@@ -298,6 +301,22 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
+     });
+   }
+ 
++  function handlePullTemplates(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
++    return new Promise((resolve) => {
++      React.startTransition(async () => {
++        try {
++          const result = await pullTemplatesOntoTrip(trip.id, templateIds);
++          router.refresh();
++          resolve(result);
++        } catch (error) {
++          toast.error(error instanceof Error ? error.message : "Failed to pull templates. Please try again.");
++          router.refresh();
++          resolve(undefined);
++        }
++      });
++    });
++  }
++
+   function handleTripSave(
+     patch: UpdateTripPatch,
+     resolution?: TripDateConflictResolution,
+@@ -378,6 +397,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
+     handleTogglePackingItem,
+     handleReorderPackingItems,
+     handleUpdatePackingItem,
++    handlePullTemplates,
+     handleTripSave: (patch) => handleTripSave(patch),
+     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
+     handleDeleteTrip,
+diff --git a/src/app/(app)/trips/actions.test.ts b/src/app/(app)/trips/actions.test.ts
+index 7f3195c..9ef3374 100644
+--- a/src/app/(app)/trips/actions.test.ts
++++ b/src/app/(app)/trips/actions.test.ts
+@@ -71,6 +71,7 @@ import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDate
+ import {
+   addPackingItem,
+   createTrip,
++  pullTemplatesOntoTrip,
+   reorderPackingItems,
+   removePackingItem,
+   retrieveLocation,
+@@ -1056,6 +1057,206 @@ describe("packing actions", () => {
+   });
+ });
+ 
++describe("pullTemplatesOntoTrip", () => {
++  beforeEach(() => {
++    vi.resetAllMocks();
++    requireUser.mockResolvedValue({ id: "user-1" });
++  });
++
++  it("returns {added:0,skipped:0} immediately for empty templateIds without DB calls", async () => {
++    const result = await pullTemplatesOntoTrip("trip-1", []);
++
++    expect(result).toEqual({ added: 0, skipped: 0 });
++    expect(db.select).not.toHaveBeenCalled();
++    expect(db.transaction).not.toHaveBeenCalled();
++  });
++
++  it("enforces requireUser and assertTripAccess with editor role", async () => {
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
++    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
++      cb({ select: vi.fn(() => ({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })), insert: vi.fn() })
++    );
++
++    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
++
++    expect(requireUser).toHaveBeenCalled();
++    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
++  });
++
++  it("inserts all template items when the trip list is empty", async () => {
++    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
++    const insertValues = vi.fn(() => ({ returning }));
++    const transaction = {
++      select: vi.fn(() => ({
++        from: () => ({
++          where: () => ({
++            orderBy: async () => [
++              { id: "ti-1", text: "Passport", isLabel: false, position: 0, labelId: null },
++              { id: "ti-2", text: "Phone Charger", isLabel: false, position: 1, labelId: null },
++            ],
++          }),
++        }),
++      })),
++      insert: vi.fn(() => ({ values: insertValues })),
++    };
++
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) }); // existing items
++    db.select.mockReturnValueOnce({
++      from: () => ({ where: async () => [{ id: "tmpl-1" }] }),
++    }); // owned templates
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) }); // max pos
++    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
++
++    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
++
++    expect(result).toEqual({ added: 2, skipped: 0 });
++    expect(insertValues).toHaveBeenCalledTimes(2);
++    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
++    expect(revalidatePath).toHaveBeenCalledWith("/trips");
++  });
++
++  it("skips a duplicate when existing item name matches case-insensitively", async () => {
++    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
++    const insertValues = vi.fn(() => ({ returning }));
++    const transaction = {
++      select: vi.fn(() => ({
++        from: () => ({
++          where: () => ({
++            orderBy: async () => [{ id: "ti-1", text: "sunscreen", isLabel: false, position: 0, labelId: null }],
++          }),
++        }),
++      })),
++      insert: vi.fn(() => ({ values: insertValues })),
++    };
++
++    db.select.mockReturnValueOnce({
++      from: () => ({ where: async () => [{ name: "Sunscreen" }] }),
++    }); // existing items contain "Sunscreen"
++    db.select.mockReturnValueOnce({
++      from: () => ({ where: async () => [{ id: "tmpl-1" }] }),
++    });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 0 }] }) });
++    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
++
++    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
++
++    expect(result).toEqual({ added: 0, skipped: 1 });
++    expect(insertValues).not.toHaveBeenCalled();
++  });
++
++  it("deduplicates across two templates sharing an item text", async () => {
++    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
++    const insertValues = vi.fn(() => ({ returning }));
++    let callCount = 0;
++    const transaction = {
++      select: vi.fn(() => ({
++        from: () => ({
++          where: () => ({
++            orderBy: async () => {
++              callCount++;
++              // Both templates contain "Toothbrush"
++              return [{ id: `ti-${callCount}`, text: "Toothbrush", isLabel: false, position: 0, labelId: null }];
++            },
++          }),
++        }),
++      })),
++      insert: vi.fn(() => ({ values: insertValues })),
++    };
++
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
++    db.select.mockReturnValueOnce({
++      from: () => ({ where: async () => [{ id: "tmpl-1" }, { id: "tmpl-2" }] }),
++    });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
++    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
++
++    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1", "tmpl-2"]);
++
++    expect(result).toEqual({ added: 1, skipped: 1 });
++  });
++
++  it("silently skips a template not owned by the current user", async () => {
++    const transaction = {
++      select: vi.fn(),
++      insert: vi.fn(),
++    };
++
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
++    db.select.mockReturnValueOnce({
++      from: () => ({ where: async () => [] }),
++    }); // no owned templates returned
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
++    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
++
++    const result = await pullTemplatesOntoTrip("trip-1", ["foreign-tmpl"]);
++
++    expect(result).toEqual({ added: 0, skipped: 0 });
++    expect(transaction.select).not.toHaveBeenCalled();
++  });
++
++  it("appends after the last existing item position", async () => {
++    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
++    const insertValues = vi.fn(() => ({ returning }));
++    const transaction = {
++      select: vi.fn(() => ({
++        from: () => ({
++          where: () => ({
++            orderBy: async () => [{ id: "ti-1", text: "Tent", isLabel: false, position: 0, labelId: null }],
++          }),
++        }),
++      })),
++      insert: vi.fn(() => ({ values: insertValues })),
++    };
++
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ name: "Laptop" }] }) });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 3 }] }) });
++    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
++
++    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
++
++    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 4 }));
++  });
++
++  it("maps label cross-references: inserted label id becomes labelId for child items", async () => {
++    const labelReturning = vi.fn().mockResolvedValue([{ id: "new-label-id" }]);
++    const itemReturning = vi.fn().mockResolvedValue([{ id: "new-item-id" }]);
++    let insertCallIndex = 0;
++    const insertValues = vi.fn(() => {
++      insertCallIndex++;
++      return { returning: insertCallIndex === 1 ? labelReturning : itemReturning };
++    });
++    const transaction = {
++      select: vi.fn(() => ({
++        from: () => ({
++          where: () => ({
++            orderBy: async () => [
++              { id: "label-tmpl-id", text: "Toiletries", isLabel: true, position: 0, labelId: null },
++              { id: "item-tmpl-id", text: "Toothbrush", isLabel: false, position: 1, labelId: "label-tmpl-id" },
++            ],
++          }),
++        }),
++      })),
++      insert: vi.fn(() => ({ values: insertValues })),
++    };
++
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
++    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) });
++    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
++
++    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
++
++    // Second insert (Toothbrush) should reference the new label id
++    expect(insertValues).toHaveBeenNthCalledWith(
++      2,
++      expect.objectContaining({ labelId: "new-label-id", name: "Toothbrush" })
++    );
++  });
++});
++
+ describe("retrieveLocation", () => {
+   beforeEach(() => {
+     vi.clearAllMocks();
+diff --git a/src/app/(app)/trips/actions.ts b/src/app/(app)/trips/actions.ts
+index db7207c..4ced0e7 100644
+--- a/src/app/(app)/trips/actions.ts
++++ b/src/app/(app)/trips/actions.ts
+@@ -7,6 +7,8 @@ import {
+   trips,
+   collaborators,
+   packingItems,
++  packingTemplates,
++  packingTemplateItems,
+   documents,
+   days,
+   events,
+@@ -23,6 +25,7 @@ import type {
+   AddCollaboratorInput,
+   AddPackingItemInput,
+   UpdatePackingItemInput,
++  PullTemplatesResult,
+   TripDateChangeConfirmation,
+   TripDateConflictResolution,
+   UpdateTripMetadataResult,
+@@ -582,6 +585,83 @@ export async function reorderPackingItems(
+   revalidatePath("/trips");
+ }
+ 
++export async function pullTemplatesOntoTrip(tripId: string, templateIds: string[]): Promise<PullTemplatesResult> {
++  const user = await requireUser();
++  await assertTripAccess(tripId, user.id!, "editor");
++  if (templateIds.length === 0) return { added: 0, skipped: 0 };
++
++  const existingRows = await db
++    .select({ name: packingItems.name })
++    .from(packingItems)
++    .where(eq(packingItems.tripId, tripId));
++  const existingNames = new Set(existingRows.map((row) => row.name.toLowerCase()));
++
++  const ownedTemplates = await db
++    .select({ id: packingTemplates.id })
++    .from(packingTemplates)
++    .where(and(inArray(packingTemplates.id, templateIds), eq(packingTemplates.userId, user.id!)));
++  const ownedIds = new Set(ownedTemplates.map((tmpl) => tmpl.id));
++
++  const [maxPosRow] = await db
++    .select({ maxPos: max(packingItems.position) })
++    .from(packingItems)
++    .where(eq(packingItems.tripId, tripId));
++  let nextPosition = (maxPosRow.maxPos ?? -1) + 1;
++  let added = 0;
++  let skipped = 0;
++
++  await db.transaction(async (tx) => {
++    for (const templateId of templateIds) {
++      if (!ownedIds.has(templateId)) continue;
++
++      const items = await tx
++        .select()
++        .from(packingTemplateItems)
++        .where(eq(packingTemplateItems.templateId, templateId))
++        .orderBy(asc(packingTemplateItems.position));
++
++      // Map: template item id → new packing item id (for labelId cross-reference)
++      const labelIdMap = new Map<string, string>();
++
++      for (const item of items) {
++        const normalizedText = item.text.toLowerCase();
++        if (existingNames.has(normalizedText)) {
++          skipped++;
++          continue;
++        }
++
++        const newLabelId = item.isLabel ? null : item.labelId ? (labelIdMap.get(item.labelId) ?? null) : null;
++
++        const [inserted] = await tx
++          .insert(packingItems)
++          .values({
++            tripId,
++            name: item.text,
++            done: false,
++            isLabel: item.isLabel,
++            position: nextPosition++,
++            labelId: newLabelId,
++          })
++          .returning({ id: packingItems.id });
++
++        if (!inserted) throw new Error("Failed to insert packing item during template pull");
++
++        if (item.isLabel) {
++          labelIdMap.set(item.id, inserted.id);
++        }
++
++        added++;
++        existingNames.add(normalizedText);
++      }
++    }
++  });
++
++  revalidatePath(`/trips/${tripId}`);
++  revalidatePath("/trips");
++
++  return { added, skipped };
++}
++
+ export interface LocationSuggestion {
+   placeName: string;
+   country: string;
+diff --git a/src/components/packt/packing-list-view.test.tsx b/src/components/packt/packing-list-view.test.tsx
+index 0fb3b4f..50f0a68 100644
+--- a/src/components/packt/packing-list-view.test.tsx
++++ b/src/components/packt/packing-list-view.test.tsx
+@@ -44,7 +44,30 @@ vi.mock("@dnd-kit/utilities", () => ({
+ import { act, render, screen, waitFor, within } from "@testing-library/react";
+ import userEvent from "@testing-library/user-event";
+ import { PackingListView } from "./packing-list-view";
+-import type { PackingItem } from "@/data/types";
++import type { PackingItem, PackingTemplate } from "@/data/types";
++
++vi.mock("./template-pull-dialog", () => ({
++  TemplatePullDialog: ({
++    open,
++    templates,
++    onOpenChange,
++    onPull,
++  }: {
++    open: boolean;
++    templates: PackingTemplate[];
++    onOpenChange: (v: boolean) => void;
++    onPull: (ids: string[]) => Promise<unknown>;
++  }) =>
++    open ? (
++      <div role="dialog" aria-label="Pull from templates">
++        {templates.map((template) => (
++          <span key={template.id}>{template.name}</span>
++        ))}
++        <button onClick={() => void onPull(["t1"])}>Trigger pull</button>
++        <button onClick={() => onOpenChange(false)}>Close dialog</button>
++      </div>
++    ) : null,
++}));
+ 
+ const groupedItems: PackingItem[] = [
+   { id: "ungrouped-1", name: "Passport", done: false, position: 0, labelId: null },
+@@ -840,4 +863,152 @@ describe("PackingListView", () => {
+     const editInput = inputs.find((el) => (el as HTMLInputElement).value === "Passport");
+     expect(editInput).toHaveAttribute("maxLength", "100");
+   });
++
++  // ── Story 2.3 — Pull from template ───────────────────────────────────────────
++
++  it("shows 'Pull from a template' button in empty state when onPullTemplates is provided", () => {
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={[]}
++        onAddItem={vi.fn()}
++        onRemoveItem={vi.fn()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++        templates={[]}
++        onPullTemplates={vi.fn()}
++      />
++    );
++
++    expect(screen.getByRole("button", { name: "Pull from a template" })).toBeInTheDocument();
++  });
++
++  it("does not show pull button in empty state when onPullTemplates is absent", () => {
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={[]}
++        onAddItem={vi.fn()}
++        onRemoveItem={vi.fn()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++      />
++    );
++
++    expect(screen.queryByRole("button", { name: "Pull from a template" })).not.toBeInTheDocument();
++  });
++
++  it("shows 'Pull templates' button in populated state when onPullTemplates is provided", () => {
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={groupedItems}
++        onAddItem={vi.fn()}
++        onRemoveItem={vi.fn()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++        templates={[]}
++        onPullTemplates={vi.fn()}
++      />
++    );
++
++    expect(screen.getByRole("button", { name: "Pull templates" })).toBeInTheDocument();
++  });
++
++  it("opens the pull dialog when the empty-state pull button is clicked", async () => {
++    const user = userEvent.setup();
++
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={[]}
++        onAddItem={vi.fn()}
++        onRemoveItem={vi.fn()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++        templates={[{ id: "t1", name: "Beach Weekend" }]}
++        onPullTemplates={vi.fn()}
++      />
++    );
++
++    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
++
++    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
++  });
++
++  it("opens the pull dialog when the populated-state pull button is clicked", async () => {
++    const user = userEvent.setup();
++
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={groupedItems}
++        onAddItem={vi.fn()}
++        onRemoveItem={vi.fn()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++        templates={[{ id: "t1", name: "Beach Weekend" }]}
++        onPullTemplates={vi.fn()}
++      />
++    );
++
++    await user.click(screen.getByRole("button", { name: "Pull templates" }));
++
++    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
++  });
++
++  it("shows result notice after successful pull and hides the dialog", async () => {
++    const user = userEvent.setup();
++    const onPullTemplates = vi.fn().mockResolvedValue({ added: 3, skipped: 1 });
++
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={[]}
++        onAddItem={vi.fn()}
++        onRemoveItem={vi.fn()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++        templates={[{ id: "t1", name: "Beach Weekend" }]}
++        onPullTemplates={onPullTemplates}
++      />
++    );
++
++    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
++    await user.click(screen.getByRole("button", { name: "Trigger pull" }));
++
++    await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
++    expect(screen.queryByRole("dialog", { name: "Pull from templates" })).not.toBeInTheDocument();
++  });
++
++  it("shows no result notice when pull returns undefined", async () => {
++    const user = userEvent.setup();
++    const onPullTemplates = vi.fn().mockResolvedValue(undefined);
++
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={[]}
++        onAddItem={vi.fn()}
++        onRemoveItem={vi.fn()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++        templates={[{ id: "t1", name: "Beach Weekend" }]}
++        onPullTemplates={onPullTemplates}
++      />
++    );
++
++    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
++    await user.click(screen.getByRole("button", { name: "Trigger pull" }));
++
++    await waitFor(() => expect(onPullTemplates).toHaveBeenCalledWith(["t1"]));
++    expect(screen.queryByText(/item\(s\) added/)).not.toBeInTheDocument();
++  });
+ });
+diff --git a/src/components/packt/packing-list-view.tsx b/src/components/packt/packing-list-view.tsx
+index c76bf59..cf8e7b2 100644
+--- a/src/components/packt/packing-list-view.tsx
++++ b/src/components/packt/packing-list-view.tsx
+@@ -1,11 +1,12 @@
+ "use client";
+ 
+ import { useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+-import { Plus, Tag } from "lucide-react";
++import { FolderOpen, Plus, Tag } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+-import type { PackingItem } from "@/data/types";
++import type { PackingItem, PackingTemplate, PullTemplatesResult } from "@/data/types";
+ import { PackingListSortable } from "./packing-list-sortable";
++import { TemplatePullDialog } from "./template-pull-dialog";
+ 
+ export interface PackingListViewProps {
+   tripId: string;
+@@ -21,6 +22,8 @@ export interface PackingListViewProps {
+   onToggleItem: (id: string) => Promise<void>;
+   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
+   onEditItem?: (id: string, name: string) => void;
++  templates?: PackingTemplate[];
++  onPullTemplates?: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
+ }
+ 
+ interface PackingEntryFormProps {
+@@ -96,9 +99,14 @@ export function PackingListView({
+   onToggleItem,
+   onReorderItems,
+   onEditItem,
++  templates,
++  onPullTemplates,
+ }: PackingListViewProps): ReactElement {
+   const [draftName, setDraftName] = useState("");
+   const [isSubmitting, setIsSubmitting] = useState(false);
++  const [dialogOpen, setDialogOpen] = useState(false);
++  const [dialogKey, setDialogKey] = useState(0);
++  const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
+   const [prevItems, setPrevItems] = useState(items);
+   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
+   const [announcement, setAnnouncement] = useState("");
+@@ -179,12 +187,34 @@ export function PackingListView({
+     }
+   }
+ 
++  async function handleDialogPull(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
++    if (!onPullTemplates) return undefined;
++    const result = await onPullTemplates(templateIds);
++    if (result) {
++      setResultNotice(result);
++      setDialogOpen(false);
++      setTimeout(() => setResultNotice(null), 4000);
++    }
++    return result;
++  }
++
+   return (
+     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+       <div aria-live="polite" className="sr-only">
+         <span key={announcementId}>{announcement}</span>
+       </div>
+ 
++      {resultNotice && (
++        <div
++          aria-live="polite"
++          className="rounded-2xl border p-3 text-sm"
++          style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}
++        >
++          {resultNotice.added} item(s) added
++          {resultNotice.skipped > 0 ? `, ${resultNotice.skipped} duplicate(s) skipped` : ""}
++        </div>
++      )}
++
+       {effectiveItems.length === 0 ? (
+         <section
+           className="flex flex-col gap-4 rounded-3xl border p-5"
+@@ -207,9 +237,42 @@ export function PackingListView({
+             onSubmitItem={() => submitEntry()}
+             onSubmitLabel={() => submitEntry(true)}
+           />
++          {onPullTemplates && (
++            <Button
++              className="min-h-11 min-w-11 rounded-2xl"
++              variant="outline"
++              onClick={() => {
++                setDialogKey((k) => k + 1);
++                setDialogOpen(true);
++              }}
++            >
++              <FolderOpen size={16} strokeWidth={1.5} />
++              Pull from a template
++            </Button>
++          )}
+         </section>
+       ) : (
+         <>
++          {onPullTemplates && (
++            <div className="flex items-center justify-between">
++              <span style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))" }}>
++                {effectiveItems.length} item{effectiveItems.length !== 1 ? "s" : ""}
++              </span>
++              <Button
++                className="min-h-9 min-w-9 rounded-xl"
++                variant="outline"
++                size="sm"
++                onClick={() => {
++                  setDialogKey((k) => k + 1);
++                  setDialogOpen(true);
++                }}
++              >
++                <FolderOpen size={14} strokeWidth={1.5} />
++                Pull templates
++              </Button>
++            </div>
++          )}
++
+           <PackingListSortable
+             items={effectiveItems}
+             pendingItemIds={pendingItemIds}
+@@ -234,6 +297,16 @@ export function PackingListView({
+           />
+         </>
+       )}
++
++      {onPullTemplates && (
++        <TemplatePullDialog
++          key={dialogKey}
++          open={dialogOpen}
++          onOpenChange={setDialogOpen}
++          templates={templates ?? []}
++          onPull={handleDialogPull}
++        />
++      )}
+     </div>
+   );
+ }
+diff --git a/src/components/packt/template-pull-dialog.test.tsx b/src/components/packt/template-pull-dialog.test.tsx
+new file mode 100644
+index 0000000..9d06046
+--- /dev/null
++++ b/src/components/packt/template-pull-dialog.test.tsx
+@@ -0,0 +1,140 @@
++import { describe, expect, it, vi } from "vitest";
++import { render, screen, waitFor } from "@testing-library/react";
++import userEvent from "@testing-library/user-event";
++
++vi.mock("@/components/ui/dialog", () => ({
++  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
++    open ? <div role="dialog">{children}</div> : null,
++  DialogContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
++  DialogHeader: ({ children }: { children: React.ReactNode }) => <>{children}</>,
++  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
++  DialogFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
++}));
++
++vi.mock("next/link", () => ({
++  default: ({
++    children,
++    href,
++    onClick,
++  }: {
++    children: React.ReactNode;
++    href: string;
++    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
++  }) => (
++    <a href={href} onClick={onClick}>
++      {children}
++    </a>
++  ),
++}));
++
++import { TemplatePullDialog } from "./template-pull-dialog";
++import type { PackingTemplate } from "@/data/types";
++
++const templates: PackingTemplate[] = [
++  { id: "t1", name: "Beach Weekend" },
++  { id: "t2", name: "Business Trip" },
++];
++
++describe("TemplatePullDialog", () => {
++  it("renders template names with checkboxes when open", () => {
++    render(<TemplatePullDialog open onOpenChange={vi.fn()} templates={templates} onPull={vi.fn()} />);
++
++    expect(screen.getByRole("dialog")).toBeInTheDocument();
++    expect(screen.getByText("Pull from templates")).toBeInTheDocument();
++    expect(screen.getByLabelText("Beach Weekend")).toBeInTheDocument();
++    expect(screen.getByLabelText("Business Trip")).toBeInTheDocument();
++  });
++
++  it("does not render when open=false", () => {
++    render(<TemplatePullDialog open={false} onOpenChange={vi.fn()} templates={templates} onPull={vi.fn()} />);
++
++    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
++  });
++
++  it("shows no-templates message with link when templates is empty", () => {
++    render(<TemplatePullDialog open onOpenChange={vi.fn()} templates={[]} onPull={vi.fn()} />);
++
++    expect(screen.getByText(/No templates yet/)).toBeInTheDocument();
++    expect(screen.getByRole("link", { name: /create one from the template library/i })).toHaveAttribute(
++      "href",
++      "/packing"
++    );
++  });
++
++  it("Pull selected button is disabled when no templates are checked", () => {
++    render(<TemplatePullDialog open onOpenChange={vi.fn()} templates={templates} onPull={vi.fn()} />);
++
++    expect(screen.getByRole("button", { name: /Pull selected/ })).toBeDisabled();
++  });
++
++  it("enables Pull selected after checking a template and calls onPull with its id", async () => {
++    const user = userEvent.setup();
++    const onPull = vi.fn().mockResolvedValue({ added: 2, skipped: 0 });
++
++    render(<TemplatePullDialog open onOpenChange={vi.fn()} templates={templates} onPull={onPull} />);
++
++    await user.click(screen.getByLabelText("Beach Weekend"));
++    const pullBtn = screen.getByRole("button", { name: /Pull selected/ });
++    expect(pullBtn).not.toBeDisabled();
++
++    await user.click(pullBtn);
++
++    await waitFor(() => expect(onPull).toHaveBeenCalledWith(["t1"]));
++  });
++
++  it("calls onPull with all selected template ids", async () => {
++    const user = userEvent.setup();
++    const onPull = vi.fn().mockResolvedValue({ added: 3, skipped: 0 });
++
++    render(<TemplatePullDialog open onOpenChange={vi.fn()} templates={templates} onPull={onPull} />);
++
++    await user.click(screen.getByLabelText("Beach Weekend"));
++    await user.click(screen.getByLabelText("Business Trip"));
++    await user.click(screen.getByRole("button", { name: /Pull selected/ }));
++
++    await waitFor(() => {
++      const [ids] = onPull.mock.calls[0] as [string[]];
++      expect(ids.sort()).toEqual(["t1", "t2"]);
++    });
++  });
++
++  it("closes when Cancel is clicked", async () => {
++    const user = userEvent.setup();
++    const onOpenChange = vi.fn();
++
++    render(<TemplatePullDialog open onOpenChange={onOpenChange} templates={templates} onPull={vi.fn()} />);
++
++    await user.click(screen.getByRole("button", { name: "Cancel" }));
++
++    expect(onOpenChange).toHaveBeenCalledWith(false);
++  });
++
++  it("does not show Pull selected button when templates list is empty", () => {
++    render(<TemplatePullDialog open onOpenChange={vi.fn()} templates={[]} onPull={vi.fn()} />);
++
++    expect(screen.queryByRole("button", { name: /Pull selected/ })).not.toBeInTheDocument();
++  });
++
++  it("unchecking a checked template re-disables the Pull selected button", async () => {
++    const user = userEvent.setup();
++
++    render(<TemplatePullDialog open onOpenChange={vi.fn()} templates={templates} onPull={vi.fn()} />);
++
++    await user.click(screen.getByLabelText("Beach Weekend"));
++    expect(screen.getByRole("button", { name: /Pull selected/ })).not.toBeDisabled();
++
++    await user.click(screen.getByLabelText("Beach Weekend"));
++    expect(screen.getByRole("button", { name: /Pull selected/ })).toBeDisabled();
++  });
++
++  it("clicking the template library link calls onOpenChange(false)", async () => {
++    const user = userEvent.setup();
++    const onOpenChange = vi.fn();
++
++    render(<TemplatePullDialog open onOpenChange={onOpenChange} templates={[]} onPull={vi.fn()} />);
++
++    await user.click(screen.getByRole("link", { name: /create one from the template library/i }));
++
++    expect(onOpenChange).toHaveBeenCalledWith(false);
++  });
++});
+diff --git a/src/components/packt/template-pull-dialog.tsx b/src/components/packt/template-pull-dialog.tsx
+new file mode 100644
+index 0000000..b1b7da1
+--- /dev/null
++++ b/src/components/packt/template-pull-dialog.tsx
+@@ -0,0 +1,103 @@
++"use client";
++
++import { useState, type ReactElement } from "react";
++import { FolderOpen } from "lucide-react";
++import Link from "next/link";
++import { Button } from "@/components/ui/button";
++import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
++import type { PackingTemplate, PullTemplatesResult } from "@/data/types";
++
++export interface TemplatePullDialogProps {
++  open: boolean;
++  onOpenChange: (open: boolean) => void;
++  templates: PackingTemplate[];
++  onPull: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
++}
++
++export function TemplatePullDialog({ open, onOpenChange, templates, onPull }: TemplatePullDialogProps): ReactElement {
++  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
++  const [isPulling, setIsPulling] = useState(false);
++
++  function toggleId(id: string): void {
++    setSelectedIds((prev) => {
++      const next = new Set(prev);
++      if (next.has(id)) {
++        next.delete(id);
++      } else {
++        next.add(id);
++      }
++      return next;
++    });
++  }
++
++  async function handlePull(): Promise<void> {
++    if (isPulling || selectedIds.size === 0) return;
++    setIsPulling(true);
++    try {
++      await onPull([...selectedIds]);
++    } finally {
++      setIsPulling(false);
++    }
++  }
++
++  return (
++    <Dialog open={open} onOpenChange={onOpenChange}>
++      <DialogContent className="gap-0 p-0 sm:max-w-md">
++        <DialogHeader className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid var(--line)" }}>
++          <DialogTitle>Pull from templates</DialogTitle>
++        </DialogHeader>
++
++        <div className="px-5 py-4">
++          {templates.length === 0 ? (
++            <p style={{ color: "var(--fg-2)", fontSize: "calc(14px * var(--font-scale))" }}>
++              No templates yet —{" "}
++              <Link
++                href="/packing"
++                className="underline"
++                style={{ color: "var(--accent-brand)" }}
++                onClick={() => onOpenChange(false)}
++              >
++                create one from the template library
++              </Link>
++            </p>
++          ) : (
++            <ul className="flex flex-col gap-1">
++              {templates.map((template) => (
++                <li key={template.id}>
++                  <label
++                    className="flex items-center gap-3 min-h-11 cursor-pointer rounded-lg px-2"
++                    style={{ color: "var(--fg)" }}
++                  >
++                    <input
++                      type="checkbox"
++                      className="min-h-6 min-w-6 cursor-pointer"
++                      checked={selectedIds.has(template.id)}
++                      onChange={() => toggleId(template.id)}
++                    />
++                    <span style={{ fontSize: "calc(14px * var(--font-scale))" }}>{template.name}</span>
++                  </label>
++                </li>
++              ))}
++            </ul>
++          )}
++        </div>
++
++        <DialogFooter>
++          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPulling}>
++            Cancel
++          </Button>
++          {templates.length > 0 && (
++            <Button
++              className="min-h-11 min-w-11"
++              disabled={selectedIds.size === 0 || isPulling}
++              onClick={() => void handlePull()}
++            >
++              <FolderOpen size={16} strokeWidth={1.5} />
++              Pull selected ({selectedIds.size})
++            </Button>
++          )}
++        </DialogFooter>
++      </DialogContent>
++    </Dialog>
++  );
++}
+diff --git a/src/data/types.ts b/src/data/types.ts
+index 0189ab0..d6b67cd 100644
+--- a/src/data/types.ts
++++ b/src/data/types.ts
+@@ -614,3 +614,12 @@ export interface AddPackingItemInput {
+ export interface UpdatePackingItemInput {
+   name?: string;
+ }
++
++export interface PullTemplatesInput {
++  templateIds: string[];
++}
++
++export interface PullTemplatesResult {
++  added: number;
++  skipped: number;
++}
+diff --git a/tests/e2e/e2e-seed-data.ts b/tests/e2e/e2e-seed-data.ts
+index a9da02e..e1f7dca 100644
+--- a/tests/e2e/e2e-seed-data.ts
++++ b/tests/e2e/e2e-seed-data.ts
+@@ -10,6 +10,12 @@ export const E2E_TEMPLATE_USER = {
+   initials: "TT",
+ };
+ 
++export const E2E_PULL_USER = {
++  email: "e2e-pull@packt.local",
++  name: "E2E Pull User",
++  initials: "PU",
++};
++
+ export const E2E_TRIP = {
+   name: "E2E Test Trip",
+   startDate: "2026-07-01",
+@@ -215,3 +221,16 @@ export const E2E_MANAGE_DOC = {
+   size: "0.3 MB",
+   url: "https://example.com/manage-doc.pdf",
+ };
++
++export const E2E_TEMPLATE_PULL = { name: "Pull Template" };
++export const E2E_TEMPLATE_PULL_ITEMS = [
++  { text: "Passport", isLabel: false, position: 0 },
++  { text: "Phone Charger", isLabel: false, position: 1 },
++  { text: "Toothbrush", isLabel: false, position: 2 },
++];
++
++export const E2E_TEMPLATE_PULL_2 = { name: "Pull Template 2" };
++export const E2E_TEMPLATE_PULL_2_ITEMS = [
++  { text: "Toothbrush", isLabel: false, position: 0 },
++  { text: "Shampoo", isLabel: false, position: 1 },
++];
+diff --git a/tests/e2e/features/pull-templates.feature b/tests/e2e/features/pull-templates.feature
+new file mode 100644
+index 0000000..1448291
+--- /dev/null
++++ b/tests/e2e/features/pull-templates.feature
+@@ -0,0 +1,35 @@
++@pull-templates @serial
++Feature: Pull templates onto a trip packing list
++  Background:
++    Given I am signed in as the template pull user
++
++  Scenario: Empty state offers pull from template
++    Given I have a trip with no packing items for pull
++    And I have a packing template available for pull
++    When I open the packing tab for the pull test trip
++    Then I should see a "Pull from a template" button
++
++  Scenario: Pull a template onto an empty trip list
++    Given I have a trip with no packing items for pull
++    And I have a packing template available for pull
++    When I open the packing tab for the pull test trip
++    And I pull the template onto the trip
++    Then the packing list should contain "Passport"
++    And the packing list should contain "Phone Charger"
++    And the packing list should contain "Toothbrush"
++
++  Scenario: Deduplication skips matching items across two templates
++    Given I have a trip with no packing items for pull
++    And I have two packing templates available for pull with a shared item
++    When I open the packing tab for the pull test trip
++    And I pull both templates onto the trip
++    Then the packing list should contain "Toothbrush" exactly once
++    And I should see a duplicate notice
++
++  Scenario: Pull appends to an already-populated list
++    Given I have a trip with a pre-seeded packing item for pull
++    And I have a packing template available for pull
++    When I open the packing tab for the pull test trip
++    And I pull the template onto the trip
++    Then the packing list should contain "Passport"
++    And the packing list should contain "Phone Charger"
+diff --git a/tests/e2e/global-setup.ts b/tests/e2e/global-setup.ts
+index 2144ac4..36908fe 100644
+--- a/tests/e2e/global-setup.ts
++++ b/tests/e2e/global-setup.ts
+@@ -15,6 +15,7 @@ import {
+ } from "../../src/db/schema";
+ import {
+   E2E_USER,
++  E2E_PULL_USER,
+   E2E_TEMPLATE_USER,
+   E2E_TRIP,
+   E2E_DAYS,
+@@ -57,6 +58,13 @@ export default async function globalSetup() {
+     dateFormat: "MM/DD/YYYY",
+   });
+ 
++  await db.insert(users).values({
++    email: E2E_PULL_USER.email,
++    name: E2E_PULL_USER.name,
++    passwordHash,
++    dateFormat: "MM/DD/YYYY",
++  });
++
+   // Insert seed trip
+   const [trip] = await db
+     .insert(trips)
+diff --git a/tests/e2e/steps/pull-templates.steps.ts b/tests/e2e/steps/pull-templates.steps.ts
+new file mode 100644
+index 0000000..e5300ac
+--- /dev/null
++++ b/tests/e2e/steps/pull-templates.steps.ts
+@@ -0,0 +1,233 @@
++import { expect, type Locator } from "@playwright/test";
++import postgres from "postgres";
++import { drizzle } from "drizzle-orm/postgres-js";
++import { and, eq } from "drizzle-orm";
++import {
++  collaborators,
++  days,
++  packingItems,
++  packingTemplateItems,
++  packingTemplates,
++  trips,
++  users,
++} from "../../../src/db/schema";
++import { After, Before, Given, Then, When } from "../fixtures";
++import {
++  E2E_DAYS,
++  E2E_TEMPLATE_PULL,
++  E2E_TEMPLATE_PULL_2,
++  E2E_TEMPLATE_PULL_2_ITEMS,
++  E2E_TEMPLATE_PULL_ITEMS,
++  E2E_PULL_USER,
++} from "../e2e-seed-data";
++
++const E2E_PULL_TRIP = {
++  name: "E2E Pull Trip",
++  startDate: "2026-07-11",
++  endDate: "2026-07-13",
++  coverImageUrl: "graphic:var(--accent-brand)/plane",
++};
++
++function escapeRegExp(value: string): string {
++  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
++}
++
++async function withE2EDb<T>(fn: (db: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
++  const client = postgres(process.env.E2E_DATABASE_URL!);
++  const db = drizzle(client);
++  try {
++    return await fn(db);
++  } finally {
++    await client.end();
++  }
++}
++
++async function getE2EUserId(db: ReturnType<typeof drizzle>): Promise<string> {
++  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_PULL_USER.email));
++  if (!user) throw new Error("E2E user not found");
++  return user.id;
++}
++
++async function getPullTripId(db: ReturnType<typeof drizzle>): Promise<string> {
++  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_PULL_USER.email));
++  if (!user) throw new Error("E2E user not found");
++  const [trip] = await db
++    .select({ id: trips.id })
++    .from(trips)
++    .where(and(eq(trips.ownerId, user.id), eq(trips.name, E2E_PULL_TRIP.name)));
++  if (!trip) throw new Error("E2E trip not found");
++  return trip.id;
++}
++
++async function clearPullTestState(): Promise<void> {
++  await withE2EDb(async (db) => {
++    const userId = await getE2EUserId(db);
++    await db
++      .delete(packingTemplates)
++      .where(and(eq(packingTemplates.userId, userId), eq(packingTemplates.name, E2E_TEMPLATE_PULL.name)));
++    await db
++      .delete(packingTemplates)
++      .where(and(eq(packingTemplates.userId, userId), eq(packingTemplates.name, E2E_TEMPLATE_PULL_2.name)));
++    await db.delete(trips).where(and(eq(trips.ownerId, userId), eq(trips.name, E2E_PULL_TRIP.name)));
++  });
++}
++
++async function seedPullTrip(): Promise<void> {
++  await withE2EDb(async (db) => {
++    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, E2E_PULL_USER.email));
++    if (!user) throw new Error("E2E user not found");
++
++    const [trip] = await db
++      .insert(trips)
++      .values({ ownerId: user.id, ...E2E_PULL_TRIP })
++      .returning({ id: trips.id });
++
++    await db.insert(collaborators).values({
++      tripId: trip.id,
++      userId: user.id,
++      email: E2E_PULL_USER.email,
++      name: E2E_PULL_USER.name,
++      initials: E2E_PULL_USER.initials,
++      role: "owner",
++    });
++
++    for (const day of E2E_DAYS) {
++      await db.insert(days).values({ tripId: trip.id, ...day });
++    }
++  });
++}
++
++async function seedPullTemplate(): Promise<void> {
++  await withE2EDb(async (db) => {
++    const userId = await getE2EUserId(db);
++    const [template] = await db
++      .insert(packingTemplates)
++      .values({ userId, name: E2E_TEMPLATE_PULL.name })
++      .returning({ id: packingTemplates.id });
++    for (const item of E2E_TEMPLATE_PULL_ITEMS) {
++      await db.insert(packingTemplateItems).values({ templateId: template.id, ...item });
++    }
++  });
++}
++
++async function seedTwoPullTemplates(): Promise<void> {
++  await withE2EDb(async (db) => {
++    const userId = await getE2EUserId(db);
++    const [t1] = await db
++      .insert(packingTemplates)
++      .values({ userId, name: E2E_TEMPLATE_PULL.name })
++      .returning({ id: packingTemplates.id });
++    for (const item of E2E_TEMPLATE_PULL_ITEMS) {
++      await db.insert(packingTemplateItems).values({ templateId: t1.id, ...item });
++    }
++    const [t2] = await db
++      .insert(packingTemplates)
++      .values({ userId, name: E2E_TEMPLATE_PULL_2.name })
++      .returning({ id: packingTemplates.id });
++    for (const item of E2E_TEMPLATE_PULL_2_ITEMS) {
++      await db.insert(packingTemplateItems).values({ templateId: t2.id, ...item });
++    }
++  });
++}
++
++async function checkTemplate(dialog: Locator, name: string): Promise<void> {
++  const checkbox = dialog.getByRole("checkbox", { name: new RegExp(`^${escapeRegExp(name)}$`) }).first();
++  await expect(checkbox).toBeVisible({ timeout: 5_000 });
++  await checkbox.check();
++}
++
++Before({ tags: "@pull-templates" }, async () => {
++  await clearPullTestState();
++  await seedPullTrip();
++});
++
++After({ tags: "@pull-templates" }, async () => {
++  await clearPullTestState();
++});
++
++Given("I have a trip with no packing items for pull", async () => {
++  await withE2EDb(async (db) => {
++    const tripId = await getPullTripId(db);
++    await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
++  });
++});
++
++Given("I have a trip with a pre-seeded packing item for pull", async () => {
++  await withE2EDb(async (db) => {
++    const tripId = await getPullTripId(db);
++    await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
++    await db.insert(packingItems).values({ tripId, name: "Laptop", isLabel: false, done: false, position: 0 });
++  });
++});
++
++Given("I have a packing template available for pull", async () => {
++  await seedPullTemplate();
++});
++
++Given("I have two packing templates available for pull with a shared item", async () => {
++  await seedTwoPullTemplates();
++});
++
++Given("I am signed in as the template pull user", async ({ page }) => {
++  await page.context().clearCookies();
++  await page.goto("/sign-in");
++  await page.getByRole("textbox", { name: "Email" }).fill(E2E_PULL_USER.email);
++  await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
++  await page.getByRole("button", { name: "Sign in" }).click();
++  await expect(page).toHaveURL(/\/trips/, { timeout: 15_000 });
++});
++
++When("I open the packing tab for the pull test trip", async ({ page }) => {
++  const tripId = await withE2EDb((db) => getPullTripId(db));
++  // Navigate with a unique query to avoid serial-scenario reuse of stale RSC payloads.
++  await page.goto(`/trips/${tripId}?e2e=${Date.now()}`);
++  await page.waitForURL(/\/trips\/.+/);
++  await page.getByRole("button", { name: "Packing" }).click();
++  await expect(page.getByRole("button", { name: "Add item", exact: true })).toBeVisible({ timeout: 10_000 });
++});
++
++When("I pull the template onto the trip", async ({ page }) => {
++  const pullBtn = page
++    .getByRole("button", { name: "Pull from a template" })
++    .or(page.getByRole("button", { name: "Pull templates" }))
++    .first();
++  await pullBtn.click();
++  const dialog = page.getByRole("dialog");
++  await expect(dialog).toBeVisible({ timeout: 5_000 });
++  await expect(dialog.getByRole("checkbox").first()).toBeVisible({ timeout: 5_000 });
++  await checkTemplate(dialog, E2E_TEMPLATE_PULL.name);
++  await page.getByRole("button", { name: /Pull selected/ }).click();
++  await expect(dialog).toBeHidden({ timeout: 10_000 });
++  await expect(page.getByText(/item\(s\) added/)).toBeVisible({ timeout: 10_000 });
++});
++
++When("I pull both templates onto the trip", async ({ page }) => {
++  const pullBtn = page
++    .getByRole("button", { name: "Pull from a template" })
++    .or(page.getByRole("button", { name: "Pull templates" }))
++    .first();
++  await pullBtn.click();
++  const dialog = page.getByRole("dialog");
++  await expect(dialog).toBeVisible({ timeout: 5_000 });
++  await expect(dialog.getByRole("checkbox").first()).toBeVisible({ timeout: 5_000 });
++  await checkTemplate(dialog, E2E_TEMPLATE_PULL.name);
++  await checkTemplate(dialog, E2E_TEMPLATE_PULL_2.name);
++  await page.getByRole("button", { name: /Pull selected/ }).click();
++  await expect(dialog).toBeHidden({ timeout: 10_000 });
++  await expect(page.getByText(/item\(s\) added/)).toBeVisible({ timeout: 10_000 });
++});
++
++Then('I should see a "Pull from a template" button', async ({ page }) => {
++  await expect(page.getByRole("button", { name: "Pull from a template" })).toBeVisible();
++});
++
++Then("the packing list should contain {string} exactly once", async ({ page }, name: string) => {
++  await expect(async () => {
++    const items = page.locator("[data-packing-kind]").filter({ hasText: name });
++    await expect(items).toHaveCount(1);
++  }).toPass({ timeout: 10_000 });
++});
++
++Then("I should see a duplicate notice", async ({ page }) => {
++  await expect(page.getByText(/duplicate\(s\) skipped/)).toBeVisible({ timeout: 10_000 });
++});

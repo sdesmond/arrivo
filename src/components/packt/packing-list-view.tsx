@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
-import { Plus, Tag } from "lucide-react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+import { FolderOpen, Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { PackingItem } from "@/data/types";
+import type { PackingItem, PackingTemplate, PullTemplatesResult } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
+import { TemplatePullDialog } from "./template-pull-dialog";
 
 export interface PackingListViewProps {
   tripId: string;
@@ -21,6 +22,8 @@ export interface PackingListViewProps {
   onToggleItem: (id: string) => Promise<void>;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onEditItem?: (id: string, name: string) => void;
+  templates?: PackingTemplate[];
+  onPullTemplates?: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
 }
 
 interface PackingEntryFormProps {
@@ -96,13 +99,24 @@ export function PackingListView({
   onToggleItem,
   onReorderItems,
   onEditItem,
+  templates,
+  onPullTemplates,
 }: PackingListViewProps): ReactElement {
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogKey, setDialogKey] = useState(0);
+  const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
   const [prevItems, setPrevItems] = useState(items);
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
+
+  useEffect(() => {
+    if (!resultNotice) return;
+    const timer = setTimeout(() => setResultNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [resultNotice]);
   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
   const effectiveItems = localItems ?? items;
 
@@ -179,11 +193,36 @@ export function PackingListView({
     }
   }
 
+  async function handleDialogPull(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
+    if (!onPullTemplates) return undefined;
+    try {
+      const result = await onPullTemplates(templateIds);
+      if (result) {
+        setResultNotice(result);
+        setDialogOpen(false);
+      }
+      return result;
+    } catch {
+      return undefined;
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div aria-live="polite" className="sr-only">
         <span key={announcementId}>{announcement}</span>
       </div>
+
+      {resultNotice && (
+        <div
+          role="status"
+          className="rounded-2xl border p-3 text-sm"
+          style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}
+        >
+          {resultNotice.added} item(s) added
+          {resultNotice.skipped > 0 ? `, ${resultNotice.skipped} duplicate(s) skipped` : ""}
+        </div>
+      )}
 
       {effectiveItems.length === 0 ? (
         <section
@@ -207,9 +246,42 @@ export function PackingListView({
             onSubmitItem={() => submitEntry()}
             onSubmitLabel={() => submitEntry(true)}
           />
+          {onPullTemplates && (
+            <Button
+              className="min-h-11 min-w-11 rounded-2xl"
+              variant="outline"
+              onClick={() => {
+                setDialogKey((k) => k + 1);
+                setDialogOpen(true);
+              }}
+            >
+              <FolderOpen size={16} strokeWidth={1.5} />
+              Pull from a template
+            </Button>
+          )}
         </section>
       ) : (
         <>
+          {onPullTemplates && (
+            <div className="flex items-center justify-between">
+              <span style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))" }}>
+                {effectiveItems.length} item{effectiveItems.length !== 1 ? "s" : ""}
+              </span>
+              <Button
+                className="min-h-11 min-w-11 rounded-xl"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDialogKey((k) => k + 1);
+                  setDialogOpen(true);
+                }}
+              >
+                <FolderOpen size={14} strokeWidth={1.5} />
+                Pull templates
+              </Button>
+            </div>
+          )}
+
           <PackingListSortable
             items={effectiveItems}
             pendingItemIds={pendingItemIds}
@@ -233,6 +305,16 @@ export function PackingListView({
             onSubmitLabel={() => submitEntry(true)}
           />
         </>
+      )}
+
+      {onPullTemplates && (
+        <TemplatePullDialog
+          key={dialogKey}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          templates={templates ?? []}
+          onPull={handleDialogPull}
+        />
       )}
     </div>
   );

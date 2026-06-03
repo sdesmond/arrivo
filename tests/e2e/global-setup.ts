@@ -15,6 +15,7 @@ import {
 } from "../../src/db/schema";
 import {
   E2E_USER,
+  E2E_PULL_USER,
   E2E_TEMPLATE_USER,
   E2E_TRIP,
   E2E_DAYS,
@@ -53,6 +54,13 @@ export default async function globalSetup() {
   await db.insert(users).values({
     email: E2E_TEMPLATE_USER.email,
     name: E2E_TEMPLATE_USER.name,
+    passwordHash,
+    dateFormat: "MM/DD/YYYY",
+  });
+
+  await db.insert(users).values({
+    email: E2E_PULL_USER.email,
+    name: E2E_PULL_USER.name,
     passwordHash,
     dateFormat: "MM/DD/YYYY",
   });

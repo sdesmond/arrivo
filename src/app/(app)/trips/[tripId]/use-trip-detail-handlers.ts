@@ -12,10 +12,12 @@ import type {
   TripDateConflictResolution,
   UpdateTripMetadataResult,
   UpdateTripPatch,
+  PullTemplatesResult,
 } from "@/data/types";
 import {
   addPackingItem,
   deleteTrip,
+  pullTemplatesOntoTrip,
   removePackingItem,
   reorderPackingItems,
   togglePackingItem,
@@ -78,6 +80,7 @@ export interface TripDetailHandlers {
     onError?: () => void
   ) => void;
   handleUpdatePackingItem: (id: string, name: string) => void;
+  handlePullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -298,6 +301,17 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
+  async function handlePullTemplates(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
+    try {
+      const result = await pullTemplatesOntoTrip(trip.id, templateIds);
+      router.refresh();
+      return result;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to pull templates. Please try again.");
+      return undefined;
+    }
+  }
+
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -378,6 +392,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleTogglePackingItem,
     handleReorderPackingItems,
     handleUpdatePackingItem,
+    handlePullTemplates,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,
