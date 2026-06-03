@@ -73,8 +73,8 @@ export interface TripDetailHandlers {
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ) => void;
-  handleRemovePackingItem: (id: string) => void;
+  ) => Promise<void>;
+  handleRemovePackingItem: (id: string) => Promise<void>;
   handleTogglePackingItem: (id: string) => Promise<void>;
   handleReorderPackingItems: (
     ordered: { id: string; labelId: string | null; position: number }[],
@@ -241,14 +241,18 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ): void {
-    React.startTransition(async () => {
-      try {
-        await addPackingItem(trip.id, { name, isLabel, afterItemId, beforeItemId, labelId });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to add packing entry. Please try again.");
-        router.refresh();
-      }
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await addPackingItem(trip.id, { name, isLabel, afterItemId, beforeItemId, labelId });
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to add packing entry. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
     });
   }
 
@@ -262,13 +266,18 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleRemovePackingItem(id: string): void {
-    React.startTransition(async () => {
-      try {
-        await removePackingItem(id);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to remove packing entry. Please try again.");
-      }
+  function handleRemovePackingItem(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await removePackingItem(id);
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to remove packing entry. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
     });
   }
 
@@ -298,7 +307,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
       } catch (error) {
         onError?.();
         toast.error(error instanceof Error ? error.message : "Failed to reorder packing items. Please try again.");
-        router.refresh();
       }
     });
   }

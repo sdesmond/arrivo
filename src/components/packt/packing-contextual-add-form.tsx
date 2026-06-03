@@ -17,7 +17,7 @@ export interface ContextualAddFormProps {
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ) => void;
+  ) => Promise<void>;
 }
 
 export function ContextualAddForm({
@@ -30,12 +30,16 @@ export function ContextualAddForm({
 }: ContextualAddFormProps): ReactElement {
   const [value, setValue] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const trimmed = value.trim();
     if (!trimmed || isAdding) return;
-    onAddItem(trimmed, false, afterItemId, beforeItemId, labelId);
-    setValue("");
+    try {
+      await onAddItem(trimmed, false, afterItemId, beforeItemId, labelId);
+      setValue("");
+    } catch {
+      // Input retains value on failure so the user can retry
+    }
   }
 
   return (

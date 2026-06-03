@@ -100,6 +100,14 @@ function createToggleItemHandler() {
   return vi.fn(async () => undefined);
 }
 
+function createAddItemHandler() {
+  return vi.fn(async () => undefined as void);
+}
+
+function createRemoveItemHandler() {
+  return vi.fn(async () => undefined as void);
+}
+
 describe("PackingListView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -114,8 +122,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -133,8 +141,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -156,14 +164,14 @@ describe("PackingListView", () => {
 
   it("submits a plain-text item from the form", async () => {
     const user = userEvent.setup();
-    const onAddItem = vi.fn();
+    const onAddItem = createAddItemHandler();
 
     render(
       <PackingListView
         tripId="trip-1"
         items={[]}
         onAddItem={onAddItem}
-        onRemoveItem={vi.fn()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -174,19 +182,19 @@ describe("PackingListView", () => {
     await user.click(screen.getByRole("button", { name: "Add item" }));
 
     expect(onAddItem).toHaveBeenCalledWith("Passport", undefined);
-    expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
   });
 
   it("submits a section label from the form", async () => {
     const user = userEvent.setup();
-    const onAddItem = vi.fn();
+    const onAddItem = createAddItemHandler();
 
     render(
       <PackingListView
         tripId="trip-1"
         items={[]}
         onAddItem={onAddItem}
-        onRemoveItem={vi.fn()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -201,14 +209,14 @@ describe("PackingListView", () => {
 
   it("submits an item from the entry form when the list already has items", async () => {
     const user = userEvent.setup();
-    const onAddItem = vi.fn();
+    const onAddItem = createAddItemHandler();
 
     render(
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
         onAddItem={onAddItem}
-        onRemoveItem={vi.fn()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -222,14 +230,14 @@ describe("PackingListView", () => {
 
   it("submits a label from the entry form when the list already has items", async () => {
     const user = userEvent.setup();
-    const onAddItem = vi.fn();
+    const onAddItem = createAddItemHandler();
 
     render(
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
         onAddItem={onAddItem}
-        onRemoveItem={vi.fn()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -246,8 +254,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -267,13 +275,13 @@ describe("PackingListView", () => {
 
   it("removes an item when the remove button is clicked", async () => {
     const user = userEvent.setup();
-    const onRemoveItem = vi.fn();
+    const onRemoveItem = createRemoveItemHandler();
 
     render(
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
         onRemoveItem={onRemoveItem}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
@@ -291,8 +299,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -313,8 +321,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -332,8 +340,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={checkedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -353,8 +361,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -371,8 +379,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -389,8 +397,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -413,8 +421,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={checkedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -442,8 +450,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -469,8 +477,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={onToggleItem}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -490,8 +498,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -508,8 +516,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -528,8 +536,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -546,8 +554,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -567,8 +575,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -598,8 +606,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={allDoneItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -620,8 +628,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={partialDoneItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -638,8 +646,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={emptySection}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -658,8 +666,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -678,8 +686,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={onEditItem}
@@ -705,8 +713,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={onEditItem}
@@ -731,8 +739,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[{ id: "label-1", name: "Documents", done: false, position: 0, isLabel: true }]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -744,14 +752,14 @@ describe("PackingListView", () => {
   });
 
   it("clicking delete label button in edit mode calls onRemoveItem", async () => {
-    const onRemoveItem = vi.fn();
+    const onRemoveItem = createRemoveItemHandler();
     const user = userEvent.setup();
 
     render(
       <PackingListView
         tripId="trip-1"
         items={[{ id: "label-1", name: "Documents", done: false, position: 0, isLabel: true }]}
-        onAddItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
         onRemoveItem={onRemoveItem}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
@@ -776,8 +784,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={sectionItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -788,7 +796,7 @@ describe("PackingListView", () => {
   });
 
   it("submitting contextual add form under a section passes afterItemId", async () => {
-    const onAddItem = vi.fn();
+    const onAddItem = createAddItemHandler();
     const user = userEvent.setup();
     const sectionItems: PackingItem[] = [
       { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
@@ -800,7 +808,7 @@ describe("PackingListView", () => {
         tripId="trip-1"
         items={sectionItems}
         onAddItem={onAddItem}
-        onRemoveItem={vi.fn()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -815,7 +823,7 @@ describe("PackingListView", () => {
   });
 
   it("contextual add form shares the add pending guard after submit", async () => {
-    const onAddItem = vi.fn();
+    const onAddItem = createAddItemHandler();
     const user = userEvent.setup();
     const sectionItems: PackingItem[] = [
       { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
@@ -827,7 +835,7 @@ describe("PackingListView", () => {
         tripId="trip-1"
         items={sectionItems}
         onAddItem={onAddItem}
-        onRemoveItem={vi.fn()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -855,8 +863,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={ungroupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -873,8 +881,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[{ id: "item-1", name: "Passport", done: false, position: 0 }]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -894,8 +902,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -912,8 +920,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -928,8 +936,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -948,8 +956,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -970,8 +978,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -993,8 +1001,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -1018,8 +1026,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -1043,8 +1051,8 @@ describe("PackingListView", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -1062,6 +1070,271 @@ describe("PackingListView", () => {
       { timeout: 4500 }
     );
   }, 7000);
+
+  // ── Story 3.3 — AC #1: Announcement rollback on failure ──────────────────────
+
+  it("shows failure announcement and resets isSubmitting when onAddItem rejects", async () => {
+    const user = userEvent.setup();
+    const onAddItem = vi.fn(async () => {
+      throw new Error("Server error");
+    });
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+
+    await waitFor(() => {
+      const liveRegion = container.querySelector("[aria-live=polite]");
+      expect(liveRegion).toHaveTextContent("Failed to add item.");
+    });
+    expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled();
+  });
+
+  it("shows failure announcement when onRemoveItem rejects", async () => {
+    const user = userEvent.setup();
+    const onRemoveItem = vi.fn(async () => {
+      throw new Error("Remove failed");
+    });
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={onRemoveItem}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Passport" }));
+
+    await waitFor(() => {
+      const liveRegion = container.querySelector("[aria-live=polite]");
+      expect(liveRegion).toHaveTextContent("Failed to remove item.");
+    });
+  });
+
+  // ── Story 3.3 — AC #2: Deferred announcement on success ──────────────────────
+
+  it("waits for add persistence before announcing success", async () => {
+    const user = userEvent.setup();
+    let resolveAdd: (() => void) | undefined;
+    const onAddItem = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+
+    const liveRegion = container.querySelector("[aria-live=polite]");
+    expect(liveRegion).not.toHaveTextContent("Passport added.");
+
+    resolveAdd?.();
+
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Passport added."));
+  });
+
+  it("waits for contextual add persistence before announcing success", async () => {
+    const user = userEvent.setup();
+    let resolveAdd: (() => void) | undefined;
+    const onAddItem = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+    const sectionItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+    ];
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={sectionItems}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    const contextInput = screen.getByPlaceholderText('Add item under "Documents"…');
+    await user.type(contextInput, "Visa");
+    await user.keyboard("{Enter}");
+
+    const liveRegion = container.querySelector("[aria-live=polite]");
+    expect(liveRegion).not.toHaveTextContent("Visa added.");
+
+    resolveAdd?.();
+
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Item Visa added."));
+  });
+
+  // ── Story 3.3 — AC #3: Server-triggered re-render detection ──────────────────
+
+  it("resets isSubmitting when items prop changes by content (ID-based detection)", async () => {
+    const user = userEvent.setup();
+    let resolveAdd: (() => void) | undefined;
+    const onAddItem = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+
+    const { rerender } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+
+    expect(screen.getByRole("button", { name: "Add item" })).toBeDisabled();
+
+    rerender(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "new-item", name: "Passport", done: false, position: 0 }]}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled());
+    resolveAdd?.();
+  });
+
+  // ── Story 3.3 — AC #4: Concurrent mutation protection ────────────────────────
+
+  it("stale optimistic rollback is ignored when a newer reorder has started", () => {
+    // Uses cross-section drags so labelId changes are reflected in the DOM
+    // (position-based sorting would mask within-section reorders).
+    const capturedErrors: Array<() => void> = [];
+    const onReorderItems = vi.fn(
+      (_ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => {
+        if (onError) capturedErrors.push(onError);
+      }
+    );
+
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={onReorderItems}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    const getRowNames = () =>
+      Array.from(container.querySelectorAll("[data-packing-name]")).map((el) => el.textContent?.trim());
+
+    const originalOrder = ["Documents", "Phone charger", "Clothes", "Socks", "Passport"];
+    expect(getRowNames()).toEqual(originalOrder);
+
+    // First drag: move Phone charger (item-1) from Documents → Ungrouped
+    act(() => {
+      (
+        dndContextState.props as { onDragEnd?: (ev: { active: { id: string }; over: { id: string } }) => void }
+      ).onDragEnd?.({ active: { id: "item-1" }, over: { id: "container:__ungrouped__" } });
+    });
+
+    // Second drag: move Socks (item-2) from Clothes → Ungrouped (newer mutation, seq=2)
+    act(() => {
+      (
+        dndContextState.props as { onDragEnd?: (ev: { active: { id: string }; over: { id: string } }) => void }
+      ).onDragEnd?.({ active: { id: "item-2" }, over: { id: "container:__ungrouped__" } });
+    });
+
+    expect(capturedErrors).toHaveLength(2);
+
+    // After drag2, both items are in Ungrouped (visible: sections are empty)
+    const optimisticOrder = getRowNames();
+    expect(optimisticOrder).not.toEqual(originalOrder);
+
+    // Fire the first (stale) error callback — seq=1 ≠ current seq=2 → ignored
+    act(() => capturedErrors[0]?.());
+
+    // Items should still be in the optimistic (drag2) state, not reverted
+    expect(getRowNames()).toEqual(optimisticOrder);
+
+    // Fire the second (valid) error callback — seq=2 === current seq=2 → fires rollback
+    act(() => capturedErrors[1]?.());
+
+    // After valid rollback localItems=null → effectiveItems = original prop order
+    expect(getRowNames()).toEqual(originalOrder);
+  });
+
+  it("mutation sequence increments on each optimistic reorder", () => {
+    let reorderCallCount = 0;
+    const onReorderItems = vi.fn(
+      (_ordered: { id: string; labelId: string | null; position: number }[], _onError?: () => void) => {
+        reorderCallCount += 1;
+      }
+    );
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={onReorderItems}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    // Two distinct cross-section drags → two onReorderItems calls
+    act(() => {
+      (
+        dndContextState.props as { onDragEnd?: (ev: { active: { id: string }; over: { id: string } }) => void }
+      ).onDragEnd?.({ active: { id: "item-1" }, over: { id: "container:__ungrouped__" } });
+    });
+
+    act(() => {
+      (
+        dndContextState.props as { onDragEnd?: (ev: { active: { id: string }; over: { id: string } }) => void }
+      ).onDragEnd?.({ active: { id: "item-2" }, over: { id: "container:__ungrouped__" } });
+    });
+
+    expect(reorderCallCount).toBe(2);
+  });
 });
 
 // ── Story 2.4 — Save as template ─────────────────────────────────────────────
@@ -1076,8 +1349,8 @@ describe("PackingListView save-as-template", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -1093,8 +1366,8 @@ describe("PackingListView save-as-template", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -1109,8 +1382,8 @@ describe("PackingListView save-as-template", () => {
       <PackingListView
         tripId="trip-1"
         items={[]}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}
@@ -1128,8 +1401,8 @@ describe("PackingListView save-as-template", () => {
       <PackingListView
         tripId="trip-1"
         items={groupedItems}
-        onAddItem={vi.fn()}
-        onRemoveItem={vi.fn()}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
         onReorderItems={vi.fn()}
         onEditItem={vi.fn()}

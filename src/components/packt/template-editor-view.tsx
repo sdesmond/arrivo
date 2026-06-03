@@ -17,7 +17,7 @@ export interface TemplateEditorViewProps {
     afterItemId?: string,
     beforeItemId?: string,
     labelId?: string | null
-  ) => void;
+  ) => Promise<void>;
   onRemoveItem: (id: string) => void;
   onEditItem: (id: string, text: string) => void;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
@@ -185,9 +185,9 @@ export function TemplateEditorView({
           <PackingListSortable
             items={items.map(toPackingItem)}
             pendingItemIds={new Set()}
-            onRemoveItem={(item) => {
+            onRemoveItem={async (item) => {
               if (item.id) {
-                onRemoveItem(item.id);
+                await onRemoveItem(item.id);
               }
             }}
             onOptimisticReorder={(reorderedItems) =>
