@@ -1,6 +1,6 @@
 # Story 3.6: UX/Cosmetic Polish
 
-Status: review
+Status: done
 
 ## Story
 
@@ -42,6 +42,15 @@ So that section labels behave correctly, template names are distinguishable, and
 - [x] Apply `lower()` case-insensitive sort on template names (AC: #3)
   - [x] In `src/lib/queries.ts`: change `asc(packingTemplates.name)` to `asc(sql\`LOWER(${packingTemplates.name})\`)` in `listTemplatesForUser`
   - [x] Note: `queries.ts` imports `"server-only"` and is excluded from coverage — no unit test needed (update existing test fixture ordering if present)
+
+### Review Findings
+
+- [x] [Review][Patch] Duplicate-name template aria-label scenario is still untested [src/components/packt/template-library.test.tsx:7]
+- [x] [Review][Patch] Label-row regression test does not assert absence of sortable-specific attributes [src/components/packt/packing-list-sortable.test.tsx:648]
+- [x] [Review][Patch] Label drag guard remains in place without a test proving it never fires [src/components/packt/packing-list-sortable.tsx:116]
+- [x] [Review][Patch] Section header remains part of the drop zone after label deregistration, so header drops can reparent items [src/components/packt/packing-list-sortable.tsx:169]
+- [x] [Review][Patch] Template-library E2E selectors still target the old accessible names [tests/e2e/steps/templates.steps.ts:52]
+- [x] [Review][Patch] Mixed-case template ordering has no regression coverage [tests/e2e/features/templates.feature:43]
 
 ## Dev Notes
 
