@@ -1,6 +1,6 @@
 # Story 3.5: Test Quality Improvements
 
-Status: review
+Status: done
 
 ## Story
 
@@ -73,6 +73,17 @@ So that edge cases are covered and tests are less brittle.
 - [x] Add optimistic update pattern test coverage (AC: #6)
   - [x] Test add/remove optimistic rollback on server failure
   - [x] Test concurrent mutation protection
+
+### Review Findings
+
+- [x] [Review][Patch] TypeScript type hack — `undefined as unknown as string` in test data bypasses the type system [`packing-sort-utils.test.ts`]
+- [x] [Review][Patch] Void-operator swallows errors from async callbacks in test harness [`packing-entry-form.test.tsx`]
+- [x] [Review][Patch] Race condition — `resolveAdd?.()` may silently no-op in deferred-announcement tests [`packing-list-view.test.tsx`]
+- [x] [Review][Patch] No test coverage for `isSubmitting={true}` in isolated `PackingEntryForm` [`packing-entry-form.test.tsx`]
+- [x] [Review][Patch] Retry loop exhaustion — all 4 `boundingBox` attempts fail, `mouse.up()` fires at stale coordinates [`packing-tab.steps.ts`]
+- [x] [Review][Patch] Empty-string form submission not guarded — `handleSubmit` calls `onSubmitItem()` without validating `draftName` is non-empty [`packing-entry-form.tsx`]
+
+Also dismissed: `minWidth` on `<span>` — element has `className="flex"` giving `display: flex`, so `minWidth` is effective. Not a bug.
 
 ## Dev Notes
 

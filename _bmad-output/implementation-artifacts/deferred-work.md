@@ -85,3 +85,5 @@
 - itemsKey comma-join collision surface — UUIDs don't contain commas; would be caught immediately if format changes
 - submitEntry stale closure permits same-render double-submit — pre-existing, not introduced by this diff
 - handleOptimisticReorder wasted seq increment when movedWithIds empty — items always have IDs in practice (DB-assigned UUIDs)
+
+
