@@ -108,6 +108,14 @@ function createRemoveItemHandler() {
   return vi.fn(async () => undefined as void);
 }
 
+function expectMinimumTouchTarget(element: HTMLElement, options?: { requireMinWidth?: boolean }): void {
+  const styles = window.getComputedStyle(element);
+  expect(styles.minHeight).toBe("44px");
+  if (options?.requireMinWidth !== false) {
+    expect(styles.minWidth).toBe("44px");
+  }
+}
+
 describe("PackingListView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -160,93 +168,6 @@ describe("PackingListView", () => {
     expect(rowNames).toEqual(["Documents", "Phone charger", "Clothes", "Socks", "Passport"]);
     expect(container.querySelectorAll('[data-packing-kind="label"]')).toHaveLength(2);
     expect(container.querySelectorAll('[data-packing-kind="item"]')).toHaveLength(3);
-  });
-
-  it("submits a plain-text item from the form", async () => {
-    const user = userEvent.setup();
-    const onAddItem = createAddItemHandler();
-
-    render(
-      <PackingListView
-        tripId="trip-1"
-        items={[]}
-        onAddItem={onAddItem}
-        onRemoveItem={createRemoveItemHandler()}
-        onToggleItem={createToggleItemHandler()}
-        onReorderItems={vi.fn()}
-        onEditItem={vi.fn()}
-      />
-    );
-
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
-
-    expect(onAddItem).toHaveBeenCalledWith("Passport", undefined);
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
-  });
-
-  it("submits a section label from the form", async () => {
-    const user = userEvent.setup();
-    const onAddItem = createAddItemHandler();
-
-    render(
-      <PackingListView
-        tripId="trip-1"
-        items={[]}
-        onAddItem={onAddItem}
-        onRemoveItem={createRemoveItemHandler()}
-        onToggleItem={createToggleItemHandler()}
-        onReorderItems={vi.fn()}
-        onEditItem={vi.fn()}
-      />
-    );
-
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Documents");
-    await user.click(screen.getByRole("button", { name: "Add label" }));
-
-    expect(onAddItem).toHaveBeenCalledWith("Documents", true);
-  });
-
-  it("submits an item from the entry form when the list already has items", async () => {
-    const user = userEvent.setup();
-    const onAddItem = createAddItemHandler();
-
-    render(
-      <PackingListView
-        tripId="trip-1"
-        items={groupedItems}
-        onAddItem={onAddItem}
-        onRemoveItem={createRemoveItemHandler()}
-        onToggleItem={createToggleItemHandler()}
-        onReorderItems={vi.fn()}
-        onEditItem={vi.fn()}
-      />
-    );
-
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
-    expect(onAddItem).toHaveBeenCalledWith("Tent", undefined);
-  });
-
-  it("submits a label from the entry form when the list already has items", async () => {
-    const user = userEvent.setup();
-    const onAddItem = createAddItemHandler();
-
-    render(
-      <PackingListView
-        tripId="trip-1"
-        items={groupedItems}
-        onAddItem={onAddItem}
-        onRemoveItem={createRemoveItemHandler()}
-        onToggleItem={createToggleItemHandler()}
-        onReorderItems={vi.fn()}
-        onEditItem={vi.fn()}
-      />
-    );
-
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
-    await user.click(screen.getByRole("button", { name: "Add label" }));
-    expect(onAddItem).toHaveBeenCalledWith("Camping", true);
   });
 
   it("announces a cross-section move via the aria-live region on drag end", () => {
@@ -307,13 +228,10 @@ describe("PackingListView", () => {
       />
     );
 
-    expect(screen.getByRole("textbox", { name: "Packing item name" }).className).toContain("h-11");
-    expect(screen.getByRole("button", { name: "Add item" }).className).toContain("min-h-11");
-    expect(screen.getByRole("button", { name: "Add item" }).className).toContain("min-w-11");
-    expect(screen.getByRole("button", { name: "Add label" }).className).toContain("min-h-11");
-    expect(screen.getByRole("button", { name: "Add label" }).className).toContain("min-w-11");
-    expect(screen.getByRole("button", { name: "Remove Passport" }).className).toContain("min-h-11");
-    expect(screen.getByRole("button", { name: "Remove Passport" }).className).toContain("min-w-11");
+    expectMinimumTouchTarget(screen.getByRole("textbox", { name: "Packing item name" }), { requireMinWidth: false });
+    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add item" }));
+    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add label" }));
+    expectMinimumTouchTarget(screen.getByRole("button", { name: "Remove Passport" }));
   });
 
   it('renders checkbox button with aria-checked="false" for unchecked item', () => {
@@ -493,7 +411,7 @@ describe("PackingListView", () => {
     });
   });
 
-  it("checkbox button has min-h-11 and min-w-11 classes", () => {
+  it("checkbox button preserves the minimum touch-target size", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -507,8 +425,7 @@ describe("PackingListView", () => {
     );
 
     const checkbox = screen.getByRole("checkbox", { name: "Pack Passport" });
-    expect(checkbox.className).toContain("min-h-11");
-    expect(checkbox.className).toContain("min-w-11");
+    expectMinimumTouchTarget(checkbox);
   });
 
   it("renders a drag handle on item rows but not on label rows", () => {
@@ -531,7 +448,7 @@ describe("PackingListView", () => {
     expect(screen.queryByTitle("Reorder Clothes")).not.toBeInTheDocument();
   });
 
-  it("drag handle button has min-h-11 and min-w-11 classes", () => {
+  it("drag handle button preserves the minimum touch-target size", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -545,8 +462,7 @@ describe("PackingListView", () => {
     );
 
     const dragHandle = screen.getByTitle("Reorder Passport");
-    expect(dragHandle.className).toContain("min-h-11");
-    expect(dragHandle.className).toContain("min-w-11");
+    expectMinimumTouchTarget(dragHandle);
   });
 
   it("calls useSortable with disabled:true for section labels", () => {
@@ -1073,7 +989,7 @@ describe("PackingListView", () => {
 
   // ── Story 3.3 — AC #1: Announcement rollback on failure ──────────────────────
 
-  it("shows failure announcement and resets isSubmitting when onAddItem rejects", async () => {
+  it("rolls back the add form state when onAddItem rejects", async () => {
     const user = userEvent.setup();
     const onAddItem = vi.fn(async () => {
       throw new Error("Server error");
@@ -1096,10 +1012,13 @@ describe("PackingListView", () => {
       const liveRegion = container.querySelector("[aria-live=polite]");
       expect(liveRegion).toHaveTextContent("Failed to add item.");
     });
+
+    expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue("Passport");
+    expect(screen.queryByText("Passport")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled();
   });
 
-  it("shows failure announcement when onRemoveItem rejects", async () => {
+  it("keeps the item rendered when onRemoveItem rejects", async () => {
     const user = userEvent.setup();
     const onRemoveItem = vi.fn(async () => {
       throw new Error("Remove failed");
@@ -1122,6 +1041,8 @@ describe("PackingListView", () => {
       const liveRegion = container.querySelector("[aria-live=polite]");
       expect(liveRegion).toHaveTextContent("Failed to remove item.");
     });
+
+    expect(screen.getByText("Passport")).toBeInTheDocument();
   });
 
   // ── Story 3.3 — AC #2: Deferred announcement on success ──────────────────────
@@ -1152,7 +1073,8 @@ describe("PackingListView", () => {
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Passport added.");
 
-    resolveAdd?.();
+    expect(resolveAdd).toBeDefined();
+    resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Passport added."));
   });
@@ -1189,9 +1111,75 @@ describe("PackingListView", () => {
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Visa added.");
 
-    resolveAdd?.();
+    resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Visa added."));
+  });
+
+  it("waits for populated entry-form item persistence before announcing success", async () => {
+    const user = userEvent.setup();
+    let resolveAdd: (() => void) | undefined;
+    const onAddItem = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
+    await user.click(screen.getByRole("button", { name: "Add item" }));
+
+    const liveRegion = container.querySelector("[aria-live=polite]");
+    expect(liveRegion).not.toHaveTextContent("Item Tent added.");
+
+    resolveAdd!();
+
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Item Tent added."));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
+  });
+
+  it("waits for populated entry-form label persistence before announcing success", async () => {
+    const user = userEvent.setup();
+    let resolveAdd: (() => void) | undefined;
+    const onAddItem = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
+    await user.click(screen.getByRole("button", { name: "Add label" }));
+
+    const liveRegion = container.querySelector("[aria-live=polite]");
+    expect(liveRegion).not.toHaveTextContent("Section Camping added.");
+
+    resolveAdd!();
+
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Section Camping added."));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
   });
 
   // ── Story 3.3 — AC #3: Server-triggered re-render detection ──────────────────
@@ -1234,7 +1222,7 @@ describe("PackingListView", () => {
     );
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled());
-    resolveAdd?.();
+    resolveAdd!();
   });
 
   // ── Story 3.3 — AC #4: Concurrent mutation protection ────────────────────────
@@ -1411,5 +1399,27 @@ describe("PackingListView save-as-template", () => {
     await user.click(screen.getByRole("button", { name: "Save as template" }));
 
     expect(screen.getByRole("dialog", { name: "Save as template" })).toBeInTheDocument();
+  });
+
+  it("closes the save dialog when the close action is triggered", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        onSaveAsTemplate={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save as template" }));
+    await user.click(screen.getByRole("button", { name: "Close save dialog" }));
+
+    expect(screen.queryByRole("dialog", { name: "Save as template" })).not.toBeInTheDocument();
   });
 });

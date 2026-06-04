@@ -8,6 +8,8 @@ import type { PackingItem } from "@/data/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const minimumTouchTargetStyle = { minHeight: "44px", minWidth: "44px" } as const;
+
 export interface PackingRowProps {
   item: PackingItem;
   isLabel?: boolean;
@@ -73,7 +75,13 @@ export function PackingRow({
           role="checkbox"
           title={item.done ? `Unpack ${item.name}` : `Pack ${item.name}`}
           type="button"
-          style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            ...minimumTouchTargetStyle,
+          }}
           onClick={onToggle}
         >
           <span
@@ -119,6 +127,7 @@ export function PackingRow({
                 variant="ghost"
                 size="icon"
                 className="min-h-11 min-w-11 shrink-0 rounded-2xl text-fg-3 hover:text-fg"
+                style={minimumTouchTargetStyle}
                 title="Delete label"
                 aria-label="Delete label"
                 type="button"
@@ -162,6 +171,7 @@ export function PackingRow({
         <Button
           aria-label={`Remove ${item.name}`}
           className="min-h-11 min-w-11 rounded-2xl text-fg-3 hover:text-fg"
+          style={minimumTouchTargetStyle}
           title={`Remove ${item.name}`}
           type="button"
           variant="ghost"
@@ -205,7 +215,7 @@ export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): R
       role="button"
       tabIndex={0}
       title={`Reorder ${props.item.name}`}
-      style={{ cursor: "grab", touchAction: "none", outlineColor: "var(--accent-brand)" }}
+      style={{ cursor: "grab", touchAction: "none", outlineColor: "var(--accent-brand)", ...minimumTouchTargetStyle }}
     >
       <GripVertical size={14} strokeWidth={1.5} />
     </span>
