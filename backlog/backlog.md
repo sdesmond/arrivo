@@ -42,7 +42,7 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 
 ## Trip packing list
 
-1. Items should have checkboxes, not radio buttons
+1. add ability to collapse a packing list section
 
 ## Adding to a section
 

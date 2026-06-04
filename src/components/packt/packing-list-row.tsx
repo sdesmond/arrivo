@@ -24,6 +24,7 @@ export interface PackingRowProps {
 
 export interface SortablePackingRowProps extends PackingRowProps {
   id: string;
+  isActiveDragSource?: boolean;
 }
 
 export function PackingRow({
@@ -175,7 +176,7 @@ export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): R
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0 : 1,
+    opacity: props.isActiveDragSource ? 0 : 1,
   };
   const dragHandleRef = useRef<HTMLSpanElement>(null);
   const prevIsDraggingRef = useRef(false);

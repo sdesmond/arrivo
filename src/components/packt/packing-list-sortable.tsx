@@ -133,7 +133,8 @@ export function PackingListSortable({
     // flatten now preserves original position values; re-grouping would re-sort by
     // position and produce the original order, making every reorder look like a no-op.
     if (sameOrder(flatten(groupPackingItems(items)), movedWithIds)) return;
-    onOptimisticReorder(movedWithIds);
+    const optimisticItems = movedWithIds.map((item, index) => ({ ...item, position: index }));
+    onOptimisticReorder(optimisticItems);
 
     const movedActive = movedWithIds.find((item) => item.id === String(active.id));
     if (movedActive && onAnnounceMove) {
@@ -143,11 +144,10 @@ export function PackingListSortable({
       onAnnounceMove(`Moved ${movedActive.name} to ${destination}.`);
     }
 
-    // Bug #1: use array index as position so the server receives the new order correctly;
-    // item.position carries the original DB value (preserved by flatten) which would be
-    // a no-op if saved back unchanged.
+    // Give the optimistic items the same final positions sent to the server so
+    // position-based grouping keeps the dropped order while revalidation runs.
     onReorderItems(
-      movedWithIds.map((item, index) => ({ id: item.id, labelId: item.labelId ?? null, position: index })),
+      optimisticItems.map((item) => ({ id: item.id, labelId: item.labelId ?? null, position: item.position })),
       () => onOptimisticReorder(null)
     );
   }
@@ -189,6 +189,7 @@ export function PackingListSortable({
                     key={item.id}
                     id={item.id!}
                     item={item}
+                    isActiveDragSource={activeId === item.id}
                     isPending={item.id ? pendingItemIds.has(item.id) : false}
                     onRemove={() => onRemoveItem(item)}
                     onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
@@ -226,6 +227,7 @@ export function PackingListSortable({
                 key={item.id}
                 id={item.id!}
                 item={item}
+                isActiveDragSource={activeId === item.id}
                 isPending={item.id ? pendingItemIds.has(item.id) : false}
                 onRemove={() => onRemoveItem(item)}
                 onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
@@ -247,7 +249,7 @@ export function PackingListSortable({
           </DroppablePackingSection>
         ) : null}
       </section>
-      <DragOverlay dropAnimation={{ duration: 200, easing: "ease-out" }}>
+      <DragOverlay dropAnimation={null}>
         {activeItem ? (
           <PackingRow item={activeItem} isLabel={activeItem.isLabel} onRemove={() => {}} onToggle={undefined} />
         ) : null}

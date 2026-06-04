@@ -11,6 +11,10 @@ const dndContextState = vi.hoisted(() => ({
   props: null as null | Record<string, unknown>,
 }));
 
+const dragOverlayState = vi.hoisted(() => ({
+  props: null as null | Record<string, unknown>,
+}));
+
 const useSortableMock = vi.hoisted(() =>
   vi.fn(() => ({
     attributes: { "aria-roledescription": "sortable" },
@@ -27,7 +31,10 @@ vi.mock("@dnd-kit/core", () => ({
     dndContextState.props = props;
     return <>{props.children}</>;
   },
-  DragOverlay: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DragOverlay: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => {
+    dragOverlayState.props = props;
+    return <>{children}</>;
+  },
   closestCenter: vi.fn(() => []),
   pointerWithin: vi.fn(() => []),
   rectIntersection: vi.fn(() => []),
@@ -68,7 +75,24 @@ function getDndProps<T>(): T {
 describe("PackingListSortable", () => {
   beforeEach(() => {
     dndContextState.props = null;
+    dragOverlayState.props = null;
     vi.clearAllMocks();
+  });
+
+  it("passes dropAnimation={null} to DragOverlay", () => {
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    expect(dragOverlayState.props).toBeDefined();
+    expect(dragOverlayState.props?.dropAnimation).toBeNull();
   });
 
   it("groups items by labelId and renders ungrouped items last under a heading", () => {
@@ -134,12 +158,10 @@ describe("PackingListSortable", () => {
       });
     });
 
-    // flatten() now preserves original position values; items keep their DB positions
-    // even after a reorder (the server receives sequential indices via onReorderItems instead)
     expect(onOptimisticReorder).toHaveBeenCalledWith([
       expect.objectContaining({ id: "label-1", position: 0, labelId: null }),
-      expect.objectContaining({ id: "item-b", position: 2, labelId: "label-1" }),
-      expect.objectContaining({ id: "item-a", position: 1, labelId: "label-1" }),
+      expect.objectContaining({ id: "item-b", position: 1, labelId: "label-1" }),
+      expect.objectContaining({ id: "item-a", position: 2, labelId: "label-1" }),
       expect.objectContaining({ id: "item-c", position: 3, labelId: null }),
     ]);
     expect(onReorderItems).toHaveBeenCalledWith(
