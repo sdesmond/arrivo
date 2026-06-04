@@ -97,7 +97,10 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await page.waitForTimeout(80);
     const box = await target.boundingBox();
-    if (!box) break;
+    if (!box) {
+      await page.waitForTimeout(100);
+      continue;
+    }
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
   }
   await page.waitForTimeout(60);
@@ -128,7 +131,10 @@ async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promis
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await page.waitForTimeout(80);
     const box = await ungrouped.boundingBox();
-    if (!box) break;
+    if (!box) {
+      await page.waitForTimeout(100);
+      continue;
+    }
     await page.mouse.move(box.x + box.width / 2, box.y + Math.max(box.height - 16, box.height / 2), { steps: 6 });
   }
 
@@ -279,11 +285,13 @@ When("I keyboard-move the item {string} down one position", async ({ page }, nam
   await expect(liveRegion).not.toContainText(`area ${activeId}`, { timeout: 10_000 });
 
   await page.keyboard.press("Enter");
+});
 
+Then("the packing item {string} should be at position {int}", async ({ page }, name: string, expectedIndex: number) => {
   await expect(async () => {
     const names = await page.locator("[data-packing-name]").allTextContents();
     const index = names.map((itemName) => itemName.trim()).indexOf(name);
-    expect(index).toBe(1);
+    expect(index).toBe(expectedIndex);
   }).toPass({ timeout: 10_000 });
 });
 
@@ -482,8 +490,20 @@ When("I drag the packing item {string} into the Ungrouped area", async ({ page }
   await dragItemIntoUngroupedArea(page, name);
 });
 
+When("I pointer-drag the packing item {string} into the Ungrouped area", async ({ page }, name: string) => {
+  await dragItemIntoUngroupedArea(page, name);
+});
+
 When(
   "I drag the packing item {string} onto the packing item {string}",
+  async ({ page }, name: string, target: string) => {
+    const targetRow = page.locator('[data-packing-kind="item"]').filter({ hasText: target }).first();
+    await dragItemOntoTarget(page, name, targetRow);
+  }
+);
+
+When(
+  "I pointer-drag the packing item {string} onto the packing item {string}",
   async ({ page }, name: string, target: string) => {
     const targetRow = page.locator('[data-packing-kind="item"]').filter({ hasText: target }).first();
     await dragItemOntoTarget(page, name, targetRow);
