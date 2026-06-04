@@ -32,8 +32,8 @@ function PackingEntryFormHarness({ hasItems, onAddItem }: PackingEntryFormHarnes
       hasItems={hasItems}
       isSubmitting={false}
       onDraftNameChange={handleDraftNameChange}
-      onSubmitItem={() => void handleSubmitItem()}
-      onSubmitLabel={() => void handleSubmitLabel()}
+      onSubmitItem={handleSubmitItem}
+      onSubmitLabel={handleSubmitLabel}
     />
   );
 }
@@ -86,5 +86,21 @@ describe("PackingEntryForm", () => {
     await user.click(screen.getByRole("button", { name: "Add label" }));
 
     expect(onAddItem).toHaveBeenCalledWith("Camping", true);
+  });
+
+  it("disables both buttons when isSubmitting is true", () => {
+    render(
+      <PackingEntryForm
+        draftName="Test"
+        hasItems={false}
+        isSubmitting
+        onDraftNameChange={vi.fn()}
+        onSubmitItem={vi.fn()}
+        onSubmitLabel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Add item" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add label" })).toBeDisabled();
   });
 });

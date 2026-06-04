@@ -93,7 +93,7 @@ describe("groupPackingItems", () => {
     const items: PackingItem[] = [
       undefinedLabel,
       gearLabel,
-      { id: "orphan", name: "Orphan", done: false, position: undefined, labelId: undefined as unknown as string },
+      { id: "orphan", name: "Orphan", done: false, position: undefined, labelId: null },
       { id: "tent", name: "Tent", done: false, position: 2, labelId: "gear", isLabel: false },
       { id: "map", name: "Map", done: false, position: 3, labelId: null, isLabel: false },
     ];

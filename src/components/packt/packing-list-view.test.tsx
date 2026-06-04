@@ -1073,7 +1073,8 @@ describe("PackingListView", () => {
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Passport added.");
 
-    resolveAdd?.();
+    expect(resolveAdd).toBeDefined();
+    resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Passport added."));
   });
@@ -1110,7 +1111,7 @@ describe("PackingListView", () => {
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Visa added.");
 
-    resolveAdd?.();
+    resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Visa added."));
   });
@@ -1142,7 +1143,7 @@ describe("PackingListView", () => {
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Item Tent added.");
 
-    resolveAdd?.();
+    resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Tent added."));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
@@ -1175,7 +1176,7 @@ describe("PackingListView", () => {
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Section Camping added.");
 
-    resolveAdd?.();
+    resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Section Camping added."));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
@@ -1221,7 +1222,7 @@ describe("PackingListView", () => {
     );
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled());
-    resolveAdd?.();
+    resolveAdd!();
   });
 
   // ── Story 3.3 — AC #4: Concurrent mutation protection ────────────────────────
