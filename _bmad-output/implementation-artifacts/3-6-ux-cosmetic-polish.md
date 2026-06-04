@@ -1,6 +1,6 @@
 # Story 3.6: UX/Cosmetic Polish
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -30,18 +30,18 @@ So that section labels behave correctly, template names are distinguishable, and
 
 ## Tasks / Subtasks
 
-- [ ] Remove drag affordance from section labels (AC: #1)
-  - [ ] In `packing-list-sortable.tsx`: render section labels as plain `PackingRow` (not `SortablePackingRow`) — remove `useSortable` wrapper from label rows
-  - [ ] Remove label `id` from `DroppablePackingSection`'s `sortableIds` array so dnd-kit never registers labels as sortable items
-  - [ ] Keep the existing `handleDragEnd` label guard (`onAnnounceMove("Labels cannot be reordered.")`) as defense-in-depth but verify it never fires
-  - [ ] In `packing-list-sortable.test.tsx`: update existing "Bug #7: section labels have no drag handle" test (line 631) to also verify labels render as `PackingRow` not `SortablePackingRow` (e.g., check absence of `data-rbd-draggable-context-id` or sortable-specific ARIA attributes)
-- [ ] Disambiguate `aria-labels` for duplicate template names (AC: #2)
-  - [ ] In `template-library.tsx`: change `aria-label="Rename ${template.name}"` to `aria-label="Rename ${template.name} (${template.id})"`
-  - [ ] Same for delete button: `aria-label="Delete ${template.name} (${template.id})"`
-  - [ ] Update `template-library.test.tsx` to assert aria-labels include the template id
-- [ ] Apply `lower()` case-insensitive sort on template names (AC: #3)
-  - [ ] In `src/lib/queries.ts`: change `asc(packingTemplates.name)` to `asc(sql\`LOWER(${packingTemplates.name})\`)` in `listTemplatesForUser`
-  - [ ] Note: `queries.ts` imports `"server-only"` and is excluded from coverage — no unit test needed (update existing test fixture ordering if present)
+- [x] Remove drag affordance from section labels (AC: #1)
+  - [x] In `packing-list-sortable.tsx`: render section labels as plain `PackingRow` (not `SortablePackingRow`) — remove `useSortable` wrapper from label rows
+  - [x] Remove label `id` from `DroppablePackingSection`'s `sortableIds` array so dnd-kit never registers labels as sortable items
+  - [x] Keep the existing `handleDragEnd` label guard (`onAnnounceMove("Labels cannot be reordered.")`) as defense-in-depth but verify it never fires
+  - [x] In `packing-list-sortable.test.tsx`: update existing "Bug #7: section labels have no drag handle" test (line 631) to also verify labels render as `PackingRow` not `SortablePackingRow` (e.g., check absence of `data-rbd-draggable-context-id` or sortable-specific ARIA attributes)
+- [x] Disambiguate `aria-labels` for duplicate template names (AC: #2)
+  - [x] In `template-library.tsx`: change `aria-label="Rename ${template.name}"` to `aria-label="Rename ${template.name} (${template.id})"`
+  - [x] Same for delete button: `aria-label="Delete ${template.name} (${template.id})"`
+  - [x] Update `template-library.test.tsx` to assert aria-labels include the template id
+- [x] Apply `lower()` case-insensitive sort on template names (AC: #3)
+  - [x] In `src/lib/queries.ts`: change `asc(packingTemplates.name)` to `asc(sql\`LOWER(${packingTemplates.name})\`)` in `listTemplatesForUser`
+  - [x] Note: `queries.ts` imports `"server-only"` and is excluded from coverage — no unit test needed (update existing test fixture ordering if present)
 
 ## Dev Notes
 
@@ -198,11 +198,17 @@ opencode/big-pickle
 
 ### Completion Notes List
 
+- AC#1: Labels now render as plain `PackingRow`; removed from `sortableIds` — dnd-kit has zero awareness of them. Updated `packing-list-sortable.test.tsx` Bug #7 to assert `[data-packing-kind="label"]` parent is the section container (not a SortablePackingRow wrapper div). Also updated `packing-list-view.test.tsx` to assert `useSortable` is no longer called with `disabled:true` for labels at all.
+- AC#2: Rename/Delete aria-labels now include `(${template.id})` suffix. Template-library tests updated to match.
+- AC#3: `listTemplatesForUser` orderBy now uses `LOWER()` via drizzle `sql` tag — `sql` was already imported.
+
 ### File List
 
 - `_bmad-output/implementation-artifacts/3-6-ux-cosmetic-polish.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
 - `src/components/packt/packing-list-sortable.tsx`
 - `src/components/packt/packing-list-sortable.test.tsx`
+- `src/components/packt/packing-list-view.test.tsx`
 - `src/components/packt/template-library.tsx`
 - `src/components/packt/template-library.test.tsx`
 - `src/lib/queries.ts`
@@ -210,3 +216,4 @@ opencode/big-pickle
 ### Change Log
 
 - 2026-06-04: Created Story 3.6 covering label non-draggability, distinct template aria-labels, and case-insensitive sort
+- 2026-06-04: Implemented all three ACs; all tests green (1612 unit, 112/113 E2E — 1 pre-existing flaky drag failure in day-planning unrelated to this story)

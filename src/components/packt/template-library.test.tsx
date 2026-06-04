@@ -28,8 +28,8 @@ describe("TemplateLibrary", () => {
     expect(screen.getByText("Carry-on Only")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Beach Weekend" })).toHaveAttribute("href", "/packing/template-1");
     expect(screen.getByRole("link", { name: "Carry-on Only" })).toHaveAttribute("href", "/packing/template-2");
-    expect(screen.getByRole("button", { name: "Rename Beach Weekend" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete Beach Weekend" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rename Beach Weekend (template-1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Beach Weekend (template-1)" })).toBeInTheDocument();
   });
 
   it("calls onNew from the header button", async () => {
@@ -49,8 +49,8 @@ describe("TemplateLibrary", () => {
 
     render(<TemplateLibrary templates={templates} onNew={vi.fn()} onRename={onRename} onDelete={onDelete} />);
 
-    await user.click(screen.getByRole("button", { name: "Rename Carry-on Only" }));
-    await user.click(screen.getByRole("button", { name: "Delete Carry-on Only" }));
+    await user.click(screen.getByRole("button", { name: "Rename Carry-on Only (template-2)" }));
+    await user.click(screen.getByRole("button", { name: "Delete Carry-on Only (template-2)" }));
 
     expect(onRename).toHaveBeenCalledWith(templates[1]);
     expect(onDelete).toHaveBeenCalledWith(templates[1]);

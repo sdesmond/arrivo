@@ -169,10 +169,9 @@ export function PackingListSortable({
           <DroppablePackingSection
             key={section.label.id}
             containerId={containerDomId(section.label.id!)}
-            sortableIds={[section.label.id!, ...section.items.map((item) => item.id!)]}
+            sortableIds={section.items.map((item) => item.id!)}
           >
-            <SortablePackingRow
-              id={section.label.id!}
+            <PackingRow
               item={section.label}
               isLabel
               isComplete={completeLabelIds.has(section.label.id!)}

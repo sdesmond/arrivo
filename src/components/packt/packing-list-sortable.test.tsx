@@ -644,6 +644,12 @@ describe("PackingListSortable", () => {
     expect(screen.queryByTitle("Reorder Documents")).not.toBeInTheDocument();
     expect(screen.getByTitle("Reorder Item A")).toBeInTheDocument();
     expect(screen.getByTitle("Reorder Item B")).toBeInTheDocument();
+
+    // Labels must render as plain PackingRow (not SortablePackingRow) — the
+    // data-packing-kind="label" div should be a direct child of the section
+    // container, not wrapped in an extra SortablePackingRow div.
+    const labelRow = document.querySelector('[data-packing-kind="label"]');
+    expect(labelRow?.parentElement).toHaveAttribute("data-packing-container");
   });
 
   it("edits a section label, removes and toggles a section item", async () => {
