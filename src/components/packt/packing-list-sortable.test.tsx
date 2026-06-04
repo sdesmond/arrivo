@@ -476,10 +476,10 @@ describe("PackingListSortable", () => {
       />
     );
 
-    const input = screen.getByPlaceholderText('Add item under "Documents"…');
+    const input = screen.getByPlaceholderText("add to Documents");
     await user.type(input, "Visa");
     await user.keyboard("{Enter}");
-    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined, "label-1");
+    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "item-1", undefined, "label-1");
   });
 
   it("ungrouped add form passes a null labelId and inserts before the first label when empty", async () => {
@@ -553,7 +553,7 @@ describe("PackingListSortable", () => {
       />
     );
 
-    expect(screen.getByPlaceholderText('Add item under "Documents"…')).toBeDisabled();
+    expect(screen.getByPlaceholderText("add to Documents")).toBeDisabled();
     expect(screen.getAllByRole("button", { name: "Add item here" })[0]).toBeDisabled();
   });
 

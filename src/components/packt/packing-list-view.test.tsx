@@ -711,7 +711,7 @@ describe("PackingListView", () => {
       />
     );
 
-    expect(screen.getByPlaceholderText('Add item under "Documents"…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("add to Documents")).toBeInTheDocument();
   });
 
   it("submitting contextual add form under a section passes afterItemId", async () => {
@@ -734,7 +734,7 @@ describe("PackingListView", () => {
       />
     );
 
-    const contextInput = screen.getByPlaceholderText('Add item under "Documents"…');
+    const contextInput = screen.getByPlaceholderText("add to Documents");
     await user.type(contextInput, "Visa");
     await user.keyboard("{Enter}");
 
@@ -761,7 +761,7 @@ describe("PackingListView", () => {
       />
     );
 
-    const contextInput = screen.getByPlaceholderText('Add item under "Documents"…');
+    const contextInput = screen.getByPlaceholderText("add to Documents");
     await user.type(contextInput, "Visa");
     await user.keyboard("{Enter}");
 
@@ -1107,7 +1107,7 @@ describe("PackingListView", () => {
       />
     );
 
-    const contextInput = screen.getByPlaceholderText('Add item under "Documents"…');
+    const contextInput = screen.getByPlaceholderText("add to Documents");
     await user.type(contextInput, "Visa");
     await user.keyboard("{Enter}");
 
