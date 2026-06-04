@@ -1,0 +1,1091 @@
+﻿diff --git a/_bmad-output/implementation-artifacts/3-5-test-quality-improvements.md b/_bmad-output/implementation-artifacts/3-5-test-quality-improvements.md
+new file mode 100644
+index 0000000..0826663
+--- /dev/null
++++ b/_bmad-output/implementation-artifacts/3-5-test-quality-improvements.md
+@@ -0,0 +1,252 @@
++# Story 3.5: Test Quality Improvements
++
++Status: review
++
++## Story
++
++As a developer,
++I want to fill gaps and improve robustness in packing tests,
++So that edge cases are covered and tests are less brittle.
++
++## Acceptance Criteria
++
++### AC #1 ΓÇö Pointer-drag E2E scenario
++
++**Given** drag-to-reorder functionality
++**When** E2E tests run
++**Then** there is at least one mouse-based pointer-drag scenario (not just keyboard)
++
++### AC #2 ΓÇö groupPackingItems unit test
++
++**Given** the `groupPackingItems` utility
++**When** unit tests run
++**Then** there is a dedicated pure-function test covering edge cases (undefined ids, empty groups, mixed labels/items)
++
++### AC #3 ΓÇö Touch target measurement
++
++**Given** a touch target test
++**When** it asserts 44├ù44px minimum
++**Then** it uses rendered size measurement (E2E) or `getComputedStyle`, not class presence
++
++### AC #4 ΓÇö Parameterized keyboard-move index
++
++**Given** the keyboard-move E2E step
++**When** it asserts item position
++**Then** the expected index is parameterized, not hardcoded to 1
++
++### AC #5 ΓÇö Drag helper retry on vanished target
++
++**Given** the E2E drag helper encounters a vanished target
++**When** `if (!box)` triggers
++**Then** it retries instead of breaking out of the loop
++
++### AC #6 ΓÇö Optimistic update pattern test coverage
++
++**Given** the packing list uses optimistic updates
++**When** tests exercise add/remove/reorder
++**Then** rollback, error handling, and concurrent mutation scenarios are covered
++
++## Tasks / Subtasks
++
++- [x] Split `packing-list-view.tsx` ΓÇö extract `PackingEntryForm` into its own file
++  - [x] Create `src/components/packt/packing-entry-form.tsx` with the extracted component (props: `draftName`, `hasItems`, `isSubmitting`, `onDraftNameChange`, `onSubmitItem`, `onSubmitLabel`)
++  - [x] Import and render it from `packing-list-view.tsx`
++  - [x] Create `src/components/packt/packing-entry-form.test.tsx` rendering `PackingEntryForm` directly
++  - [x] **Move** these 4 tests from `packing-list-view.test.tsx` into the new file, rewritten to render `PackingEntryForm` directly instead of `PackingListView`:
++    - "submits a plain-text item from the form"
++    - "submits a section label from the form"
++    - "submits an item from the entry form when the list already has items"
++    - "submits a label from the entry form when the list already has items"
++  - [x] **Keep** in `packing-list-view.test.tsx` ΓÇö tests that reference form elements but test `PackingListView` behavior (empty state rendering, optimistic updates, touch target sizing, mutation guards). These continue rendering `PackingListView` and may need their imports updated to pull `PackingEntryForm` from the new path.
++- [x] Add mouse/touch pointer-drag E2E scenario (AC: #1)
++  - [x] Add `When` step for pointer-drag in `packing-tab.feature`
++  - [x] Wire step to `dragItemOntoTarget` / `dragItemIntoUngroupedArea` helpers
++- [x] Add dedicated `groupPackingItems` unit test (AC: #2)
++  - [x] `packing-sort-utils.test.ts` already exists (191 lines, 4 groupPackingItems tests covering position sort, undefined-id filtering, stable-undefined-order)
++  - [x] Add missing edge cases: empty items array, mixed labels/items with undefined properties, single-item sections, empty labels array
++- [x] Fix touch target test approach (AC: #3)
++  - [x] Replace `className` assertions in `packing-list-view.test.tsx` with `getComputedStyle` or rendered size checks
++- [x] Parameterize keyboard-move E2E assertion (AC: #4)
++  - [x] Update `packing-tab.steps.ts` keyboard-move step to accept expected index as parameter
++- [x] Improve E2E drag helper retry logic (AC: #5)
++  - [x] Replace `if (!box) break` with retry loop in `dragItemOntoTarget` and `dragItemIntoUngroupedArea`
++- [x] Add optimistic update pattern test coverage (AC: #6)
++  - [x] Test add/remove optimistic rollback on server failure
++  - [x] Test concurrent mutation protection
++
++## Dev Notes
++
++### Pre-work: File Split
++
++`packing-list-view.tsx` (347 lines) defines two components in one file: `PackingEntryForm` (lines 33ΓÇô96) and `PackingListView` (lines 98ΓÇô347). Extract `PackingEntryForm` into `src/components/packt/packing-entry-form.tsx` with its own colocated test file `packing-entry-form.test.tsx`. This brings the production file to ~280 lines (still slightly over the 250-line target ΓÇö further extraction of handler logic into a custom hook is optional) and creates a natural split for the test file (1210 lines ΓåÆ ~1050 + ~160).
++
++### Current State of Test Coverage
++
++**`packing-sort-utils.test.ts` (191 lines)** ΓÇö already exists despite epics marking it as NEW. Has tests for:
++- `groupPackingItems`: sorting by position, undefined label id filtering (Bug #2 fix), stable order with undefined positions (Bug #5 fix)
++- `containerKeyOfItem`: returns label id for items, UNGROUPED_KEY for ungrouped, fallback for undefined label id, null for missing
++- `flatten`: preserves original positions (Bug #1 fix), sparse values, labelId correctness, section-then-ungrouped order
++- `computeReorder`: within-section, cross-container, no-op on same id, label-as-active (Bug #7), label-as-over (Bug #6), container key, identical-order-null
++- `sameOrder`: identical, different order, different labelIds, different lengths
++- `arrayMove`: normal, out-of-bounds
++
++`groupPackingItems` tests already exist but may need additional edge cases: empty groups, mixed labels/items arrays, undefined ids in mixed context.
++
++**`packing-list-view.test.tsx` (1415 lines)** ΓÇö 50+ tests across PackingListView + save-as-template blocks. Touch target tests use className assertions (`h-11`, `min-h-11`, `min-w-11`). Optimistic update tests exist for:
++- Failure announcements (add failure, remove failure) ΓÇö lines 1076, 1102
++- Deferred announcements (add persistence wait) ΓÇö lines 1129, 1160
++- Server-triggered re-render (`isSubmitting` reset on prop change) ΓÇö line 1199
++- Concurrent mutation protection (lines 1242ΓÇô1335): stale optimistic rollback ignored, mutation sequence increment
++
++**`packing-tab.feature`** ΓÇö 20 scenarios. 3 pointer-drag scenarios already exist (lines 135ΓÇô164). Keyboard-move step (lines 82ΓÇô88) asserts index 1.
++
++**`packing-tab.steps.ts`** ΓÇö `dragItemOntoTarget` and `dragItemIntoUngroupedArea` helpers have `if (!box) break` that exits the retry loop when target vanishes. Keyboard-move step (line 288) asserts `toBe("1")`.
++
++### Implementation Details
++
++**AC #1** ΓÇö Add a mouse-based pointer-drag scenario. Three drag scenarios already exist using pointer events via `dragItemOntoTarget` and `dragItemIntoUngroupedArea`. Verify existing coverage suffices; if not, add scenario with explicit `page.mouse` steps.
++
++**AC #2** ΓÇö Add missing edge cases to `packing-sort-utils.test.ts`. The file already has `groupPackingItems` tests covering Bug #2 and Bug #5. Add tests for: empty items array, mixed labels and items with undefined properties.
++
++**AC #3** ΓÇö In `packing-list-view.test.tsx`, replace:
++```ts
++expect(textbox.className).toContain("h-11")
++```
++With rendered size check:
++```ts
++expect(textbox).toHaveStyle({ minHeight: "44px", minWidth: "44px" })
++```
++Or use `getComputedStyle` via `window.getComputedStyle(textbox).height`.
++
++**AC #4** ΓÇö Update keyboard-move step in `packing-tab.steps.ts`. Current assertion at line 288:
++```ts
++Then("I should see the item at position 1")  // hardcoded
++```
++Make it:
++```ts
++Then("the item should be at position {int}")
++```
++Update feature file to use `the item should be at position 1`.
++
++**AC #5** ΓÇö In both drag helpers, replace:
++```ts
++if (!box) break;
++```
++With retry loop:
++```ts
++if (!box) { await page.waitForTimeout(100); continue; }
++```
++
++**AC #6** ΓÇö Add test cases in `packing-list-view.test.tsx` covering:
++- Optimistic add rolls back on server error
++- Optimistic remove rolls back on server error
++- Concurrent reorder with stale mutation sequence guard
++
++### Files to Modify
++
++| File | Action | Changes |
++|------|--------|---------|
++| `src/components/packt/packing-list-view.tsx` | MODIFY | Extract `PackingEntryForm`; import from new file |
++| `src/components/packt/packing-entry-form.tsx` | CREATE | Extracted `PackingEntryForm` component |
++| `src/components/packt/packing-list-view.test.tsx` | MODIFY | Remove entry-form tests; fix touch target assertions; add optimistic update tests |
++| `src/components/packt/packing-entry-form.test.tsx` | CREATE | Entry-form tests moved from `packing-list-view.test.tsx` |
++| `tests/e2e/features/packing-tab.feature` | MODIFY | Add pointer-drag scenario; parameterize keyboard-move assertion |
++| `tests/e2e/steps/packing-tab.steps.ts` | MODIFY | Fix drag helper retry; parameterize keyboard-move step |
++| `src/components/packt/packing-sort-utils.test.ts` | MODIFY | Add missing edge cases for `groupPackingItems` |
++
++### What Must NOT Change
++
++- No changes to sort utils, server actions, or schema
++- No new E2E scenarios that duplicate existing unit test coverage
++- No changes to `packing-tab.feature` Gherkin steps structure (only add/update scenarios)
++- `packing-sort-utils.test.ts` ΓÇö do not remove or restructure existing tests; only add new ones
++- Existing passing tests must continue to pass
++
++### Testing Requirements
++
++Story 3.5 IS about testing ΓÇö all changes are to test files. Validation:
++1. `npx vitest run --coverage` ΓÇö coverage must remain ΓëÑ95% lines/functions, ΓëÑ90% branches
++2. `npm run test:e2e` ΓÇö all existing E2E scenarios must pass
++3. New E2E scenarios must pass
++
++### Library Constraints
++
++- No new npm packages ΓÇö Vitest, @testing-library/react, Playwright already installed
++- Vitest ^4.1.6 ΓÇö `toHaveStyle` matcher available
++- `test:e2e` runs via `bddgen && playwright test` on port 3001
++
++### Project Context Reference
++
++- `src/components/packt/` ΓÇö domain components with colocated test files
++- `tests/e2e/features/` ΓÇö Gherkin `.feature` files
++- `tests/e2e/steps/` ΓÇö Playwright step definitions
++- Path alias `@/*` ΓåÆ `./src/*`
++- E2E webServer runs on port 3001 with `UPLOAD_STUB=true`
++- Before E2E run, `global-setup.ts` wipes and re-seeds E2E database
++
++### Previous Story Intelligence (3.4)
++
++From `3-4-database-schema-housekeeping.md`:
++- Story 3.4 was pure schema administration: named indexes on `packingTemplates.userId` and `packingTemplateItems.labelId`
++- Story 3.4 modified `src/db/schema.ts`, `packing-actions.ts`, `packing-actions.test.ts`, `actions.test.ts`, `package.json`, `tsconfig.json`
++- Review findings from 3.4 identified test quality gaps that feed into this story:
++  - Cache-hit test does not assert `transaction.select` was called with correct args ΓÇö test quality gap deferred
++  - `vi.resetAllMocks()` should be `vi.clearAllMocks()` ΓÇö pre-existing pattern, not introduced by 3.4
++- Story 3.4 added 9 saveTripListAsTemplate behavior tests to `packing-actions.test.ts`
++- Story 3.4 modified `package.json` so `test:coverage` now migrates E2E schema before Vitest
++
++### Git Intelligence
++
++Recent commits (from `3-4-database-schema-housekeeping` branch merged):
++- `ec914e1` ΓÇö fix: name packing template indexes
++- `84d8492` ΓÇö test: align packing template action coverage
++- `ad6549e` ΓÇö chore: stabilize local validation inputs
++- `087bfc4` ΓÇö docs: update story 3.4 implementation status
++- `1ee7835` ΓÇö clean up lint warnings
++- `9c0c786` ΓÇö fix(review): restore saveTripListAsTemplate behavior test coverage
++
++Test patterns established in previous stories:
++- Test files live next to source: `packing-list-view.test.tsx` beside `packing-list-view.tsx`
++- E2E steps in `tests/e2e/steps/packing-tab.steps.ts`
++- Unit tests use `@testing-library/react` with `vi.mock` for server actions
++- Optimistic update tests already exist in `packing-list-view.test.tsx` (lines 1199ΓÇô1335)
++
++## Dev Agent Record
++
++### Agent Model Used
++
++opencode/big-pickle
++
++### Debug Log References
++- `npx vitest run src/components/packt/packing-entry-form.test.tsx`
++- `npx vitest run src/components/packt/packing-list-view.test.tsx`
++- `npx vitest run src/components/packt/packing-sort-utils.test.ts`
++- `npx bddgen`
++- `npx playwright test .features-gen/tests/e2e/features/packing-tab.feature.spec.js`
++- `npm run lint`
++- `npx tsc --noEmit`
++- `npm run test:coverage`
++- `npm run test:e2e`
++- `npm run build`
++
++### Completion Notes List
++- Extracted `PackingEntryForm` into its own client component with a colocated test file and kept `PackingListView` focused on stateful behavior.
++- Replaced class-name touch-target assertions with rendered style checks and made the measured controls expose explicit 44px minimum dimensions.
++- Added `groupPackingItems` edge-case coverage plus populated-form optimistic rollback and persistence tests in `packing-list-view.test.tsx`.
++- Added explicit pointer-drag Gherkin steps, parameterized keyboard position assertions, and retry-on-vanish drag helper behavior in the packing E2E suite.
++- Full validation passed with lint, type-checking, coverage, build, and Playwright E2E.
++
++### File List
++- `_bmad-output/implementation-artifacts/3-5-test-quality-improvements.md`
++- `src/components/packt/packing-entry-form.tsx`
++- `src/components/packt/packing-entry-form.test.tsx`
++- `src/components/packt/packing-list-row.tsx`
++- `src/components/packt/packing-list-view.tsx`
++- `src/components/packt/packing-list-view.test.tsx`
++- `src/components/packt/packing-sort-utils.test.ts`
++- `tests/e2e/features/packing-tab.feature`
++- `tests/e2e/steps/packing-tab.steps.ts`
++- `_bmad-output/implementation-artifacts/sprint-status.yaml`
++
++### Change Log
++- 2026-06-03: Completed Story 3.5 by extracting the packing entry form, tightening packing-list and sort-utils test coverage, and updating packing-tab E2E drag/keyboard assertions.
+diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
+index fc0a60e..66c69d0 100644
+--- a/_bmad-output/implementation-artifacts/sprint-status.yaml
++++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
+@@ -35,7 +35,7 @@
+ # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+ 
+ generated: 2026-05-31
+-last_updated: 2026-06-03 # story 3.4 done
++last_updated: 2026-06-03 # story 3.5 review
+ project: Packt
+ project_key: NOKEY
+ tracking_system: file-system
+@@ -61,5 +61,5 @@ development_status:
+   3-2-server-action-hardening: done
+   3-3-optimistic-update-reliability: done
+   3-4-database-schema-housekeeping: done
+-  3-5-test-quality-improvements: backlog
++  3-5-test-quality-improvements: review
+   3-6-ux-cosmetic-polish: backlog
+diff --git a/src/components/packt/packing-entry-form.test.tsx b/src/components/packt/packing-entry-form.test.tsx
+new file mode 100644
+index 0000000..2df01e9
+--- /dev/null
++++ b/src/components/packt/packing-entry-form.test.tsx
+@@ -0,0 +1,90 @@
++import { useState, type ChangeEvent, type ReactElement } from "react";
++import { render, screen, waitFor } from "@testing-library/react";
++import userEvent from "@testing-library/user-event";
++import { describe, expect, it, vi } from "vitest";
++import { PackingEntryForm } from "./packing-entry-form";
++
++interface PackingEntryFormHarnessProps {
++  hasItems: boolean;
++  onAddItem: (name: string, isLabel?: boolean) => Promise<void>;
++}
++
++function PackingEntryFormHarness({ hasItems, onAddItem }: PackingEntryFormHarnessProps): ReactElement {
++  const [draftName, setDraftName] = useState("");
++
++  function handleDraftNameChange(event: ChangeEvent<HTMLInputElement>): void {
++    setDraftName(event.target.value);
++  }
++
++  async function handleSubmitItem(): Promise<void> {
++    await onAddItem(draftName, undefined);
++    setDraftName("");
++  }
++
++  async function handleSubmitLabel(): Promise<void> {
++    await onAddItem(draftName, true);
++    setDraftName("");
++  }
++
++  return (
++    <PackingEntryForm
++      draftName={draftName}
++      hasItems={hasItems}
++      isSubmitting={false}
++      onDraftNameChange={handleDraftNameChange}
++      onSubmitItem={() => void handleSubmitItem()}
++      onSubmitLabel={() => void handleSubmitLabel()}
++    />
++  );
++}
++
++describe("PackingEntryForm", () => {
++  it("submits a plain-text item from the form", async () => {
++    const user = userEvent.setup();
++    const onAddItem = vi.fn(async () => undefined);
++
++    render(<PackingEntryFormHarness hasItems={false} onAddItem={onAddItem} />);
++
++    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
++    await user.click(screen.getByRole("button", { name: "Add item" }));
++
++    expect(onAddItem).toHaveBeenCalledWith("Passport", undefined);
++    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
++  });
++
++  it("submits a section label from the form", async () => {
++    const user = userEvent.setup();
++    const onAddItem = vi.fn(async () => undefined);
++
++    render(<PackingEntryFormHarness hasItems={false} onAddItem={onAddItem} />);
++
++    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Documents");
++    await user.click(screen.getByRole("button", { name: "Add label" }));
++
++    expect(onAddItem).toHaveBeenCalledWith("Documents", true);
++  });
++
++  it("submits an item from the entry form when the list already has items", async () => {
++    const user = userEvent.setup();
++    const onAddItem = vi.fn(async () => undefined);
++
++    render(<PackingEntryFormHarness hasItems onAddItem={onAddItem} />);
++
++    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
++    await user.click(screen.getByRole("button", { name: "Add item" }));
++
++    expect(onAddItem).toHaveBeenCalledWith("Tent", undefined);
++  });
++
++  it("submits a label from the entry form when the list already has items", async () => {
++    const user = userEvent.setup();
++    const onAddItem = vi.fn(async () => undefined);
++
++    render(<PackingEntryFormHarness hasItems onAddItem={onAddItem} />);
++
++    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
++    await user.click(screen.getByRole("button", { name: "Add label" }));
++
++    expect(onAddItem).toHaveBeenCalledWith("Camping", true);
++  });
++});
+diff --git a/src/components/packt/packing-entry-form.tsx b/src/components/packt/packing-entry-form.tsx
+new file mode 100644
+index 0000000..b6ff8bd
+--- /dev/null
++++ b/src/components/packt/packing-entry-form.tsx
+@@ -0,0 +1,77 @@
++"use client";
++
++import { useId, type ChangeEvent, type FormEvent, type ReactElement } from "react";
++import { Plus, Tag } from "lucide-react";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++
++export interface PackingEntryFormProps {
++  draftName: string;
++  hasItems: boolean;
++  isSubmitting: boolean;
++  onDraftNameChange: (event: ChangeEvent<HTMLInputElement>) => void;
++  onSubmitItem: () => void;
++  onSubmitLabel: () => void;
++}
++
++const minimumTouchTargetStyle = { minHeight: "44px", minWidth: "44px" } as const;
++
++export function PackingEntryForm({
++  draftName,
++  hasItems,
++  isSubmitting,
++  onDraftNameChange,
++  onSubmitItem,
++  onSubmitLabel,
++}: PackingEntryFormProps): ReactElement {
++  const formId = useId();
++
++  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
++    event.preventDefault();
++    onSubmitItem();
++  }
++
++  return (
++    <form
++      aria-label="Add a packing entry"
++      className="flex flex-col gap-3 rounded-3xl border p-3"
++      style={{ background: "var(--surface)", borderColor: "var(--line)" }}
++      onSubmit={handleSubmit}
++    >
++      <label className="sr-only" htmlFor={formId}>
++        Packing item name
++      </label>
++      <Input
++        id={formId}
++        className="h-11 rounded-2xl border-0 px-3 text-sm shadow-none"
++        maxLength={100}
++        placeholder={hasItems ? "Add another item or section label" : "Add your first item or section label"}
++        style={{ background: "var(--bg)", color: "var(--fg)", minHeight: "44px" }}
++        value={draftName}
++        onChange={onDraftNameChange}
++      />
++      <div className="flex flex-col gap-2 sm:flex-row">
++        <Button
++          className="min-h-11 min-w-11 flex-1 rounded-2xl"
++          disabled={isSubmitting}
++          style={minimumTouchTargetStyle}
++          type="submit"
++        >
++          <Plus size={16} strokeWidth={1.5} />
++          Add item
++        </Button>
++        <Button
++          className="min-h-11 min-w-11 flex-1 rounded-2xl"
++          disabled={isSubmitting}
++          style={minimumTouchTargetStyle}
++          type="button"
++          variant="outline"
++          onClick={onSubmitLabel}
++        >
++          <Tag size={16} strokeWidth={1.5} />
++          Add label
++        </Button>
++      </div>
++    </form>
++  );
++}
+diff --git a/src/components/packt/packing-list-row.tsx b/src/components/packt/packing-list-row.tsx
+index 89dfbce..8c0968a 100644
+--- a/src/components/packt/packing-list-row.tsx
++++ b/src/components/packt/packing-list-row.tsx
+@@ -8,6 +8,8 @@ import type { PackingItem } from "@/data/types";
+ import { Button } from "@/components/ui/button";
+ import { cn } from "@/lib/utils";
+ 
++const minimumTouchTargetStyle = { minHeight: "44px", minWidth: "44px" } as const;
++
+ export interface PackingRowProps {
+   item: PackingItem;
+   isLabel?: boolean;
+@@ -73,7 +75,13 @@ export function PackingRow({
+           role="checkbox"
+           title={item.done ? `Unpack ${item.name}` : `Pack ${item.name}`}
+           type="button"
+-          style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
++          style={{
++            background: "transparent",
++            border: "none",
++            cursor: "pointer",
++            padding: 0,
++            ...minimumTouchTargetStyle,
++          }}
+           onClick={onToggle}
+         >
+           <span
+@@ -119,6 +127,7 @@ export function PackingRow({
+                 variant="ghost"
+                 size="icon"
+                 className="min-h-11 min-w-11 shrink-0 rounded-2xl text-fg-3 hover:text-fg"
++                style={minimumTouchTargetStyle}
+                 title="Delete label"
+                 aria-label="Delete label"
+                 type="button"
+@@ -162,6 +171,7 @@ export function PackingRow({
+         <Button
+           aria-label={`Remove ${item.name}`}
+           className="min-h-11 min-w-11 rounded-2xl text-fg-3 hover:text-fg"
++          style={minimumTouchTargetStyle}
+           title={`Remove ${item.name}`}
+           type="button"
+           variant="ghost"
+@@ -205,7 +215,7 @@ export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): R
+       role="button"
+       tabIndex={0}
+       title={`Reorder ${props.item.name}`}
+-      style={{ cursor: "grab", touchAction: "none", outlineColor: "var(--accent-brand)" }}
++      style={{ cursor: "grab", touchAction: "none", outlineColor: "var(--accent-brand)", ...minimumTouchTargetStyle }}
+     >
+       <GripVertical size={14} strokeWidth={1.5} />
+     </span>
+diff --git a/src/components/packt/packing-list-view.test.tsx b/src/components/packt/packing-list-view.test.tsx
+index 69185be..59b73c1 100644
+--- a/src/components/packt/packing-list-view.test.tsx
++++ b/src/components/packt/packing-list-view.test.tsx
+@@ -108,6 +108,14 @@ function createRemoveItemHandler() {
+   return vi.fn(async () => undefined as void);
+ }
+ 
++function expectMinimumTouchTarget(element: HTMLElement, options?: { requireMinWidth?: boolean }): void {
++  const styles = window.getComputedStyle(element);
++  expect(styles.minHeight).toBe("44px");
++  if (options?.requireMinWidth !== false) {
++    expect(styles.minWidth).toBe("44px");
++  }
++}
++
+ describe("PackingListView", () => {
+   beforeEach(() => {
+     vi.clearAllMocks();
+@@ -162,93 +170,6 @@ describe("PackingListView", () => {
+     expect(container.querySelectorAll('[data-packing-kind="item"]')).toHaveLength(3);
+   });
+ 
+-  it("submits a plain-text item from the form", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = createAddItemHandler();
+-
+-    render(
+-      <PackingListView
+-        tripId="trip-1"
+-        items={[]}
+-        onAddItem={onAddItem}
+-        onRemoveItem={createRemoveItemHandler()}
+-        onToggleItem={createToggleItemHandler()}
+-        onReorderItems={vi.fn()}
+-        onEditItem={vi.fn()}
+-      />
+-    );
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
+-
+-    expect(onAddItem).toHaveBeenCalledWith("Passport", undefined);
+-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
+-  });
+-
+-  it("submits a section label from the form", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = createAddItemHandler();
+-
+-    render(
+-      <PackingListView
+-        tripId="trip-1"
+-        items={[]}
+-        onAddItem={onAddItem}
+-        onRemoveItem={createRemoveItemHandler()}
+-        onToggleItem={createToggleItemHandler()}
+-        onReorderItems={vi.fn()}
+-        onEditItem={vi.fn()}
+-      />
+-    );
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Documents");
+-    await user.click(screen.getByRole("button", { name: "Add label" }));
+-
+-    expect(onAddItem).toHaveBeenCalledWith("Documents", true);
+-  });
+-
+-  it("submits an item from the entry form when the list already has items", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = createAddItemHandler();
+-
+-    render(
+-      <PackingListView
+-        tripId="trip-1"
+-        items={groupedItems}
+-        onAddItem={onAddItem}
+-        onRemoveItem={createRemoveItemHandler()}
+-        onToggleItem={createToggleItemHandler()}
+-        onReorderItems={vi.fn()}
+-        onEditItem={vi.fn()}
+-      />
+-    );
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
+-    expect(onAddItem).toHaveBeenCalledWith("Tent", undefined);
+-  });
+-
+-  it("submits a label from the entry form when the list already has items", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = createAddItemHandler();
+-
+-    render(
+-      <PackingListView
+-        tripId="trip-1"
+-        items={groupedItems}
+-        onAddItem={onAddItem}
+-        onRemoveItem={createRemoveItemHandler()}
+-        onToggleItem={createToggleItemHandler()}
+-        onReorderItems={vi.fn()}
+-        onEditItem={vi.fn()}
+-      />
+-    );
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
+-    await user.click(screen.getByRole("button", { name: "Add label" }));
+-    expect(onAddItem).toHaveBeenCalledWith("Camping", true);
+-  });
+-
+   it("announces a cross-section move via the aria-live region on drag end", () => {
+     render(
+       <PackingListView
+@@ -307,13 +228,10 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    expect(screen.getByRole("textbox", { name: "Packing item name" }).className).toContain("h-11");
+-    expect(screen.getByRole("button", { name: "Add item" }).className).toContain("min-h-11");
+-    expect(screen.getByRole("button", { name: "Add item" }).className).toContain("min-w-11");
+-    expect(screen.getByRole("button", { name: "Add label" }).className).toContain("min-h-11");
+-    expect(screen.getByRole("button", { name: "Add label" }).className).toContain("min-w-11");
+-    expect(screen.getByRole("button", { name: "Remove Passport" }).className).toContain("min-h-11");
+-    expect(screen.getByRole("button", { name: "Remove Passport" }).className).toContain("min-w-11");
++    expectMinimumTouchTarget(screen.getByRole("textbox", { name: "Packing item name" }), { requireMinWidth: false });
++    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add item" }));
++    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add label" }));
++    expectMinimumTouchTarget(screen.getByRole("button", { name: "Remove Passport" }));
+   });
+ 
+   it('renders checkbox button with aria-checked="false" for unchecked item', () => {
+@@ -493,7 +411,7 @@ describe("PackingListView", () => {
+     });
+   });
+ 
+-  it("checkbox button has min-h-11 and min-w-11 classes", () => {
++  it("checkbox button preserves the minimum touch-target size", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+@@ -507,8 +425,7 @@ describe("PackingListView", () => {
+     );
+ 
+     const checkbox = screen.getByRole("checkbox", { name: "Pack Passport" });
+-    expect(checkbox.className).toContain("min-h-11");
+-    expect(checkbox.className).toContain("min-w-11");
++    expectMinimumTouchTarget(checkbox);
+   });
+ 
+   it("renders a drag handle on item rows but not on label rows", () => {
+@@ -531,7 +448,7 @@ describe("PackingListView", () => {
+     expect(screen.queryByTitle("Reorder Clothes")).not.toBeInTheDocument();
+   });
+ 
+-  it("drag handle button has min-h-11 and min-w-11 classes", () => {
++  it("drag handle button preserves the minimum touch-target size", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+@@ -545,8 +462,7 @@ describe("PackingListView", () => {
+     );
+ 
+     const dragHandle = screen.getByTitle("Reorder Passport");
+-    expect(dragHandle.className).toContain("min-h-11");
+-    expect(dragHandle.className).toContain("min-w-11");
++    expectMinimumTouchTarget(dragHandle);
+   });
+ 
+   it("calls useSortable with disabled:true for section labels", () => {
+@@ -1073,7 +989,7 @@ describe("PackingListView", () => {
+ 
+   // ΓöÇΓöÇ Story 3.3 ΓÇö AC #1: Announcement rollback on failure ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+-  it("shows failure announcement and resets isSubmitting when onAddItem rejects", async () => {
++  it("rolls back the add form state when onAddItem rejects", async () => {
+     const user = userEvent.setup();
+     const onAddItem = vi.fn(async () => {
+       throw new Error("Server error");
+@@ -1096,10 +1012,13 @@ describe("PackingListView", () => {
+       const liveRegion = container.querySelector("[aria-live=polite]");
+       expect(liveRegion).toHaveTextContent("Failed to add item.");
+     });
++
++    expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue("Passport");
++    expect(screen.queryByText("Passport")).not.toBeInTheDocument();
+     expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled();
+   });
+ 
+-  it("shows failure announcement when onRemoveItem rejects", async () => {
++  it("keeps the item rendered when onRemoveItem rejects", async () => {
+     const user = userEvent.setup();
+     const onRemoveItem = vi.fn(async () => {
+       throw new Error("Remove failed");
+@@ -1122,6 +1041,8 @@ describe("PackingListView", () => {
+       const liveRegion = container.querySelector("[aria-live=polite]");
+       expect(liveRegion).toHaveTextContent("Failed to remove item.");
+     });
++
++    expect(screen.getByText("Passport")).toBeInTheDocument();
+   });
+ 
+   // ΓöÇΓöÇ Story 3.3 ΓÇö AC #2: Deferred announcement on success ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+@@ -1194,6 +1115,72 @@ describe("PackingListView", () => {
+     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Visa added."));
+   });
+ 
++  it("waits for populated entry-form item persistence before announcing success", async () => {
++    const user = userEvent.setup();
++    let resolveAdd: (() => void) | undefined;
++    const onAddItem = vi.fn(
++      () =>
++        new Promise<void>((resolve) => {
++          resolveAdd = resolve;
++        })
++    );
++    const { container } = render(
++      <PackingListView
++        tripId="trip-1"
++        items={groupedItems}
++        onAddItem={onAddItem}
++        onRemoveItem={createRemoveItemHandler()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++      />
++    );
++
++    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
++    await user.click(screen.getByRole("button", { name: "Add item" }));
++
++    const liveRegion = container.querySelector("[aria-live=polite]");
++    expect(liveRegion).not.toHaveTextContent("Item Tent added.");
++
++    resolveAdd?.();
++
++    await waitFor(() => expect(liveRegion).toHaveTextContent("Item Tent added."));
++    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
++  });
++
++  it("waits for populated entry-form label persistence before announcing success", async () => {
++    const user = userEvent.setup();
++    let resolveAdd: (() => void) | undefined;
++    const onAddItem = vi.fn(
++      () =>
++        new Promise<void>((resolve) => {
++          resolveAdd = resolve;
++        })
++    );
++    const { container } = render(
++      <PackingListView
++        tripId="trip-1"
++        items={groupedItems}
++        onAddItem={onAddItem}
++        onRemoveItem={createRemoveItemHandler()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++      />
++    );
++
++    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
++    await user.click(screen.getByRole("button", { name: "Add label" }));
++
++    const liveRegion = container.querySelector("[aria-live=polite]");
++    expect(liveRegion).not.toHaveTextContent("Section Camping added.");
++
++    resolveAdd?.();
++
++    await waitFor(() => expect(liveRegion).toHaveTextContent("Section Camping added."));
++    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
++  });
++
+   // ΓöÇΓöÇ Story 3.3 ΓÇö AC #3: Server-triggered re-render detection ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+   it("resets isSubmitting when items prop changes by content (ID-based detection)", async () => {
+@@ -1412,4 +1399,26 @@ describe("PackingListView save-as-template", () => {
+ 
+     expect(screen.getByRole("dialog", { name: "Save as template" })).toBeInTheDocument();
+   });
++
++  it("closes the save dialog when the close action is triggered", async () => {
++    const user = userEvent.setup();
++
++    render(
++      <PackingListView
++        tripId="trip-1"
++        items={groupedItems}
++        onAddItem={createAddItemHandler()}
++        onRemoveItem={createRemoveItemHandler()}
++        onToggleItem={createToggleItemHandler()}
++        onReorderItems={vi.fn()}
++        onEditItem={vi.fn()}
++        onSaveAsTemplate={vi.fn()}
++      />
++    );
++
++    await user.click(screen.getByRole("button", { name: "Save as template" }));
++    await user.click(screen.getByRole("button", { name: "Close save dialog" }));
++
++    expect(screen.queryByRole("dialog", { name: "Save as template" })).not.toBeInTheDocument();
++  });
+ });
+diff --git a/src/components/packt/packing-list-view.tsx b/src/components/packt/packing-list-view.tsx
+index 8b6834e..3be71df 100644
+--- a/src/components/packt/packing-list-view.tsx
++++ b/src/components/packt/packing-list-view.tsx
+@@ -1,15 +1,13 @@
+ "use client";
+ 
+-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+-import { Plus, Tag } from "lucide-react";
+-import { Button } from "@/components/ui/button";
+-import { Input } from "@/components/ui/input";
++import { useEffect, useRef, useState, type ChangeEvent, type ReactElement } from "react";
+ import type { PackingItem, PackingTemplate, PullTemplatesResult } from "@/data/types";
+ import { PackingListSortable } from "./packing-list-sortable";
+ import { TemplatePullDialog } from "./template-pull-dialog";
+ import { PackingListToolbar } from "./packing-list-toolbar";
+ import { PackingListEmptyState } from "./packing-list-empty-state";
+ import { SaveAsTemplateDialog } from "./save-as-template-dialog";
++import { PackingEntryForm } from "./packing-entry-form";
+ 
+ export interface PackingListViewProps {
+   tripId: string;
+@@ -30,71 +28,6 @@ export interface PackingListViewProps {
+   onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
+ }
+ 
+-interface PackingEntryFormProps {
+-  tripId: string;
+-  draftName: string;
+-  hasItems: boolean;
+-  isSubmitting: boolean;
+-  onDraftNameChange: (event: ChangeEvent<HTMLInputElement>) => void;
+-  onSubmitItem: () => void;
+-  onSubmitLabel: () => void;
+-}
+-
+-function PackingEntryForm({
+-  tripId,
+-  draftName,
+-  hasItems,
+-  isSubmitting,
+-  onDraftNameChange,
+-  onSubmitItem,
+-  onSubmitLabel,
+-}: PackingEntryFormProps): ReactElement {
+-  const formId = `packing-entry-${tripId}`;
+-
+-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+-    event.preventDefault();
+-    onSubmitItem();
+-  }
+-
+-  return (
+-    <form
+-      aria-label="Add a packing entry"
+-      className="flex flex-col gap-3 rounded-3xl border p-3"
+-      style={{ background: "var(--surface)", borderColor: "var(--line)" }}
+-      onSubmit={handleSubmit}
+-    >
+-      <label className="sr-only" htmlFor={formId}>
+-        Packing item name
+-      </label>
+-      <Input
+-        id={formId}
+-        className="h-11 rounded-2xl border-0 px-3 text-sm shadow-none"
+-        maxLength={100}
+-        placeholder={hasItems ? "Add another item or section label" : "Add your first item or section label"}
+-        style={{ background: "var(--bg)", color: "var(--fg)" }}
+-        value={draftName}
+-        onChange={onDraftNameChange}
+-      />
+-      <div className="flex flex-col gap-2 sm:flex-row">
+-        <Button className="min-h-11 min-w-11 flex-1 rounded-2xl" disabled={isSubmitting} type="submit">
+-          <Plus size={16} strokeWidth={1.5} />
+-          Add item
+-        </Button>
+-        <Button
+-          className="min-h-11 min-w-11 flex-1 rounded-2xl"
+-          disabled={isSubmitting}
+-          type="button"
+-          variant="outline"
+-          onClick={onSubmitLabel}
+-        >
+-          <Tag size={16} strokeWidth={1.5} />
+-          Add label
+-        </Button>
+-      </div>
+-    </form>
+-  );
+-}
+-
+ export function PackingListView({
+   tripId,
+   items,
+@@ -312,7 +245,6 @@ export function PackingListView({
+           />
+ 
+           <PackingEntryForm
+-            tripId={tripId}
+             draftName={draftName}
+             hasItems
+             isSubmitting={isSubmitting}
+diff --git a/src/components/packt/packing-sort-utils.test.ts b/src/components/packt/packing-sort-utils.test.ts
+index b540cd3..fc84764 100644
+--- a/src/components/packt/packing-sort-utils.test.ts
++++ b/src/components/packt/packing-sort-utils.test.ts
+@@ -27,6 +27,10 @@ function label(id: string | undefined, position: number | undefined): PackingIte
+ // ---------------------------------------------------------------------------
+ 
+ describe("groupPackingItems", () => {
++  it("returns empty sections and ungrouped items for an empty list", () => {
++    expect(groupPackingItems([])).toEqual({ sections: [], ungroupedItems: [] });
++  });
++
+   it("sorts labels and section items by position", () => {
+     const items: PackingItem[] = [item("c", 20, null), item("a", 0, null), item("b", 10, null)];
+     const { ungroupedItems } = groupPackingItems(items);
+@@ -60,6 +64,47 @@ describe("groupPackingItems", () => {
+     // All must be present (stable ΓÇö no NaN-induced drops)
+     expect(ungroupedItems.map((i) => i.id).sort()).toEqual(["x", "y", "z"]);
+   });
++
++  it("keeps all items ungrouped when there are no labels", () => {
++    const items: PackingItem[] = [
++      { id: "passport", name: "Passport", done: false, position: 1, labelId: null, isLabel: false },
++      { id: "adapter", name: "Adapter", done: false, position: 0, labelId: null, isLabel: false },
++    ];
++
++    const { sections, ungroupedItems } = groupPackingItems(items);
++
++    expect(sections).toEqual([]);
++    expect(ungroupedItems.map((packingItem) => packingItem.id)).toEqual(["adapter", "passport"]);
++  });
++
++  it("keeps a single-item section grouped without duplicating it in Ungrouped", () => {
++    const items: PackingItem[] = [label("documents", 0), item("passport", 1, "documents")];
++
++    const { sections, ungroupedItems } = groupPackingItems(items);
++
++    expect(sections).toHaveLength(1);
++    expect(sections[0]?.items.map((packingItem) => packingItem.id)).toEqual(["passport"]);
++    expect(ungroupedItems).toEqual([]);
++  });
++
++  it("handles mixed labels and items with undefined properties without dropping valid rows", () => {
++    const undefinedLabel = label(undefined, 0);
++    const gearLabel = label("gear", 1);
++    const items: PackingItem[] = [
++      undefinedLabel,
++      gearLabel,
++      { id: "orphan", name: "Orphan", done: false, position: undefined, labelId: undefined as unknown as string },
++      { id: "tent", name: "Tent", done: false, position: 2, labelId: "gear", isLabel: false },
++      { id: "map", name: "Map", done: false, position: 3, labelId: null, isLabel: false },
++    ];
++
++    const { sections, ungroupedItems } = groupPackingItems(items);
++
++    expect(sections.map((section) => section.label.name)).toEqual(["Label-undef", "Label-gear"]);
++    expect(sections[0]?.items).toEqual([]);
++    expect(sections[1]?.items.map((packingItem) => packingItem.id)).toEqual(["tent"]);
++    expect(ungroupedItems.map((packingItem) => packingItem.id)).toEqual(["map", "orphan"]);
++  });
+ });
+ 
+ // ---------------------------------------------------------------------------
+diff --git a/tests/e2e/features/packing-tab.feature b/tests/e2e/features/packing-tab.feature
+index 33bf94a..1e47efb 100644
+--- a/tests/e2e/features/packing-tab.feature
++++ b/tests/e2e/features/packing-tab.feature
+@@ -83,8 +83,10 @@ Feature: Packing tab
+     Given I have pre-seeded packing reorder items for the trip
+     When I open the Packing tab
+     And I keyboard-move the item "Item A" down one position
++    Then the packing item "Item A" should be at position 1
+     Then the packing list order should be "Item B" then "Item A" then "Item C"
+     When I reload the trip page
++    Then the packing item "Item A" should be at position 1
+     Then the packing list order should be "Item B" then "Item A" then "Item C"
+ 
+   Scenario: Section label shows strikethrough when all items beneath it are checked
+@@ -135,9 +137,9 @@ Feature: Packing tab
+   Scenario: Dragging an item out to Ungrouped and back leaves other ungrouped items in place
+     Given I have pre-seeded a section with items and ungrouped items
+     When I open the Packing tab
+-    And I drag the packing item "Shirt" into the Ungrouped area
++    And I pointer-drag the packing item "Shirt" into the Ungrouped area
+     Then the packing item "Shirt" should be in the Ungrouped section
+-    When I drag the packing item "Shirt" onto the packing item "Pants"
++    When I pointer-drag the packing item "Shirt" onto the packing item "Pants"
+     Then the packing item "Shirt" should be in the "Clothes" section
+     And the packing item "Charger" should be in the Ungrouped section
+     And the packing item "Adapter" should be in the Ungrouped section
+@@ -148,7 +150,7 @@ Feature: Packing tab
+   Scenario: Dragging an item into an empty Ungrouped area moves it there
+     Given I have pre-seeded a section with no ungrouped items
+     When I open the Packing tab
+-    And I drag the packing item "Shirt" into the Ungrouped area
++    And I pointer-drag the packing item "Shirt" into the Ungrouped area
+     Then the packing item "Shirt" should be in the Ungrouped section
+     When I reload the trip page
+     Then the packing item "Shirt" should be in the Ungrouped section
+@@ -156,7 +158,7 @@ Feature: Packing tab
+   Scenario: Dragging an item across the add input does not pull a neighbor across the section boundary
+     Given I have pre-seeded two packing sections
+     When I open the Packing tab
+-    And I drag the packing item "Toothbrush" onto the packing item "Pants"
++    And I pointer-drag the packing item "Toothbrush" onto the packing item "Pants"
+     Then the packing item "Toothbrush" should be in the "Clothes" section
+     And the packing item "Pants" should be in the "Clothes" section
+     And the packing item "Shirt" should be in the "Clothes" section
+diff --git a/tests/e2e/steps/packing-tab.steps.ts b/tests/e2e/steps/packing-tab.steps.ts
+index 70b404a..9b9de8a 100644
+--- a/tests/e2e/steps/packing-tab.steps.ts
++++ b/tests/e2e/steps/packing-tab.steps.ts
+@@ -97,7 +97,10 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
+   for (let attempt = 0; attempt < 4; attempt += 1) {
+     await page.waitForTimeout(80);
+     const box = await target.boundingBox();
+-    if (!box) break;
++    if (!box) {
++      await page.waitForTimeout(100);
++      continue;
++    }
+     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
+   }
+   await page.waitForTimeout(60);
+@@ -128,7 +131,10 @@ async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promis
+   for (let attempt = 0; attempt < 4; attempt += 1) {
+     await page.waitForTimeout(80);
+     const box = await ungrouped.boundingBox();
+-    if (!box) break;
++    if (!box) {
++      await page.waitForTimeout(100);
++      continue;
++    }
+     await page.mouse.move(box.x + box.width / 2, box.y + Math.max(box.height - 16, box.height / 2), { steps: 6 });
+   }
+ 
+@@ -279,11 +285,13 @@ When("I keyboard-move the item {string} down one position", async ({ page }, nam
+   await expect(liveRegion).not.toContainText(`area ${activeId}`, { timeout: 10_000 });
+ 
+   await page.keyboard.press("Enter");
++});
+ 
++Then("the packing item {string} should be at position {int}", async ({ page }, name: string, expectedIndex: number) => {
+   await expect(async () => {
+     const names = await page.locator("[data-packing-name]").allTextContents();
+     const index = names.map((itemName) => itemName.trim()).indexOf(name);
+-    expect(index).toBe(1);
++    expect(index).toBe(expectedIndex);
+   }).toPass({ timeout: 10_000 });
+ });
+ 
+@@ -482,6 +490,10 @@ When("I drag the packing item {string} into the Ungrouped area", async ({ page }
+   await dragItemIntoUngroupedArea(page, name);
+ });
+ 
++When("I pointer-drag the packing item {string} into the Ungrouped area", async ({ page }, name: string) => {
++  await dragItemIntoUngroupedArea(page, name);
++});
++
+ When(
+   "I drag the packing item {string} onto the packing item {string}",
+   async ({ page }, name: string, target: string) => {
+@@ -490,6 +502,14 @@ When(
+   }
+ );
+ 
++When(
++  "I pointer-drag the packing item {string} onto the packing item {string}",
++  async ({ page }, name: string, target: string) => {
++    const targetRow = page.locator('[data-packing-kind="item"]').filter({ hasText: target }).first();
++    await dragItemOntoTarget(page, name, targetRow);
++  }
++);
++
+ Then("the packing item {string} should be in the Ungrouped section", async ({ page }, name: string) => {
+   const ungrouped = page.locator('[data-packing-container="container:__ungrouped__"]');
+   await expect(async () => {
