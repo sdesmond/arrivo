@@ -86,4 +86,9 @@
 - submitEntry stale closure permits same-render double-submit — pre-existing, not introduced by this diff
 - handleOptimisticReorder wasted seq increment when movedWithIds empty — items always have IDs in practice (DB-assigned UUIDs)
 
+## Deferred from: code review of 3-6-ux-cosmetic-polish (2026-06-04)
+
+- LOWER() in ORDER BY destroys index scan on (name, createdAt) — pre-existing trade-off accepted in spec; correctness over index optimization for small template sets
+- E2E ordering step uses fragile DOM-structure locator (li a[href^='/packing/']) — works for current markup; any markup refactoring would also need step-definition updates
+
 

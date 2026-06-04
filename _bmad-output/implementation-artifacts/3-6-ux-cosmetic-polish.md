@@ -51,6 +51,10 @@ So that section labels behave correctly, template names are distinguishable, and
 - [x] [Review][Patch] Section header remains part of the drop zone after label deregistration, so header drops can reparent items [src/components/packt/packing-list-sortable.tsx:169]
 - [x] [Review][Patch] Template-library E2E selectors still target the old accessible names [tests/e2e/steps/templates.steps.ts:52]
 - [x] [Review][Patch] Mixed-case template ordering has no regression coverage [tests/e2e/features/templates.feature:43]
+- [x] [Review][Patch] E2E rename/delete selectors should use getByRole with aria-label (not getByTitle) — title lacks template ID, breaking duplicate-name resolution [src/components/packt/template-library.tsx:86]
+- [x] [Review][Patch] Case-insensitive sort needs deterministic tiebreaker — add id as third sort column after LOWER(name) and createdAt [src/lib/queries.ts:134]
+- [x] [Review][Defer] LOWER() in ORDER BY destroys index scan [src/lib/queries.ts:134] — deferred, pre-existing trade-off accepted in spec
+- [x] [Review][Defer] E2E ordering step uses fragile DOM-structure locator (li a[href^='/packing/']) [tests/e2e/steps/templates.steps.ts:89] — deferred, works for current markup
 
 ## Dev Notes
 
