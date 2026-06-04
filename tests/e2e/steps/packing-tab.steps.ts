@@ -348,7 +348,7 @@ Given("I have pre-seeded packing items for contextual add", async ({ page, scena
 });
 
 When("I add an item {string} under the section {string}", async ({ page }, itemName: string, sectionName: string) => {
-  const input = page.getByPlaceholder(`Add item under "${sectionName}"…`);
+  const input = page.getByPlaceholder(`add to ${sectionName}`);
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill(itemName);
   await page.keyboard.press("Enter");
