@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-31
-last_updated: 2026-06-03 # story 3.4 review
+last_updated: 2026-06-03 # story 3.4 done
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -60,6 +60,6 @@ development_status:
   3-1-packing-sort-utils-bug-fixes: done
   3-2-server-action-hardening: done
   3-3-optimistic-update-reliability: done
-  3-4-database-schema-housekeeping: review
+  3-4-database-schema-housekeeping: done
   3-5-test-quality-improvements: backlog
   3-6-ux-cosmetic-polish: backlog

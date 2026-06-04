@@ -231,3 +231,161 @@ describe("packing actions hardening", () => {
     expect(insertValues).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("saveTripListAsTemplate behavior", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("throws 'Template name is required' when name is blank", async () => {
+    await expect(saveTripListAsTemplate("trip-1", "   ")).rejects.toThrow("Template name is required");
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("throws when name exceeds 100 characters", async () => {
+    await expect(saveTripListAsTemplate("trip-1", "a".repeat(101))).rejects.toThrow(
+      "Template name must be 100 characters or fewer"
+    );
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("calls requireUser and assertTripAccess with editor role before proceeding", async () => {
+    requireUser.mockResolvedValue({ id: "user-42" });
+    const authTx = {
+      select: vi.fn().mockReturnValue(mockOrderedSelect([])),
+      insert: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof authTx) => Promise<void>) => callback(authTx));
+
+    await expect(saveTripListAsTemplate("trip-42", "Vacation")).rejects.toThrow(
+      "Cannot save an empty packing list as a template"
+    );
+
+    expect(requireUser).toHaveBeenCalledOnce();
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-42", "user-42", "editor");
+  });
+
+  it("throws 'Cannot save an empty packing list as a template' for a trip with no items", async () => {
+    const emptyTx = {
+      select: vi.fn().mockReturnValue(mockOrderedSelect([])),
+      insert: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof emptyTx) => Promise<void>) => callback(emptyTx));
+
+    await expect(saveTripListAsTemplate("trip-1", "Beach")).rejects.toThrow(
+      "Cannot save an empty packing list as a template"
+    );
+    expect(emptyTx.insert).not.toHaveBeenCalled();
+  });
+
+  it("creates a template and returns its id for a trip with two plain items", async () => {
+    const insertValues = vi
+      .fn()
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-a" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-b" }]) });
+    const happyTx = {
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi.fn().mockReturnValue(
+        mockOrderedSelect([
+          { id: "p-1", name: "Shirt", done: false, isLabel: false, position: 0, labelId: null },
+          { id: "p-2", name: "Pants", done: false, isLabel: false, position: 1, labelId: null },
+        ])
+      ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof happyTx) => Promise<void>) => callback(happyTx));
+
+    await expect(saveTripListAsTemplate("trip-1", "Vacation")).resolves.toEqual({ templateId: "tmpl-new" });
+    expect(happyTx.insert).toHaveBeenCalledTimes(3);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("does not copy done state to template items", async () => {
+    const insertValues = vi
+      .fn()
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-1" }]) });
+    const doneTx = {
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi
+        .fn()
+        .mockReturnValue(
+          mockOrderedSelect([{ id: "p-1", name: "Shirt", done: true, isLabel: false, position: 0, labelId: null }])
+        ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof doneTx) => Promise<void>) => callback(doneTx));
+
+    await saveTripListAsTemplate("trip-1", "Vacation");
+
+    const templateItemArg = insertValues.mock.calls[1][0] as Record<string, unknown>;
+    expect(templateItemArg).not.toHaveProperty("done");
+  });
+
+  it("maps original labelId to new template item id for non-label items", async () => {
+    const insertValues = vi
+      .fn()
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-label-1" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-item-1" }]) });
+    const labelTx = {
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi.fn().mockReturnValue(
+        mockOrderedSelect([
+          { id: "trip-label", name: "Clothing", done: false, isLabel: true, position: 0, labelId: null },
+          { id: "trip-shirt", name: "Shirt", done: false, isLabel: false, position: 1, labelId: "trip-label" },
+        ])
+      ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof labelTx) => Promise<void>) => callback(labelTx));
+
+    await saveTripListAsTemplate("trip-1", "Vacation");
+
+    expect(insertValues).toHaveBeenNthCalledWith(3, expect.objectContaining({ labelId: "tmpl-label-1" }));
+  });
+
+  it("does not insert into packingItems during template creation", async () => {
+    const insertValues = vi
+      .fn()
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-1" }]) });
+    const readonlyTx = {
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi
+        .fn()
+        .mockReturnValue(
+          mockOrderedSelect([{ id: "p-1", name: "Shirt", done: false, isLabel: false, position: 0, labelId: null }])
+        ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof readonlyTx) => Promise<void>) =>
+      callback(readonlyTx)
+    );
+
+    await saveTripListAsTemplate("trip-1", "Vacation");
+
+    expect(readonlyTx.insert).toHaveBeenCalledTimes(2);
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("trims whitespace from the template name before saving", async () => {
+    const insertValues = vi
+      .fn()
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-1" }]) });
+    const trimTx = {
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi
+        .fn()
+        .mockReturnValue(
+          mockOrderedSelect([{ id: "p-1", name: "Shirt", done: false, isLabel: false, position: 0, labelId: null }])
+        ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof trimTx) => Promise<void>) => callback(trimTx));
+
+    await saveTripListAsTemplate("trip-1", "  Beach  ");
+
+    expect(insertValues).toHaveBeenNthCalledWith(1, expect.objectContaining({ name: "Beach" }));
+  });
+});

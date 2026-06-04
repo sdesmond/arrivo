@@ -1,6 +1,6 @@
 # Story 3.4: Database Schema Housekeeping
 
-Status: review
+Status: done
 
 ## Story
 
@@ -26,6 +26,16 @@ So that query performance is predictable and the schema is self-documenting.
 
 - [x] Add named `labelId` index on `packingTemplateItems` (AC: #1)
 - [x] Rename anonymous index on `packingTemplates.userId` to explicit name (AC: #2)
+
+### Review Findings
+
+- [x] [Review][Decision] test:coverage now requires E2E database — reverted; `package.json` restored to `vitest run --coverage` only
+- [x] [Review][Decision] packing-actions.ts modified beyond spec scope — accepted; `getCachedTemplateResult` removal + in-transaction idempotency check is a correctness improvement
+- [x] [Review][Patch] 8 saveTripListAsTemplate behavior tests deleted with no replacement [src/app/(app)/trips/actions.test.ts → packing-actions.test.ts] — resolved: added 9 behavior tests to `packing-actions.test.ts` in a new `describe("saveTripListAsTemplate behavior")` block covering name validation (empty/too-long), auth enforcement (requireUser+assertTripAccess with editor role), empty-list guard, template+item creation, done-state not copied, labelId cross-reference, packingItems not written, and name trimming.
+- [x] [Review][Defer] Anonymous compound index `(templateId, position)` on `packingTemplateItems` remains unnamed [src/db/schema.ts] — deferred, pre-existing; spec explicitly says not to change this index
+- [x] [Review][Defer] `vi.resetAllMocks()` in `beforeEach` (should be `vi.clearAllMocks()`) [src/app/(app)/trips/actions.test.ts] — deferred, pre-existing test pattern not introduced by this change
+- [x] [Review][Defer] Concurrent READ COMMITTED race in idempotency: two simultaneous requests can both miss the cache check and create separate templates [src/app/(app)/trips/packing-actions.ts] — deferred, pre-existing architectural concern not introduced by this change
+- [x] [Review][Defer] Cache-hit test does not assert `transaction.select` was called with correct key/userId args [src/app/(app)/trips/packing-actions.test.ts:125] — deferred, test quality gap not blocking
 
 ## Dev Notes
 
