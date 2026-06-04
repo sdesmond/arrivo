@@ -52,29 +52,6 @@ function isSaveTripAsTemplateResult(value: unknown): value is SaveTripAsTemplate
   return "templateId" in value && typeof value.templateId === "string";
 }
 
-async function getCachedTemplateResult(
-  idempotencyKey: string,
-  userId: string
-): Promise<SaveTripAsTemplateResult | null> {
-  const [existing] = await db
-    .select({
-      result: idempotencyKeys.result,
-      createdAt: idempotencyKeys.createdAt,
-    })
-    .from(idempotencyKeys)
-    .where(and(eq(idempotencyKeys.key, idempotencyKey), eq(idempotencyKeys.userId, userId)));
-
-  if (!existing) {
-    return null;
-  }
-
-  if (Date.now() - existing.createdAt.getTime() >= IDEMPOTENCY_WINDOW_MS) {
-    return null;
-  }
-
-  return isSaveTripAsTemplateResult(existing.result) ? existing.result : null;
-}
-
 async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");

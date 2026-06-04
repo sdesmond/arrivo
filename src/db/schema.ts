@@ -313,7 +313,7 @@ export const packingTemplates = pgTable(
     name: text("name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
   },
-  (table) => [index().on(table.userId)]
+  (table) => [index("packing_templates_user_id_idx").on(table.userId)]
 );
 
 export const packingTemplateItems = pgTable(
@@ -330,7 +330,10 @@ export const packingTemplateItems = pgTable(
     position: integer("position").notNull(),
     labelId: uuid("label_id").references((): AnyPgColumn => packingTemplateItems.id, { onDelete: "set null" }),
   },
-  (table) => [index().on(table.templateId, table.position)]
+  (table) => [
+    index().on(table.templateId, table.position),
+    index("packing_template_items_label_id_idx").on(table.labelId),
+  ]
 );
 
 export const idempotencyKeys = pgTable(

@@ -1,3 +1,10 @@
+## Deferred from: code review of 3-4-database-schema-housekeeping (2026-06-03)
+
+- Anonymous compound index `(templateId, position)` on `packingTemplateItems` remains unnamed — pre-existing, spec explicitly excludes this index from scope
+- `vi.resetAllMocks()` in `saveTripListAsTemplate` beforeEach (could be `vi.clearAllMocks()`) — pre-existing test pattern not introduced by this change
+- Concurrent READ COMMITTED race: two simultaneous requests with the same idempotency key can both miss the cache check and create separate templates — pre-existing architectural concern
+- Cache-hit idempotency test does not assert `transaction.select` was called with correct key/userId — test quality gap not blocking
+
 ## Deferred from: code review of 2-1-template-library-create-rename-and-delete-templates (2026-06-02)
 
 - `renameTemplate`/`deleteTemplate` silent no-op on missing/wrong-user ID — intentional per spec ("silent no-op, never a cross-user mutation"); established codebase pattern

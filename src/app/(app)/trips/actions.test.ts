@@ -8,7 +8,6 @@ import {
   itineraryChecklists,
   itineraryNotes,
   packingItems,
-  packingTemplates,
   trips,
 } from "@/db/schema";
 
@@ -52,6 +51,10 @@ const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
   mockSearchBoxRetrieve: vi.fn(),
 }));
 
+const { saveTripListAsTemplateAction } = vi.hoisted(() => ({
+  saveTripListAsTemplateAction: vi.fn(),
+}));
+
 vi.mock("@mapbox/search-js-core", () => ({
   // Must use regular functions (not arrows) so `new SearchBoxCore()` works as a constructor
   SearchBoxCore: vi.fn(function (this: Record<string, unknown>) {
@@ -62,6 +65,15 @@ vi.mock("@mapbox/search-js-core", () => ({
     this.id = id ?? "mock-session-token";
   }),
 }));
+
+vi.mock("./packing-actions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./packing-actions")>();
+
+  return {
+    ...actual,
+    saveTripListAsTemplate: saveTripListAsTemplateAction,
+  };
+});
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import {
@@ -1664,184 +1676,28 @@ describe("searchCoverImages", () => {
 describe("saveTripListAsTemplate", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    requireUser.mockResolvedValue({ id: "user-1" });
+    saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
   });
 
-  it("throws 'Template name is required' for empty name", async () => {
+  it("delegates to packing-actions with the same arguments", async () => {
+    await expect(saveTripListAsTemplate("trip-1", "My Template", "idem-1")).resolves.toEqual({
+      templateId: "tmpl-new",
+    });
+
+    expect(saveTripListAsTemplateAction).toHaveBeenCalledWith("trip-1", "My Template", "idem-1");
+  });
+
+  it("allows callers to omit the idempotency key", async () => {
+    await expect(saveTripListAsTemplate("trip-1", "Beach Holiday")).resolves.toEqual({
+      templateId: "tmpl-new",
+    });
+
+    expect(saveTripListAsTemplateAction).toHaveBeenCalledWith("trip-1", "Beach Holiday", undefined);
+  });
+
+  it("surfaces delegate failures unchanged", async () => {
+    saveTripListAsTemplateAction.mockRejectedValueOnce(new Error("Template name is required"));
+
     await expect(saveTripListAsTemplate("trip-1", "   ")).rejects.toThrow("Template name is required");
-    expect(db.select).not.toHaveBeenCalled();
-  });
-
-  it("throws 'Template name must be 100 characters or fewer' for long name", async () => {
-    await expect(saveTripListAsTemplate("trip-1", "a".repeat(101))).rejects.toThrow(
-      "Template name must be 100 characters or fewer"
-    );
-  });
-
-  it("enforces requireUser then assertTripAccess with editor role", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: async () => [
-            { id: "pi-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
-          ],
-        }),
-      }),
-    });
-    const insertValues = vi.fn();
-    insertValues
-      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
-      .mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: "ti-1" }]) });
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
-      cb({ insert: vi.fn(() => ({ values: insertValues })) })
-    );
-
-    await saveTripListAsTemplate("trip-1", "My Template");
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-  });
-
-  it("throws 'Cannot save an empty packing list as a template' for trip with no items", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: () => ({ orderBy: async () => [] }) }),
-    });
-
-    await expect(saveTripListAsTemplate("trip-1", "My Template")).rejects.toThrow(
-      "Cannot save an empty packing list as a template"
-    );
-    expect(db.transaction).not.toHaveBeenCalled();
-  });
-
-  it("creates template and returns templateId for trip with two plain items", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: async () => [
-            { id: "pi-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
-            { id: "pi-2", name: "Phone Charger", done: true, isLabel: false, position: 1, labelId: null },
-          ],
-        }),
-      }),
-    });
-    const insertValues = vi.fn();
-    insertValues
-      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
-      .mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: "ti-1" }]) });
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
-      cb({ insert: vi.fn(() => ({ values: insertValues })) })
-    );
-
-    const result = await saveTripListAsTemplate("trip-1", "My Template");
-
-    expect(result).toEqual({ templateId: "tmpl-new" });
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("does not copy done state — template items are always inserted without done field", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: async () => [
-            { id: "pi-1", name: "Sunscreen", done: true, isLabel: false, position: 0, labelId: null },
-          ],
-        }),
-      }),
-    });
-    const insertValues = vi.fn();
-    insertValues
-      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
-      .mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: "ti-1" }]) });
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
-      cb({ insert: vi.fn(() => ({ values: insertValues })) })
-    );
-
-    await saveTripListAsTemplate("trip-1", "Packed List");
-
-    expect(insertValues).toHaveBeenCalledWith(expect.not.objectContaining({ done: true }));
-  });
-
-  it("preserves labelId cross-reference: label items inserted first, non-labels reference new label id", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: async () => [
-            { id: "label-old", name: "Toiletries", done: false, isLabel: true, position: 0, labelId: null },
-            { id: "item-old", name: "Toothbrush", done: false, isLabel: false, position: 1, labelId: "label-old" },
-          ],
-        }),
-      }),
-    });
-    const labelReturning = vi.fn().mockResolvedValue([{ id: "label-new" }]);
-    const itemReturning = vi.fn().mockResolvedValue([{ id: "item-new" }]);
-    const insertValues = vi.fn();
-    insertValues
-      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
-      .mockReturnValueOnce({ returning: labelReturning })
-      .mockReturnValue({ returning: itemReturning });
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
-      cb({ insert: vi.fn(() => ({ values: insertValues })) })
-    );
-
-    await saveTripListAsTemplate("trip-1", "With Labels");
-
-    expect(insertValues).toHaveBeenNthCalledWith(2, expect.objectContaining({ isLabel: true, text: "Toiletries" }));
-    expect(insertValues).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({ isLabel: false, text: "Toothbrush", labelId: "label-new" })
-    );
-  });
-
-  it("does not write to packingItems — original trip list is read-only", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: async () => [
-            { id: "pi-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
-          ],
-        }),
-      }),
-    });
-    const insertValues = vi.fn();
-    insertValues
-      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
-      .mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: "ti-1" }]) });
-    const insertTx = vi.fn(() => ({ values: insertValues }));
-    db.transaction.mockImplementation(async (cb: (tx: { insert: typeof insertTx }) => Promise<void>) =>
-      cb({ insert: insertTx })
-    );
-
-    await saveTripListAsTemplate("trip-1", "Unchanged Test");
-
-    expect(db.update).not.toHaveBeenCalled();
-    expect(db.delete).not.toHaveBeenCalled();
-    const txInsertCalls = insertTx.mock.calls as unknown[][];
-    const touchedTables = txInsertCalls.map((call) => call[0]);
-    expect(touchedTables).not.toContain(packingItems);
-    expect(touchedTables).toContain(packingTemplates);
-  });
-
-  it("trims whitespace from the template name before saving", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: () => ({
-          orderBy: async () => [
-            { id: "pi-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
-          ],
-        }),
-      }),
-    });
-    const insertValues = vi.fn();
-    insertValues
-      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new" }]) })
-      .mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: "ti-1" }]) });
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
-      cb({ insert: vi.fn(() => ({ values: insertValues })) })
-    );
-
-    await saveTripListAsTemplate("trip-1", "  Beach Holiday  ");
-
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ name: "Beach Holiday" }));
   });
 });
