@@ -97,11 +97,11 @@ These agents enforce project standards. Use them as described below — don't sk
 
 ### Post-implementation agents
 
-| Agent                   | When to invoke                                                                                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packt-build-validator` | After any code change and again before committing; runs ESLint, TypeScript checking, Vitest coverage, the production build, and Playwright E2E validation |
-| `desktop-reviewer`      | After visual changes when browser validation is needed; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser)     |
-| `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)    |
+| Agent                   | When to invoke                                                                                                                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packt-build-validator` | After completing the final code for a change; rerun only if code changes after the last validator pass or if there is reason to doubt the result. It runs ESLint, TypeScript checking, Vitest coverage, the production build, and Playwright E2E validation |
+| `desktop-reviewer`      | After visual changes when browser validation is needed; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                       |
+| `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                      |
 
 **Pre-implementation gate — NON-NEGOTIABLE:**
 Before presenting a **story file or implementation-ready plan file** to the user, you MUST run the packt-plan-reviewer. This gate applies only to fully fleshed-out artifacts that will be handed directly to a developer — not to PRDs, UX specs, architecture docs, brainstorming outputs, or other intermediate planning artifacts.
@@ -127,8 +127,8 @@ Before starting any new development task, you MUST ask the user whether they wan
    - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create the matching colocated `*.test.ts` / `*.test.tsx` alongside it in the same change
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend the `.feature` file and matching step definitions in `tests/e2e/` in the same change
    - If you cannot name the exact tests you are adding or updating, pause and resolve that before editing production code
-3. Run `packt-build-validator` to verify the completed change: lint, TypeScript, coverage, build, and Playwright E2E should confirm work that is already fully implemented and tested
-4. Fix any flagged issues, then re-run `packt-build-validator` again before the final commit
+3. Run `packt-build-validator` after the change is fully implemented and tested: lint, TypeScript, coverage, build, and Playwright E2E should confirm work that is already complete
+4. If the validator flags issues, fix them and run `packt-build-validator` again. If it already passed on the final code for the change, do not rerun it just to make the commit
 
 ## Key Conventions
 
