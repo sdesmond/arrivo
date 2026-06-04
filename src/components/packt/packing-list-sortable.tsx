@@ -182,7 +182,7 @@ export function PackingListSortable({
               />
             }
           >
-            {section.items.length > 0 ? (
+            {section.items.length > 0 || onAddItem ? (
               <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
                 {section.items.map((item) => (
                   <SortablePackingRow
@@ -196,17 +196,15 @@ export function PackingListSortable({
                     onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
                   />
                 ))}
-              </div>
-            ) : null}
-            {onAddItem ? (
-              <div className="ml-3 mt-1">
-                <ContextualAddForm
-                  placeholder={`Add item under "${section.label.name}"…`}
-                  afterItemId={section.label.id}
-                  labelId={section.label.id}
-                  isAdding={isAdding}
-                  onAddItem={onAddItem}
-                />
+                {onAddItem ? (
+                  <ContextualAddForm
+                    placeholder={`add to ${section.label.name}`}
+                    afterItemId={section.items.at(-1)?.id ?? section.label.id}
+                    labelId={section.label.id}
+                    isAdding={isAdding}
+                    onAddItem={onAddItem}
+                  />
+                ) : null}
               </div>
             ) : null}
           </DroppablePackingSection>

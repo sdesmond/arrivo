@@ -25,6 +25,19 @@ describe("ContextualAddForm", () => {
     expect(input).toHaveValue("");
   });
 
+  it("returns focus to the input after a successful add", async () => {
+    const onAddItem = vi.fn();
+    const user = userEvent.setup();
+
+    render(<ContextualAddForm placeholder="Add item…" labelId={null} onAddItem={onAddItem} />);
+
+    const input = screen.getByPlaceholderText("Add item…");
+    await user.type(input, "Passport");
+    await user.keyboard("{Enter}");
+
+    expect(document.activeElement).toBe(input);
+  });
+
   it("does not submit a blank value", async () => {
     const onAddItem = vi.fn();
     const user = userEvent.setup();

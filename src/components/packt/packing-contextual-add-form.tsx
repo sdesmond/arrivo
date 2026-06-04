@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,18 @@ export function ContextualAddForm({
   onAddItem,
 }: ContextualAddFormProps): ReactElement {
   const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pendingFocusRef = useRef(false);
+
+  // Fires when isAdding transitions false → handles the production case where the
+  // input was still disabled when the submit resolved (calling focus on a disabled
+  // input is a no-op in browsers).
+  useEffect(() => {
+    if (pendingFocusRef.current && !isAdding) {
+      pendingFocusRef.current = false;
+      inputRef.current?.focus();
+    }
+  }, [isAdding]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -37,6 +49,11 @@ export function ContextualAddForm({
     try {
       await onAddItem(trimmed, false, afterItemId, beforeItemId, labelId);
       setValue("");
+      if (!inputRef.current?.disabled) {
+        inputRef.current?.focus();
+      } else {
+        pendingFocusRef.current = true;
+      }
     } catch {
       // Input retains value on failure so the user can retry
     }
@@ -45,6 +62,7 @@ export function ContextualAddForm({
   return (
     <form className="flex items-center gap-2" onSubmit={handleSubmit}>
       <Input
+        ref={inputRef}
         className="h-9 flex-1 rounded-xl border-0 px-3 text-sm shadow-none"
         disabled={isAdding}
         maxLength={100}
