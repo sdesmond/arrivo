@@ -83,7 +83,7 @@ export function TemplateLibrary({ templates, onNew, onRename, onDelete }: Templa
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  title={`Rename ${template.name}`}
+                  title={`Rename ${template.name} (${template.id})`}
                   aria-label={`Rename ${template.name} (${template.id})`}
                   onClick={() => onRename(template)}
                   style={{ minWidth: 44, minHeight: 44 }}
@@ -94,7 +94,7 @@ export function TemplateLibrary({ templates, onNew, onRename, onDelete }: Templa
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  title={`Delete ${template.name}`}
+                  title={`Delete ${template.name} (${template.id})`}
                   aria-label={`Delete ${template.name} (${template.id})`}
                   onClick={() => onDelete(template)}
                   style={{ minWidth: 44, minHeight: 44 }}
