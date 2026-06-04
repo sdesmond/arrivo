@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
-import { Plus, Tag } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactElement } from "react";
 import type { PackingItem, PackingTemplate, PullTemplatesResult } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
 import { TemplatePullDialog } from "./template-pull-dialog";
 import { PackingListToolbar } from "./packing-list-toolbar";
 import { PackingListEmptyState } from "./packing-list-empty-state";
 import { SaveAsTemplateDialog } from "./save-as-template-dialog";
+import { PackingEntryForm } from "./packing-entry-form";
 
 export interface PackingListViewProps {
   tripId: string;
@@ -28,71 +26,6 @@ export interface PackingListViewProps {
   templates?: PackingTemplate[];
   onPullTemplates?: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
   onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
-}
-
-interface PackingEntryFormProps {
-  tripId: string;
-  draftName: string;
-  hasItems: boolean;
-  isSubmitting: boolean;
-  onDraftNameChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  onSubmitItem: () => void;
-  onSubmitLabel: () => void;
-}
-
-function PackingEntryForm({
-  tripId,
-  draftName,
-  hasItems,
-  isSubmitting,
-  onDraftNameChange,
-  onSubmitItem,
-  onSubmitLabel,
-}: PackingEntryFormProps): ReactElement {
-  const formId = `packing-entry-${tripId}`;
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    onSubmitItem();
-  }
-
-  return (
-    <form
-      aria-label="Add a packing entry"
-      className="flex flex-col gap-3 rounded-3xl border p-3"
-      style={{ background: "var(--surface)", borderColor: "var(--line)" }}
-      onSubmit={handleSubmit}
-    >
-      <label className="sr-only" htmlFor={formId}>
-        Packing item name
-      </label>
-      <Input
-        id={formId}
-        className="h-11 rounded-2xl border-0 px-3 text-sm shadow-none"
-        maxLength={100}
-        placeholder={hasItems ? "Add another item or section label" : "Add your first item or section label"}
-        style={{ background: "var(--bg)", color: "var(--fg)" }}
-        value={draftName}
-        onChange={onDraftNameChange}
-      />
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button className="min-h-11 min-w-11 flex-1 rounded-2xl" disabled={isSubmitting} type="submit">
-          <Plus size={16} strokeWidth={1.5} />
-          Add item
-        </Button>
-        <Button
-          className="min-h-11 min-w-11 flex-1 rounded-2xl"
-          disabled={isSubmitting}
-          type="button"
-          variant="outline"
-          onClick={onSubmitLabel}
-        >
-          <Tag size={16} strokeWidth={1.5} />
-          Add label
-        </Button>
-      </div>
-    </form>
-  );
 }
 
 export function PackingListView({
@@ -312,7 +245,6 @@ export function PackingListView({
           />
 
           <PackingEntryForm
-            tripId={tripId}
             draftName={draftName}
             hasItems
             isSubmitting={isSubmitting}

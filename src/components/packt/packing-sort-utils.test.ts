@@ -27,6 +27,10 @@ function label(id: string | undefined, position: number | undefined): PackingIte
 // ---------------------------------------------------------------------------
 
 describe("groupPackingItems", () => {
+  it("returns empty sections and ungrouped items for an empty list", () => {
+    expect(groupPackingItems([])).toEqual({ sections: [], ungroupedItems: [] });
+  });
+
   it("sorts labels and section items by position", () => {
     const items: PackingItem[] = [item("c", 20, null), item("a", 0, null), item("b", 10, null)];
     const { ungroupedItems } = groupPackingItems(items);
@@ -59,6 +63,47 @@ describe("groupPackingItems", () => {
     expect(ungroupedItems).toHaveLength(3);
     // All must be present (stable — no NaN-induced drops)
     expect(ungroupedItems.map((i) => i.id).sort()).toEqual(["x", "y", "z"]);
+  });
+
+  it("keeps all items ungrouped when there are no labels", () => {
+    const items: PackingItem[] = [
+      { id: "passport", name: "Passport", done: false, position: 1, labelId: null, isLabel: false },
+      { id: "adapter", name: "Adapter", done: false, position: 0, labelId: null, isLabel: false },
+    ];
+
+    const { sections, ungroupedItems } = groupPackingItems(items);
+
+    expect(sections).toEqual([]);
+    expect(ungroupedItems.map((packingItem) => packingItem.id)).toEqual(["adapter", "passport"]);
+  });
+
+  it("keeps a single-item section grouped without duplicating it in Ungrouped", () => {
+    const items: PackingItem[] = [label("documents", 0), item("passport", 1, "documents")];
+
+    const { sections, ungroupedItems } = groupPackingItems(items);
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.items.map((packingItem) => packingItem.id)).toEqual(["passport"]);
+    expect(ungroupedItems).toEqual([]);
+  });
+
+  it("handles mixed labels and items with undefined properties without dropping valid rows", () => {
+    const undefinedLabel = label(undefined, 0);
+    const gearLabel = label("gear", 1);
+    const items: PackingItem[] = [
+      undefinedLabel,
+      gearLabel,
+      { id: "orphan", name: "Orphan", done: false, position: undefined, labelId: undefined as unknown as string },
+      { id: "tent", name: "Tent", done: false, position: 2, labelId: "gear", isLabel: false },
+      { id: "map", name: "Map", done: false, position: 3, labelId: null, isLabel: false },
+    ];
+
+    const { sections, ungroupedItems } = groupPackingItems(items);
+
+    expect(sections.map((section) => section.label.name)).toEqual(["Label-undef", "Label-gear"]);
+    expect(sections[0]?.items).toEqual([]);
+    expect(sections[1]?.items.map((packingItem) => packingItem.id)).toEqual(["tent"]);
+    expect(ungroupedItems.map((packingItem) => packingItem.id)).toEqual(["map", "orphan"]);
   });
 });
 
