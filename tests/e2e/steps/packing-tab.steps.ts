@@ -94,6 +94,7 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
   // which reflows the layout and moves the target out from under the cursor.
   // Re-hover the target a few times so the final position lands on a real `over`
   // even as the list settles, then release.
+  let lastBox = dest;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await page.waitForTimeout(80);
     const box = await target.boundingBox();
@@ -101,8 +102,10 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
       await page.waitForTimeout(100);
       continue;
     }
+    lastBox = box;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
   }
+  await page.mouse.move(lastBox.x + lastBox.width / 2, lastBox.y + lastBox.height / 2, { steps: 3 });
   await page.waitForTimeout(60);
   await page.mouse.up();
 }
@@ -128,6 +131,8 @@ async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promis
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
   await page.mouse.move(targetX, targetY, { steps: 18 });
 
+  let lastDropX = targetX;
+  let lastDropY = targetY;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await page.waitForTimeout(80);
     const box = await ungrouped.boundingBox();
@@ -135,8 +140,11 @@ async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promis
       await page.waitForTimeout(100);
       continue;
     }
-    await page.mouse.move(box.x + box.width / 2, box.y + Math.max(box.height - 16, box.height / 2), { steps: 6 });
+    lastDropX = box.x + box.width / 2;
+    lastDropY = box.y + Math.max(box.height - 16, box.height / 2);
+    await page.mouse.move(lastDropX, lastDropY, { steps: 6 });
   }
+  await page.mouse.move(lastDropX, lastDropY, { steps: 3 });
 
   await page.waitForTimeout(60);
   await page.mouse.up();

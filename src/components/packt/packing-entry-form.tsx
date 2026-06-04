@@ -28,6 +28,7 @@ export function PackingEntryForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    if (!draftName.trim()) return;
     onSubmitItem();
   }
 
