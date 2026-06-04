@@ -9,6 +9,7 @@ export interface DroppablePackingSectionProps {
   containerId: string;
   /** Sortable item ids registered in this container's SortableContext. */
   sortableIds: string[];
+  header?: ReactNode;
   children: ReactNode;
 }
 
@@ -21,15 +22,19 @@ export interface DroppablePackingSectionProps {
 export function DroppablePackingSection({
   containerId,
   sortableIds,
+  header,
   children,
 }: DroppablePackingSectionProps): ReactElement {
   const { setNodeRef } = useDroppable({ id: containerId });
 
   return (
-    <div ref={setNodeRef} data-packing-container={containerId} className="flex flex-col gap-2">
-      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-        {children}
-      </SortableContext>
+    <div data-packing-container={containerId} className="flex flex-col gap-2">
+      {header}
+      <div ref={setNodeRef} data-packing-dropzone={containerId} className="flex flex-col gap-2">
+        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+          {children}
+        </SortableContext>
+      </div>
     </div>
   );
 }

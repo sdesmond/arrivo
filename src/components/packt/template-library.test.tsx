@@ -9,6 +9,11 @@ const templates: PackingTemplate[] = [
   { id: "template-2", name: "Carry-on Only" },
 ];
 
+const duplicateNameTemplates: PackingTemplate[] = [
+  { id: "template-1", name: "Beach Weekend" },
+  { id: "template-2", name: "Beach Weekend" },
+];
+
 describe("TemplateLibrary", () => {
   it("renders the empty state and create action when there are no templates", async () => {
     const user = userEvent.setup();
@@ -28,8 +33,8 @@ describe("TemplateLibrary", () => {
     expect(screen.getByText("Carry-on Only")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Beach Weekend" })).toHaveAttribute("href", "/packing/template-1");
     expect(screen.getByRole("link", { name: "Carry-on Only" })).toHaveAttribute("href", "/packing/template-2");
-    expect(screen.getByRole("button", { name: "Rename Beach Weekend" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete Beach Weekend" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rename Beach Weekend (template-1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Beach Weekend (template-1)" })).toBeInTheDocument();
   });
 
   it("calls onNew from the header button", async () => {
@@ -49,10 +54,21 @@ describe("TemplateLibrary", () => {
 
     render(<TemplateLibrary templates={templates} onNew={vi.fn()} onRename={onRename} onDelete={onDelete} />);
 
-    await user.click(screen.getByRole("button", { name: "Rename Carry-on Only" }));
-    await user.click(screen.getByRole("button", { name: "Delete Carry-on Only" }));
+    await user.click(screen.getByRole("button", { name: "Rename Carry-on Only (template-2)" }));
+    await user.click(screen.getByRole("button", { name: "Delete Carry-on Only (template-2)" }));
 
     expect(onRename).toHaveBeenCalledWith(templates[1]);
     expect(onDelete).toHaveBeenCalledWith(templates[1]);
+  });
+
+  it("disambiguates duplicate template names in aria-labels", () => {
+    render(
+      <TemplateLibrary templates={duplicateNameTemplates} onNew={vi.fn()} onRename={vi.fn()} onDelete={vi.fn()} />
+    );
+
+    expect(screen.getByRole("button", { name: "Rename Beach Weekend (template-1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rename Beach Weekend (template-2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Beach Weekend (template-1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Beach Weekend (template-2)" })).toBeInTheDocument();
   });
 });

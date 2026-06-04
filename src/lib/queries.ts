@@ -131,7 +131,7 @@ export async function listTemplatesForUser(userId: string): Promise<PackingTempl
     .select()
     .from(packingTemplates)
     .where(eq(packingTemplates.userId, userId))
-    .orderBy(asc(packingTemplates.name), asc(packingTemplates.createdAt));
+    .orderBy(asc(sql`LOWER(${packingTemplates.name})`), asc(packingTemplates.createdAt), asc(packingTemplates.id));
 
   return rows.map(dbTemplateToType);
 }

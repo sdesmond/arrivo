@@ -465,7 +465,7 @@ describe("PackingListView", () => {
     expectMinimumTouchTarget(dragHandle);
   });
 
-  it("calls useSortable with disabled:true for section labels", () => {
+  it("does not call useSortable for section labels (labels render as plain PackingRow)", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -483,7 +483,9 @@ describe("PackingListView", () => {
       const options = call[0] as { disabled?: boolean } | undefined;
       return options?.disabled === true;
     });
-    expect(labelCalls.length).toBeGreaterThan(0);
+    // Labels are now rendered as plain PackingRow, so useSortable is never
+    // called with disabled:true — labels are fully outside dnd-kit's awareness.
+    expect(labelCalls.length).toBe(0);
   });
 
   it("calls useSortable with animateLayoutChanges that returns false", () => {

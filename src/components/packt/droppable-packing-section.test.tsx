@@ -17,13 +17,15 @@ vi.mock("@dnd-kit/sortable", () => ({
 describe("DroppablePackingSection", () => {
   it("registers a droppable for its container id and renders children", () => {
     render(
-      <DroppablePackingSection containerId="container:label-1" sortableIds={["label-1", "item-1"]}>
+      <DroppablePackingSection containerId="container:label-1" sortableIds={["item-1"]} header={<h2>Documents</h2>}>
         <p>Section content</p>
       </DroppablePackingSection>
     );
 
     expect(useDroppableMock).toHaveBeenCalledWith({ id: "container:label-1" });
+    expect(screen.getByText("Documents")).toBeInTheDocument();
     expect(screen.getByText("Section content")).toBeInTheDocument();
+    expect(screen.getByText("Documents").closest("[data-packing-dropzone]")).toBeNull();
   });
 
   it("renders an empty container so it can still accept drops", () => {

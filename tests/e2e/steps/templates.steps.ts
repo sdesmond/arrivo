@@ -50,7 +50,7 @@ When("I create a packing template named {string}", async ({ page }, name: string
 });
 
 When("I rename the packing template {string} to {string}", async ({ page }, currentName: string, nextName: string) => {
-  await page.getByRole("button", { name: `Rename ${currentName}` }).click();
+  await page.getByTitle(`Rename ${currentName}`).click();
   const input = page.getByLabel("Template name");
   await input.clear();
   await input.fill(nextName);
@@ -59,7 +59,7 @@ When("I rename the packing template {string} to {string}", async ({ page }, curr
 });
 
 When("I delete the packing template {string}", async ({ page }, name: string) => {
-  await page.getByRole("button", { name: `Delete ${name}` }).click();
+  await page.getByTitle(`Delete ${name}`).click();
   await page.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText(name)).toHaveCount(0, { timeout: 10_000 });
 });
@@ -82,8 +82,16 @@ Then("I should see the packing template {string}", async ({ page }, name: string
 });
 
 Then("I should not see the packing template {string}", async ({ page }, name: string) => {
-  await expect(page.getByRole("button", { name: `Rename ${name}` })).toHaveCount(0);
+  await expect(page.getByTitle(`Rename ${name}`)).toHaveCount(0);
 });
+
+Then(
+  "the packing templates should appear in order {string} then {string} then {string}",
+  async ({ page }, firstName: string, secondName: string, thirdName: string) => {
+    const templateNames = await page.locator("li a[href^='/packing/']").allTextContents();
+    expect(templateNames.slice(0, 3)).toEqual([firstName, secondName, thirdName]);
+  }
+);
 
 Then("I should see a template validation error", async ({ page }) => {
   await expect(page.getByRole("status")).toHaveText("Template name is required.");

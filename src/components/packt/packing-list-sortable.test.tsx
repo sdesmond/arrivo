@@ -644,6 +644,56 @@ describe("PackingListSortable", () => {
     expect(screen.queryByTitle("Reorder Documents")).not.toBeInTheDocument();
     expect(screen.getByTitle("Reorder Item A")).toBeInTheDocument();
     expect(screen.getByTitle("Reorder Item B")).toBeInTheDocument();
+
+    // Labels must render as plain PackingRow (not SortablePackingRow) — the
+    // label row must sit outside the droppable/sortable region entirely.
+    const labelRow = document.querySelector('[data-packing-kind="label"]');
+    expect(labelRow?.parentElement).toHaveAttribute("data-packing-container");
+    expect(labelRow?.closest("[data-packing-dropzone]")).toBeNull();
+  });
+
+  it("keeps the section header outside the drop zone so header drops cannot reparent items", () => {
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    const labelRow = document.querySelector('[data-packing-kind="label"]');
+    const dropZone = document.querySelector('[data-packing-dropzone="container:label-1"]');
+    expect(dropZone).not.toBeNull();
+    expect(dropZone?.contains(labelRow)).toBe(false);
+  });
+
+  it("never announces label reordering during normal item moves", () => {
+    const onAnnounceMove = vi.fn();
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+        onAnnounceMove={onAnnounceMove}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragEnd?.({
+        active: { id: "item-c" },
+        over: { id: "item-a" },
+      });
+    });
+
+    expect(onAnnounceMove).toHaveBeenCalledWith("Moved Item C to Documents.");
+    expect(onAnnounceMove).not.toHaveBeenCalledWith("Labels cannot be reordered.");
   });
 
   it("edits a section label, removes and toggles a section item", async () => {
