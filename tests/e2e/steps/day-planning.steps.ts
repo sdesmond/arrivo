@@ -350,24 +350,23 @@ Given("a day has events {string} and {string} in order", async ({ page }, first:
 When("I drag {string} above {string}", async ({ page }, source: string, target: string) => {
   const sourceRow = page.locator('[id^="event-"]').filter({ hasText: source }).first();
   const targetRow = page.locator('[id^="event-"]').filter({ hasText: target }).first();
-
   await sourceRow.hover();
   const dragHandle = sourceRow.locator('[aria-roledescription="sortable"]');
+  await expect(dragHandle).toBeAttached({ timeout: 10_000 });
+  await dragHandle.scrollIntoViewIfNeeded();
 
   const handleBox = await dragHandle.boundingBox();
   const targetBox = await targetRow.boundingBox();
-
   if (!handleBox || !targetBox) throw new Error("Could not locate drag elements");
 
-  const srcX = handleBox.x + handleBox.width / 2;
-  const srcY = handleBox.y + handleBox.height / 2;
-  const dstX = targetBox.x + targetBox.width / 2;
-  const dstY = targetBox.y + Math.round(targetBox.height * 0.3);
+  const handleMidX = handleBox.x + handleBox.width / 2;
+  const handleMidY = handleBox.y + handleBox.height / 2;
+  const targetMidX = targetBox.x + targetBox.width / 2;
+  const targetMidY = targetBox.y + targetBox.height / 2;
 
-  await page.mouse.move(srcX, srcY);
+  await page.mouse.move(handleMidX, handleMidY);
   await page.mouse.down();
-  await page.mouse.move(srcX, srcY + 7, { steps: 3 });
-  await page.mouse.move(dstX, dstY, { steps: 25 });
+  await page.mouse.move(targetMidX, targetMidY, { steps: 10 });
   await page.mouse.up();
 });
 
