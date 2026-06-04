@@ -9,6 +9,11 @@ const templates: PackingTemplate[] = [
   { id: "template-2", name: "Carry-on Only" },
 ];
 
+const duplicateNameTemplates: PackingTemplate[] = [
+  { id: "template-1", name: "Beach Weekend" },
+  { id: "template-2", name: "Beach Weekend" },
+];
+
 describe("TemplateLibrary", () => {
   it("renders the empty state and create action when there are no templates", async () => {
     const user = userEvent.setup();
@@ -54,5 +59,16 @@ describe("TemplateLibrary", () => {
 
     expect(onRename).toHaveBeenCalledWith(templates[1]);
     expect(onDelete).toHaveBeenCalledWith(templates[1]);
+  });
+
+  it("disambiguates duplicate template names in aria-labels", () => {
+    render(
+      <TemplateLibrary templates={duplicateNameTemplates} onNew={vi.fn()} onRename={vi.fn()} onDelete={vi.fn()} />
+    );
+
+    expect(screen.getByRole("button", { name: "Rename Beach Weekend (template-1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rename Beach Weekend (template-2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Beach Weekend (template-1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Beach Weekend (template-2)" })).toBeInTheDocument();
   });
 });

@@ -48,3 +48,12 @@ Feature: Packing templates
     When I open the templates page
     Then I should see the packing template "Business Trip"
     And I should see the packing template "Winter Ski"
+
+  Scenario: Mixed-case template names stay adjacent
+    Given I have packing templates:
+      | name        |
+      | beach trip  |
+      | Beach Trip  |
+      | Winter Ski  |
+    When I open the templates page
+    Then the packing templates should appear in order "beach trip" then "Beach Trip" then "Winter Ski"
