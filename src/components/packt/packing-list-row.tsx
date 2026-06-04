@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { GripVertical, Check, X, Trash2 } from "lucide-react";
+import { GripVertical, X, Trash2 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { PackingItem } from "@/data/types";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 const minimumTouchTargetStyle = { minHeight: "44px", minWidth: "44px" } as const;
@@ -67,34 +68,15 @@ export function PackingRow({
     >
       {dragHandle ? dragHandle : null}
       {isLabel || !onToggle ? null : (
-        <button
-          aria-checked={item.done}
-          aria-label={`Pack ${item.name}`}
-          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center"
-          disabled={isPending}
-          role="checkbox"
-          title={item.done ? `Unpack ${item.name}` : `Pack ${item.name}`}
-          type="button"
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: 0,
-            ...minimumTouchTargetStyle,
-          }}
-          onClick={onToggle}
-        >
-          <span
-            className="flex size-5 items-center justify-center rounded-full"
-            style={{
-              background: item.done ? "var(--accent-brand)" : "transparent",
-              border: item.done ? "1.5px solid var(--accent-brand)" : "1.5px solid var(--line-strong)",
-              color: item.done ? "var(--accent-fg)" : "transparent",
-            }}
-          >
-            {item.done ? <Check size={12} strokeWidth={1.5} /> : null}
-          </span>
-        </button>
+        <span className="flex shrink-0 items-center justify-center" data-packing-toggle style={minimumTouchTargetStyle}>
+          <Checkbox
+            aria-label={`Pack ${item.name}`}
+            checked={item.done}
+            disabled={isPending}
+            title={item.done ? `Unpack ${item.name}` : `Pack ${item.name}`}
+            onCheckedChange={() => onToggle()}
+          />
+        </span>
       )}
       <div className="min-w-0 flex-1">
         {isEditing ? (

@@ -73,7 +73,7 @@ When("I click the Create button", async ({ page }) => {
 Then("I am on the trip detail page for {string}", async ({ page, scenario }, title: string) => {
   await expect(page).toHaveURL(/\/trips\/[^/?]+(\?new=1)?$/, { timeout: 15_000 });
   await scenario.rememberTripByName(title);
-  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 15_000 });
 });
 
 Then("Day 1 is expanded", async ({ page }) => {

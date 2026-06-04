@@ -425,7 +425,8 @@ describe("PackingListView", () => {
     );
 
     const checkbox = screen.getByRole("checkbox", { name: "Pack Passport" });
-    expectMinimumTouchTarget(checkbox);
+    const touchTarget = checkbox.closest("[data-packing-toggle]") as HTMLElement;
+    expectMinimumTouchTarget(touchTarget);
   });
 
   it("renders a drag handle on item rows but not on label rows", () => {

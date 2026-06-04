@@ -70,7 +70,7 @@ describe("PackingRow", () => {
 
   it("disables the toggle button when pending", () => {
     render(<PackingRow item={itemRow} isPending onRemove={vi.fn()} onToggle={vi.fn()} />);
-    expect(screen.getByRole("checkbox", { name: "Pack Passport" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Pack Passport" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("applies data-packing-kind attribute for item and label", () => {
