@@ -2,6 +2,15 @@ import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
 if (typeof window !== "undefined") {
+  if (!window.PointerEvent) {
+    class PointerEvent extends MouseEvent {
+      constructor(type: string, params: PointerEventInit = {}) {
+        super(type, params);
+      }
+    }
+    Object.defineProperty(window, "PointerEvent", { value: PointerEvent });
+  }
+
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn((query: string) => ({
