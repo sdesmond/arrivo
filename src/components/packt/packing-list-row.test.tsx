@@ -218,6 +218,27 @@ describe("SortablePackingRow", () => {
     expect(screen.getByLabelText("Reorder Passport")).toBeInTheDocument();
   });
 
+  it("hides the source row only while the parent marks it as active", () => {
+    useSortableMock.mockReturnValueOnce({
+      attributes: { "aria-roledescription": "sortable" },
+      listeners: {},
+      setNodeRef: vi.fn(),
+      transform: null,
+      transition: undefined,
+      isDragging: true,
+    });
+
+    const { container, rerender } = render(
+      <SortablePackingRow id="item-1" item={itemRow} isActiveDragSource onRemove={vi.fn()} />
+    );
+
+    expect(container.firstElementChild).toHaveStyle({ opacity: "0" });
+
+    rerender(<SortablePackingRow id="item-1" item={itemRow} isActiveDragSource={false} onRemove={vi.fn()} />);
+
+    expect(container.firstElementChild).toHaveStyle({ opacity: "1" });
+  });
+
   it("does not render drag handle for labels", () => {
     render(<SortablePackingRow id="label-1" item={labelRow} isLabel onRemove={vi.fn()} />);
     expect(screen.queryByLabelText("Reorder Documents")).not.toBeInTheDocument();

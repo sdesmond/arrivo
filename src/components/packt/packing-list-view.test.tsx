@@ -1230,6 +1230,35 @@ describe("PackingListView", () => {
 
   // ── Story 3.3 — AC #4: Concurrent mutation protection ────────────────────────
 
+  it("keeps a same-section optimistic reorder visible before server props refresh", () => {
+    const sameSectionItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+      { id: "item-2", name: "Phone charger", done: false, position: 2, labelId: "label-1" },
+    ];
+    const { container } = render(
+      <PackingListView
+        tripId="trip-1"
+        items={sameSectionItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    act(() => {
+      (
+        dndContextState.props as { onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void }
+      ).onDragEnd?.({ active: { id: "item-1" }, over: { id: "item-2" } });
+    });
+
+    expect(
+      Array.from(container.querySelectorAll("[data-packing-name]")).map((node) => node.textContent?.trim())
+    ).toEqual(["Documents", "Phone charger", "Passport"]);
+  });
+
   it("stale optimistic rollback is ignored when a newer reorder has started", () => {
     // Uses cross-section drags so labelId changes are reflected in the DOM
     // (position-based sorting would mask within-section reorders).

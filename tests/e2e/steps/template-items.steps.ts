@@ -84,7 +84,11 @@ async function dragTemplateItemOntoTarget(
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
   await page.mouse.move(destination.x + destination.width / 2, destination.y + destination.height / 2, { steps: 12 });
   await page.waitForTimeout(80);
+  const reorderResponse = page.waitForResponse(
+    (response) => response.request().method() === "POST" && response.url().includes("/packing/")
+  );
   await page.mouse.up();
+  await reorderResponse;
 }
 
 Given("I am signed in as the template editor user", async ({ page, scenario }) => {
