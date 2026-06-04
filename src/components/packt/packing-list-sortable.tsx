@@ -170,16 +170,18 @@ export function PackingListSortable({
             key={section.label.id}
             containerId={containerDomId(section.label.id!)}
             sortableIds={section.items.map((item) => item.id!)}
+            header={
+              <PackingRow
+                item={section.label}
+                isLabel
+                isComplete={completeLabelIds.has(section.label.id!)}
+                onRemove={() => onRemoveItem(section.label)}
+                onEdit={
+                  section.label.id && onEditItem ? (name) => onEditItem(section.label.id as string, name) : undefined
+                }
+              />
+            }
           >
-            <PackingRow
-              item={section.label}
-              isLabel
-              isComplete={completeLabelIds.has(section.label.id!)}
-              onRemove={() => onRemoveItem(section.label)}
-              onEdit={
-                section.label.id && onEditItem ? (name) => onEditItem(section.label.id as string, name) : undefined
-              }
-            />
             {section.items.length > 0 ? (
               <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
                 {section.items.map((item) => (
