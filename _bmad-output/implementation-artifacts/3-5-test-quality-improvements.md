@@ -1,6 +1,6 @@
 # Story 3.5: Test Quality Improvements
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -48,31 +48,31 @@ So that edge cases are covered and tests are less brittle.
 
 ## Tasks / Subtasks
 
-- [ ] Split `packing-list-view.tsx` — extract `PackingEntryForm` into its own file
-  - [ ] Create `src/components/packt/packing-entry-form.tsx` with the extracted component (props: `draftName`, `hasItems`, `isSubmitting`, `onDraftNameChange`, `onSubmitItem`, `onSubmitLabel`)
-  - [ ] Import and render it from `packing-list-view.tsx`
-  - [ ] Create `src/components/packt/packing-entry-form.test.tsx` rendering `PackingEntryForm` directly
-  - [ ] **Move** these 4 tests from `packing-list-view.test.tsx` into the new file, rewritten to render `PackingEntryForm` directly instead of `PackingListView`:
+- [x] Split `packing-list-view.tsx` — extract `PackingEntryForm` into its own file
+  - [x] Create `src/components/packt/packing-entry-form.tsx` with the extracted component (props: `draftName`, `hasItems`, `isSubmitting`, `onDraftNameChange`, `onSubmitItem`, `onSubmitLabel`)
+  - [x] Import and render it from `packing-list-view.tsx`
+  - [x] Create `src/components/packt/packing-entry-form.test.tsx` rendering `PackingEntryForm` directly
+  - [x] **Move** these 4 tests from `packing-list-view.test.tsx` into the new file, rewritten to render `PackingEntryForm` directly instead of `PackingListView`:
     - "submits a plain-text item from the form"
     - "submits a section label from the form"
     - "submits an item from the entry form when the list already has items"
     - "submits a label from the entry form when the list already has items"
-  - [ ] **Keep** in `packing-list-view.test.tsx` — tests that reference form elements but test `PackingListView` behavior (empty state rendering, optimistic updates, touch target sizing, mutation guards). These continue rendering `PackingListView` and may need their imports updated to pull `PackingEntryForm` from the new path.
-- [ ] Add mouse/touch pointer-drag E2E scenario (AC: #1)
-  - [ ] Add `When` step for pointer-drag in `packing-tab.feature`
-  - [ ] Wire step to `dragItemOntoTarget` / `dragItemIntoUngroupedArea` helpers
-- [ ] Add dedicated `groupPackingItems` unit test (AC: #2)
-  - [ ] `packing-sort-utils.test.ts` already exists (191 lines, 4 groupPackingItems tests covering position sort, undefined-id filtering, stable-undefined-order)
-  - [ ] Add missing edge cases: empty items array, mixed labels/items with undefined properties, single-item sections, empty labels array
-- [ ] Fix touch target test approach (AC: #3)
-  - [ ] Replace `className` assertions in `packing-list-view.test.tsx` with `getComputedStyle` or rendered size checks
-- [ ] Parameterize keyboard-move E2E assertion (AC: #4)
-  - [ ] Update `packing-tab.steps.ts` keyboard-move step to accept expected index as parameter
-- [ ] Improve E2E drag helper retry logic (AC: #5)
-  - [ ] Replace `if (!box) break` with retry loop in `dragItemOntoTarget` and `dragItemIntoUngroupedArea`
-- [ ] Add optimistic update pattern test coverage (AC: #6)
-  - [ ] Test add/remove optimistic rollback on server failure
-  - [ ] Test concurrent mutation protection
+  - [x] **Keep** in `packing-list-view.test.tsx` — tests that reference form elements but test `PackingListView` behavior (empty state rendering, optimistic updates, touch target sizing, mutation guards). These continue rendering `PackingListView` and may need their imports updated to pull `PackingEntryForm` from the new path.
+- [x] Add mouse/touch pointer-drag E2E scenario (AC: #1)
+  - [x] Add `When` step for pointer-drag in `packing-tab.feature`
+  - [x] Wire step to `dragItemOntoTarget` / `dragItemIntoUngroupedArea` helpers
+- [x] Add dedicated `groupPackingItems` unit test (AC: #2)
+  - [x] `packing-sort-utils.test.ts` already exists (191 lines, 4 groupPackingItems tests covering position sort, undefined-id filtering, stable-undefined-order)
+  - [x] Add missing edge cases: empty items array, mixed labels/items with undefined properties, single-item sections, empty labels array
+- [x] Fix touch target test approach (AC: #3)
+  - [x] Replace `className` assertions in `packing-list-view.test.tsx` with `getComputedStyle` or rendered size checks
+- [x] Parameterize keyboard-move E2E assertion (AC: #4)
+  - [x] Update `packing-tab.steps.ts` keyboard-move step to accept expected index as parameter
+- [x] Improve E2E drag helper retry logic (AC: #5)
+  - [x] Replace `if (!box) break` with retry loop in `dragItemOntoTarget` and `dragItemIntoUngroupedArea`
+- [x] Add optimistic update pattern test coverage (AC: #6)
+  - [x] Test add/remove optimistic rollback on server failure
+  - [x] Test concurrent mutation protection
 
 ## Dev Notes
 
@@ -218,7 +218,35 @@ Test patterns established in previous stories:
 opencode/big-pickle
 
 ### Debug Log References
+- `npx vitest run src/components/packt/packing-entry-form.test.tsx`
+- `npx vitest run src/components/packt/packing-list-view.test.tsx`
+- `npx vitest run src/components/packt/packing-sort-utils.test.ts`
+- `npx bddgen`
+- `npx playwright test .features-gen/tests/e2e/features/packing-tab.feature.spec.js`
+- `npm run lint`
+- `npx tsc --noEmit`
+- `npm run test:coverage`
+- `npm run test:e2e`
+- `npm run build`
 
 ### Completion Notes List
+- Extracted `PackingEntryForm` into its own client component with a colocated test file and kept `PackingListView` focused on stateful behavior.
+- Replaced class-name touch-target assertions with rendered style checks and made the measured controls expose explicit 44px minimum dimensions.
+- Added `groupPackingItems` edge-case coverage plus populated-form optimistic rollback and persistence tests in `packing-list-view.test.tsx`.
+- Added explicit pointer-drag Gherkin steps, parameterized keyboard position assertions, and retry-on-vanish drag helper behavior in the packing E2E suite.
+- Full validation passed with lint, type-checking, coverage, build, and Playwright E2E.
 
 ### File List
+- `_bmad-output/implementation-artifacts/3-5-test-quality-improvements.md`
+- `src/components/packt/packing-entry-form.tsx`
+- `src/components/packt/packing-entry-form.test.tsx`
+- `src/components/packt/packing-list-row.tsx`
+- `src/components/packt/packing-list-view.tsx`
+- `src/components/packt/packing-list-view.test.tsx`
+- `src/components/packt/packing-sort-utils.test.ts`
+- `tests/e2e/features/packing-tab.feature`
+- `tests/e2e/steps/packing-tab.steps.ts`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+### Change Log
+- 2026-06-03: Completed Story 3.5 by extracting the packing entry form, tightening packing-list and sort-utils test coverage, and updating packing-tab E2E drag/keyboard assertions.
