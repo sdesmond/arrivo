@@ -872,6 +872,67 @@ describe("PackingListSortable", () => {
     vi.useRealTimers();
   });
 
+  it("does not auto-expand when dragging an item over its own collapsed section", () => {
+    vi.useFakeTimers();
+    const onToggleCollapse = vi.fn();
+    const collapsed = new Set(["label-1"]);
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
+        active: { id: "item-a" },
+        over: { id: "label-1" },
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("does not move an item into a collapsed section during drag", () => {
+    const onOptimisticReorder = vi.fn();
+    const collapsed = new Set(["label-1"]);
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsed}
+        onToggleCollapse={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={onOptimisticReorder}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
+        active: { id: "item-c" },
+        over: { id: "label-1" },
+      });
+    });
+
+    // No optimistic reorder into a collapsed section
+    expect(onOptimisticReorder).not.toHaveBeenCalled();
+  });
+
   it("clears expand timeout when drag ends before timer fires", () => {
     vi.useFakeTimers();
     const onToggleCollapse = vi.fn();
@@ -921,6 +982,7 @@ describe("PackingListSortable", () => {
       { id: "item-a", name: "Passport", done: false, position: 1, labelId: "label-1" },
       { id: "label-2", name: "Clothes", done: false, position: 2, isLabel: true, labelId: null },
       { id: "item-b", name: "Socks", done: false, position: 3, labelId: "label-2" },
+      { id: "item-c", name: "Shoes", done: false, position: 4, labelId: null },
     ];
 
     render(
@@ -938,7 +1000,7 @@ describe("PackingListSortable", () => {
 
     act(() => {
       getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
-        active: { id: "item-a" },
+        active: { id: "item-c" },
         over: { id: "label-2" },
       });
     });
@@ -949,7 +1011,7 @@ describe("PackingListSortable", () => {
 
     act(() => {
       getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
-        active: { id: "item-a" },
+        active: { id: "item-c" },
         over: { id: "label-1" },
       });
     });

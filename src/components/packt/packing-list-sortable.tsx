@@ -122,17 +122,25 @@ export function PackingListSortable({
     const base = localItems ?? items;
     const grouped = groupPackingItems(base);
     const overKey = resolveContainerKey(grouped, overId);
+    const activeKey = resolveContainerKey(grouped, String(active.id));
 
     clearExpandTimeout();
-    if (collapsedLabels && onToggleCollapse && overKey && overKey !== UNGROUPED_KEY && collapsedLabels.has(overKey)) {
+    if (
+      collapsedLabels &&
+      onToggleCollapse &&
+      overKey &&
+      overKey !== UNGROUPED_KEY &&
+      collapsedLabels.has(overKey) &&
+      activeKey !== overKey
+    ) {
       expandTimeoutRef.current = setTimeout(() => {
         onToggleCollapse(overKey);
         expandTimeoutRef.current = null;
       }, 700);
     }
 
-    const activeKey = resolveContainerKey(grouped, String(active.id));
     if (!activeKey || !overKey || activeKey === overKey) return;
+    if (collapsedLabels?.has(overKey)) return;
     const moved = computeReorder(base, String(active.id), overId);
     if (moved) setLocalItems(moved);
   }

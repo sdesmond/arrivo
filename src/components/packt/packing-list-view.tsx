@@ -57,10 +57,15 @@ export function PackingListView({
     const timer = setTimeout(() => setResultNotice(null), 4000);
     return () => clearTimeout(timer);
   }, [resultNotice]);
+  const collapseKey = `packing_collapsed_${tripId}`;
   const [collapsedLabels, setCollapsedLabels] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
     try {
-      const stored = localStorage.getItem(`packing_collapsed_${tripId}`);
-      if (stored) return new Set(JSON.parse(stored));
+      const stored = localStorage.getItem(collapseKey);
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
     } catch {
       /* ignore */
     }
@@ -69,11 +74,11 @@ export function PackingListView({
 
   useEffect(() => {
     try {
-      localStorage.setItem(`packing_collapsed_${tripId}`, JSON.stringify([...collapsedLabels]));
+      localStorage.setItem(collapseKey, JSON.stringify([...collapsedLabels]));
     } catch {
       /* ignore */
     }
-  }, [collapsedLabels, tripId]);
+  }, [collapsedLabels, collapseKey]);
 
   const toggleCollapse = useCallback((labelId: string): void => {
     setCollapsedLabels((prev) => {
