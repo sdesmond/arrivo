@@ -3,12 +3,14 @@ import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { logAuthError } from "@/lib/auth-logger";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
   adapter: DrizzleAdapter(db),
   session: { strategy: "jwt" },
+  logger: { error: logAuthError },
   // JWT avoids per-request DB session hit; revocation requires NEXTAUTH_SECRET rotation.
   providers: [
     Credentials({

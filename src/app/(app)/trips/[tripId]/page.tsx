@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
 import { getTripDetail, getUserById, listTemplatesForUser } from "@/lib/queries";
@@ -20,6 +21,11 @@ export default async function TripDetailPage({
     getServerNow(),
     listTemplatesForUser(session.id!),
   ]);
+
+  if (!detail) {
+    notFound();
+  }
+
   const resolvedSearchParams = await searchParams;
   const dateFormat = profile?.dateFormat ?? detectDefaultDateFormat((await headers()).get("accept-language") ?? "");
   return (
