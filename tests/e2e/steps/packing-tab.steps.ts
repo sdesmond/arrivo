@@ -446,13 +446,27 @@ Given("I have pre-seeded a section label with items beneath it", async ({ page, 
   await page.waitForURL(/\/trips/);
 });
 
-When("I delete the section label {string} via inline edit controls", async ({ page }, name: string) => {
+async function openSectionDeleteDialog(page: Page, name: string): Promise<void> {
   const heading = page.getByRole("heading", { name });
   await expect(heading).toBeVisible({ timeout: 10_000 });
   await heading.click();
   const deleteBtn = page.getByRole("button", { name: "Delete label" });
   await expect(deleteBtn).toBeVisible({ timeout: 5_000 });
   await deleteBtn.click();
+  await expect(page.getByText(`Delete ${name}?`)).toBeVisible({ timeout: 5_000 });
+}
+
+When("I delete the section label {string} and move its items to Ungrouped", async ({ page }, name: string) => {
+  await openSectionDeleteDialog(page, name);
+  await page.getByRole("button", { name: "Move items to Ungrouped" }).click();
+  await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
+    timeout: 10_000,
+  });
+});
+
+When("I delete the section label {string} and its items", async ({ page }, name: string) => {
+  await openSectionDeleteDialog(page, name);
+  await page.getByRole("button", { name: "Delete section and items" }).click();
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
     timeout: 10_000,
   });

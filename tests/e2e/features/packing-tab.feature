@@ -127,12 +127,19 @@ Feature: Packing tab
     When I reload the trip page
     Then the section label "Travel documents" should be visible
 
-  Scenario: User deletes section label via inline edit and items become ungrouped
+  Scenario: User deletes a section label and moves its items to Ungrouped
     Given I have pre-seeded a section label with items beneath it
     When I open the Packing tab
-    And I delete the section label "Documents" via inline edit controls
+    And I delete the section label "Documents" and move its items to Ungrouped
     Then the section label "Documents" should not be visible
     And the packing item "Passport" should be visible
+
+  Scenario: User deletes a section label and removes its items with it
+    Given I have pre-seeded a section label with items beneath it
+    When I open the Packing tab
+    And I delete the section label "Documents" and its items
+    Then the section label "Documents" should not be visible
+    And the packing list should not contain "Passport"
 
   Scenario: Dragging an item out to Ungrouped and back leaves other ungrouped items in place
     Given I have pre-seeded a section with items and ungrouped items
