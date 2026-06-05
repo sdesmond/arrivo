@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({
@@ -156,8 +156,7 @@ describe("CompanionRow", () => {
     render(<CompanionRow companion={baseCompanion} />);
     await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
     const nameInput = screen.getByDisplayValue("Alice Travel");
-    await user.clear(nameInput);
-    await user.type(nameInput, "A".repeat(51));
+    fireEvent.change(nameInput, { target: { value: "A".repeat(51) } });
     expect(screen.getByRole("alert")).toHaveTextContent("Companion name must be 50 characters or fewer.");
     expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
   });
@@ -167,11 +166,9 @@ describe("CompanionRow", () => {
     render(<CompanionRow companion={baseCompanion} />);
     await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
     const nameInput = screen.getByDisplayValue("Alice Travel");
-    await user.clear(nameInput);
-    await user.type(nameInput, "A".repeat(51));
+    fireEvent.change(nameInput, { target: { value: "A".repeat(51) } });
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    await user.clear(nameInput);
-    await user.type(nameInput, "Alice");
+    fireEvent.change(nameInput, { target: { value: "Alice" } });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -202,8 +199,7 @@ describe("CompanionRow", () => {
     render(<CompanionRow companion={baseCompanion} />);
     await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
     const passportInput = screen.getByDisplayValue("PA001");
-    await user.clear(passportInput);
-    await user.type(passportInput, "A".repeat(21));
+    fireEvent.change(passportInput, { target: { value: "A".repeat(21) } });
     expect(screen.getByRole("alert")).toHaveTextContent("Passport number must be 20 characters or fewer.");
     expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
   });
@@ -213,11 +209,9 @@ describe("CompanionRow", () => {
     render(<CompanionRow companion={baseCompanion} />);
     await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
     const passportInput = screen.getByDisplayValue("PA001");
-    await user.clear(passportInput);
-    await user.type(passportInput, "A".repeat(21));
+    fireEvent.change(passportInput, { target: { value: "A".repeat(21) } });
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    await user.clear(passportInput);
-    await user.type(passportInput, "A12345678");
+    fireEvent.change(passportInput, { target: { value: "A12345678" } });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
