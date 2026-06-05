@@ -164,7 +164,7 @@ export function PackingRow({
           <>
             {isLabel ? (
               <h3
-                className={cn("truncate text-sm font-semibold", isComplete ? "line-through" : "")}
+                className={cn("w-fit max-w-full truncate text-sm font-semibold", isComplete ? "line-through" : "")}
                 data-packing-name
                 style={{ color: isComplete ? "var(--fg-3)" : "var(--fg)", cursor: onEdit ? "pointer" : "default" }}
                 onClick={startEdit}
