@@ -44,7 +44,7 @@ vi.mock("@dnd-kit/utilities", () => ({
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
-import type { PackingItem, PackingTemplate } from "@/data/types";
+import { RemovePackingSectionMode, type PackingItem, type PackingTemplate } from "@/data/types";
 
 vi.mock("./template-pull-dialog", () => ({
   TemplatePullDialog: ({
@@ -88,6 +88,33 @@ vi.mock("./save-as-template-dialog", () => ({
     ) : null,
 }));
 
+vi.mock("./delete-packing-section-alert-dialog", () => ({
+  DeletePackingSectionAlertDialog: ({
+    open,
+    sectionName,
+    itemCount,
+    onOpenChange,
+    onMoveItems,
+    onDeleteItems,
+  }: {
+    open: boolean;
+    sectionName: string;
+    itemCount: number;
+    onOpenChange: (open: boolean) => void;
+    onMoveItems: () => Promise<void>;
+    onDeleteItems: () => Promise<void>;
+    isDeleting?: boolean;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label={`Delete ${sectionName}`}>
+        <span>{itemCount} items</span>
+        <button onClick={() => void onMoveItems()}>Move items to Ungrouped</button>
+        <button onClick={() => void onDeleteItems()}>Delete section and items</button>
+        <button onClick={() => onOpenChange(false)}>Cancel</button>
+      </div>
+    ) : null,
+}));
+
 const groupedItems: PackingItem[] = [
   { id: "ungrouped-1", name: "Passport", done: false, position: 0, labelId: null },
   { id: "label-1", name: "Documents", done: false, position: 1, isLabel: true, labelId: null },
@@ -105,6 +132,10 @@ function createAddItemHandler() {
 }
 
 function createRemoveItemHandler() {
+  return vi.fn(async () => undefined as void);
+}
+
+function createRemoveSectionHandler() {
   return vi.fn(async () => undefined as void);
 }
 
@@ -1395,6 +1426,111 @@ describe("PackingListView", () => {
     });
 
     expect(reorderCallCount).toBe(2);
+  });
+  it("opens a warning dialog instead of deleting a populated section immediately", async () => {
+    const user = userEvent.setup();
+    const onRemoveItem = createRemoveItemHandler();
+    const onRemoveSection = createRemoveSectionHandler();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={onRemoveItem}
+        onRemoveSection={onRemoveSection}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Documents" }));
+
+    expect(screen.getByRole("dialog", { name: "Delete Documents" })).toBeInTheDocument();
+    expect(onRemoveItem).not.toHaveBeenCalled();
+    expect(onRemoveSection).not.toHaveBeenCalled();
+  });
+
+  it("moves populated section items to Ungrouped when that option is chosen", async () => {
+    const user = userEvent.setup();
+    const onRemoveSection = createRemoveSectionHandler();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onRemoveSection={onRemoveSection}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Documents" }));
+    await user.click(screen.getByRole("button", { name: "Move items to Ungrouped" }));
+
+    await waitFor(() =>
+      expect(onRemoveSection).toHaveBeenCalledWith("label-1", {
+        mode: RemovePackingSectionMode.MoveItemsToUngrouped,
+      })
+    );
+    expect(screen.getByText("Section Documents removed. 1 item moved to Ungrouped.")).toBeInTheDocument();
+  });
+
+  it("deletes populated section items when the destructive option is chosen", async () => {
+    const user = userEvent.setup();
+    const onRemoveSection = createRemoveSectionHandler();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onRemoveSection={onRemoveSection}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Documents" }));
+    await user.click(screen.getByRole("button", { name: "Delete section and items" }));
+
+    await waitFor(() =>
+      expect(onRemoveSection).toHaveBeenCalledWith("label-1", {
+        mode: RemovePackingSectionMode.DeleteItems,
+      })
+    );
+    expect(screen.getByText("Section Documents and 1 item removed.")).toBeInTheDocument();
+  });
+
+  it("removes an empty section without opening the warning dialog", async () => {
+    const user = userEvent.setup();
+    const onRemoveItem = createRemoveItemHandler();
+    const onRemoveSection = createRemoveSectionHandler();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[{ id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null }]}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={onRemoveItem}
+        onRemoveSection={onRemoveSection}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Documents" }));
+
+    await waitFor(() => expect(onRemoveItem).toHaveBeenCalledWith("label-1"));
+    expect(screen.queryByRole("dialog", { name: "Delete Documents" })).not.toBeInTheDocument();
+    expect(onRemoveSection).not.toHaveBeenCalled();
   });
 });
 
