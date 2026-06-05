@@ -4,6 +4,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? "4");
+const reuseExistingServer = process.env.E2E_REUSE_SERVER === "true";
+
 const testDir = defineBddConfig({
   features: "tests/e2e/features/**/*.feature",
   steps: "tests/e2e/steps/**/*.ts",
@@ -13,18 +16,20 @@ const testDir = defineBddConfig({
 export default defineConfig({
   globalSetup: "./tests/e2e/global-setup.ts",
   testDir,
+  workers,
   use: {
     baseURL: "http://localhost:3001",
   },
   webServer: {
     command: "npm run dev -- -p 3001",
     url: "http://localhost:3001",
-    reuseExistingServer: false,
-    timeout: 120_000,
+    reuseExistingServer,
+    timeout: 300_000,
     env: {
       DATABASE_URL: process.env.E2E_DATABASE_URL!,
       NEXTAUTH_URL: "http://localhost:3001",
       NEXT_DISTDIR: ".next-e2e",
+      PACKT_E2E: "true",
       E2E_MAPBOX_STUB: "true",
       UPLOAD_STUB: "true",
     },

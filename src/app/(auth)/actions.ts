@@ -10,10 +10,13 @@ import { AuthError } from "next-auth";
 type ActionState = { error?: string } | undefined;
 
 export async function signInAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const signInFormData = new FormData();
+  signInFormData.set("email", String(formData.get("email") ?? ""));
+  signInFormData.set("password", String(formData.get("password") ?? ""));
+  signInFormData.set("redirectTo", "/trips");
+
   try {
-    await signIn("credentials", { email, password, redirectTo: "/trips" });
+    await signIn("credentials", signInFormData);
   } catch (err) {
     if (err instanceof AuthError) return { error: "Invalid email or password." };
     throw err;
@@ -46,7 +49,12 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
     .set({ userId: newUser.id })
     .where(and(eq(collaborators.email, email), isNull(collaborators.userId)));
 
-  await signIn("credentials", { email, password, redirectTo: "/trips" });
+  const signInFormData = new FormData();
+  signInFormData.set("email", email);
+  signInFormData.set("password", password);
+  signInFormData.set("redirectTo", "/trips");
+
+  await signIn("credentials", signInFormData);
 }
 
 export async function signOutAction() {

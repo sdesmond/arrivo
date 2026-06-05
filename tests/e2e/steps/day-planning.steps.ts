@@ -370,7 +370,7 @@ When("I drag {string} above {string}", async ({ page }, source: string, target: 
   await page.mouse.up();
 });
 
-Then("the order should be {string} then {string}", async ({ page }, first: string, second: string) => {
+Then("the order should be {string} then {string}", async ({ page, scenario }, first: string, second: string) => {
   await expect(async () => {
     const firstRow = page.locator('[id^="event-"]').filter({ hasText: first }).first();
     const secondRow = page.locator('[id^="event-"]').filter({ hasText: second }).first();
@@ -381,6 +381,23 @@ Then("the order should be {string} then {string}", async ({ page }, first: strin
     expect(firstBox).not.toBeNull();
     expect(secondBox).not.toBeNull();
     expect(firstBox!.y).toBeLessThan(secondBox!.y);
+  }).toPass({ timeout: 10_000 });
+
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+
+  await expect(async () => {
+    await withE2EDb(async (db) => {
+      const orderedEvents = await db
+        .select({ name: events.name, position: events.position })
+        .from(events)
+        .where(eq(events.tripId, currentTrip.id))
+        .orderBy(events.position);
+
+      expect(orderedEvents).toHaveLength(2);
+      expect(orderedEvents[0].name).toBe(first);
+      expect(orderedEvents[1].name).toBe(second);
+    });
   }).toPass({ timeout: 10_000 });
 });
 
@@ -442,15 +459,18 @@ When("I check all items in the checklist", async ({ page }) => {
   if (!isExpanded) {
     await header.click();
   }
-  const checkboxes = checklist.locator('button[title="Check item"]');
-  const count = await checkboxes.count();
-  for (let i = 0; i < count; i += 1) {
-    await checkboxes.first().click();
+  const uncheckedButtons = checklist.getByRole("button", { name: "Check item" });
+  const uncheckedCount = await uncheckedButtons.count();
+  for (let checkedCount = 1; checkedCount <= uncheckedCount; checkedCount += 1) {
+    await uncheckedButtons.first().click();
+    await expect(checklist.getByRole("button", { name: "Uncheck item" })).toHaveCount(checkedCount, {
+      timeout: 10_000,
+    });
   }
 });
 
 Then("the checklist should show the completion badge", async ({ page }) => {
-  await expect(getLatestChecklist(page).locator('[aria-label="Complete"]')).toBeVisible({ timeout: 3_000 });
+  await expect(getLatestChecklist(page).getByLabel("Complete")).toBeVisible({ timeout: 10_000 });
 });
 
 When("I collapse the checklist", async ({ page }) => {

@@ -9,7 +9,7 @@ Given("I have an existing trip", async ({ page, scenario }) => {
 });
 
 When("I open the trip edit sheet", async ({ page }) => {
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 
@@ -28,7 +28,7 @@ Then("the trip should display {string}", async ({ page }, name: string) => {
 });
 
 When("I tab to the edit button and press Enter", async ({ page }) => {
-  await page.getByRole("button", { name: "Edit" }).press("Enter");
+  await page.getByRole("button", { name: "Edit", exact: true }).press("Enter");
 });
 
 Then("the edit sheet should open with focus inside", async ({ page }) => {
@@ -43,7 +43,7 @@ When("I press Escape", async ({ page }) => {
 
 Then("the sheet should close and focus should return to the edit button", async ({ page }) => {
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "Edit" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeFocused();
 });
 
 When("I close the trip edit sheet without saving", async ({ page }) => {
