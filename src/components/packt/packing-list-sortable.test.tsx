@@ -668,13 +668,14 @@ describe("PackingListSortable", () => {
     expect(screen.getByTitle("Reorder Item B")).toBeInTheDocument();
 
     // Labels must render as plain PackingRow (not SortablePackingRow) — the
-    // label row must sit outside the droppable/sortable region entirely.
+    // label row sits inside the droppable (outer container) but not in the
+    // nested SortableContext.
     const labelRow = document.querySelector('[data-packing-kind="label"]');
     expect(labelRow?.parentElement).toHaveAttribute("data-packing-container");
-    expect(labelRow?.closest("[data-packing-dropzone]")).toBeNull();
+    expect(labelRow?.closest("[data-packing-dropzone]")).not.toBeNull();
   });
 
-  it("keeps the section header outside the drop zone so header drops cannot reparent items", () => {
+  it("includes the section header inside the drop zone so drag-hover auto-expand can detect collisions on collapsed sections", () => {
     render(
       <PackingListSortable
         items={reorderItems}
@@ -689,7 +690,283 @@ describe("PackingListSortable", () => {
     const labelRow = document.querySelector('[data-packing-kind="label"]');
     const dropZone = document.querySelector('[data-packing-dropzone="container:label-1"]');
     expect(dropZone).not.toBeNull();
-    expect(dropZone?.contains(labelRow)).toBe(false);
+    expect(dropZone?.contains(labelRow)).toBe(true);
+  });
+
+  // ── Collapse toggle ──────────────────────────────────────────────────────────
+
+  it("renders collapse toggle button on label rows", () => {
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={new Set()}
+        onToggleCollapse={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Collapse Documents" })).toBeInTheDocument();
+  });
+
+  it("hides section items when its label is in collapsedLabels", () => {
+    const collapsed = new Set(["label-1"]);
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsed}
+        onToggleCollapse={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Documents")).toBeInTheDocument();
+    expect(screen.queryByText("Item A")).not.toBeInTheDocument();
+    expect(screen.queryByText("Item B")).not.toBeInTheDocument();
+    // Ungrouped items should still be visible
+    expect(screen.getByText("Item C")).toBeInTheDocument();
+    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
+  });
+
+  it("shows section items when its label is not in collapsedLabels", () => {
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={new Set()}
+        onToggleCollapse={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Item A")).toBeInTheDocument();
+    expect(screen.getByText("Item B")).toBeInTheDocument();
+  });
+
+  it("calls onToggleCollapse with label id when collapse button is clicked", async () => {
+    const onToggleCollapse = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={new Set()}
+        onToggleCollapse={onToggleCollapse}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Collapse Documents" }));
+    expect(onToggleCollapse).toHaveBeenCalledWith("label-1");
+  });
+
+  it("collapse state is independent per section", () => {
+    const multiSectionItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-a", name: "Passport", done: false, position: 1, labelId: "label-1" },
+      { id: "label-2", name: "Clothes", done: false, position: 2, isLabel: true, labelId: null },
+      { id: "item-b", name: "Socks", done: false, position: 3, labelId: "label-2" },
+    ];
+    const collapsed = new Set(["label-1"]);
+
+    render(
+      <PackingListSortable
+        items={multiSectionItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsed}
+        onToggleCollapse={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    // Documents section is collapsed
+    expect(screen.getByText("Documents")).toBeInTheDocument();
+    expect(screen.queryByText("Passport")).not.toBeInTheDocument();
+
+    // Clothes section is expanded
+    expect(screen.getByText("Clothes")).toBeInTheDocument();
+    expect(screen.getByText("Socks")).toBeInTheDocument();
+  });
+
+  it("auto-expands collapsed section when dragging over it after 700ms", () => {
+    vi.useFakeTimers();
+    const onToggleCollapse = vi.fn();
+    const collapsed = new Set(["label-1"]);
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
+        active: { id: "item-c" },
+        over: { id: "label-1" },
+      });
+    });
+
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(onToggleCollapse).toHaveBeenCalledWith("label-1");
+    vi.useRealTimers();
+  });
+
+  it("does not auto-expand when dragging over an already expanded section", () => {
+    vi.useFakeTimers();
+    const onToggleCollapse = vi.fn();
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={new Set()}
+        onToggleCollapse={onToggleCollapse}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
+        active: { id: "item-c" },
+        over: { id: "label-1" },
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("clears expand timeout when drag ends before timer fires", () => {
+    vi.useFakeTimers();
+    const onToggleCollapse = vi.fn();
+    const collapsed = new Set(["label-1"]);
+
+    render(
+      <PackingListSortable
+        items={reorderItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
+        active: { id: "item-c" },
+        over: { id: "label-1" },
+      });
+    });
+
+    act(() => {
+      getDndProps<{ onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragEnd?.({
+        active: { id: "item-c" },
+        over: { id: "item-a" },
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("resets expand timeout when dragging over a different section", () => {
+    vi.useFakeTimers();
+    const onToggleCollapse = vi.fn();
+    const collapsed = new Set(["label-1", "label-2"]);
+    const multiSectionItems: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-a", name: "Passport", done: false, position: 1, labelId: "label-1" },
+      { id: "label-2", name: "Clothes", done: false, position: 2, isLabel: true, labelId: null },
+      { id: "item-b", name: "Socks", done: false, position: 3, labelId: "label-2" },
+    ];
+
+    render(
+      <PackingListSortable
+        items={multiSectionItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    act(() => {
+      getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
+        active: { id: "item-a" },
+        over: { id: "label-2" },
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    act(() => {
+      getDndProps<{ onDragOver?: (event: { active: { id: string }; over: { id: string } }) => void }>().onDragOver?.({
+        active: { id: "item-a" },
+        over: { id: "label-1" },
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(699);
+    });
+
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1);
+    expect(onToggleCollapse).toHaveBeenCalledWith("label-1");
+    vi.useRealTimers();
   });
 
   it("never announces label reordering during normal item moves", () => {

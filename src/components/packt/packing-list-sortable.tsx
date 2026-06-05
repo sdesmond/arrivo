@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactElement } from "react";
+import { useMemo, useRef, useState, type ReactElement } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -31,6 +31,8 @@ import {
 export interface PackingListSortableProps {
   items: PackingItem[];
   pendingItemIds: Set<string>;
+  collapsedLabels?: Set<string>;
+  onToggleCollapse?: (labelId: string) => void;
   onRemoveItem: (item: PackingItem) => Promise<void>;
   onToggleItem?: (item: PackingItem) => Promise<void>;
   onOptimisticReorder: (reorderedItems: PackingItem[] | null) => void;
@@ -50,6 +52,8 @@ export interface PackingListSortableProps {
 export function PackingListSortable({
   items,
   pendingItemIds,
+  collapsedLabels,
+  onToggleCollapse,
   onRemoveItem,
   onToggleItem,
   onOptimisticReorder,
@@ -83,28 +87,59 @@ export function PackingListSortable({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+  const expandTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastOverIdRef = useRef<string | null>(null);
+
+  function clearExpandTimeout(): void {
+    if (expandTimeoutRef.current !== null) {
+      clearTimeout(expandTimeoutRef.current);
+      expandTimeoutRef.current = null;
+    }
+  }
 
   function handleDragStart({ active }: DragStartEvent): void {
     setActiveId(String(active.id));
+    lastOverIdRef.current = null;
   }
 
   function handleDragCancel(): void {
+    clearExpandTimeout();
+    lastOverIdRef.current = null;
     setActiveId(null);
     setLocalItems(null);
   }
 
   function handleDragOver({ active, over }: DragOverEvent): void {
-    if (!over) return;
+    if (!over) {
+      clearExpandTimeout();
+      lastOverIdRef.current = null;
+      return;
+    }
+    const overId = String(over.id);
+    if (overId === lastOverIdRef.current) return;
+    lastOverIdRef.current = overId;
+
     const base = localItems ?? items;
     const grouped = groupPackingItems(base);
+    const overKey = resolveContainerKey(grouped, overId);
+
+    clearExpandTimeout();
+    if (collapsedLabels && onToggleCollapse && overKey && overKey !== UNGROUPED_KEY && collapsedLabels.has(overKey)) {
+      expandTimeoutRef.current = setTimeout(() => {
+        onToggleCollapse(overKey);
+        expandTimeoutRef.current = null;
+      }, 700);
+    }
+
     const activeKey = resolveContainerKey(grouped, String(active.id));
-    const overKey = resolveContainerKey(grouped, String(over.id));
     if (!activeKey || !overKey || activeKey === overKey) return;
-    const moved = computeReorder(base, String(active.id), String(over.id));
+    const moved = computeReorder(base, String(active.id), overId);
     if (moved) setLocalItems(moved);
   }
 
   function handleDragEnd({ active, over }: DragEndEvent): void {
+    clearExpandTimeout();
+    lastOverIdRef.current = null;
     setActiveId(null);
     const working = localItems ?? items;
     setLocalItems(null);
@@ -170,11 +205,14 @@ export function PackingListSortable({
             key={section.label.id}
             containerId={containerDomId(section.label.id!)}
             sortableIds={section.items.map((item) => item.id!)}
+            collapsed={collapsedLabels?.has(section.label.id!)}
             header={
               <PackingRow
                 item={section.label}
                 isLabel
                 isComplete={completeLabelIds.has(section.label.id!)}
+                collapsed={collapsedLabels?.has(section.label.id!)}
+                onToggleCollapse={onToggleCollapse ? () => onToggleCollapse(section.label.id!) : undefined}
                 onRemove={() => onRemoveItem(section.label)}
                 onEdit={
                   section.label.id && onEditItem ? (name) => onEditItem(section.label.id as string, name) : undefined

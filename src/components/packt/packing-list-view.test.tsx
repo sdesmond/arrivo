@@ -576,6 +576,49 @@ describe("PackingListView", () => {
     expect(screen.getByRole("heading", { name: "Documents" }).className).not.toContain("line-through");
   });
 
+  // ── Collapse toggle ───────────────────────────────────────────────────────────
+
+  it("renders collapse button on section labels", () => {
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Collapse Documents" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse Clothes" })).toBeInTheDocument();
+  });
+
+  it("toggling collapse hides section items and clicking again shows them", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Phone charger")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Collapse Documents" }));
+    expect(screen.queryByText("Phone charger")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Expand Documents" }));
+    expect(screen.getByText("Phone charger")).toBeInTheDocument();
+  });
+
   // ── Story 1.4 — Inline editing ───────────────────────────────────────────────
 
   it("clicking item name enters edit mode with pre-filled input", async () => {
@@ -738,7 +781,7 @@ describe("PackingListView", () => {
     await user.type(contextInput, "Visa");
     await user.keyboard("{Enter}");
 
-    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined, "label-1");
+    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "item-1", undefined, "label-1");
   });
 
   it("contextual add form shares the add pending guard after submit", async () => {
@@ -767,7 +810,7 @@ describe("PackingListView", () => {
 
     const contextualForm = contextInput.closest("form");
     expect(contextualForm).not.toBeNull();
-    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "label-1", undefined, "label-1");
+    expect(onAddItem).toHaveBeenCalledWith("Visa", false, "item-1", undefined, "label-1");
     expect(contextInput).toBeDisabled();
     expect(within(contextualForm!).getByRole("button", { name: "Add item here" })).toBeDisabled();
   });

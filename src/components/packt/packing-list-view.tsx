@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactElement } from "react";
 import type { PackingItem, PackingTemplate, PullTemplatesResult } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
 import { TemplatePullDialog } from "./template-pull-dialog";
@@ -57,6 +57,35 @@ export function PackingListView({
     const timer = setTimeout(() => setResultNotice(null), 4000);
     return () => clearTimeout(timer);
   }, [resultNotice]);
+  const [collapsedLabels, setCollapsedLabels] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`packing_collapsed_${tripId}`);
+      if (stored) return new Set(JSON.parse(stored));
+    } catch {
+      /* ignore */
+    }
+    return new Set();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`packing_collapsed_${tripId}`, JSON.stringify([...collapsedLabels]));
+    } catch {
+      /* ignore */
+    }
+  }, [collapsedLabels, tripId]);
+
+  const toggleCollapse = useCallback((labelId: string): void => {
+    setCollapsedLabels((prev) => {
+      const next = new Set(prev);
+      if (next.has(labelId)) {
+        next.delete(labelId);
+      } else {
+        next.add(labelId);
+      }
+      return next;
+    });
+  }, []);
   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
   const effectiveItems = localItems ?? items;
 
@@ -234,6 +263,8 @@ export function PackingListView({
           <PackingListSortable
             items={effectiveItems}
             pendingItemIds={pendingItemIds}
+            collapsedLabels={collapsedLabels}
+            onToggleCollapse={toggleCollapse}
             onRemoveItem={handleRemove}
             onToggleItem={handleToggle}
             onOptimisticReorder={handleOptimisticReorder}
