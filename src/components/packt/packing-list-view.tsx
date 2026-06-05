@@ -1,13 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactElement } from "react";
-import type { PackingItem, PackingTemplate, PullTemplatesResult } from "@/data/types";
+import {
+  RemovePackingSectionMode,
+  type PackingItem,
+  type PackingTemplate,
+  type PullTemplatesResult,
+  type RemovePackingSectionInput,
+} from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
 import { TemplatePullDialog } from "./template-pull-dialog";
 import { PackingListToolbar } from "./packing-list-toolbar";
 import { PackingListEmptyState } from "./packing-list-empty-state";
 import { SaveAsTemplateDialog } from "./save-as-template-dialog";
 import { PackingEntryForm } from "./packing-entry-form";
+import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
 
 export interface PackingListViewProps {
   tripId: string;
@@ -20,6 +27,7 @@ export interface PackingListViewProps {
     labelId?: string | null
   ) => Promise<void>;
   onRemoveItem: (id: string) => Promise<void>;
+  onRemoveSection?: (id: string, input: RemovePackingSectionInput) => Promise<void>;
   onToggleItem: (id: string) => Promise<void>;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onEditItem?: (id: string, name: string) => void;
@@ -33,6 +41,7 @@ export function PackingListView({
   items,
   onAddItem,
   onRemoveItem,
+  onRemoveSection,
   onToggleItem,
   onReorderItems,
   onEditItem,
@@ -40,6 +49,11 @@ export function PackingListView({
   onPullTemplates,
   onSaveAsTemplate,
 }: PackingListViewProps): ReactElement {
+  interface PendingSectionRemoval {
+    item: PackingItem & { id: string };
+    itemCount: number;
+  }
+
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -48,6 +62,8 @@ export function PackingListView({
   const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
   const [prevItems, setPrevItems] = useState(items);
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
+  const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
+  const [isRemovingSection, setIsRemovingSection] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
   const mutationSeqRef = useRef(0);
@@ -115,6 +131,11 @@ export function PackingListView({
     setAnnouncementId((id) => id + 1);
   }
 
+  function announceRemoval(message: string): void {
+    setAnnouncement(message);
+    setAnnouncementId((id) => id + 1);
+  }
+
   async function submitEntry(isLabel?: boolean): Promise<void> {
     const trimmedName = draftName.trim();
     if (!trimmedName || isSubmitting) return;
@@ -156,13 +177,47 @@ export function PackingListView({
 
   async function handleRemove(item: PackingItem): Promise<void> {
     if (!item.id) return;
+
+    if (item.isLabel && onRemoveSection) {
+      const itemCount = effectiveItems.filter(
+        (candidate) => candidate.isLabel !== true && candidate.labelId === item.id
+      ).length;
+      if (itemCount > 0) {
+        setPendingSectionRemoval({ item: item as PackingItem & { id: string }, itemCount });
+        return;
+      }
+    }
+
     try {
       await onRemoveItem(item.id);
-      setAnnouncement(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
-      setAnnouncementId((id) => id + 1);
+      announceRemoval(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
     } catch {
-      setAnnouncement(`Failed to remove ${item.isLabel ? "section" : "item"}.`);
-      setAnnouncementId((id) => id + 1);
+      announceRemoval(`Failed to remove ${item.isLabel ? "section" : "item"}.`);
+    }
+  }
+
+  async function handleSectionRemoval(mode: RemovePackingSectionMode): Promise<void> {
+    if (!pendingSectionRemoval || !onRemoveSection) return;
+
+    setIsRemovingSection(true);
+    try {
+      await onRemoveSection(pendingSectionRemoval.item.id, { mode });
+      if (mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
+        const itemLabel = pendingSectionRemoval.itemCount === 1 ? "item" : "items";
+        announceRemoval(
+          `Section ${pendingSectionRemoval.item.name} removed. ${pendingSectionRemoval.itemCount} ${itemLabel} moved to Ungrouped.`
+        );
+      } else {
+        const itemLabel = pendingSectionRemoval.itemCount === 1 ? "item" : "items";
+        announceRemoval(
+          `Section ${pendingSectionRemoval.item.name} and ${pendingSectionRemoval.itemCount} ${itemLabel} removed.`
+        );
+      }
+      setPendingSectionRemoval(null);
+    } catch {
+      announceRemoval("Failed to remove section.");
+    } finally {
+      setIsRemovingSection(false);
     }
   }
 
@@ -310,6 +365,22 @@ export function PackingListView({
           itemCount={effectiveItems.length}
         />
       )}
+
+      {pendingSectionRemoval && onRemoveSection ? (
+        <DeletePackingSectionAlertDialog
+          open
+          sectionName={pendingSectionRemoval.item.name}
+          itemCount={pendingSectionRemoval.itemCount}
+          isDeleting={isRemovingSection}
+          onOpenChange={(open) => {
+            if (!open && !isRemovingSection) {
+              setPendingSectionRemoval(null);
+            }
+          }}
+          onMoveItems={() => handleSectionRemoval(RemovePackingSectionMode.MoveItemsToUngrouped)}
+          onDeleteItems={() => handleSectionRemoval(RemovePackingSectionMode.DeleteItems)}
+        />
+      ) : null}
     </div>
   );
 }

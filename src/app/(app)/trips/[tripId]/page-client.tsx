@@ -257,6 +257,7 @@ export function TripDetailClient({
             onToggleChecklistItem={handlers.handleToggleChecklistItem}
             onAddPackingItem={handlers.handleAddPackingItem}
             onRemovePackingItem={handlers.handleRemovePackingItem}
+            onRemovePackingSection={(id, input) => handlers.handleRemovePackingSection(id, input.mode)}
             onTogglePackingItem={handlers.handleTogglePackingItem}
             onReorderPackingItems={handlers.handleReorderPackingItems}
             onEditPackingItem={handlers.handleUpdatePackingItem}

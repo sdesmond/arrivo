@@ -12,6 +12,7 @@ import type {
   PackingItem,
   PackingTemplate,
   PullTemplatesResult,
+  RemovePackingSectionInput,
   TripDetailTab,
 } from "@/data/types";
 
@@ -49,6 +50,7 @@ export interface TripDetailTabBodyProps {
     labelId?: string | null
   ) => Promise<void>;
   onRemovePackingItem: (id: string) => Promise<void>;
+  onRemovePackingSection: (id: string, input: RemovePackingSectionInput) => Promise<void>;
   onTogglePackingItem: (id: string) => Promise<void>;
   onReorderPackingItems: (
     ordered: { id: string; labelId: string | null; position: number }[],
@@ -95,6 +97,7 @@ export function TripDetailTabBody({
   onToggleChecklistItem,
   onAddPackingItem,
   onRemovePackingItem,
+  onRemovePackingSection,
   onTogglePackingItem,
   onReorderPackingItems,
   onEditPackingItem,
@@ -150,6 +153,7 @@ export function TripDetailTabBody({
           items={packingItems}
           onAddItem={onAddPackingItem}
           onRemoveItem={onRemovePackingItem}
+          onRemoveSection={onRemovePackingSection}
           onToggleItem={onTogglePackingItem}
           onReorderItems={onReorderPackingItems}
           onEditItem={onEditPackingItem}

@@ -12,7 +12,8 @@ import {
   saveTripListAsTemplate,
   updatePackingItem,
 } from "../actions";
-import type { TripDetailPayload } from "@/data/types";
+import { removePackingSection } from "../packing-actions";
+import { RemovePackingSectionMode, type TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -36,6 +37,10 @@ vi.mock("../actions", () => ({
   saveTripListAsTemplate: vi.fn(),
   updatePackingItem: vi.fn(),
   updateTripMetadata: vi.fn(),
+}));
+
+vi.mock("../packing-actions", () => ({
+  removePackingSection: vi.fn(),
 }));
 
 vi.mock("./actions", () => ({
@@ -210,6 +215,39 @@ describe("useTripDetailHandlers", () => {
 
     await expect(removePromise).rejects.toThrow("Remove failed");
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Remove failed"));
+  });
+
+  it("removes a packing section with the selected mode", async () => {
+    vi.mocked(removePackingSection).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let removePromise: Promise<void> | undefined;
+    act(() => {
+      removePromise = result.current.handleRemovePackingSection("label-1", RemovePackingSectionMode.DeleteItems);
+    });
+
+    await expect(removePromise).resolves.toBeUndefined();
+    await waitFor(() =>
+      expect(removePackingSection).toHaveBeenCalledWith("label-1", { mode: RemovePackingSectionMode.DeleteItems })
+    );
+  });
+
+  it("handleRemovePackingSection rejects the returned promise and shows a toast on failure", async () => {
+    vi.mocked(removePackingSection).mockRejectedValueOnce(new Error("Section remove failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let removePromise: Promise<void> | undefined;
+    act(() => {
+      removePromise = result.current.handleRemovePackingSection(
+        "label-1",
+        RemovePackingSectionMode.MoveItemsToUngrouped
+      );
+    });
+
+    await expect(removePromise).rejects.toThrow("Section remove failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Section remove failed"));
   });
 
   it("persists reordered packing items against the current trip", async () => {

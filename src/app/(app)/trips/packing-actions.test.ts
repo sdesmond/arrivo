@@ -27,7 +27,7 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
-import { addPackingItem, reorderPackingItems, saveTripListAsTemplate } from "./packing-actions";
+import { addPackingItem, removePackingSection, reorderPackingItems, saveTripListAsTemplate } from "./packing-actions";
 
 function mockSimpleSelect(rows: unknown[]) {
   return {
@@ -120,6 +120,70 @@ describe("packing actions hardening", () => {
     await expect(addPackingItem("trip-1", { name: "Passport", labelId: "label-1" })).rejects.toThrow(
       "An unexpected error occurred. Please try again."
     );
+  });
+
+  it("moves section items to Ungrouped before deleting the section when requested", async () => {
+    db.select.mockReturnValueOnce(
+      mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true, name: "Documents" }])
+    );
+
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      delete: vi.fn(() => ({
+        where: deleteWhere,
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: updateWhere,
+        })),
+      })),
+    };
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await removePackingSection("label-1", { mode: "move-items-to-ungrouped" });
+
+    expect(tx.update).toHaveBeenCalledTimes(1);
+    expect(updateWhere).toHaveBeenCalledTimes(1);
+    expect(tx.delete).toHaveBeenCalledTimes(1);
+    expect(deleteWhere).toHaveBeenCalledTimes(1);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("deletes section items along with the section when requested", async () => {
+    db.select.mockReturnValueOnce(
+      mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true, name: "Documents" }])
+    );
+
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      delete: vi.fn(() => ({
+        where: deleteWhere,
+      })),
+      update: vi.fn(),
+    };
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await removePackingSection("label-1", { mode: "delete-items" });
+
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.delete).toHaveBeenCalledTimes(2);
+    expect(deleteWhere).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects removePackingSection when the target row is not a section label", async () => {
+    db.select.mockReturnValueOnce(
+      mockSimpleSelect([{ id: "item-1", tripId: "trip-1", isLabel: false, name: "Passport" }])
+    );
+
+    await expect(removePackingSection("item-1", { mode: "delete-items" })).rejects.toThrow(
+      "An unexpected error occurred. Please try again."
+    );
+
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   it("returns the cached template result when the same idempotency key is reused within 24 hours", async () => {

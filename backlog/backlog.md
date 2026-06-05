@@ -42,13 +42,6 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 
 ## Trip packing list
 
-1. add ability to collapse a packing list section
-
-## Adding to a section
-
-1. "add" item at the end of a section should be indented to match the items and have placeholder "add to [section name]"
-1. after adding from any input, focus should return to that same input for easy multi-add
-
 ### Ability to have multiples lists
 
 1. create multiple lists like packing templates page
