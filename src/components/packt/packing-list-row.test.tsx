@@ -199,6 +199,85 @@ describe("PackingRow", () => {
     await user.click(screen.getByText("Passport"));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
+
+  // ── Collapse toggle ──────────────────────────────────────────────────────────
+
+  it("renders collapse toggle button on label rows when onToggleCollapse is provided", () => {
+    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} onToggleCollapse={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Collapse Documents" })).toBeInTheDocument();
+  });
+
+  it("does not render collapse toggle on label rows when onToggleCollapse is absent", () => {
+    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Collapse|Expand/ })).not.toBeInTheDocument();
+  });
+
+  it("does not render collapse toggle on item rows", () => {
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} onToggleCollapse={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Collapse|Expand/ })).not.toBeInTheDocument();
+  });
+
+  it("aria-expanded is true when not collapsed", () => {
+    render(<PackingRow item={labelRow} isLabel collapsed={false} onRemove={vi.fn()} onToggleCollapse={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Collapse Documents" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("aria-expanded is false when collapsed", () => {
+    render(<PackingRow item={labelRow} isLabel collapsed onRemove={vi.fn()} onToggleCollapse={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Expand Documents" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("calls onToggleCollapse when collapse button is clicked", async () => {
+    const onToggleCollapse = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} onToggleCollapse={onToggleCollapse} />);
+    await user.click(screen.getByRole("button", { name: "Collapse Documents" }));
+    expect(onToggleCollapse).toHaveBeenCalledOnce();
+  });
+
+  it("calls onToggleCollapse when label row background is clicked", async () => {
+    const onToggleCollapse = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} onToggleCollapse={onToggleCollapse} />);
+    await user.click(screen.getByText("Section label"));
+    expect(onToggleCollapse).toHaveBeenCalledOnce();
+  });
+
+  it("does not toggle collapse when label name is clicked (starts edit instead)", async () => {
+    const onToggleCollapse = vi.fn();
+    const onEdit = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PackingRow item={labelRow} isLabel onRemove={vi.fn()} onToggleCollapse={onToggleCollapse} onEdit={onEdit} />
+    );
+    await user.click(screen.getByRole("heading", { name: "Documents" }));
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+    expect(onEdit).not.toHaveBeenCalled(); // only called on Enter/Escape
+  });
+
+  it("does not toggle collapse when remove button is clicked", async () => {
+    const onToggleCollapse = vi.fn();
+    const onRemove = vi.fn();
+    const user = userEvent.setup();
+    render(<PackingRow item={labelRow} isLabel onRemove={onRemove} onToggleCollapse={onToggleCollapse} />);
+    await user.click(screen.getByRole("button", { name: "Remove Documents" }));
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+    expect(onRemove).toHaveBeenCalledOnce();
+  });
+
+  it("chevron rotates based on collapsed state", () => {
+    const { container, rerender } = render(
+      <PackingRow item={labelRow} isLabel collapsed={false} onRemove={vi.fn()} onToggleCollapse={vi.fn()} />
+    );
+    const chevron = container.querySelector("[data-packing-collapse-btn] svg");
+    const expandedTransform = chevron?.getAttribute("style");
+    expect(expandedTransform).toContain("rotate(180deg)");
+
+    rerender(<PackingRow item={labelRow} isLabel collapsed onRemove={vi.fn()} onToggleCollapse={vi.fn()} />);
+    const collapsedChevron = container.querySelector("[data-packing-collapse-btn] svg");
+    const collapsedTransform = collapsedChevron?.getAttribute("style");
+    expect(collapsedTransform).not.toContain("rotate(180deg)");
+  });
 });
 
 describe("SortablePackingRow", () => {

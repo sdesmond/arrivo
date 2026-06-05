@@ -11,6 +11,8 @@ export interface DroppablePackingSectionProps {
   sortableIds: string[];
   header?: ReactNode;
   children: ReactNode;
+  /** When true, the drop zone and children are hidden. */
+  collapsed?: boolean;
 }
 
 /**
@@ -24,17 +26,25 @@ export function DroppablePackingSection({
   sortableIds,
   header,
   children,
+  collapsed = false,
 }: DroppablePackingSectionProps): ReactElement {
   const { setNodeRef } = useDroppable({ id: containerId });
 
   return (
-    <div data-packing-container={containerId} className="flex flex-col gap-2">
+    <div
+      ref={setNodeRef}
+      data-packing-container={containerId}
+      data-packing-dropzone={containerId}
+      className="flex flex-col gap-2"
+    >
       {header}
-      <div ref={setNodeRef} data-packing-dropzone={containerId} className="flex flex-col gap-2">
-        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-          {children}
-        </SortableContext>
-      </div>
+      {!collapsed && (
+        <div className="flex flex-col gap-2">
+          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            {children}
+          </SortableContext>
+        </div>
+      )}
     </div>
   );
 }
