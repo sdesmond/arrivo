@@ -9,9 +9,11 @@ import { withErrorHandling } from "@/lib/error-utils";
 import type {
   AddPackingItemInput,
   PullTemplatesResult,
+  RemovePackingSectionInput,
   SaveTripAsTemplateResult,
   UpdatePackingItemInput,
 } from "@/data/types";
+import { RemovePackingSectionMode } from "@/data/types";
 
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -166,6 +168,40 @@ async function removePackingItemImpl(itemId: string): Promise<void> {
   await assertTripAccess(item.tripId, user.id!, "editor");
   await db.delete(packingItems).where(eq(packingItems.id, itemId));
   revalidatePath(`/trips/${item.tripId}`);
+  revalidatePath("/trips");
+}
+
+async function removePackingSectionImpl(sectionId: string, input: RemovePackingSectionInput): Promise<void> {
+  const user = await requireUser();
+  const [section] = await db.select().from(packingItems).where(eq(packingItems.id, sectionId));
+  if (!section) {
+    return;
+  }
+  if (!section.isLabel) {
+    throw new Error("Packing section not found");
+  }
+
+  await assertTripAccess(section.tripId, user.id!, "editor");
+
+  await db.transaction(async (tx) => {
+    if (input.mode === RemovePackingSectionMode.DeleteItems) {
+      await tx
+        .delete(packingItems)
+        .where(and(eq(packingItems.tripId, section.tripId), eq(packingItems.labelId, section.id)));
+    } else if (input.mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
+      await tx
+        .update(packingItems)
+        .set({ labelId: null })
+        .where(and(eq(packingItems.tripId, section.tripId), eq(packingItems.labelId, section.id)));
+    } else {
+      const exhaustiveMode: never = input.mode;
+      throw new Error(`Unsupported section removal mode: ${String(exhaustiveMode)}`);
+    }
+
+    await tx.delete(packingItems).where(eq(packingItems.id, section.id));
+  });
+
+  revalidatePath(`/trips/${section.tripId}`);
   revalidatePath("/trips");
 }
 
@@ -412,6 +448,7 @@ const addPackingItemWithErrorHandling = withErrorHandling(addPackingItemImpl);
 const updatePackingItemWithErrorHandling = withErrorHandling(updatePackingItemImpl);
 const togglePackingItemWithErrorHandling = withErrorHandling(togglePackingItemImpl);
 const removePackingItemWithErrorHandling = withErrorHandling(removePackingItemImpl);
+const removePackingSectionWithErrorHandling = withErrorHandling(removePackingSectionImpl);
 const reorderPackingItemsWithErrorHandling = withErrorHandling(reorderPackingItemsImpl);
 const pullTemplatesOntoTripWithErrorHandling = withErrorHandling(pullTemplatesOntoTripImpl);
 const saveTripListAsTemplateWithErrorHandling = withErrorHandling(saveTripListAsTemplateImpl);
@@ -430,6 +467,10 @@ export async function togglePackingItem(itemId: string): Promise<void> {
 
 export async function removePackingItem(itemId: string): Promise<void> {
   return removePackingItemWithErrorHandling(itemId);
+}
+
+export async function removePackingSection(sectionId: string, input: RemovePackingSectionInput): Promise<void> {
+  return removePackingSectionWithErrorHandling(sectionId, input);
 }
 
 export async function reorderPackingItems(

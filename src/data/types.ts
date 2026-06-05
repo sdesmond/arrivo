@@ -615,6 +615,16 @@ export interface UpdatePackingItemInput {
   name?: string;
 }
 
+export const RemovePackingSectionMode = {
+  MoveItemsToUngrouped: "move-items-to-ungrouped",
+  DeleteItems: "delete-items",
+} as const;
+export type RemovePackingSectionMode = (typeof RemovePackingSectionMode)[keyof typeof RemovePackingSectionMode];
+
+export interface RemovePackingSectionInput {
+  mode: RemovePackingSectionMode;
+}
+
 export interface PullTemplatesResult {
   added: number;
   skipped: number;
