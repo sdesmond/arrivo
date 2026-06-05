@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type {
   DayItemType,
   DayItinerary,
+  RemovePackingSectionMode,
   TripDetailPayload,
   TripEvent,
   TripDateChangeConfirmation,
@@ -25,6 +26,7 @@ import {
   updatePackingItem,
   updateTripMetadata,
 } from "../actions";
+import { removePackingSection } from "../packing-actions";
 import {
   createChecklist,
   createChecklistItem,
@@ -75,6 +77,7 @@ export interface TripDetailHandlers {
     labelId?: string | null
   ) => Promise<void>;
   handleRemovePackingItem: (id: string) => Promise<void>;
+  handleRemovePackingSection: (id: string, mode: RemovePackingSectionMode) => Promise<void>;
   handleTogglePackingItem: (id: string) => Promise<void>;
   handleReorderPackingItems: (
     ordered: { id: string; labelId: string | null; position: number }[],
@@ -281,6 +284,22 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
+  function handleRemovePackingSection(id: string, mode: RemovePackingSectionMode): Promise<void> {
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await removePackingSection(id, { mode });
+          resolve();
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Failed to remove packing section. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
+    });
+  }
+
   function handleTogglePackingItem(id: string): Promise<void> {
     return new Promise((resolve, reject) => {
       React.startTransition(async () => {
@@ -409,6 +428,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleToggleChecklistItem,
     handleAddPackingItem,
     handleRemovePackingItem,
+    handleRemovePackingSection,
     handleTogglePackingItem,
     handleReorderPackingItems,
     handleUpdatePackingItem,
