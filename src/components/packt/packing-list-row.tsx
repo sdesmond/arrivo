@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { GripVertical, X, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, X, Trash2 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { PackingItem } from "@/data/types";
@@ -16,6 +16,8 @@ export interface PackingRowProps {
   isLabel?: boolean;
   isComplete?: boolean;
   isPending?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   dragHandle?: ReactElement;
   onRemove: () => void;
   onToggle?: () => void;
@@ -32,6 +34,8 @@ export function PackingRow({
   isLabel,
   isComplete,
   isPending,
+  collapsed,
+  onToggleCollapse,
   dragHandle,
   onRemove,
   onToggle,
@@ -52,8 +56,9 @@ export function PackingRow({
     setIsEditing(false);
   }
 
-  function startEdit(): void {
+  function startEdit(event: React.MouseEvent): void {
     if (!onEdit) return;
+    event.stopPropagation();
     originalNameRef.current = item.name;
     setIsEditing(true);
   }
@@ -62,12 +67,47 @@ export function PackingRow({
     <div
       className={cn("flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2", isLabel ? "shadow-none" : "")}
       data-packing-kind={isLabel ? "label" : "item"}
+      onClick={isLabel && onToggleCollapse && !isEditing ? onToggleCollapse : undefined}
       style={{
         background: isLabel ? "var(--surface-2)" : "var(--bg)",
         borderColor: "var(--line)",
+        cursor: isLabel && onToggleCollapse && !isEditing ? "pointer" : undefined,
       }}
     >
       {dragHandle ? dragHandle : null}
+      {isLabel && onToggleCollapse ? (
+        <span className="flex shrink-0 items-center justify-center" style={minimumTouchTargetStyle}>
+          <button
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? `Expand ${item.name}` : `Collapse ${item.name}`}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
+            data-packing-collapse-btn
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleCollapse();
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              outlineColor: "var(--accent-brand)",
+              touchAction: "manipulation",
+            }}
+            title={collapsed ? `Expand ${item.name}` : `Collapse ${item.name}`}
+            type="button"
+          >
+            <ChevronDown
+              size={14}
+              strokeWidth={1.5}
+              style={{
+                color: "var(--fg-4)",
+                transform: collapsed ? undefined : "rotate(180deg)",
+                transition: "transform 0.15s",
+              }}
+            />
+          </button>
+        </span>
+      ) : null}
       {isLabel || !onToggle ? null : (
         <span className="flex shrink-0 items-center justify-center" data-packing-toggle style={minimumTouchTargetStyle}>
           <Checkbox
@@ -158,7 +198,10 @@ export function PackingRow({
           title={`Remove ${item.name}`}
           type="button"
           variant="ghost"
-          onClick={onRemove}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
         >
           <X size={14} strokeWidth={1.5} />
         </Button>
