@@ -19,7 +19,7 @@ import { Given, Then, When } from "../fixtures";
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
-  await expect(page.getByRole("button", { name: "Add item", exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
 }
 
 // Insert one packing item and return its generated id. Wrapped to give an
@@ -155,20 +155,22 @@ When("I open the Packing tab", async ({ page }) => {
 });
 
 Then("I should see the empty packing state", async ({ page }) => {
-  await expect(page.getByRole("heading", { name: "Your packing list is empty" })).toBeVisible();
+  await expect(page.getByPlaceholder("New section…")).toBeVisible();
+  await expect(page.getByPlaceholder("Add item…")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your packing list is empty" })).toHaveCount(0);
 });
 
 When("I add a packing item named {string}", async ({ page }, name: string) => {
-  await page.getByRole("textbox", { name: "Packing item name" }).fill(name);
-  await page.getByRole("button", { name: "Add item", exact: true }).click();
+  await page.getByPlaceholder("Add item…").fill(name);
+  await page.keyboard.press("Enter");
   await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: name }).first()).toBeVisible({
     timeout: 10_000,
   });
 });
 
 When("I add a packing label named {string}", async ({ page }, name: string) => {
-  await page.getByRole("textbox", { name: "Packing item name" }).fill(name);
-  await page.getByRole("button", { name: "Add label" }).click();
+  await page.getByPlaceholder("New section…").fill(name);
+  await page.keyboard.press("Enter");
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name }).first()).toBeVisible({
     timeout: 10_000,
   });

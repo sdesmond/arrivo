@@ -47,9 +47,29 @@ describe("PackingRow", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("renders section label subtitle for label items", () => {
+  it("renders item count subtitle for label items without packed progress", () => {
+    render(<PackingRow item={labelRow} isLabel itemCount={3} onRemove={vi.fn()} />);
+    expect(screen.getByText("3 items")).toBeInTheDocument();
+  });
+
+  it("renders singular item count when itemCount is 1 and no packedCount", () => {
+    render(<PackingRow item={labelRow} isLabel itemCount={1} onRemove={vi.fn()} />);
+    expect(screen.getByText("1 item")).toBeInTheDocument();
+  });
+
+  it("renders packed progress subtitle when packedCount is provided", () => {
+    render(<PackingRow item={labelRow} isLabel itemCount={5} packedCount={2} onRemove={vi.fn()} />);
+    expect(screen.getByText("2 of 5 packed")).toBeInTheDocument();
+  });
+
+  it("renders 0 of N packed when no items are packed", () => {
+    render(<PackingRow item={labelRow} isLabel itemCount={4} packedCount={0} onRemove={vi.fn()} />);
+    expect(screen.getByText("0 of 4 packed")).toBeInTheDocument();
+  });
+
+  it("renders no subtitle when itemCount is not provided", () => {
     render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} />);
-    expect(screen.getByText("Section label")).toBeInTheDocument();
+    expect(screen.queryByText(/items?$|packed$/)).not.toBeInTheDocument();
   });
 
   it("calls onRemove when remove button is clicked", async () => {
@@ -238,8 +258,17 @@ describe("PackingRow", () => {
   it("calls onToggleCollapse when label row background is clicked", async () => {
     const onToggleCollapse = vi.fn();
     const user = userEvent.setup();
-    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} onToggleCollapse={onToggleCollapse} />);
-    await user.click(screen.getByText("Section label"));
+    render(
+      <PackingRow
+        item={labelRow}
+        isLabel
+        itemCount={3}
+        packedCount={2}
+        onRemove={vi.fn()}
+        onToggleCollapse={onToggleCollapse}
+      />
+    );
+    await user.click(screen.getByText("2 of 3 packed"));
     expect(onToggleCollapse).toHaveBeenCalledOnce();
   });
 

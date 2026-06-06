@@ -4,7 +4,7 @@ Feature: Packing tab
     Given I am signed in
     And I have an existing trip with days
 
-  Scenario: Empty packing state shows a prompt to start
+  Scenario: Empty packing state shows minimal inputs with no empty-state card
     When I open the Packing tab
     Then I should see the empty packing state
 

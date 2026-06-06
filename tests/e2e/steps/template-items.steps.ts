@@ -167,14 +167,14 @@ When("I open the template editor for {string}", async ({ page, scenario }, name:
 });
 
 When("I add the template item {string}", async ({ page }, name: string) => {
-  await page.getByRole("textbox", { name: "Template item text" }).fill(name);
-  await page.getByRole("button", { name: "Add item" }).click();
+  await page.getByPlaceholder("Add item…").fill(name);
+  await page.keyboard.press("Enter");
   await expect(page.locator("[data-packing-kind]").filter({ hasText: name }).first()).toBeVisible({ timeout: 10_000 });
 });
 
 When("I add the template label {string}", async ({ page }, name: string) => {
-  await page.getByRole("textbox", { name: "Template item text" }).fill(name);
-  await page.getByRole("button", { name: "Add label" }).click();
+  await page.getByPlaceholder("New section…").fill(name);
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 10_000 });
 });
 

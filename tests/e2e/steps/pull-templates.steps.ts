@@ -93,14 +93,11 @@ Given("I have two packing templates available for pull with a shared item", asyn
 When("I open the packing tab for the pull test trip", async ({ page, scenario }) => {
   await scenario.gotoCurrentTrip(page);
   await page.getByRole("button", { name: "Packing" }).click();
-  await expect(page.getByRole("button", { name: "Add item", exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
 });
 
 When("I pull the template onto the trip", async ({ page }) => {
-  const pullBtn = page
-    .getByRole("button", { name: "Pull from a template" })
-    .or(page.getByRole("button", { name: "Pull templates" }))
-    .first();
+  const pullBtn = page.getByRole("button", { name: "Pull templates" });
   await pullBtn.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -112,10 +109,7 @@ When("I pull the template onto the trip", async ({ page }) => {
 });
 
 When("I pull both templates onto the trip", async ({ page }) => {
-  const pullBtn = page
-    .getByRole("button", { name: "Pull from a template" })
-    .or(page.getByRole("button", { name: "Pull templates" }))
-    .first();
+  const pullBtn = page.getByRole("button", { name: "Pull templates" });
   await pullBtn.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -127,8 +121,8 @@ When("I pull both templates onto the trip", async ({ page }) => {
   await expect(page.getByText(/item\(s\) added/)).toBeVisible({ timeout: 10_000 });
 });
 
-Then('I should see a "Pull from a template" button', async ({ page }) => {
-  await expect(page.getByRole("button", { name: "Pull from a template" })).toBeVisible();
+Then("I should not see a pull templates button", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Pull templates" })).toHaveCount(0);
 });
 
 Then("the packing list should contain {string} exactly once", async ({ page }, name: string) => {

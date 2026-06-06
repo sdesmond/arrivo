@@ -11,6 +11,7 @@ export interface ContextualAddFormProps {
   beforeItemId?: string;
   labelId?: string | null;
   isAdding?: boolean;
+  isLabel?: boolean;
   onAddItem: (
     name: string,
     isLabel?: boolean,
@@ -26,6 +27,7 @@ export function ContextualAddForm({
   beforeItemId,
   labelId,
   isAdding,
+  isLabel = false,
   onAddItem,
 }: ContextualAddFormProps): ReactElement {
   const [value, setValue] = useState("");
@@ -47,7 +49,7 @@ export function ContextualAddForm({
     const trimmed = value.trim();
     if (!trimmed || isAdding) return;
     try {
-      await onAddItem(trimmed, false, afterItemId, beforeItemId, labelId);
+      await onAddItem(trimmed, isLabel, afterItemId, beforeItemId, labelId);
       setValue("");
       if (!inputRef.current?.disabled) {
         inputRef.current?.focus();
@@ -77,8 +79,8 @@ export function ContextualAddForm({
         type="submit"
         variant="outline"
         size="sm"
-        title="Add item here"
-        aria-label="Add item here"
+        title={isLabel ? "Add section here" : "Add item here"}
+        aria-label={isLabel ? "Add section here" : "Add item here"}
       >
         <Plus size={14} strokeWidth={1.5} />
       </Button>

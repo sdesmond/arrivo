@@ -6,19 +6,21 @@ import { Button } from "@/components/ui/button";
 
 export interface PackingListToolbarProps {
   itemCount: number;
+  packedCount: number;
   onOpenPullDialog?: () => void;
   onOpenSaveDialog?: () => void;
 }
 
 export function PackingListToolbar({
   itemCount,
+  packedCount,
   onOpenPullDialog,
   onOpenSaveDialog,
 }: PackingListToolbarProps): ReactElement {
   return (
     <div className="flex items-center justify-between">
       <span style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))" }}>
-        {itemCount} item{itemCount !== 1 ? "s" : ""}
+        {packedCount} of {itemCount} packed
       </span>
       <div className="flex items-center gap-2">
         {onOpenSaveDialog && (

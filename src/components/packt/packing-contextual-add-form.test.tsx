@@ -63,4 +63,29 @@ describe("ContextualAddForm", () => {
     await user.keyboard("{Enter}");
     expect(onAddItem).not.toHaveBeenCalled();
   });
+
+  it("calls onAddItem with isLabel=true when isLabel prop is true", async () => {
+    const onAddItem = vi.fn();
+    const user = userEvent.setup();
+
+    render(<ContextualAddForm placeholder="New section…" isLabel onAddItem={onAddItem} />);
+
+    const input = screen.getByPlaceholderText("New section…");
+    await user.type(input, "Beach Gear");
+    await user.keyboard("{Enter}");
+
+    expect(onAddItem).toHaveBeenCalledWith("Beach Gear", true, undefined, undefined, undefined);
+  });
+
+  it("has title 'Add section here' when isLabel=true", () => {
+    const onAddItem = vi.fn();
+    render(<ContextualAddForm placeholder="New section…" isLabel onAddItem={onAddItem} />);
+    expect(screen.getByRole("button", { name: "Add section here" })).toBeInTheDocument();
+  });
+
+  it("has title 'Add item here' when isLabel=false", () => {
+    const onAddItem = vi.fn();
+    render(<ContextualAddForm placeholder="Add item…" onAddItem={onAddItem} />);
+    expect(screen.getByRole("button", { name: "Add item here" })).toBeInTheDocument();
+  });
 });
