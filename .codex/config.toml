@@ -1,3 +1,6 @@
+env = { SystemRoot="C:\\Windows", PROGRAMFILES="C:\\Program Files" }
+startup_timeout_ms = 20_000
+
 [mcp_servers.shadcn]
 command = "npx"
 args = ["shadcn@latest", "mcp"]
