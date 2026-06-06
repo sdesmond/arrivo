@@ -424,7 +424,7 @@ html[data-font-size="large"] {
 .seg-item {
   font-size: 14px;
   font-weight: 500;
-  padding: 6px 14px;
+  padding: 8px 16px;
   border-radius: 6px;
   color: var(--fg-3);
   letter-spacing: -0.005em;

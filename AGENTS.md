@@ -155,6 +155,16 @@ Before starting any new development task, you MUST ask the user whether they wan
 - No arbitrary Tailwind values (`text-[14px]`) — use inline styles instead
 - Lucide icons: `strokeWidth={1.5}` always; icon buttons need a `title` attribute
 - Font variables need fallbacks: `var(--font-body, ui-sans-serif)`
+- **Interactive element sizing — always use these heights and horizontal padding; do not guess or use smaller values:**
+
+  | Size    | Height | Horizontal padding | Icon button |
+  | ------- | ------ | ------------------ | ----------- |
+  | `xs`    | `h-8`  | `px-3`             | `size-8`    |
+  | `sm`    | `h-9`  | `px-3.5`           | `size-9`    |
+  | default | `h-10` | `px-4`             | `size-10`   |
+  | `lg`    | `h-11` | `px-5`             | `size-11`   |
+
+  Menu/dropdown items: `py-1.5 px-2`. Custom clickable rows or inline controls that don't use a `src/components/ui/` primitive must still meet the minimum height for their intended size tier. Never drop below `h-8` for any interactive target.
 
 ### File Placement
 
