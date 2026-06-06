@@ -156,7 +156,7 @@ describe("PackingListView", () => {
     vi.useRealTimers();
   });
 
-  it("renders the empty state prompt when there are no items", () => {
+  it("renders minimal empty state with New section and Add item inputs, no empty-state card", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -169,10 +169,9 @@ describe("PackingListView", () => {
       />
     );
 
-    expect(screen.getByRole("heading", { name: "Your packing list is empty" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Packing item name" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add item" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your packing list is empty" })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("New section…")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Add item…")).toBeInTheDocument();
   });
 
   it("renders section labels distinctly and keeps ungrouped items below labeled sections", () => {
@@ -190,7 +189,7 @@ describe("PackingListView", () => {
 
     expect(screen.getByRole("heading", { name: "Documents" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Clothes" })).toBeInTheDocument();
-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
+    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
 
     const rowNames = Array.from(container.querySelectorAll("[data-packing-kind]")).map((row) =>
       row.querySelector("[data-packing-name]")?.textContent?.trim()
@@ -246,7 +245,7 @@ describe("PackingListView", () => {
     expect(onRemoveItem).toHaveBeenCalledWith("ungrouped-1");
   });
 
-  it("applies 44px minimum touch-target sizing to interactive controls", () => {
+  it("applies 44px minimum touch-target sizing to remove button", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -259,9 +258,6 @@ describe("PackingListView", () => {
       />
     );
 
-    expectMinimumTouchTarget(screen.getByRole("textbox", { name: "Packing item name" }), { requireMinWidth: false });
-    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add item" }));
-    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add label" }));
     expectMinimumTouchTarget(screen.getByRole("button", { name: "Remove Passport" }));
   });
 
@@ -688,11 +684,9 @@ describe("PackingListView", () => {
     );
 
     await user.click(screen.getByText("Passport"));
-    const input = screen
-      .getAllByRole("textbox")
-      .find((el) => el !== screen.queryByRole("textbox", { name: "Packing item name" }));
-    await user.clear(input!);
-    await user.type(input!, "Passport (renewed)");
+    const editInput = screen.getAllByRole("textbox").find((el) => (el as HTMLInputElement).value === "Passport");
+    await user.clear(editInput!);
+    await user.type(editInput!, "Passport (renewed)");
     await user.keyboard("{Enter}");
 
     expect(onEditItem).toHaveBeenCalledWith("item-1", "Passport (renewed)");
@@ -890,7 +884,7 @@ describe("PackingListView", () => {
 
   // ── Story 2.3 — Pull from template ───────────────────────────────────────────
 
-  it("shows 'Pull from a template' button in empty state when onPullTemplates is provided", () => {
+  it("does not show a pull template button when the list is empty", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -905,23 +899,8 @@ describe("PackingListView", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "Pull from a template" })).toBeInTheDocument();
-  });
-
-  it("does not show pull button in empty state when onPullTemplates is absent", () => {
-    render(
-      <PackingListView
-        tripId="trip-1"
-        items={[]}
-        onAddItem={createAddItemHandler()}
-        onRemoveItem={createRemoveItemHandler()}
-        onToggleItem={createToggleItemHandler()}
-        onReorderItems={vi.fn()}
-        onEditItem={vi.fn()}
-      />
-    );
-
     expect(screen.queryByRole("button", { name: "Pull from a template" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pull templates" })).not.toBeInTheDocument();
   });
 
   it("shows 'Pull templates' button in populated state when onPullTemplates is provided", () => {
@@ -940,28 +919,6 @@ describe("PackingListView", () => {
     );
 
     expect(screen.getByRole("button", { name: "Pull templates" })).toBeInTheDocument();
-  });
-
-  it("opens the pull dialog when the empty-state pull button is clicked", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <PackingListView
-        tripId="trip-1"
-        items={[]}
-        onAddItem={createAddItemHandler()}
-        onRemoveItem={createRemoveItemHandler()}
-        onToggleItem={createToggleItemHandler()}
-        onReorderItems={vi.fn()}
-        onEditItem={vi.fn()}
-        templates={[{ id: "t1", name: "Beach Weekend" }]}
-        onPullTemplates={vi.fn()}
-      />
-    );
-
-    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
-
-    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
   });
 
   it("opens the pull dialog when the populated-state pull button is clicked", async () => {
@@ -993,7 +950,7 @@ describe("PackingListView", () => {
     render(
       <PackingListView
         tripId="trip-1"
-        items={[]}
+        items={groupedItems}
         onAddItem={createAddItemHandler()}
         onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
@@ -1004,7 +961,7 @@ describe("PackingListView", () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
+    await user.click(screen.getByRole("button", { name: "Pull templates" }));
     await user.click(screen.getByRole("button", { name: "Trigger pull" }));
 
     await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
@@ -1018,7 +975,7 @@ describe("PackingListView", () => {
     render(
       <PackingListView
         tripId="trip-1"
-        items={[]}
+        items={groupedItems}
         onAddItem={createAddItemHandler()}
         onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
@@ -1029,7 +986,7 @@ describe("PackingListView", () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
+    await user.click(screen.getByRole("button", { name: "Pull templates" }));
     await user.click(screen.getByRole("button", { name: "Trigger pull" }));
 
     await waitFor(() => expect(onPullTemplates).toHaveBeenCalledWith(["t1"]));
@@ -1043,7 +1000,7 @@ describe("PackingListView", () => {
     render(
       <PackingListView
         tripId="trip-1"
-        items={[]}
+        items={groupedItems}
         onAddItem={createAddItemHandler()}
         onRemoveItem={createRemoveItemHandler()}
         onToggleItem={createToggleItemHandler()}
@@ -1054,7 +1011,7 @@ describe("PackingListView", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Pull from a template" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pull templates" }));
     fireEvent.click(await screen.findByRole("button", { name: "Trigger pull" }));
 
     await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
@@ -1082,17 +1039,17 @@ describe("PackingListView", () => {
       />
     );
 
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
+    const addItemInput = screen.getByPlaceholderText("Add item…");
+    await user.type(addItemInput, "Passport");
+    await user.keyboard("{Enter}");
 
     await waitFor(() => {
       const liveRegion = container.querySelector("[aria-live=polite]");
       expect(liveRegion).toHaveTextContent("Failed to add item.");
     });
 
-    expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue("Passport");
-    expect(screen.queryByText("Passport")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled();
+    expect(addItemInput).toHaveValue("Passport");
+    expect(screen.getByPlaceholderText("New section…")).not.toBeDisabled();
   });
 
   it("keeps the item rendered when onRemoveItem rejects", async () => {
@@ -1144,16 +1101,16 @@ describe("PackingListView", () => {
       />
     );
 
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
+    await user.type(screen.getByPlaceholderText("Add item…"), "Passport");
+    await user.keyboard("{Enter}");
 
     const liveRegion = container.querySelector("[aria-live=polite]");
-    expect(liveRegion).not.toHaveTextContent("Passport added.");
+    expect(liveRegion).not.toHaveTextContent("Item Passport added.");
 
     expect(resolveAdd).toBeDefined();
     resolveAdd!();
 
-    await waitFor(() => expect(liveRegion).toHaveTextContent("Passport added."));
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Item Passport added."));
   });
 
   it("waits for contextual add persistence before announcing success", async () => {
@@ -1193,7 +1150,7 @@ describe("PackingListView", () => {
     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Visa added."));
   });
 
-  it("waits for populated entry-form item persistence before announcing success", async () => {
+  it("waits for Add item form persistence before announcing success", async () => {
     const user = userEvent.setup();
     let resolveAdd: (() => void) | undefined;
     const onAddItem = vi.fn(
@@ -1214,8 +1171,8 @@ describe("PackingListView", () => {
       />
     );
 
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
+    await user.type(screen.getByPlaceholderText("Add item…"), "Tent");
+    await user.keyboard("{Enter}");
 
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Item Tent added.");
@@ -1223,10 +1180,9 @@ describe("PackingListView", () => {
     resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Tent added."));
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
   });
 
-  it("waits for populated entry-form label persistence before announcing success", async () => {
+  it("waits for New section form persistence before announcing success", async () => {
     const user = userEvent.setup();
     let resolveAdd: (() => void) | undefined;
     const onAddItem = vi.fn(
@@ -1247,8 +1203,8 @@ describe("PackingListView", () => {
       />
     );
 
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
-    await user.click(screen.getByRole("button", { name: "Add label" }));
+    await user.type(screen.getByPlaceholderText("New section…"), "Camping");
+    await user.keyboard("{Enter}");
 
     const liveRegion = container.querySelector("[aria-live=polite]");
     expect(liveRegion).not.toHaveTextContent("Section Camping added.");
@@ -1256,7 +1212,6 @@ describe("PackingListView", () => {
     resolveAdd!();
 
     await waitFor(() => expect(liveRegion).toHaveTextContent("Section Camping added."));
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
   });
 
   // ── Story 3.3 — AC #3: Server-triggered re-render detection ──────────────────
@@ -1282,10 +1237,10 @@ describe("PackingListView", () => {
       />
     );
 
-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
+    await user.type(screen.getByPlaceholderText("Add item…"), "Passport");
+    await user.keyboard("{Enter}");
 
-    expect(screen.getByRole("button", { name: "Add item" })).toBeDisabled();
+    expect(screen.getByPlaceholderText("New section…")).toBeDisabled();
 
     rerender(
       <PackingListView
@@ -1298,7 +1253,7 @@ describe("PackingListView", () => {
       />
     );
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByPlaceholderText("New section…")).not.toBeDisabled());
     resolveAdd!();
   });
 

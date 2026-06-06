@@ -17,6 +17,8 @@ export interface PackingRowProps {
   isComplete?: boolean;
   isPending?: boolean;
   collapsed?: boolean;
+  itemCount?: number;
+  packedCount?: number;
   onToggleCollapse?: () => void;
   dragHandle?: ReactElement;
   onRemove: () => void;
@@ -35,6 +37,8 @@ export function PackingRow({
   isComplete,
   isPending,
   collapsed,
+  itemCount,
+  packedCount,
   onToggleCollapse,
   dragHandle,
   onRemove,
@@ -184,8 +188,12 @@ export function PackingRow({
                 {item.name}
               </p>
             )}
-            {isLabel ? (
-              <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>Section label</p>
+            {isLabel && itemCount !== undefined ? (
+              <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>
+                {packedCount !== undefined
+                  ? `${packedCount} of ${itemCount} packed`
+                  : `${itemCount} ${itemCount === 1 ? "item" : "items"}`}
+              </p>
             ) : null}
           </>
         )}

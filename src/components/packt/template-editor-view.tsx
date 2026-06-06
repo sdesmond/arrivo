@@ -1,10 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
 import Link from "next/link";
-import { Plus, Tag } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   RemovePackingSectionMode,
   type PackingItem,
@@ -14,6 +11,7 @@ import {
 } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
 import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
+import { ContextualAddForm } from "./packing-contextual-add-form";
 
 export interface TemplateEditorViewProps {
   template: PackingTemplate;
@@ -31,16 +29,6 @@ export interface TemplateEditorViewProps {
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onOptimisticReorder?: (items: PackingTemplateItem[] | null) => void;
   isAdding?: boolean;
-}
-
-interface TemplateEntryFormProps {
-  templateId: string;
-  draftText: string;
-  hasItems: boolean;
-  isSubmitting: boolean;
-  onDraftTextChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  onSubmitItem: () => void;
-  onSubmitLabel: () => void;
 }
 
 function toPackingItem(item: PackingTemplateItem): PackingItem {
@@ -65,61 +53,6 @@ function toTemplateItem(item: PackingItem, templateId: string): PackingTemplateI
   };
 }
 
-function TemplateEntryForm({
-  templateId,
-  draftText,
-  hasItems,
-  isSubmitting,
-  onDraftTextChange,
-  onSubmitItem,
-  onSubmitLabel,
-}: TemplateEntryFormProps): ReactElement {
-  const formId = `template-entry-${templateId}`;
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    onSubmitItem();
-  }
-
-  return (
-    <form
-      aria-label="Add a template entry"
-      className="flex flex-col gap-3 rounded-3xl border p-3"
-      style={{ background: "var(--surface)", borderColor: "var(--line)" }}
-      onSubmit={handleSubmit}
-    >
-      <label className="sr-only" htmlFor={formId}>
-        Template item text
-      </label>
-      <Input
-        id={formId}
-        className="h-11 rounded-2xl border-0 px-3 text-sm shadow-none"
-        maxLength={100}
-        placeholder={hasItems ? "Add another item or section label" : "Add your first item or section label"}
-        style={{ background: "var(--bg)", color: "var(--fg)" }}
-        value={draftText}
-        onChange={onDraftTextChange}
-      />
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button className="min-h-11 min-w-11 flex-1 rounded-2xl" disabled={isSubmitting} type="submit">
-          <Plus size={16} strokeWidth={1.5} />
-          Add item
-        </Button>
-        <Button
-          className="min-h-11 min-w-11 flex-1 rounded-2xl"
-          disabled={isSubmitting}
-          type="button"
-          variant="outline"
-          onClick={onSubmitLabel}
-        >
-          <Tag size={16} strokeWidth={1.5} />
-          Add label
-        </Button>
-      </div>
-    </form>
-  );
-}
-
 export function TemplateEditorView({
   template,
   items,
@@ -136,7 +69,6 @@ export function TemplateEditorView({
     itemCount: number;
   }
 
-  const [draftText, setDraftText] = useState("");
   const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
   const [isRemovingSection, setIsRemovingSection] = useState(false);
   const collapseKey = `packing_collapsed_template_${template.id}`;
@@ -179,17 +111,8 @@ export function TemplateEditorView({
       return nextLabels;
     });
   }, []);
+
   const packingItems = items.map(toPackingItem);
-
-  function submitEntry(isLabel?: boolean): void {
-    const trimmed = draftText.trim();
-    if (!trimmed || isAdding) {
-      return;
-    }
-
-    onAddItem(trimmed, isLabel);
-    setDraftText("");
-  }
 
   async function handleRemove(item: PackingItem): Promise<void> {
     if (!item.id) {
@@ -249,58 +172,31 @@ export function TemplateEditorView({
         </h1>
       </div>
 
-      {items.length === 0 ? (
-        <section
-          className="flex flex-col gap-4 rounded-3xl border p-5"
-          style={{ background: "var(--surface)", borderColor: "var(--line)" }}
-        >
-          <div className="flex flex-col gap-1">
-            <h2 style={{ color: "var(--fg)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 700 }}>
-              This template is empty
-            </h2>
-            <p style={{ color: "var(--fg-2)", fontSize: "calc(14px * var(--font-scale))" }}>
-              Adding items or section labels to shape this template for the trips it supports.
-            </p>
-          </div>
-          <TemplateEntryForm
-            templateId={template.id}
-            draftText={draftText}
-            hasItems={false}
-            isSubmitting={isAdding}
-            onDraftTextChange={(event) => setDraftText(event.target.value)}
-            onSubmitItem={() => submitEntry()}
-            onSubmitLabel={() => submitEntry(true)}
-          />
-        </section>
-      ) : (
-        <>
-          <PackingListSortable
-            items={packingItems}
-            pendingItemIds={new Set()}
-            collapsedLabels={collapsedLabels}
-            onToggleCollapse={toggleCollapse}
-            onRemoveItem={handleRemove}
-            onOptimisticReorder={(reorderedItems) =>
-              onOptimisticReorder?.(reorderedItems?.map((item) => toTemplateItem(item, template.id)) ?? null)
-            }
-            onReorderItems={onReorderItems}
-            onEditItem={(id, name) => onEditItem(id, name)}
-            onAddItem={(text, isLabel, afterItemId, beforeItemId, labelId) =>
-              onAddItem(text, isLabel, afterItemId, beforeItemId, labelId)
-            }
-            isAdding={isAdding}
-          />
-          <TemplateEntryForm
-            templateId={template.id}
-            draftText={draftText}
-            hasItems
-            isSubmitting={isAdding}
-            onDraftTextChange={(event) => setDraftText(event.target.value)}
-            onSubmitItem={() => submitEntry()}
-            onSubmitLabel={() => submitEntry(true)}
-          />
-        </>
-      )}
+      <ContextualAddForm
+        placeholder="New section…"
+        isLabel
+        isAdding={isAdding}
+        onAddItem={(text, labelFlag, afterItemId, beforeItemId, labelId) =>
+          onAddItem(text, labelFlag, afterItemId, beforeItemId, labelId)
+        }
+      />
+
+      <PackingListSortable
+        items={packingItems}
+        pendingItemIds={new Set()}
+        collapsedLabels={collapsedLabels}
+        onToggleCollapse={toggleCollapse}
+        onRemoveItem={handleRemove}
+        onOptimisticReorder={(reorderedItems) =>
+          onOptimisticReorder?.(reorderedItems?.map((item) => toTemplateItem(item, template.id)) ?? null)
+        }
+        onReorderItems={onReorderItems}
+        onEditItem={(id, name) => onEditItem(id, name)}
+        onAddItem={(text, labelFlag, afterItemId, beforeItemId, labelId) =>
+          onAddItem(text, labelFlag, afterItemId, beforeItemId, labelId)
+        }
+        isAdding={isAdding}
+      />
 
       {pendingSectionRemoval && onRemoveSection ? (
         <DeletePackingSectionAlertDialog

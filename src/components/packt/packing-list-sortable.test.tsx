@@ -95,7 +95,7 @@ describe("PackingListSortable", () => {
     expect(dragOverlayState.props?.dropAnimation).toBeNull();
   });
 
-  it("groups items by labelId and renders ungrouped items last under a heading", () => {
+  it("groups items by labelId and renders ungrouped items last without a heading", () => {
     const { container } = render(
       <PackingListSortable
         items={reorderItems}
@@ -108,7 +108,7 @@ describe("PackingListSortable", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Documents" })).toBeInTheDocument();
-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
+    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
     expect(screen.getByTitle("Reorder Item A")).toBeInTheDocument();
     expect(screen.queryByTitle("Reorder Documents")).not.toBeInTheDocument();
     expect(namesInOrder(container)).toEqual(["Documents", "Item A", "Item B", "Item C"]);
@@ -132,7 +132,7 @@ describe("PackingListSortable", () => {
       />
     );
 
-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
+    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
     expect(screen.getByText("Orphan")).toBeInTheDocument();
   });
 
@@ -482,7 +482,7 @@ describe("PackingListSortable", () => {
     expect(onAddItem).toHaveBeenCalledWith("Visa", false, "item-1", undefined, "label-1");
   });
 
-  it("ungrouped add form passes a null labelId and inserts before the first label when empty", async () => {
+  it("ungrouped add form passes a null labelId without a beforeItemId anchor when empty", async () => {
     const onAddItem = vi.fn();
     const user = userEvent.setup();
     const sectionItems: PackingItem[] = [
@@ -505,7 +505,7 @@ describe("PackingListSortable", () => {
     const input = screen.getByPlaceholderText("Add item…");
     await user.type(input, "Travel adapter");
     await user.keyboard("{Enter}");
-    expect(onAddItem).toHaveBeenCalledWith("Travel adapter", false, undefined, "label-1", null);
+    expect(onAddItem).toHaveBeenCalledWith("Travel adapter", false, undefined, undefined, null);
   });
 
   it("ungrouped add form passes the last ungrouped item id as afterItemId", async () => {
@@ -532,6 +532,24 @@ describe("PackingListSortable", () => {
     await user.type(input, "Visa");
     await user.keyboard("{Enter}");
     expect(onAddItem).toHaveBeenCalledWith("Visa", false, "item-2", undefined, null);
+  });
+
+  it("renders the Add item ContextualAddForm when items is empty and onAddItem is provided", () => {
+    const onAddItem = vi.fn();
+
+    render(
+      <PackingListSortable
+        items={[]}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+        onAddItem={onAddItem}
+      />
+    );
+
+    expect(screen.getByPlaceholderText("Add item…")).toBeInTheDocument();
+    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
   });
 
   it("disables contextual add forms while an add is already in flight", () => {
@@ -732,7 +750,7 @@ describe("PackingListSortable", () => {
     expect(screen.queryByText("Item B")).not.toBeInTheDocument();
     // Ungrouped items should still be visible
     expect(screen.getByText("Item C")).toBeInTheDocument();
-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
+    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
   });
 
   it("shows section items when its label is not in collapsedLabels", () => {

@@ -1,20 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import {
-  RemovePackingSectionMode,
   type PackingItem,
   type PackingTemplate,
   type PullTemplatesResult,
   type RemovePackingSectionInput,
 } from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
-import { TemplatePullDialog } from "./template-pull-dialog";
 import { PackingListToolbar } from "./packing-list-toolbar";
-import { PackingListEmptyState } from "./packing-list-empty-state";
-import { SaveAsTemplateDialog } from "./save-as-template-dialog";
-import { PackingEntryForm } from "./packing-entry-form";
-import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
+import { ContextualAddForm } from "./packing-contextual-add-form";
+import { PackingListDialogs, type PackingListDialogsHandle, type PendingSectionRemoval } from "./packing-list-dialogs";
 
 export interface PackingListViewProps {
   tripId: string;
@@ -49,30 +45,15 @@ export function PackingListView({
   onPullTemplates,
   onSaveAsTemplate,
 }: PackingListViewProps): ReactElement {
-  interface PendingSectionRemoval {
-    item: PackingItem & { id: string };
-    itemCount: number;
-  }
-
-  const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogKey, setDialogKey] = useState(0);
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
   const [prevItems, setPrevItems] = useState(items);
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
-  const [isRemovingSection, setIsRemovingSection] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
   const mutationSeqRef = useRef(0);
+  const dialogsRef = useRef<PackingListDialogsHandle>(null);
 
-  useEffect(() => {
-    if (!resultNotice) return;
-    const timer = setTimeout(() => setResultNotice(null), 4000);
-    return () => clearTimeout(timer);
-  }, [resultNotice]);
   const collapseKey = `packing_collapsed_${tripId}`;
   const [collapsedLabels, setCollapsedLabels] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -107,6 +88,7 @@ export function PackingListView({
       return next;
     });
   }, []);
+
   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
   const effectiveItems = localItems ?? items;
 
@@ -122,35 +104,9 @@ export function PackingListView({
     setLocalItems(null);
   }
 
-  function handleDraftNameChange(event: ChangeEvent<HTMLInputElement>): void {
-    setDraftName(event.target.value);
-  }
-
-  function announceMove(message: string): void {
+  function announce(message: string): void {
     setAnnouncement(message);
     setAnnouncementId((id) => id + 1);
-  }
-
-  function announceRemoval(message: string): void {
-    setAnnouncement(message);
-    setAnnouncementId((id) => id + 1);
-  }
-
-  async function submitEntry(isLabel?: boolean): Promise<void> {
-    const trimmedName = draftName.trim();
-    if (!trimmedName || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      await onAddItem(trimmedName, isLabel);
-      setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
-      setAnnouncementId((id) => id + 1);
-      setDraftName("");
-    } catch {
-      setAnnouncement(`Failed to add ${isLabel ? "section" : "item"}.`);
-      setAnnouncementId((id) => id + 1);
-      setIsSubmitting(false);
-    }
   }
 
   async function handleContextualAdd(
@@ -166,12 +122,11 @@ export function PackingListView({
     setIsSubmitting(true);
     try {
       await onAddItem(trimmedName, isLabel, afterItemId, beforeItemId, labelId);
-      setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
-      setAnnouncementId((id) => id + 1);
-    } catch {
-      setAnnouncement(`Failed to add ${isLabel ? "section" : "item"}.`);
-      setAnnouncementId((id) => id + 1);
+      announce(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
+    } catch (error) {
+      announce(`Failed to add ${isLabel ? "section" : "item"}.`);
       setIsSubmitting(false);
+      throw error;
     }
   }
 
@@ -190,34 +145,9 @@ export function PackingListView({
 
     try {
       await onRemoveItem(item.id);
-      announceRemoval(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
+      announce(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
     } catch {
-      announceRemoval(`Failed to remove ${item.isLabel ? "section" : "item"}.`);
-    }
-  }
-
-  async function handleSectionRemoval(mode: RemovePackingSectionMode): Promise<void> {
-    if (!pendingSectionRemoval || !onRemoveSection) return;
-
-    setIsRemovingSection(true);
-    try {
-      await onRemoveSection(pendingSectionRemoval.item.id, { mode });
-      if (mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
-        const itemLabel = pendingSectionRemoval.itemCount === 1 ? "item" : "items";
-        announceRemoval(
-          `Section ${pendingSectionRemoval.item.name} removed. ${pendingSectionRemoval.itemCount} ${itemLabel} moved to Ungrouped.`
-        );
-      } else {
-        const itemLabel = pendingSectionRemoval.itemCount === 1 ? "item" : "items";
-        announceRemoval(
-          `Section ${pendingSectionRemoval.item.name} and ${pendingSectionRemoval.itemCount} ${itemLabel} removed.`
-        );
-      }
-      setPendingSectionRemoval(null);
-    } catch {
-      announceRemoval("Failed to remove section.");
-    } finally {
-      setIsRemovingSection(false);
+      announce(`Failed to remove ${item.isLabel ? "section" : "item"}.`);
     }
   }
 
@@ -229,30 +159,14 @@ export function PackingListView({
     try {
       await onToggleItem(item.id);
       const action = item.done ? "unchecked" : "checked";
-      setAnnouncement(`${item.name} ${action}.`);
-      setAnnouncementId((id) => id + 1);
+      announce(`${item.name} ${action}.`);
     } catch {
       setPendingItemIds((ids) => {
         const nextIds = new Set(ids);
         nextIds.delete(item.id!);
         return nextIds;
       });
-      setAnnouncement(`Failed to update ${item.name}.`);
-      setAnnouncementId((id) => id + 1);
-    }
-  }
-
-  async function handleDialogPull(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
-    if (!onPullTemplates) return undefined;
-    try {
-      const result = await onPullTemplates(templateIds);
-      if (result) {
-        setResultNotice(result);
-        setDialogOpen(false);
-      }
-      return result;
-    } catch {
-      return undefined;
+      announce(`Failed to update ${item.name}.`);
     }
   }
 
@@ -280,107 +194,49 @@ export function PackingListView({
     );
   }
 
-  function openPullDialog(): void {
-    setDialogKey((k) => k + 1);
-    setDialogOpen(true);
-  }
-
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div aria-live="polite" className="sr-only">
         <span key={announcementId}>{announcement}</span>
       </div>
 
-      {resultNotice && (
-        <div
-          role="status"
-          className="rounded-2xl border p-3 text-sm"
-          style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}
-        >
-          {resultNotice.added} item(s) added
-          {resultNotice.skipped > 0 ? `, ${resultNotice.skipped} duplicate(s) skipped` : ""}
-        </div>
-      )}
+      <PackingListDialogs
+        ref={dialogsRef}
+        templates={templates ?? []}
+        effectiveItemCount={effectiveItems.length}
+        pendingSectionRemoval={pendingSectionRemoval}
+        onClearPendingSectionRemoval={() => setPendingSectionRemoval(null)}
+        onPullTemplates={onPullTemplates}
+        onRemoveSection={onRemoveSection}
+        onSaveAsTemplate={onSaveAsTemplate}
+        onAnnounce={announce}
+      />
 
-      {effectiveItems.length === 0 ? (
-        <PackingListEmptyState
-          tripId={tripId}
-          draftName={draftName}
-          isSubmitting={isSubmitting}
-          onDraftNameChange={handleDraftNameChange}
-          onSubmitItem={() => submitEntry()}
-          onSubmitLabel={() => submitEntry(true)}
-          onOpenPullDialog={onPullTemplates ? openPullDialog : undefined}
-        />
-      ) : (
-        <>
-          <PackingListToolbar
-            itemCount={effectiveItems.length}
-            onOpenPullDialog={onPullTemplates ? openPullDialog : undefined}
-            onOpenSaveDialog={onSaveAsTemplate ? () => setSaveDialogOpen(true) : undefined}
-          />
-
-          <PackingListSortable
-            items={effectiveItems}
-            pendingItemIds={pendingItemIds}
-            collapsedLabels={collapsedLabels}
-            onToggleCollapse={toggleCollapse}
-            onRemoveItem={handleRemove}
-            onToggleItem={handleToggle}
-            onOptimisticReorder={handleOptimisticReorder}
-            onReorderItems={handleReorderItemsWithSeqGuard}
-            onAnnounceMove={announceMove}
-            isAdding={isSubmitting}
-            onEditItem={onEditItem}
-            onAddItem={handleContextualAdd}
-          />
-
-          <PackingEntryForm
-            draftName={draftName}
-            hasItems
-            isSubmitting={isSubmitting}
-            onDraftNameChange={handleDraftNameChange}
-            onSubmitItem={() => submitEntry()}
-            onSubmitLabel={() => submitEntry(true)}
-          />
-        </>
-      )}
-
-      {onPullTemplates && (
-        <TemplatePullDialog
-          key={dialogKey}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          templates={templates ?? []}
-          onPull={handleDialogPull}
+      {effectiveItems.length > 0 && (
+        <PackingListToolbar
+          itemCount={effectiveItems.filter((item) => !item.isLabel).length}
+          packedCount={effectiveItems.filter((item) => !item.isLabel && item.done).length}
+          onOpenPullDialog={onPullTemplates ? () => dialogsRef.current?.openPullDialog() : undefined}
+          onOpenSaveDialog={onSaveAsTemplate ? () => dialogsRef.current?.openSaveDialog() : undefined}
         />
       )}
 
-      {onSaveAsTemplate && (
-        <SaveAsTemplateDialog
-          key={String(saveDialogOpen)}
-          open={saveDialogOpen && effectiveItems.length > 0}
-          onClose={() => setSaveDialogOpen(false)}
-          onSave={onSaveAsTemplate}
-          itemCount={effectiveItems.length}
-        />
-      )}
+      <ContextualAddForm placeholder="New section…" isLabel isAdding={isSubmitting} onAddItem={handleContextualAdd} />
 
-      {pendingSectionRemoval && onRemoveSection ? (
-        <DeletePackingSectionAlertDialog
-          open
-          sectionName={pendingSectionRemoval.item.name}
-          itemCount={pendingSectionRemoval.itemCount}
-          isDeleting={isRemovingSection}
-          onOpenChange={(open) => {
-            if (!open && !isRemovingSection) {
-              setPendingSectionRemoval(null);
-            }
-          }}
-          onMoveItems={() => handleSectionRemoval(RemovePackingSectionMode.MoveItemsToUngrouped)}
-          onDeleteItems={() => handleSectionRemoval(RemovePackingSectionMode.DeleteItems)}
-        />
-      ) : null}
+      <PackingListSortable
+        items={effectiveItems}
+        pendingItemIds={pendingItemIds}
+        collapsedLabels={collapsedLabels}
+        onToggleCollapse={toggleCollapse}
+        onRemoveItem={handleRemove}
+        onToggleItem={handleToggle}
+        onOptimisticReorder={handleOptimisticReorder}
+        onReorderItems={handleReorderItemsWithSeqGuard}
+        onAnnounceMove={announce}
+        isAdding={isSubmitting}
+        onEditItem={onEditItem}
+        onAddItem={handleContextualAdd}
+      />
     </div>
   );
 }

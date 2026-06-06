@@ -80,7 +80,7 @@ describe("TemplateEditorView", () => {
     window.localStorage.clear();
   });
 
-  it("renders the empty state with the entry form controls", () => {
+  it("renders heading, back link, and New section form regardless of item count", () => {
     render(
       <TemplateEditorView
         template={template}
@@ -94,12 +94,11 @@ describe("TemplateEditorView", () => {
 
     expect(screen.getByRole("heading", { name: "Beach Weekend" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to Templates" })).toHaveAttribute("href", "/packing");
-    expect(screen.getByRole("heading", { name: "This template is empty" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add item" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "This template is empty" })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("New section…")).toBeInTheDocument();
   });
 
-  it("does not submit a blank item", async () => {
+  it("does not submit a blank section name", async () => {
     const user = userEvent.setup();
     const onAddItem = vi.fn();
 
@@ -114,13 +113,13 @@ describe("TemplateEditorView", () => {
       />
     );
 
-    await user.type(screen.getByRole("textbox", { name: "Template item text" }), "   ");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
+    await user.type(screen.getByPlaceholderText("New section…"), "   ");
+    await user.keyboard("{Enter}");
 
     expect(onAddItem).not.toHaveBeenCalled();
   });
 
-  it("submits trimmed item and label entries", async () => {
+  it("submits a trimmed section name as a label via New section form", async () => {
     const user = userEvent.setup();
     const onAddItem = vi.fn();
 
@@ -135,14 +134,10 @@ describe("TemplateEditorView", () => {
       />
     );
 
-    const input = screen.getByRole("textbox", { name: "Template item text" });
-    await user.type(input, "  Passport  ");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
-    await user.type(input, "Documents");
-    await user.click(screen.getByRole("button", { name: "Add label" }));
+    await user.type(screen.getByPlaceholderText("New section…"), "  Beach Gear  ");
+    await user.keyboard("{Enter}");
 
-    expect(onAddItem).toHaveBeenNthCalledWith(1, "Passport", undefined);
-    expect(onAddItem).toHaveBeenNthCalledWith(2, "Documents", true);
+    expect(onAddItem).toHaveBeenCalledWith("Beach Gear", true, undefined, undefined, undefined);
   });
 
   it("renders existing items and forwards remove actions", async () => {

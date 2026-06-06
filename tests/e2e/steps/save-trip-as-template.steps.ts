@@ -32,7 +32,7 @@ Given("I have a trip with packing items for save-as-template", async ({ scenario
 When("I open the packing tab for the save-template trip", async ({ page, scenario }) => {
   await scenario.gotoCurrentTrip(page);
   await page.getByRole("button", { name: "Packing" }).click();
-  await expect(page.getByRole("button", { name: "Add item", exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
 });
 
 When("I save the packing list as template named {string}", async ({ page }, name: string) => {

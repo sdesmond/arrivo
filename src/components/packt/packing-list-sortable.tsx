@@ -49,6 +49,94 @@ export interface PackingListSortableProps {
   isAdding?: boolean;
 }
 
+interface PackingSectionsProps {
+  sections: { label: PackingItem; items: PackingItem[] }[];
+  completeLabelIds: Set<string | undefined>;
+  activeId: string | null;
+  pendingItemIds: Set<string>;
+  collapsedLabels?: Set<string>;
+  onToggleCollapse?: (labelId: string) => void;
+  onRemoveItem: (item: PackingItem) => Promise<void>;
+  onToggleItem?: (item: PackingItem) => Promise<void>;
+  onEditItem?: (id: string, name: string) => void;
+  onAddItem?: (
+    name: string,
+    isLabel?: boolean,
+    afterItemId?: string,
+    beforeItemId?: string,
+    labelId?: string | null
+  ) => Promise<void>;
+  isAdding?: boolean;
+}
+
+function PackingSections({
+  sections,
+  completeLabelIds,
+  activeId,
+  pendingItemIds,
+  collapsedLabels,
+  onToggleCollapse,
+  onRemoveItem,
+  onToggleItem,
+  onEditItem,
+  onAddItem,
+  isAdding,
+}: PackingSectionsProps): ReactElement {
+  return (
+    <>
+      {sections.map((section) => (
+        <DroppablePackingSection
+          key={section.label.id}
+          containerId={containerDomId(section.label.id!)}
+          sortableIds={section.items.map((item) => item.id!)}
+          collapsed={collapsedLabels?.has(section.label.id!)}
+          header={
+            <PackingRow
+              item={section.label}
+              isLabel
+              isComplete={completeLabelIds.has(section.label.id!)}
+              collapsed={collapsedLabels?.has(section.label.id!)}
+              itemCount={section.items.length}
+              packedCount={onToggleItem ? section.items.filter((item) => item.done).length : undefined}
+              onToggleCollapse={onToggleCollapse ? () => onToggleCollapse(section.label.id!) : undefined}
+              onRemove={() => onRemoveItem(section.label)}
+              onEdit={
+                section.label.id && onEditItem ? (name) => onEditItem(section.label.id as string, name) : undefined
+              }
+            />
+          }
+        >
+          {section.items.length > 0 || onAddItem ? (
+            <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
+              {section.items.map((item) => (
+                <SortablePackingRow
+                  key={item.id}
+                  id={item.id!}
+                  item={item}
+                  isActiveDragSource={activeId === item.id}
+                  isPending={item.id ? pendingItemIds.has(item.id) : false}
+                  onRemove={() => onRemoveItem(item)}
+                  onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
+                  onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
+                />
+              ))}
+              {onAddItem ? (
+                <ContextualAddForm
+                  placeholder={`add to ${section.label.name}`}
+                  afterItemId={section.items.at(-1)?.id ?? section.label.id}
+                  labelId={section.label.id}
+                  isAdding={isAdding}
+                  onAddItem={onAddItem}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </DroppablePackingSection>
+      ))}
+    </>
+  );
+}
+
 export function PackingListSortable({
   items,
   pendingItemIds,
@@ -195,7 +283,7 @@ export function PackingListSortable({
     );
   }
 
-  const showUngrouped = ungroupedItems.length > 0 || sections.length > 0;
+  const showUngrouped = ungroupedItems.length > 0 || sections.length > 0 || !!onAddItem;
 
   return (
     <DndContext
@@ -208,64 +296,25 @@ export function PackingListSortable({
       onDragEnd={handleDragEnd}
     >
       <section className="flex flex-col gap-4" aria-label="Packing list">
-        {sections.map((section) => (
-          <DroppablePackingSection
-            key={section.label.id}
-            containerId={containerDomId(section.label.id!)}
-            sortableIds={section.items.map((item) => item.id!)}
-            collapsed={collapsedLabels?.has(section.label.id!)}
-            header={
-              <PackingRow
-                item={section.label}
-                isLabel
-                isComplete={completeLabelIds.has(section.label.id!)}
-                collapsed={collapsedLabels?.has(section.label.id!)}
-                onToggleCollapse={onToggleCollapse ? () => onToggleCollapse(section.label.id!) : undefined}
-                onRemove={() => onRemoveItem(section.label)}
-                onEdit={
-                  section.label.id && onEditItem ? (name) => onEditItem(section.label.id as string, name) : undefined
-                }
-              />
-            }
-          >
-            {section.items.length > 0 || onAddItem ? (
-              <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
-                {section.items.map((item) => (
-                  <SortablePackingRow
-                    key={item.id}
-                    id={item.id!}
-                    item={item}
-                    isActiveDragSource={activeId === item.id}
-                    isPending={item.id ? pendingItemIds.has(item.id) : false}
-                    onRemove={() => onRemoveItem(item)}
-                    onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
-                    onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
-                  />
-                ))}
-                {onAddItem ? (
-                  <ContextualAddForm
-                    placeholder={`add to ${section.label.name}`}
-                    afterItemId={section.items.at(-1)?.id ?? section.label.id}
-                    labelId={section.label.id}
-                    isAdding={isAdding}
-                    onAddItem={onAddItem}
-                  />
-                ) : null}
-              </div>
-            ) : null}
-          </DroppablePackingSection>
-        ))}
+        <PackingSections
+          sections={sections}
+          completeLabelIds={completeLabelIds}
+          activeId={activeId}
+          pendingItemIds={pendingItemIds}
+          collapsedLabels={collapsedLabels}
+          onToggleCollapse={onToggleCollapse}
+          onRemoveItem={onRemoveItem}
+          onToggleItem={onToggleItem}
+          onEditItem={onEditItem}
+          onAddItem={onAddItem}
+          isAdding={isAdding}
+        />
 
         {showUngrouped ? (
           <DroppablePackingSection
             containerId={containerDomId(UNGROUPED_KEY)}
             sortableIds={ungroupedItems.map((item) => item.id!)}
           >
-            {sections.length > 0 ? (
-              <h3 style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))", fontWeight: 600 }}>
-                Ungrouped
-              </h3>
-            ) : null}
             {ungroupedItems.map((item) => (
               <SortablePackingRow
                 key={item.id}
@@ -283,7 +332,7 @@ export function PackingListSortable({
                 <ContextualAddForm
                   placeholder="Add item…"
                   afterItemId={ungroupedItems.length > 0 ? ungroupedItems[ungroupedItems.length - 1].id : undefined}
-                  beforeItemId={ungroupedItems.length === 0 ? sections[0]?.label.id : undefined}
+                  beforeItemId={undefined}
                   labelId={null}
                   isAdding={isAdding}
                   onAddItem={onAddItem}
