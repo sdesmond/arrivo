@@ -367,7 +367,7 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
             </Section>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="mx-0 mb-0">
             <Button type="button" variant="ghost" onClick={closeDialog}>
               Cancel
             </Button>
