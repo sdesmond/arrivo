@@ -156,6 +156,24 @@ Before starting any new development task, you MUST ask the user whether they wan
 - Lucide icons: `strokeWidth={1.5}` always; icon buttons need a `title` attribute
 - Font variables need fallbacks: `var(--font-body, ui-sans-serif)`
 
+#### Component sizing (intentional overrides above vega defaults)
+
+These heights are project standards — do not revert them when updating or reinstalling shadcn components:
+
+| Component | Size variant | Height         |
+| --------- | ------------ | -------------- |
+| `Button`  | default      | `h-10`         |
+| `Button`  | sm           | `h-9`          |
+| `Button`  | icon         | `size-10`      |
+| `Button`  | icon-sm      | `size-9`       |
+| `Input`   | —            | `h-10`, `px-3` |
+| `Select`  | default      | `h-10`         |
+| `Select`  | sm           | `h-9`          |
+
+#### Drawer must stay on Base UI
+
+`src/components/ui/drawer.tsx` uses `@base-ui/react/drawer` — never replace it with `vaul`. The shadcn vega preset defaults to vaul, but vaul conflicts with Base UI's focus management: when a Base UI Popover or Calendar opens inside a vaul drawer, Base UI marks the vaul container as inert, blocking all pointer events on the calendar date buttons. If a shadcn update or style switch overwrites `drawer.tsx`, restore it from git.
+
 ### File Placement
 
 - Domain logic → `src/components/packt/`
