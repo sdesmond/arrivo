@@ -42,6 +42,11 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 
 ## Trip packing list
 
+- The empty state for a list should be just the one input that would normally appear at the bottom of the "ungrouped" list
+- The current empty state is no longer needed
+- The "ungrouped" label can go away. Indentation from the grouped section and the "add item" vs "add to <section>" will indicate which list is being added to
+- Add Label should become "Add Section" and be fixed to the top of the list
+
 ### Ability to have multiples lists
 
 1. create multiple lists like packing templates page

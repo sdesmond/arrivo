@@ -1,0 +1,1960 @@
+diff --git a/backlog/backlog.md b/backlog/backlog.md
+index f30799d..10a1285 100644
+--- a/backlog/backlog.md
++++ b/backlog/backlog.md
+@@ -42,6 +42,11 @@ The icons for moving and deleting an event are too small and faint. Make them mo
+ 
+ ## Trip packing list
+ 
++- The empty state for a list should be just the the one input that would normally appear at the bottom of the "ungrouped" list
++- The current empty state is no longer needed
++- The "ungrouped" label can go away. Indentation from the grouped section and the "add item" vs "add to <section>" will indicate which list is being added to
++- Add Label should become "Add Section" and be fixed to the top of the list 
++
+ ### Ability to have multiples lists
+ 
+ 1. create multiple lists like packing templates page
+diff --git a/src/components/packt/packing-contextual-add-form.test.tsx b/src/components/packt/packing-contextual-add-form.test.tsx
+index d39cdc1..1752bdf 100644
+--- a/src/components/packt/packing-contextual-add-form.test.tsx
++++ b/src/components/packt/packing-contextual-add-form.test.tsx
+@@ -63,4 +63,29 @@ describe("ContextualAddForm", () => {
+     await user.keyboard("{Enter}");
+     expect(onAddItem).not.toHaveBeenCalled();
+   });
++
++  it("calls onAddItem with isLabel=true when isLabel prop is true", async () => {
++    const onAddItem = vi.fn();
++    const user = userEvent.setup();
++
++    render(<ContextualAddForm placeholder="New section…" isLabel onAddItem={onAddItem} />);
++
++    const input = screen.getByPlaceholderText("New section…");
++    await user.type(input, "Beach Gear");
++    await user.keyboard("{Enter}");
++
++    expect(onAddItem).toHaveBeenCalledWith("Beach Gear", true, undefined, undefined, undefined);
++  });
++
++  it("has title 'Add section here' when isLabel=true", () => {
++    const onAddItem = vi.fn();
++    render(<ContextualAddForm placeholder="New section…" isLabel onAddItem={onAddItem} />);
++    expect(screen.getByRole("button", { name: "Add section here" })).toBeInTheDocument();
++  });
++
++  it("has title 'Add item here' when isLabel=false", () => {
++    const onAddItem = vi.fn();
++    render(<ContextualAddForm placeholder="Add item…" onAddItem={onAddItem} />);
++    expect(screen.getByRole("button", { name: "Add item here" })).toBeInTheDocument();
++  });
+ });
+diff --git a/src/components/packt/packing-contextual-add-form.tsx b/src/components/packt/packing-contextual-add-form.tsx
+index 3fac9af..3e8013e 100644
+--- a/src/components/packt/packing-contextual-add-form.tsx
++++ b/src/components/packt/packing-contextual-add-form.tsx
+@@ -11,6 +11,7 @@ export interface ContextualAddFormProps {
+   beforeItemId?: string;
+   labelId?: string | null;
+   isAdding?: boolean;
++  isLabel?: boolean;
+   onAddItem: (
+     name: string,
+     isLabel?: boolean,
+@@ -26,6 +27,7 @@ export function ContextualAddForm({
+   beforeItemId,
+   labelId,
+   isAdding,
++  isLabel = false,
+   onAddItem,
+ }: ContextualAddFormProps): ReactElement {
+   const [value, setValue] = useState("");
+@@ -47,7 +49,7 @@ export function ContextualAddForm({
+     const trimmed = value.trim();
+     if (!trimmed || isAdding) return;
+     try {
+-      await onAddItem(trimmed, false, afterItemId, beforeItemId, labelId);
++      await onAddItem(trimmed, isLabel, afterItemId, beforeItemId, labelId);
+       setValue("");
+       if (!inputRef.current?.disabled) {
+         inputRef.current?.focus();
+@@ -77,8 +79,8 @@ export function ContextualAddForm({
+         type="submit"
+         variant="outline"
+         size="sm"
+-        title="Add item here"
+-        aria-label="Add item here"
++        title={isLabel ? "Add section here" : "Add item here"}
++        aria-label={isLabel ? "Add section here" : "Add item here"}
+       >
+         <Plus size={14} strokeWidth={1.5} />
+       </Button>
+diff --git a/src/components/packt/packing-entry-form.test.tsx b/src/components/packt/packing-entry-form.test.tsx
+deleted file mode 100644
+index 5543c42..0000000
+--- a/src/components/packt/packing-entry-form.test.tsx
++++ /dev/null
+@@ -1,106 +0,0 @@
+-import { useState, type ChangeEvent, type ReactElement } from "react";
+-import { render, screen, waitFor } from "@testing-library/react";
+-import userEvent from "@testing-library/user-event";
+-import { describe, expect, it, vi } from "vitest";
+-import { PackingEntryForm } from "./packing-entry-form";
+-
+-interface PackingEntryFormHarnessProps {
+-  hasItems: boolean;
+-  onAddItem: (name: string, isLabel?: boolean) => Promise<void>;
+-}
+-
+-function PackingEntryFormHarness({ hasItems, onAddItem }: PackingEntryFormHarnessProps): ReactElement {
+-  const [draftName, setDraftName] = useState("");
+-
+-  function handleDraftNameChange(event: ChangeEvent<HTMLInputElement>): void {
+-    setDraftName(event.target.value);
+-  }
+-
+-  async function handleSubmitItem(): Promise<void> {
+-    await onAddItem(draftName, undefined);
+-    setDraftName("");
+-  }
+-
+-  async function handleSubmitLabel(): Promise<void> {
+-    await onAddItem(draftName, true);
+-    setDraftName("");
+-  }
+-
+-  return (
+-    <PackingEntryForm
+-      draftName={draftName}
+-      hasItems={hasItems}
+-      isSubmitting={false}
+-      onDraftNameChange={handleDraftNameChange}
+-      onSubmitItem={handleSubmitItem}
+-      onSubmitLabel={handleSubmitLabel}
+-    />
+-  );
+-}
+-
+-describe("PackingEntryForm", () => {
+-  it("submits a plain-text item from the form", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = vi.fn(async () => undefined);
+-
+-    render(<PackingEntryFormHarness hasItems={false} onAddItem={onAddItem} />);
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
+-
+-    expect(onAddItem).toHaveBeenCalledWith("Passport", undefined);
+-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
+-  });
+-
+-  it("submits a section label from the form", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = vi.fn(async () => undefined);
+-
+-    render(<PackingEntryFormHarness hasItems={false} onAddItem={onAddItem} />);
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Documents");
+-    await user.click(screen.getByRole("button", { name: "Add label" }));
+-
+-    expect(onAddItem).toHaveBeenCalledWith("Documents", true);
+-  });
+-
+-  it("submits an item from the entry form when the list already has items", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = vi.fn(async () => undefined);
+-
+-    render(<PackingEntryFormHarness hasItems onAddItem={onAddItem} />);
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
+-
+-    expect(onAddItem).toHaveBeenCalledWith("Tent", undefined);
+-  });
+-
+-  it("submits a label from the entry form when the list already has items", async () => {
+-    const user = userEvent.setup();
+-    const onAddItem = vi.fn(async () => undefined);
+-
+-    render(<PackingEntryFormHarness hasItems onAddItem={onAddItem} />);
+-
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
+-    await user.click(screen.getByRole("button", { name: "Add label" }));
+-
+-    expect(onAddItem).toHaveBeenCalledWith("Camping", true);
+-  });
+-
+-  it("disables both buttons when isSubmitting is true", () => {
+-    render(
+-      <PackingEntryForm
+-        draftName="Test"
+-        hasItems={false}
+-        isSubmitting
+-        onDraftNameChange={vi.fn()}
+-        onSubmitItem={vi.fn()}
+-        onSubmitLabel={vi.fn()}
+-      />
+-    );
+-
+-    expect(screen.getByRole("button", { name: "Add item" })).toBeDisabled();
+-    expect(screen.getByRole("button", { name: "Add label" })).toBeDisabled();
+-  });
+-});
+diff --git a/src/components/packt/packing-entry-form.tsx b/src/components/packt/packing-entry-form.tsx
+deleted file mode 100644
+index 18446c8..0000000
+--- a/src/components/packt/packing-entry-form.tsx
++++ /dev/null
+@@ -1,78 +0,0 @@
+-"use client";
+-
+-import { useId, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+-import { Plus, Tag } from "lucide-react";
+-import { Button } from "@/components/ui/button";
+-import { Input } from "@/components/ui/input";
+-
+-export interface PackingEntryFormProps {
+-  draftName: string;
+-  hasItems: boolean;
+-  isSubmitting: boolean;
+-  onDraftNameChange: (event: ChangeEvent<HTMLInputElement>) => void;
+-  onSubmitItem: () => void;
+-  onSubmitLabel: () => void;
+-}
+-
+-const minimumTouchTargetStyle = { minHeight: "44px", minWidth: "44px" } as const;
+-
+-export function PackingEntryForm({
+-  draftName,
+-  hasItems,
+-  isSubmitting,
+-  onDraftNameChange,
+-  onSubmitItem,
+-  onSubmitLabel,
+-}: PackingEntryFormProps): ReactElement {
+-  const formId = useId();
+-
+-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+-    event.preventDefault();
+-    if (!draftName.trim()) return;
+-    onSubmitItem();
+-  }
+-
+-  return (
+-    <form
+-      aria-label="Add a packing entry"
+-      className="flex flex-col gap-3 rounded-3xl border p-3"
+-      style={{ background: "var(--surface)", borderColor: "var(--line)" }}
+-      onSubmit={handleSubmit}
+-    >
+-      <label className="sr-only" htmlFor={formId}>
+-        Packing item name
+-      </label>
+-      <Input
+-        id={formId}
+-        className="h-11 rounded-2xl border-0 px-3 text-sm shadow-none"
+-        maxLength={100}
+-        placeholder={hasItems ? "Add another item or section label" : "Add your first item or section label"}
+-        style={{ background: "var(--bg)", color: "var(--fg)", minHeight: "44px" }}
+-        value={draftName}
+-        onChange={onDraftNameChange}
+-      />
+-      <div className="flex flex-col gap-2 sm:flex-row">
+-        <Button
+-          className="min-h-11 min-w-11 flex-1 rounded-2xl"
+-          disabled={isSubmitting}
+-          style={minimumTouchTargetStyle}
+-          type="submit"
+-        >
+-          <Plus size={16} strokeWidth={1.5} />
+-          Add item
+-        </Button>
+-        <Button
+-          className="min-h-11 min-w-11 flex-1 rounded-2xl"
+-          disabled={isSubmitting}
+-          style={minimumTouchTargetStyle}
+-          type="button"
+-          variant="outline"
+-          onClick={onSubmitLabel}
+-        >
+-          <Tag size={16} strokeWidth={1.5} />
+-          Add label
+-        </Button>
+-      </div>
+-    </form>
+-  );
+-}
+diff --git a/src/components/packt/packing-list-empty-state.tsx b/src/components/packt/packing-list-empty-state.tsx
+deleted file mode 100644
+index 1ceaf9a..0000000
+--- a/src/components/packt/packing-list-empty-state.tsx
++++ /dev/null
+@@ -1,90 +0,0 @@
+-"use client";
+-
+-import type { ChangeEvent, FormEvent, ReactElement } from "react";
+-import { FolderOpen, Plus, Tag } from "lucide-react";
+-import { Button } from "@/components/ui/button";
+-import { Input } from "@/components/ui/input";
+-
+-export interface PackingListEmptyStateProps {
+-  tripId: string;
+-  draftName: string;
+-  isSubmitting: boolean;
+-  onDraftNameChange: (event: ChangeEvent<HTMLInputElement>) => void;
+-  onSubmitItem: () => void;
+-  onSubmitLabel: () => void;
+-  onOpenPullDialog?: () => void;
+-}
+-
+-export function PackingListEmptyState({
+-  tripId,
+-  draftName,
+-  isSubmitting,
+-  onDraftNameChange,
+-  onSubmitItem,
+-  onSubmitLabel,
+-  onOpenPullDialog,
+-}: PackingListEmptyStateProps): ReactElement {
+-  const formId = `packing-entry-${tripId}`;
+-
+-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+-    event.preventDefault();
+-    onSubmitItem();
+-  }
+-
+-  return (
+-    <section
+-      className="flex flex-col gap-4 rounded-3xl border p-5"
+-      style={{ background: "var(--surface)", borderColor: "var(--line)" }}
+-    >
+-      <div className="flex flex-col gap-1">
+-        <h2 style={{ color: "var(--fg)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 700 }}>
+-          Your packing list is empty
+-        </h2>
+-        <p style={{ color: "var(--fg-2)", fontSize: "calc(14px * var(--font-scale))" }}>
+-          Start with a quick item or create a section label for this trip.
+-        </p>
+-      </div>
+-      <form
+-        aria-label="Add a packing entry"
+-        className="flex flex-col gap-3 rounded-3xl border p-3"
+-        style={{ background: "var(--surface)", borderColor: "var(--line)" }}
+-        onSubmit={handleSubmit}
+-      >
+-        <label className="sr-only" htmlFor={formId}>
+-          Packing item name
+-        </label>
+-        <Input
+-          id={formId}
+-          className="h-11 rounded-2xl border-0 px-3 text-sm shadow-none"
+-          maxLength={100}
+-          placeholder="Add your first item or section label"
+-          style={{ background: "var(--bg)", color: "var(--fg)" }}
+-          value={draftName}
+-          onChange={onDraftNameChange}
+-        />
+-        <div className="flex flex-col gap-2 sm:flex-row">
+-          <Button className="min-h-11 min-w-11 flex-1 rounded-2xl" disabled={isSubmitting} type="submit">
+-            <Plus size={16} strokeWidth={1.5} />
+-            Add item
+-          </Button>
+-          <Button
+-            className="min-h-11 min-w-11 flex-1 rounded-2xl"
+-            disabled={isSubmitting}
+-            type="button"
+-            variant="outline"
+-            onClick={onSubmitLabel}
+-          >
+-            <Tag size={16} strokeWidth={1.5} />
+-            Add label
+-          </Button>
+-        </div>
+-      </form>
+-      {onOpenPullDialog && (
+-        <Button className="min-h-11 min-w-11 rounded-2xl" variant="outline" onClick={onOpenPullDialog}>
+-          <FolderOpen size={16} strokeWidth={1.5} />
+-          Pull from a template
+-        </Button>
+-      )}
+-    </section>
+-  );
+-}
+diff --git a/src/components/packt/packing-list-row.test.tsx b/src/components/packt/packing-list-row.test.tsx
+index 66d32b9..95d85de 100644
+--- a/src/components/packt/packing-list-row.test.tsx
++++ b/src/components/packt/packing-list-row.test.tsx
+@@ -47,9 +47,29 @@ describe("PackingRow", () => {
+     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+   });
+ 
+-  it("renders section label subtitle for label items", () => {
++  it("renders item count subtitle for label items without packed progress", () => {
++    render(<PackingRow item={labelRow} isLabel itemCount={3} onRemove={vi.fn()} />);
++    expect(screen.getByText("3 items")).toBeInTheDocument();
++  });
++
++  it("renders singular item count when itemCount is 1 and no packedCount", () => {
++    render(<PackingRow item={labelRow} isLabel itemCount={1} onRemove={vi.fn()} />);
++    expect(screen.getByText("1 item")).toBeInTheDocument();
++  });
++
++  it("renders packed progress subtitle when packedCount is provided", () => {
++    render(<PackingRow item={labelRow} isLabel itemCount={5} packedCount={2} onRemove={vi.fn()} />);
++    expect(screen.getByText("2 of 5 packed")).toBeInTheDocument();
++  });
++
++  it("renders 0 of N packed when no items are packed", () => {
++    render(<PackingRow item={labelRow} isLabel itemCount={4} packedCount={0} onRemove={vi.fn()} />);
++    expect(screen.getByText("0 of 4 packed")).toBeInTheDocument();
++  });
++
++  it("renders no subtitle when itemCount is not provided", () => {
+     render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} />);
+-    expect(screen.getByText("Section label")).toBeInTheDocument();
++    expect(screen.queryByText(/items?$|packed$/)).not.toBeInTheDocument();
+   });
+ 
+   it("calls onRemove when remove button is clicked", async () => {
+@@ -238,8 +258,17 @@ describe("PackingRow", () => {
+   it("calls onToggleCollapse when label row background is clicked", async () => {
+     const onToggleCollapse = vi.fn();
+     const user = userEvent.setup();
+-    render(<PackingRow item={labelRow} isLabel onRemove={vi.fn()} onToggleCollapse={onToggleCollapse} />);
+-    await user.click(screen.getByText("Section label"));
++    render(
++      <PackingRow
++        item={labelRow}
++        isLabel
++        itemCount={3}
++        packedCount={2}
++        onRemove={vi.fn()}
++        onToggleCollapse={onToggleCollapse}
++      />
++    );
++    await user.click(screen.getByText("2 of 3 packed"));
+     expect(onToggleCollapse).toHaveBeenCalledOnce();
+   });
+ 
+diff --git a/src/components/packt/packing-list-row.tsx b/src/components/packt/packing-list-row.tsx
+index d5e63c3..023668a 100644
+--- a/src/components/packt/packing-list-row.tsx
++++ b/src/components/packt/packing-list-row.tsx
+@@ -17,6 +17,8 @@ export interface PackingRowProps {
+   isComplete?: boolean;
+   isPending?: boolean;
+   collapsed?: boolean;
++  itemCount?: number;
++  packedCount?: number;
+   onToggleCollapse?: () => void;
+   dragHandle?: ReactElement;
+   onRemove: () => void;
+@@ -35,6 +37,8 @@ export function PackingRow({
+   isComplete,
+   isPending,
+   collapsed,
++  itemCount,
++  packedCount,
+   onToggleCollapse,
+   dragHandle,
+   onRemove,
+@@ -184,8 +188,12 @@ export function PackingRow({
+                 {item.name}
+               </p>
+             )}
+-            {isLabel ? (
+-              <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>Section label</p>
++            {isLabel && itemCount !== undefined ? (
++              <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>
++                {packedCount !== undefined
++                  ? `${packedCount} of ${itemCount} packed`
++                  : `${itemCount} ${itemCount === 1 ? "item" : "items"}`}
++              </p>
+             ) : null}
+           </>
+         )}
+diff --git a/src/components/packt/packing-list-sortable.test.tsx b/src/components/packt/packing-list-sortable.test.tsx
+index 06a1c2a..d46e9e1 100644
+--- a/src/components/packt/packing-list-sortable.test.tsx
++++ b/src/components/packt/packing-list-sortable.test.tsx
+@@ -95,7 +95,7 @@ describe("PackingListSortable", () => {
+     expect(dragOverlayState.props?.dropAnimation).toBeNull();
+   });
+ 
+-  it("groups items by labelId and renders ungrouped items last under a heading", () => {
++  it("groups items by labelId and renders ungrouped items last without a heading", () => {
+     const { container } = render(
+       <PackingListSortable
+         items={reorderItems}
+@@ -108,7 +108,7 @@ describe("PackingListSortable", () => {
+     );
+ 
+     expect(screen.getByRole("heading", { name: "Documents" })).toBeInTheDocument();
+-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
++    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
+     expect(screen.getByTitle("Reorder Item A")).toBeInTheDocument();
+     expect(screen.queryByTitle("Reorder Documents")).not.toBeInTheDocument();
+     expect(namesInOrder(container)).toEqual(["Documents", "Item A", "Item B", "Item C"]);
+@@ -132,7 +132,7 @@ describe("PackingListSortable", () => {
+       />
+     );
+ 
+-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
++    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
+     expect(screen.getByText("Orphan")).toBeInTheDocument();
+   });
+ 
+@@ -534,6 +534,24 @@ describe("PackingListSortable", () => {
+     expect(onAddItem).toHaveBeenCalledWith("Visa", false, "item-2", undefined, null);
+   });
+ 
++  it("renders the Add item ContextualAddForm when items is empty and onAddItem is provided", () => {
++    const onAddItem = vi.fn();
++
++    render(
++      <PackingListSortable
++        items={[]}
++        pendingItemIds={new Set()}
++        onRemoveItem={vi.fn()}
++        onOptimisticReorder={vi.fn()}
++        onReorderItems={vi.fn()}
++        onAddItem={onAddItem}
++      />
++    );
++
++    expect(screen.getByPlaceholderText("Add item…")).toBeInTheDocument();
++    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
++  });
++
+   it("disables contextual add forms while an add is already in flight", () => {
+     const sectionItems: PackingItem[] = [
+       { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+@@ -732,7 +750,7 @@ describe("PackingListSortable", () => {
+     expect(screen.queryByText("Item B")).not.toBeInTheDocument();
+     // Ungrouped items should still be visible
+     expect(screen.getByText("Item C")).toBeInTheDocument();
+-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
++    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
+   });
+ 
+   it("shows section items when its label is not in collapsedLabels", () => {
+diff --git a/src/components/packt/packing-list-sortable.tsx b/src/components/packt/packing-list-sortable.tsx
+index 6b43d39..da7c89a 100644
+--- a/src/components/packt/packing-list-sortable.tsx
++++ b/src/components/packt/packing-list-sortable.tsx
+@@ -49,6 +49,94 @@ export interface PackingListSortableProps {
+   isAdding?: boolean;
+ }
+ 
++interface PackingSectionsProps {
++  sections: { label: PackingItem; items: PackingItem[] }[];
++  completeLabelIds: Set<string | undefined>;
++  activeId: string | null;
++  pendingItemIds: Set<string>;
++  collapsedLabels?: Set<string>;
++  onToggleCollapse?: (labelId: string) => void;
++  onRemoveItem: (item: PackingItem) => Promise<void>;
++  onToggleItem?: (item: PackingItem) => Promise<void>;
++  onEditItem?: (id: string, name: string) => void;
++  onAddItem?: (
++    name: string,
++    isLabel?: boolean,
++    afterItemId?: string,
++    beforeItemId?: string,
++    labelId?: string | null
++  ) => Promise<void>;
++  isAdding?: boolean;
++}
++
++function PackingSections({
++  sections,
++  completeLabelIds,
++  activeId,
++  pendingItemIds,
++  collapsedLabels,
++  onToggleCollapse,
++  onRemoveItem,
++  onToggleItem,
++  onEditItem,
++  onAddItem,
++  isAdding,
++}: PackingSectionsProps): ReactElement {
++  return (
++    <>
++      {sections.map((section) => (
++        <DroppablePackingSection
++          key={section.label.id}
++          containerId={containerDomId(section.label.id!)}
++          sortableIds={section.items.map((item) => item.id!)}
++          collapsed={collapsedLabels?.has(section.label.id!)}
++          header={
++            <PackingRow
++              item={section.label}
++              isLabel
++              isComplete={completeLabelIds.has(section.label.id!)}
++              collapsed={collapsedLabels?.has(section.label.id!)}
++              itemCount={section.items.length}
++              packedCount={onToggleItem ? section.items.filter((item) => item.done).length : undefined}
++              onToggleCollapse={onToggleCollapse ? () => onToggleCollapse(section.label.id!) : undefined}
++              onRemove={() => onRemoveItem(section.label)}
++              onEdit={
++                section.label.id && onEditItem ? (name) => onEditItem(section.label.id as string, name) : undefined
++              }
++            />
++          }
++        >
++          {section.items.length > 0 || onAddItem ? (
++            <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
++              {section.items.map((item) => (
++                <SortablePackingRow
++                  key={item.id}
++                  id={item.id!}
++                  item={item}
++                  isActiveDragSource={activeId === item.id}
++                  isPending={item.id ? pendingItemIds.has(item.id) : false}
++                  onRemove={() => onRemoveItem(item)}
++                  onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
++                  onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
++                />
++              ))}
++              {onAddItem ? (
++                <ContextualAddForm
++                  placeholder={`add to ${section.label.name}`}
++                  afterItemId={section.items.at(-1)?.id ?? section.label.id}
++                  labelId={section.label.id}
++                  isAdding={isAdding}
++                  onAddItem={onAddItem}
++                />
++              ) : null}
++            </div>
++          ) : null}
++        </DroppablePackingSection>
++      ))}
++    </>
++  );
++}
++
+ export function PackingListSortable({
+   items,
+   pendingItemIds,
+@@ -195,7 +283,7 @@ export function PackingListSortable({
+     );
+   }
+ 
+-  const showUngrouped = ungroupedItems.length > 0 || sections.length > 0;
++  const showUngrouped = ungroupedItems.length > 0 || sections.length > 0 || !!onAddItem;
+ 
+   return (
+     <DndContext
+@@ -208,64 +296,25 @@ export function PackingListSortable({
+       onDragEnd={handleDragEnd}
+     >
+       <section className="flex flex-col gap-4" aria-label="Packing list">
+-        {sections.map((section) => (
+-          <DroppablePackingSection
+-            key={section.label.id}
+-            containerId={containerDomId(section.label.id!)}
+-            sortableIds={section.items.map((item) => item.id!)}
+-            collapsed={collapsedLabels?.has(section.label.id!)}
+-            header={
+-              <PackingRow
+-                item={section.label}
+-                isLabel
+-                isComplete={completeLabelIds.has(section.label.id!)}
+-                collapsed={collapsedLabels?.has(section.label.id!)}
+-                onToggleCollapse={onToggleCollapse ? () => onToggleCollapse(section.label.id!) : undefined}
+-                onRemove={() => onRemoveItem(section.label)}
+-                onEdit={
+-                  section.label.id && onEditItem ? (name) => onEditItem(section.label.id as string, name) : undefined
+-                }
+-              />
+-            }
+-          >
+-            {section.items.length > 0 || onAddItem ? (
+-              <div className="ml-3 flex flex-col gap-2 border-l pl-3" style={{ borderColor: "var(--line)" }}>
+-                {section.items.map((item) => (
+-                  <SortablePackingRow
+-                    key={item.id}
+-                    id={item.id!}
+-                    item={item}
+-                    isActiveDragSource={activeId === item.id}
+-                    isPending={item.id ? pendingItemIds.has(item.id) : false}
+-                    onRemove={() => onRemoveItem(item)}
+-                    onToggle={onToggleItem ? () => void onToggleItem(item) : undefined}
+-                    onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
+-                  />
+-                ))}
+-                {onAddItem ? (
+-                  <ContextualAddForm
+-                    placeholder={`add to ${section.label.name}`}
+-                    afterItemId={section.items.at(-1)?.id ?? section.label.id}
+-                    labelId={section.label.id}
+-                    isAdding={isAdding}
+-                    onAddItem={onAddItem}
+-                  />
+-                ) : null}
+-              </div>
+-            ) : null}
+-          </DroppablePackingSection>
+-        ))}
++        <PackingSections
++          sections={sections}
++          completeLabelIds={completeLabelIds}
++          activeId={activeId}
++          pendingItemIds={pendingItemIds}
++          collapsedLabels={collapsedLabels}
++          onToggleCollapse={onToggleCollapse}
++          onRemoveItem={onRemoveItem}
++          onToggleItem={onToggleItem}
++          onEditItem={onEditItem}
++          onAddItem={onAddItem}
++          isAdding={isAdding}
++        />
+ 
+         {showUngrouped ? (
+           <DroppablePackingSection
+             containerId={containerDomId(UNGROUPED_KEY)}
+             sortableIds={ungroupedItems.map((item) => item.id!)}
+           >
+-            {sections.length > 0 ? (
+-              <h3 style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))", fontWeight: 600 }}>
+-                Ungrouped
+-              </h3>
+-            ) : null}
+             {ungroupedItems.map((item) => (
+               <SortablePackingRow
+                 key={item.id}
+diff --git a/src/components/packt/packing-list-toolbar.tsx b/src/components/packt/packing-list-toolbar.tsx
+index 08dbc1a..5a20a77 100644
+--- a/src/components/packt/packing-list-toolbar.tsx
++++ b/src/components/packt/packing-list-toolbar.tsx
+@@ -6,19 +6,21 @@ import { Button } from "@/components/ui/button";
+ 
+ export interface PackingListToolbarProps {
+   itemCount: number;
++  packedCount: number;
+   onOpenPullDialog?: () => void;
+   onOpenSaveDialog?: () => void;
+ }
+ 
+ export function PackingListToolbar({
+   itemCount,
++  packedCount,
+   onOpenPullDialog,
+   onOpenSaveDialog,
+ }: PackingListToolbarProps): ReactElement {
+   return (
+     <div className="flex items-center justify-between">
+       <span style={{ color: "var(--fg-2)", fontSize: "calc(13px * var(--font-scale))" }}>
+-        {itemCount} item{itemCount !== 1 ? "s" : ""}
++        {packedCount} of {itemCount} packed
+       </span>
+       <div className="flex items-center gap-2">
+         {onOpenSaveDialog && (
+diff --git a/src/components/packt/packing-list-view.test.tsx b/src/components/packt/packing-list-view.test.tsx
+index 5aada4c..06df90c 100644
+--- a/src/components/packt/packing-list-view.test.tsx
++++ b/src/components/packt/packing-list-view.test.tsx
+@@ -156,7 +156,7 @@ describe("PackingListView", () => {
+     vi.useRealTimers();
+   });
+ 
+-  it("renders the empty state prompt when there are no items", () => {
++  it("renders minimal empty state with New section and Add item inputs, no empty-state card", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+@@ -169,10 +169,9 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    expect(screen.getByRole("heading", { name: "Your packing list is empty" })).toBeInTheDocument();
+-    expect(screen.getByRole("textbox", { name: "Packing item name" })).toBeInTheDocument();
+-    expect(screen.getByRole("button", { name: "Add item" })).toBeInTheDocument();
+-    expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
++    expect(screen.queryByRole("heading", { name: "Your packing list is empty" })).not.toBeInTheDocument();
++    expect(screen.getByPlaceholderText("New section…")).toBeInTheDocument();
++    expect(screen.getByPlaceholderText("Add item…")).toBeInTheDocument();
+   });
+ 
+   it("renders section labels distinctly and keeps ungrouped items below labeled sections", () => {
+@@ -190,7 +189,7 @@ describe("PackingListView", () => {
+ 
+     expect(screen.getByRole("heading", { name: "Documents" })).toBeInTheDocument();
+     expect(screen.getByRole("heading", { name: "Clothes" })).toBeInTheDocument();
+-    expect(screen.getByText("Ungrouped")).toBeInTheDocument();
++    expect(screen.queryByText("Ungrouped")).not.toBeInTheDocument();
+ 
+     const rowNames = Array.from(container.querySelectorAll("[data-packing-kind]")).map((row) =>
+       row.querySelector("[data-packing-name]")?.textContent?.trim()
+@@ -246,7 +245,7 @@ describe("PackingListView", () => {
+     expect(onRemoveItem).toHaveBeenCalledWith("ungrouped-1");
+   });
+ 
+-  it("applies 44px minimum touch-target sizing to interactive controls", () => {
++  it("applies 44px minimum touch-target sizing to remove button", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+@@ -259,9 +258,6 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    expectMinimumTouchTarget(screen.getByRole("textbox", { name: "Packing item name" }), { requireMinWidth: false });
+-    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add item" }));
+-    expectMinimumTouchTarget(screen.getByRole("button", { name: "Add label" }));
+     expectMinimumTouchTarget(screen.getByRole("button", { name: "Remove Passport" }));
+   });
+ 
+@@ -688,11 +684,9 @@ describe("PackingListView", () => {
+     );
+ 
+     await user.click(screen.getByText("Passport"));
+-    const input = screen
+-      .getAllByRole("textbox")
+-      .find((el) => el !== screen.queryByRole("textbox", { name: "Packing item name" }));
+-    await user.clear(input!);
+-    await user.type(input!, "Passport (renewed)");
++    const editInput = screen.getAllByRole("textbox").find((el) => (el as HTMLInputElement).value === "Passport");
++    await user.clear(editInput!);
++    await user.type(editInput!, "Passport (renewed)");
+     await user.keyboard("{Enter}");
+ 
+     expect(onEditItem).toHaveBeenCalledWith("item-1", "Passport (renewed)");
+@@ -890,7 +884,7 @@ describe("PackingListView", () => {
+ 
+   // ── Story 2.3 — Pull from template ───────────────────────────────────────────
+ 
+-  it("shows 'Pull from a template' button in empty state when onPullTemplates is provided", () => {
++  it("does not show a pull template button when the list is empty", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+@@ -905,23 +899,8 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    expect(screen.getByRole("button", { name: "Pull from a template" })).toBeInTheDocument();
+-  });
+-
+-  it("does not show pull button in empty state when onPullTemplates is absent", () => {
+-    render(
+-      <PackingListView
+-        tripId="trip-1"
+-        items={[]}
+-        onAddItem={createAddItemHandler()}
+-        onRemoveItem={createRemoveItemHandler()}
+-        onToggleItem={createToggleItemHandler()}
+-        onReorderItems={vi.fn()}
+-        onEditItem={vi.fn()}
+-      />
+-    );
+-
+     expect(screen.queryByRole("button", { name: "Pull from a template" })).not.toBeInTheDocument();
++    expect(screen.queryByRole("button", { name: "Pull templates" })).not.toBeInTheDocument();
+   });
+ 
+   it("shows 'Pull templates' button in populated state when onPullTemplates is provided", () => {
+@@ -942,28 +921,6 @@ describe("PackingListView", () => {
+     expect(screen.getByRole("button", { name: "Pull templates" })).toBeInTheDocument();
+   });
+ 
+-  it("opens the pull dialog when the empty-state pull button is clicked", async () => {
+-    const user = userEvent.setup();
+-
+-    render(
+-      <PackingListView
+-        tripId="trip-1"
+-        items={[]}
+-        onAddItem={createAddItemHandler()}
+-        onRemoveItem={createRemoveItemHandler()}
+-        onToggleItem={createToggleItemHandler()}
+-        onReorderItems={vi.fn()}
+-        onEditItem={vi.fn()}
+-        templates={[{ id: "t1", name: "Beach Weekend" }]}
+-        onPullTemplates={vi.fn()}
+-      />
+-    );
+-
+-    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
+-
+-    expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
+-  });
+-
+   it("opens the pull dialog when the populated-state pull button is clicked", async () => {
+     const user = userEvent.setup();
+ 
+@@ -993,7 +950,7 @@ describe("PackingListView", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+-        items={[]}
++        items={groupedItems}
+         onAddItem={createAddItemHandler()}
+         onRemoveItem={createRemoveItemHandler()}
+         onToggleItem={createToggleItemHandler()}
+@@ -1004,7 +961,7 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
++    await user.click(screen.getByRole("button", { name: "Pull templates" }));
+     await user.click(screen.getByRole("button", { name: "Trigger pull" }));
+ 
+     await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
+@@ -1018,7 +975,7 @@ describe("PackingListView", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+-        items={[]}
++        items={groupedItems}
+         onAddItem={createAddItemHandler()}
+         onRemoveItem={createRemoveItemHandler()}
+         onToggleItem={createToggleItemHandler()}
+@@ -1029,7 +986,7 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await user.click(screen.getByRole("button", { name: "Pull from a template" }));
++    await user.click(screen.getByRole("button", { name: "Pull templates" }));
+     await user.click(screen.getByRole("button", { name: "Trigger pull" }));
+ 
+     await waitFor(() => expect(onPullTemplates).toHaveBeenCalledWith(["t1"]));
+@@ -1043,7 +1000,7 @@ describe("PackingListView", () => {
+     render(
+       <PackingListView
+         tripId="trip-1"
+-        items={[]}
++        items={groupedItems}
+         onAddItem={createAddItemHandler()}
+         onRemoveItem={createRemoveItemHandler()}
+         onToggleItem={createToggleItemHandler()}
+@@ -1054,7 +1011,7 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    fireEvent.click(screen.getByRole("button", { name: "Pull from a template" }));
++    fireEvent.click(screen.getByRole("button", { name: "Pull templates" }));
+     fireEvent.click(await screen.findByRole("button", { name: "Trigger pull" }));
+ 
+     await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
+@@ -1082,17 +1039,17 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
++    const addItemInput = screen.getByPlaceholderText("Add item…");
++    await user.type(addItemInput, "Passport");
++    await user.keyboard("{Enter}");
+ 
+     await waitFor(() => {
+       const liveRegion = container.querySelector("[aria-live=polite]");
+       expect(liveRegion).toHaveTextContent("Failed to add item.");
+     });
+ 
+-    expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue("Passport");
+-    expect(screen.queryByText("Passport")).not.toBeInTheDocument();
+-    expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled();
++    expect(addItemInput).toHaveValue("Passport");
++    expect(screen.getByPlaceholderText("New section…")).not.toBeDisabled();
+   });
+ 
+   it("keeps the item rendered when onRemoveItem rejects", async () => {
+@@ -1144,16 +1101,16 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
++    await user.type(screen.getByPlaceholderText("Add item…"), "Passport");
++    await user.keyboard("{Enter}");
+ 
+     const liveRegion = container.querySelector("[aria-live=polite]");
+-    expect(liveRegion).not.toHaveTextContent("Passport added.");
++    expect(liveRegion).not.toHaveTextContent("Item Passport added.");
+ 
+     expect(resolveAdd).toBeDefined();
+     resolveAdd!();
+ 
+-    await waitFor(() => expect(liveRegion).toHaveTextContent("Passport added."));
++    await waitFor(() => expect(liveRegion).toHaveTextContent("Item Passport added."));
+   });
+ 
+   it("waits for contextual add persistence before announcing success", async () => {
+@@ -1193,7 +1150,7 @@ describe("PackingListView", () => {
+     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Visa added."));
+   });
+ 
+-  it("waits for populated entry-form item persistence before announcing success", async () => {
++  it("waits for Add item form persistence before announcing success", async () => {
+     const user = userEvent.setup();
+     let resolveAdd: (() => void) | undefined;
+     const onAddItem = vi.fn(
+@@ -1214,8 +1171,8 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Tent");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
++    await user.type(screen.getByPlaceholderText("Add item…"), "Tent");
++    await user.keyboard("{Enter}");
+ 
+     const liveRegion = container.querySelector("[aria-live=polite]");
+     expect(liveRegion).not.toHaveTextContent("Item Tent added.");
+@@ -1223,10 +1180,9 @@ describe("PackingListView", () => {
+     resolveAdd!();
+ 
+     await waitFor(() => expect(liveRegion).toHaveTextContent("Item Tent added."));
+-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
+   });
+ 
+-  it("waits for populated entry-form label persistence before announcing success", async () => {
++  it("waits for New section form persistence before announcing success", async () => {
+     const user = userEvent.setup();
+     let resolveAdd: (() => void) | undefined;
+     const onAddItem = vi.fn(
+@@ -1247,8 +1203,8 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Camping");
+-    await user.click(screen.getByRole("button", { name: "Add label" }));
++    await user.type(screen.getByPlaceholderText("New section…"), "Camping");
++    await user.keyboard("{Enter}");
+ 
+     const liveRegion = container.querySelector("[aria-live=polite]");
+     expect(liveRegion).not.toHaveTextContent("Section Camping added.");
+@@ -1256,7 +1212,6 @@ describe("PackingListView", () => {
+     resolveAdd!();
+ 
+     await waitFor(() => expect(liveRegion).toHaveTextContent("Section Camping added."));
+-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Packing item name" })).toHaveValue(""));
+   });
+ 
+   // ── Story 3.3 — AC #3: Server-triggered re-render detection ──────────────────
+@@ -1282,10 +1237,10 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await user.type(screen.getByRole("textbox", { name: "Packing item name" }), "Passport");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
++    await user.type(screen.getByPlaceholderText("Add item…"), "Passport");
++    await user.keyboard("{Enter}");
+ 
+-    expect(screen.getByRole("button", { name: "Add item" })).toBeDisabled();
++    expect(screen.getByPlaceholderText("New section…")).toBeDisabled();
+ 
+     rerender(
+       <PackingListView
+@@ -1298,7 +1253,7 @@ describe("PackingListView", () => {
+       />
+     );
+ 
+-    await waitFor(() => expect(screen.getByRole("button", { name: "Add item" })).not.toBeDisabled());
++    await waitFor(() => expect(screen.getByPlaceholderText("New section…")).not.toBeDisabled());
+     resolveAdd!();
+   });
+ 
+diff --git a/src/components/packt/packing-list-view.tsx b/src/components/packt/packing-list-view.tsx
+index f20740d..b42ddd5 100644
+--- a/src/components/packt/packing-list-view.tsx
++++ b/src/components/packt/packing-list-view.tsx
+@@ -1,20 +1,16 @@
+ "use client";
+ 
+-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactElement } from "react";
++import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+ import {
+-  RemovePackingSectionMode,
+   type PackingItem,
+   type PackingTemplate,
+   type PullTemplatesResult,
+   type RemovePackingSectionInput,
+ } from "@/data/types";
+ import { PackingListSortable } from "./packing-list-sortable";
+-import { TemplatePullDialog } from "./template-pull-dialog";
+ import { PackingListToolbar } from "./packing-list-toolbar";
+-import { PackingListEmptyState } from "./packing-list-empty-state";
+-import { SaveAsTemplateDialog } from "./save-as-template-dialog";
+-import { PackingEntryForm } from "./packing-entry-form";
+-import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
++import { ContextualAddForm } from "./packing-contextual-add-form";
++import { PackingListDialogs, type PackingListDialogsHandle, type PendingSectionRemoval } from "./packing-list-dialogs";
+ 
+ export interface PackingListViewProps {
+   tripId: string;
+@@ -49,30 +45,15 @@ export function PackingListView({
+   onPullTemplates,
+   onSaveAsTemplate,
+ }: PackingListViewProps): ReactElement {
+-  interface PendingSectionRemoval {
+-    item: PackingItem & { id: string };
+-    itemCount: number;
+-  }
+-
+-  const [draftName, setDraftName] = useState("");
+   const [isSubmitting, setIsSubmitting] = useState(false);
+-  const [dialogOpen, setDialogOpen] = useState(false);
+-  const [dialogKey, setDialogKey] = useState(0);
+-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+-  const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
+   const [prevItems, setPrevItems] = useState(items);
+   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
+   const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
+-  const [isRemovingSection, setIsRemovingSection] = useState(false);
+   const [announcement, setAnnouncement] = useState("");
+   const [announcementId, setAnnouncementId] = useState(0);
+   const mutationSeqRef = useRef(0);
++  const dialogsRef = useRef<PackingListDialogsHandle>(null);
+ 
+-  useEffect(() => {
+-    if (!resultNotice) return;
+-    const timer = setTimeout(() => setResultNotice(null), 4000);
+-    return () => clearTimeout(timer);
+-  }, [resultNotice]);
+   const collapseKey = `packing_collapsed_${tripId}`;
+   const [collapsedLabels, setCollapsedLabels] = useState<Set<string>>(() => {
+     if (typeof window === "undefined") return new Set();
+@@ -107,6 +88,7 @@ export function PackingListView({
+       return next;
+     });
+   }, []);
++
+   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
+   const effectiveItems = localItems ?? items;
+ 
+@@ -122,37 +104,11 @@ export function PackingListView({
+     setLocalItems(null);
+   }
+ 
+-  function handleDraftNameChange(event: ChangeEvent<HTMLInputElement>): void {
+-    setDraftName(event.target.value);
+-  }
+-
+-  function announceMove(message: string): void {
++  function announce(message: string): void {
+     setAnnouncement(message);
+     setAnnouncementId((id) => id + 1);
+   }
+ 
+-  function announceRemoval(message: string): void {
+-    setAnnouncement(message);
+-    setAnnouncementId((id) => id + 1);
+-  }
+-
+-  async function submitEntry(isLabel?: boolean): Promise<void> {
+-    const trimmedName = draftName.trim();
+-    if (!trimmedName || isSubmitting) return;
+-
+-    setIsSubmitting(true);
+-    try {
+-      await onAddItem(trimmedName, isLabel);
+-      setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
+-      setAnnouncementId((id) => id + 1);
+-      setDraftName("");
+-    } catch {
+-      setAnnouncement(`Failed to add ${isLabel ? "section" : "item"}.`);
+-      setAnnouncementId((id) => id + 1);
+-      setIsSubmitting(false);
+-    }
+-  }
+-
+   async function handleContextualAdd(
+     name: string,
+     isLabel?: boolean,
+@@ -166,12 +122,11 @@ export function PackingListView({
+     setIsSubmitting(true);
+     try {
+       await onAddItem(trimmedName, isLabel, afterItemId, beforeItemId, labelId);
+-      setAnnouncement(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
+-      setAnnouncementId((id) => id + 1);
+-    } catch {
+-      setAnnouncement(`Failed to add ${isLabel ? "section" : "item"}.`);
+-      setAnnouncementId((id) => id + 1);
++      announce(`${isLabel ? "Section" : "Item"} ${trimmedName} added.`);
++    } catch (error) {
++      announce(`Failed to add ${isLabel ? "section" : "item"}.`);
+       setIsSubmitting(false);
++      throw error;
+     }
+   }
+ 
+@@ -190,34 +145,9 @@ export function PackingListView({
+ 
+     try {
+       await onRemoveItem(item.id);
+-      announceRemoval(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
+-    } catch {
+-      announceRemoval(`Failed to remove ${item.isLabel ? "section" : "item"}.`);
+-    }
+-  }
+-
+-  async function handleSectionRemoval(mode: RemovePackingSectionMode): Promise<void> {
+-    if (!pendingSectionRemoval || !onRemoveSection) return;
+-
+-    setIsRemovingSection(true);
+-    try {
+-      await onRemoveSection(pendingSectionRemoval.item.id, { mode });
+-      if (mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
+-        const itemLabel = pendingSectionRemoval.itemCount === 1 ? "item" : "items";
+-        announceRemoval(
+-          `Section ${pendingSectionRemoval.item.name} removed. ${pendingSectionRemoval.itemCount} ${itemLabel} moved to Ungrouped.`
+-        );
+-      } else {
+-        const itemLabel = pendingSectionRemoval.itemCount === 1 ? "item" : "items";
+-        announceRemoval(
+-          `Section ${pendingSectionRemoval.item.name} and ${pendingSectionRemoval.itemCount} ${itemLabel} removed.`
+-        );
+-      }
+-      setPendingSectionRemoval(null);
++      announce(`${item.isLabel ? "Section" : "Item"} ${item.name} removed.`);
+     } catch {
+-      announceRemoval("Failed to remove section.");
+-    } finally {
+-      setIsRemovingSection(false);
++      announce(`Failed to remove ${item.isLabel ? "section" : "item"}.`);
+     }
+   }
+ 
+@@ -229,30 +159,14 @@ export function PackingListView({
+     try {
+       await onToggleItem(item.id);
+       const action = item.done ? "unchecked" : "checked";
+-      setAnnouncement(`${item.name} ${action}.`);
+-      setAnnouncementId((id) => id + 1);
++      announce(`${item.name} ${action}.`);
+     } catch {
+       setPendingItemIds((ids) => {
+         const nextIds = new Set(ids);
+         nextIds.delete(item.id!);
+         return nextIds;
+       });
+-      setAnnouncement(`Failed to update ${item.name}.`);
+-      setAnnouncementId((id) => id + 1);
+-    }
+-  }
+-
+-  async function handleDialogPull(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
+-    if (!onPullTemplates) return undefined;
+-    try {
+-      const result = await onPullTemplates(templateIds);
+-      if (result) {
+-        setResultNotice(result);
+-        setDialogOpen(false);
+-      }
+-      return result;
+-    } catch {
+-      return undefined;
++      announce(`Failed to update ${item.name}.`);
+     }
+   }
+ 
+@@ -280,107 +194,49 @@ export function PackingListView({
+     );
+   }
+ 
+-  function openPullDialog(): void {
+-    setDialogKey((k) => k + 1);
+-    setDialogOpen(true);
+-  }
+-
+   return (
+     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+       <div aria-live="polite" className="sr-only">
+         <span key={announcementId}>{announcement}</span>
+       </div>
+ 
+-      {resultNotice && (
+-        <div
+-          role="status"
+-          className="rounded-2xl border p-3 text-sm"
+-          style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}
+-        >
+-          {resultNotice.added} item(s) added
+-          {resultNotice.skipped > 0 ? `, ${resultNotice.skipped} duplicate(s) skipped` : ""}
+-        </div>
+-      )}
+-
+-      {effectiveItems.length === 0 ? (
+-        <PackingListEmptyState
+-          tripId={tripId}
+-          draftName={draftName}
+-          isSubmitting={isSubmitting}
+-          onDraftNameChange={handleDraftNameChange}
+-          onSubmitItem={() => submitEntry()}
+-          onSubmitLabel={() => submitEntry(true)}
+-          onOpenPullDialog={onPullTemplates ? openPullDialog : undefined}
+-        />
+-      ) : (
+-        <>
+-          <PackingListToolbar
+-            itemCount={effectiveItems.length}
+-            onOpenPullDialog={onPullTemplates ? openPullDialog : undefined}
+-            onOpenSaveDialog={onSaveAsTemplate ? () => setSaveDialogOpen(true) : undefined}
+-          />
+-
+-          <PackingListSortable
+-            items={effectiveItems}
+-            pendingItemIds={pendingItemIds}
+-            collapsedLabels={collapsedLabels}
+-            onToggleCollapse={toggleCollapse}
+-            onRemoveItem={handleRemove}
+-            onToggleItem={handleToggle}
+-            onOptimisticReorder={handleOptimisticReorder}
+-            onReorderItems={handleReorderItemsWithSeqGuard}
+-            onAnnounceMove={announceMove}
+-            isAdding={isSubmitting}
+-            onEditItem={onEditItem}
+-            onAddItem={handleContextualAdd}
+-          />
+-
+-          <PackingEntryForm
+-            draftName={draftName}
+-            hasItems
+-            isSubmitting={isSubmitting}
+-            onDraftNameChange={handleDraftNameChange}
+-            onSubmitItem={() => submitEntry()}
+-            onSubmitLabel={() => submitEntry(true)}
+-          />
+-        </>
+-      )}
+-
+-      {onPullTemplates && (
+-        <TemplatePullDialog
+-          key={dialogKey}
+-          open={dialogOpen}
+-          onOpenChange={setDialogOpen}
+-          templates={templates ?? []}
+-          onPull={handleDialogPull}
+-        />
+-      )}
+-
+-      {onSaveAsTemplate && (
+-        <SaveAsTemplateDialog
+-          key={String(saveDialogOpen)}
+-          open={saveDialogOpen && effectiveItems.length > 0}
+-          onClose={() => setSaveDialogOpen(false)}
+-          onSave={onSaveAsTemplate}
+-          itemCount={effectiveItems.length}
++      <PackingListDialogs
++        ref={dialogsRef}
++        templates={templates ?? []}
++        effectiveItemCount={effectiveItems.length}
++        pendingSectionRemoval={pendingSectionRemoval}
++        onClearPendingSectionRemoval={() => setPendingSectionRemoval(null)}
++        onPullTemplates={onPullTemplates}
++        onRemoveSection={onRemoveSection}
++        onSaveAsTemplate={onSaveAsTemplate}
++        onAnnounce={announce}
++      />
++
++      {effectiveItems.length > 0 && (
++        <PackingListToolbar
++          itemCount={effectiveItems.filter((item) => !item.isLabel).length}
++          packedCount={effectiveItems.filter((item) => !item.isLabel && item.done).length}
++          onOpenPullDialog={onPullTemplates ? () => dialogsRef.current?.openPullDialog() : undefined}
++          onOpenSaveDialog={onSaveAsTemplate ? () => dialogsRef.current?.openSaveDialog() : undefined}
+         />
+       )}
+ 
+-      {pendingSectionRemoval && onRemoveSection ? (
+-        <DeletePackingSectionAlertDialog
+-          open
+-          sectionName={pendingSectionRemoval.item.name}
+-          itemCount={pendingSectionRemoval.itemCount}
+-          isDeleting={isRemovingSection}
+-          onOpenChange={(open) => {
+-            if (!open && !isRemovingSection) {
+-              setPendingSectionRemoval(null);
+-            }
+-          }}
+-          onMoveItems={() => handleSectionRemoval(RemovePackingSectionMode.MoveItemsToUngrouped)}
+-          onDeleteItems={() => handleSectionRemoval(RemovePackingSectionMode.DeleteItems)}
+-        />
+-      ) : null}
++      <ContextualAddForm placeholder="New section…" isLabel isAdding={isSubmitting} onAddItem={handleContextualAdd} />
++
++      <PackingListSortable
++        items={effectiveItems}
++        pendingItemIds={pendingItemIds}
++        collapsedLabels={collapsedLabels}
++        onToggleCollapse={toggleCollapse}
++        onRemoveItem={handleRemove}
++        onToggleItem={handleToggle}
++        onOptimisticReorder={handleOptimisticReorder}
++        onReorderItems={handleReorderItemsWithSeqGuard}
++        onAnnounceMove={announce}
++        isAdding={isSubmitting}
++        onEditItem={onEditItem}
++        onAddItem={handleContextualAdd}
++      />
+     </div>
+   );
+ }
+diff --git a/src/components/packt/template-editor-view.test.tsx b/src/components/packt/template-editor-view.test.tsx
+index c84adc6..a15ddfd 100644
+--- a/src/components/packt/template-editor-view.test.tsx
++++ b/src/components/packt/template-editor-view.test.tsx
+@@ -80,7 +80,7 @@ describe("TemplateEditorView", () => {
+     window.localStorage.clear();
+   });
+ 
+-  it("renders the empty state with the entry form controls", () => {
++  it("renders heading, back link, and New section form regardless of item count", () => {
+     render(
+       <TemplateEditorView
+         template={template}
+@@ -94,12 +94,11 @@ describe("TemplateEditorView", () => {
+ 
+     expect(screen.getByRole("heading", { name: "Beach Weekend" })).toBeInTheDocument();
+     expect(screen.getByRole("link", { name: "Back to Templates" })).toHaveAttribute("href", "/packing");
+-    expect(screen.getByRole("heading", { name: "This template is empty" })).toBeInTheDocument();
+-    expect(screen.getByRole("button", { name: "Add item" })).toBeInTheDocument();
+-    expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
++    expect(screen.queryByRole("heading", { name: "This template is empty" })).not.toBeInTheDocument();
++    expect(screen.getByPlaceholderText("New section…")).toBeInTheDocument();
+   });
+ 
+-  it("does not submit a blank item", async () => {
++  it("does not submit a blank section name", async () => {
+     const user = userEvent.setup();
+     const onAddItem = vi.fn();
+ 
+@@ -114,13 +113,13 @@ describe("TemplateEditorView", () => {
+       />
+     );
+ 
+-    await user.type(screen.getByRole("textbox", { name: "Template item text" }), "   ");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
++    await user.type(screen.getByPlaceholderText("New section…"), "   ");
++    await user.keyboard("{Enter}");
+ 
+     expect(onAddItem).not.toHaveBeenCalled();
+   });
+ 
+-  it("submits trimmed item and label entries", async () => {
++  it("submits a trimmed section name as a label via New section form", async () => {
+     const user = userEvent.setup();
+     const onAddItem = vi.fn();
+ 
+@@ -135,14 +134,10 @@ describe("TemplateEditorView", () => {
+       />
+     );
+ 
+-    const input = screen.getByRole("textbox", { name: "Template item text" });
+-    await user.type(input, "  Passport  ");
+-    await user.click(screen.getByRole("button", { name: "Add item" }));
+-    await user.type(input, "Documents");
+-    await user.click(screen.getByRole("button", { name: "Add label" }));
++    await user.type(screen.getByPlaceholderText("New section…"), "  Beach Gear  ");
++    await user.keyboard("{Enter}");
+ 
+-    expect(onAddItem).toHaveBeenNthCalledWith(1, "Passport", undefined);
+-    expect(onAddItem).toHaveBeenNthCalledWith(2, "Documents", true);
++    expect(onAddItem).toHaveBeenCalledWith("Beach Gear", true, undefined, undefined, undefined);
+   });
+ 
+   it("renders existing items and forwards remove actions", async () => {
+diff --git a/src/components/packt/template-editor-view.tsx b/src/components/packt/template-editor-view.tsx
+index 20a2c13..7389bb8 100644
+--- a/src/components/packt/template-editor-view.tsx
++++ b/src/components/packt/template-editor-view.tsx
+@@ -1,10 +1,7 @@
+ "use client";
+ 
+-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
++import { useCallback, useEffect, useState, type ReactElement } from "react";
+ import Link from "next/link";
+-import { Plus, Tag } from "lucide-react";
+-import { Button } from "@/components/ui/button";
+-import { Input } from "@/components/ui/input";
+ import {
+   RemovePackingSectionMode,
+   type PackingItem,
+@@ -14,6 +11,7 @@ import {
+ } from "@/data/types";
+ import { PackingListSortable } from "./packing-list-sortable";
+ import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
++import { ContextualAddForm } from "./packing-contextual-add-form";
+ 
+ export interface TemplateEditorViewProps {
+   template: PackingTemplate;
+@@ -33,16 +31,6 @@ export interface TemplateEditorViewProps {
+   isAdding?: boolean;
+ }
+ 
+-interface TemplateEntryFormProps {
+-  templateId: string;
+-  draftText: string;
+-  hasItems: boolean;
+-  isSubmitting: boolean;
+-  onDraftTextChange: (event: ChangeEvent<HTMLInputElement>) => void;
+-  onSubmitItem: () => void;
+-  onSubmitLabel: () => void;
+-}
+-
+ function toPackingItem(item: PackingTemplateItem): PackingItem {
+   return {
+     id: item.id,
+@@ -65,61 +53,6 @@ function toTemplateItem(item: PackingItem, templateId: string): PackingTemplateI
+   };
+ }
+ 
+-function TemplateEntryForm({
+-  templateId,
+-  draftText,
+-  hasItems,
+-  isSubmitting,
+-  onDraftTextChange,
+-  onSubmitItem,
+-  onSubmitLabel,
+-}: TemplateEntryFormProps): ReactElement {
+-  const formId = `template-entry-${templateId}`;
+-
+-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+-    event.preventDefault();
+-    onSubmitItem();
+-  }
+-
+-  return (
+-    <form
+-      aria-label="Add a template entry"
+-      className="flex flex-col gap-3 rounded-3xl border p-3"
+-      style={{ background: "var(--surface)", borderColor: "var(--line)" }}
+-      onSubmit={handleSubmit}
+-    >
+-      <label className="sr-only" htmlFor={formId}>
+-        Template item text
+-      </label>
+-      <Input
+-        id={formId}
+-        className="h-11 rounded-2xl border-0 px-3 text-sm shadow-none"
+-        maxLength={100}
+-        placeholder={hasItems ? "Add another item or section label" : "Add your first item or section label"}
+-        style={{ background: "var(--bg)", color: "var(--fg)" }}
+-        value={draftText}
+-        onChange={onDraftTextChange}
+-      />
+-      <div className="flex flex-col gap-2 sm:flex-row">
+-        <Button className="min-h-11 min-w-11 flex-1 rounded-2xl" disabled={isSubmitting} type="submit">
+-          <Plus size={16} strokeWidth={1.5} />
+-          Add item
+-        </Button>
+-        <Button
+-          className="min-h-11 min-w-11 flex-1 rounded-2xl"
+-          disabled={isSubmitting}
+-          type="button"
+-          variant="outline"
+-          onClick={onSubmitLabel}
+-        >
+-          <Tag size={16} strokeWidth={1.5} />
+-          Add label
+-        </Button>
+-      </div>
+-    </form>
+-  );
+-}
+-
+ export function TemplateEditorView({
+   template,
+   items,
+@@ -136,7 +69,6 @@ export function TemplateEditorView({
+     itemCount: number;
+   }
+ 
+-  const [draftText, setDraftText] = useState("");
+   const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
+   const [isRemovingSection, setIsRemovingSection] = useState(false);
+   const collapseKey = `packing_collapsed_template_${template.id}`;
+@@ -179,17 +111,8 @@ export function TemplateEditorView({
+       return nextLabels;
+     });
+   }, []);
+-  const packingItems = items.map(toPackingItem);
+ 
+-  function submitEntry(isLabel?: boolean): void {
+-    const trimmed = draftText.trim();
+-    if (!trimmed || isAdding) {
+-      return;
+-    }
+-
+-    onAddItem(trimmed, isLabel);
+-    setDraftText("");
+-  }
++  const packingItems = items.map(toPackingItem);
+ 
+   async function handleRemove(item: PackingItem): Promise<void> {
+     if (!item.id) {
+@@ -249,58 +172,31 @@ export function TemplateEditorView({
+         </h1>
+       </div>
+ 
+-      {items.length === 0 ? (
+-        <section
+-          className="flex flex-col gap-4 rounded-3xl border p-5"
+-          style={{ background: "var(--surface)", borderColor: "var(--line)" }}
+-        >
+-          <div className="flex flex-col gap-1">
+-            <h2 style={{ color: "var(--fg)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 700 }}>
+-              This template is empty
+-            </h2>
+-            <p style={{ color: "var(--fg-2)", fontSize: "calc(14px * var(--font-scale))" }}>
+-              Adding items or section labels to shape this template for the trips it supports.
+-            </p>
+-          </div>
+-          <TemplateEntryForm
+-            templateId={template.id}
+-            draftText={draftText}
+-            hasItems={false}
+-            isSubmitting={isAdding}
+-            onDraftTextChange={(event) => setDraftText(event.target.value)}
+-            onSubmitItem={() => submitEntry()}
+-            onSubmitLabel={() => submitEntry(true)}
+-          />
+-        </section>
+-      ) : (
+-        <>
+-          <PackingListSortable
+-            items={packingItems}
+-            pendingItemIds={new Set()}
+-            collapsedLabels={collapsedLabels}
+-            onToggleCollapse={toggleCollapse}
+-            onRemoveItem={handleRemove}
+-            onOptimisticReorder={(reorderedItems) =>
+-              onOptimisticReorder?.(reorderedItems?.map((item) => toTemplateItem(item, template.id)) ?? null)
+-            }
+-            onReorderItems={onReorderItems}
+-            onEditItem={(id, name) => onEditItem(id, name)}
+-            onAddItem={(text, isLabel, afterItemId, beforeItemId, labelId) =>
+-              onAddItem(text, isLabel, afterItemId, beforeItemId, labelId)
+-            }
+-            isAdding={isAdding}
+-          />
+-          <TemplateEntryForm
+-            templateId={template.id}
+-            draftText={draftText}
+-            hasItems
+-            isSubmitting={isAdding}
+-            onDraftTextChange={(event) => setDraftText(event.target.value)}
+-            onSubmitItem={() => submitEntry()}
+-            onSubmitLabel={() => submitEntry(true)}
+-          />
+-        </>
+-      )}
++      <ContextualAddForm
++        placeholder="New section…"
++        isLabel
++        isAdding={isAdding}
++        onAddItem={(text, labelFlag, afterItemId, beforeItemId, labelId) =>
++          onAddItem(text, labelFlag, afterItemId, beforeItemId, labelId)
++        }
++      />
++
++      <PackingListSortable
++        items={packingItems}
++        pendingItemIds={new Set()}
++        collapsedLabels={collapsedLabels}
++        onToggleCollapse={toggleCollapse}
++        onRemoveItem={handleRemove}
++        onOptimisticReorder={(reorderedItems) =>
++          onOptimisticReorder?.(reorderedItems?.map((item) => toTemplateItem(item, template.id)) ?? null)
++        }
++        onReorderItems={onReorderItems}
++        onEditItem={(id, name) => onEditItem(id, name)}
++        onAddItem={(text, labelFlag, afterItemId, beforeItemId, labelId) =>
++          onAddItem(text, labelFlag, afterItemId, beforeItemId, labelId)
++        }
++        isAdding={isAdding}
++      />
+ 
+       {pendingSectionRemoval && onRemoveSection ? (
+         <DeletePackingSectionAlertDialog
+diff --git a/tests/e2e/features/packing-tab.feature b/tests/e2e/features/packing-tab.feature
+index 073fb76..8236b1c 100644
+--- a/tests/e2e/features/packing-tab.feature
++++ b/tests/e2e/features/packing-tab.feature
+@@ -4,7 +4,7 @@ Feature: Packing tab
+     Given I am signed in
+     And I have an existing trip with days
+ 
+-  Scenario: Empty packing state shows a prompt to start
++  Scenario: Empty packing state shows minimal inputs with no empty-state card
+     When I open the Packing tab
+     Then I should see the empty packing state
+ 
+diff --git a/tests/e2e/steps/packing-tab.steps.ts b/tests/e2e/steps/packing-tab.steps.ts
+index 2b8bb18..cb79b0b 100644
+--- a/tests/e2e/steps/packing-tab.steps.ts
++++ b/tests/e2e/steps/packing-tab.steps.ts
+@@ -19,7 +19,7 @@ import { Given, Then, When } from "../fixtures";
+ 
+ async function openPackingTab(page: Page): Promise<void> {
+   await page.getByRole("button", { name: "Packing" }).click();
+-  await expect(page.getByRole("button", { name: "Add item", exact: true })).toBeVisible({ timeout: 10_000 });
++  await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
+ }
+ 
+ // Insert one packing item and return its generated id. Wrapped to give an
+@@ -155,20 +155,22 @@ When("I open the Packing tab", async ({ page }) => {
+ });
+ 
+ Then("I should see the empty packing state", async ({ page }) => {
+-  await expect(page.getByRole("heading", { name: "Your packing list is empty" })).toBeVisible();
++  await expect(page.getByPlaceholder("New section…")).toBeVisible();
++  await expect(page.getByPlaceholder("Add item…")).toBeVisible();
++  await expect(page.getByRole("heading", { name: "Your packing list is empty" })).toHaveCount(0);
+ });
+ 
+ When("I add a packing item named {string}", async ({ page }, name: string) => {
+-  await page.getByRole("textbox", { name: "Packing item name" }).fill(name);
+-  await page.getByRole("button", { name: "Add item", exact: true }).click();
++  await page.getByPlaceholder("Add item…").fill(name);
++  await page.keyboard.press("Enter");
+   await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: name }).first()).toBeVisible({
+     timeout: 10_000,
+   });
+ });
+ 
+ When("I add a packing label named {string}", async ({ page }, name: string) => {
+-  await page.getByRole("textbox", { name: "Packing item name" }).fill(name);
+-  await page.getByRole("button", { name: "Add label" }).click();
++  await page.getByPlaceholder("New section…").fill(name);
++  await page.keyboard.press("Enter");
+   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name }).first()).toBeVisible({
+     timeout: 10_000,
+   });
+diff --git a/tests/e2e/steps/template-items.steps.ts b/tests/e2e/steps/template-items.steps.ts
+index 0a271b8..feadc42 100644
+--- a/tests/e2e/steps/template-items.steps.ts
++++ b/tests/e2e/steps/template-items.steps.ts
+@@ -167,14 +167,14 @@ When("I open the template editor for {string}", async ({ page, scenario }, name:
+ });
+ 
+ When("I add the template item {string}", async ({ page }, name: string) => {
+-  await page.getByRole("textbox", { name: "Template item text" }).fill(name);
+-  await page.getByRole("button", { name: "Add item" }).click();
++  await page.getByPlaceholder("Add item…").fill(name);
++  await page.keyboard.press("Enter");
+   await expect(page.locator("[data-packing-kind]").filter({ hasText: name }).first()).toBeVisible({ timeout: 10_000 });
+ });
+ 
+ When("I add the template label {string}", async ({ page }, name: string) => {
+-  await page.getByRole("textbox", { name: "Template item text" }).fill(name);
+-  await page.getByRole("button", { name: "Add label" }).click();
++  await page.getByPlaceholder("New section…").fill(name);
++  await page.keyboard.press("Enter");
+   await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 10_000 });
+ });
+ 
+
+===== UNTRACKED NEW FILES =====
+
+-- src/components/packt/packing-list-dialogs.tsx --
+"use client";
+
+import { forwardRef, useEffect, useImperativeHandle, useState, type ReactElement } from "react";
+import {
+  RemovePackingSectionMode,
+  type PackingItem,
+  type PackingTemplate,
+  type PullTemplatesResult,
+  type RemovePackingSectionInput,
+} from "@/data/types";
+import { TemplatePullDialog } from "./template-pull-dialog";
+import { SaveAsTemplateDialog } from "./save-as-template-dialog";
+import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
+
+export interface PackingListDialogsHandle {
+  openPullDialog: () => void;
+  openSaveDialog: () => void;
+}
+
+export interface PendingSectionRemoval {
+  item: PackingItem & { id: string };
+  itemCount: number;
+}
+
+interface PackingListDialogsProps {
+  templates: PackingTemplate[];
+  effectiveItemCount: number;
+  pendingSectionRemoval: PendingSectionRemoval | null;
+  onClearPendingSectionRemoval: () => void;
+  onPullTemplates?: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
+  onRemoveSection?: (id: string, input: RemovePackingSectionInput) => Promise<void>;
+  onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
+  onAnnounce: (message: string) => void;
+}
+
+export const PackingListDialogs = forwardRef<PackingListDialogsHandle, PackingListDialogsProps>(
+  function PackingListDialogs(
+    {
+      templates,
+      effectiveItemCount,
+      pendingSectionRemoval,
+      onClearPendingSectionRemoval,
+      onPullTemplates,
+      onRemoveSection,
+      onSaveAsTemplate,
+      onAnnounce,
+    },
+    ref
+  ): ReactElement {
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [dialogKey, setDialogKey] = useState(0);
+    const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+    const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
+    const [isRemovingSection, setIsRemovingSection] = useState(false);
+
+    useEffect(() => {
+      if (!resultNotice) return;
+      const timer = setTimeout(() => setResultNotice(null), 4000);
+      return () => clearTimeout(timer);
+    }, [resultNotice]);
+
+    useImperativeHandle(ref, () => ({
+      openPullDialog: () => {
+        setDialogKey((k) => k + 1);
+        setDialogOpen(true);
+      },
+      openSaveDialog: () => setSaveDialogOpen(true),
+    }));
+
+    async function handleDialogPull(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
+      if (!onPullTemplates) return undefined;
+      try {
+        const result = await onPullTemplates(templateIds);
+        if (result) {
+          setResultNotice(result);
+          setDialogOpen(false);
+        }
+        return result;
+      } catch {
+        return undefined;
+      }
+    }
+
+    async function handleSectionRemoval(mode: RemovePackingSectionMode): Promise<void> {
+      if (!pendingSectionRemoval || !onRemoveSection) return;
+      setIsRemovingSection(true);
+      try {
+        await onRemoveSection(pendingSectionRemoval.item.id, { mode });
+        const itemLabel = pendingSectionRemoval.itemCount === 1 ? "item" : "items";
+        if (mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
+          onAnnounce(
+            `Section ${pendingSectionRemoval.item.name} removed. ${pendingSectionRemoval.itemCount} ${itemLabel} moved to Ungrouped.`
+          );
+        } else {
+          onAnnounce(
+            `Section ${pendingSectionRemoval.item.name} and ${pendingSectionRemoval.itemCount} ${itemLabel} removed.`
+          );
+        }
+        onClearPendingSectionRemoval();
+      } catch {
+        onAnnounce("Failed to remove section.");
+      } finally {
+        setIsRemovingSection(false);
+      }
+    }
+
+    return (
+      <>
+        {resultNotice && (
+          <div
+            role="status"
+            className="rounded-2xl border p-3 text-sm"
+            style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}
+          >
+            {resultNotice.added} item(s) added
+            {resultNotice.skipped > 0 ? `, ${resultNotice.skipped} duplicate(s) skipped` : ""}
+          </div>
+        )}
+
+        {onPullTemplates && (
+          <TemplatePullDialog
+            key={dialogKey}
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            templates={templates}
+            onPull={handleDialogPull}
+          />
+        )}
+
+        {onSaveAsTemplate && (
+          <SaveAsTemplateDialog
+            key={String(saveDialogOpen)}
+            open={saveDialogOpen && effectiveItemCount > 0}
+            onClose={() => setSaveDialogOpen(false)}
+            onSave={onSaveAsTemplate}
+            itemCount={effectiveItemCount}
+          />
+        )}
+
+        {pendingSectionRemoval && onRemoveSection ? (
+          <DeletePackingSectionAlertDialog
+            open
+            sectionName={pendingSectionRemoval.item.name}
+            itemCount={pendingSectionRemoval.itemCount}
+            isDeleting={isRemovingSection}
+            onOpenChange={(open) => {
+              if (!open && !isRemovingSection) {
+                onClearPendingSectionRemoval();
+              }
+            }}
+            onMoveItems={() => handleSectionRemoval(RemovePackingSectionMode.MoveItemsToUngrouped)}
+            onDeleteItems={() => handleSectionRemoval(RemovePackingSectionMode.DeleteItems)}
+          />
+        ) : null}
+      </>
+    );
+  }
+);
+
+-- src/components/packt/packing-list-toolbar.test.tsx --
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { PackingListToolbar } from "./packing-list-toolbar";
+
+describe("PackingListToolbar", () => {
+  it("renders packed progress count", () => {
+    render(<PackingListToolbar itemCount={5} packedCount={2} />);
+    expect(screen.getByText("2 of 5 packed")).toBeInTheDocument();
+  });
+
+  it("renders 0 of N packed when nothing is packed", () => {
+    render(<PackingListToolbar itemCount={4} packedCount={0} />);
+    expect(screen.getByText("0 of 4 packed")).toBeInTheDocument();
+  });
+
+  it("renders N of N packed when everything is packed", () => {
+    render(<PackingListToolbar itemCount={3} packedCount={3} />);
+    expect(screen.getByText("3 of 3 packed")).toBeInTheDocument();
+  });
+
+  it("does not render pull templates button when onOpenPullDialog is not provided", () => {
+    render(<PackingListToolbar itemCount={5} packedCount={1} />);
+    expect(screen.queryByRole("button", { name: /pull templates/i })).not.toBeInTheDocument();
+  });
+
+  it("does not render save as template button when onOpenSaveDialog is not provided", () => {
+    render(<PackingListToolbar itemCount={5} packedCount={1} />);
+    expect(screen.queryByRole("button", { name: /save as template/i })).not.toBeInTheDocument();
+  });
+
+  it("calls onOpenPullDialog when pull templates button is clicked", async () => {
+    const user = userEvent.setup();
+    const onOpenPullDialog = vi.fn();
+    render(<PackingListToolbar itemCount={5} packedCount={1} onOpenPullDialog={onOpenPullDialog} />);
+    await user.click(screen.getByRole("button", { name: /pull templates/i }));
+    expect(onOpenPullDialog).toHaveBeenCalledOnce();
+  });
+
+  it("calls onOpenSaveDialog when save as template button is clicked", async () => {
+    const user = userEvent.setup();
+    const onOpenSaveDialog = vi.fn();
+    render(<PackingListToolbar itemCount={5} packedCount={1} onOpenSaveDialog={onOpenSaveDialog} />);
+    await user.click(screen.getByRole("button", { name: /save as template/i }));
+    expect(onOpenSaveDialog).toHaveBeenCalledOnce();
+  });
+});

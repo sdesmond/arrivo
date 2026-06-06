@@ -91,4 +91,8 @@
 - LOWER() in ORDER BY destroys index scan on (name, createdAt) — pre-existing trade-off accepted in spec; correctness over index optimization for small template sets
 - E2E ordering step uses fragile DOM-structure locator (li a[href^='/packing/']) — works for current markup; any markup refactoring would also need step-definition updates
 
+## Deferred from: code review of spec-packing-list-ux-simplification (2026-06-06)
+
+- Template editor `isAdding` stuck-true hazard [template-editor-view.tsx] — The template editor relies entirely on the parent's `isAdding` prop; if the parent forgets to reset it on failure, the form stays disabled. Pre-existing pattern, not introduced by this change.
+
 
