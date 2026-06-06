@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RemovePackingSectionMode } from "@/data/types";
 import { packingTemplateItems } from "@/db/schema";
 
 const { and, db, eq, gt, max, requireUser, revalidatePath } = vi.hoisted(() => ({
@@ -41,7 +42,13 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
-import { addTemplateItem, removeTemplateItem, reorderTemplateItems, updateTemplateItem } from "./actions";
+import {
+  addTemplateItem,
+  removeTemplateItem,
+  removeTemplateSection,
+  reorderTemplateItems,
+  updateTemplateItem,
+} from "./actions";
 
 function mockSelectWhere(rows: unknown[]) {
   return {
@@ -213,6 +220,54 @@ describe("template item actions", () => {
     db.delete.mockReturnValue({ where });
 
     await expect(removeTemplateItem("item-1")).rejects.toThrow("An unexpected error occurred. Please try again.");
+  });
+
+  it("removes a template section and moves its items to ungrouped", async () => {
+    db.select
+      .mockReturnValueOnce(mockSelectWhere([{ templateId: "template-1" }]))
+      .mockReturnValueOnce(mockSelectWhere([{ id: "label-1", templateId: "template-1", isLabel: true }]));
+
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: updateWhere,
+        })),
+      })),
+    };
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await removeTemplateSection("label-1", { mode: RemovePackingSectionMode.MoveItemsToUngrouped });
+
+    expect(tx.update).toHaveBeenCalledWith(packingTemplateItems);
+    expect(updateWhere).toHaveBeenCalled();
+    expect(tx.delete).toHaveBeenCalledWith(packingTemplateItems);
+    expect(deleteWhere).toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
+  });
+
+  it("removes a template section and deletes its items", async () => {
+    db.select
+      .mockReturnValueOnce(mockSelectWhere([{ templateId: "template-1" }]))
+      .mockReturnValueOnce(mockSelectWhere([{ id: "label-1", templateId: "template-1", isLabel: true }]));
+
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      update: vi.fn(),
+    };
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await removeTemplateSection("label-1", { mode: RemovePackingSectionMode.DeleteItems });
+
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.delete).toHaveBeenCalledTimes(2);
+    expect(deleteWhere).toHaveBeenCalledTimes(2);
+    expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
   });
 
   it("reorderTemplateItems is a no-op for an empty ordering", async () => {

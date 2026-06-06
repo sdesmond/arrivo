@@ -1,12 +1,19 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, type ReactElement } from "react";
 import Link from "next/link";
 import { Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { PackingItem, PackingTemplate, PackingTemplateItem } from "@/data/types";
+import {
+  RemovePackingSectionMode,
+  type PackingItem,
+  type PackingTemplate,
+  type PackingTemplateItem,
+  type RemovePackingSectionInput,
+} from "@/data/types";
 import { PackingListSortable } from "./packing-list-sortable";
+import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
 
 export interface TemplateEditorViewProps {
   template: PackingTemplate;
@@ -19,6 +26,7 @@ export interface TemplateEditorViewProps {
     labelId?: string | null
   ) => Promise<void>;
   onRemoveItem: (id: string) => void;
+  onRemoveSection?: (id: string, input: RemovePackingSectionInput) => Promise<void>;
   onEditItem: (id: string, text: string) => void;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onOptimisticReorder?: (items: PackingTemplateItem[] | null) => void;
@@ -117,12 +125,61 @@ export function TemplateEditorView({
   items,
   onAddItem,
   onRemoveItem,
+  onRemoveSection,
   onEditItem,
   onReorderItems,
   onOptimisticReorder,
   isAdding = false,
 }: TemplateEditorViewProps): ReactElement {
+  interface PendingSectionRemoval {
+    item: PackingItem & { id: string };
+    itemCount: number;
+  }
+
   const [draftText, setDraftText] = useState("");
+  const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
+  const [isRemovingSection, setIsRemovingSection] = useState(false);
+  const collapseKey = `packing_collapsed_template_${template.id}`;
+  const [collapsedLabels, setCollapsedLabels] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") {
+      return new Set();
+    }
+
+    try {
+      const stored = localStorage.getItem(collapseKey);
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return new Set(parsed);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return new Set();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(collapseKey, JSON.stringify([...collapsedLabels]));
+    } catch {
+      /* ignore */
+    }
+  }, [collapsedLabels, collapseKey]);
+
+  const toggleCollapse = useCallback((labelId: string): void => {
+    setCollapsedLabels((previousLabels) => {
+      const nextLabels = new Set(previousLabels);
+      if (nextLabels.has(labelId)) {
+        nextLabels.delete(labelId);
+      } else {
+        nextLabels.add(labelId);
+      }
+      return nextLabels;
+    });
+  }, []);
+  const packingItems = items.map(toPackingItem);
 
   function submitEntry(isLabel?: boolean): void {
     const trimmed = draftText.trim();
@@ -132,6 +189,41 @@ export function TemplateEditorView({
 
     onAddItem(trimmed, isLabel);
     setDraftText("");
+  }
+
+  async function handleRemove(item: PackingItem): Promise<void> {
+    if (!item.id) {
+      return;
+    }
+
+    if (item.isLabel && onRemoveSection) {
+      const itemCount = packingItems.filter(
+        (candidate) => candidate.isLabel !== true && candidate.labelId === item.id
+      ).length;
+
+      if (itemCount > 0) {
+        setPendingSectionRemoval({ item: item as PackingItem & { id: string }, itemCount });
+        return;
+      }
+    }
+
+    onRemoveItem(item.id);
+  }
+
+  async function handleSectionRemoval(mode: RemovePackingSectionMode): Promise<void> {
+    if (!pendingSectionRemoval || !onRemoveSection) {
+      return;
+    }
+
+    setIsRemovingSection(true);
+    try {
+      await onRemoveSection(pendingSectionRemoval.item.id, { mode });
+      setPendingSectionRemoval(null);
+    } catch {
+      /* keep dialog open so the user can retry after the toast */
+    } finally {
+      setIsRemovingSection(false);
+    }
   }
 
   return (
@@ -183,13 +275,11 @@ export function TemplateEditorView({
       ) : (
         <>
           <PackingListSortable
-            items={items.map(toPackingItem)}
+            items={packingItems}
             pendingItemIds={new Set()}
-            onRemoveItem={async (item) => {
-              if (item.id) {
-                await onRemoveItem(item.id);
-              }
-            }}
+            collapsedLabels={collapsedLabels}
+            onToggleCollapse={toggleCollapse}
+            onRemoveItem={handleRemove}
             onOptimisticReorder={(reorderedItems) =>
               onOptimisticReorder?.(reorderedItems?.map((item) => toTemplateItem(item, template.id)) ?? null)
             }
@@ -211,6 +301,22 @@ export function TemplateEditorView({
           />
         </>
       )}
+
+      {pendingSectionRemoval && onRemoveSection ? (
+        <DeletePackingSectionAlertDialog
+          open
+          sectionName={pendingSectionRemoval.item.name}
+          itemCount={pendingSectionRemoval.itemCount}
+          isDeleting={isRemovingSection}
+          onOpenChange={(open) => {
+            if (!open && !isRemovingSection) {
+              setPendingSectionRemoval(null);
+            }
+          }}
+          onMoveItems={() => handleSectionRemoval(RemovePackingSectionMode.MoveItemsToUngrouped)}
+          onDeleteItems={() => handleSectionRemoval(RemovePackingSectionMode.DeleteItems)}
+        />
+      ) : null}
     </div>
   );
 }

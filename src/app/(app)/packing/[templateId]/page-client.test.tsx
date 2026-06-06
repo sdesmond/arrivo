@@ -1,22 +1,33 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { PackingTemplate, PackingTemplateItem } from "@/data/types";
+import {
+  RemovePackingSectionMode,
+  type PackingTemplate,
+  type PackingTemplateItem,
+  type RemovePackingSectionInput,
+} from "@/data/types";
 
-const { mockAddTemplateItem, mockRemoveTemplateItem, mockReorderTemplateItems, mockUpdateTemplateItem } = vi.hoisted(
-  () => ({
-    mockAddTemplateItem: vi.fn(),
-    mockRemoveTemplateItem: vi.fn(),
-    mockReorderTemplateItems: vi.fn(),
-    mockUpdateTemplateItem: vi.fn(),
-  })
-);
+const {
+  mockAddTemplateItem,
+  mockRemoveTemplateItem,
+  mockRemoveTemplateSection,
+  mockReorderTemplateItems,
+  mockUpdateTemplateItem,
+} = vi.hoisted(() => ({
+  mockAddTemplateItem: vi.fn(),
+  mockRemoveTemplateItem: vi.fn(),
+  mockRemoveTemplateSection: vi.fn(),
+  mockReorderTemplateItems: vi.fn(),
+  mockUpdateTemplateItem: vi.fn(),
+}));
 
 const rollbackSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("./actions", () => ({
   addTemplateItem: mockAddTemplateItem,
   removeTemplateItem: mockRemoveTemplateItem,
+  removeTemplateSection: mockRemoveTemplateSection,
   reorderTemplateItems: mockReorderTemplateItems,
   updateTemplateItem: mockUpdateTemplateItem,
 }));
@@ -33,6 +44,7 @@ vi.mock("@/components/packt/template-editor-view", () => ({
     onEditItem,
     onOptimisticReorder,
     onRemoveItem,
+    onRemoveSection,
     onReorderItems,
   }: {
     items: PackingTemplateItem[];
@@ -47,6 +59,7 @@ vi.mock("@/components/packt/template-editor-view", () => ({
     onEditItem: (id: string, text: string) => void;
     onOptimisticReorder?: (items: PackingTemplateItem[] | null) => void;
     onRemoveItem: (id: string) => void;
+    onRemoveSection?: (id: string, input: RemovePackingSectionInput) => Promise<void>;
     onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   }) => (
     <div>
@@ -55,6 +68,15 @@ vi.mock("@/components/packt/template-editor-view", () => ({
       <button onClick={() => onAddItem("Sunscreen")}>add-item</button>
       <button onClick={() => onEditItem("item-1", "SPF 50 Sunscreen")}>edit-item</button>
       <button onClick={() => onRemoveItem("item-1")}>remove-item</button>
+      <button
+        onClick={() =>
+          void onRemoveSection?.("label-1", {
+            mode: RemovePackingSectionMode.MoveItemsToUngrouped,
+          })
+        }
+      >
+        remove-section
+      </button>
       <button
         onClick={() =>
           onOptimisticReorder?.([
@@ -110,17 +132,19 @@ const items: PackingTemplateItem[] = [
 ];
 
 describe("TemplateEditorClient", () => {
-  it("wires add, edit, and remove actions to the server actions", async () => {
+  it("wires add, edit, remove, and remove-section actions to the server actions", async () => {
     const user = userEvent.setup();
     mockAddTemplateItem.mockResolvedValueOnce({ id: "item-3" });
     mockUpdateTemplateItem.mockResolvedValueOnce(undefined);
     mockRemoveTemplateItem.mockResolvedValueOnce(undefined);
+    mockRemoveTemplateSection.mockResolvedValueOnce(undefined);
 
     render(<TemplateEditorClient template={template} items={items} />);
 
     await user.click(screen.getByRole("button", { name: "add-item" }));
     await user.click(screen.getByRole("button", { name: "edit-item" }));
     await user.click(screen.getByRole("button", { name: "remove-item" }));
+    await user.click(screen.getByRole("button", { name: "remove-section" }));
 
     await waitFor(() => {
       expect(mockAddTemplateItem).toHaveBeenCalledWith("template-1", {
@@ -132,6 +156,9 @@ describe("TemplateEditorClient", () => {
       });
       expect(mockUpdateTemplateItem).toHaveBeenCalledWith("item-1", { text: "SPF 50 Sunscreen" });
       expect(mockRemoveTemplateItem).toHaveBeenCalledWith("item-1");
+      expect(mockRemoveTemplateSection).toHaveBeenCalledWith("label-1", {
+        mode: RemovePackingSectionMode.MoveItemsToUngrouped,
+      });
     });
   });
 

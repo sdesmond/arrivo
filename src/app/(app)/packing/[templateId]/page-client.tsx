@@ -2,9 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { addTemplateItem, removeTemplateItem, reorderTemplateItems, updateTemplateItem } from "./actions";
+import {
+  addTemplateItem,
+  removeTemplateItem,
+  removeTemplateSection,
+  reorderTemplateItems,
+  updateTemplateItem,
+} from "./actions";
 import { TemplateEditorView } from "@/components/packt/template-editor-view";
-import type { PackingTemplate, PackingTemplateItem } from "@/data/types";
+import type { PackingTemplate, PackingTemplateItem, RemovePackingSectionInput } from "@/data/types";
 
 export interface TemplateEditorClientProps {
   template: PackingTemplate;
@@ -57,6 +63,15 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
     });
   }
 
+  async function handleRemoveSection(id: string, input: RemovePackingSectionInput): Promise<void> {
+    try {
+      await removeTemplateSection(id, input);
+    } catch (error) {
+      toast.error(getActionErrorMessage(error, "Could not remove template section"));
+      throw error;
+    }
+  }
+
   function handleEditItem(id: string, text: string): void {
     startTransition(async () => {
       try {
@@ -87,6 +102,7 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
       items={localItems ?? items}
       onAddItem={handleAddItem}
       onRemoveItem={handleRemoveItem}
+      onRemoveSection={handleRemoveSection}
       onEditItem={handleEditItem}
       onReorderItems={handleReorderItems}
       onOptimisticReorder={setLocalItems}

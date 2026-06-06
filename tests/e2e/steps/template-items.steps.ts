@@ -212,9 +212,15 @@ When("I delete the template label {string}", async ({ page }, name: string) => {
   await expect(heading).toBeVisible({ timeout: 10_000 });
   await heading.click();
   await page.getByRole("button", { name: "Delete label" }).click();
-  await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
-    timeout: 10_000,
-  });
+});
+
+Then("I should see the template label delete confirmation", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Keep Items" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "Delete Items" })).toBeVisible();
+});
+
+When("I keep the template label items", async ({ page }) => {
+  await page.getByRole("button", { name: "Keep Items" }).click();
 });
 
 When(

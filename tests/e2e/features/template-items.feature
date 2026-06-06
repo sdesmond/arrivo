@@ -51,6 +51,8 @@ Feature: Template item and label management
     Given the template editor "Editor Template" has a label "Beach Gear" with item "Towel"
     When I open the template editor for "Editor Template"
     And I delete the template label "Beach Gear"
+    Then I should see the template label delete confirmation
+    When I keep the template label items
     Then the template editor should not contain a label "Beach Gear"
     And the template editor should contain "Towel"
     When I reload the page

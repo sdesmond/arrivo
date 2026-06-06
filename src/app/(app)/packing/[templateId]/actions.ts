@@ -6,7 +6,12 @@ import { db } from "@/db";
 import { packingTemplateItems, packingTemplates } from "@/db/schema";
 import { requireUser } from "@/lib/auth-helpers";
 import { withErrorHandling } from "@/lib/error-utils";
-import type { AddTemplateItemInput, UpdateTemplateItemInput } from "@/data/types";
+import {
+  RemovePackingSectionMode,
+  type AddTemplateItemInput,
+  type RemovePackingSectionInput,
+  type UpdateTemplateItemInput,
+} from "@/data/types";
 
 const ITEM_TEXT_MAX = 100;
 
@@ -174,6 +179,43 @@ async function removeTemplateItemImpl(itemId: string): Promise<void> {
   revalidatePath(`/packing/${templateId}`);
 }
 
+async function removeTemplateSectionImpl(itemId: string, input: RemovePackingSectionInput): Promise<void> {
+  const user = await requireUser();
+  const { templateId } = await assertItemOwnership(itemId, user.id!);
+
+  const [section] = await db
+    .select({
+      id: packingTemplateItems.id,
+      templateId: packingTemplateItems.templateId,
+      isLabel: packingTemplateItems.isLabel,
+    })
+    .from(packingTemplateItems)
+    .where(and(eq(packingTemplateItems.id, itemId), eq(packingTemplateItems.templateId, templateId)));
+
+  if (!section || section.isLabel !== true) {
+    throw new Error("Section not found.");
+  }
+
+  await db.transaction(async (tx) => {
+    if (input.mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
+      await tx
+        .update(packingTemplateItems)
+        .set({ labelId: null })
+        .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.labelId, itemId)));
+    } else {
+      await tx
+        .delete(packingTemplateItems)
+        .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.labelId, itemId)));
+    }
+
+    await tx
+      .delete(packingTemplateItems)
+      .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.id, itemId)));
+  });
+
+  revalidatePath(`/packing/${templateId}`);
+}
+
 async function reorderTemplateItemsImpl(
   templateId: string,
   ordered: { id: string; labelId: string | null; position: number }[]
@@ -200,6 +242,7 @@ async function reorderTemplateItemsImpl(
 const addTemplateItemWithErrorHandling = withErrorHandling(addTemplateItemImpl);
 const updateTemplateItemWithErrorHandling = withErrorHandling(updateTemplateItemImpl);
 const removeTemplateItemWithErrorHandling = withErrorHandling(removeTemplateItemImpl);
+const removeTemplateSectionWithErrorHandling = withErrorHandling(removeTemplateSectionImpl);
 const reorderTemplateItemsWithErrorHandling = withErrorHandling(reorderTemplateItemsImpl);
 
 export async function addTemplateItem(templateId: string, input: AddTemplateItemInput): Promise<{ id: string }> {
@@ -212,6 +255,10 @@ export async function updateTemplateItem(itemId: string, input: UpdateTemplateIt
 
 export async function removeTemplateItem(itemId: string): Promise<void> {
   return removeTemplateItemWithErrorHandling(itemId);
+}
+
+export async function removeTemplateSection(itemId: string, input: RemovePackingSectionInput): Promise<void> {
+  return removeTemplateSectionWithErrorHandling(itemId, input);
 }
 
 export async function reorderTemplateItems(
