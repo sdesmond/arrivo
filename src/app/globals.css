@@ -47,9 +47,9 @@
   --color-accent-ink: var(--accent-ink);
 
   /* Fonts */
-  --font-sans: var(--font-body);
-  --font-heading: var(--font-heading-family);
-  --font-mono: var(--font-mono-family);
+  --font-sans: var(--font-body, ui-sans-serif);
+  --font-heading: var(--font-heading-family, ui-sans-serif);
+  --font-mono: var(--font-mono-family, ui-monospace);
 
   /* Sidebar tokens */
   --color-sidebar-ring: var(--sidebar-ring);
@@ -60,6 +60,14 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 /* ─── Light theme ─── */
@@ -215,7 +223,7 @@ html[data-font-size="large"] {
 /* ─── Base styles ─── */
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border outline-ring/50;
     box-sizing: border-box;
   }
 
@@ -223,6 +231,7 @@ html[data-font-size="large"] {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "ss01", "cv11";
+    @apply font-sans;
   }
 
   body {
