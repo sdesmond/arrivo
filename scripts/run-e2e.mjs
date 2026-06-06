@@ -1,0 +1,267 @@
+import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const DEFAULT_PORT = 3001;
+const SERVER_MODE_KILL = "kill";
+const SERVER_MODE_REUSE = "reuse";
+const SUPPORTED_SERVER_MODES = [SERVER_MODE_KILL, SERVER_MODE_REUSE];
+const PORT_WAIT_TIMEOUT_MS = 15_000;
+const PORT_WAIT_INTERVAL_MS = 250;
+
+function log(message) {
+  console.log(`[run-e2e] ${message}`);
+}
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function parsePort(rawValue) {
+  const parsedValue = Number(rawValue);
+  if (!Number.isInteger(parsedValue) || parsedValue < 1 || parsedValue > 65535) {
+    fail(`Unsupported port "${rawValue}".`);
+  }
+  return parsedValue;
+}
+
+export function buildRunE2EPlan(argv) {
+  const plan = {
+    ui: false,
+    port: DEFAULT_PORT,
+    serverMode: SERVER_MODE_KILL,
+  };
+
+  for (const arg of argv) {
+    if (arg === "--ui") {
+      plan.ui = true;
+      continue;
+    }
+
+    if (arg.startsWith("--port=")) {
+      plan.port = parsePort(arg.slice("--port=".length));
+      continue;
+    }
+
+    if (arg.startsWith("--server=")) {
+      const serverMode = arg.slice("--server=".length);
+      if (!SUPPORTED_SERVER_MODES.includes(serverMode)) {
+        fail(`Unsupported server mode "${serverMode}". Use kill or reuse.`);
+      }
+      plan.serverMode = serverMode;
+      continue;
+    }
+
+    fail(`Unsupported argument "${arg}".`);
+  }
+
+  return plan;
+}
+
+function normalizePath(value) {
+  return value.replace(/\\/g, "/").toLowerCase();
+}
+
+export function isManagedPacktServer(listener, rootDir, port) {
+  if (!listener) return false;
+
+  const normalizedCommandLine = normalizePath(listener.commandLine ?? "");
+  const normalizedRootDir = normalizePath(rootDir);
+  const portToken = `${port}`;
+
+  return (
+    listener.name?.toLowerCase() === "node.exe" &&
+    normalizedCommandLine.includes(normalizedRootDir) &&
+    normalizedCommandLine.includes("next") &&
+    normalizedCommandLine.includes(portToken)
+  );
+}
+
+function runCommand(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    env: { ...process.env, ...options.env },
+    encoding: "utf8",
+    shell: false,
+    stdio: options.captureOutput ? "pipe" : "inherit",
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    const details = options.captureOutput ? [result.stdout, result.stderr].filter(Boolean).join("\n").trim() : "";
+    throw new Error(`Command failed: ${command} ${args.join(" ")}${details ? `\n${details}` : ""}`);
+  }
+
+  return {
+    stdout: result.stdout?.trim() ?? "",
+    stderr: result.stderr?.trim() ?? "",
+  };
+}
+
+function runPackageCommand(command, args, options = {}) {
+  if (process.platform === "win32") {
+    return runCommand("cmd.exe", ["/d", "/s", "/c", `${command} ${args.join(" ")}`], options);
+  }
+
+  return runCommand(command, args, options);
+}
+
+function wait(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function getWindowsListeningProcess(port) {
+  const command = [
+    "$listener = Get-NetTCPConnection -LocalPort",
+    `${port}`,
+    "-State Listen -ErrorAction SilentlyContinue | Select-Object -First 1;",
+    "if ($null -eq $listener) { Write-Output ''; exit 0 }",
+    "$process = Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -eq $listener.OwningProcess } | Select-Object -First 1;",
+    "$process | Select-Object ProcessId, Name, CommandLine | ConvertTo-Json -Compress",
+  ].join(" ");
+
+  const { stdout } = runCommand("pwsh", ["-NoLogo", "-NoProfile", "-Command", command], {
+    captureOutput: true,
+  });
+
+  if (!stdout) return undefined;
+
+  const parsedValue = JSON.parse(stdout);
+  return {
+    pid: Number(parsedValue.ProcessId),
+    name: String(parsedValue.Name ?? ""),
+    commandLine: String(parsedValue.CommandLine ?? ""),
+  };
+}
+
+function getPosixListeningProcess(port) {
+  try {
+    const { stdout } = runCommand("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpc"], {
+      captureOutput: true,
+    });
+
+    if (!stdout) return undefined;
+
+    const lines = stdout.split(/\r?\n/);
+    let pid;
+    let commandLine = "";
+
+    for (const line of lines) {
+      if (line.startsWith("p")) {
+        pid = Number(line.slice(1));
+      }
+      if (line.startsWith("c")) {
+        commandLine = line.slice(1);
+      }
+    }
+
+    if (!pid) return undefined;
+
+    return {
+      pid,
+      name: commandLine,
+      commandLine,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function getListeningProcess(port) {
+  if (process.platform === "win32") {
+    return getWindowsListeningProcess(port);
+  }
+
+  return getPosixListeningProcess(port);
+}
+
+function stopListeningProcess(processId) {
+  if (process.platform === "win32") {
+    runCommand("pwsh", ["-NoLogo", "-NoProfile", "-Command", `Stop-Process -Id ${processId} -Force`], {
+      captureOutput: true,
+    });
+    return;
+  }
+
+  runCommand("kill", ["-TERM", `${processId}`], { captureOutput: true });
+}
+
+function waitForPortToClear(port) {
+  const deadline = Date.now() + PORT_WAIT_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    if (!getListeningProcess(port)) {
+      return;
+    }
+    wait(PORT_WAIT_INTERVAL_MS);
+  }
+
+  fail(`Timed out waiting for port ${port} to clear.`);
+}
+
+function prepareServerPort({ serverMode, port, rootDir }) {
+  const listeningProcess = getListeningProcess(port);
+
+  if (!listeningProcess) {
+    log(`Port ${port} is free.`);
+    return;
+  }
+
+  if (serverMode === SERVER_MODE_REUSE) {
+    if (!isManagedPacktServer(listeningProcess, rootDir, port)) {
+      fail(
+        `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to reuse a non-Packt process.`
+      );
+    }
+    log(`Reusing existing process ${listeningProcess.pid} on port ${port}.`);
+    return;
+  }
+
+  if (!isManagedPacktServer(listeningProcess, rootDir, port)) {
+    fail(
+      `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to terminate a non-Packt process.`
+    );
+  }
+
+  log(`Stopping existing Packt server pid ${listeningProcess.pid} on port ${port}.`);
+  stopListeningProcess(listeningProcess.pid);
+  waitForPortToClear(port);
+}
+
+function buildPlaywrightArgs(ui) {
+  return ["playwright", "test", ...(ui ? ["--ui"] : [])];
+}
+
+export async function main(argv = process.argv.slice(2)) {
+  const __filename = fileURLToPath(import.meta.url);
+  const rootDir = join(dirname(__filename), "..");
+  const plan = buildRunE2EPlan(argv);
+
+  prepareServerPort({
+    serverMode: plan.serverMode,
+    port: plan.port,
+    rootDir,
+  });
+
+  const env = {
+    E2E_REUSE_SERVER: plan.serverMode === SERVER_MODE_REUSE ? "true" : "false",
+    PORT: `${plan.port}`,
+  };
+
+  runPackageCommand("npm", ["run", "db:reset:e2e"], { cwd: rootDir, env });
+  runPackageCommand("npm", ["run", "db:migrate:e2e"], { cwd: rootDir, env });
+  runPackageCommand("npx", ["bddgen"], { cwd: rootDir, env });
+  runPackageCommand("npx", buildPlaywrightArgs(plan.ui), { cwd: rootDir, env });
+}
+
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(`[run-e2e] ${error.message}`);
+    process.exit(1);
+  });
+}

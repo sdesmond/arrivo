@@ -75,8 +75,32 @@ describe("pick mode", () => {
       />
     );
     await user.click(screen.getByText("Boarding Pass.pdf"));
-    expect(attachTripDocToEvent).toHaveBeenCalledWith("doc-1", "ev-1");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    await waitFor(() => {
+      expect(attachTripDocToEvent).toHaveBeenCalledWith("doc-1", "ev-1");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("attach failure shows a toast and keeps the dialog open", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(attachTripDocToEvent).mockRejectedValueOnce(new Error("Event not found"));
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <AddDocDialog
+        open
+        eventId="ev-1"
+        onOpenChange={onOpenChange}
+        tripDocs={[makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })]}
+      />
+    );
+
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Failed to attach document. Please try again.");
+    });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it("Cancel closes the dialog in pick mode", async () => {
@@ -183,8 +207,10 @@ describe("upload mode", () => {
     const validFile = new File(["content"], "boarding.pdf", { type: "application/pdf" });
     await user.upload(fileInput, validFile);
     await user.click(screen.getByRole("button", { name: /attach/i }));
-    expect(uploadDocumentToEvent).toHaveBeenCalledWith("ev-1", expect.any(FormData));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    await waitFor(() => {
+      expect(uploadDocumentToEvent).toHaveBeenCalledWith("ev-1", expect.any(FormData));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
   });
 
   it("backdrop close calls onOpenChange(false)", async () => {
@@ -199,7 +225,8 @@ describe("upload mode", () => {
     const { toast } = await import("sonner");
     vi.mocked(uploadDocumentToEvent).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
-    render(<AddDocDialog open eventId="ev-1" onOpenChange={vi.fn()} />);
+    const onOpenChange = vi.fn();
+    render(<AddDocDialog open eventId="ev-1" onOpenChange={onOpenChange} />);
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const validFile = new File(["content"], "boarding.pdf", { type: "application/pdf" });
     await user.upload(fileInput, validFile);
@@ -207,6 +234,7 @@ describe("upload mode", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Upload failed. Please try again.");
     });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it("Enter key on drop zone invokes file input click", async () => {

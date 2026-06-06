@@ -161,11 +161,11 @@ export async function getTemplateWithItems(
   };
 }
 
-export async function getTripDetail(tripId: string, userId: string): Promise<TripDetailPayload> {
+export async function getTripDetail(tripId: string, userId: string): Promise<TripDetailPayload | null> {
   await assertTripAccess(tripId, userId);
 
   const [trip] = await db.select().from(trips).where(eq(trips.id, tripId));
-  if (!trip) throw new Error("Trip not found");
+  if (!trip) return null;
 
   const tripDays = await db.select().from(days).where(eq(days.tripId, tripId)).orderBy(days.dayNumber);
 

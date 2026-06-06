@@ -46,9 +46,13 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
 
   function handlePickDoc(docId: string) {
     startTransition(async () => {
-      await attachTripDocToEvent(docId, eventId);
+      try {
+        await attachTripDocToEvent(docId, eventId);
+        handleClose(false);
+      } catch {
+        toast.error("Failed to attach document. Please try again.");
+      }
     });
-    handleClose(false);
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -69,11 +73,11 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
     startTransition(async () => {
       try {
         await uploadDocumentToEvent(eventId, formData);
+        handleClose(false);
       } catch {
         toast.error("Upload failed. Please try again.");
       }
     });
-    handleClose(false);
   }
 
   return (

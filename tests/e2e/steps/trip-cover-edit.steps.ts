@@ -12,7 +12,7 @@ When("I click the Remove image button", async ({ page }) => {
 
 Then("the cover image is cleared after reloading the page", async ({ page }) => {
   await page.reload();
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("dialog").getByRole("button", { name: "Remove image" })).not.toBeVisible();
 });
@@ -31,7 +31,7 @@ When("I upload a new cover image from the picker", async ({ page }) => {
 
 Then("the new cover image is shown after reloading the page", async ({ page }) => {
   await page.reload();
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Remove image" })).toBeVisible();

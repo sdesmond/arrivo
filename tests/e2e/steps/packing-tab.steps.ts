@@ -458,7 +458,7 @@ async function openSectionDeleteDialog(page: Page, name: string): Promise<void> 
 
 When("I delete the section label {string} and move its items to Ungrouped", async ({ page }, name: string) => {
   await openSectionDeleteDialog(page, name);
-  await page.getByRole("button", { name: "Move items to Ungrouped" }).click();
+  await page.getByRole("button", { name: "Keep Items" }).click();
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
     timeout: 10_000,
   });
@@ -466,7 +466,7 @@ When("I delete the section label {string} and move its items to Ungrouped", asyn
 
 When("I delete the section label {string} and its items", async ({ page }, name: string) => {
   await openSectionDeleteDialog(page, name);
-  await page.getByRole("button", { name: "Delete section and items" }).click();
+  await page.getByRole("button", { name: "Delete Items" }).click();
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
     timeout: 10_000,
   });
