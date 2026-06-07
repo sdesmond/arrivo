@@ -147,11 +147,11 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         >
           <span className="flex items-center gap-1">
             <Calendar size={13} strokeWidth={1.5} />
-            {pluralize(tripDays, "day")}
+            {tripDays} {pluralize(tripDays, "day")}
           </span>
           <span className="flex items-center gap-1">
             <FileText size={13} strokeWidth={1.5} />
-            {pluralize(trip.docs?.length ?? 0, "doc")}
+            {trip.docs?.length ?? 0} {pluralize(trip.docs?.length ?? 0, "doc")}
           </span>
           <span className="flex items-center gap-1">
             <Users size={13} strokeWidth={1.5} />
@@ -166,7 +166,7 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         </div>
 
         {/* Footer */}
-        {trip.collaborators && (
+        {trip.collaborators && trip.collaborators.length > 0 && (
           <div className="mt-0.5">
             <AvatarStack initials={trip.collaborators.map((collaborator) => collaborator.initials)} size="sm" />
           </div>
