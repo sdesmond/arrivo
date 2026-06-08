@@ -342,20 +342,30 @@ When("I keyboard-move the item {string} down one position", async ({ page }, nam
   // dnd-kit's KeyboardSensor only starts listening for arrow keys once the
   // drag-start has committed (and the droppable rects are measured). Firing
   // ArrowDown before that leaves the move computing against itself, so the item
-  // is "dropped over" its own position and nothing reorders — the sporadic
-  // failure. Gate the keys on dnd-kit's live region: it announces a pickup, then
-  // immediately an over-self ("...moved over droppable area {sameId}"). Wait for
-  // that active state, then for ArrowDown to move the item over a *different*
-  // droppable before committing with Enter.
-  const liveRegion = page.getByRole("status").filter({ hasText: "draggable item" });
+  // is "dropped over" its own position and nothing reorders.
+  // Gate the keys on dnd-kit's live region: it announces a pickup and immediately
+  // an over-self ("...moved over droppable area {sameId}"). Wait for that active
+  // state, then for ArrowDown to move the item over a *different* droppable.
+  //
+  // Use the raw status element (no filter) and toPass so both conditions must hold
+  // simultaneously. A filter-based not.toContainText can pass vacuously when the
+  // status element is briefly empty between announcements, causing Enter to fire
+  // before dnd-kit has processed ArrowDown.
+  const statusEl = page.getByRole("status");
 
   await page.keyboard.press("Space");
-  await expect(liveRegion).toContainText("was moved over", { timeout: 10_000 });
-  const pickupText = (await liveRegion.textContent()) ?? "";
+  await expect(statusEl).toContainText("was moved over", { timeout: 10_000 });
+  const pickupText = (await statusEl.textContent()) ?? "";
   const activeId = pickupText.match(/[0-9a-f-]{36}/i)?.[0] ?? "";
 
   await page.keyboard.press("ArrowDown");
-  await expect(liveRegion).not.toContainText(`area ${activeId}`, { timeout: 10_000 });
+  await expect(async () => {
+    const statusText = (await statusEl.textContent()) ?? "";
+    expect(statusText.toLowerCase()).toContain("was moved over");
+    if (activeId) {
+      expect(statusText).not.toContain(`area ${activeId}`);
+    }
+  }).toPass({ timeout: 10_000 });
 
   await page.keyboard.press("Enter");
 });
