@@ -15,6 +15,9 @@ vi.mock("lucide-react", async (importOriginal) => {
     ListChecks: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
       <svg data-testid="list-checks-icon" data-stroke-width={strokeWidth} {...props} />
     ),
+    Backpack: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+      <svg data-testid="backpack-icon" data-stroke-width={strokeWidth} {...props} />
+    ),
   };
 });
 
@@ -77,6 +80,29 @@ describe("TypePicker", () => {
     render(<TypePicker onSelect={vi.fn()} onDismiss={onDismiss} />);
     fireEvent.mouseDown(screen.getByTitle("Add event"));
     expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("Backpack button not rendered when onOpenPackingListPicker is omitted", () => {
+    render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} />);
+    expect(screen.queryByTitle("Insert packing list")).not.toBeInTheDocument();
+  });
+
+  it("Backpack button rendered when onOpenPackingListPicker is provided", () => {
+    render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} onOpenPackingListPicker={vi.fn()} />);
+    expect(screen.getByTitle("Insert packing list")).toBeInTheDocument();
+  });
+
+  it("clicking Backpack button fires onOpenPackingListPicker", async () => {
+    const onOpenPackingListPicker = vi.fn();
+    const user = userEvent.setup();
+    render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} onOpenPackingListPicker={onOpenPackingListPicker} />);
+    await user.click(screen.getByTitle("Insert packing list"));
+    expect(onOpenPackingListPicker).toHaveBeenCalledTimes(1);
+  });
+
+  it("Backpack icon has strokeWidth 1.5", () => {
+    render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} onOpenPackingListPicker={vi.fn()} />);
+    expect(screen.getByTestId("backpack-icon")).toHaveAttribute("data-stroke-width", "1.5");
   });
 });
 
