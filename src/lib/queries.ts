@@ -18,7 +18,7 @@ import {
   packingTemplates,
   packingTemplateItems,
 } from "@/db/schema";
-import { eq, and, sql, inArray, asc, count } from "drizzle-orm";
+import { eq, and, sql, inArray, asc, count, isNull } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import {
   dbTripToType,
@@ -95,37 +95,72 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
     .orderBy(sql`${trips.startDate} NULLS FIRST`, trips.name);
 
+  if (rows.length === 0) return [];
+
   const todayISO = now.toISOString().slice(0, 10);
+  const tripIds = rows.map(({ trip }) => trip.id);
 
-  const result: TripListEntry[] = await Promise.all(
-    rows.map(async ({ trip }) => {
-      const todayEvents = await db
-        .select()
-        .from(events)
-        .where(and(eq(events.tripId, trip.id), sql`${events.startAt}::date = ${todayISO}::date`))
-        .orderBy(events.position);
+  const [allTodayEvents, packingAggs, allDocs, allCollabs] = await Promise.all([
+    db
+      .select()
+      .from(events)
+      .where(and(inArray(events.tripId, tripIds), sql`${events.startAt}::date = ${todayISO}::date`))
+      .orderBy(events.position),
+    db
+      .select({
+        tripId: packingItems.tripId,
+        total: count(),
+        checked: sql<number>`count(*) filter (where ${packingItems.done})::int`,
+      })
+      .from(packingItems)
+      .where(and(inArray(packingItems.tripId, tripIds), eq(packingItems.isLabel, false)))
+      .groupBy(packingItems.tripId),
+    db
+      .select()
+      .from(documents)
+      .where(and(inArray(documents.tripId, tripIds), isNull(documents.eventId))),
+    db.select().from(collaborators).where(inArray(collaborators.tripId, tripIds)),
+  ]);
 
-      const [{ totalItems }] = await db
-        .select({ totalItems: count() })
-        .from(packingItems)
-        .where(and(eq(packingItems.tripId, trip.id), eq(packingItems.isLabel, false)));
+  type EventRow = (typeof allTodayEvents)[number];
+  type DocRow = (typeof allDocs)[number];
+  type CollabRow = (typeof allCollabs)[number];
+  type PackAgg = (typeof packingAggs)[number];
 
-      const [{ checkedItems }] = await db
-        .select({ checkedItems: count() })
-        .from(packingItems)
-        .where(and(eq(packingItems.tripId, trip.id), eq(packingItems.isLabel, false), eq(packingItems.done, true)));
+  const eventsByTrip = allTodayEvents.reduce<Record<string, EventRow[]>>((acc, eventRow) => {
+    (acc[eventRow.tripId] ??= []).push(eventRow);
+    return acc;
+  }, {});
+  const packingByTrip = packingAggs.reduce<Record<string, PackAgg>>((acc, packAgg) => {
+    acc[packAgg.tripId] = packAgg;
+    return acc;
+  }, {});
+  const docsByTrip = allDocs.reduce<Record<string, DocRow[]>>((acc, docRow) => {
+    (acc[docRow.tripId!] ??= []).push(docRow);
+    return acc;
+  }, {});
+  const collabsByTrip = allCollabs.reduce<Record<string, CollabRow[]>>((acc, collabRow) => {
+    (acc[collabRow.tripId] ??= []).push(collabRow);
+    return acc;
+  }, {});
 
-      const packingProgress = totalItems > 0 ? { checked: checkedItems, total: totalItems } : undefined;
-
-      const tripEntry = dbTripToType(trip);
-      return {
-        trip: { ...tripEntry, packingProgress },
-        todayEvents: todayEvents.map(dbEventToType),
-      };
-    })
-  );
-
-  return result;
+  return rows.map(({ trip }) => {
+    const packAgg = packingByTrip[trip.id];
+    const packingProgress =
+      packAgg && packAgg.total > 0 ? { checked: packAgg.checked, total: packAgg.total } : undefined;
+    const tripEntry = dbTripToType(trip);
+    return {
+      trip: {
+        ...tripEntry,
+        packingProgress,
+        docs: (docsByTrip[trip.id] ?? []).map(dbDocToType),
+        collaborators: (collabsByTrip[trip.id] ?? [])
+          .filter((collabRow) => collabRow.userId !== userId)
+          .map(dbCollabToType),
+      },
+      todayEvents: (eventsByTrip[trip.id] ?? []).map(dbEventToType),
+    };
+  });
 }
 
 export async function listTemplatesForUser(userId: string): Promise<PackingTemplate[]> {

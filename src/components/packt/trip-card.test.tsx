@@ -99,9 +99,14 @@ describe("TripCard", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 
+  it("renders the day count", () => {
+    render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("10 days")).toBeInTheDocument();
+  });
+
   it("renders the doc count", () => {
     render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    expect(screen.getByText("docs")).toBeInTheDocument();
+    expect(screen.getByText("3 docs")).toBeInTheDocument();
   });
 
   it("always renders the trip options trigger", () => {
@@ -151,6 +156,13 @@ describe("TripCard", () => {
     const trip = { ...baseTrip, collaborators: undefined };
     render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not render avatar initials when collaborators is empty array", () => {
+    const trip = { ...baseTrip, collaborators: [] };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByText("AS")).not.toBeInTheDocument();
+    expect(screen.queryByText("BJ")).not.toBeInTheDocument();
   });
 
   it("renders without docs field", () => {
