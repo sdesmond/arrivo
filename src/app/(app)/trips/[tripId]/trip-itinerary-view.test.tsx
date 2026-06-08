@@ -22,6 +22,10 @@ vi.mock("@/components/packt/day-card", () => ({
   ),
 }));
 
+vi.mock("@/components/packt/packing-list-picker-dialog", () => ({
+  PackingListPickerDialog: () => null,
+}));
+
 vi.mock("@/components/packt/place-row", () => ({
   PlaceRow: ({ place }: MockPlaceRowProps) => <div>{place.name}</div>,
 }));
@@ -61,6 +65,9 @@ function buildProps(days: DayItinerary[]): TripItineraryViewProps {
     onUpdateChecklistItem: vi.fn(),
     onDeleteChecklistItem: vi.fn(),
     onToggleChecklistItem: vi.fn(),
+    packingLists: [],
+    templates: [],
+    onInsertFromPackingSource: vi.fn(),
     onAddDay: vi.fn(),
     onRemoveLastDay: vi.fn(),
     addingDay: false,
