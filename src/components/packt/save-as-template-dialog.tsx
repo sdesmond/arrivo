@@ -78,7 +78,7 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
               className="h-11"
               placeholder="e.g. Beach Holiday"
               value={name}
-              maxLength={100}
+              maxLength={30}
               onChange={(event) => handleNameChange(event.target.value)}
               style={{ color: "var(--fg)" }}
             />

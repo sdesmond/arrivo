@@ -93,6 +93,39 @@ describe("PackingListsView — drill-down", () => {
     await user.keyboard("{Enter}");
     expect(screen.getByTestId("packing-list-view")).toBeInTheDocument();
   });
+
+  it("clicking the drill-down title switches to an inline input", async () => {
+    const user = userEvent.setup();
+    render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} />);
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
+    await user.click(screen.getByRole("heading", { name: "Carry-On" }));
+    expect(screen.getByDisplayValue("Carry-On")).toBeInTheDocument();
+  });
+
+  it("pressing Enter on the title input calls onRenameList", async () => {
+    const onRenameList = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} onRenameList={onRenameList} />);
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
+    await user.click(screen.getByRole("heading", { name: "Carry-On" }));
+    const input = screen.getByDisplayValue("Carry-On");
+    await user.clear(input);
+    await user.type(input, "Hand Luggage{Enter}");
+    expect(onRenameList).toHaveBeenCalledWith("list-1", "Hand Luggage");
+  });
+
+  it("pressing Escape on the title input cancels without calling onRenameList", async () => {
+    const onRenameList = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} onRenameList={onRenameList} />);
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
+    await user.click(screen.getByRole("heading", { name: "Carry-On" }));
+    const input = screen.getByDisplayValue("Carry-On");
+    await user.clear(input);
+    await user.type(input, "Hand Luggage");
+    await user.keyboard("{Escape}");
+    expect(onRenameList).not.toHaveBeenCalled();
+  });
 });
 
 describe("PackingListsView — delete confirmation", () => {

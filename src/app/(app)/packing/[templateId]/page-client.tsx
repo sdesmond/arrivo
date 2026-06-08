@@ -9,6 +9,7 @@ import {
   reorderTemplateItems,
   updateTemplateItem,
 } from "./actions";
+import { renameTemplate } from "../actions";
 import { TemplateEditorView } from "@/components/packt/template-editor-view";
 import type { PackingTemplate, PackingTemplateItem, RemovePackingSectionInput } from "@/data/types";
 
@@ -82,6 +83,10 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
     });
   }
 
+  function handleRenameTemplate(name: string): Promise<void> {
+    return renameTemplate(template.id, { name });
+  }
+
   function handleReorderItems(
     ordered: { id: string; labelId: string | null; position: number }[],
     onError?: () => void
@@ -107,6 +112,7 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
       onReorderItems={handleReorderItems}
       onOptimisticReorder={setLocalItems}
       isAdding={isAdding}
+      onRenameTemplate={handleRenameTemplate}
     />
   );
 }

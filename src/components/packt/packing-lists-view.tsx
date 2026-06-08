@@ -89,6 +89,8 @@ export function PackingListsView({
   const [showNewForm, setShowNewForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [pendingCreatedList, setPendingCreatedList] = useState<PendingCreatedList | null>(null);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const persistedActiveList =
     activeListId === null ? null : packingLists.find((candidate) => candidate.id === activeListId);
   const pendingActiveList =
@@ -124,9 +126,51 @@ export function PackingListsView({
           <ChevronLeft size={14} strokeWidth={1.5} />
           All lists
         </button>
-        <h2 style={{ fontWeight: 600, fontSize: "calc(15px * var(--font-scale))", color: "var(--fg)" }}>
-          {activeList.name}
-        </h2>
+        {isEditingTitle ? (
+          <input
+            autoFocus
+            className="w-full rounded-md border px-2 py-1"
+            maxLength={30}
+            value={titleDraft}
+            onChange={(event) => setTitleDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                const trimmed = titleDraft.trim();
+                setIsEditingTitle(false);
+                if (trimmed && trimmed !== activeList.name) {
+                  void onRenameList(activeListId, trimmed);
+                }
+              }
+              if (event.key === "Escape") {
+                setIsEditingTitle(false);
+              }
+            }}
+            onBlur={() => setIsEditingTitle(false)}
+            style={{
+              fontWeight: 600,
+              fontSize: "calc(15px * var(--font-scale))",
+              color: "var(--fg)",
+              background: "var(--surface)",
+              borderColor: "var(--accent-brand)",
+              outline: "none",
+            }}
+          />
+        ) : (
+          <h2
+            onClick={() => {
+              setTitleDraft(activeList.name);
+              setIsEditingTitle(true);
+            }}
+            style={{
+              fontWeight: 600,
+              fontSize: "calc(15px * var(--font-scale))",
+              color: "var(--fg)",
+              cursor: "pointer",
+            }}
+          >
+            {activeList.name}
+          </h2>
+        )}
         <PackingListView
           tripId={tripId}
           items={listItems}
@@ -221,6 +265,7 @@ export function PackingListsView({
             <input
               autoFocus
               aria-label="Packing list name"
+              maxLength={30}
               placeholder="List name…"
               value={newListName}
               onChange={(evt) => setNewListName(evt.target.value)}
@@ -308,6 +353,7 @@ export function PackingListsView({
                     <input
                       autoFocus
                       aria-label="Packing list name"
+                      maxLength={30}
                       value={renameState.value}
                       onChange={(evt) => setRenameState({ ...renameState, value: evt.target.value })}
                       onBlur={() => void handleRenameCommit()}

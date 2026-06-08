@@ -27,10 +27,15 @@ function buildPackingListItemScope(tripId: string, listId: string | null) {
   return and(eq(packingItems.tripId, tripId), eq(packingItems.listId, listId));
 }
 
+const PACKING_ITEM_TEXT_MAX = 30;
+
 function normalizePackingItemName(name: string | undefined): string {
   const trimmedName = name?.trim() ?? "";
   if (!trimmedName) {
     throw new Error("Packing item name is required");
+  }
+  if (trimmedName.length > PACKING_ITEM_TEXT_MAX) {
+    throw new Error(`Packing item name must be ${PACKING_ITEM_TEXT_MAX} characters or fewer.`);
   }
   return trimmedName;
 }

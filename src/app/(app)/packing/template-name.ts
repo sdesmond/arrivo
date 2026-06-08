@@ -5,8 +5,8 @@ export function normalizeTemplateName(name: string | undefined): string {
     throw new Error("Template name is required.");
   }
 
-  if (normalizedName.length > 100) {
-    throw new Error("Template name must be 100 characters or fewer.");
+  if (normalizedName.length > 30) {
+    throw new Error("Template name must be 30 characters or fewer.");
   }
 
   return normalizedName;

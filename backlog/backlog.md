@@ -37,11 +37,5 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 
 ### Character caps
 
-1. Titles capped at 50 chars
-1. Items capped at 50 chars (template and trip-level)
-
-## Trip packing list
-
-1. I want to be able to edit a packing list or template title by clicking on the title when viewing the list
-
-1. When viewing a trip list, the breadcrumb shows "< All Lists". The templates should similarly show "< Add Templates" instead of the current "Back to Templates"
+1. Titles capped at 30 chars
+1. Items capped at 30 chars (template and trip-level)
