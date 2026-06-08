@@ -130,7 +130,7 @@ export function PackingRow({
               autoFocus
               className="min-w-0 flex-1 rounded-md border px-2 py-1 text-sm"
               defaultValue={item.name}
-              maxLength={100}
+              maxLength={30}
               style={{
                 background: "var(--bg)",
                 borderColor: "var(--line-strong)",

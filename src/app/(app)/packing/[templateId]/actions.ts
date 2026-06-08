@@ -13,7 +13,7 @@ import {
   type UpdateTemplateItemInput,
 } from "@/data/types";
 
-const ITEM_TEXT_MAX = 100;
+const ITEM_TEXT_MAX = 30;
 
 function normalizeItemText(text: string | undefined): string {
   const trimmed = text?.trim() ?? "";

@@ -183,11 +183,11 @@ describe("PackingRow", () => {
     expect(onEdit).not.toHaveBeenCalled();
   });
 
-  it("edit input has maxLength=100", async () => {
+  it("edit input has maxLength=30", async () => {
     const user = userEvent.setup();
     render(<PackingRow item={itemRow} onRemove={vi.fn()} onEdit={vi.fn()} />);
     await user.click(screen.getByText("Passport"));
-    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", "100");
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", "30");
   });
 
   it("label in edit mode shows a delete button", async () => {

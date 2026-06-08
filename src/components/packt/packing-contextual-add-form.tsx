@@ -67,7 +67,7 @@ export function ContextualAddForm({
         ref={inputRef}
         className="h-9 flex-1 rounded-xl border-0 px-3 text-sm shadow-none"
         disabled={isAdding}
-        maxLength={100}
+        maxLength={30}
         placeholder={placeholder}
         style={{ background: "var(--surface-2)", color: "var(--fg)" }}
         value={value}

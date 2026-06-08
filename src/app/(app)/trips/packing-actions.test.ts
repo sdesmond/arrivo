@@ -399,9 +399,9 @@ describe("saveTripListAsTemplate behavior", () => {
     expect(db.transaction).not.toHaveBeenCalled();
   });
 
-  it("throws when name exceeds 100 characters", async () => {
-    await expect(saveTripListAsTemplate("trip-1", "a".repeat(101))).rejects.toThrow(
-      "Template name must be 100 characters or fewer"
+  it("throws when name exceeds 30 characters", async () => {
+    await expect(saveTripListAsTemplate("trip-1", "a".repeat(31))).rejects.toThrow(
+      "Template name must be 30 characters or fewer"
     );
     expect(db.transaction).not.toHaveBeenCalled();
   });

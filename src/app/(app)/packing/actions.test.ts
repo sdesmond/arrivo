@@ -47,8 +47,8 @@ describe("normalizeTemplateName", () => {
     expect(() => normalizeTemplateName("   ")).toThrow("Template name is required.");
   });
 
-  it("rejects names longer than 100 characters", () => {
-    expect(() => normalizeTemplateName("x".repeat(101))).toThrow("Template name must be 100 characters or fewer.");
+  it("rejects names longer than 30 characters", () => {
+    expect(() => normalizeTemplateName("x".repeat(31))).toThrow("Template name must be 30 characters or fewer.");
   });
 });
 

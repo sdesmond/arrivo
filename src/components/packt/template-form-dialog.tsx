@@ -61,7 +61,7 @@ export function TemplateFormDialog({
             <Input
               id={`template-${mode}-name`}
               autoFocus
-              maxLength={100}
+              maxLength={30}
               value={name}
               aria-label="Template name"
               aria-describedby={showNameError ? `template-${mode}-name-error` : undefined}
