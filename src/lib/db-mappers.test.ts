@@ -12,6 +12,7 @@ import {
   dbCompanionToType,
   dbUserToType,
   dbPackingItemToType,
+  dbPackingListToType,
   dbTemplateToType,
   dbTemplateItemToType,
 } from "@/lib/db-mappers";
@@ -21,6 +22,7 @@ import type {
   documents,
   collaborators,
   packingItems,
+  tripPackingLists,
   packingTemplates,
   packingTemplateItems,
   users,
@@ -37,6 +39,7 @@ type EventRow = typeof events.$inferSelect;
 type DocRow = typeof documents.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
 type PackingItemRow = typeof packingItems.$inferSelect;
+type TripPackingListRow = typeof tripPackingLists.$inferSelect;
 type PackingTemplateRow = typeof packingTemplates.$inferSelect;
 type PackingTemplateItemRow = typeof packingTemplateItems.$inferSelect;
 type UserRow = typeof users.$inferSelect;
@@ -325,6 +328,7 @@ describe("dbCollabToType", () => {
 const BASE_PACKING_ITEM: PackingItemRow = {
   id: "packing-1",
   tripId: "trip-1",
+  listId: null,
   name: "Passport",
   done: false,
   isLabel: false,
@@ -339,6 +343,7 @@ describe("dbPackingItemToType", () => {
     expect(result).toEqual({
       id: "packing-1",
       tripId: "trip-1",
+      listId: null,
       name: "Documents",
       done: false,
       isLabel: true,
@@ -358,6 +363,54 @@ describe("dbPackingItemToType", () => {
 
     expect(result.done).toBe(false);
     expect(result.isLabel).toBe(false);
+  });
+
+  it("maps a non-null listId", () => {
+    const result = dbPackingItemToType({ ...BASE_PACKING_ITEM, listId: "list-1" });
+
+    expect(result.listId).toBe("list-1");
+  });
+
+  it("maps null listId to null", () => {
+    const result = dbPackingItemToType(BASE_PACKING_ITEM);
+
+    expect(result.listId).toBeNull();
+  });
+});
+
+// ── dbPackingListToType ──────────────────────────────────────────────────────
+
+const BASE_PACKING_LIST: TripPackingListRow = {
+  id: "list-1",
+  tripId: "trip-1",
+  name: "Carry-On",
+  position: 0,
+  createdAt: null,
+};
+
+describe("dbPackingListToType", () => {
+  it("maps id, tripId, name, and position correctly", () => {
+    const result = dbPackingListToType(BASE_PACKING_LIST);
+    expect(result.id).toBe("list-1");
+    expect(result.tripId).toBe("trip-1");
+    expect(result.name).toBe("Carry-On");
+    expect(result.position).toBe(0);
+  });
+
+  it("null createdAt becomes undefined", () => {
+    const result = dbPackingListToType(BASE_PACKING_LIST);
+    expect(result.createdAt).toBeUndefined();
+  });
+
+  it("converts createdAt Date to ISO string", () => {
+    const createdAt = new Date("2026-06-01T12:00:00.000Z");
+    const result = dbPackingListToType({ ...BASE_PACKING_LIST, createdAt });
+    expect(result.createdAt).toBe(createdAt.toISOString());
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbPackingListToType({ ...BASE_PACKING_LIST, position: 2 });
+    expect(result.position).toBe(2);
   });
 });
 

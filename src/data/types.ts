@@ -389,9 +389,26 @@ export interface PackingItem {
   name: string;
   done: boolean;
   tripId?: string;
+  listId?: string | null;
   position?: number;
   isLabel?: boolean;
   labelId?: string | null;
+}
+
+export interface TripPackingList {
+  id: string;
+  tripId: string;
+  name: string;
+  position: number;
+  createdAt?: string;
+}
+
+export interface CreateTripPackingListInput {
+  name: string;
+}
+
+export interface RenameTripPackingListInput {
+  name: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -467,6 +484,7 @@ export interface TripDetailPayload {
   docs: Document[];
   collaborators: Collaborator[];
   packingItems: PackingItem[];
+  packingLists: TripPackingList[];
 }
 
 export interface NewTripDraft {
@@ -609,6 +627,7 @@ export interface AddPackingItemInput {
   afterItemId?: string;
   beforeItemId?: string;
   labelId?: string | null;
+  listId?: string | null;
 }
 
 export interface UpdatePackingItemInput {
