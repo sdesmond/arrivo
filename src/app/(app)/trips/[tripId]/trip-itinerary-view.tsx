@@ -16,8 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PackingListPickerDialog } from "@/components/packt/packing-list-picker-dialog";
-import type { DayItinerary, TripEvent, DayItemType, Document, TripPackingList, PackingTemplate } from "@/data/types";
+import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/types";
 import { UnscheduledEventsSection } from "./unscheduled-events-section";
 
 export interface TripItineraryViewProps {
@@ -27,14 +26,6 @@ export interface TripItineraryViewProps {
   initialExpandedDayNumber?: number;
   isNew?: boolean;
   tripDocs?: Document[];
-  packingLists: TripPackingList[];
-  templates: PackingTemplate[];
-  onInsertFromPackingSource: (
-    dayNumber: number,
-    position: number,
-    sourceType: "packing-list" | "template",
-    sourceId: string
-  ) => Promise<void>;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
@@ -65,11 +56,6 @@ interface RemovalConfirmation {
   removesOnlyDay: boolean;
 }
 
-interface PickerState {
-  dayNumber: number;
-  insertAtPosition: number;
-}
-
 export function TripItineraryView({
   days,
   unscheduledEvents,
@@ -77,9 +63,6 @@ export function TripItineraryView({
   initialExpandedDayNumber,
   isNew,
   tripDocs,
-  packingLists,
-  templates,
-  onInsertFromPackingSource,
   onUpdateEvent,
   onDeleteEvent,
   onReorderDayItems,
@@ -103,7 +86,6 @@ export function TripItineraryView({
 }: TripItineraryViewProps): ReactElement {
   const [removalConfirmation, setRemovalConfirmation] = useState<RemovalConfirmation | null>(null);
   const [initialRenderDayCount] = useState(() => days.length);
-  const [pickerState, setPickerState] = useState<PickerState | null>(null);
 
   if (days.length === 0 && unscheduledEvents.length === 0) {
     return (
@@ -153,12 +135,6 @@ export function TripItineraryView({
     setRemovalConfirmation(null);
   }
 
-  async function handlePickerSelect(sourceType: "packing-list" | "template", sourceId: string): Promise<void> {
-    if (!pickerState) return;
-    setPickerState(null);
-    await onInsertFromPackingSource(pickerState.dayNumber, pickerState.insertAtPosition, sourceType, sourceId);
-  }
-
   return (
     <>
       <div>
@@ -195,9 +171,6 @@ export function TripItineraryView({
               onToggleChecklistItem={onToggleChecklistItem}
               onRemove={day.dayNumber === lastDay?.dayNumber ? requestLastDayRemoval : undefined}
               removeDisabled={removingDay || addingDay}
-              onOpenPackingListPicker={(insertAtPosition) =>
-                setPickerState({ dayNumber: day.dayNumber, insertAtPosition })
-              }
             />
           );
 
@@ -223,15 +196,6 @@ export function TripItineraryView({
           </Button>
         )}
       </div>
-
-      <PackingListPickerDialog
-        open={pickerState !== null}
-        onClose={() => setPickerState(null)}
-        packingLists={packingLists}
-        templates={templates}
-        onSelect={handlePickerSelect}
-      />
-
       <AlertDialog
         open={removalConfirmation !== null}
         onOpenChange={(open) => {

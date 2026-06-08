@@ -2,19 +2,7 @@
 
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import {
-  events,
-  days,
-  documents,
-  itineraryNotes,
-  itineraryChecklists,
-  checklistItems,
-  trips,
-  packingItems,
-  tripPackingLists,
-  packingTemplates,
-  packingTemplateItems,
-} from "@/db/schema";
+import { events, days, documents, itineraryNotes, itineraryChecklists, checklistItems, trips } from "@/db/schema";
 import { eq, and, max, gte, sql, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { del, put } from "@vercel/blob";
@@ -646,69 +634,6 @@ export async function promoteEventDocToTrip(docId: string): Promise<void> {
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ eventId: null }).where(eq(documents.id, docId));
   revalidatePath(`/trips/${tripId}`);
-}
-
-export async function addChecklistFromPackingSource(
-  tripId: string,
-  dayId: string,
-  position: number,
-  sourceType: "packing-list" | "template",
-  sourceId: string
-): Promise<string> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  let sourceName: string;
-  let itemTexts: string[];
-
-  if (sourceType === "packing-list") {
-    const [list] = await db
-      .select({ name: tripPackingLists.name, tripId: tripPackingLists.tripId })
-      .from(tripPackingLists)
-      .where(eq(tripPackingLists.id, sourceId));
-    if (!list || list.tripId !== tripId) throw new Error("Packing list not found");
-    sourceName = list.name;
-
-    const items = await db
-      .select({ name: packingItems.name })
-      .from(packingItems)
-      .where(and(eq(packingItems.listId, sourceId), eq(packingItems.isLabel, false)))
-      .orderBy(asc(packingItems.position));
-    itemTexts = items.map((item) => item.name);
-  } else {
-    const [template] = await db
-      .select({ name: packingTemplates.name, userId: packingTemplates.userId })
-      .from(packingTemplates)
-      .where(eq(packingTemplates.id, sourceId));
-    if (!template || template.userId !== user.id!) throw new Error("Template not found");
-    sourceName = template.name;
-
-    const items = await db
-      .select({ text: packingTemplateItems.text })
-      .from(packingTemplateItems)
-      .where(and(eq(packingTemplateItems.templateId, sourceId), eq(packingTemplateItems.isLabel, false)))
-      .orderBy(asc(packingTemplateItems.position));
-    itemTexts = items.map((item) => item.text);
-  }
-
-  await shiftItemsAtOrAbove(dayId, position);
-
-  const checklistId = await db.transaction(async (tx) => {
-    const [newChecklist] = await tx
-      .insert(itineraryChecklists)
-      .values({ dayId, position, title: sourceName })
-      .returning({ id: itineraryChecklists.id });
-    if (!newChecklist) throw new Error("Failed to create checklist");
-
-    if (itemTexts.length > 0) {
-      await tx.insert(checklistItems).values(itemTexts.map((content) => ({ checklistId: newChecklist.id, content })));
-    }
-
-    return newChecklist.id;
-  });
-
-  revalidatePath(`/trips/${tripId}`);
-  return checklistId;
 }
 
 export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {

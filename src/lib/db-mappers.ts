@@ -10,7 +10,6 @@ import {
   packingItems,
   packingTemplates,
   packingTemplateItems,
-  tripPackingLists,
   userLoyaltyNumbers,
   userWishlistDestinations,
   userCompanions,
@@ -32,7 +31,6 @@ import type {
   PackingItem,
   PackingTemplate,
   PackingTemplateItem,
-  TripPackingList,
 } from "@/data/types";
 import { CoverType } from "@/data/types";
 
@@ -197,20 +195,9 @@ export function dbPackingItemToType(row: typeof packingItems.$inferSelect): Pack
     name: row.name,
     done: row.done ?? false,
     tripId: row.tripId,
-    listId: row.listId ?? null,
     position: row.position,
     isLabel: row.isLabel,
     labelId: row.labelId,
-  };
-}
-
-export function dbPackingListToType(row: typeof tripPackingLists.$inferSelect): TripPackingList {
-  return {
-    id: row.id,
-    tripId: row.tripId,
-    name: row.name,
-    position: row.position,
-    createdAt: row.createdAt?.toISOString() ?? undefined,
   };
 }
 
