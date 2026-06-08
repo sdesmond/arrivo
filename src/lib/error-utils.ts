@@ -1,6 +1,7 @@
 const GENERIC_ERROR_MESSAGE = "An unexpected error occurred. Please try again.";
 const SAFE_ERROR_PREFIXES = [
   "Invalid labelId",
+  "Invalid listId",
   "Template name",
   "Item text",
   "Packing item name",

@@ -27,7 +27,13 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
-import { addPackingItem, removePackingSection, reorderPackingItems, saveTripListAsTemplate } from "./packing-actions";
+import {
+  addPackingItem,
+  pullTemplatesOntoTrip,
+  removePackingSection,
+  reorderPackingItems,
+  saveTripListAsTemplate,
+} from "./packing-actions";
 
 function mockSimpleSelect(rows: unknown[]) {
   return {
@@ -68,6 +74,51 @@ describe("packing actions hardening", () => {
     }
   );
 
+  it("rejects addPackingItem when listId belongs to a different trip", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+
+    await expect(addPackingItem("trip-1", { name: "Passport", listId: "list-1" })).rejects.toThrow(
+      "Invalid listId: referenced packing list belongs to a different trip"
+    );
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects addPackingItem when labelId belongs to a different packing list", async () => {
+    db.select
+      .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
+      .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", listId: "list-2" }]));
+
+    await expect(addPackingItem("trip-1", { name: "Passport", listId: "list-1", labelId: "label-1" })).rejects.toThrow(
+      "Invalid labelId: referenced row belongs to a different packing list"
+    );
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects contextual addPackingItem when the target item belongs to a different packing list", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]));
+
+    const tx = {
+      insert: vi.fn(),
+      select: vi.fn(() => ({
+        from: () => ({
+          where: async () => [{ id: "item-1", tripId: "trip-1", listId: "list-2", position: 0 }],
+        }),
+      })),
+      update: vi.fn(),
+    };
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await expect(
+      addPackingItem("trip-1", { name: "Passport", listId: "list-1", afterItemId: "item-1" })
+    ).rejects.toThrow("Target item belongs to a different packing list");
+
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
   it("allows addPackingItem when labelId resolves to a label in the same trip", async () => {
     db.select
       .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1" }]))
@@ -90,13 +141,53 @@ describe("packing actions hardening", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
   });
 
+  it("stores pulled template items on the requested packing list", async () => {
+    db.select
+      .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
+      .mockReturnValueOnce(mockSimpleSelect([]))
+      .mockReturnValueOnce(mockSimpleSelect([{ id: "tmpl-1" }]));
+
+    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
+    const insertValues = vi.fn(() => ({ returning }));
+    const transaction = {
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: null }]))
+        .mockReturnValueOnce(
+          mockOrderedSelect([{ id: "tmpl-item-1", text: "Passport", isLabel: false, position: 0, labelId: null }])
+        ),
+    };
+
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(pullTemplatesOntoTrip("trip-1", ["tmpl-1"], "list-1")).resolves.toEqual({ added: 1, skipped: 0 });
+
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: "trip-1",
+        listId: "list-1",
+        name: "Passport",
+      })
+    );
+  });
+
   it("rejects reorderPackingItems when an entry references an invalid labelId", async () => {
     const tx = {
-      select: vi.fn(() => ({
-        from: () => ({
-          where: async () => [],
+      select: vi
+        .fn()
+        .mockReturnValueOnce({
+          from: () => ({
+            where: async () => [{ listId: null }],
+          }),
+        })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: async () => [],
+          }),
         }),
-      })),
       update: vi.fn(),
     };
 

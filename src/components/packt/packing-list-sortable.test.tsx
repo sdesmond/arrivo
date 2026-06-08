@@ -247,6 +247,26 @@ describe("PackingListSortable", () => {
     expect(onAnnounceMove).toHaveBeenCalledWith("Moved Passport to Ungrouped.");
   });
 
+  it("renders an explicit empty ungrouped drop zone when a list has only sectioned items", () => {
+    const sectionOnly: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListSortable
+        items={sectionOnly}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Drag items here to ungroup them")).toBeInTheDocument();
+  });
+
   it("persists a cross-container drop landed as the last item over the destination container", () => {
     const onOptimisticReorder = vi.fn();
     const onReorderItems = vi.fn();
@@ -366,6 +386,56 @@ describe("PackingListSortable", () => {
 
     expect(onOptimisticReorder).not.toHaveBeenCalled();
     expect(onReorderItems).not.toHaveBeenCalled();
+  });
+
+  it("persists a cross-container preview when drag end loses its final over target", () => {
+    const onOptimisticReorder = vi.fn();
+    const onReorderItems = vi.fn();
+    const onAnnounceMove = vi.fn();
+    const sectionOnly: PackingItem[] = [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+    ];
+
+    render(
+      <PackingListSortable
+        items={sectionOnly}
+        pendingItemIds={new Set()}
+        onRemoveItem={vi.fn()}
+        onToggleItem={vi.fn(async () => undefined)}
+        onOptimisticReorder={onOptimisticReorder}
+        onReorderItems={onReorderItems}
+        onAnnounceMove={onAnnounceMove}
+      />
+    );
+
+    act(() => {
+      getDndProps<{
+        onDragOver?: (event: { active: { id: string }; over: { id: string } | null }) => void;
+      }>().onDragOver?.({ active: { id: "item-1" }, over: { id: "container:__ungrouped__" } });
+    });
+
+    act(() => {
+      getDndProps<{
+        onDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void;
+      }>().onDragEnd?.({
+        active: { id: "item-1" },
+        over: null,
+      });
+    });
+
+    expect(onOptimisticReorder).toHaveBeenCalledWith([
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: null },
+    ]);
+    expect(onReorderItems).toHaveBeenCalledWith(
+      [
+        { id: "label-1", labelId: null, position: 0 },
+        { id: "item-1", labelId: null, position: 1 },
+      ],
+      expect.any(Function)
+    );
+    expect(onAnnounceMove).toHaveBeenCalledWith("Moved Passport to Ungrouped.");
   });
 
   it("shows and clears the drag overlay across drag start and cancel", () => {

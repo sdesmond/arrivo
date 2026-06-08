@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockAssertTripAccess,
+  mockDbInsert,
   mockDbSelect,
   mockDbTransaction,
   mockDbUpdate,
@@ -15,6 +16,7 @@ const {
 } = vi.hoisted(() => {
   const mockAssertTripAccess = vi.fn();
   const mockDbSelect = vi.fn();
+  const mockDbInsert = vi.fn();
   const mockDbTransaction = vi.fn();
   const mockDbUpdate = vi.fn();
   const mockRequireUser = vi.fn();
@@ -35,6 +37,7 @@ const {
   return {
     mockAssertTripAccess,
     mockDbSelect,
+    mockDbInsert,
     mockDbTransaction,
     mockDbUpdate,
     mockRequireUser,
@@ -53,6 +56,7 @@ vi.mock("@/lib/auth-helpers", () => ({
 
 vi.mock("@/db", () => ({
   db: {
+    insert: mockDbInsert,
     select: mockDbSelect,
     transaction: mockDbTransaction,
     update: mockDbUpdate,
@@ -93,7 +97,7 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => "sql"),
 }));
 
-import { reorderDayItems, uploadCoverImage } from "./actions";
+import { addChecklistFromPackingSource, reorderDayItems, uploadCoverImage } from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 
 interface ReorderTransactionFixture {
@@ -198,6 +202,37 @@ describe("reorderDayItems", () => {
     ).rejects.toThrow("CONCURRENT_MODIFICATION");
 
     expect(updates).toEqual([]);
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("addChecklistFromPackingSource", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("rejects when the provided day belongs to a different trip", async () => {
+    mockDbSelect.mockReturnValue({
+      from: vi.fn((table: unknown) => {
+        if (table !== days) {
+          throw new Error("Unexpected table read.");
+        }
+
+        return {
+          where: vi.fn(async () => [{ tripId: "trip-2" }]),
+        };
+      }),
+    });
+
+    await expect(addChecklistFromPackingSource("trip-1", "day-1", 0, "packing-list", "list-1")).rejects.toThrow(
+      "Day does not belong to this trip"
+    );
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockDbInsert).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });

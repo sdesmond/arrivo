@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
-import { packingItems } from "../../../src/db/schema";
+import { packingItems, tripPackingLists } from "../../../src/db/schema";
 import { type E2EDb, withE2EDb } from "../e2e-db";
 import {
   E2E_PACKING_CONTEXTUAL_ADD_ITEMS,
@@ -19,7 +19,19 @@ import { Given, Then, When } from "../fixtures";
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
-  await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
+  // Wait for packing library to render — "New List" always appears (empty or populated)
+  await expect(page.getByRole("button", { name: "New List" })).toBeVisible({ timeout: 10_000 });
+
+  // Named list present → navigate into the first one so item-level steps work
+  const firstRenameBtn = page.getByRole("button", { name: /^Rename "/ }).first();
+  if (await firstRenameBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+    const ariaLabel = (await firstRenameBtn.getAttribute("aria-label")) ?? "";
+    const listName = ariaLabel.replace(/^Rename "/, "").replace(/"$/, "");
+    if (listName) {
+      await page.getByText(listName, { exact: true }).first().click();
+      await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
+    }
+  }
 }
 
 // Insert one packing item and return its generated id. Wrapped to give an
@@ -34,18 +46,30 @@ async function insertPackingItem(
     done: boolean;
     position: number;
     labelId: string | null;
+    listId: string | null;
   }
 ): Promise<string> {
   const rows = (await db.insert(packingItems).values(values).returning({ id: packingItems.id })) as { id: string }[];
   return rows[0].id;
 }
 
+async function createMainList(db: E2EDb, tripId: string): Promise<string> {
+  await db.delete(tripPackingLists).where(eq(tripPackingLists.tripId, tripId));
+  const rows = (await db
+    .insert(tripPackingLists)
+    .values({ tripId, name: "Main", position: 0 })
+    .returning({ id: tripPackingLists.id })) as { id: string }[];
+  if (!rows[0]) throw new Error("Failed to create packing list for seeding");
+  return rows[0].id;
+}
+
 async function seedPackingItems(db: E2EDb, tripId: string, itemsToSeed: typeof E2E_PACKING_ITEMS): Promise<void> {
   await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
+  const listId = await createMainList(db, tripId);
   // Positional grouping: each non-label item joins the most recent label.
   let currentLabelId: string | null = null;
   for (const item of itemsToSeed) {
-    const id = await insertPackingItem(db, { ...item, tripId, labelId: item.isLabel ? null : currentLabelId });
+    const id = await insertPackingItem(db, { ...item, tripId, labelId: item.isLabel ? null : currentLabelId, listId });
     if (item.isLabel) currentLabelId = id;
   }
 }
@@ -57,6 +81,7 @@ type GroupedSeedItem = { name: string; isLabel: boolean; done: boolean; position
 // after a section.
 async function seedGroupedPackingItems(db: E2EDb, tripId: string, itemsToSeed: GroupedSeedItem[]): Promise<void> {
   await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
+  const listId = await createMainList(db, tripId);
   const labelIdsByName = new Map<string, string>();
   for (const item of itemsToSeed) {
     const labelId = item.under ? (labelIdsByName.get(item.under) ?? null) : null;
@@ -67,6 +92,7 @@ async function seedGroupedPackingItems(db: E2EDb, tripId: string, itemsToSeed: G
       position: item.position,
       tripId,
       labelId: item.isLabel ? null : labelId,
+      listId,
     });
     if (item.isLabel) labelIdsByName.set(item.name, id);
   }
@@ -110,44 +136,62 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
   await page.mouse.up();
 }
 
-async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promise<void> {
+async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<void> {
   const handle = page.getByTitle(`Reorder ${sourceName}`);
   const ungrouped = page.locator('[data-packing-container="container:__ungrouped__"]');
+  const emptyDropzone = ungrouped.locator("[data-packing-empty-dropzone]");
+  const addItemInput = ungrouped.getByPlaceholder("Add item…");
+  const previewItem = ungrouped.locator('[data-packing-kind="item"]').filter({ hasText: sourceName });
   await expect(handle).toBeVisible({ timeout: 10_000 });
   await expect(ungrouped).toBeVisible({ timeout: 10_000 });
+  await expect(addItemInput).toBeVisible({ timeout: 10_000 });
+
+  const useEmptyDropzone = await emptyDropzone.isVisible().catch(() => false);
+  const target = useEmptyDropzone ? emptyDropzone : addItemInput;
+
   await handle.scrollIntoViewIfNeeded();
-
   const source = await handle.boundingBox();
-  const destination = await ungrouped.boundingBox();
-  if (!source || !destination) {
-    throw new Error(`Could not measure Ungrouped drop area for ${sourceName}`);
-  }
-
-  const targetX = destination.x + destination.width / 2;
-  const targetY = destination.y + Math.max(destination.height - 16, destination.height / 2);
+  let targetBox = await target.boundingBox();
+  if (!source || !targetBox) throw new Error(`Could not measure drag source/target for ${sourceName}`);
 
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
   await page.mouse.down();
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
-  await page.mouse.move(targetX, targetY, { steps: 18 });
 
-  let lastDropX = targetX;
-  let lastDropY = targetY;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await page.waitForTimeout(80);
-    const box = await ungrouped.boundingBox();
-    if (!box) {
-      await page.waitForTimeout(100);
-      continue;
+  for (let attemptIndex = 0; attemptIndex < 8; attemptIndex += 1) {
+    const targetPointX = targetBox.x + targetBox.width / 2;
+    const targetPointY = targetBox.y + Math.min(targetBox.height / 2, 24);
+    await page.mouse.move(targetPointX, targetPointY, { steps: 8 });
+    if ((await previewItem.count()) === 1) {
+      await page.waitForTimeout(60);
+      await page.mouse.up();
+      return;
     }
-    lastDropX = box.x + box.width / 2;
-    lastDropY = box.y + Math.max(box.height - 16, box.height / 2);
-    await page.mouse.move(lastDropX, lastDropY, { steps: 6 });
+    await page.waitForTimeout(90);
+    const updatedTargetBox = await target.boundingBox();
+    if (updatedTargetBox) targetBox = updatedTargetBox;
   }
-  await page.mouse.move(lastDropX, lastDropY, { steps: 3 });
 
+  await expect(previewItem).toHaveCount(1, { timeout: 2_000 });
   await page.waitForTimeout(60);
   await page.mouse.up();
+}
+
+async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promise<void> {
+  const ungroupedItem = page
+    .locator('[data-packing-container="container:__ungrouped__"]')
+    .locator('[data-packing-kind="item"]')
+    .filter({ hasText: sourceName });
+
+  for (let attemptIndex = 0; attemptIndex < 2; attemptIndex += 1) {
+    await dragItemOntoUngrouped(page, sourceName);
+    await page.waitForTimeout(150);
+    if ((await ungroupedItem.count()) === 1) {
+      return;
+    }
+  }
+
+  await expect(ungroupedItem).toHaveCount(1, { timeout: 2_000 });
 }
 
 When("I open the Packing tab", async ({ page }) => {
@@ -155,12 +199,30 @@ When("I open the Packing tab", async ({ page }) => {
 });
 
 Then("I should see the empty packing state", async ({ page }) => {
-  await expect(page.getByPlaceholder("New section…")).toBeVisible();
-  await expect(page.getByPlaceholder("Add item…")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your packing list is empty" })).toHaveCount(0);
+  await expect(page.getByText("No packing lists yet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "New List" })).toBeVisible();
 });
 
+async function ensureInsidePackingList(page: Page): Promise<void> {
+  const addItemPlaceholder = page.getByPlaceholder("Add item…");
+  if (await addItemPlaceholder.isVisible({ timeout: 500 }).catch(() => false)) return;
+
+  // No lists — create one
+  await page.getByRole("button", { name: "New List" }).click();
+  await page.getByLabel("Packing list name").fill("Main");
+  await page.getByRole("button", { name: "Create" }).click();
+  // Wait for form to close (server revalidation may return us to library view)
+  await expect(page.getByRole("button", { name: "Create" })).not.toBeVisible({ timeout: 10_000 });
+
+  // If server re-render reset us back to library, click into the newly created list
+  if (!(await addItemPlaceholder.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    await page.getByText("Main", { exact: true }).first().click();
+    await expect(addItemPlaceholder).toBeVisible({ timeout: 10_000 });
+  }
+}
+
 When("I add a packing item named {string}", async ({ page }, name: string) => {
+  await ensureInsidePackingList(page);
   await page.getByPlaceholder("Add item…").fill(name);
   await page.keyboard.press("Enter");
   await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: name }).first()).toBeVisible({
@@ -169,6 +231,7 @@ When("I add a packing item named {string}", async ({ page }, name: string) => {
 });
 
 When("I add a packing label named {string}", async ({ page }, name: string) => {
+  await ensureInsidePackingList(page);
   await page.getByPlaceholder("New section…").fill(name);
   await page.keyboard.press("Enter");
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name }).first()).toBeVisible({
