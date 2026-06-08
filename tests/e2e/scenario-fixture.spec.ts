@@ -1,17 +1,17 @@
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
-import type { TestInfo } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { days, packingTemplates, trips, users } from "../../src/db/schema";
 import { cleanupScenarioFixtureContext, createScenarioFixtureContext } from "./scenario-fixture";
 import { withE2EDb } from "./e2e-db";
 import { THREE_DAY_TRIP_MOTHER, cloneTripMother, cloneUserMother } from "./e2e-seed-data";
 
-function fakeTestInfo(title: string, testId: string): TestInfo {
-  return { title, testId } as TestInfo;
-}
-
-describe("E2E scenario fixtures", () => {
-  it("clones trip mothers without mutating the base object", () => {
+// Self-tests for the scenario-fixture infrastructure (mothers, unique naming, materialize/cleanup).
+// These run as their own Playwright project (see playwright.config.ts) rather than a second Vitest
+// process: the DB-backed cases need the live packt_e2e schema, and running them under Playwright —
+// after global-setup has migrated and seeded the DB — keeps them out of the hermetic unit/coverage
+// Vitest run and avoids two concurrent Vitest processes racing Vite's shared temp dir.
+test.describe("E2E scenario fixtures", () => {
+  test("clones trip mothers without mutating the base object", () => {
     const clone = cloneTripMother("threeDayTrip", {
       trip: { name: "Mutated Trip" },
       days: [{ dayNumber: 1, date: "2026-09-01", label: "Day 1" }],
@@ -22,8 +22,8 @@ describe("E2E scenario fixtures", () => {
     expect(THREE_DAY_TRIP_MOTHER.days).toHaveLength(3);
   });
 
-  it("creates unique names and emails per scenario context", async () => {
-    const context = createScenarioFixtureContext(fakeTestInfo("Unique Fixture Scenario", "unique-fixture-scenario"));
+  test("creates unique names and emails per scenario context", async () => {
+    const context = createScenarioFixtureContext(test.info());
     const firstName = context.uniqueName("Trip");
     const secondName = context.uniqueName("Trip");
     const firstEmail = context.uniqueEmail("user");
@@ -36,8 +36,8 @@ describe("E2E scenario fixtures", () => {
     await cleanupScenarioFixtureContext(context);
   });
 
-  it("materializes scenario-owned rows and cleans up only owned rows", async () => {
-    const context = createScenarioFixtureContext(fakeTestInfo("Materialize And Cleanup", "materialize-and-cleanup"));
+  test("materializes scenario-owned rows and cleans up only owned rows", async () => {
+    const context = createScenarioFixtureContext(test.info());
     const foreignUser = cloneUserMother("default");
     const foreignEmail = `foreign-${Date.now()}@packt.local`;
 

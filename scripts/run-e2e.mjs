@@ -2,6 +2,9 @@ import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+const DETECT_PORT_SCRIPT = join(SCRIPT_DIR, "detect-port.mjs");
+
 const DEFAULT_PORT = 3001;
 const SERVER_MODE_KILL = "kill";
 const SERVER_MODE_REUSE = "reuse";
@@ -114,16 +117,10 @@ function wait(milliseconds) {
 }
 
 function getWindowsListeningProcess(port) {
-  const command = [
-    "$listener = Get-NetTCPConnection -LocalPort",
-    `${port}`,
-    "-State Listen -ErrorAction SilentlyContinue | Select-Object -First 1;",
-    "if ($null -eq $listener) { Write-Output ''; exit 0 }",
-    "$process = Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -eq $listener.OwningProcess } | Select-Object -First 1;",
-    "$process | Select-Object ProcessId, Name, CommandLine | ConvertTo-Json -Compress",
-  ].join(" ");
-
-  const { stdout } = runCommand("pwsh", ["-NoLogo", "-NoProfile", "-Command", command], {
+  // Delegate the pwsh query to an isolated child (detect-port.mjs). Spawning pwsh directly from
+  // this process would corrupt job-object state and break the next spawn (AssignProcessToJobObject:
+  // (87)); running it through a node child contains that to the short-lived helper process.
+  const { stdout } = runCommand(process.execPath, [DETECT_PORT_SCRIPT, `${port}`], {
     captureOutput: true,
   });
 
@@ -180,7 +177,9 @@ function getListeningProcess(port) {
 
 function stopListeningProcess(processId) {
   if (process.platform === "win32") {
-    runCommand("pwsh", ["-NoLogo", "-NoProfile", "-Command", `Stop-Process -Id ${processId} -Force`], {
+    // taskkill runs through cmd.exe, which (unlike pwsh) does not poison subsequent spawns. /T
+    // also terminates the dev server's child workers.
+    runCommand("cmd.exe", ["/d", "/s", "/c", `taskkill /PID ${processId} /T /F`], {
       captureOutput: true,
     });
     return;

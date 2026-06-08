@@ -8,7 +8,11 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
     environment: "jsdom",
-    include: ["src/**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{test,spec}.mjs", "tests/e2e/**/*.test.ts"],
+    // Hermetic unit/coverage suite only — no live database. Live-DB E2E fixture self-tests run as a
+    // dedicated Playwright project (see playwright.config.ts), inside the E2E pipeline after the DB
+    // is migrated. Keeping them there ensures only ONE Vitest process runs under the build-validator
+    // — two concurrent Vitest processes race Vite's shared temp dir and intermittently crash both.
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{test,spec}.mjs"],
     setupFiles: ["./vitest.setup.mts"],
     coverage: {
       provider: "istanbul",

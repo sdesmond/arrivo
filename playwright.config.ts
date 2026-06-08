@@ -36,6 +36,9 @@ export default defineConfig({
   },
   projects: [
     { name: "setup", testMatch: /.*\.setup\.ts/, testDir: "tests/e2e" },
+    // Scenario-fixture self-tests. They hit the live packt_e2e DB directly (no browser/auth) and
+    // run here instead of as a second Vitest process so only one Vitest runs under the validator.
+    { name: "fixtures", testMatch: /scenario-fixture\.spec\.ts/, testDir: "tests/e2e" },
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"], storageState: "tests/e2e/.auth/user.json" },
