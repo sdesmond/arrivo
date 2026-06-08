@@ -22,6 +22,7 @@ const {
   mockUpdateTemplateItem: vi.fn(),
 }));
 
+const mockRenameTemplate = vi.hoisted(() => vi.fn());
 const rollbackSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("./actions", () => ({
@@ -30,6 +31,10 @@ vi.mock("./actions", () => ({
   removeTemplateSection: mockRemoveTemplateSection,
   reorderTemplateItems: mockReorderTemplateItems,
   updateTemplateItem: mockUpdateTemplateItem,
+}));
+
+vi.mock("../actions", () => ({
+  renameTemplate: mockRenameTemplate,
 }));
 
 vi.mock("sonner", () => ({

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import {
   RemovePackingSectionMode,
   type PackingItem,
@@ -29,6 +30,7 @@ export interface TemplateEditorViewProps {
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onOptimisticReorder?: (items: PackingTemplateItem[] | null) => void;
   isAdding?: boolean;
+  onRenameTemplate?: (name: string) => Promise<void>;
 }
 
 function toPackingItem(item: PackingTemplateItem): PackingItem {
@@ -63,6 +65,7 @@ export function TemplateEditorView({
   onReorderItems,
   onOptimisticReorder,
   isAdding = false,
+  onRenameTemplate,
 }: TemplateEditorViewProps): ReactElement {
   interface PendingSectionRemoval {
     item: PackingItem & { id: string };
@@ -71,6 +74,9 @@ export function TemplateEditorView({
 
   const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
   const [isRemovingSection, setIsRemovingSection] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(template.name);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const collapseKey = `packing_collapsed_template_${template.id}`;
   const [collapsedLabels, setCollapsedLabels] = useState<Set<string>>(() => {
     if (typeof window === "undefined") {
@@ -99,6 +105,25 @@ export function TemplateEditorView({
       /* ignore */
     }
   }, [collapsedLabels, collapseKey]);
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.setSelectionRange(titleInputRef.current.value.length, titleInputRef.current.value.length);
+    }
+  }, [isEditingTitle]);
+
+  async function commitTitleEdit(): Promise<void> {
+    const trimmed = titleDraft.trim();
+    setIsEditingTitle(false);
+    if (!trimmed || trimmed === template.name) return;
+    await onRenameTemplate?.(trimmed);
+  }
+
+  function cancelTitleEdit(): void {
+    setTitleDraft(template.name);
+    setIsEditingTitle(false);
+  }
 
   const toggleCollapse = useCallback((labelId: string): void => {
     setCollapsedLabels((previousLabels) => {
@@ -154,22 +179,58 @@ export function TemplateEditorView({
       <div className="flex flex-col gap-1">
         <Link
           href="/packing"
-          className="inline-flex w-fit items-center rounded-md text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
-          style={{ color: "var(--fg-2)", outlineColor: "var(--accent-brand)" }}
-        >
-          Back to Templates
-        </Link>
-        <h1
+          className="inline-flex w-fit items-center gap-1.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface"
           style={{
-            fontFamily: "var(--font-heading-family, ui-sans-serif)",
-            fontSize: "calc(22px * var(--font-scale))",
-            fontWeight: 700,
-            letterSpacing: "-0.02em",
-            color: "var(--fg)",
+            fontSize: "calc(13px * var(--font-scale))",
+            color: "var(--fg-3)",
+            textDecoration: "none",
           }}
         >
-          {template.name}
-        </h1>
+          <ChevronLeft size={14} strokeWidth={1.5} />
+          All Templates
+        </Link>
+        {isEditingTitle ? (
+          <input
+            ref={titleInputRef}
+            className="w-full rounded-md border px-2 py-1"
+            maxLength={30}
+            value={titleDraft}
+            onChange={(event) => setTitleDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void commitTitleEdit();
+              if (event.key === "Escape") cancelTitleEdit();
+            }}
+            onBlur={() => void commitTitleEdit()}
+            style={{
+              fontFamily: "var(--font-heading-family, ui-sans-serif)",
+              fontSize: "calc(22px * var(--font-scale))",
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              color: "var(--fg)",
+              background: "var(--surface)",
+              borderColor: "var(--accent-brand)",
+              outline: "none",
+            }}
+          />
+        ) : (
+          <h1
+            onClick={() => {
+              if (!onRenameTemplate) return;
+              setTitleDraft(template.name);
+              setIsEditingTitle(true);
+            }}
+            style={{
+              fontFamily: "var(--font-heading-family, ui-sans-serif)",
+              fontSize: "calc(22px * var(--font-scale))",
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              color: "var(--fg)",
+              cursor: onRenameTemplate ? "pointer" : "default",
+            }}
+          >
+            {template.name}
+          </h1>
+        )}
       </div>
 
       <ContextualAddForm

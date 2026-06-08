@@ -93,7 +93,7 @@ describe("TemplateEditorView", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Beach Weekend" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to Templates" })).toHaveAttribute("href", "/packing");
+    expect(screen.getByRole("link", { name: "All Templates" })).toHaveAttribute("href", "/packing");
     expect(screen.queryByRole("heading", { name: "This template is empty" })).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("New section…")).toBeInTheDocument();
   });
@@ -304,5 +304,138 @@ describe("TemplateEditorView", () => {
     await user.click(screen.getByRole("button", { name: "toggle-label-1" }));
     expect(screen.getByText("collapsed:label-1")).toBeInTheDocument();
     expect(window.localStorage.getItem("packing_collapsed_template_template-1")).toBe('["label-1"]');
+  });
+
+  describe("inline title editing", () => {
+    it("does not show a pointer cursor when onRenameTemplate is not provided", () => {
+      render(
+        <TemplateEditorView
+          template={template}
+          items={[]}
+          onAddItem={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onEditItem={vi.fn()}
+          onReorderItems={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole("heading", { name: "Beach Weekend" })).toBeInTheDocument();
+    });
+
+    it("clicking the title switches to an input field", async () => {
+      const user = userEvent.setup();
+
+      render(
+        <TemplateEditorView
+          template={template}
+          items={[]}
+          onAddItem={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onEditItem={vi.fn()}
+          onRenameTemplate={vi.fn()}
+          onReorderItems={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("heading", { name: "Beach Weekend" }));
+      const input = screen.getByDisplayValue("Beach Weekend");
+      expect(input).toBeInTheDocument();
+    });
+
+    it("pressing Enter calls onRenameTemplate with the trimmed name", async () => {
+      const user = userEvent.setup();
+      const onRenameTemplate = vi.fn();
+
+      render(
+        <TemplateEditorView
+          template={template}
+          items={[]}
+          onAddItem={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onEditItem={vi.fn()}
+          onRenameTemplate={onRenameTemplate}
+          onReorderItems={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("heading", { name: "Beach Weekend" }));
+      const input = screen.getByDisplayValue("Beach Weekend");
+      await user.clear(input);
+      await user.type(input, "Camping Trip{Enter}");
+
+      expect(onRenameTemplate).toHaveBeenCalledWith("Camping Trip");
+    });
+
+    it("pressing Escape cancels without calling onRenameTemplate", async () => {
+      const user = userEvent.setup();
+      const onRenameTemplate = vi.fn();
+
+      render(
+        <TemplateEditorView
+          template={template}
+          items={[]}
+          onAddItem={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onEditItem={vi.fn()}
+          onRenameTemplate={onRenameTemplate}
+          onReorderItems={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("heading", { name: "Beach Weekend" }));
+      const input = screen.getByDisplayValue("Beach Weekend");
+      await user.clear(input);
+      await user.type(input, "Camping Trip");
+      await user.keyboard("{Escape}");
+
+      expect(onRenameTemplate).not.toHaveBeenCalled();
+      expect(screen.getByRole("heading", { name: "Beach Weekend" })).toBeInTheDocument();
+    });
+
+    it("does not call onRenameTemplate when the name is unchanged", async () => {
+      const user = userEvent.setup();
+      const onRenameTemplate = vi.fn();
+
+      render(
+        <TemplateEditorView
+          template={template}
+          items={[]}
+          onAddItem={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onEditItem={vi.fn()}
+          onRenameTemplate={onRenameTemplate}
+          onReorderItems={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("heading", { name: "Beach Weekend" }));
+      await user.keyboard("{Enter}");
+
+      expect(onRenameTemplate).not.toHaveBeenCalled();
+    });
+
+    it("does not call onRenameTemplate when the name is blank", async () => {
+      const user = userEvent.setup();
+      const onRenameTemplate = vi.fn();
+
+      render(
+        <TemplateEditorView
+          template={template}
+          items={[]}
+          onAddItem={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onEditItem={vi.fn()}
+          onRenameTemplate={onRenameTemplate}
+          onReorderItems={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("heading", { name: "Beach Weekend" }));
+      const input = screen.getByDisplayValue("Beach Weekend");
+      await user.clear(input);
+      await user.keyboard("{Enter}");
+
+      expect(onRenameTemplate).not.toHaveBeenCalled();
+    });
   });
 });
