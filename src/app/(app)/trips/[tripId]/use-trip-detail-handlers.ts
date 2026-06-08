@@ -1,32 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type {
   DayItemType,
   DayItinerary,
-  RemovePackingSectionMode,
   TripDetailPayload,
   TripEvent,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
   UpdateTripPatch,
-  PullTemplatesResult,
 } from "@/data/types";
-import {
-  addPackingItem,
-  deleteTrip,
-  pullTemplatesOntoTrip,
-  removePackingItem,
-  reorderPackingItems,
-  saveTripListAsTemplate,
-  togglePackingItem,
-  updatePackingItem,
-  updateTripMetadata,
-} from "../actions";
-import { removePackingSection } from "../packing-actions";
+import { deleteTrip, updateTripMetadata } from "../actions";
 import {
   createChecklist,
   createChecklistItem,
@@ -47,9 +34,9 @@ import {
   updateEvent,
   updateNote,
 } from "./actions";
+import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
 
-export interface TripDetailHandlers {
-  newlyCreatedChecklistId: string | null;
+export interface TripDetailHandlers extends PackingHandlers {
   addingDay: boolean;
   removingDay: boolean;
   savingTrip: boolean;
@@ -69,23 +56,6 @@ export interface TripDetailHandlers {
   handleUpdateChecklistItem: (itemId: string, content: string) => void;
   handleDeleteChecklistItem: (itemId: string) => void;
   handleToggleChecklistItem: (itemId: string) => void;
-  handleAddPackingItem: (
-    name: string,
-    isLabel?: boolean,
-    afterItemId?: string,
-    beforeItemId?: string,
-    labelId?: string | null
-  ) => Promise<void>;
-  handleRemovePackingItem: (id: string) => Promise<void>;
-  handleRemovePackingSection: (id: string, mode: RemovePackingSectionMode) => Promise<void>;
-  handleTogglePackingItem: (id: string) => Promise<void>;
-  handleReorderPackingItems: (
-    ordered: { id: string; labelId: string | null; position: number }[],
-    onError?: () => void
-  ) => void;
-  handleUpdatePackingItem: (id: string, name: string) => void;
-  handlePullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
-  handleSaveAsTemplate: (name: string) => Promise<string | undefined>;
   handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
@@ -103,11 +73,12 @@ export interface TripDetailHandlers {
 export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHandlers {
   const { trip, days } = detail;
   const router = useRouter();
-  const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
   const [addingDay, startAddDayTransition] = React.useTransition();
   const [removingDay, startRemoveDayTransition] = React.useTransition();
   const [savingTrip, startSaveTripTransition] = React.useTransition();
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
+
+  const packingHandlers = usePackingHandlers(detail);
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
@@ -191,8 +162,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     if (firstItemContent) {
       React.startTransition(async () => {
         const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent);
-        setNewlyCreatedChecklistId(id);
-        setTimeout(() => setNewlyCreatedChecklistId(null), 1000);
+        packingHandlers.setNewlyCreatedChecklistId(id);
+        setTimeout(() => packingHandlers.setNewlyCreatedChecklistId(null), 1000);
       });
       return;
     }
@@ -236,119 +207,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     React.startTransition(() => {
       toggleChecklistItem(itemId);
     });
-  }
-
-  function handleAddPackingItem(
-    name: string,
-    isLabel?: boolean,
-    afterItemId?: string,
-    beforeItemId?: string,
-    labelId?: string | null
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await addPackingItem(trip.id, { name, isLabel, afterItemId, beforeItemId, labelId });
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to add packing entry. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
-        }
-      });
-    });
-  }
-
-  function handleUpdatePackingItem(id: string, name: string): void {
-    React.startTransition(async () => {
-      try {
-        await updatePackingItem(id, { name });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to update packing item. Please try again.");
-      }
-    });
-  }
-
-  function handleRemovePackingItem(id: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await removePackingItem(id);
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to remove packing entry. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
-        }
-      });
-    });
-  }
-
-  function handleRemovePackingSection(id: string, mode: RemovePackingSectionMode): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await removePackingSection(id, { mode });
-          resolve();
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Failed to remove packing section. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
-        }
-      });
-    });
-  }
-
-  function handleTogglePackingItem(id: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await togglePackingItem(id);
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to update packing item. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
-        }
-      });
-    });
-  }
-
-  function handleReorderPackingItems(
-    ordered: { id: string; labelId: string | null; position: number }[],
-    onError?: () => void
-  ): void {
-    React.startTransition(async () => {
-      try {
-        await reorderPackingItems(trip.id, ordered);
-        router.refresh();
-      } catch (error) {
-        onError?.();
-        toast.error(error instanceof Error ? error.message : "Failed to reorder packing items. Please try again.");
-      }
-    });
-  }
-
-  async function handlePullTemplates(templateIds: string[]): Promise<PullTemplatesResult | undefined> {
-    try {
-      const result = await pullTemplatesOntoTrip(trip.id, templateIds);
-      router.refresh();
-      return result;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to pull templates. Please try again.");
-      return undefined;
-    }
-  }
-
-  async function handleSaveAsTemplate(name: string): Promise<string | undefined> {
-    try {
-      const result = await saveTripListAsTemplate(trip.id, name);
-      return result.templateId;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save template. Please try again.");
-      return undefined;
-    }
   }
 
   function handleTripSave(
@@ -406,7 +264,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   }
 
   return {
-    newlyCreatedChecklistId,
+    ...packingHandlers,
     addingDay,
     removingDay,
     savingTrip,
@@ -426,14 +284,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleUpdateChecklistItem,
     handleDeleteChecklistItem,
     handleToggleChecklistItem,
-    handleAddPackingItem,
-    handleRemovePackingItem,
-    handleRemovePackingSection,
-    handleTogglePackingItem,
-    handleReorderPackingItems,
-    handleUpdatePackingItem,
-    handlePullTemplates,
-    handleSaveAsTemplate,
     handleTripSave: (patch) => handleTripSave(patch),
     handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
     handleDeleteTrip,
