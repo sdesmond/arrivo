@@ -13,6 +13,11 @@ export interface TypePickerProps {
 export function TypePicker({ onSelect, onDismiss, onOpenPackingListPicker }: TypePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
 
+  function handleOpenPackingListPicker(): void {
+    onDismiss();
+    onOpenPackingListPicker?.();
+  }
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onDismiss();
@@ -67,7 +72,7 @@ export function TypePicker({ onSelect, onDismiss, onOpenPackingListPicker }: Typ
       </button>
       {onOpenPackingListPicker && (
         <button
-          onClick={onOpenPackingListPicker}
+          onClick={handleOpenPackingListPicker}
           className="flex items-center justify-center rounded-[4px] p-1.5 transition-colors hover:bg-surface-2"
           style={{ color: "var(--fg-3)", background: "none", border: "none", cursor: "pointer" }}
           title="Insert packing list"

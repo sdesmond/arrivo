@@ -4,8 +4,10 @@ import { sanitizeError, withErrorHandling } from "./error-utils";
 describe("sanitizeError", () => {
   it("passes through known validation errors unchanged", () => {
     const error = new Error("Invalid labelId: referenced row is not a label or belongs to a different trip");
+    const listError = new Error("Invalid listId: referenced packing list belongs to a different trip");
 
     expect(sanitizeError(error)).toBe(error);
+    expect(sanitizeError(listError)).toBe(listError);
   });
 
   it("replaces unexpected Error instances with a generic message", () => {

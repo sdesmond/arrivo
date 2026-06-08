@@ -234,12 +234,13 @@ export function PackingListSortable({
   }
 
   function handleDragEnd({ active, over }: DragEndEvent): void {
+    const fallbackOverId = over ? String(over.id) : localItems !== null ? lastOverIdRef.current : null;
     clearExpandTimeout();
     lastOverIdRef.current = null;
     setActiveId(null);
     const working = localItems ?? items;
     setLocalItems(null);
-    if (!over) return;
+    if (!fallbackOverId) return;
 
     // AC7: provide feedback when a label drag is attempted (labels are non-draggable)
     const draggedItem = working.find((item) => item.id === String(active.id));
@@ -251,7 +252,7 @@ export function PackingListSortable({
     // handleDragOver. Apply any final within-container move implied by `over`,
     // falling back to the preview itself when `over` resolves to the slot the
     // item already occupies (e.g. dropping over the container as the last item).
-    const moved = computeReorder(working, String(active.id), String(over.id)) ?? working;
+    const moved = computeReorder(working, String(active.id), fallbackOverId) ?? working;
     // The no-op decision must compare against the original props order, not the
     // live preview — otherwise a cross-container drop whose final slot matches
     // the preview is discarded and the item snaps back.
@@ -315,6 +316,15 @@ export function PackingListSortable({
             containerId={containerDomId(UNGROUPED_KEY)}
             sortableIds={ungroupedItems.map((item) => item.id!)}
           >
+            {ungroupedItems.length === 0 ? (
+              <div
+                data-packing-empty-dropzone
+                className="flex min-h-20 items-center justify-center rounded-xl border border-dashed px-4 py-3 text-sm"
+                style={{ borderColor: "var(--line)", color: "var(--muted-foreground)" }}
+              >
+                Drag items here to ungroup them
+              </div>
+            ) : null}
             {ungroupedItems.map((item) => (
               <SortablePackingRow
                 key={item.id}

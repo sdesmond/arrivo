@@ -26,9 +26,22 @@ When("I sign out", async ({ page, scenario }) => {
 });
 
 When("I tab to the email field and type valid credentials", async ({ page }) => {
-  await page.keyboard.press("Tab");
+  const emailField = page.getByRole("textbox", { name: "Email" });
+  const passwordField = page.getByRole("textbox", { name: "Password" });
+
+  await expect(emailField).toBeVisible();
+
+  for (let attemptIndex = 0; attemptIndex < 4; attemptIndex += 1) {
+    await page.keyboard.press("Tab");
+    if (await emailField.evaluate((element) => element === document.activeElement)) {
+      break;
+    }
+  }
+
+  await expect(emailField).toBeFocused();
   await page.keyboard.type(process.env.E2E_EMAIL!);
   await page.keyboard.press("Tab");
+  await expect(passwordField).toBeFocused();
   await page.keyboard.type(process.env.E2E_PASSWORD!);
 });
 

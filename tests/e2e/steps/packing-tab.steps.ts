@@ -136,44 +136,62 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
   await page.mouse.up();
 }
 
-async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promise<void> {
+async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<void> {
   const handle = page.getByTitle(`Reorder ${sourceName}`);
   const ungrouped = page.locator('[data-packing-container="container:__ungrouped__"]');
+  const emptyDropzone = ungrouped.locator("[data-packing-empty-dropzone]");
+  const addItemInput = ungrouped.getByPlaceholder("Add item…");
+  const previewItem = ungrouped.locator('[data-packing-kind="item"]').filter({ hasText: sourceName });
   await expect(handle).toBeVisible({ timeout: 10_000 });
   await expect(ungrouped).toBeVisible({ timeout: 10_000 });
+  await expect(addItemInput).toBeVisible({ timeout: 10_000 });
+
+  const useEmptyDropzone = await emptyDropzone.isVisible().catch(() => false);
+  const target = useEmptyDropzone ? emptyDropzone : addItemInput;
+
   await handle.scrollIntoViewIfNeeded();
-
   const source = await handle.boundingBox();
-  const destination = await ungrouped.boundingBox();
-  if (!source || !destination) {
-    throw new Error(`Could not measure Ungrouped drop area for ${sourceName}`);
-  }
-
-  const targetX = destination.x + destination.width / 2;
-  const targetY = destination.y + Math.max(destination.height - 16, destination.height / 2);
+  let targetBox = await target.boundingBox();
+  if (!source || !targetBox) throw new Error(`Could not measure drag source/target for ${sourceName}`);
 
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
   await page.mouse.down();
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
-  await page.mouse.move(targetX, targetY, { steps: 18 });
 
-  let lastDropX = targetX;
-  let lastDropY = targetY;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await page.waitForTimeout(80);
-    const box = await ungrouped.boundingBox();
-    if (!box) {
-      await page.waitForTimeout(100);
-      continue;
+  for (let attemptIndex = 0; attemptIndex < 8; attemptIndex += 1) {
+    const targetPointX = targetBox.x + targetBox.width / 2;
+    const targetPointY = targetBox.y + Math.min(targetBox.height / 2, 24);
+    await page.mouse.move(targetPointX, targetPointY, { steps: 8 });
+    if ((await previewItem.count()) === 1) {
+      await page.waitForTimeout(60);
+      await page.mouse.up();
+      return;
     }
-    lastDropX = box.x + box.width / 2;
-    lastDropY = box.y + Math.max(box.height - 16, box.height / 2);
-    await page.mouse.move(lastDropX, lastDropY, { steps: 6 });
+    await page.waitForTimeout(90);
+    const updatedTargetBox = await target.boundingBox();
+    if (updatedTargetBox) targetBox = updatedTargetBox;
   }
-  await page.mouse.move(lastDropX, lastDropY, { steps: 3 });
 
+  await expect(previewItem).toHaveCount(1, { timeout: 2_000 });
   await page.waitForTimeout(60);
   await page.mouse.up();
+}
+
+async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promise<void> {
+  const ungroupedItem = page
+    .locator('[data-packing-container="container:__ungrouped__"]')
+    .locator('[data-packing-kind="item"]')
+    .filter({ hasText: sourceName });
+
+  for (let attemptIndex = 0; attemptIndex < 2; attemptIndex += 1) {
+    await dragItemOntoUngrouped(page, sourceName);
+    await page.waitForTimeout(150);
+    if ((await ungroupedItem.count()) === 1) {
+      return;
+    }
+  }
+
+  await expect(ungroupedItem).toHaveCount(1, { timeout: 2_000 });
 }
 
 When("I open the Packing tab", async ({ page }) => {

@@ -33,7 +33,7 @@ When this skill completes, the user should:
 The catalog uses this format:
 
 ```
-module,skill,display-name,menu-code,description,action,args,phase,after,before,required,output-location,outputs
+module,skill,display-name,menu-code,description,action,args,phase,preceded-by,followed-by,required,output-location,outputs
 ```
 
 **Phases** determine the high-level flow:
@@ -41,10 +41,10 @@ module,skill,display-name,menu-code,description,action,args,phase,after,before,r
 - `anytime` — available regardless of workflow state
 - Numbered phases (`1-analysis`, `2-planning`, etc.) flow in order; naming varies by module
 
-**Dependencies** determine ordering within and across phases:
+**Sequencing** determines recommended ordering within and across phases (these are soft suggestions, not hard gates — see `required` for gating):
 
-- `after` — skills that should ideally complete before this one
-- `before` — skills that should run after this one
+- `preceded-by` — skills that should ideally complete before this one
+- `followed-by` — skills that should ideally run after this one
 - Format: `skill-name` for single-action skills, `skill-name:action` for multi-action skills
 
 **Required gates**:
@@ -64,8 +64,8 @@ module,skill,display-name,menu-code,description,action,args,phase,after,before,r
 
 For each recommended item, present:
 
-- `[menu-code]` **Display name** — e.g., "[CP] Create PRD"
-- Skill name in backticks — e.g., `bmad-create-prd`
+- `[menu-code]` **Display name** — e.g., "[PR] PRD"
+- Skill name in backticks — e.g., `bmad-prd`
 - For multi-action skills: action invocation context — e.g., "tech-writer lets create a mermaid diagram!"
 - Description if present in CSV; otherwise your existing knowledge of the skill suffices
 - Args if available
