@@ -3,7 +3,7 @@
 import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
 import { TripDocsTab } from "@/components/packt/trip-docs-tab";
-import { PackingListsView } from "@/components/packt/packing-lists-view";
+import { PackingListView } from "@/components/packt/packing-list-view";
 import type {
   DayItinerary,
   TripEvent,
@@ -14,7 +14,6 @@ import type {
   PullTemplatesResult,
   RemovePackingSectionInput,
   TripDetailTab,
-  TripPackingList,
 } from "@/data/types";
 
 export interface TripDetailTabBodyProps {
@@ -24,8 +23,6 @@ export interface TripDetailTabBodyProps {
   unscheduledEvents: TripEvent[];
   docs: Document[];
   packingItems: PackingItem[];
-  packingLists: TripPackingList[];
-  templates: PackingTemplate[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
   isNew?: boolean;
@@ -50,8 +47,7 @@ export interface TripDetailTabBodyProps {
     isLabel?: boolean,
     afterItemId?: string,
     beforeItemId?: string,
-    labelId?: string | null,
-    listId?: string | null
+    labelId?: string | null
   ) => Promise<void>;
   onRemovePackingItem: (id: string) => Promise<void>;
   onRemovePackingSection: (id: string, input: RemovePackingSectionInput) => Promise<void>;
@@ -61,17 +57,9 @@ export interface TripDetailTabBodyProps {
     onError?: () => void
   ) => void;
   onEditPackingItem: (id: string, name: string) => void;
+  templates: PackingTemplate[];
   onPullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
   onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
-  onCreatePackingList: (name: string) => Promise<string | undefined>;
-  onRenamePackingList: (listId: string, name: string) => Promise<void>;
-  onDeletePackingList: (listId: string) => Promise<void>;
-  onInsertFromPackingSource: (
-    dayNumber: number,
-    position: number,
-    sourceType: "packing-list" | "template",
-    sourceId: string
-  ) => Promise<void>;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -88,8 +76,6 @@ export function TripDetailTabBody({
   unscheduledEvents,
   docs,
   packingItems,
-  packingLists,
-  templates,
   dateFormat,
   initialExpandedDayNumber,
   isNew,
@@ -115,12 +101,9 @@ export function TripDetailTabBody({
   onTogglePackingItem,
   onReorderPackingItems,
   onEditPackingItem,
+  templates,
   onPullTemplates,
   onSaveAsTemplate,
-  onCreatePackingList,
-  onRenamePackingList,
-  onDeletePackingList,
-  onInsertFromPackingSource,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -136,9 +119,6 @@ export function TripDetailTabBody({
           initialExpandedDayNumber={initialExpandedDayNumber}
           isNew={isNew}
           tripDocs={docs.filter((document) => document.scope === "trip")}
-          packingLists={packingLists}
-          templates={templates}
-          onInsertFromPackingSource={onInsertFromPackingSource}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
           onReorderDayItems={onReorderDayItems}
@@ -168,24 +148,18 @@ export function TripDetailTabBody({
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
       )}
       {activeTab === "pack" && (
-        <PackingListsView
+        <PackingListView
           tripId={tripId}
-          packingLists={packingLists}
-          packingItems={packingItems}
-          templates={templates}
-          onAddItem={(name, isLabel, afterItemId, beforeItemId, labelId, listId) =>
-            onAddPackingItem(name, isLabel, afterItemId, beforeItemId, labelId, listId)
-          }
+          items={packingItems}
+          onAddItem={onAddPackingItem}
           onRemoveItem={onRemovePackingItem}
           onRemoveSection={onRemovePackingSection}
           onToggleItem={onTogglePackingItem}
           onReorderItems={onReorderPackingItems}
           onEditItem={onEditPackingItem}
+          templates={templates}
           onPullTemplates={onPullTemplates}
           onSaveAsTemplate={onSaveAsTemplate}
-          onCreateList={onCreatePackingList}
-          onRenameList={onRenamePackingList}
-          onDeleteList={onDeletePackingList}
         />
       )}
       {activeTab === "notes" && (

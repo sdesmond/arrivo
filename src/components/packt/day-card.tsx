@@ -30,7 +30,6 @@ interface DayCardProps {
   onToggleChecklistItem?: (itemId: string) => void;
   onRemove?: () => void;
   removeDisabled?: boolean;
-  onOpenPackingListPicker?: (insertAtPosition: number) => void;
 }
 
 export function DayCard({
@@ -56,7 +55,6 @@ export function DayCard({
   onToggleChecklistItem,
   onRemove,
   removeDisabled,
-  onOpenPackingListPicker,
 }: DayCardProps): ReactElement {
   const now = useNow();
   const isToday = day.date
@@ -122,7 +120,6 @@ export function DayCard({
           onUpdateChecklistItem={onUpdateChecklistItem}
           onDeleteChecklistItem={onDeleteChecklistItem}
           onToggleChecklistItem={onToggleChecklistItem}
-          onOpenPackingListPicker={onOpenPackingListPicker}
         />
       )}
     </div>

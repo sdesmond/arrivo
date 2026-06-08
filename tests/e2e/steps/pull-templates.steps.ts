@@ -1,6 +1,6 @@
 import { expect, type Locator } from "@playwright/test";
 import { eq } from "drizzle-orm";
-import { packingItems, tripPackingLists } from "../../../src/db/schema";
+import { packingItems } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import {
   E2E_TEMPLATE_PULL,
@@ -49,15 +49,7 @@ Given("I have a trip with a pre-seeded packing item for pull", async ({ scenario
 
   await withE2EDb(async (db) => {
     await db.delete(packingItems).where(eq(packingItems.tripId, trip.id));
-    await db.delete(tripPackingLists).where(eq(tripPackingLists.tripId, trip.id));
-    const rows = (await db
-      .insert(tripPackingLists)
-      .values({ tripId: trip.id, name: "Main", position: 0 })
-      .returning({ id: tripPackingLists.id })) as { id: string }[];
-    const listId = rows[0]?.id ?? null;
-    await db
-      .insert(packingItems)
-      .values({ tripId: trip.id, listId, name: "Laptop", isLabel: false, done: false, position: 0 });
+    await db.insert(packingItems).values({ tripId: trip.id, name: "Laptop", isLabel: false, done: false, position: 0 });
   });
 });
 
@@ -101,17 +93,7 @@ Given("I have two packing templates available for pull with a shared item", asyn
 When("I open the packing tab for the pull test trip", async ({ page, scenario }) => {
   await scenario.gotoCurrentTrip(page);
   await page.getByRole("button", { name: "Packing" }).click();
-  await expect(page.getByRole("button", { name: "New List" })).toBeVisible({ timeout: 10_000 });
-  // Navigate into the first named list if present (populated scenarios need to be inside a list)
-  const firstRenameBtn = page.getByRole("button", { name: /^Rename "/ }).first();
-  if (await firstRenameBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-    const ariaLabel = (await firstRenameBtn.getAttribute("aria-label")) ?? "";
-    const listName = ariaLabel.replace(/^Rename "/, "").replace(/"$/, "");
-    if (listName) {
-      await page.getByText(listName, { exact: true }).first().click();
-      await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
-    }
-  }
+  await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
 });
 
 When("I pull the template onto the trip", async ({ page }) => {

@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MapPin, FileText, ListChecks, Backpack } from "lucide-react";
+import { MapPin, FileText, ListChecks } from "lucide-react";
 import { ItineraryItemType } from "@/data/types";
 
 export interface TypePickerProps {
   onSelect: (type: ItineraryItemType) => void;
   onDismiss: () => void;
-  onOpenPackingListPicker?: () => void;
 }
 
-export function TypePicker({ onSelect, onDismiss, onOpenPackingListPicker }: TypePickerProps) {
+export function TypePicker({ onSelect, onDismiss }: TypePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,16 +64,6 @@ export function TypePicker({ onSelect, onDismiss, onOpenPackingListPicker }: Typ
       >
         <ListChecks size={15} strokeWidth={1.5} />
       </button>
-      {onOpenPackingListPicker && (
-        <button
-          onClick={onOpenPackingListPicker}
-          className="flex items-center justify-center rounded-[4px] p-1.5 transition-colors hover:bg-surface-2"
-          style={{ color: "var(--fg-3)", background: "none", border: "none", cursor: "pointer" }}
-          title="Insert packing list"
-        >
-          <Backpack size={15} strokeWidth={1.5} />
-        </button>
-      )}
     </div>
   );
 }

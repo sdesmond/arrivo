@@ -215,22 +215,6 @@ export const userWishlistDestinations = pgTable(
   (table) => [index().on(table.userId, table.position)]
 );
 
-export const tripPackingLists = pgTable(
-  "trip_packing_lists",
-  {
-    id: uuid("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    tripId: uuid("trip_id")
-      .notNull()
-      .references(() => trips.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    position: integer("position").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
-  },
-  (table) => [index().on(table.tripId, table.position)]
-);
-
 export const packingItems = pgTable("packing_items", {
   id: uuid("id")
     .primaryKey()
@@ -238,7 +222,6 @@ export const packingItems = pgTable("packing_items", {
   tripId: uuid("trip_id")
     .notNull()
     .references(() => trips.id, { onDelete: "cascade" }),
-  listId: uuid("list_id").references(() => tripPackingLists.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   done: boolean("done").default(false),
   isLabel: boolean("is_label").default(false).notNull(),

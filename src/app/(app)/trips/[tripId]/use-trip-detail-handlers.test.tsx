@@ -79,7 +79,6 @@ const detail: TripDetailPayload = {
   ],
   docs: [],
   packingItems: [],
-  packingLists: [],
   trip: {
     id: "trip-1",
     name: "Tokyo",
@@ -381,7 +380,7 @@ describe("useTripDetailHandlers", () => {
       pullResult = await result.current.handlePullTemplates(["t1", "t2"]);
     });
 
-    expect(pullTemplatesOntoTrip).toHaveBeenCalledWith("trip-1", ["t1", "t2"], undefined);
+    expect(pullTemplatesOntoTrip).toHaveBeenCalledWith("trip-1", ["t1", "t2"]);
     await waitFor(() => expect(pullResult).toEqual({ added: 3, skipped: 1 }));
     expect(mockRefresh).toHaveBeenCalled();
   });

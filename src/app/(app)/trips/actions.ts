@@ -489,10 +489,9 @@ export async function reorderPackingItems(
 
 export async function pullTemplatesOntoTrip(
   tripId: string,
-  templateIds: string[],
-  listId?: string | null
+  templateIds: string[]
 ): Promise<import("@/data/types").PullTemplatesResult> {
-  return pullTemplatesOntoTripAction(tripId, templateIds, listId);
+  return pullTemplatesOntoTripAction(tripId, templateIds);
 }
 
 export async function saveTripListAsTemplate(
