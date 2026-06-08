@@ -10,13 +10,14 @@ export interface GapZoneProps {
   onOpen: () => void;
   onSelectType: (type: ItineraryItemType) => void;
   onDismiss: () => void;
+  onOpenPackingListPicker?: () => void;
 }
 
-export function GapZone({ isActive, onOpen, onSelectType, onDismiss }: GapZoneProps) {
+export function GapZone({ isActive, onOpen, onSelectType, onDismiss, onOpenPackingListPicker }: GapZoneProps) {
   if (isActive) {
     return (
       <div className="flex items-center px-3 py-2.5">
-        <TypePicker onSelect={onSelectType} onDismiss={onDismiss} />
+        <TypePicker onSelect={onSelectType} onDismiss={onDismiss} onOpenPackingListPicker={onOpenPackingListPicker} />
       </div>
     );
   }

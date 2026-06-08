@@ -7,6 +7,7 @@ import {
   documents,
   collaborators,
   packingItems,
+  tripPackingLists,
   itineraryNotes,
   itineraryChecklists,
   checklistItems,
@@ -29,6 +30,7 @@ import {
   dbWishlistToType,
   dbCompanionToType,
   dbPackingItemToType,
+  dbPackingListToType,
   dbTemplateToType,
   dbTemplateItemToType,
 } from "@/lib/db-mappers";
@@ -220,6 +222,12 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(packingItems.tripId, tripId))
     .orderBy(packingItems.position);
 
+  const tripPackingListRows = await db
+    .select()
+    .from(tripPackingLists)
+    .where(eq(tripPackingLists.tripId, tripId))
+    .orderBy(asc(tripPackingLists.position));
+
   const allNotes =
     tripDays.length > 0
       ? await db
@@ -340,5 +348,6 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     docs: tripDocs.map(dbDocToType),
     collaborators: tripCollaborators.map(dbCollabToType),
     packingItems: tripPackingItems.map(dbPackingItemToType),
+    packingLists: tripPackingListRows.map(dbPackingListToType),
   };
 }
