@@ -117,9 +117,22 @@ context: []
 
 ### Review Findings
 
+#### Chunk 1 — Backend / Server
+
 - [x] [Review][Patch] Validate that `dayId` belongs to the asserted `tripId` before `addChecklistFromPackingSource` shifts or inserts itinerary rows [src/app/(app)/trips/[tripId]/actions.ts:651]
 - [x] [Review][Patch] Enforce `listId` and `labelId` ownership/invariants for multi-list packing mutations so items cannot be attached to another trip's list or another list's section [src/app/(app)/trips/packing-actions.ts:57]
 - [x] [Review][Patch] Scope template duplicate detection to the destination packing list instead of the whole trip so separate lists can reuse the same item names [src/app/(app)/trips/packing-actions.ts:248]
+
+#### Chunk 2 — Frontend / Itinerary / E2E
+
+- [x] [Review][Decision] Legacy `listId = null` packing items will not be supported as a fallback flow; the prior General-row finding is intentionally declined by product direction
+- [x] [Review][Decision] Deleting label-only lists without a warning is acceptable; the prior confirmation finding is intentionally declined by product direction
+- [x] [Review][Patch] Make packing list cards keyboard-accessible instead of click-only `div`s so opening a list is not limited to mouse users [src/components/packt/packing-lists-view.tsx:278]
+
+#### Chunk 3 — Integration / State Flow
+
+- [x] [Review][Patch] Keep a newly created packing list open while server-refreshed props catch up so create-list flows do not bounce back to the library index [src/components/packt/packing-lists-view.tsx:87]
+- [x] [Review][Patch] Dismiss the itinerary type-picker before opening the Backpack packing-list dialog so modal close returns to a settled day-card state [src/components/packt/type-picker.tsx:73]
 
 ## Spec Change Log
 

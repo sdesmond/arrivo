@@ -100,6 +100,17 @@ describe("TypePicker", () => {
     expect(onOpenPackingListPicker).toHaveBeenCalledTimes(1);
   });
 
+  it("clicking Backpack dismisses the picker before opening the packing-list dialog", async () => {
+    const onDismiss = vi.fn();
+    const onOpenPackingListPicker = vi.fn();
+    const user = userEvent.setup();
+    render(<TypePicker onSelect={vi.fn()} onDismiss={onDismiss} onOpenPackingListPicker={onOpenPackingListPicker} />);
+    await user.click(screen.getByTitle("Insert packing list"));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onOpenPackingListPicker).toHaveBeenCalledTimes(1);
+    expect(onDismiss.mock.invocationCallOrder[0]).toBeLessThan(onOpenPackingListPicker.mock.invocationCallOrder[0]);
+  });
+
   it("Backpack icon has strokeWidth 1.5", () => {
     render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} onOpenPackingListPicker={vi.fn()} />);
     expect(screen.getByTestId("backpack-icon")).toHaveAttribute("data-stroke-width", "1.5");

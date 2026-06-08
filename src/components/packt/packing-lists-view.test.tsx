@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListsView } from "./packing-lists-view";
 import type { TripPackingList, PackingItem } from "@/data/types";
@@ -72,17 +72,26 @@ describe("PackingListsView — drill-down", () => {
   it("clicking a list card shows PackingListView", async () => {
     const user = userEvent.setup();
     render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} />);
-    await user.click(screen.getByText("Carry-On"));
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
     expect(screen.getByTestId("packing-list-view")).toBeInTheDocument();
   });
 
   it("back button returns to library index", async () => {
     const user = userEvent.setup();
     render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} />);
-    await user.click(screen.getByText("Carry-On"));
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
     await user.click(screen.getByRole("button", { name: /All lists/ }));
     expect(screen.getByText("Carry-On")).toBeInTheDocument();
     expect(screen.queryByTestId("packing-list-view")).not.toBeInTheDocument();
+  });
+
+  it("opens a list from the keyboard", async () => {
+    const user = userEvent.setup();
+    render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} />);
+    const openButton = screen.getByRole("button", { name: 'Open "Carry-On"' });
+    openButton.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("packing-list-view")).toBeInTheDocument();
   });
 });
 
@@ -168,6 +177,29 @@ describe("PackingListsView — new list form", () => {
     await user.type(screen.getByLabelText("Packing list name"), "Toiletries");
     await user.click(screen.getByRole("button", { name: "Create" }));
     expect(onCreateList).toHaveBeenCalledWith("Toiletries");
+  });
+
+  it("opens the newly created list when refreshed props arrive", async () => {
+    const onCreateList = vi.fn().mockResolvedValue("new-list-id");
+    const user = userEvent.setup();
+    const { rerender } = render(<PackingListsView {...baseProps} onCreateList={onCreateList} />);
+    await user.click(screen.getByRole("button", { name: "New List" }));
+    await user.type(screen.getByLabelText("Packing list name"), "Toiletries");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(onCreateList).toHaveBeenCalledWith("Toiletries"));
+
+    rerender(
+      <PackingListsView
+        {...baseProps}
+        onCreateList={onCreateList}
+        packingLists={[{ id: "new-list-id", tripId: "trip-1", name: "Toiletries", position: 0 }]}
+        packingItems={[]}
+      />
+    );
+
+    expect(await screen.findByRole("button", { name: /All lists/ })).toBeInTheDocument();
+    expect(screen.getByText("Toiletries")).toBeInTheDocument();
+    expect(screen.getByTestId("packing-list-view")).toBeInTheDocument();
   });
 
   it("pressing Enter in the name field submits the form", async () => {

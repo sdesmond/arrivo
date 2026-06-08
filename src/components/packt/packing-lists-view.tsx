@@ -60,6 +60,11 @@ interface RenameState {
   value: string;
 }
 
+interface PendingCreatedList {
+  id: string;
+  name: string;
+}
+
 export function PackingListsView({
   tripId,
   packingLists,
@@ -83,19 +88,30 @@ export function PackingListsView({
   const [newListName, setNewListName] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [pendingCreatedList, setPendingCreatedList] = useState<PendingCreatedList | null>(null);
+  const persistedActiveList =
+    activeListId === null ? null : packingLists.find((candidate) => candidate.id === activeListId);
+  const pendingActiveList =
+    activeListId !== null && pendingCreatedList?.id === activeListId && persistedActiveList === null
+      ? {
+          id: pendingCreatedList.id,
+          tripId,
+          name: pendingCreatedList.name,
+          position: packingLists.length,
+        }
+      : null;
+  const activeList = activeListId === null ? null : (persistedActiveList ?? pendingActiveList);
 
-  if (activeListId !== null) {
-    const list = packingLists.find((candidate) => candidate.id === activeListId);
-    if (!list) {
-      setActiveListId(null);
-      return <></>;
-    }
+  if (activeListId !== null && activeList !== null) {
     const listItems = packingItems.filter((item) => item.listId === activeListId);
 
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
         <button
-          onClick={() => setActiveListId(null)}
+          onClick={() => {
+            setActiveListId(null);
+            setPendingCreatedList(null);
+          }}
           className="inline-flex items-center gap-1.5 self-start rounded-lg px-2 py-1 transition-colors hover:bg-surface"
           style={{
             fontSize: "calc(13px * var(--font-scale))",
@@ -108,7 +124,9 @@ export function PackingListsView({
           <ChevronLeft size={14} strokeWidth={1.5} />
           All lists
         </button>
-        <h2 style={{ fontWeight: 600, fontSize: "calc(15px * var(--font-scale))", color: "var(--fg)" }}>{list.name}</h2>
+        <h2 style={{ fontWeight: 600, fontSize: "calc(15px * var(--font-scale))", color: "var(--fg)" }}>
+          {activeList.name}
+        </h2>
         <PackingListView
           tripId={tripId}
           items={listItems}
@@ -138,7 +156,10 @@ export function PackingListsView({
       const newId = await onCreateList(trimmed);
       setNewListName("");
       setShowNewForm(false);
-      if (newId) setActiveListId(newId);
+      if (newId) {
+        setPendingCreatedList({ id: newId, name: trimmed });
+        setActiveListId(newId);
+      }
     } finally {
       setCreating(false);
     }
@@ -277,16 +298,11 @@ export function PackingListsView({
               return (
                 <div
                   key={list.id}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl px-4 py-3 transition-colors",
-                    !isRenaming && "hover:bg-surface"
-                  )}
+                  className={cn("flex items-center gap-2 rounded-xl px-2 py-2")}
                   style={{
                     border: "1px solid var(--line)",
                     background: "var(--bg)",
-                    cursor: isRenaming ? "default" : "pointer",
                   }}
-                  onClick={isRenaming ? undefined : () => setActiveListId(list.id)}
                 >
                   {isRenaming ? (
                     <input
@@ -310,20 +326,43 @@ export function PackingListsView({
                       onClick={(evt) => evt.stopPropagation()}
                     />
                   ) : (
-                    <span
+                    <button
+                      type="button"
+                      aria-label={`Open "${list.name}"`}
+                      onClick={() => setActiveListId(list.id)}
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-surface"
                       style={{
-                        flex: 1,
-                        fontWeight: 500,
-                        fontSize: "calc(14px * var(--font-scale))",
-                        color: "var(--fg)",
+                        cursor: "pointer",
+                        border: "none",
+                        background: "none",
                       }}
                     >
-                      {list.name}
+                      <span
+                        style={{
+                          flex: 1,
+                          fontWeight: 500,
+                          fontSize: "calc(14px * var(--font-scale))",
+                          color: "var(--fg)",
+                        }}
+                      >
+                        {list.name}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "calc(12px * var(--font-scale))",
+                          color: "var(--fg-3)",
+                          marginRight: 4,
+                        }}
+                      >
+                        {itemCount} items
+                      </span>
+                    </button>
+                  )}
+                  {isRenaming && (
+                    <span style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)", marginRight: 4 }}>
+                      {itemCount} items
                     </span>
                   )}
-                  <span style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)", marginRight: 4 }}>
-                    {itemCount} items
-                  </span>
                   <button
                     aria-label={`Rename "${list.name}"`}
                     title={`Rename "${list.name}"`}

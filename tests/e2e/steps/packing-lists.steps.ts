@@ -57,8 +57,12 @@ Then("the packing list library should show {string}", async ({ page }, name: str
 });
 
 When("I open the packing list {string}", async ({ page }, name: string) => {
-  // List cards are divs with onClick — click the text label within the card
-  await page.getByText(name, { exact: true }).first().click();
+  const openButton = page.getByRole("button", { name: `Open "${name}"` });
+  if (await openButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await openButton.click();
+  } else {
+    await page.getByText(name, { exact: true }).first().click();
+  }
   await expect(page.getByRole("button", { name: "All lists" })).toBeVisible({ timeout: 10_000 });
 });
 
