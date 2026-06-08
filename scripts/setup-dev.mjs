@@ -1,5 +1,15 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -241,32 +251,69 @@ function ensureDirectory(path) {
   mkdirSync(path, { recursive: true });
 }
 
-function ensureAiToolLinks(rootDir) {
-  const agentsDir = join(rootDir, ".agents");
-  const claudeDir = join(rootDir, ".claude");
-  const claudeMemoryDir = join(claudeDir, "memory");
-  const mappings = [
-    { linkPath: join(claudeDir, "skills"), targetPath: join(agentsDir, "skills") },
-    { linkPath: join(claudeDir, "agents"), targetPath: join(agentsDir, "agents") },
-  ];
+function moveDirectoryEntries(sourceDir, targetDir, rootDir) {
+  ensureDirectory(targetDir);
 
-  ensureDirectory(join(agentsDir, "skills"));
-  ensureDirectory(join(agentsDir, "agents"));
-  ensureDirectory(claudeDir);
-  ensureDirectory(claudeMemoryDir);
+  for (const entryName of readdirSync(sourceDir)) {
+    const sourceEntryPath = join(sourceDir, entryName);
+    const targetEntryPath = join(targetDir, entryName);
 
-  for (const mapping of mappings) {
-    if (existsSync(mapping.linkPath)) {
-      const stats = lstatSync(mapping.linkPath);
-      if (stats.isSymbolicLink()) {
-        rmSync(mapping.linkPath, { recursive: true, force: true });
-      } else {
-        fail(`Refusing to replace existing path: ${relative(rootDir, mapping.linkPath)}`);
-      }
+    if (existsSync(targetEntryPath)) {
+      fail(`Refusing to overwrite existing migrated AI workspace path: ${relative(rootDir, targetEntryPath)}`);
     }
 
-    const symlinkTarget = process.platform === "win32" ? mapping.targetPath : relative(claudeDir, mapping.targetPath);
-    symlinkSync(symlinkTarget, mapping.linkPath, process.platform === "win32" ? "junction" : "dir");
+    renameSync(sourceEntryPath, targetEntryPath);
+  }
+}
+
+function ensureDirectoryLink(rootDir, linkPath, targetPath, options = {}) {
+  const { migrateExistingDirectory = false } = options;
+
+  ensureDirectory(targetPath);
+  ensureDirectory(dirname(linkPath));
+
+  if (existsSync(linkPath)) {
+    const stats = lstatSync(linkPath);
+
+    if (stats.isSymbolicLink()) {
+      rmSync(linkPath, { recursive: true, force: true });
+    } else if (migrateExistingDirectory) {
+      moveDirectoryEntries(linkPath, targetPath, rootDir);
+      rmSync(linkPath, { recursive: true, force: true });
+    } else {
+      fail(`Refusing to replace existing path: ${relative(rootDir, linkPath)}`);
+    }
+  }
+
+  const symlinkTarget = process.platform === "win32" ? targetPath : relative(dirname(linkPath), targetPath);
+  symlinkSync(symlinkTarget, linkPath, process.platform === "win32" ? "junction" : "dir");
+}
+
+export function ensureAiToolLinks(rootDir) {
+  const agentsDir = join(rootDir, ".agents");
+  const agentsSkillsDir = join(agentsDir, "skills");
+  const agentsAgentsDir = join(agentsDir, "agents");
+  const agentsMemoriesDir = join(agentsDir, "memories");
+  const claudeDir = join(rootDir, ".claude");
+  const mappings = [
+    { linkPath: join(claudeDir, "skills"), targetPath: agentsSkillsDir },
+    { linkPath: join(claudeDir, "agents"), targetPath: agentsAgentsDir },
+    {
+      linkPath: join(claudeDir, "memory"),
+      targetPath: agentsMemoriesDir,
+      migrateExistingDirectory: true,
+    },
+  ];
+
+  ensureDirectory(agentsSkillsDir);
+  ensureDirectory(agentsAgentsDir);
+  ensureDirectory(agentsMemoriesDir);
+  ensureDirectory(claudeDir);
+
+  for (const mapping of mappings) {
+    ensureDirectoryLink(rootDir, mapping.linkPath, mapping.targetPath, {
+      migrateExistingDirectory: mapping.migrateExistingDirectory,
+    });
   }
 }
 

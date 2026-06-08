@@ -28,7 +28,7 @@ When starting work on this Next.js project, ALWAYS call the `init` tool from `ne
 
 ## Memory
 
-Store all memories in this project at `\.claude\memory\` instead of the default user-level path. This keeps project memory within the repo.
+Read and write all project memories in `.agents/memories/`. Treat `.claude/memory/` as a compatibility link only so older tooling resolves to the same files without becoming the source of truth.
 
 ## Project Overview
 
@@ -84,13 +84,19 @@ packt/                          ← git root = Next.js project root
 │       ├── auth.setup.ts       ← auth state setup (runs before chromium project)
 │       ├── global-setup.ts     ← wipes & re-seeds E2E DB before each run
 │       └── e2e-seed-data.ts    ← seed constants (E2E user, trip, days)
+├── .agents/
+│   ├── skills/                 ← source of truth for shared skills
+│   ├── agents/                 ← source of truth for shared agents
+│   └── memories/               ← source of truth for shared project memories
+├── .claude/
+│   ├── skills/                 ← compatibility link to .agents/skills
+│   ├── agents/                 ← compatibility link to .agents/agents
+│   └── memory/                 ← compatibility link to .agents/memories
 ├── vitest.config.mts           ← Vitest + Istanbul coverage config
 ├── vitest.setup.mts            ← global mocks (next/navigation, next/headers)
 ├── playwright.config.ts        ← Playwright BDD config (playwright-bdd)
 ├── tsconfig.json               ← strict: true, path alias @/* → ./src/*
-├── eslint.config.mjs
-└── .claude/
-    └── agents/                 ← project-specific review agents
+└── eslint.config.mjs
 ```
 
 ## Quality Agents — When to Use Them

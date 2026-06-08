@@ -1,6 +1,6 @@
 ## 🤖 AI Skills & Agents Setup
 
-This repository shares custom instructions, automation workflows, and skills across **Claude Code** which expects skills at `.claude/skills` and other tools which expect skills at `.agents/skills`.
+This repository shares custom instructions, automation workflows, and project memory across **Claude Code** and other agent tools without duplicating the underlying files.
 
 To prevent duplicating files, we maintain a **single source of truth** inside the `.agents/` folder. The folder structure uses filesystem links to map these files so both AI engines can read the exact same data simultaneously:
 
@@ -8,11 +8,15 @@ To prevent duplicating files, we maintain a **single source of truth** inside th
 your-project-repo/
 ├── .agents/                 # 🟩 SINGLE SOURCE OF TRUTH (Tracked by Git)
 │   ├── skills/              # Shared Custom Skills
-│   └── agents/              # Shared Sub-Agents
+│   ├── agents/              # Shared Sub-Agents
+│   └── memories/            # Shared Project Memories
 └── .claude/                 # 🔗 SYSTEM LINKS (Ignored by Git)
     ├── skills -> ../.agents/skills
-    └── agents -> ../.agents/agents
+    ├── agents -> ../.agents/agents
+    └── memory -> ../.agents/memories
 ```
+
+If an older local checkout still has memories under `.claude/memory`, the setup scripts migrate those files into `.agents/memories` before recreating the compatibility link.
 
 ### 🚀 Quick Setup
 

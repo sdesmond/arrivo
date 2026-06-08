@@ -4,6 +4,7 @@ description: Audit of unimplemented/placeholder features in the trip detail and 
 type: project
 originSessionId: c00db797-8618-43fb-b977-9a342396eec7
 ---
+
 Audited on 2026-05-03. These items were identified as needing implementation or fixing in the trip view.
 
 **Why:** The trip detail and day planner pages are currently UI shells with hardcoded mock data — most buttons and features are non-functional.

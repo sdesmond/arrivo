@@ -27,7 +27,7 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## AI Skills & Agents Setup
 
-AI skills are at `.agents/skills`. `npm run setup:dev` also configures the `.claude/skills` and `.claude/agents` links described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
+`.agents/` is the tracked source of truth for shared AI assets: skills in `.agents/skills`, agents in `.agents/agents`, and project memories in `.agents/memories`. `npm run setup:dev` also configures the compatibility links under `.claude/` (`skills`, `agents`, and `memory`) described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
 
 ## Self-hosting
 
