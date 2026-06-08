@@ -115,6 +115,12 @@ context: []
 - Given a source is selected from the picker, then a new itinerary checklist is inserted at that position with the source's name as title and its non-label items pre-populated.
 - Given the picker is opened with no packing lists and no templates, then an empty-state message is shown.
 
+### Review Findings
+
+- [x] [Review][Patch] Validate that `dayId` belongs to the asserted `tripId` before `addChecklistFromPackingSource` shifts or inserts itinerary rows [src/app/(app)/trips/[tripId]/actions.ts:651]
+- [x] [Review][Patch] Enforce `listId` and `labelId` ownership/invariants for multi-list packing mutations so items cannot be attached to another trip's list or another list's section [src/app/(app)/trips/packing-actions.ts:57]
+- [x] [Review][Patch] Scope template duplicate detection to the destination packing list instead of the whole trip so separate lists can reuse the same item names [src/app/(app)/trips/packing-actions.ts:248]
+
 ## Spec Change Log
 
 - 2026-06-08: Renegotiated itinerary integration (Goal 2). Original spec had the Backpack button create a new trip-level packing list with an inline name prompt. Revised to: Backpack opens a picker dialog showing existing trip packing lists + templates; selecting one inserts it as a pre-populated itinerary checklist. Removed inline name prompt tasks; added `PackingListPickerDialog`, `addChecklistFromPackingSource` action, picker state in `TripItineraryView`.

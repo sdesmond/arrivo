@@ -657,6 +657,10 @@ export async function addChecklistFromPackingSource(
 ): Promise<string> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
+  const actualTripId = await getDayTripId(dayId);
+  if (actualTripId !== tripId) {
+    throw new Error("Day does not belong to this trip");
+  }
 
   let sourceName: string;
   let itemTexts: string[];
