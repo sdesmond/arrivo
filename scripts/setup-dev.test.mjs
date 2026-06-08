@@ -1,7 +1,10 @@
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 
 describe("setup-dev helpers", async () => {
-  const { buildSetupPlan, mergeEnvForSetup } = await import("./setup-dev.mjs");
+  const { buildSetupPlan, ensureAiToolLinks, mergeEnvForSetup } = await import("./setup-dev.mjs");
 
   it("defaults to auto database mode", () => {
     expect(buildSetupPlan([])).toEqual({
@@ -55,5 +58,24 @@ describe("setup-dev helpers", async () => {
 
     expect(merged).toContain("BLOB_READ_WRITE_TOKEN=token-123");
     expect(merged).toContain("UPLOAD_STUB=false");
+  });
+
+  it("migrates claude memories into the shared agents directory", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "packt-setup-dev-"));
+    const legacyMemoryDir = join(rootDir, ".claude", "memory");
+    const migratedMemoryPath = join(rootDir, ".agents", "memories", "legacy-note.md");
+
+    mkdirSync(legacyMemoryDir, { recursive: true });
+    writeFileSync(join(legacyMemoryDir, "legacy-note.md"), "remember this\n", "utf8");
+
+    try {
+      ensureAiToolLinks(rootDir);
+
+      expect(readFileSync(migratedMemoryPath, "utf8")).toBe("remember this\n");
+      expect(lstatSync(join(rootDir, ".claude", "memory")).isSymbolicLink()).toBe(true);
+      expect(existsSync(join(rootDir, ".claude", "memory", "legacy-note.md"))).toBe(true);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
   });
 });

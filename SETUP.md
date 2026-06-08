@@ -25,7 +25,7 @@ The script:
 - installs npm dependencies
 - installs the Playwright Chromium browser used by E2E
 - creates or updates `.env`
-- configures `.claude/skills` and `.claude/agents` to point at `.agents/*`
+- configures `.claude/skills`, `.claude/agents`, and `.claude/memory` to point at `.agents/*`
 - prepares the main and E2E databases
 - runs `npm run db:push`
 - runs `npm run db:seed`
