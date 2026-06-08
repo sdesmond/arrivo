@@ -70,6 +70,7 @@ const baseDetail: TripDetailPayload = {
   docs: [],
   collaborators: [],
   packingItems: [],
+  packingLists: [],
 };
 
 describe("TripDetailPage", () => {

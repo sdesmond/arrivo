@@ -803,6 +803,7 @@ describe("packing actions", () => {
     expect(db.insert).toHaveBeenCalledWith(packingItems);
     expect(insertValues).toHaveBeenCalledWith({
       tripId: "trip-1",
+      listId: null,
       name: "Documents",
       done: false,
       isLabel: true,

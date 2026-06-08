@@ -42,11 +42,6 @@ The icons for moving and deleting an event are too small and faint. Make them mo
 
 ## Trip packing list
 
-- The empty state for a list should be just the one input that would normally appear at the bottom of the "ungrouped" list
-- The current empty state is no longer needed
-- The "ungrouped" label can go away. Indentation from the grouped section and the "add item" vs "add to <section>" will indicate which list is being added to
-- Add Label should become "Add Section" and be fixed to the top of the list
+1. I want to be able to edit a packing list or template title by clicking on the title when viewing the list
 
-### Ability to have multiples lists
-
-1. create multiple lists like packing templates page
+1. When viewing a trip list, the breadcrumb shows "< All Lists". The templates should similarly show "< Add Templates" instead of the current "Back to Templates"

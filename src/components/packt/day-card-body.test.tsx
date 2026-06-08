@@ -9,6 +9,7 @@ interface MockDayCardDndProps {
 
 interface MockDayCardBottomAddProps {
   dayNumber: number;
+  onOpenPackingListPicker?: (insertAtPosition: number) => void;
 }
 
 vi.mock("./day-card-dnd", () => ({
@@ -19,7 +20,15 @@ vi.mock("./day-card-dnd", () => ({
       ))}
     </div>
   ),
-  DayCardBottomAdd: ({ dayNumber }: MockDayCardBottomAddProps) => <button>Add a place to day {dayNumber}</button>,
+}));
+
+vi.mock("./day-card-bottom-add", () => ({
+  DayCardBottomAdd: ({ dayNumber, onOpenPackingListPicker }: MockDayCardBottomAddProps) => (
+    <div>
+      <button>Add a place to day {dayNumber}</button>
+      {onOpenPackingListPicker && <button onClick={() => onOpenPackingListPicker(0)}>Open packing picker</button>}
+    </div>
+  ),
 }));
 
 const day: DayItinerary = {
@@ -40,5 +49,21 @@ describe("DayCardBody", () => {
     expect(screen.getByText("note-1")).toBeInTheDocument();
     expect(screen.getByText("checklist-1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add a place to day 1" })).toBeInTheDocument();
+  });
+
+  it("Backpack button click calls onOpenPackingListPicker with correct position", async () => {
+    const onOpenPackingListPicker = vi.fn();
+    render(
+      <DayCardBody
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onOpenPackingListPicker={onOpenPackingListPicker}
+      />
+    );
+
+    screen.getByRole("button", { name: "Open packing picker" }).click();
+    expect(onOpenPackingListPicker).toHaveBeenCalledWith(0);
   });
 });

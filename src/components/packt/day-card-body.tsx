@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { GapZoneProps } from "./gap-zone";
-import { DayCardBottomAdd, DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
+import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
+import { DayCardBottomAdd } from "./day-card-bottom-add";
 import { ItineraryItemType } from "@/data/types";
 import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/types";
 
@@ -19,6 +20,7 @@ export interface DayCardBodyProps {
   onDeleteNote?: (noteId: string) => void;
   onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   newlyCreatedChecklistId?: string;
+  onOpenPackingListPicker?: (insertAtPosition: number) => void;
   onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
   onDeleteChecklist?: (checklistId: string) => void;
   onAddChecklistItem?: (checklistId: string, content: string) => void;
@@ -45,6 +47,7 @@ export function DayCardBody({
   onDeleteNote,
   onAddChecklist,
   newlyCreatedChecklistId,
+  onOpenPackingListPicker,
   onUpdateChecklistTitle,
   onDeleteChecklist,
   onAddChecklistItem,
@@ -131,6 +134,7 @@ export function DayCardBody({
       onOpen: draft !== null ? () => {} : () => openGap(gapKey),
       onSelectType: (type) => activateDraft(type, insertAtPosition, gapKey),
       onDismiss: () => setOpenGapKey(null),
+      onOpenPackingListPicker: onOpenPackingListPicker ? () => onOpenPackingListPicker(insertAtPosition) : undefined,
     };
   }
 
@@ -169,6 +173,7 @@ export function DayCardBody({
         openGap={openGap}
         activateDraft={activateDraft}
         closeGap={() => setOpenGapKey(null)}
+        onOpenPackingListPicker={onOpenPackingListPicker}
       />
     </div>
   );
