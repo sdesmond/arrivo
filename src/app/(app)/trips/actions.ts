@@ -18,7 +18,7 @@ import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover } from "@/lib/utils";
 import { CoverType } from "@/data/types";
-import { buildDayRows } from "./create-trip-days";
+import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import { searchCoverImages } from "./cover-image-search-actions";
 import {
@@ -191,6 +191,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     const dayRows = buildDayRows(trip.id, input.startDate, input.endDate);
     if (dayRows.length > 0) {
       await tx.insert(days).values(dayRows);
+    } else {
+      await tx.insert(days).values(buildDatelessDayRow(trip.id));
     }
   });
 
@@ -265,9 +267,9 @@ export async function updateTripMetadata(
       .from(days)
       .where(eq(days.tripId, tripId))
       .orderBy(asc(days.dayNumber));
-    if (existingDays.some((day) => !day.date)) {
-      throw new Error("Unable to update trip dates because one or more scheduled days are missing dates.");
-    }
+
+    const isCurrentlyDateless = existingDays.length > 0 && existingDays.every((day) => !day.date);
+    const isClearingDates = patch.startDate === null;
 
     const desiredRange = resolveTripDateRange(
       {
@@ -277,6 +279,101 @@ export async function updateTripMetadata(
       patch
     );
     const desiredDayRows = buildDayRows(tripId, desiredRange.startDate, desiredRange.endDate);
+
+    function buildTripUpdatePayload(startDate: string | null, endDate: string | null) {
+      return {
+        name: patch.name,
+        startDate,
+        endDate,
+        coverImageUrl: patch.coverImageUrl,
+        destinationName: patch.destinationName,
+        destinationCountry: patch.destinationCountry,
+        destinationCountryCode: patch.destinationCountryCode,
+        notes: patch.notes,
+        budgetCurrency: patch.budgetCurrency,
+        budgetTotal: patch.budgetTotal?.toString(),
+        budgetPerPerson: patch.budgetPerPerson?.toString(),
+        tags: patch.tags,
+        updatedAt: new Date(),
+      };
+    }
+
+    // ── dated → dateless: null out day dates, preserve rows ──────────────────
+    if (!isCurrentlyDateless && isClearingDates) {
+      for (const day of existingDays) {
+        await transaction.update(days).set({ date: null }).where(eq(days.id, day.id));
+      }
+      await transaction.update(trips).set(buildTripUpdatePayload(null, null)).where(eq(trips.id, tripId));
+      return;
+    }
+
+    // ── dateless → dated: map existing days to new dates ─────────────────────
+    if (isCurrentlyDateless && desiredRange.startDate) {
+      const mappedDays = existingDays.slice(0, desiredDayRows.length);
+      const overflowDays = existingDays.slice(desiredDayRows.length);
+      const overflowContent = await summarizeRemovedDayContent(transaction, overflowDays);
+
+      if (overflowContent.requiresConfirmation && !resolution) {
+        confirmation = overflowContent.confirmation;
+        return;
+      }
+
+      if (
+        resolution &&
+        expectedConfirmation &&
+        JSON.stringify(overflowContent.confirmation) !== JSON.stringify(expectedConfirmation)
+      ) {
+        throw new Error("Trip dates changed before this confirmation was applied. Review the date change again.");
+      }
+
+      if (resolution === "keep-as-unscheduled") {
+        for (const event of overflowContent.events) {
+          await transaction
+            .update(events)
+            .set({ dayId: null, displacedDate: event.displacedDate ?? null, updatedAt: new Date() })
+            .where(eq(events.id, event.id));
+        }
+      }
+
+      if (resolution === "delete-events" && overflowContent.events.length > 0) {
+        eventDocumentUrlsToCleanup = overflowContent.eventDocumentUrls;
+        await transaction.delete(events).where(
+          inArray(
+            events.id,
+            overflowContent.events.map((event) => event.id)
+          )
+        );
+      }
+
+      if (overflowDays.length > 0) {
+        await transaction.delete(days).where(
+          inArray(
+            days.id,
+            overflowDays.map((day) => day.id)
+          )
+        );
+      }
+
+      for (let index = 0; index < mappedDays.length; index++) {
+        await transaction
+          .update(days)
+          .set({ dayNumber: index + 1, date: desiredDayRows[index].date, label: `Day ${index + 1}` })
+          .where(eq(days.id, mappedDays[index].id));
+      }
+
+      const appendedDayRows = desiredDayRows.slice(mappedDays.length);
+      if (appendedDayRows.length > 0) {
+        await transaction.insert(days).values(appendedDayRows);
+      }
+
+      await transaction
+        .update(trips)
+        .set(buildTripUpdatePayload(desiredDayRows[0]?.date ?? null, desiredDayRows.at(-1)?.date ?? null))
+        .where(eq(trips.id, tripId));
+      return;
+    }
+
+    // ── dated → dated (and dateless → dateless no-op) ────────────────────────
     const currentDates = existingDays.map((day) => day.date!).filter(Boolean);
     const syncPlan = buildTripDateSyncPlan(
       currentDates,
@@ -366,21 +463,7 @@ export async function updateTripMetadata(
 
     await transaction
       .update(trips)
-      .set({
-        name: patch.name,
-        startDate: desiredDayRows[0]?.date ?? null,
-        endDate: desiredDayRows.at(-1)?.date ?? null,
-        coverImageUrl: patch.coverImageUrl,
-        destinationName: patch.destinationName,
-        destinationCountry: patch.destinationCountry,
-        destinationCountryCode: patch.destinationCountryCode,
-        notes: patch.notes,
-        budgetCurrency: patch.budgetCurrency,
-        budgetTotal: patch.budgetTotal?.toString(),
-        budgetPerPerson: patch.budgetPerPerson?.toString(),
-        tags: patch.tags,
-        updatedAt: new Date(),
-      })
+      .set(buildTripUpdatePayload(desiredDayRows[0]?.date ?? null, desiredDayRows.at(-1)?.date ?? null))
       .where(eq(trips.id, tripId));
   });
 
