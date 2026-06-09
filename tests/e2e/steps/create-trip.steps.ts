@@ -90,10 +90,6 @@ Then("the day cards have the stagger animation class", async ({ page }) => {
   await expect(animatedCard).toBeVisible({ timeout: 10_000 });
 });
 
-Then("the itinerary shows the empty state", async ({ page }) => {
-  await expect(page.getByText("No itinerary yet")).toBeVisible();
-});
-
 Then("the Create button is not clickable during submission", async ({ page }) => {
   await expect(page.getByRole("dialog").getByRole("button", { name: /creating/i })).toBeDisabled({ timeout: 1000 });
 });
