@@ -60,18 +60,18 @@ Feature: Day Planning
     When I remove the final empty day
     Then only the preceding day remains scheduled
 
-  @dateless-one-day
+  @dateless-trip
   Scenario: Remove control is absent when only one day remains
     Given I am on the trip detail page
     Then the remove day control is not visible
 
-  @dateless-add-day
+  @dateless-trip
   Scenario: User adds a second day to a dateless trip without requiring dates
     Given I am on the trip detail page
     When I add a day to a dateless itinerary
     Then Day 2 is appended without a date
 
-  @dateless-set-dates
+  @dateless-trip
   Scenario: Set trip dates CTA opens the trip edit sheet for a dateless trip
     Given I am on the trip detail page
     When I click Set trip dates

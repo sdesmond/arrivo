@@ -139,21 +139,7 @@ Before({ tags: "@day-remove-empty" }, async ({ scenario }) => {
   });
 });
 
-Before({ tags: "@dateless-one-day" }, async ({ scenario }) => {
-  await scenario.materialize({
-    user: { setCurrent: true },
-    trip: { mother: "datelessTrip", setCurrent: true },
-  });
-});
-
-Before({ tags: "@dateless-add-day" }, async ({ scenario }) => {
-  await scenario.materialize({
-    user: { setCurrent: true },
-    trip: { mother: "datelessTrip", setCurrent: true },
-  });
-});
-
-Before({ tags: "@dateless-set-dates" }, async ({ scenario }) => {
+Before({ tags: "@dateless-trip" }, async ({ scenario }) => {
   await scenario.materialize({
     user: { setCurrent: true },
     trip: { mother: "datelessTrip", setCurrent: true },
