@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TripCover } from "@/components/packt/trip-cover";
 import { type Trip } from "@/data/types";
-import { formatDate, getTripDays } from "@/lib/utils";
+import { formatDate, getDisplayedTripDays } from "@/lib/utils";
 
 interface MobilePastTabProps {
   trips: Trip[];
@@ -41,8 +41,8 @@ export function MobilePastTab({ trips, dateFormat, onEditTrip, onDeleteTrip }: M
                 {trip.name}
               </div>
               <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>
-                {trip.startDate ? formatDate(trip.startDate, dateFormat) : "No dates"} ·{" "}
-                {getTripDays(trip.startDate, trip.endDate)} days
+                {trip.startDate ? formatDate(trip.startDate, dateFormat) : "No dates"} · {getDisplayedTripDays(trip)}{" "}
+                days
               </div>
               <Badge variant="outline" className="mt-1 w-fit">
                 Past

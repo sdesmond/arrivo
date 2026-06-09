@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { TripCover } from "@/components/packt/trip-cover";
 import { type Trip } from "@/data/types";
-import { formatDate, getTripDays, pluralize } from "@/lib/utils";
+import { formatDate, getDisplayedTripDays, pluralize } from "@/lib/utils";
 
 interface MobileUpcomingTabProps {
   trips: Trip[];
@@ -18,6 +18,7 @@ export function MobileUpcomingTab({ trips, now, dateFormat }: MobileUpcomingTabP
       {trips.map((trip) => {
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
+        const tripDays = getDisplayedTripDays(trip);
         const inDays = trip.startDate
           ? Math.ceil((new Date(trip.startDate + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
           : null;
@@ -52,7 +53,7 @@ export function MobileUpcomingTab({ trips, now, dateFormat }: MobileUpcomingTabP
                   textTransform: "uppercase",
                 }}
               >
-                {pluralize(getTripDays(trip.startDate, trip.endDate), "DAY")}
+                {tripDays} {pluralize(tripDays, "DAY", "DAYS")}
               </div>
               <div style={{ fontSize: "calc(12.5px * var(--font-scale))", color: "var(--fg-3)" }}>{dateLine}</div>
               <div className="mt-1 flex items-center gap-1.5">

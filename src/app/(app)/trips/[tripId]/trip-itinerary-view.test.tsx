@@ -88,6 +88,13 @@ describe("TripItineraryView", () => {
     expect(props.onAddDay).toHaveBeenCalledOnce();
   });
 
+  it("shows Add Day even when no days are currently rendered", () => {
+    const props = buildProps([]);
+    render(<TripItineraryView {...props} />);
+
+    expect(screen.getByRole("button", { name: "Add Day" })).toBeInTheDocument();
+  });
+
   it("disables Add Day while a structural mutation is pending", () => {
     const props = buildProps([dayOne]);
     props.addingDay = true;
@@ -188,7 +195,11 @@ describe("TripItineraryView", () => {
     const props = buildProps([datelessDay], { isDateless: true, onOpenEditDates });
     render(<TripItineraryView {...props} />);
 
-    expect(screen.getByRole("button", { name: /set trip dates/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /set trip dates/i })).toHaveStyle({
+      background: "var(--accent-soft)",
+      borderColor: "var(--accent-brand)",
+      color: "var(--accent-ink)",
+    });
   });
 
   it("hides Set trip dates CTA for scheduled trips", () => {

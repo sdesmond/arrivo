@@ -19,7 +19,7 @@ import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
 import { PastTripsList } from "@/components/packt/trips-past-list";
 import { UnscheduledSection } from "@/components/packt/unscheduled-section";
-import { formatDate, getTripDays } from "@/lib/utils";
+import { formatDate, getDisplayedTripDays } from "@/lib/utils";
 import { type Trip, type TripListEntry } from "@/data/types";
 
 type ViewMode = "cards" | "list";
@@ -163,7 +163,7 @@ export function TripsDesktopLayout({
                         textAlign: "right",
                       }}
                     >
-                      {getTripDays(trip.startDate, trip.endDate)} DAYS
+                      {getDisplayedTripDays(trip)} DAYS
                     </span>
                     <Badge variant="outline">Upcoming</Badge>
                     <DropdownMenu>

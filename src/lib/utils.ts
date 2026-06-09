@@ -77,6 +77,14 @@ export function getTripDays(startDate: string | null | undefined, endDate: strin
   return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
 }
 
+export function getDisplayedTripDays(trip: {
+  startDate?: string | null;
+  endDate?: string | null;
+  dayTotal?: number;
+}): number {
+  return trip.dayTotal ?? getTripDays(trip.startDate, trip.endDate);
+}
+
 export function pluralize(count: number, singular: string, plural?: string): string {
   return count === 1 ? singular : (plural ?? `${singular}s`);
 }

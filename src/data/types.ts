@@ -544,6 +544,7 @@ export interface TripDateChangePreviewEvent {
 
 export interface TripDateChangeConfirmation {
   removedDates: string[];
+  removedDayLabels?: string[];
   events: TripDateChangePreviewEvent[];
   noteCount: number;
   checklistCount: number;

@@ -60,6 +60,7 @@ import { TripDateConflictResolution } from "@/data/types";
 
 const defaultConfirmation = {
   removedDates: ["2026-06-03", "2026-06-04"],
+  removedDayLabels: undefined,
   events: [],
   noteCount: 0,
   checklistCount: 0,
@@ -156,5 +157,47 @@ describe("TripDateChangeConfirmationDialog", () => {
       />
     );
     expect(screen.getByText(/your new trip dates will remove events/i)).toBeInTheDocument();
+  });
+
+  it("prefers removed day labels when the removed days are dateless", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{ ...defaultConfirmation, removedDates: [], removedDayLabels: ["Day 3"] }}
+      />
+    );
+
+    expect(screen.getByText(/Day 3/)).toBeInTheDocument();
+    expect(screen.queryByText(/Jun 3, 2026/)).not.toBeInTheDocument();
+  });
+
+  it("formats contiguous removed day labels as a range", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          removedDates: [],
+          removedDayLabels: ["Day 3", "Day 4", "Day 5"],
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Day 3 - Day 5/)).toBeInTheDocument();
+  });
+
+  it("formats non-contiguous removed day labels as a comma-separated list", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          removedDates: [],
+          removedDayLabels: ["Day 3", "Day 5"],
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Day 3, Day 5/)).toBeInTheDocument();
   });
 });

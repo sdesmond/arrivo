@@ -114,4 +114,10 @@ describe("MobilePastTab", () => {
     render(<MobilePastTab trips={[tripNoDates]} dateFormat="MM/DD/YYYY" />);
     expect(screen.getByText(/No dates/)).toBeInTheDocument();
   });
+
+  it("renders dayTotal for dateless trips", () => {
+    const tripNoDates: Trip = { id: "trip-3", name: "Mystery Trip", status: "past", dayTotal: 3 };
+    render(<MobilePastTab trips={[tripNoDates]} dateFormat="MM/DD/YYYY" />);
+    expect(screen.getByText(/3 days/)).toBeInTheDocument();
+  });
 });

@@ -104,6 +104,12 @@ describe("TripCard", () => {
     expect(screen.getByText("10 days")).toBeInTheDocument();
   });
 
+  it("renders the persisted dayTotal for dateless trips", () => {
+    const trip = { ...baseTrip, startDate: undefined, endDate: undefined, dayTotal: 3 };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("3 days")).toBeInTheDocument();
+  });
+
   it("renders the doc count", () => {
     render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByText("3 docs")).toBeInTheDocument();

@@ -100,12 +100,20 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
   const todayISO = now.toISOString().slice(0, 10);
   const tripIds = rows.map(({ trip }) => trip.id);
 
-  const [allTodayEvents, packingAggs, allDocs, allCollabs] = await Promise.all([
+  const [allTodayEvents, dayCountAggs, packingAggs, allDocs, allCollabs] = await Promise.all([
     db
       .select()
       .from(events)
       .where(and(inArray(events.tripId, tripIds), sql`${events.startAt}::date = ${todayISO}::date`))
       .orderBy(events.position),
+    db
+      .select({
+        tripId: days.tripId,
+        dayTotal: count(),
+      })
+      .from(days)
+      .where(inArray(days.tripId, tripIds))
+      .groupBy(days.tripId),
     db
       .select({
         tripId: packingItems.tripId,
@@ -131,6 +139,10 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     (acc[eventRow.tripId] ??= []).push(eventRow);
     return acc;
   }, {});
+  const dayTotalsByTrip = dayCountAggs.reduce<Record<string, number>>((acc, dayCountAgg) => {
+    acc[dayCountAgg.tripId] = dayCountAgg.dayTotal;
+    return acc;
+  }, {});
   const packingByTrip = packingAggs.reduce<Record<string, PackAgg>>((acc, packAgg) => {
     acc[packAgg.tripId] = packAgg;
     return acc;
@@ -152,6 +164,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     return {
       trip: {
         ...tripEntry,
+        dayTotal: dayTotalsByTrip[trip.id] ?? tripEntry.dayTotal,
         packingProgress,
         docs: (docsByTrip[trip.id] ?? []).map(dbDocToType),
         collaborators: (collabsByTrip[trip.id] ?? [])

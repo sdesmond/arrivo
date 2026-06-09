@@ -141,7 +141,17 @@ export function TripItineraryView({
       <div>
         {isDateless && (
           <div className="flex items-center mb-4">
-            <Button variant="outline" size="sm" onClick={onOpenEditDates}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shadow-sm"
+              style={{
+                background: "var(--accent-soft)",
+                borderColor: "var(--accent-brand)",
+                color: "var(--accent-ink)",
+              }}
+              onClick={onOpenEditDates}
+            >
               <CalendarDays strokeWidth={1.5} />
               Set trip dates
             </Button>
@@ -202,12 +212,10 @@ export function TripItineraryView({
             </div>
           );
         })}
-        {days.length > 0 && (
-          <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
-            <Plus data-icon="inline-start" strokeWidth={1.5} />
-            {addingDay ? "Adding Day..." : "Add Day"}
-          </Button>
-        )}
+        <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
+          <Plus data-icon="inline-start" strokeWidth={1.5} />
+          {addingDay ? "Adding Day..." : "Add Day"}
+        </Button>
       </div>
 
       <PackingListPickerDialog

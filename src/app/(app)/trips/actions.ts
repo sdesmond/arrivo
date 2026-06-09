@@ -120,6 +120,7 @@ async function summarizeRemovedDayContent(
   return {
     confirmation: buildTripDateChangeConfirmation(
       removedDays.map((day) => day.date!).filter(Boolean),
+      removedDays.some((day) => !day.date) ? removedDays.map((day) => day.label) : undefined,
       previewEvents,
       dayNotes.length,
       dayChecklists.length,

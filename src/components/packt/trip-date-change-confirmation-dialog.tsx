@@ -33,7 +33,32 @@ export function TripDateChangeConfirmationDialog({
   onResolveDateChange,
   onCancelDateChange,
 }: TripDateChangeConfirmationDialogProps) {
-  function formatRemovedDates(removedDates: string[]): string {
+  function formatRemovedLabels(removedDayLabels: string[]): string {
+    if (removedDayLabels.length === 0) return "";
+    if (removedDayLabels.length === 1) return removedDayLabels[0];
+
+    const dayNumbers = removedDayLabels.map((label) => {
+      const match = /^Day (\d+)$/.exec(label);
+      return match ? Number(match[1]) : null;
+    });
+
+    const hasContiguousDayNumbers = dayNumbers.every((dayNumber, index) => {
+      if (dayNumber === null) return false;
+      if (index === 0) return true;
+      return dayNumber === (dayNumbers[index - 1] ?? 0) + 1;
+    });
+
+    if (hasContiguousDayNumbers) {
+      return `${removedDayLabels[0]} - ${removedDayLabels[removedDayLabels.length - 1]}`;
+    }
+
+    return removedDayLabels.join(", ");
+  }
+
+  function formatRemovedDates(removedDates: string[], removedDayLabels?: string[]): string {
+    if (removedDayLabels && removedDayLabels.length > 0) {
+      return formatRemovedLabels(removedDayLabels);
+    }
     if (removedDates.length === 0) return "";
     if (removedDates.length === 1) return formatDate(removedDates[0], dateFormat);
 
@@ -74,7 +99,7 @@ export function TripDateChangeConfirmationDialog({
           <AlertDialogDescription className="text-left">
             Your new trip dates will remove events (along with their notes and documents) you had planned for{" "}
             <strong className="font-semibold text-foreground">
-              {formatRemovedDates(dateChangeConfirmation?.removedDates ?? [])}
+              {formatRemovedDates(dateChangeConfirmation?.removedDates ?? [], dateChangeConfirmation?.removedDayLabels)}
             </strong>
             . Do you want to move those events to unscheduled or just remove them entirely?
           </AlertDialogDescription>

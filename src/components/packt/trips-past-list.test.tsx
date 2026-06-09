@@ -139,6 +139,12 @@ describe("PastTripsList", () => {
     expect(screen.getByText("No dates")).toBeInTheDocument();
   });
 
+  it("renders dayTotal for dateless rows", () => {
+    const tripNoDates: Trip = { id: "t4", name: "Mystery Trip", status: "past", dayTotal: 3 };
+    render(<PastTripsList trips={[tripNoDates]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.getByText("3 DAYS")).toBeInTheDocument();
+  });
+
   it("viewMode=list renders row layout with Past badge (default)", () => {
     render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} viewMode="list" />);
     expect(screen.getAllByText("Past").length).toBeGreaterThan(0);

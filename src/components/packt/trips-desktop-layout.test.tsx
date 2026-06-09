@@ -385,5 +385,24 @@ describe("TripsDesktopLayout", () => {
       expect(triggers.length).toBeGreaterThan(0);
       await user.click(triggers[0]);
     });
+
+    it("shows dayTotal in upcoming list rows for dateless trips", () => {
+      render(
+        <TripsDesktopLayout
+          activeEntry={null}
+          upcomingTrips={[{ id: "trip-upcoming-3", name: "Flex Trip", status: "upcoming", dayTotal: 3 }]}
+          pastTrips={[]}
+          unscheduledEntries={[]}
+          dateFormat="MM/DD/YYYY"
+          initialViewMode="list"
+          onNewTrip={vi.fn()}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={vi.fn()}
+        />,
+        { wrapper: Wrapper }
+      );
+
+      expect(screen.getByText("3 DAYS")).toBeInTheDocument();
+    });
   });
 });

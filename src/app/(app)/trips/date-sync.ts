@@ -38,6 +38,7 @@ export function buildTripDateSyncPlan(currentDates: string[], desiredDates: stri
 
 export function buildTripDateChangeConfirmation(
   removedDates: string[],
+  removedDayLabels: string[] | undefined,
   eventsToMove: TripDateChangePreviewEvent[],
   noteCount: number,
   checklistCount: number,
@@ -45,6 +46,7 @@ export function buildTripDateChangeConfirmation(
 ): TripDateChangeConfirmation {
   return {
     removedDates,
+    removedDayLabels,
     events: eventsToMove,
     noteCount,
     checklistCount,
