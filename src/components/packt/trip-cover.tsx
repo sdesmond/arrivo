@@ -149,8 +149,12 @@ export function TripCover({
             fontSize: "calc(26px * var(--font-scale))",
             letterSpacing: "-0.02em",
             color: "white",
-            textShadow: photoCoverImageUrl ? "0 1px 3px rgba(0,0,0,0.4)" : undefined,
             lineHeight: 1.05,
+            textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            background: "rgba(255,255,255,0.06)",
+            padding: "6px 10px",
+            borderRadius: 6,
+            backdropFilter: "blur(4px)",
           }}
         >
           {name}
