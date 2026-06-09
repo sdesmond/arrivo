@@ -29,7 +29,7 @@ async function openPackingTab(page: Page): Promise<void> {
     const listName = ariaLabel.replace(/^Rename "/, "").replace(/"$/, "");
     if (listName) {
       await page.getByText(listName, { exact: true }).first().click();
-      await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByRole("button", { name: "List options" })).toBeVisible({ timeout: 10_000 });
     }
   }
 }
@@ -232,6 +232,8 @@ When("I add a packing item named {string}", async ({ page }, name: string) => {
 
 When("I add a packing label named {string}", async ({ page }, name: string) => {
   await ensureInsidePackingList(page);
+  await page.getByRole("button", { name: "List options" }).click();
+  await page.getByText("New section").click();
   await page.getByPlaceholder("New section…").fill(name);
   await page.keyboard.press("Enter");
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name }).first()).toBeVisible({

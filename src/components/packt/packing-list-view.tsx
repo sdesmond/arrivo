@@ -46,6 +46,7 @@ export function PackingListView({
   onSaveAsTemplate,
 }: PackingListViewProps): ReactElement {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showNewSectionForm, setShowNewSectionForm] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
@@ -212,16 +213,26 @@ export function PackingListView({
         onAnnounce={announce}
       />
 
-      {effectiveItems.length > 0 && (
-        <PackingListToolbar
-          itemCount={effectiveItems.filter((item) => !item.isLabel).length}
-          packedCount={effectiveItems.filter((item) => !item.isLabel && item.done).length}
-          onOpenPullDialog={onPullTemplates ? () => dialogsRef.current?.openPullDialog() : undefined}
-          onOpenSaveDialog={onSaveAsTemplate ? () => dialogsRef.current?.openSaveDialog() : undefined}
+      <PackingListToolbar
+        itemCount={effectiveItems.filter((item) => !item.isLabel).length}
+        packedCount={effectiveItems.filter((item) => !item.isLabel && item.done).length}
+        onOpenPullDialog={onPullTemplates ? () => dialogsRef.current?.openPullDialog() : undefined}
+        onOpenSaveDialog={onSaveAsTemplate ? () => dialogsRef.current?.openSaveDialog() : undefined}
+        onOpenNewSection={() => setShowNewSectionForm(true)}
+      />
+
+      {showNewSectionForm && (
+        <ContextualAddForm
+          placeholder="New section…"
+          isLabel
+          autoFocus
+          isAdding={isSubmitting}
+          onAddItem={async (name, isLabel, afterItemId, beforeItemId, labelId) => {
+            await handleContextualAdd(name, isLabel, afterItemId, beforeItemId, labelId);
+            setShowNewSectionForm(false);
+          }}
         />
       )}
-
-      <ContextualAddForm placeholder="New section…" isLabel isAdding={isSubmitting} onAddItem={handleContextualAdd} />
 
       <PackingListSortable
         items={effectiveItems}

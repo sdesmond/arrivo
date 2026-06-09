@@ -12,6 +12,7 @@ export interface ContextualAddFormProps {
   labelId?: string | null;
   isAdding?: boolean;
   isLabel?: boolean;
+  autoFocus?: boolean;
   onAddItem: (
     name: string,
     isLabel?: boolean,
@@ -28,6 +29,7 @@ export function ContextualAddForm({
   labelId,
   isAdding,
   isLabel = false,
+  autoFocus = false,
   onAddItem,
 }: ContextualAddFormProps): ReactElement {
   const [value, setValue] = useState("");
@@ -65,6 +67,7 @@ export function ContextualAddForm({
     <form className="flex items-center gap-2" onSubmit={handleSubmit}>
       <Input
         ref={inputRef}
+        autoFocus={autoFocus}
         className="h-9 flex-1 rounded-xl border-0 px-3 text-sm shadow-none"
         disabled={isAdding}
         maxLength={30}
