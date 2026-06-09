@@ -1,7 +1,5 @@
 "use client";
 
-import { Pencil } from "lucide-react";
-
 export interface PlaceRowNameFieldProps {
   isEditingName: boolean;
   draftName: string;
@@ -9,7 +7,7 @@ export interface PlaceRowNameFieldProps {
   onBlur: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   displayName: string;
-  isHovered: boolean;
+  isHovered?: boolean;
   isDraft?: boolean;
   onStartEdit: () => void;
 }
@@ -21,7 +19,6 @@ export function PlaceRowNameField({
   onBlur,
   onKeyDown,
   displayName,
-  isHovered,
   isDraft,
   onStartEdit,
 }: PlaceRowNameFieldProps) {
@@ -49,37 +46,27 @@ export function PlaceRowNameField({
           }}
         />
       ) : (
-        <>
-          <span
-            style={{
-              fontSize: "calc(14px * var(--font-scale))",
-              fontWeight: 600,
-              color: "var(--fg)",
-              lineHeight: 1.2,
-            }}
-          >
-            {displayName}
-          </span>
-          <button
-            onClick={onStartEdit}
-            style={{
-              color: "var(--fg-4)",
-              opacity: isHovered ? 1 : 0.25,
-              transition: "opacity 0.1s",
-              display: "flex",
-              alignItems: "center",
-              padding: 2,
-              borderRadius: 3,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-            title="Edit name"
-          >
-            <Pencil size={11} strokeWidth={1.5} />
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={() => onStartEdit()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") onStartEdit();
+          }}
+          style={{
+            fontSize: "calc(14px * var(--font-scale))",
+            fontWeight: 600,
+            color: "var(--fg)",
+            lineHeight: 1.2,
+            cursor: "text",
+            background: "none",
+            border: "none",
+            padding: 0,
+            fontFamily: "inherit",
+            textAlign: "left",
+          }}
+        >
+          {displayName}
+        </button>
       )}
     </div>
   );

@@ -128,11 +128,12 @@ export function TripCover({
             fontSize: "calc(10.5px * var(--font-scale))",
             letterSpacing: "0.04em",
             textTransform: "uppercase",
-            color: "var(--fg-3)",
-            background: "var(--bg)",
-            border: "1px solid var(--line)",
+            color: "white",
+            textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            background: "rgba(255,255,255,0.06)",
+            backdropFilter: "blur(4px)",
             padding: "3px 7px",
-            borderRadius: 4,
+            borderRadius: 6,
           }}
         >
           {metaTag}

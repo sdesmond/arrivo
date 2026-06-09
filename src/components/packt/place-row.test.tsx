@@ -189,8 +189,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    // Click the pencil edit button (has title="Edit name")
-    await user.click(screen.getByTitle("Edit name"));
+    await user.click(screen.getByRole("button", { name: "Tokyo Tower" }));
     const nameInput = screen.getByDisplayValue("Tokyo Tower");
     await user.clear(nameInput);
     await user.type(nameInput, "Shibuya Crossing");
@@ -460,7 +459,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByTitle("Edit name"));
+    await user.click(screen.getByRole("button", { name: "Tokyo Tower" }));
     const nameInput = screen.getByDisplayValue("Tokyo Tower");
     fireEvent.blur(nameInput);
     expect(onUpdate).not.toHaveBeenCalled();
@@ -472,7 +471,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByTitle("Edit name"));
+    await user.click(screen.getByRole("button", { name: "Tokyo Tower" }));
     const nameInput = screen.getByDisplayValue("Tokyo Tower");
     await user.clear(nameInput);
     await user.type(nameInput, "Akihabara");
@@ -487,7 +486,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByTitle("Edit name"));
+    await user.click(screen.getByRole("button", { name: "Tokyo Tower" }));
     await user.keyboard("{Escape}");
     expect(onUpdate).not.toHaveBeenCalled();
     expect(screen.queryByDisplayValue("Tokyo Tower")).not.toBeInTheDocument();

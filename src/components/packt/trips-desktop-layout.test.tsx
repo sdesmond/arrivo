@@ -94,7 +94,7 @@ describe("TripsDesktopLayout", () => {
     expect(screen.getByText("Trips")).toBeInTheDocument();
   });
 
-  it("renders NowCard and DayRibbon when activeEntry present", () => {
+  it("renders NowCard when activeEntry present", () => {
     render(
       <TripsDesktopLayout
         activeEntry={activeEntry}

@@ -276,7 +276,7 @@ When("I edit the event name to {string}", async ({ page }, newName: string) => {
   const row = page.locator('[id^="event-"]').last();
   const rowId = await row.getAttribute("id");
   await row.hover();
-  await row.getByTitle("Edit name").click();
+  await row.locator("button").first().click();
   await page.locator(`#${rowId}`).getByRole("textbox").fill(newName);
   await page.keyboard.press("Enter");
 });
