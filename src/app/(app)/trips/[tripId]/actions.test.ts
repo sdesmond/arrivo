@@ -98,7 +98,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import { addChecklistFromPackingSource, addDay, removeLastDay, reorderDayItems, uploadCoverImage } from "./actions";
-import { days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import { days, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 
 interface ReorderTransactionFixture {
   currentChecklists?: Array<{ id: string }>;

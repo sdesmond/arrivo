@@ -54,10 +54,25 @@ describe("TripCover", () => {
     expect(document.querySelector(".cover-stripes")).toBeInTheDocument();
   });
 
-  it("shows the destination country in the text overlay when provided", () => {
+  it("shows the destination country in the text overlay when destinationName is not provided", () => {
     render(<TripCover name="Tokyo" country="3 DAYS" destinationCountry="Japan" />);
 
     expect(screen.getByText("Japan")).toBeInTheDocument();
     expect(screen.queryByText("3 DAYS")).not.toBeInTheDocument();
+  });
+
+  it("prefers destinationName over destinationCountry in the text overlay", () => {
+    render(<TripCover name="Osaka" country="3 DAYS" destinationName="Tokyo, Japan" destinationCountry="Japan" />);
+
+    expect(screen.getByText("Tokyo")).toBeInTheDocument();
+    expect(screen.queryByText("Japan")).not.toBeInTheDocument();
+  });
+
+  it("shows only the city portion of destinationName in the text overlay", () => {
+    render(<TripCover name="Osaka" country="3 DAYS" destinationName="Branson, Missouri, United States" />);
+
+    expect(screen.getByText("Branson")).toBeInTheDocument();
+    expect(screen.queryByText("Missouri")).not.toBeInTheDocument();
+    expect(screen.queryByText("United States")).not.toBeInTheDocument();
   });
 });

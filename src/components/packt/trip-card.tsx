@@ -103,6 +103,7 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
         showCity
         style={{ minHeight: 160 }}
         coverImageUrl={trip.coverImageUrl}
+        destinationName={trip.destinationName}
         destinationCountry={trip.destinationCountry}
       />
 

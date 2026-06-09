@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import * as LucideIcons from "lucide-react";
 import { useTheme } from "next-themes";
 import { getTint } from "@/lib/trip-tints";
-import { cn, parseGraphicCover } from "@/lib/utils";
+import { cn, extractCity, parseGraphicCover } from "@/lib/utils";
 
 const graphicIconLookup = LucideIcons as unknown as Record<
   string,
@@ -20,6 +20,7 @@ interface TripCoverProps {
   className?: string;
   style?: React.CSSProperties;
   coverImageUrl?: string;
+  destinationName?: string;
   destinationCountry?: string;
 }
 
@@ -45,6 +46,7 @@ export function TripCover({
   className,
   style,
   coverImageUrl,
+  destinationName,
   destinationCountry,
 }: TripCoverProps) {
   const { resolvedTheme } = useTheme();
@@ -72,7 +74,7 @@ export function TripCover({
     activeCoverImageUrl.startsWith("https://") ||
     activeCoverImageUrl.startsWith("/");
   const photoCoverImageUrl = activeCoverImageUrl && !graphicCover && isImageUrl ? activeCoverImageUrl : null;
-  const overlayCountry = destinationCountry?.trim() || country;
+  const overlayLocation = extractCity(destinationName) || destinationCountry?.trim() || country;
   const graphicIconEl = graphicCover ? renderGraphicIcon(graphicCover.icon) : null;
 
   return (
@@ -152,7 +154,7 @@ export function TripCover({
           }}
         >
           {name}
-          {overlayCountry && (
+          {overlayLocation && (
             <span
               style={{
                 display: "block",
@@ -165,7 +167,7 @@ export function TripCover({
                 marginTop: 4,
               }}
             >
-              {overlayCountry}
+              {overlayLocation}
             </span>
           )}
         </div>
