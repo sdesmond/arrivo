@@ -82,7 +82,7 @@ export function TemplatePullDialog({ open, onOpenChange, templates, onPull }: Te
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="mx-0 mb-0">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

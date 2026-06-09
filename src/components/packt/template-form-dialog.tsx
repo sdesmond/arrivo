@@ -80,7 +80,7 @@ export function TemplateFormDialog({
               </p>
             ) : null}
           </div>
-          <DialogFooter>
+          <DialogFooter className="mx-0 mb-0">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
               Cancel
             </Button>
