@@ -11,7 +11,6 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { NowCard } from "@/components/packt/now-card";
-import { DayRibbon } from "@/components/packt/day-ribbon";
 import { TripCard } from "@/components/packt/trip-card";
 import { TripCover } from "@/components/packt/trip-cover";
 import { NewTripCard } from "@/components/packt/new-trip-card";
@@ -76,7 +75,6 @@ export function TripsDesktopLayout({
                 onDeleteTrip={onDeleteTrip}
                 dateFormat={dateFormat}
               />
-              <DayRibbon trip={activeEntry.trip} todayEvents={activeEntry.todayEvents} />
             </>
           )}
 
