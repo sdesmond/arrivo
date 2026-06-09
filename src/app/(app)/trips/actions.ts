@@ -16,7 +16,7 @@ import type {
 } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import { deriveGraphicCover } from "@/lib/utils";
+import { deriveGraphicCover, stableStringify } from "@/lib/utils";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
@@ -160,6 +160,13 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   const userEmail = user.email;
   const userName = user.name ?? userEmail;
 
+  if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
+    throw new Error("Invalid start date format. Expected YYYY-MM-DD.");
+  }
+  if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
+    throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
+  }
+
   let tripId = "";
   await db.transaction(async (tx) => {
     const [trip] = await tx
@@ -269,6 +276,10 @@ export async function updateTripMetadata(
       .where(eq(days.tripId, tripId))
       .orderBy(asc(days.dayNumber));
 
+    if (existingDays.length === 0) {
+      throw new Error("Trip has no day rows — invariant violated.");
+    }
+
     const isCurrentlyDateless = existingDays.length > 0 && existingDays.every((day) => !day.date);
     const isClearingDates = patch.startDate === null;
 
@@ -301,9 +312,15 @@ export async function updateTripMetadata(
 
     // ── dated → dateless: null out day dates, preserve rows ──────────────────
     if (!isCurrentlyDateless && isClearingDates) {
-      for (const day of existingDays) {
-        await transaction.update(days).set({ date: null }).where(eq(days.id, day.id));
-      }
+      await transaction
+        .update(days)
+        .set({ date: null })
+        .where(
+          inArray(
+            days.id,
+            existingDays.map((day) => day.id)
+          )
+        );
       await transaction.update(trips).set(buildTripUpdatePayload(null, null)).where(eq(trips.id, tripId));
       return;
     }
@@ -322,7 +339,7 @@ export async function updateTripMetadata(
       if (
         resolution &&
         expectedConfirmation &&
-        JSON.stringify(overflowContent.confirmation) !== JSON.stringify(expectedConfirmation)
+        stableStringify(overflowContent.confirmation) !== stableStringify(expectedConfirmation)
       ) {
         throw new Error("Trip dates changed before this confirmation was applied. Review the date change again.");
       }
@@ -374,8 +391,19 @@ export async function updateTripMetadata(
       return;
     }
 
+    // ── dateless → dateless no-op (metadata-only edit) ──────────────────────
+    if (isCurrentlyDateless && !desiredRange.startDate) {
+      await transaction.update(trips).set(buildTripUpdatePayload(null, null)).where(eq(trips.id, tripId));
+      return;
+    }
+
     // ── dated → dated (and dateless → dateless no-op) ────────────────────────
-    const currentDates = existingDays.map((day) => day.date!).filter(Boolean);
+    const hasNullDateDays = existingDays.some((day) => !day.date);
+    const hasDateDays = existingDays.some((day) => day.date);
+    if (hasNullDateDays && hasDateDays) {
+      throw new Error("Unable to update trip dates because one or more scheduled days are missing dates.");
+    }
+    const currentDates = existingDays.map((day) => day.date!) as string[];
     const syncPlan = buildTripDateSyncPlan(
       currentDates,
       desiredDayRows.map((day) => day.date!)
@@ -394,7 +422,7 @@ export async function updateTripMetadata(
     if (
       resolution &&
       expectedConfirmation &&
-      JSON.stringify(removedContent.confirmation) !== JSON.stringify(expectedConfirmation)
+      stableStringify(removedContent.confirmation) !== stableStringify(expectedConfirmation)
     ) {
       throw new Error("Trip dates changed before this confirmation was applied. Review the date change again.");
     }

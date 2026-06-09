@@ -284,6 +284,9 @@ export async function addDay(tripId: string): Promise<void> {
 
   await db.transaction(async (transaction) => {
     const [trip] = await transaction.select({ startDate: trips.startDate }).from(trips).where(eq(trips.id, tripId));
+    if (!trip) {
+      throw new Error("Trip not found.");
+    }
     const allDays = await transaction.select().from(days).where(eq(days.tripId, tripId)).orderBy(asc(days.dayNumber));
     const lastDay = allDays.at(-1);
     if (!lastDay) {

@@ -471,10 +471,8 @@ describe("updateTripMetadata", () => {
     expect(result).toEqual({ status: "saved" });
     expect(operations.deletes).toHaveLength(0);
     const dayUpdates = operations.updates.filter((entry) => entry.table === days);
-    expect(dayUpdates).toHaveLength(2);
-    dayUpdates.forEach((update) => {
-      expect((update.values as { date: null }).date).toBeNull();
-    });
+    expect(dayUpdates).toHaveLength(1);
+    expect(dayUpdates[0].values).toEqual({ date: null });
     const tripUpdate = operations.updates.find((entry) => entry.table === trips);
     expect(tripUpdate?.values).toEqual(expect.objectContaining({ startDate: null, endDate: null }));
   });
