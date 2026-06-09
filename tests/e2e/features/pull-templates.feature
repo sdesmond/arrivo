@@ -2,11 +2,12 @@ Feature: Pull templates onto a trip packing list
   Background:
     Given I am signed in as the template pull user
 
-  Scenario: Empty state does not offer pull from template
+  Scenario: Empty list offers pull from template via overflow menu
     Given I have a trip with no packing items for pull
     And I have a packing template available for pull
     When I open the packing tab for the pull test trip
-    Then I should not see a pull templates button
+    And I open the list options overflow menu
+    Then I should see a pull templates option in the overflow menu
 
   Scenario: Pull a template onto a populated trip list
     Given I have a trip with a pre-seeded packing item for pull

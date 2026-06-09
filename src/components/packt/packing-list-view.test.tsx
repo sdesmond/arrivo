@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useSortableMock = vi.hoisted(() =>
@@ -39,6 +40,16 @@ vi.mock("@dnd-kit/sortable", () => ({
 
 vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
+}));
+
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: ReactNode; asChild?: boolean }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onClick }: { children: ReactNode; onClick?: React.MouseEventHandler }) => (
+    <button onClick={onClick}>{children}</button>
+  ),
+  DropdownMenuSeparator: () => <hr />,
 }));
 
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -156,7 +167,7 @@ describe("PackingListView", () => {
     vi.useRealTimers();
   });
 
-  it("renders minimal empty state with New section and Add item inputs, no empty-state card", () => {
+  it("renders minimal empty state with Add item input but no New section form by default, no empty-state card", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -170,8 +181,47 @@ describe("PackingListView", () => {
     );
 
     expect(screen.queryByRole("heading", { name: "Your packing list is empty" })).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText("New section…")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("New section…")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("Add item…")).toBeInTheDocument();
+  });
+
+  it("reveals the New section form after clicking the New section overflow menu item", async () => {
+    const user = userEvent.setup();
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByPlaceholderText("New section…")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New section" }));
+    expect(screen.getByPlaceholderText("New section…")).toBeInTheDocument();
+  });
+
+  it("hides the New section form after a successful section submit", async () => {
+    const user = userEvent.setup();
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={[]}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "New section" }));
+    await user.type(screen.getByPlaceholderText("New section…"), "Camping");
+    await user.keyboard("{Enter}");
+    expect(screen.queryByPlaceholderText("New section…")).not.toBeInTheDocument();
   });
 
   it("renders section labels distinctly and keeps ungrouped items below labeled sections", () => {
@@ -884,7 +934,7 @@ describe("PackingListView", () => {
 
   // ── Story 2.3 — Pull from template ───────────────────────────────────────────
 
-  it("does not show a pull template button when the list is empty", () => {
+  it("shows Pull templates in the overflow menu on an empty list when onPullTemplates is provided", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -899,11 +949,10 @@ describe("PackingListView", () => {
       />
     );
 
-    expect(screen.queryByRole("button", { name: "Pull from a template" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pull templates" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pull templates" })).toBeInTheDocument();
   });
 
-  it("shows 'Pull templates' button in populated state when onPullTemplates is provided", () => {
+  it("shows Pull templates in the overflow menu on a populated list when onPullTemplates is provided", () => {
     render(
       <PackingListView
         tripId="trip-1"
@@ -1049,7 +1098,7 @@ describe("PackingListView", () => {
     });
 
     expect(addItemInput).toHaveValue("Passport");
-    expect(screen.getByPlaceholderText("New section…")).not.toBeDisabled();
+    expect(screen.getByPlaceholderText("Add item…")).not.toBeDisabled();
   });
 
   it("keeps the item rendered when onRemoveItem rejects", async () => {
@@ -1203,6 +1252,7 @@ describe("PackingListView", () => {
       />
     );
 
+    await user.click(screen.getByRole("button", { name: "New section" }));
     await user.type(screen.getByPlaceholderText("New section…"), "Camping");
     await user.keyboard("{Enter}");
 
@@ -1240,7 +1290,7 @@ describe("PackingListView", () => {
     await user.type(screen.getByPlaceholderText("Add item…"), "Passport");
     await user.keyboard("{Enter}");
 
-    expect(screen.getByPlaceholderText("New section…")).toBeDisabled();
+    expect(screen.getByPlaceholderText("Add item…")).toBeDisabled();
 
     rerender(
       <PackingListView
@@ -1253,7 +1303,7 @@ describe("PackingListView", () => {
       />
     );
 
-    await waitFor(() => expect(screen.getByPlaceholderText("New section…")).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByPlaceholderText("Add item…")).not.toBeDisabled());
     resolveAdd!();
   });
 

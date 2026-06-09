@@ -46,13 +46,14 @@ When("I open the packing tab for the save-template trip", async ({ page, scenari
     const listName = ariaLabel.replace(/^Rename "/, "").replace(/"$/, "");
     if (listName) {
       await page.getByText(listName, { exact: true }).first().click();
-      await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByRole("button", { name: "List options" })).toBeVisible({ timeout: 10_000 });
     }
   }
 });
 
 When("I save the packing list as template named {string}", async ({ page }, name: string) => {
-  await page.getByRole("button", { name: "Save as template" }).click();
+  await page.getByRole("button", { name: "List options" }).click();
+  await page.getByText("Save as template").click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 5_000 });
   await dialog.getByLabel("Template name").fill(name);
@@ -62,7 +63,8 @@ When("I save the packing list as template named {string}", async ({ page }, name
 });
 
 When("I open the save-as-template dialog", async ({ page }) => {
-  await page.getByRole("button", { name: "Save as template" }).click();
+  await page.getByRole("button", { name: "List options" }).click();
+  await page.getByText("Save as template").click();
   await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5_000 });
 });
 

@@ -35,6 +35,8 @@ Given("I have a trip with no packing items for pull", async ({ scenario }) => {
 
   await withE2EDb(async (db) => {
     await db.delete(packingItems).where(eq(packingItems.tripId, trip.id));
+    await db.delete(tripPackingLists).where(eq(tripPackingLists.tripId, trip.id));
+    await db.insert(tripPackingLists).values({ tripId: trip.id, name: "Main", position: 0 });
   });
 });
 
@@ -109,14 +111,18 @@ When("I open the packing tab for the pull test trip", async ({ page, scenario })
     const listName = ariaLabel.replace(/^Rename "/, "").replace(/"$/, "");
     if (listName) {
       await page.getByText(listName, { exact: true }).first().click();
-      await expect(page.getByPlaceholder("New section…")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByRole("button", { name: "List options" })).toBeVisible({ timeout: 10_000 });
     }
   }
 });
 
+When("I open the list options overflow menu", async ({ page }) => {
+  await page.getByRole("button", { name: "List options" }).click();
+});
+
 When("I pull the template onto the trip", async ({ page }) => {
-  const pullBtn = page.getByRole("button", { name: "Pull templates" });
-  await pullBtn.click();
+  await page.getByRole("button", { name: "List options" }).click();
+  await page.getByText("Pull templates").click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 5_000 });
   await expect(dialog.getByRole("checkbox").first()).toBeVisible({ timeout: 5_000 });
@@ -127,8 +133,8 @@ When("I pull the template onto the trip", async ({ page }) => {
 });
 
 When("I pull both templates onto the trip", async ({ page }) => {
-  const pullBtn = page.getByRole("button", { name: "Pull templates" });
-  await pullBtn.click();
+  await page.getByRole("button", { name: "List options" }).click();
+  await page.getByText("Pull templates").click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 5_000 });
   await expect(dialog.getByRole("checkbox").first()).toBeVisible({ timeout: 5_000 });
@@ -139,8 +145,8 @@ When("I pull both templates onto the trip", async ({ page }) => {
   await expect(page.getByText(/item\(s\) added/)).toBeVisible({ timeout: 10_000 });
 });
 
-Then("I should not see a pull templates button", async ({ page }) => {
-  await expect(page.getByRole("button", { name: "Pull templates" })).toHaveCount(0);
+Then("I should see a pull templates option in the overflow menu", async ({ page }) => {
+  await expect(page.getByText("Pull templates")).toBeVisible({ timeout: 5_000 });
 });
 
 Then("the packing list should contain {string} exactly once", async ({ page }, name: string) => {
