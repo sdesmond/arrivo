@@ -392,6 +392,18 @@ describe("TripEditSheet", () => {
     );
   });
 
+  it("sends null startDate when clearing both dates on a scheduled trip (AC13)", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+
+    await user.clear(screen.getByTestId("date-range-start"));
+    await user.clear(screen.getByTestId("date-range-end"));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ startDate: null, endDate: null }));
+  });
+
   it("Drawer onOpenChange(false) calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
