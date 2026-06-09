@@ -72,10 +72,12 @@ export interface TripDetailTabBodyProps {
     sourceType: "packing-list" | "template",
     sourceId: string
   ) => Promise<void>;
+  isDateless: boolean;
+  onOpenEditDates: () => void;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
-    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+    onConfirmationRequired: (hasPlannedContent: boolean) => void
   ) => void;
   addingDay: boolean;
   removingDay: boolean;
@@ -121,6 +123,8 @@ export function TripDetailTabBody({
   onRenamePackingList,
   onDeletePackingList,
   onInsertFromPackingSource,
+  isDateless,
+  onOpenEditDates,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -155,6 +159,8 @@ export function TripDetailTabBody({
           onUpdateChecklistItem={onUpdateChecklistItem}
           onDeleteChecklistItem={onDeleteChecklistItem}
           onToggleChecklistItem={onToggleChecklistItem}
+          isDateless={isDateless}
+          onOpenEditDates={onOpenEditDates}
           onAddDay={onAddDay}
           onRemoveLastDay={onRemoveLastDay}
           addingDay={addingDay}
