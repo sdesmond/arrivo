@@ -199,6 +199,13 @@ export async function shareDoc(doc: { name: string; url?: string }): Promise<voi
   }
 }
 
+export function extractCity(fullLocation: string | null | undefined): string {
+  if (!fullLocation) return "";
+  const trimmed = fullLocation.trim();
+  const commaIndex = trimmed.indexOf(",");
+  return commaIndex === -1 ? trimmed : trimmed.slice(0, commaIndex).trim();
+}
+
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, (_key, val) =>
     val !== null && typeof val === "object" && !Array.isArray(val)

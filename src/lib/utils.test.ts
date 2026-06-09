@@ -18,6 +18,7 @@ import {
   pluralize,
   parseGraphicCover,
   deriveGraphicCover,
+  extractCity,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
 } from "@/lib/utils";
@@ -480,5 +481,31 @@ describe("pluralize", () => {
   it("handles words ending in s like 'docs'", () => {
     expect(pluralize(1, "doc", "docs")).toBe("doc");
     expect(pluralize(2, "doc", "docs")).toBe("docs");
+  });
+});
+
+describe("extractCity", () => {
+  it("returns the first comma-separated segment", () => {
+    expect(extractCity("Branson, Missouri, United States")).toBe("Branson");
+  });
+
+  it("returns the full string when there is no comma", () => {
+    expect(extractCity("Tokyo")).toBe("Tokyo");
+  });
+
+  it("returns empty string for null", () => {
+    expect(extractCity(null)).toBe("");
+  });
+
+  it("returns empty string for undefined", () => {
+    expect(extractCity(undefined)).toBe("");
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(extractCity("")).toBe("");
+  });
+
+  it("trims whitespace from the result", () => {
+    expect(extractCity("  Paris , France")).toBe("Paris");
   });
 });

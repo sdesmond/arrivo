@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import * as LucideIcons from "lucide-react";
 import { useTheme } from "next-themes";
 import { getTint } from "@/lib/trip-tints";
-import { cn, parseGraphicCover } from "@/lib/utils";
+import { cn, extractCity, parseGraphicCover } from "@/lib/utils";
 
 const graphicIconLookup = LucideIcons as unknown as Record<
   string,
@@ -20,6 +20,7 @@ interface TripCoverProps {
   className?: string;
   style?: React.CSSProperties;
   coverImageUrl?: string;
+  destinationName?: string;
   destinationCountry?: string;
 }
 
@@ -45,6 +46,7 @@ export function TripCover({
   className,
   style,
   coverImageUrl,
+  destinationName,
   destinationCountry,
 }: TripCoverProps) {
   const { resolvedTheme } = useTheme();
@@ -72,7 +74,7 @@ export function TripCover({
     activeCoverImageUrl.startsWith("https://") ||
     activeCoverImageUrl.startsWith("/");
   const photoCoverImageUrl = activeCoverImageUrl && !graphicCover && isImageUrl ? activeCoverImageUrl : null;
-  const overlayCountry = destinationCountry?.trim() || country;
+  const overlayLocation = extractCity(destinationName) || destinationCountry?.trim() || country;
   const graphicIconEl = graphicCover ? renderGraphicIcon(graphicCover.icon) : null;
 
   return (
@@ -147,12 +149,16 @@ export function TripCover({
             fontSize: "calc(26px * var(--font-scale))",
             letterSpacing: "-0.02em",
             color: "white",
-            textShadow: photoCoverImageUrl ? "0 1px 3px rgba(0,0,0,0.4)" : undefined,
             lineHeight: 1.05,
+            textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            background: "rgba(255,255,255,0.06)",
+            padding: "6px 10px",
+            borderRadius: 6,
+            backdropFilter: "blur(4px)",
           }}
         >
           {name}
-          {overlayCountry && (
+          {overlayLocation && (
             <span
               style={{
                 display: "block",
@@ -165,7 +171,7 @@ export function TripCover({
                 marginTop: 4,
               }}
             >
-              {overlayCountry}
+              {overlayLocation}
             </span>
           )}
         </div>
