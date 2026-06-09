@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pencil, Trash2, ChevronLeft, Plus } from "lucide-react";
+import { Pencil, Trash2, ChevronLeft, Plus, Backpack } from "lucide-react";
 import { PackingListView } from "./packing-list-view";
 import {
   AlertDialog,
@@ -236,7 +236,7 @@ export function PackingListsView({
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <Plus strokeWidth={1.5} />
+                <Backpack strokeWidth={1.5} />
               </EmptyMedia>
               <EmptyTitle>No packing lists yet</EmptyTitle>
               <EmptyDescription>Create a list to start organizing your gear.</EmptyDescription>

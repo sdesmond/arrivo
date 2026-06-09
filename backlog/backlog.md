@@ -29,3 +29,5 @@ The Notes tab exists on the trip detail page as a placeholder. The trip-level `n
 Needs full design and implementation: display in the Notes tab, editing UX (inline or via a dedicated entry point), and an empty state that communicates what the field is for (general reminders, parking-lot ideas not yet on the itinerary).
 
 ## Improvements
+
+I want to be move the option to add packing items from a template as well as save a trip-level list as a template when there are no trip packing lists. Currently you must have at least one item in a packing list before Save as Template and Pull templates are visible. I want to move them into an overflow menu and also make the "new section" a little harder to get to. I feel it looks too much like what you would use to add a packing list item.
