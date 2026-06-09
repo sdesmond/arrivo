@@ -1,23 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import { usePathname } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
+import { TripDetailTab } from "@/data/types";
 import type {
   TripDetailPayload,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripPatch,
-  TripDetailTab,
+  TripDetailTab as TripDetailTabValue,
   PackingTemplate,
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
+import { buildTripDetailTabHref, resolveTripDetailTab } from "./trip-detail-tabs";
 
-const TABS: { id: TripDetailTab; label: string }[] = [
+const TABS: { id: TripDetailTabValue; label: string }[] = [
   { id: "itin", label: "Itinerary" },
   { id: "map", label: "Map" },
   { id: "docs", label: "Documents" },
@@ -30,6 +33,7 @@ interface TripDetailClientProps {
   nowISO: string;
   dateFormat: string;
   initialExpandedDayNumber?: number;
+  initialActiveTab?: TripDetailTabValue;
   isNew?: boolean;
   templates?: PackingTemplate[];
 }
@@ -39,18 +43,30 @@ export function TripDetailClient({
   nowISO,
   dateFormat,
   initialExpandedDayNumber,
+  initialActiveTab = TripDetailTab.Itinerary,
   isNew,
   templates = [],
 }: TripDetailClientProps): ReactElement {
   useFocusScroll();
 
-  const [activeTab, setActiveTab] = useState<TripDetailTab>("itin");
+  const pathname = usePathname();
+  const [activeTab, setActiveTab] = useState<TripDetailTabValue>(initialActiveTab);
   const [editingTrip, setEditingTrip] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const handlers = useTripDetailHandlers(detail);
 
   const { trip, days, unscheduledEvents, docs, packingItems, packingLists } = detail;
+
+  useEffect(() => {
+    function handlePopState(): void {
+      const nextTab = resolveTripDetailTab(new URLSearchParams(window.location.search).get("tab"));
+      setActiveTab(nextTab);
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   async function handleTripSave(patch: UpdateTripPatch): Promise<void> {
     const result = await handlers.handleTripSave(patch);
@@ -79,6 +95,14 @@ export function TripDetailClient({
     setPendingTripPatch(null);
   }
 
+  function handleTabChange(nextTab: TripDetailTabValue): void {
+    if (nextTab === activeTab) return;
+
+    setActiveTab(nextTab);
+    const nextUrl = buildTripDetailTabHref(pathname, new URLSearchParams(window.location.search), nextTab);
+    window.history.pushState(null, "", nextUrl);
+  }
+
   return (
     <div className="flex flex-col min-h-full">
       <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
@@ -102,7 +126,7 @@ export function TripDetailClient({
                 borderBottom: activeTab === tabItem.id ? "2px solid var(--accent-brand)" : "2px solid transparent",
                 marginBottom: -1,
               }}
-              onClick={() => setActiveTab(tabItem.id)}
+              onClick={() => handleTabChange(tabItem.id)}
             >
               {tabItem.label}
             </button>

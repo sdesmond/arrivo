@@ -5,13 +5,14 @@ import { getTripDetail, getUserById, listTemplatesForUser } from "@/lib/queries"
 import { getServerNow } from "@/lib/server-now";
 import { detectDefaultDateFormat } from "@/lib/utils";
 import { TripDetailClient } from "./page-client";
+import { readSearchParamValue, resolveTripDetailTab } from "./trip-detail-tabs";
 
 export default async function TripDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ tripId: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string | string[]; tab?: string | string[] }>;
 }) {
   const session = await requireUser();
   const { tripId } = await params;
@@ -28,13 +29,16 @@ export default async function TripDetailPage({
 
   const resolvedSearchParams = await searchParams;
   const dateFormat = profile?.dateFormat ?? detectDefaultDateFormat((await headers()).get("accept-language") ?? "");
+  const isNew = readSearchParamValue(resolvedSearchParams.new) === "1";
+
   return (
     <TripDetailClient
       detail={detail}
       nowISO={now.toISOString()}
       dateFormat={dateFormat}
-      initialExpandedDayNumber={resolvedSearchParams.new === "1" ? 1 : undefined}
-      isNew={resolvedSearchParams.new === "1"}
+      initialExpandedDayNumber={isNew ? 1 : undefined}
+      initialActiveTab={resolveTripDetailTab(resolvedSearchParams.tab)}
+      isNew={isNew}
       templates={templates}
     />
   );
