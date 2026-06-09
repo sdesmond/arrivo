@@ -25,16 +25,25 @@ describe("PlaceRowNameField", () => {
     expect(screen.getByDisplayValue("Tokyo Tower")).toBeInTheDocument();
   });
 
-  it("shows edit button with title when not editing", () => {
-    render(<PlaceRowNameField {...defaultProps} />);
-    expect(screen.getByTitle("Edit name")).toBeInTheDocument();
-  });
-
-  it("calls onStartEdit when edit button is clicked", async () => {
+  it("calls onStartEdit when display name is clicked", async () => {
     const user = userEvent.setup();
     const onStartEdit = vi.fn();
     render(<PlaceRowNameField {...defaultProps} onStartEdit={onStartEdit} />);
-    await user.click(screen.getByTitle("Edit name"));
+    await user.click(screen.getByText("Tokyo Tower"));
+    expect(onStartEdit).toHaveBeenCalledOnce();
+  });
+
+  it("calls onStartEdit when Enter key is pressed on display name", () => {
+    const onStartEdit = vi.fn();
+    render(<PlaceRowNameField {...defaultProps} onStartEdit={onStartEdit} />);
+    fireEvent.keyDown(screen.getByText("Tokyo Tower"), { key: "Enter" });
+    expect(onStartEdit).toHaveBeenCalledOnce();
+  });
+
+  it("calls onStartEdit when Space key is pressed on display name", () => {
+    const onStartEdit = vi.fn();
+    render(<PlaceRowNameField {...defaultProps} onStartEdit={onStartEdit} />);
+    fireEvent.keyDown(screen.getByText("Tokyo Tower"), { key: " " });
     expect(onStartEdit).toHaveBeenCalledOnce();
   });
 
