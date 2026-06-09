@@ -66,7 +66,7 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleAddDay: () => void;
   handleRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
-    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+    onConfirmationRequired: (hasPlannedContent: boolean) => void
   ) => void;
 }
 
@@ -249,13 +249,13 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
 
   function handleRemoveLastDay(
     confirmedDestructiveRemoval: boolean,
-    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+    onConfirmationRequired: (hasPlannedContent: boolean) => void
   ): void {
     startRemoveDayTransition(async () => {
       try {
         const result = await removeLastDay(trip.id, confirmedDestructiveRemoval);
         if (result.status === "confirmation-required") {
-          onConfirmationRequired(result.hasPlannedContent ?? false, result.removesOnlyDay ?? false);
+          onConfirmationRequired(result.hasPlannedContent ?? false);
         }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to remove day. Please try again.");

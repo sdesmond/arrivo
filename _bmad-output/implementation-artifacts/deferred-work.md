@@ -95,4 +95,9 @@
 
 - Template editor `isAdding` stuck-true hazard [template-editor-view.tsx] — The template editor relies entirely on the parent's `isAdding` prop; if the parent forgets to reset it on failure, the form stays disabled. Pre-existing pattern, not introduced by this change.
 
+## Deferred from: code review of spec-dateless-itinerary-day-invariant (2026-06-09)
+
+- **Mutable call-index mock in removeLastDay tests** (`src/app/(app)/trips/[tripId]/actions.test.ts`) — Test mock depends on exact call order of `where` closures; order-dependent refactors will silently break tests. Pre-existing pattern, not introduced by this change.
+- **Stale closure risk in canRemove for last-day removal handler** (`src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx`) — `lastDay` captured at render; concurrent mutation via refreshed props could desync `canRemove` logic. Would need broader `useCallback`/`useMemo` refactor to fully address.
+
 

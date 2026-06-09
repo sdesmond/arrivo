@@ -284,30 +284,38 @@ export async function addDay(tripId: string): Promise<void> {
 
   await db.transaction(async (transaction) => {
     const [trip] = await transaction.select({ startDate: trips.startDate }).from(trips).where(eq(trips.id, tripId));
-    const scheduledDays = await transaction
-      .select()
-      .from(days)
-      .where(eq(days.tripId, tripId))
-      .orderBy(asc(days.dayNumber));
-    const lastDay = scheduledDays.at(-1);
-    if (!trip?.startDate || !lastDay?.date) {
-      throw new Error("Unable to add a day because this itinerary is not scheduled correctly.");
+    if (!trip) {
+      throw new Error("Trip not found.");
     }
-    if (scheduledDays.length >= MAX_TRIP_DAYS) {
+    const allDays = await transaction.select().from(days).where(eq(days.tripId, tripId)).orderBy(asc(days.dayNumber));
+    const lastDay = allDays.at(-1);
+    if (!lastDay) {
+      throw new Error("Unable to add a day because this trip has no days.");
+    }
+    if (allDays.length >= MAX_TRIP_DAYS) {
       throw new Error("Max trip length is 45 days. Please shorten your date range.");
     }
-    if (scheduledDays.some((day, index) => day.dayNumber !== index + 1)) {
+    if (allDays.some((day, index) => day.dayNumber !== index + 1)) {
       throw new Error("Unable to add a day because the itinerary day order is inconsistent.");
     }
-    const appendedDate = nextCalendarDate(lastDay.date);
     const appendedDayNumber = lastDay.dayNumber + 1;
-    await transaction.insert(days).values({
-      tripId,
-      dayNumber: appendedDayNumber,
-      date: appendedDate,
-      label: `Day ${appendedDayNumber}`,
-    });
-    await transaction.update(trips).set({ endDate: appendedDate, updatedAt: new Date() }).where(eq(trips.id, tripId));
+    if (trip?.startDate && lastDay.date) {
+      const appendedDate = nextCalendarDate(lastDay.date);
+      await transaction.insert(days).values({
+        tripId,
+        dayNumber: appendedDayNumber,
+        date: appendedDate,
+        label: `Day ${appendedDayNumber}`,
+      });
+      await transaction.update(trips).set({ endDate: appendedDate, updatedAt: new Date() }).where(eq(trips.id, tripId));
+    } else {
+      await transaction.insert(days).values({
+        tripId,
+        dayNumber: appendedDayNumber,
+        date: null,
+        label: `Day ${appendedDayNumber}`,
+      });
+    }
   });
 
   revalidatePath(`/trips/${tripId}`);
@@ -352,20 +360,21 @@ export async function removeLastDay(tripId: string, confirmedDestructiveRemoval 
             )
         : [];
     const hasPlannedContent = dayEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0;
-    const removesOnlyDay = scheduledDays.length === 1;
-    if (!confirmedDestructiveRemoval && (removesOnlyDay || hasPlannedContent)) {
-      result = { status: "confirmation-required", hasPlannedContent, removesOnlyDay };
+    if (scheduledDays.length === 1) {
+      throw new Error("Cannot remove the only remaining day.");
+    }
+    if (!confirmedDestructiveRemoval && hasPlannedContent) {
+      result = { status: "confirmation-required", hasPlannedContent: true };
       return;
     }
-    const precedingDay = scheduledDays.at(-2);
-    if (!removesOnlyDay && !precedingDay?.date) {
-      throw new Error("Unable to remove a day because the itinerary dates are inconsistent.");
-    }
     await transaction.delete(days).where(eq(days.id, lastDay.id));
-    const dateUpdates = removesOnlyDay
-      ? { startDate: null, endDate: null, updatedAt: new Date() }
-      : { endDate: precedingDay!.date!, updatedAt: new Date() };
-    await transaction.update(trips).set(dateUpdates).where(eq(trips.id, tripId));
+    const precedingDay = scheduledDays.at(-2);
+    if (precedingDay?.date) {
+      await transaction
+        .update(trips)
+        .set({ endDate: precedingDay.date, updatedAt: new Date() })
+        .where(eq(trips.id, tripId));
+    }
   });
   if (result.status === "confirmation-required") return result;
 

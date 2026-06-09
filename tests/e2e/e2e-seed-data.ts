@@ -26,7 +26,7 @@ export interface UserMother {
 
 export interface DaySeed {
   dayNumber: number;
-  date: string;
+  date: string | null;
   label: string;
   weather?: string | null;
   travelSummary?: string | null;
@@ -184,22 +184,7 @@ export const DATELESS_TRIP_MOTHER: TripMother = {
     endDate: null,
     coverImageUrl: "graphic:var(--accent-brand)/plane",
   },
-  days: [],
-  events: [],
-  documents: [],
-  packingItems: [],
-  notes: [],
-  checklists: [],
-};
-
-export const EMPTY_ITINERARY_TRIP_MOTHER: TripMother = {
-  trip: {
-    name: "Empty Itinerary Trip",
-    startDate: "2026-08-01",
-    endDate: "2026-08-03",
-    coverImageUrl: "graphic:var(--accent-brand)/plane",
-  },
-  days: [],
+  days: [{ dayNumber: 1, date: null, label: "Day 1" }],
   events: [],
   documents: [],
   packingItems: [],
@@ -411,7 +396,7 @@ export const E2E_TEMPLATE_PULL_2_ITEMS: TemplateItemSeed[] = [
 ];
 
 export type UserMotherName = "default";
-export type TripMotherName = "threeDayTrip" | "datelessTrip" | "emptyItineraryTrip" | "deleteTrip";
+export type TripMotherName = "threeDayTrip" | "datelessTrip" | "deleteTrip";
 export type TemplateMotherName = "emptyTemplate";
 
 function cloneValue<T>(value: T): T {
@@ -433,13 +418,7 @@ export function cloneTripMother(
   overrides: TripMotherOverrides = {}
 ): TripMother {
   const source =
-    name === "datelessTrip"
-      ? DATELESS_TRIP_MOTHER
-      : name === "emptyItineraryTrip"
-        ? EMPTY_ITINERARY_TRIP_MOTHER
-        : name === "deleteTrip"
-          ? DELETE_TRIP_MOTHER
-          : THREE_DAY_TRIP_MOTHER;
+    name === "datelessTrip" ? DATELESS_TRIP_MOTHER : name === "deleteTrip" ? DELETE_TRIP_MOTHER : THREE_DAY_TRIP_MOTHER;
   const base = cloneValue(source);
 
   return {

@@ -50,11 +50,6 @@ Feature: Day Planning
     When I delete the checklist
     Then the checklist should not be visible on the timeline
 
-  @itinerary-empty
-  Scenario: Empty state shows Add event, Add note, and Add checklist buttons when a trip has no scheduled days
-    Given I navigate to the trip with no itinerary
-    Then the itinerary empty state shows buttons for adding events, notes, and checklists
-
   @day-append
   Scenario: User appends a day to a single-day scheduled trip
     When I add a day to the itinerary
@@ -65,12 +60,22 @@ Feature: Day Planning
     When I remove the final empty day
     Then only the preceding day remains scheduled
 
-  @day-remove-only
-  Scenario: User cancels and then confirms removal of the only day
-    When I request removal of the only day and cancel
-    Then no day or date changes are persisted
-    When I confirm removal of the only day
-    Then the trip is persisted and displayed as unscheduled
+  @dateless-trip
+  Scenario: Remove control is absent when only one day remains
+    Given I am on the trip detail page
+    Then the remove day control is not visible
+
+  @dateless-trip
+  Scenario: User adds a second day to a dateless trip without requiring dates
+    Given I am on the trip detail page
+    When I add a day to a dateless itinerary
+    Then Day 2 is appended without a date
+
+  @dateless-trip
+  Scenario: Set trip dates CTA opens the trip edit sheet for a dateless trip
+    Given I am on the trip detail page
+    When I click Set trip dates
+    Then the trip edit sheet is open
 
   @day-remove-populated
   Scenario: User explicitly confirms removing a populated final day

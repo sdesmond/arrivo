@@ -9,9 +9,6 @@ import {
   E2E_EVENT_UNTIMED,
 } from "../e2e-seed-data";
 import { Given, When, Then, Before } from "../fixtures";
-import type { ScenarioFixtureContext } from "../scenario-fixture";
-
-const EMPTY_ITINERARY_TRIP_KEY = "dayPlanning.emptyItineraryTrip";
 
 async function openFirstDay(page: Page): Promise<void> {
   const dayToggles = page.locator("button").filter({ hasText: /\d+ stops/ });
@@ -69,14 +66,6 @@ function getLatestChecklist(page: Page) {
   return page.locator('[id^="checklist-"]').last();
 }
 
-async function rememberEmptyItineraryTrip(scenario: ScenarioFixtureContext): Promise<void> {
-  const result = await scenario.materialize({
-    user: { setCurrent: true },
-    trip: { mother: "emptyItineraryTrip", setCurrent: false },
-  });
-  scenario.setValue(EMPTY_ITINERARY_TRIP_KEY, result.trip);
-}
-
 Before({ tags: "@trip-with-untimed-event" }, async ({ scenario }) => {
   await scenario.materialize({
     user: { setCurrent: true },
@@ -119,10 +108,6 @@ Before({ tags: "@trip-with-reorder-events" }, async ({ scenario }) => {
   });
 });
 
-Before({ tags: "@itinerary-empty" }, async ({ scenario }) => {
-  await rememberEmptyItineraryTrip(scenario);
-});
-
 Before({ tags: "@day-append" }, async ({ scenario }) => {
   await scenario.materialize({
     user: { setCurrent: true },
@@ -154,17 +139,10 @@ Before({ tags: "@day-remove-empty" }, async ({ scenario }) => {
   });
 });
 
-Before({ tags: "@day-remove-only" }, async ({ scenario }) => {
+Before({ tags: "@dateless-trip" }, async ({ scenario }) => {
   await scenario.materialize({
     user: { setCurrent: true },
-    trip: {
-      mother: "threeDayTrip",
-      overrides: {
-        trip: { name: "Only Day Trip", startDate: "2026-08-01", endDate: null },
-        days: [{ dayNumber: 1, date: "2026-08-01", label: "Day 1" }],
-      },
-      setCurrent: true,
-    },
+    trip: { mother: "datelessTrip", setCurrent: true },
   });
 });
 
@@ -496,22 +474,6 @@ Then("the checklist should not be visible on the timeline", async ({ page }) => 
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(0);
 });
 
-Given("I navigate to the trip with no itinerary", async ({ page, scenario }) => {
-  const trip = scenario.getValue<{ id: string }>(EMPTY_ITINERARY_TRIP_KEY);
-  if (!trip) {
-    throw new Error("Missing empty itinerary trip fixture.");
-  }
-  await scenario.signIn(page);
-  await page.goto(`/trips/${trip.id}`);
-  await expect(page.getByText("No itinerary yet")).toBeVisible({ timeout: 10_000 });
-});
-
-Then("the itinerary empty state shows buttons for adding events, notes, and checklists", async ({ page }) => {
-  await expect(page.getByTitle("Add event")).toBeVisible();
-  await expect(page.getByTitle("Add note")).toBeVisible();
-  await expect(page.getByTitle("Add checklist")).toBeVisible();
-});
-
 When("I add a day to the itinerary", async ({ page }) => {
   await page.getByRole("button", { name: "Add Day" }).click();
   await expect(page.getByText("Sun, Aug 2")).toBeVisible({ timeout: 10_000 });
@@ -550,44 +512,33 @@ Then("only the preceding day remains scheduled", async ({ scenario }) => {
   });
 });
 
-When("I request removal of the only day and cancel", async ({ page }) => {
-  await page.getByTitle("Remove day").click();
-  await expect(page.getByText(/marks this trip as unscheduled/i)).toBeVisible();
-  await page.getByRole("button", { name: "Cancel" }).click();
+Then("the remove day control is not visible", async ({ page }) => {
+  await expect(page.getByTitle("Remove day")).not.toBeVisible();
 });
 
-Then("no day or date changes are persisted", async ({ scenario }) => {
+When("I add a day to a dateless itinerary", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Day" }).click();
+  await expect(page.getByText("Day 2")).toBeVisible({ timeout: 10_000 });
+});
+
+Then("Day 2 is appended without a date", async ({ scenario }) => {
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
-    const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
-    expect(tripDays).toHaveLength(1);
-    expect(trip.startDate).toBe("2026-08-01");
+    expect(tripDays).toHaveLength(2);
+    expect(tripDays.find((day) => day.dayNumber === 2)?.date).toBeNull();
   });
 });
 
-When("I confirm removal of the only day", async ({ page }) => {
-  await page.getByTitle("Remove day").click();
-  await page.getByRole("button", { name: "Remove Day", exact: true }).click();
-  await expect(page.getByText("No itinerary yet")).toBeVisible({ timeout: 10_000 });
+When("I click Set trip dates", async ({ page }) => {
+  await page.getByRole("button", { name: /set trip dates/i }).click();
 });
 
-Then("the trip is persisted and displayed as unscheduled", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Missing current scenario trip.");
-
-  await withE2EDb(async (db) => {
-    const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
-    const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
-    expect(tripDays).toHaveLength(0);
-    expect(trip.startDate).toBeNull();
-    expect(trip.endDate).toBeNull();
-  });
-  await page.goto("/trips");
-  await expect(page.getByRole("heading", { name: "Unscheduled" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Only Day Trip.*No dates.*unscheduled/i })).toBeVisible();
+Then("the trip edit sheet is open", async ({ page }) => {
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText("Edit Trip")).toBeVisible();
 });
 
 When("I request removal of the populated final day", async ({ page }) => {

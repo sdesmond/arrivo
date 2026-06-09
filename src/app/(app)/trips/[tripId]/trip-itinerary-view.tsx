@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { CalendarDays, FileText, ListChecks, MapPin, Plus } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 import { DayCard } from "@/components/packt/day-card";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +22,8 @@ import { UnscheduledEventsSection } from "./unscheduled-events-section";
 export interface TripItineraryViewProps {
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
+  isDateless: boolean;
+  onOpenEditDates: () => void;
   dateFormat?: string;
   initialExpandedDayNumber?: number;
   isNew?: boolean;
@@ -54,7 +55,7 @@ export interface TripItineraryViewProps {
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
-    onConfirmationRequired: (hasPlannedContent: boolean, removesOnlyDay: boolean) => void
+    onConfirmationRequired: (hasPlannedContent: boolean) => void
   ) => void;
   addingDay: boolean;
   removingDay: boolean;
@@ -62,7 +63,6 @@ export interface TripItineraryViewProps {
 
 interface RemovalConfirmation {
   hasPlannedContent: boolean;
-  removesOnlyDay: boolean;
 }
 
 interface PickerState {
@@ -73,6 +73,8 @@ interface PickerState {
 export function TripItineraryView({
   days,
   unscheduledEvents,
+  isDateless,
+  onOpenEditDates,
   dateFormat,
   initialExpandedDayNumber,
   isNew,
@@ -105,44 +107,19 @@ export function TripItineraryView({
   const [initialRenderDayCount] = useState(() => days.length);
   const [pickerState, setPickerState] = useState<PickerState | null>(null);
 
-  if (days.length === 0 && unscheduledEvents.length === 0) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <CalendarDays strokeWidth={1.5} />
-          </EmptyMedia>
-          <EmptyTitle>No itinerary yet</EmptyTitle>
-          <EmptyDescription>Start building your plan — add events, notes, or checklists.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button variant="outline" onClick={() => onAddEvent(1, "")} title="Add event">
-            <MapPin strokeWidth={1.5} /> Add event
-          </Button>
-          <Button variant="outline" onClick={() => onAddNote(1, "")} title="Add note">
-            <FileText strokeWidth={1.5} /> Add note
-          </Button>
-          <Button variant="outline" onClick={() => onAddChecklist(1, 0)} title="Add checklist">
-            <ListChecks strokeWidth={1.5} /> Add checklist
-          </Button>
-        </EmptyContent>
-      </Empty>
-    );
-  }
-
   const lastDay = days.at(-1);
   const lastDayHasPlannedContent =
     lastDay !== undefined &&
     (lastDay.events.length > 0 || (lastDay.notes?.length ?? 0) > 0 || (lastDay.checklists?.length ?? 0) > 0);
 
-  function requireRemovalConfirmation(hasPlannedContent: boolean, removesOnlyDay: boolean): void {
-    setRemovalConfirmation({ hasPlannedContent, removesOnlyDay });
+  function requireRemovalConfirmation(hasPlannedContent: boolean): void {
+    setRemovalConfirmation({ hasPlannedContent });
   }
 
   function requestLastDayRemoval(): void {
     if (!lastDay) return;
-    if (days.length === 1 || lastDayHasPlannedContent) {
-      requireRemovalConfirmation(lastDayHasPlannedContent, days.length === 1);
+    if (lastDayHasPlannedContent) {
+      requireRemovalConfirmation(true);
       return;
     }
     onRemoveLastDay(false, requireRemovalConfirmation);
@@ -162,6 +139,24 @@ export function TripItineraryView({
   return (
     <>
       <div>
+        {isDateless && (
+          <div className="flex items-center mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="shadow-sm"
+              style={{
+                background: "var(--accent-soft)",
+                borderColor: "var(--accent-brand)",
+                color: "var(--accent-ink)",
+              }}
+              onClick={onOpenEditDates}
+            >
+              <CalendarDays strokeWidth={1.5} />
+              Set trip dates
+            </Button>
+          </div>
+        )}
         <UnscheduledEventsSection
           unscheduledEvents={unscheduledEvents}
           dateFormat={dateFormat}
@@ -170,6 +165,7 @@ export function TripItineraryView({
           onDeleteEvent={onDeleteEvent}
         />
         {days.map((day, index) => {
+          const canRemove = days.length > 1 && day.dayNumber === lastDay?.dayNumber;
           const dayCard = (
             <DayCard
               key={day.dayNumber}
@@ -193,7 +189,7 @@ export function TripItineraryView({
               onUpdateChecklistItem={onUpdateChecklistItem}
               onDeleteChecklistItem={onDeleteChecklistItem}
               onToggleChecklistItem={onToggleChecklistItem}
-              onRemove={day.dayNumber === lastDay?.dayNumber ? requestLastDayRemoval : undefined}
+              onRemove={canRemove ? requestLastDayRemoval : undefined}
               removeDisabled={removingDay || addingDay}
               onOpenPackingListPicker={(insertAtPosition) =>
                 setPickerState({ dayNumber: day.dayNumber, insertAtPosition })
@@ -216,12 +212,10 @@ export function TripItineraryView({
             </div>
           );
         })}
-        {days.length > 0 && (
-          <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
-            <Plus data-icon="inline-start" strokeWidth={1.5} />
-            {addingDay ? "Adding Day..." : "Add Day"}
-          </Button>
-        )}
+        <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
+          <Plus data-icon="inline-start" strokeWidth={1.5} />
+          {addingDay ? "Adding Day..." : "Add Day"}
+        </Button>
       </div>
 
       <PackingListPickerDialog
@@ -241,13 +235,7 @@ export function TripItineraryView({
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Day</AlertDialogTitle>
-            <AlertDialogDescription>
-              {removalConfirmation?.hasPlannedContent
-                ? `Planned content will be deleted from this day.${
-                    removalConfirmation.removesOnlyDay ? " Removing it also marks this trip as unscheduled." : ""
-                  }`
-                : "Removing the only day marks this trip as unscheduled and clears its dates."}
-            </AlertDialogDescription>
+            <AlertDialogDescription>Planned content will be deleted from this day.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={removingDay}>Cancel</AlertDialogCancel>

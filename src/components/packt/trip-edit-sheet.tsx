@@ -133,10 +133,16 @@ export function TripEditSheet({
         ? undefined
         : currentDraft.coverImageUrl || null;
 
+    const hadDates = !!trip?.startDate;
+    const hasDraftDates = !!currentDraft.startDate;
+    const startDate: string | null | undefined = hadDates && !hasDraftDates ? null : currentDraft.startDate || null;
+    const endDate: string | null | undefined =
+      hadDates && !hasDraftDates ? null : (currentDraft.endDate ?? currentDraft.startDate) || null;
+
     return {
       name: currentDraft.name,
-      startDate: currentDraft.startDate,
-      endDate: currentDraft.endDate ?? currentDraft.startDate,
+      startDate,
+      endDate,
       coverImageUrl,
       ...(destinationPatch !== undefined
         ? {

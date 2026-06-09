@@ -1,5 +1,9 @@
 import { days } from "@/db/schema";
 
+export function buildDatelessDayRow(tripId: string): typeof days.$inferInsert {
+  return { tripId, dayNumber: 1, date: null, label: "Day 1" };
+}
+
 export function buildDayRows(
   tripId: string,
   startDate: string | undefined,

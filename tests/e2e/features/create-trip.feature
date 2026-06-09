@@ -19,12 +19,12 @@ Feature: Create Trip
     Then I am on the trip detail page for "E2E Animated Trip"
     And the day cards have the stagger animation class
 
-  Scenario: Create a dateless trip navigates to trip page with empty itinerary
+  Scenario: Create a dateless trip navigates to trip page with Day 1 expanded
     When I open the New Trip dialog
     And I type "E2E Dateless Trip" in the title field
     And I click the Create button
     Then I am on the trip detail page for "E2E Dateless Trip"
-    And the itinerary shows the empty state
+    And Day 1 is expanded
 
   Scenario: Create button shows loading state while submitting
     When I open the New Trip dialog

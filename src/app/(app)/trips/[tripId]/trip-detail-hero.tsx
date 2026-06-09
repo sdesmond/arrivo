@@ -20,7 +20,7 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
   const { trip, days, unscheduledEvents, docs, collaborators } = detail;
 
   const eventCount = days.reduce((count, day) => count + day.events.length, 0) + unscheduledEvents.length;
-  const dayTotal = getTripDays(trip.startDate, trip.endDate);
+  const dayTotal = trip.startDate && trip.endDate ? getTripDays(trip.startDate, trip.endDate) : days.length;
   const dayN =
     trip.startDate && dayTotal > 0
       ? Math.max(1, Math.min(getTripDays(trip.startDate, nowISO.slice(0, 10)), dayTotal))

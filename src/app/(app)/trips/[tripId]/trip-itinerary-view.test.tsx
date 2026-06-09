@@ -46,10 +46,12 @@ const dayTwo: DayItinerary = {
   events: [],
 };
 
-function buildProps(days: DayItinerary[]): TripItineraryViewProps {
+function buildProps(days: DayItinerary[], overrides: Partial<TripItineraryViewProps> = {}): TripItineraryViewProps {
   return {
     days,
     unscheduledEvents: [],
+    isDateless: false,
+    onOpenEditDates: vi.fn(),
     onUpdateEvent: vi.fn(),
     onDeleteEvent: vi.fn(),
     onReorderDayItems: vi.fn(),
@@ -72,6 +74,7 @@ function buildProps(days: DayItinerary[]): TripItineraryViewProps {
     onRemoveLastDay: vi.fn(),
     addingDay: false,
     removingDay: false,
+    ...overrides,
   };
 }
 
@@ -83,6 +86,13 @@ describe("TripItineraryView", () => {
 
     await user.click(screen.getByRole("button", { name: "Add Day" }));
     expect(props.onAddDay).toHaveBeenCalledOnce();
+  });
+
+  it("shows Add Day even when no days are currently rendered", () => {
+    const props = buildProps([]);
+    render(<TripItineraryView {...props} />);
+
+    expect(screen.getByRole("button", { name: "Add Day" })).toBeInTheDocument();
   });
 
   it("disables Add Day while a structural mutation is pending", () => {
@@ -104,15 +114,11 @@ describe("TripItineraryView", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
-  it("requires confirmation before removing the only day", async () => {
-    const user = userEvent.setup();
+  it("hides the remove control when only one day remains (AC7)", () => {
     const props = buildProps([dayOne]);
     render(<TripItineraryView {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Remove Day 1" }));
-    expect(screen.getByText(/marks this trip as unscheduled/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Remove Day" }));
-    expect(props.onRemoveLastDay).toHaveBeenCalledWith(true, expect.any(Function));
+    expect(screen.queryByRole("button", { name: "Remove Day 1" })).not.toBeInTheDocument();
   });
 
   it("requires destructive confirmation when the last day has planned content", async () => {
@@ -174,11 +180,43 @@ describe("TripItineraryView", () => {
     expect(secondWrapper).not.toHaveClass("animate-in");
   });
 
-  it("renders the empty state without stagger wrappers when there are no days", () => {
-    const props = buildProps([]);
-    render(<TripItineraryView {...props} isNew />);
+  it("renders a day card for a dateless one-day trip instead of empty state (AC4)", () => {
+    const datelessDay: DayItinerary = { id: "day-1", dayNumber: 1, label: "Day 1", events: [] };
+    const props = buildProps([datelessDay], { isDateless: true });
+    render(<TripItineraryView {...props} />);
 
-    expect(screen.getByText("No itinerary yet")).toBeInTheDocument();
-    expect(screen.queryByTestId("day-card-stagger-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("day-card-1")).toBeInTheDocument();
+    expect(screen.queryByText("No itinerary yet")).not.toBeInTheDocument();
+  });
+
+  it("shows Set trip dates CTA for dateless trips (AC10)", () => {
+    const datelessDay: DayItinerary = { id: "day-1", dayNumber: 1, label: "Day 1", events: [] };
+    const onOpenEditDates = vi.fn();
+    const props = buildProps([datelessDay], { isDateless: true, onOpenEditDates });
+    render(<TripItineraryView {...props} />);
+
+    expect(screen.getByRole("button", { name: /set trip dates/i })).toHaveStyle({
+      background: "var(--accent-soft)",
+      borderColor: "var(--accent-brand)",
+      color: "var(--accent-ink)",
+    });
+  });
+
+  it("hides Set trip dates CTA for scheduled trips", () => {
+    const props = buildProps([dayOne], { isDateless: false });
+    render(<TripItineraryView {...props} />);
+
+    expect(screen.queryByRole("button", { name: /set trip dates/i })).not.toBeInTheDocument();
+  });
+
+  it("calls onOpenEditDates when Set trip dates is clicked", async () => {
+    const user = userEvent.setup();
+    const datelessDay: DayItinerary = { id: "day-1", dayNumber: 1, label: "Day 1", events: [] };
+    const onOpenEditDates = vi.fn();
+    const props = buildProps([datelessDay], { isDateless: true, onOpenEditDates });
+    render(<TripItineraryView {...props} />);
+
+    await user.click(screen.getByRole("button", { name: /set trip dates/i }));
+    expect(onOpenEditDates).toHaveBeenCalledOnce();
   });
 });

@@ -91,4 +91,16 @@ describe("MobileUpcomingTab", () => {
     );
     expect(screen.getByText("No dates")).toBeInTheDocument();
   });
+
+  it("shows dayTotal for dateless trips", () => {
+    render(
+      <MobileUpcomingTab
+        trips={[{ id: "trip-6", name: "Flexi Trip", status: "upcoming", dayTotal: 3 }]}
+        now={NOW}
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByText("3 DAYS")).toBeInTheDocument();
+  });
 });

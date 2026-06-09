@@ -214,6 +214,7 @@ describe("buildTripDateChangeConfirmation", () => {
     expect(
       buildTripDateChangeConfirmation(
         ["2026-07-04"],
+        undefined,
         [{ id: "event-1", name: "Tea ceremony", displacedDate: "2026-07-04", docCount: 2 }],
         1,
         2,
@@ -221,6 +222,7 @@ describe("buildTripDateChangeConfirmation", () => {
       )
     ).toEqual({
       removedDates: ["2026-07-04"],
+      removedDayLabels: undefined,
       events: [{ id: "event-1", name: "Tea ceremony", displacedDate: "2026-07-04", docCount: 2 }],
       noteCount: 1,
       checklistCount: 2,
@@ -258,6 +260,7 @@ describe("updateTripMetadata", () => {
       status: "confirmation-required",
       confirmation: {
         removedDates: ["2026-08-02"],
+        removedDayLabels: undefined,
         events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-08-02", docCount: 0 }],
         noteCount: 0,
         checklistCount: 0,
@@ -272,6 +275,7 @@ describe("updateTripMetadata", () => {
   it("saves the destructive resolution when the confirmation payload still matches", async () => {
     const confirmation: TripDateChangeConfirmation = {
       removedDates: ["2026-08-02"],
+      removedDayLabels: undefined,
       events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-08-02", docCount: 1 }],
       noteCount: 0,
       checklistCount: 0,
@@ -307,6 +311,7 @@ describe("updateTripMetadata", () => {
   it("rejects a stale confirmation payload instead of deleting newly changed content", async () => {
     const staleConfirmation: TripDateChangeConfirmation = {
       removedDates: ["2026-08-02"],
+      removedDayLabels: undefined,
       events: [{ id: "event-1", name: "Old Dinner", displacedDate: "2026-08-02", docCount: 0 }],
       noteCount: 0,
       checklistCount: 0,
@@ -361,6 +366,134 @@ describe("updateTripMetadata", () => {
         coverImageUrl: undefined,
       })
     );
+  });
+
+  it("maps existing dateless days to new dates when a dateless trip receives dates (AC11)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", {
+      startDate: "2026-08-01",
+      endDate: "2026-08-02",
+    });
+
+    expect(result).toEqual({ status: "saved" });
+    const dayUpdates = operations.updates.filter((entry) => entry.table === days);
+    expect(dayUpdates).toHaveLength(2);
+    expect(dayUpdates[0].values).toEqual(expect.objectContaining({ dayNumber: 1, date: "2026-08-01", label: "Day 1" }));
+    expect(dayUpdates[1].values).toEqual(expect.objectContaining({ dayNumber: 2, date: "2026-08-02", label: "Day 2" }));
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ startDate: "2026-08-01", endDate: "2026-08-02" }));
+    expect(operations.inserts).toHaveLength(0);
+  });
+
+  it("appends blank days when the new date range is longer than existing dateless days (AC12)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [{ id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", {
+      startDate: "2026-08-01",
+      endDate: "2026-08-03",
+    });
+
+    expect(result).toEqual({ status: "saved" });
+    const dayUpdates = operations.updates.filter((entry) => entry.table === days);
+    expect(dayUpdates).toHaveLength(1);
+    expect(dayUpdates[0].values).toEqual(expect.objectContaining({ dayNumber: 1, date: "2026-08-01", label: "Day 1" }));
+    const dayInserts = operations.inserts.filter((entry) => entry.table === days);
+    expect(dayInserts).toHaveLength(1);
+    const insertedRows = dayInserts[0].values as Array<{ date: string }>;
+    expect(insertedRows).toHaveLength(2);
+    expect(insertedRows[0].date).toBe("2026-08-02");
+    expect(insertedRows[1].date).toBe("2026-08-03");
+  });
+
+  it("uses day labels when dateless overflow requires confirmation", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" },
+        { id: "day-3", tripId: "trip-1", dayNumber: 3, date: null, label: "Day 3" },
+      ],
+      removedEvents: [{ id: "event-1", name: "Dinner", dayId: "day-3", position: 0 }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", {
+      startDate: "2026-08-01",
+      endDate: "2026-08-02",
+    });
+
+    expect(result).toEqual({
+      status: "confirmation-required",
+      confirmation: {
+        removedDates: [],
+        removedDayLabels: ["Day 3"],
+        events: [{ id: "event-1", name: "Dinner", displacedDate: undefined, docCount: 0 }],
+        noteCount: 0,
+        checklistCount: 0,
+        eventDocumentCount: 0,
+      },
+    });
+    expect(operations.deletes).toEqual([]);
+    expect(operations.updates).toEqual([]);
+  });
+
+  it("preserves day rows as dateless when dates are cleared from a scheduled trip (AC13)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { startDate: null, endDate: null });
+
+    expect(result).toEqual({ status: "saved" });
+    expect(operations.deletes).toHaveLength(0);
+    const dayUpdates = operations.updates.filter((entry) => entry.table === days);
+    expect(dayUpdates).toHaveLength(1);
+    expect(dayUpdates[0].values).toEqual({ date: null });
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ startDate: null, endDate: null }));
+  });
+
+  it("updates only trip metadata (no day mutations) when editing a dateless trip without providing dates", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [{ id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { name: "Renamed Dateless Trip" });
+
+    expect(result).toEqual({ status: "saved" });
+    expect(operations.deletes).toHaveLength(0);
+    const dayUpdates = operations.updates.filter((entry) => entry.table === days);
+    expect(dayUpdates).toHaveLength(0);
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ name: "Renamed Dateless Trip", startDate: null }));
   });
 });
 
@@ -600,6 +733,41 @@ describe("createTrip", () => {
     expect(operations.updates).toEqual([
       { table: trips, values: { coverImageUrl: deriveGraphicCover("Coordinates Trip") } },
     ]);
+  });
+
+  it("inserts exactly one dateless Day 1 when no dates are provided", async () => {
+    const operations = setupCreateTripDb(null);
+
+    await expect(
+      createTrip({
+        name: "No Date Trip",
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
+
+    const dayInserts = operations.inserts.filter((entry) => entry.table === days);
+    expect(dayInserts).toHaveLength(1);
+    expect(dayInserts[0].values).toEqual(
+      expect.objectContaining({ tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" })
+    );
+  });
+
+  it("inserts scheduled day rows (not a dateless row) when dates are provided", async () => {
+    const operations = setupCreateTripDb(null);
+
+    await expect(
+      createTrip({
+        name: "Dated Trip",
+        startDate: "2026-08-01",
+        endDate: "2026-08-02",
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
+
+    const dayInserts = operations.inserts.filter((entry) => entry.table === days);
+    expect(dayInserts).toHaveLength(1);
+    const rows = dayInserts[0].values as Array<{ date: string }>;
+    expect(rows).toHaveLength(2);
+    expect(rows[0].date).toBe("2026-08-01");
+    expect(rows[1].date).toBe("2026-08-02");
   });
 });
 

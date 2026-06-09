@@ -4,6 +4,7 @@ import {
   getTripStatus,
   isEventPast,
   isEventNow,
+  getDisplayedTripDays,
   getTripDays,
   getActiveDayNumber,
   getTodayDisplay,
@@ -123,6 +124,16 @@ describe("getTripDays", () => {
 
   it("returns 0 when dates are undefined", () => {
     expect(getTripDays(undefined, undefined)).toBe(0);
+  });
+});
+
+describe("getDisplayedTripDays", () => {
+  it("prefers a supplied dayTotal for dateless trips", () => {
+    expect(getDisplayedTripDays({ dayTotal: 3 })).toBe(3);
+  });
+
+  it("falls back to date-derived counts when dayTotal is absent", () => {
+    expect(getDisplayedTripDays({ startDate: "2026-05-01", endDate: "2026-05-03" })).toBe(3);
   });
 });
 

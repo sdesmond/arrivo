@@ -516,8 +516,8 @@ export interface CreateTripInput {
 
 export interface UpdateTripPatch {
   name?: string;
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   coverImageUrl?: string | null;
   destinationName?: string | null;
   destinationCountry?: string | null;
@@ -544,6 +544,7 @@ export interface TripDateChangePreviewEvent {
 
 export interface TripDateChangeConfirmation {
   removedDates: string[];
+  removedDayLabels?: string[];
   events: TripDateChangePreviewEvent[];
   noteCount: number;
   checklistCount: number;
@@ -599,7 +600,6 @@ export interface UpdateDayPatch {
 export interface RemoveLastDayResult {
   status: "removed" | "confirmation-required";
   hasPlannedContent?: boolean;
-  removesOnlyDay?: boolean;
 }
 
 export interface AddCollaboratorInput {

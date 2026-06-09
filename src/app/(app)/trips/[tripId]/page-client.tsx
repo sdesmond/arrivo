@@ -179,6 +179,8 @@ export function TripDetailClient({
             onRenamePackingList={handlers.handleRenamePackingList}
             onDeletePackingList={handlers.handleDeletePackingList}
             onInsertFromPackingSource={handlers.handleInsertFromPackingSource}
+            isDateless={!trip.startDate}
+            onOpenEditDates={() => setEditingTrip(true)}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

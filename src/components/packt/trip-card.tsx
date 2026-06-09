@@ -12,7 +12,7 @@ import {
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { type Trip } from "@/data/types";
-import { getTripDays, formatDate, getTripStatus, pluralize } from "@/lib/utils";
+import { getDisplayedTripDays, formatDate, getTripStatus, pluralize } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 interface TripCardProps {
@@ -26,7 +26,7 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
   const now = useNow();
   const hasTripDates = Boolean(trip.startDate && trip.endDate);
   const tripStatus = hasTripDates ? getTripStatus(trip.startDate, trip.endDate, now) : null;
-  const tripDays = getTripDays(trip.startDate, trip.endDate);
+  const tripDays = getDisplayedTripDays(trip);
   const sub = tripStatus === "active" ? pluralize(tripDays, "DAY") : "";
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);

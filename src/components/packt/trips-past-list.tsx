@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { type Trip } from "@/data/types";
-import { getTripDays, formatDate } from "@/lib/utils";
+import { getDisplayedTripDays, formatDate } from "@/lib/utils";
 
 interface PastTripsListProps {
   trips: Trip[];
@@ -81,7 +81,7 @@ export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip, vie
               textAlign: "right",
             }}
           >
-            {getTripDays(trip.startDate, trip.endDate)} DAYS
+            {getDisplayedTripDays(trip)} DAYS
           </span>
           <Badge variant="outline">Past</Badge>
           <DropdownMenu>
