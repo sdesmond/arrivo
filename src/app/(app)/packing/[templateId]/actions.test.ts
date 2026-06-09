@@ -121,11 +121,11 @@ describe("template item actions", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("rejects add when the text exceeds 100 characters", async () => {
+  it("rejects add when the text exceeds 30 characters", async () => {
     db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]));
 
-    await expect(addTemplateItem("template-1", { text: "a".repeat(101) })).rejects.toThrow(
-      "Item text must be 100 characters or fewer."
+    await expect(addTemplateItem("template-1", { text: "a".repeat(31) })).rejects.toThrow(
+      "Item text must be 30 characters or fewer."
     );
 
     expect(db.insert).not.toHaveBeenCalled();

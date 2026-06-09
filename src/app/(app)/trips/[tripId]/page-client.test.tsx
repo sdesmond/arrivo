@@ -1,20 +1,28 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
 import type { TripDetailPayload } from "@/data/types";
 
-const { tripConfettiMock } = vi.hoisted(() => ({
+const { tripConfettiMock, mockPathname, mockSearchParams } = vi.hoisted(() => ({
   tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
     void tripId;
     return null;
   }),
+  mockPathname: vi.fn(() => "/trips/trip-1"),
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
 }));
 
 interface TripCoverProps {
   metaTag: string;
   name: string;
 }
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname(),
+  useSearchParams: () => mockSearchParams(),
+}));
 
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
@@ -30,7 +38,9 @@ vi.mock("@/components/packt/trip-cover", () => ({
 }));
 
 vi.mock("./trip-detail-tab-body", () => ({
-  TripDetailTabBody: () => <div>Itinerary body</div>,
+  TripDetailTabBody: ({ activeTab }: { activeTab: string }) => (
+    <div data-testid="trip-detail-tab-body">{activeTab}</div>
+  ),
 }));
 
 vi.mock("@/components/packt/trip-confetti", () => ({
@@ -94,6 +104,12 @@ const baseDetail: TripDetailPayload = {
 };
 
 describe("TripDetailClient", () => {
+  beforeEach(() => {
+    mockPathname.mockReturnValue("/trips/trip-1");
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+    window.history.replaceState(null, "", "/trips/trip-1");
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -194,5 +210,53 @@ describe("TripDetailClient", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(screen.getByText("0 days")).toBeInTheDocument();
+  });
+
+  it("renders the tab from the initial deep-link state", () => {
+    render(
+      <TripDetailClient
+        detail={baseDetail}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialActiveTab="docs"
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("docs");
+  });
+
+  it("pushes a tab deep link while preserving existing query parameters", async () => {
+    const user = userEvent.setup();
+    const pushStateSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+
+    window.history.replaceState(null, "", "/trips/trip-1?focus=event-1");
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Documents" }));
+
+    expect(pushStateSpy).toHaveBeenCalledWith(null, "", "/trips/trip-1?focus=event-1&tab=docs");
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("docs");
+  });
+
+  it("removes the tab query parameter when returning to the itinerary tab", async () => {
+    const user = userEvent.setup();
+    const pushStateSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+
+    window.history.replaceState(null, "", "/trips/trip-1?tab=docs&focus=event-1");
+
+    render(
+      <TripDetailClient
+        detail={baseDetail}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialActiveTab="docs"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Itinerary" }));
+
+    expect(pushStateSpy).toHaveBeenCalledWith(null, "", "/trips/trip-1?focus=event-1");
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
   });
 });

@@ -861,7 +861,7 @@ describe("PackingListView", () => {
     expect(screen.getByPlaceholderText("Add item…")).toBeInTheDocument();
   });
 
-  it("inline edit input has maxLength=100", async () => {
+  it("inline edit input has maxLength=30", async () => {
     const user = userEvent.setup();
 
     render(
@@ -879,7 +879,7 @@ describe("PackingListView", () => {
     await user.click(screen.getByText("Passport"));
     const inputs = screen.getAllByRole("textbox");
     const editInput = inputs.find((el) => (el as HTMLInputElement).value === "Passport");
-    expect(editInput).toHaveAttribute("maxLength", "100");
+    expect(editInput).toHaveAttribute("maxLength", "30");
   });
 
   // ── Story 2.3 — Pull from template ───────────────────────────────────────────

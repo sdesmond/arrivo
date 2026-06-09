@@ -16,6 +16,7 @@ import type {
 import { RemovePackingSectionMode } from "@/data/types";
 
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const TEMPLATE_NAME_MAX = 30;
 
 type LabelValidationExecutor = Pick<typeof db, "select">;
 
@@ -399,8 +400,8 @@ async function saveTripListAsTemplateImpl(
   if (trimmedName.length === 0) {
     throw new Error("Template name is required");
   }
-  if (trimmedName.length > 100) {
-    throw new Error("Template name must be 100 characters or fewer");
+  if (trimmedName.length > TEMPLATE_NAME_MAX) {
+    throw new Error(`Template name must be ${TEMPLATE_NAME_MAX} characters or fewer`);
   }
 
   let result: SaveTripAsTemplateResult = { templateId: "" };

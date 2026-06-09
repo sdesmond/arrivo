@@ -14,10 +14,6 @@ use proper breadcrumbs as shown at https://ui.shadcn.com/docs/components/base/br
 
 ## Bugs
 
-### Counts on the trip preview cards
-
-Counts for Days, Docs, Collaborators are not working. Add Places in there to match the trip hero card as well.
-
 ### Trip Notes
 
 The Notes tab exists on the trip detail page as a placeholder. The trip-level `notes` field is stored in the DB and wired through the backend, but has no display surface or editing UI yet (the edit sheet input was removed to avoid orphaned data entry).
@@ -25,17 +21,3 @@ The Notes tab exists on the trip detail page as a placeholder. The trip-level `n
 Needs full design and implementation: display in the Notes tab, editing UX (inline or via a dedicated entry point), and an empty state that communicates what the field is for (general reminders, parking-lot ideas not yet on the itinerary).
 
 ## Improvements
-
-### Event move and delete ??????
-
-The icons for moving and deleting an event are too small and faint. Make them more visible.
-?????????
-
-- The active trip should always be at the top of the list
-
-## Packing Template stuff
-
-### Character caps
-
-1. Titles capped at 30 chars
-1. Items capped at 30 chars (template and trip-level)

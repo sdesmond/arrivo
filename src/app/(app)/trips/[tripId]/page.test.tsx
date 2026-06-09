@@ -87,7 +87,7 @@ describe("TripDetailPage", () => {
   it("renders the trip detail client when the trip exists", async () => {
     const page = await TripDetailPage({
       params: Promise.resolve({ tripId: "trip-1" }),
-      searchParams: Promise.resolve({ new: "1" }),
+      searchParams: Promise.resolve({ new: "1", tab: "docs" }),
     });
 
     render(page);
@@ -98,8 +98,27 @@ describe("TripDetailPage", () => {
         detail: baseDetail,
         dateFormat: "DD/MM/YYYY",
         initialExpandedDayNumber: 1,
+        initialActiveTab: "docs",
         isNew: true,
         templates: [],
+      })
+    );
+  });
+
+  it("falls back to the itinerary tab when the tab query is invalid", async () => {
+    const page = await TripDetailPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ tab: "invalid-tab" }),
+    });
+
+    render(page);
+
+    expect(screen.getByText("Trip detail client")).toBeInTheDocument();
+    expect(tripDetailClientSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialActiveTab: "itin",
+        initialExpandedDayNumber: undefined,
+        isNew: false,
       })
     );
   });

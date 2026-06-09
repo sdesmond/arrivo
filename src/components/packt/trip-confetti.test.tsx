@@ -12,6 +12,7 @@ describe("TripConfetti", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    window.history.pushState(null, "", "/");
   });
 
   it("fires confetti exactly once after mounting", async () => {
@@ -23,10 +24,12 @@ describe("TripConfetti", () => {
   });
 
   it("strips the new query parameter from the URL after firing", async () => {
+    window.history.pushState(null, "", "/trips/abc?new=1&tab=docs&focus=event-1");
+
     render(<TripConfetti tripId="abc" />);
 
     await waitFor(() => {
-      expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/trips/abc");
+      expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/trips/abc?tab=docs&focus=event-1");
     });
   });
 

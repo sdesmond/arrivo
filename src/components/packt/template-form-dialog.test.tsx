@@ -55,7 +55,7 @@ describe("TemplateFormDialog", () => {
     render(<TemplateFormDialog mode="create" open onOpenChange={vi.fn()} onSubmit={onSubmit} />);
 
     const input = screen.getByLabelText("Template name");
-    expect(input).toHaveAttribute("maxLength", "100");
+    expect(input).toHaveAttribute("maxLength", "30");
 
     fireEvent.change(input, { target: { value: "Road Trip" } });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);

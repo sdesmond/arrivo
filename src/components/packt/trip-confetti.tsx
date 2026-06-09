@@ -23,7 +23,12 @@ export function TripConfetti({ tripId }: TripConfettiProps): null {
         // Dynamic import failed — confetti silently skipped
       }
 
-      window.history.replaceState(null, "", `/trips/${tripIdRef.current}`);
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete("new");
+      const nextQueryString = currentUrl.searchParams.toString();
+      const nextUrl = `${currentUrl.pathname}${nextQueryString ? `?${nextQueryString}` : ""}${currentUrl.hash}`;
+
+      window.history.replaceState(null, "", nextUrl || `/trips/${tripIdRef.current}`);
     }
 
     void fireConfetti();
