@@ -5,7 +5,7 @@ session_topic: "Consolidated trip Overview tab (hotel stays, car rentals, edit-s
 session_goals: "Explore what a consolidated Overview tab could contain, how logistics items like hotel stays and car rentals fit alongside existing trip details, what happens to the current edit sheet if its contents move into the tab, and how image editing relocates to an overflow menu on the cover image without losing discoverability"
 selected_approach: "ai-recommended"
 techniques_used: ["First Principles Thinking", "SCAMPER Method", "Role Playing"]
-ideas_generated: 17
+ideas_generated: 18
 technique_execution_complete: true
 context_file: ""
 ---
@@ -137,7 +137,11 @@ _Novelty_: Resolves the "how does a card animate open" ambiguity via a known acc
 _Concept_: Refines Structures #6/#7 — the Attribution menu item is relabeled "Info" and only appears when the cover image is from Unsplash (hidden for default/generated graphics). Confirms this overflow menu lives on the cover image itself, part of the trip header generally, not scoped to the Overview tab.
 _Novelty_: Small but important clarity win — "Info" reads naturally to all users, while quietly satisfying the Unsplash attribution requirement only when relevant.
 
-**Developed Ideas:** Role Playing confirmed the Overview/Itinerary division of labor (Validation #1), resolved the empty-state cold-start problem (Validation #2), refined "cards" into accordion sections with previews (Validation #3), and tightened the cover image menu's labeling and scope (Validation #4).
+**[Validation #5]**: Explicit "Edit Image" / "Remove Image" Labels
+_Concept_: The cover image overflow menu items are labeled "Edit Image" and "Remove Image" (not just "Edit" / "Remove" / "Delete") so they can't be confused with trip-level actions like the "Delete Trip" danger-zone card (Structure #7).
+_Novelty_: A small wording precision that prevents a costly mistake — disambiguates "acting on the photo" from "acting on the trip" at the exact moment a user is scanning menu labels.
+
+**Developed Ideas:** Role Playing confirmed the Overview/Itinerary division of labor (Validation #1), resolved the empty-state cold-start problem (Validation #2), refined "cards" into accordion sections with previews (Validation #3), tightened the cover image menu's labeling and scope (Validation #4), and disambiguated image vs. trip actions via explicit labeling (Validation #5).
 
 **Overall Creative Journey:** Starting from a request to add hotel/car-rental tracking and reorganize the edit sheet, the session moved from foundational reframing (reservations as synced event-generators feeding the Itinerary) through systematic structural generation (hero + accordion sections + view toggle + retired edit sheet + cover image menu) to perspective-based validation that confirmed the design holds up across real usage patterns — cold start, mid-trip lookup, power-user density, and casual image management.
 
