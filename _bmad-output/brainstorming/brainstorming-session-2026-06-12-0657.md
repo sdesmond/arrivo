@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3]
+stepsCompleted: [1, 2, 3, 4]
 inputDocuments: []
 session_topic: "Consolidated trip Overview tab (hotel stays, car rentals, edit-sheet content) and relocating image editing to an overflow menu"
 session_goals: "Explore what a consolidated Overview tab could contain, how logistics items like hotel stays and car rentals fit alongside existing trip details, what happens to the current edit sheet if its contents move into the tab, and how image editing relocates to an overflow menu on the cover image without losing discoverability"
@@ -7,6 +7,8 @@ selected_approach: "ai-recommended"
 techniques_used: ["First Principles Thinking", "SCAMPER Method", "Role Playing"]
 ideas_generated: 18
 technique_execution_complete: true
+session_active: false
+workflow_completed: true
 context_file: ""
 ---
 
@@ -154,3 +156,103 @@ _Novelty_: A small wording precision that prevents a costly mistake — disambig
 **Breakthrough Moments:** Reframing reservations as "event generators" synced to the Itinerary (Foundations #3-4) — this single idea unified the Overview and Itinerary tabs into one coherent model and was validated end-to-end by Validation #1.
 
 **Energy Flow:** Consistently strong across all three techniques; user opted to continue exploring at every checkpoint until Role Playing, where the design felt sufficiently validated to move to organization.
+
+## Idea Organization and Prioritization
+
+**Thematic Organization:**
+
+**Theme 1: Overview Tab as Trip Command Center**
+_Focus: What the Overview tab contains and how it's laid out_
+
+- Foundation #1 (Command Center), Foundation #5 (Everything Visible), Structure #1 (Hero + Accordion Sections), Structure #4 (Edit Sheet Retired)
+- **Pattern Insight:** The edit sheet doesn't get replaced piece-by-piece — it's fully absorbed into one information-dense Overview page with inline editing as the universal interaction pattern.
+
+**Theme 2: The Reservation/Logistics Model**
+_Focus: What a "reservation" is, how it's structured, and how it connects to the Itinerary_
+
+- Foundation #2 (Unified Shape, Typed Grouping), Foundation #3 (Event Generators), Foundation #4 (Always Synced), Structure #3 (Add Dialog), Structure #5 (View Toggle), Validation #2 (Empty State), Validation #3 (Accordion + Preview)
+- **Pattern Insight:** This is the breakthrough theme — one flexible data model (type + time anchor + provider + reference) drives both the Overview's organized display *and* the Itinerary's day-by-day events, always in sync.
+
+**Theme 3: Cover Image & Trip-Level Actions**
+_Focus: The image overflow menu and destructive trip actions_
+
+- Foundation #6 (Overflow Menu Hub), Structure #6/#7 (Reuse Trip-List Pattern, Danger Zone Card), Validation #4 ("Info" label, Unsplash-conditional), Validation #5 ("Edit Image" / "Remove Image" labels)
+- **Pattern Insight:** Image management stays scoped to the image itself (overflow menu), while trip deletion gets deliberately separated into its own low-discoverability section — two different "weights" of destructive/management action.
+
+**Breakthrough Concepts:**
+
+- **Reservations as Event Generators (Foundations #3-4):** Unifies Overview and Itinerary into one model with two lenses — validated end-to-end by Validation #1 (Itinerary handles "what's happening now," Overview handles "everything, organized").
+- **Single Empty-State Prompt → Type-at-Add-Time (Validation #2):** Elegant solution to cold-start clutter.
+
+**Prioritization Results:**
+
+- **Quick Win:** Theme 3 (Cover Image & Trip-Level Actions) — smallest, most isolated change; no new data models
+- **Foundational (build next):** Theme 2 (Reservation/Logistics Model) — Theme 1 depends on this data model and sync mechanism existing
+- **Builds on Theme 2:** Theme 1 (Overview Tab as Command Center) — full new tab, retires the edit sheet once parity is confirmed
+
+**Action Planning:**
+
+**Priority 1: Cover Image Overflow Menu (Quick Win)**
+**Why This Matters:** Smallest, most isolated change — relocates existing edit/remove functionality without new data models, immediately reduces edit-sheet surface area.
+
+**Next Steps:**
+
+1. Add an "⋯" overflow menu to the cover image (`trip-cover.tsx`), reusing the trip-list pattern
+2. Menu items: "Edit Image" (opens existing `CoverImagePicker`), "Remove Image", and conditionally "Info" (Unsplash-sourced images only — opens attribution dialog)
+3. Remove the now-redundant cover image controls from `trip-edit-sheet.tsx` / `trip-edit-cover.tsx`
+
+**Resources Needed:** Existing `CoverImagePicker` modal (reuse), new attribution dialog component, overflow menu component (likely already exists from trip-list view)
+**Timeline:** Small — isolated UI change, no schema work
+**Success Indicators:** Cover image edit/remove/info fully functional via overflow menu; edit sheet's cover section removed without regressions
+
+**Priority 2: Reservation/Logistics Data Model + Itinerary Sync**
+**Why This Matters:** Foundational — Theme 1's Overview layout and the eventual full edit-sheet retirement both depend on this existing first.
+
+**Next Steps:**
+
+1. Define `Reservation` type in `src/data/types.ts` — type enum (flight/train/lodging/rental car/cruise/etc.), time anchor (point or window), provider, reference code
+2. Design the sync mechanism: reservation → generated Itinerary events (check-in/check-out or single event), always derived from reservation data (no independent editing)
+3. Build the add/edit dialog/sheet for reservations (Structure #3)
+
+**Resources Needed:** Schema/migration work, itinerary event generation logic, new dialog component
+**Timeline:** Larger — touches data model, itinerary rendering, and a new dialog
+**Success Indicators:** Adding a reservation produces correct Itinerary events; editing a reservation's dates updates those events everywhere
+
+**Priority 3: Overview Tab — Hero + Accordion Sections**
+**Why This Matters:** Depends on Priority 2's data model existing; this is where everything becomes visible and editable in one place.
+
+**Next Steps:**
+
+1. New Overview tab: hero area (title, dates, location, budget — inline editable) + Collaborators section
+2. Accordion sections per reservation type with collapsed count/preview, plus chronological view toggle
+3. Single empty-state prompt for new trips (Validation #2); "Delete Trip" danger-zone card at the bottom
+4. Retire `trip-edit-sheet.tsx` entirely once parity is confirmed
+
+**Resources Needed:** New tab route/component, accordion UI, view-toggle state, inline-edit components (likely reusable from existing patterns)
+**Timeline:** Largest — full new tab, depends on Priority 2 being complete
+**Success Indicators:** All edit-sheet functionality available on Overview; edit sheet removed with no loss of capability
+
+## Session Summary and Insights
+
+**Key Achievements:**
+
+- 18 ideas generated across First Principles Thinking, SCAMPER, and Role Playing
+- 3 coherent themes identified, each with a clear dependency order
+- 3 prioritized action plans ready for implementation, sequenced as quick-win → foundational → dependent
+
+**Session Reflections:**
+
+The session moved efficiently from a fairly open-ended request ("add hotels/car rentals, maybe consolidate the edit sheet, move image edit to an overflow menu") to a concrete, dependency-ordered build plan. The key unlock was recognizing that reservations aren't just list items — they're a data source that the existing Itinerary already has a natural place for (check-in/check-out events), which resolved what would otherwise have been a tricky "two places show the same info" problem. The cover image changes turned out to be fully independent and ready to build first as a quick win, while the reservation model is correctly identified as the foundational piece everything else builds on.
+
+# Session Complete
+
+**Total Ideas Generated:** 18
+**Techniques Used:** First Principles Thinking, SCAMPER Method, Role Playing
+**Themes Identified:** 3 (Overview Tab as Command Center, Reservation/Logistics Model, Cover Image & Trip-Level Actions)
+**Prioritized Action Plans:** 3, sequenced by dependency (Cover Image quick win → Reservation Model → Overview Tab)
+
+**Next Steps:**
+
+1. Start with the cover image overflow menu (Priority 1) — small, isolated, immediately removes edit-sheet surface area
+2. Design and build the Reservation/Logistics data model and Itinerary sync (Priority 2)
+3. Build the new Overview tab and retire the edit sheet (Priority 3)
