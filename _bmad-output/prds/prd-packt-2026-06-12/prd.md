@@ -39,3 +39,10 @@ _Working title — confirm._
   - **Climax:** Whichever action Ashley picks completes immediately and the cover reflects the new state (new image selected, reverted to a graphic, or attribution dialog shown).
   - **Resolution:** Ashley returns to viewing the trip with the cover in its new state; the overflow menu's options adjust automatically based on the new cover type (e.g., Remove Cover and Info disappear once the cover is a Graphic).
 
+- **UJ-4. Ashley edits a reservation and the Itinerary updates automatically.**
+  - **Persona + context:** Ashley's flight time changed and she needs to update the reservation she already added.
+  - **Entry state:** Authenticated, viewing either the Reservations tab or the Itinerary tab for the trip.
+  - **Path:** From Reservations, Ashley expands the relevant accordion section, finds the reservation row, and edits the changed field inline (click-to-edit, matching the app's existing inline-edit pattern). From the Itinerary, Ashley taps the linked event (e.g., a Check-in/Check-out generated from a reservation) and is redirected to the Reservations tab to make the edit there — the same redirect pattern as the empty-state CTA in UJ-1.
+  - **Climax:** Ashley saves the field change on Reservations; the linked Itinerary event(s) reflect the new date/time immediately, with no separate edit step.
+  - **Resolution:** Ashley trusts that the reservation is the single source of truth — any Itinerary event generated from it is always in sync, never independently editable.
+
