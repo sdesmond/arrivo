@@ -9,8 +9,9 @@
   Illustrates: decision-log entries for
     - Cover Overflow Menu (FR-12): direct reuse of the now-card.tsx overflow pattern — MoreHorizontal
       trigger (absolute top-2 right-2, bg-black/25 text-white backdrop-blur-sm), DropdownMenuContent
-      shown OPEN with "Edit Cover" (Pencil), "Remove Cover" (RotateCcw), "Info" (Info) — all three
-      visible because the cover is an Unsplash photo (Photo cover type).
+      shown OPEN with "Edit Cover" (Pencil), "Remove Cover" (Trash2, destructive-icon convention from
+      day-card-header.tsx's "Remove day" button), "Info" (Info) — all three visible because the cover
+      is an Unsplash photo (Photo cover type).
     - cover-scrim gradient (--cover-scrim) over the photo, matching trip-cover.tsx.
 */
 
@@ -30,11 +31,6 @@
   --accent-soft: #d6efec;
   --accent-fg: #ffffff;
   --accent-ink: #0a4a44;
-
-  /* NEW linked tokens (recorded for reference; not used on this screen) */
-  --linked-brand: #5b5fc7;
-  --linked-soft: rgba(91, 95, 199, 0.12);
-  --linked-ink: #3a3d99;
 
   --cover-scrim: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.1) 60%, transparent 100%);
   --cover-text: #ffffff;
@@ -249,8 +245,8 @@ svg.icon { display: block; }
           Edit Cover
         </div>
         <div class="overflow-item">
-          <!-- RotateCcw -->
-          <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg>
+          <!-- Trash2 -->
+          <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
           Remove Cover
         </div>
         <div class="overflow-item hover">
