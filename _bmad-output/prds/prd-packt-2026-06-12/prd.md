@@ -48,14 +48,14 @@ _Working title — confirm._
 
 ## 3. Glossary
 
-- **Reservation** — A booked logistics item belonging to a trip. Has a `type` (see Reservation Type), a `startTime` (required), an optional `endTime`, a `provider` (operator/company name), an optional `confirmationCode`, and an optional free-text `notes` field. Reservations are managed on the Reservations tab and are the single source of truth for their Linked Events on the Itinerary.
-- **Reservation Type** — The category of a Reservation: Flight, Train, Bus, Ferry, Rental Car, Lodging, or Cruise. Selected first when adding a Reservation, before other fields, since it determines the labels shown for `startTime`/`endTime`.
+- **Reservation** — A booked logistics item belonging to a trip. Has a `type` (see Reservation Type), a `startTime` (required), an `endTime` (required for Lodging, Rental Car, and Cruise; optional for Flight, Train, Bus, and Ferry), a `provider` (operator/company name), an optional `confirmationCode`, and an optional free-text `notes` field. Reservations are managed on the Reservations tab and are the single source of truth for their Linked Events on the Itinerary.
+- **Reservation Type** — The category of a Reservation: Flight, Train, Bus, Ferry, Rental Car, Lodging, or Cruise. Selected first when adding a Reservation, before other fields, since it determines the labels shown for `startTime`/`endTime` and whether `endTime` is required.
 - **Linked Event** — An Itinerary event generated from a Reservation's `startTime` (and `endTime`, if present). Always derived from the Reservation; never independently editable — editing the Reservation updates its Linked Event(s) everywhere they appear on the Itinerary. Labeled per Reservation Type:
-  - Lodging → Check-in / Check-out
-  - Rental Car → Pickup / Return
-  - Flight, Train, Bus, Ferry → Departure / Arrival
-  - Cruise → Departure / Return
-  - If `endTime` is absent, only the start Linked Event is generated.
+  - Lodging → Check-in / Check-out (both required)
+  - Rental Car → Pickup / Return (both required)
+  - Cruise → Departure / Return (both required)
+  - Flight, Train, Bus, Ferry → Departure / Arrival (Arrival optional)
+  - If `endTime` is absent (only possible for Flight, Train, Bus, Ferry), only the start Linked Event is generated.
 - **Reservations Tab** — A new top-level trip tab (added to `TripDetailTab`) that lists all of a trip's Reservations, grouped by Reservation Type into accordion sections, and is the entry point for adding/editing Reservations.
 - **Now Card** — Existing component that surfaces the current or next-upcoming Itinerary event, including Linked Events from Reservations.
 - **Cover** — A trip's cover image, with existing `CoverType` of Photo, Map, or Graphic.
@@ -77,7 +77,8 @@ A user can add a Reservation to a trip from the Reservations tab. Realizes UJ-1.
 
 - Tapping "Add Reservation" first shows a Reservation Type picker (Flight, Train, Bus, Ferry, Rental Car, Lodging, Cruise).
 - After a type is selected, the add dialog shows fields labeled per that type (e.g., Lodging shows "Check-in"/"Check-out"; Flight shows "Departure"/"Arrival"), plus provider, optional confirmation code, and optional notes.
-- `endTime` is optional for every type; saving without it produces a Reservation with only a `startTime`.
+- `endTime` is required for Lodging, Rental Car, and Cruise; the dialog cannot be saved without it for those types.
+- `endTime` is optional for Flight, Train, Bus, and Ferry; saving without it produces a Reservation with only a `startTime`.
 - On save, the new Reservation appears as a row in its type's accordion section on the Reservations tab.
 
 #### FR-2: View Reservations grouped by type
