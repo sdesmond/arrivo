@@ -68,8 +68,8 @@ Together, these changes make Packt a more complete source of truth for a trip: n
 ## 3. Glossary
 
 - **Reservation** — A booked logistics item belonging to a trip. Has a `type` (see Reservation Type), a `startTime` (required), an `endTime` (required for Lodging, Rental Car, and Cruise; optional for Flight, Train, Bus, and Ferry), a `provider` (operator/company name), an optional `confirmationCode`, and an optional free-text `notes` field. Reservations are managed on the Reservations tab and are the single source of truth for their Linked Events on the Itinerary.
-- **Reservation Type** — The category of a Reservation: Flight, Train, Bus, Ferry, Rental Car, Lodging, or Cruise. Selected first when adding a Reservation, before other fields, since it determines the labels shown for `startTime`/`endTime` and whether `endTime` is required.
-- **Linked Event** — An Itinerary event generated from a Reservation's `startTime` (and `endTime`, if present). Always derived from the Reservation; never independently editable — editing the Reservation updates its Linked Event(s) everywhere they appear on the Itinerary. Labeled per Reservation Type:
+- **Reservation Type** — The category of a Reservation: Flight, Train, Bus, Ferry, Rental Car, Lodging, or Cruise. Selected first when adding a Reservation, before other fields, since it determines the labels shown for `startTime`/`endTime` and whether `endTime` is required. Immutable once the Reservation is created.
+- **Linked Event** — An Itinerary entry computed/derived from a Reservation's `startTime` (and `endTime`, if present) — not a separate `TripEvent` row. The Itinerary renders Linked Events alongside regular `TripEvent` rows. Always derived from the Reservation; never independently editable — editing the Reservation's `startTime`/`endTime` changes its Linked Event(s) everywhere they appear on the Itinerary with no separate sync step, and deleting the Reservation simply removes its Linked Event(s) from the computed view. Labeled per Reservation Type:
   - Lodging → Check-in / Check-out (both required)
   - Rental Car → Pickup / Return (both required)
   - Cruise → Departure / Return (both required)
@@ -100,6 +100,7 @@ A user can add a Reservation to a trip from the Reservations tab. Realizes UJ-1.
 - `endTime` is required for Lodging, Rental Car, and Cruise; the dialog cannot be saved without it for those types.
 - `endTime` is optional for Flight, Train, Bus, and Ferry; saving without it produces a Reservation with only a `startTime`.
 - On save, the new Reservation appears as a row in its type's accordion section on the Reservations tab.
+- Once saved, a Reservation's `type` cannot be changed. Only its other fields (time anchor, provider, confirmation code, notes, documents) are editable afterward (FR-3).
 
 #### FR-2: View Reservations grouped by type
 
@@ -109,7 +110,7 @@ A user can see all of a trip's Reservations organized by Reservation Type. Reali
 
 - Each Reservation Type with at least one Reservation gets its own accordion section; types with zero Reservations show no section.
 - A collapsed section shows the Reservation count and a preview (provider + start time) of the next-upcoming Reservation of that type.
-- Expanding a section reveals every Reservation of that type as individual rows.
+- Expanding a section reveals every Reservation of that type as individual rows, ordered by `startTime`. `[ASSUMPTION: chronological order within a section — not explicitly discussed.]`
 
 **Out of Scope:**
 
@@ -117,12 +118,12 @@ A user can see all of a trip's Reservations organized by Reservation Type. Reali
 
 #### FR-3: Edit a Reservation
 
-A user can edit any field of an existing Reservation. Realizes UJ-4.
+A user can edit any field of an existing Reservation except `type` (immutable, see FR-1). Realizes UJ-4.
 
 **Consequences (testable):**
 
-- Each field on a Reservation row is click-to-edit, consistent with the app's existing inline-edit pattern.
-- Saving an edit to `startTime`, `endTime`, or `type` updates that Reservation's Linked Event(s) on the Itinerary immediately, with no separate sync step.
+- Each editable field on a Reservation row is click-to-edit, consistent with the app's existing inline-edit pattern. `type` is displayed but not editable.
+- Saving an edit to `startTime` or `endTime` updates that Reservation's Linked Event(s) on the Itinerary immediately, with no separate sync step (Linked Events are computed from the Reservation, not stored separately).
 - Linked Events are never independently editable from the Itinerary.
 
 #### FR-4: Delete a Reservation
@@ -169,7 +170,21 @@ Each Reservation projects one or two Linked Events onto the Itinerary, labeled p
 - A Reservation with both `startTime` and `endTime` produces two Linked Events, one on each corresponding day.
 - Linked Events are visually distinguishable from manually-created Itinerary events (e.g., a "linked" indicator), so users understand they originate from a Reservation.
 
-#### FR-8: Itinerary empty-state CTA
+#### FR-8: Reservations extend the Itinerary's date range
+
+If a Reservation's `startTime` or `endTime` falls outside the trip's current date range, the Itinerary is extended with real Day(s) to cover it — not a placeholder "Day 0." Realizes UJ-1.
+
+**Consequences (testable):**
+
+- Saving a Reservation whose date falls before the trip's `startDate` or after its `endDate` extends that boundary to include the Reservation's date(s).
+- A new Day is added to the Itinerary for each newly-included date, and existing Day numbering shifts accordingly (e.g., a Reservation the night before the original Day 1 becomes the new Day 1, and the original Day 1 becomes Day 2).
+- The new Day(s) display the Reservation's Linked Event(s) (FR-7) like any other Day.
+
+**Notes:**
+
+- `[ASSUMPTION]` Day-number shifts from this extension are assumed to be acceptable (e.g., no separate "pre-trip"/"post-trip" section) — not discussed in detail.
+
+#### FR-9: Itinerary empty-state CTA
 
 A trip with zero Reservations shows a CTA at the top of the Itinerary prompting the user to add reservations. Realizes UJ-1.
 
@@ -178,7 +193,7 @@ A trip with zero Reservations shows a CTA at the top of the Itinerary prompting 
 - Tapping the CTA navigates to the Reservations tab with the FR-1 add dialog already open (type picker shown).
 - Once the trip has at least one Reservation, the CTA's copy changes to prompt adding more Reservations, but continues to link to the Reservations tab.
 
-#### FR-9: Now Card surfaces Linked Events
+#### FR-10: Now Card surfaces Linked Events
 
 The existing Now Card includes Linked Events when determining the current/next-upcoming event. Realizes UJ-2.
 
@@ -186,14 +201,14 @@ The existing Now Card includes Linked Events when determining the current/next-u
 
 - If a Linked Event is the chronologically next event, it appears on the Now Card exactly as a manually-created event would.
 
-#### FR-10: Editing from the Itinerary redirects to Reservations
+#### FR-11: Editing from the Itinerary redirects to Reservations
 
 Tapping a Linked Event on the Itinerary takes the user to the Reservations tab to edit it. Realizes UJ-4.
 
 **Consequences (testable):**
 
 - Tapping a Linked Event navigates to the Reservations tab, scrolled/expanded to the relevant Reservation's accordion section row.
-- No inline editing of a Linked Event is available directly on the Itinerary.
+- No inline editing of a Linked Event is available directly on the Itinerary. The same "linked" visual indicator from FR-7 communicates to the user that tapping will navigate away to edit, rather than open inline editing.
 
 ### 4.3 Cover Overflow Menu
 
@@ -201,7 +216,7 @@ Tapping a Linked Event on the Itinerary takes the user to the Reservations tab t
 
 **Functional Requirements:**
 
-#### FR-11: Cover Overflow Menu
+#### FR-12: Cover Overflow Menu
 
 A user can open a "⋯" menu on the trip Cover with up to three actions, conditional on the current Cover state. Realizes UJ-3.
 
@@ -212,18 +227,22 @@ A user can open a "⋯" menu on the trip Cover with up to three actions, conditi
 - "Info" is shown only when the Cover is an Unsplash photo; selecting it opens a dialog with photographer credit and a link to Unsplash.
 - The menu's available options update immediately after any action that changes `CoverType` (e.g., Remove Cover hides "Remove Cover" and "Info" on next open, since the Cover is now Graphic).
 
-#### FR-12: Cover controls removed from the edit sheet
+**Notes:**
 
-The trip edit sheet no longer contains cover image controls; all cover management happens via FR-11.
+- `[NOTE FOR PM]` "Remove Cover" (revert to a random Graphic cover) is a new behavior, distinct from the existing `trip-edit-cover.tsx` "Remove image" action (clears `coverImageUrl` to `null`, falling back to a deterministic per-trip tinted stripe pattern — not a `graphic:` cover). Confirm this is an intentional behavior change, not a reuse of the existing clear-to-null action.
+
+#### FR-13: Cover controls removed from the edit sheet
+
+The trip edit sheet no longer contains cover image controls; all cover management happens via FR-12.
 
 **Consequences (testable):**
 
-- `trip-edit-sheet.tsx` no longer renders cover image editing UI; `trip-edit-cover.tsx` is removed as it becomes unused (FR-11 invokes `CoverImagePicker` directly).
+- `trip-edit-sheet.tsx` no longer renders cover image editing UI; `trip-edit-cover.tsx` is removed as it becomes unused (FR-12 invokes `CoverImagePicker` directly).
 - All other edit sheet fields (name, dates, destination, budget, collaborators, Delete Trip) remain unchanged.
 
 ## 5. Non-Goals (Explicit)
 
-- This feature does not change how trip metadata (name, dates, destination, budget, collaborators) is edited — the edit sheet remains the home for these fields, unchanged except for the removal of cover controls (FR-12).
+- This feature does not change how trip metadata (name, dates, destination, budget, collaborators) is edited — the edit sheet remains the home for these fields, unchanged except for the removal of cover controls (FR-13).
 - This feature does not introduce cost-tracking or linking Reservations to the trip budget.
 - Restaurant reservations, activities, and tours remain plain Itinerary events; they are not a Reservation Type.
 
@@ -233,8 +252,8 @@ The trip edit sheet no longer contains cover image controls; all cover managemen
 
 - Reservations tab (FR-1 through FR-6): add, view (grouped by type), edit, delete, document attachments, empty state.
 - Reservation Types: Flight, Train, Bus, Ferry, Rental Car, Lodging, Cruise.
-- Itinerary integration (FR-7 through FR-10): Linked Events, empty-state CTA, Now Card support, redirect-to-edit.
-- Cover Overflow Menu (FR-11, FR-12): Edit Cover, Remove Cover, Info, removal of cover controls from the edit sheet.
+- Itinerary integration (FR-7 through FR-11): Linked Events, date-range extension, empty-state CTA, Now Card support, redirect-to-edit.
+- Cover Overflow Menu (FR-12, FR-13): Edit Cover, Remove Cover, Info, removal of cover controls from the edit sheet.
 
 ### 6.2 Out of Scope for MVP
 
@@ -263,4 +282,6 @@ Given this is a personal project moving toward a public release, success is qual
 
 - §4.1 FR-5 — Document attachment on Reservations is assumed to reuse the existing Document upload UI/components from the Documents tab, with `scope: "reservation"`.
 - §4.1 FR-5 — Deleting a Reservation is assumed to cascade-delete its attached Documents, matching existing Document lifecycle behavior for trip/event-scoped Documents.
+- §4.2 FR-8 — Day-number shifts from extending the Itinerary's date range (e.g., original Day 1 becoming Day 2) are assumed acceptable, with no separate "pre-trip"/"post-trip" section.
+- §4.1 FR-2 — Reservations within an expanded accordion section are assumed to be ordered chronologically by `startTime`.
 
