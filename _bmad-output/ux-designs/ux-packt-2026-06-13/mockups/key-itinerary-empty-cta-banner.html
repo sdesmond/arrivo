@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Itinerary — Empty Reservations CTA Row — Key Screen Mock</title>
+<style>
+/*
+  Illustrates: decision-log entries for
+    - FR-9 Itinerary CTA — REVISED to a small, PERMANENTLY-VISIBLE compact row
+      (icon + short text + chevron, list-item height, no dismiss control) above Day 1.
+      Shown when a trip has zero Reservations; copy changes (still same shell) once
+      ≥1 Reservation exists.
+    - Tapping the row is SEQUENTIAL: navigates to the Reservations tab (transition
+      settles), THEN the FR-1 type-picker DropdownMenu auto-opens, with focus moving
+      to the first menu item. An aria-live="polite" region announces the tab change
+      before the menu opens (shown here as annotations, not real navigation).
+    - day-card / day-card-header shell below the row: rounded-14, var(--surface) header,
+      var(--line) border, bold date title + chevron, soft "Active" badge for today —
+      matching day-card.tsx / day-card-header.tsx.
+*/
+
+:root {
+  --bg: #ffffff;
+  --surface: #f6f6f4;
+  --surface-2: #efefec;
+  --surface-3: #e6e6e2;
+  --line: rgba(20, 20, 18, 0.08);
+  --line-strong: rgba(20, 20, 18, 0.14);
+  --fg: #131311;
+  --fg-2: #4a4a45;
+  --fg-3: #7a7a72;
+  --fg-4: #a0a098;
+
+  --accent-brand: #0e8b80;
+  --accent-soft: #d6efec;
+  --accent-fg: #ffffff;
+  --accent-ink: #0a4a44;
+
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 1px 0 rgba(0, 0, 0, 0.02), 0 6px 24px rgba(0, 0, 0, 0.06);
+  --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
+
+  --radius: 0.625rem;
+  --font-size-base: 16px;
+  --font-scale: 1;
+  --fs-card-title: 15px;
+  --fs-card-sub: 13px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-2);
+  font-family: var(--font-body, ui-sans-serif), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.phone {
+  max-width: 390px;
+  margin: 24px auto;
+  background: var(--bg);
+  min-height: 760px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  border: 1px solid var(--line);
+}
+
+.screen {
+  padding: 16px 16px 32px;
+}
+
+.page-title {
+  font-family: var(--font-heading, ui-sans-serif);
+  font-size: calc(22px * var(--font-scale));
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  margin-bottom: 16px;
+}
+
+/* ─── FR-9 permanent compact CTA row ─── */
+.fr9-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.fr9-cta-row:focus-visible {
+  outline: 2px solid var(--accent-brand);
+  outline-offset: 1px;
+}
+
+.fr9-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.fr9-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.fr9-text {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.3;
+}
+
+.fr9-chevron {
+  flex-shrink: 0;
+  color: var(--fg-4);
+}
+
+/* Annotation callout */
+.annotation {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-strong);
+  background: var(--bg);
+  font-size: calc(12px * var(--font-scale));
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+.annotation svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent-brand);
+}
+
+.annotation b {
+  color: var(--fg);
+}
+
+/* Day card shell (abbreviated, for context below the row) */
+.day-card {
+  border-radius: 14px;
+  border: 1.5px solid var(--accent-brand);
+  background: var(--bg);
+  margin-bottom: 0;
+}
+
+.day-card-header {
+  border-radius: 14px;
+  background: var(--accent-soft);
+  padding: 12px 16px 12px;
+}
+
+.day-card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.day-card-title {
+  font-family: var(--font-heading, ui-sans-serif);
+  font-size: calc(var(--fs-card-title) * var(--font-scale));
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.day-card-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stops {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: calc(var(--fs-card-sub) * var(--font-scale));
+  color: var(--fg-3);
+}
+
+.badge-soft {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 500;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.chevron {
+  color: var(--fg-4);
+}
+
+.day-card-subtitle {
+  font-size: calc(var(--fs-card-sub) * var(--font-scale));
+  color: var(--fg-3);
+  margin-top: 6px;
+}
+
+/* Caption */
+.caption {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: calc(12.5px * var(--font-scale));
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+.caption b {
+  color: var(--fg);
+}
+
+.caption + .caption {
+  margin-top: 10px;
+}
+
+svg.icon { display: block; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="screen">
+    <div class="page-title">Itinerary</div>
+
+    <!-- FR-9 permanently-visible compact CTA row (0 reservations) -->
+    <button class="fr9-cta-row" type="button" aria-label="Add a reservation for hotels, rentals, and more — opens the Reservations tab">
+      <span class="fr9-icon">
+        <!-- Luggage icon -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/><path d="M8 18V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v14"/><path d="M10 20v2"/><path d="M14 20v2"/><path d="M20 12v4"/><path d="M4 12v4"/></svg>
+      </span>
+      <span class="fr9-text" aria-hidden="true">Add reservations for hotels, rentals, and more</span>
+      <svg class="fr9-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+    </button>
+
+    <!-- Annotation: sequential navigate-then-open behavior -->
+    <div class="annotation">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      <span>
+        Tapping this row is <b>sequential, not simultaneous</b>: first it navigates to the
+        <b>Reservations</b> tab (an <code>aria-live="polite"</code> region announces "Reservations
+        tab" as the transition settles), <b>then</b> the FR-1 type-picker
+        <code>DropdownMenu</code> auto-opens with focus on its first item — one tap, two
+        sequenced steps, reducing disorientation for keyboard/screen-reader users.
+      </span>
+    </div>
+
+    <!-- Abbreviated Day 1 card for context, styled per day-card.tsx / day-card-header.tsx -->
+    <div class="day-card" style="margin-top: 16px;">
+      <div class="day-card-header">
+        <div class="day-card-header-row">
+          <div class="day-card-title">Sun, Jun 14</div>
+          <div class="day-card-right">
+            <span class="stops">
+              <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+              2 stops
+            </span>
+            <span class="badge-soft">Active</span>
+            <svg class="chevron icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div class="day-card-subtitle">Arrival in Lisbon — settle in, explore Baixa</div>
+      </div>
+    </div>
+
+    <div class="caption">
+      Trip with <b>zero Reservations</b> (Lisbon &amp; Porto, Jun 14&ndash;22): the FR-9 row sits
+      above Day 1 on the Itinerary tab as a <b>permanently-visible, compact, list-item-height
+      row</b> (h-12, icon + text + chevron) — no dismiss control, no full <code>Empty</code>
+      composition. It reads "Add reservations for hotels, rentals, and more" and deep-links into
+      Reservations with the type-picker opening after the tab transition settles.
+    </div>
+    <div class="caption">
+      Once <b>≥1 Reservation</b> exists, the row's copy switches to "Add another reservation"
+      (same shell, icon, chevron, and sequenced deep-link behavior) — it remains permanently
+      visible rather than disappearing, per the PRD's "continues to link to the Reservations tab"
+      wording.
+    </div>
+  </div>
+</div>
+</body>
+</html>
