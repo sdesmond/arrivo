@@ -152,8 +152,8 @@ No new decisions — Reservation CRUD and Document-scope="reservation" operation
 
 ### Frontend Architecture
 
-- **Reservations tab**: new `page.tsx` (server, data fetch) / `page-client.tsx` (client, `"use client"`) pair under the trip detail route, following the existing Itinerary/Documents tab split. `TripDetailTab` gains a `Reservations: "res"` (or similar) value.
-- **FR-9/FR-11 cross-tab orchestration**: navigation to the Reservations tab carries intent via URL search params — e.g. `?tab=res&action=add` (FR-9: auto-open the FR-1 type-picker on mount, focus first item) or `?tab=res&highlight={reservationId}` (FR-11: scroll to and expand the accordion section containing that Reservation, highlight its row). The Reservations tab's client component reads these params on mount, performs the sequenced behavior (navigate settles → then open/scroll, per the `aria-live` sequencing in `EXPERIENCE.md`), and clears the param from the URL afterward so back/refresh doesn't re-trigger it.
+- **Reservations tab**: new `ReservationsTab` client component rendered by `TripDetailTabBody` when `activeTab === "res"` — Packt's trip-detail page has one route-level `page.tsx`/`page-client.tsx` pair (not per-tab pairs); each tab is a component switched on `activeTab`, matching how `TripDocsTab`/`PackingListsView` are wired today. `TripDetailTab` gains a `Reservations: "res"` value, and `resolveTripDetailTab()` (`trip-detail-tabs.ts`) is extended to recognize it.
+- **FR-9/FR-11 cross-tab orchestration**: navigation to the Reservations tab carries intent via URL search params — e.g. `?tab=res&action=add-reservation` (FR-9: auto-open the FR-1 type-picker on mount, focus first item) or `?tab=res&highlight={reservationId}` (FR-11: scroll to and expand the accordion section containing that Reservation, highlight its row). The `ReservationsTab` component reads these params on mount, performs the sequenced behavior (navigate settles → then open/scroll, per the `aria-live` sequencing in `EXPERIENCE.md`), and clears the param from the URL afterward so back/refresh doesn't re-trigger it.
 - **Add/Edit Reservation drawer**: client component state (`Drawer` open/closed, selected `ReservationType`, edit-vs-add mode) lives in the Reservations tab's client component, matching how `trip-edit-sheet.tsx` is invoked today.
 - **Accordion state**: expand/collapse per Reservation Type section is local client state (not persisted), matching `DayCard`'s existing expand/collapse pattern.
 
@@ -214,9 +214,10 @@ No new decisions — existing Vercel deployment, `drizzle-kit` migrations (`npm 
 
 **Project Organization:**
 
-- Reservation Server Actions live in a **new** colocated file: `src/app/(app)/trips/[tripId]/reservations/actions.ts` (own file, not appended to the existing `src/app/(app)/trips/[tripId]/actions.ts`), following the same `page.tsx`/`page-client.tsx`/`actions.ts` colocation already used per-tab.
+- Reservation Server Actions live in a **new** colocated file: `src/app/(app)/trips/[tripId]/reservations/actions.ts` (own file, not appended to the existing `src/app/(app)/trips/[tripId]/actions.ts`).
 - `linked-events.ts` lives in `src/lib/` (pure, framework-agnostic, unit-testable in isolation) — not under `src/components/packt/` or the route tree.
-- Reservations tab components (`reservations-tab.tsx`, accordion, row, drawer, Linked Event row treatment additions) go in `src/components/packt/`, each with a colocated `*.test.tsx`, matching every other tab.
+- The Reservations tab is **not** a separate route — Packt uses one route-level `page.tsx`/`page-client.tsx` pair for the whole trip-detail page, with `TripDetailTabBody` (`src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx`) switching on `activeTab` to render each tab's component (mirrors how `activeTab === "docs"` renders `TripDocsTab`). The Reservations tab adds an `activeTab === "res"` branch rendering a new `ReservationsTab` component.
+- Reservations tab components (`reservations-tab.tsx`, accordion, row, drawer, Linked Event row treatment additions) go in `src/components/packt/`, each with a colocated `*.test.tsx`, matching `TripDocsTab`/`PackingListsView`.
 
 **File Structure Patterns:**
 
