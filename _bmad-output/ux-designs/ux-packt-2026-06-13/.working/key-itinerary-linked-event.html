@@ -7,9 +7,12 @@
 <style>
 /*
   Illustrates: decision-log entries for
-    - Linked Event indicator (FR-7, FR-11): small "Linked" soft badge (--linked-soft/--linked-ink) PLUS
-      a distinct left border accent (--linked-brand) on the Itinerary row — visually distinct from the
-      "happening now" teal --accent-soft/--accent-brand highlight (which has NO left border).
+    - Linked Event indicator (REVISED): the row looks like a normal event row — no left-border accent
+      and no color-tinted background. The only differences from a manual event row are (1) the leading
+      icon is the Reservation Type icon (Hotel, for this Lodging check-in) instead of the default
+      MapPin icon, and (2) a small neutral "Linked" text badge using the existing secondary/muted
+      badge styling (var(--surface-2) / var(--fg-3)) — matching the Badge component's secondary/muted
+      variants, not a new color.
     - Reservation row time display: full date + time anchors apply to Linked Event rows too
       ("Check-in: Tue, Jun 16 · 3:00 PM").
     - day-card / day-card-header shell: rounded-14, var(--surface) header, var(--line) border,
@@ -32,11 +35,6 @@
   --accent-soft: #d6efec;
   --accent-fg: #ffffff;
   --accent-ink: #0a4a44;
-
-  /* NEW linked tokens */
-  --linked-brand: #5b5fc7;
-  --linked-soft: rgba(91, 95, 199, 0.12);
-  --linked-ink: #3a3d99;
 
   --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-2: 0 1px 0 rgba(0, 0, 0, 0.02), 0 6px 24px rgba(0, 0, 0, 0.06);
@@ -171,12 +169,6 @@ html, body {
   background: var(--accent-soft);
 }
 
-.event-row.linked-row {
-  background: var(--linked-soft);
-  border-left: 3px solid var(--linked-brand);
-  padding-left: 13px; /* 16 - 3px border */
-}
-
 .event-time {
   display: flex;
   flex-direction: column;
@@ -189,9 +181,17 @@ html, body {
   padding-top: 1px;
 }
 
-.event-row.now-row .event-time,
-.event-row.linked-row .event-time {
+.event-row.now-row .event-time {
   color: var(--fg-2);
+}
+
+/* Leading icon — MapPin for manual events, Reservation Type icon for Linked Events */
+.event-icon {
+  display: flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+  color: var(--fg-3);
+  padding-top: 2px;
 }
 
 .event-main {
@@ -241,7 +241,7 @@ html, body {
   background: var(--accent-fg);
 }
 
-/* "Linked" badge */
+/* "Linked" badge — neutral/secondary, matching Badge component's secondary/muted variants */
 .linked-badge {
   display: inline-flex;
   align-items: center;
@@ -251,8 +251,8 @@ html, body {
   border-radius: 999px;
   font-size: calc(10px * var(--font-scale));
   font-weight: 500;
-  background: var(--linked-soft);
-  color: var(--linked-ink);
+  background: var(--surface-2);
+  color: var(--fg-3);
 }
 
 .linked-badge svg {
@@ -301,9 +301,12 @@ svg.icon { display: block; }
       </div>
 
       <div class="day-card-body">
-        <!-- Manual TripEvent — normal styling -->
+        <!-- Manual TripEvent — normal styling, default MapPin icon -->
         <div class="event-row">
           <div class="event-time">12:30 PM</div>
+          <div class="event-icon">
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
           <div class="event-main">
             <div class="event-name-row">
               <span class="event-name">Lunch at Cervejaria Ramiro</span>
@@ -312,9 +315,12 @@ svg.icon { display: block; }
           </div>
         </div>
 
-        <!-- "Happening now" event — existing teal accent-soft/accent-brand highlight -->
+        <!-- "Happening now" event — existing teal accent-soft/accent-brand highlight, default MapPin icon -->
         <div class="event-row now-row">
           <div class="event-time">3:15 PM</div>
+          <div class="event-icon">
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
           <div class="event-main">
             <div class="event-name-row">
               <span class="event-name">Walking tour — Alfama district</span>
@@ -324,16 +330,19 @@ svg.icon { display: block; }
           </div>
         </div>
 
-        <!-- Linked Event — new indigo/violet linked-soft + linked-brand left border + Linked badge -->
-        <div class="event-row linked-row">
+        <!-- Linked Event — normal row styling; leading icon is the Reservation Type icon (Hotel)
+             instead of MapPin, plus a small neutral "Linked" badge -->
+        <div class="event-row">
           <div class="event-time">
             3:00 PM
+          </div>
+          <div class="event-icon">
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 22v-6.57"/><path d="M12 11h.01"/><path d="M12 7h.01"/><path d="M14 15.43V22"/><path d="M15 16a5 5 0 0 0-6 0"/><path d="M16 11h.01"/><path d="M16 7h.01"/><path d="M8 11h.01"/><path d="M8 7h.01"/><path d="M9 22V2l9 4-9 4"/></svg>
           </div>
           <div class="event-main">
             <div class="event-name-row">
               <span class="event-name">Hotel Check-in — Riverside Inn</span>
               <span class="linked-badge">
-                <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
                 Linked
               </span>
             </div>
@@ -344,11 +353,11 @@ svg.icon { display: block; }
     </div>
 
     <div class="caption">
-      <b>Manual event</b> (top) uses default row styling. <b>Happening now</b> (middle) uses the existing
-      teal <code>--accent-soft</code> fill with no left border. <b>Linked event</b> (bottom) uses the new
-      indigo/violet <code>--linked-soft</code> fill plus a <code>--linked-brand</code> left border and a
-      "Linked" badge — distinct hue and shape from the "now" row, signaling it opens the Reservations tab
-      instead of inline editing.
+      <b>Manual event</b> (top) shows the default <code>MapPin</code> icon and no badge. <b>Happening now</b>
+      (middle) keeps the existing teal <code>--accent-soft</code> highlight. <b>Linked event</b> (bottom)
+      looks like a normal row, but its leading icon is the Reservation Type icon (<code>Hotel</code>, for
+      this Lodging check-in) instead of <code>MapPin</code>, and it carries a small neutral "Linked" badge
+      — tapping the row navigates to the Reservations tab to edit, rather than opening inline editing.
     </div>
   </div>
 </div>
