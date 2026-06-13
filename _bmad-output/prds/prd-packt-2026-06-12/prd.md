@@ -1,17 +1,15 @@
 ---
-title: Trip Overview Consolidation
-status: draft
+title: Reservations & Trip Logistics
+status: final
 created: 2026-06-12
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 
-# PRD: Trip Overview Consolidation
-
-_Working title — confirm._
+# PRD: Reservations & Trip Logistics
 
 ## 0. Document Purpose
 
-This PRD is for whoever implements (and reviews) the Reservations tab, its Itinerary integration, and the Cover overflow menu in Packt. It builds on `_bmad-output/brainstorming/brainstorming-session-2026-06-12-0657.md`, which explored the original ideas — this PRD narrows and revises that exploration into an implementation-ready scope (notably, the new tab is reservations-only rather than a full trip-metadata "command center," and the trip edit sheet is retained). The document is organized around named user journeys (§2.3), a shared Glossary (§3) that the rest of the document uses verbatim, and Features with globally-numbered Functional Requirements (§4). `[ASSUMPTION]` tags are used inline where inferred without explicit confirmation, and indexed in §9.
+This PRD is for whoever implements (and reviews) the Reservations tab, its Itinerary integration, and the Cover Overflow Menu in Packt. It builds on `_bmad-output/brainstorming/brainstorming-session-2026-06-12-0657.md`, which explored the original ideas — this PRD narrows and revises that exploration into an implementation-ready scope (notably, the new tab is reservations-only rather than a full trip-metadata "command center," and the trip edit sheet is retained). The document is organized around named user journeys (§2.2), a shared Glossary (§3) that the rest of the document uses verbatim, and Features with globally-numbered Functional Requirements (§4). `[ASSUMPTION]` tags are used inline where inferred without explicit confirmation, and indexed in §9.
 
 ## 1. Vision
 
@@ -32,7 +30,7 @@ Together, these changes make Packt a more complete source of truth for a trip: n
 - As a traveler mid-trip, I want to quickly find "what time is my rental car pickup" or "what's my hotel confirmation number" without hunting through email or a separate app.
 - As a trip owner, I want to manage my trip's cover image (change it, remove it, check photo credit) without opening the full edit sheet.
 
-### 2.3 Key User Journeys
+### 2.2 Key User Journeys
 
 - **UJ-1. Ashley adds her first reservation from a confirmation email.**
   - **Persona + context:** Ashley, mid-trip-planning, just received a hotel confirmation email.
