@@ -46,3 +46,18 @@ _Working title — confirm._
   - **Climax:** Ashley saves the field change on Reservations; the linked Itinerary event(s) reflect the new date/time immediately, with no separate edit step.
   - **Resolution:** Ashley trusts that the reservation is the single source of truth — any Itinerary event generated from it is always in sync, never independently editable.
 
+## 3. Glossary
+
+- **Reservation** — A booked logistics item belonging to a trip. Has a `type` (see Reservation Type), a `startTime` (required), an optional `endTime`, a `provider` (operator/company name), an optional `confirmationCode`, and an optional free-text `notes` field. Reservations are managed on the Reservations tab and are the single source of truth for their Linked Events on the Itinerary.
+- **Reservation Type** — The category of a Reservation: Flight, Train, Bus, Ferry, Rental Car, Lodging, or Cruise. Selected first when adding a Reservation, before other fields, since it determines the labels shown for `startTime`/`endTime`.
+- **Linked Event** — An Itinerary event generated from a Reservation's `startTime` (and `endTime`, if present). Always derived from the Reservation; never independently editable — editing the Reservation updates its Linked Event(s) everywhere they appear on the Itinerary. Labeled per Reservation Type:
+  - Lodging → Check-in / Check-out
+  - Rental Car → Pickup / Return
+  - Flight, Train, Bus, Ferry → Departure / Arrival
+  - Cruise → Departure / Return
+  - If `endTime` is absent, only the start Linked Event is generated.
+- **Reservations Tab** — A new top-level trip tab (added to `TripDetailTab`) that lists all of a trip's Reservations, grouped by Reservation Type into accordion sections, and is the entry point for adding/editing Reservations.
+- **Now Card** — Existing component that surfaces the current or next-upcoming Itinerary event, including Linked Events from Reservations.
+- **Cover** — A trip's cover image, with existing `CoverType` of Photo, Map, or Graphic.
+- **Cover Overflow Menu** — A "⋯" menu in the upper-right of the Cover, containing Edit Cover (always shown), Remove Cover (shown only when Cover is Photo or Map; reverts to a random Graphic Cover), and Info (shown only when Cover is an Unsplash photo; opens an attribution dialog).
+
