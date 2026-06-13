@@ -107,7 +107,7 @@ A user can edit any field of an existing Reservation. Realizes UJ-4.
 
 #### FR-4: Delete a Reservation
 
-A user can delete a Reservation. `[ASSUMPTION: standard delete action with confirmation, consistent with existing delete patterns elsewhere in the app — not explicitly discussed.]`
+A user can delete a Reservation, with a confirmation step before the delete is applied.
 
 **Consequences (testable):**
 
