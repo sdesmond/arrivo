@@ -200,7 +200,7 @@ Visually modeled directly on `day-card.tsx` / `day-card-header.tsx`:
 - **Collapsed preview**: `0 16px 12px 16px` padding, `var(--surface)` background (continuation of header), `{typography.card-sub}` text — "Next: **{provider}** · {weekday}, {month} {day} · {time}" where the provider name is `var(--fg-2)` weight 500 and the rest is `var(--fg-3)`.
 - **Sections with zero Reservations of that type render no accordion at all** (FR-2).
 
-Only Reservation Types with ≥1 Reservation get a section; sections are not in a fixed display order beyond "types with reservations appear, types without don't" — `[ASSUMPTION]` ordering of multiple populated sections by next-upcoming Reservation date (earliest first) is visually implied by the mock (Lodging expanded first, then Flights, then Rental Car) but not explicitly specified; flagged in summary.
+Only Reservation Types with ≥1 Reservation get a section. Populated sections are ordered by each type's next-upcoming Reservation's `startTime`, soonest first — re-sorting live as Reservations are added, edited, or deleted across types.
 
 Reference: `.working/key-reservations-tab.html`.
 
