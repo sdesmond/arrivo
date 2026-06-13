@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4]
+stepsCompleted: [1, 2, 3, 4, 5]
 inputDocuments:
   - _bmad-output/prds/prd-packt-2026-06-12/prd.md
   - _bmad-output/ux-designs/ux-packt-2026-06-13/DESIGN.md
@@ -177,3 +177,113 @@ No new decisions — existing Vercel deployment, `drizzle-kit` migrations (`npm 
 - The `linked-events.ts` marker fields (`linkedReservationId`, `reservationType`) are the single contract between the derivation module, the query-layer merge, and every UI component that renders a `TripEvent` (`DayCard`, `NowCard`, Itinerary row) — get this shape right first, since steps 5–6 both depend on it.
 - FR-8's `days` mutation must complete before the query layer re-fetches `DayItinerary[]`, since newly-inserted/renumbered days affect which day each Linked Event merges into.
 - The Cover Overflow Menu (FR-12/FR-13) has no dependency on the Reservations work and can proceed independently.
+
+## Implementation Patterns & Consistency Rules
+
+### Pattern Categories Defined
+
+**Critical Conflict Points Identified:**
+
+7 areas where AI agents implementing Reservations & Trip Logistics could make different choices — all other naming/structure/format/communication/process categories are fully covered by existing Packt conventions (see `project-context.md`) and require no new rules.
+
+### Naming Patterns
+
+**Database Naming Conventions:**
+
+- `reservations` table: snake_case columns per existing convention (`trip_id`, `start_at`, `end_at`, `confirmation_code`, `created_at`, `updated_at`), camelCase in Drizzle/TS (`tripId`, `startAt`, etc.) — identical to `events`/`days`.
+- `documents.reservation_id`: new nullable FK column, same naming pattern as existing `event_id`/`trip_id`.
+- No new index/constraint naming needed beyond the existing `unique(tripId, dayNumber)` pattern on `days`, which FR-8 reuses unchanged.
+
+**API Naming Conventions:**
+
+- N/A — no REST/GraphQL endpoints. Server Action names follow the existing verb+noun pattern: `createReservation`, `updateReservation`, `deleteReservation` (mirrors `createEvent`/`updateEvent`/`deleteEvent`).
+- URL search params for cross-tab orchestration (FR-9/FR-11): **`action`** and **`highlight`** are the only two new param names.
+  - `?tab=res&action=add-reservation` — FR-9: Reservations tab opens, then auto-opens the FR-1 type-picker `DropdownMenu`.
+  - `?tab=res&highlight={reservationId}` — FR-11: Reservations tab opens, scrolls to and expands the accordion section containing `reservationId`, applies a highlight treatment to that row.
+  - Param values are kebab-case (`add-reservation`, not `addReservation` or `add_reservation`), matching the lowercase `tab` codes (`itin`, `docs`, `res`).
+  - The Reservations tab's client component reads these on mount, performs the sequenced behavior, then calls `router.replace()` to strip the param — preventing re-trigger on back/refresh.
+
+**Code Naming Conventions:**
+
+- `ReservationType` const-object values: lowercase, kebab-case for multi-word — `flight`, `train`, `bus`, `ferry`, `rental-car`, `lodging`, `cruise`. All agents MUST use these exact string literals (DB-persisted `type` column, accordion group keys, icon-lookup maps).
+- `linked-events.ts` exports a single function named `deriveLinkedEvents(reservations: Reservation[]): TripEvent[]` — no alternate names (`getLinkedEvents`, `computeLinkedEvents`, etc.) across query layer and tests.
+- Synthetic `TripEvent` marker fields: **exactly** `linkedReservationId?: string` and `reservationType?: ReservationType` — these two fields are the sole contract between `linked-events.ts`, the query-layer merge in `queries.ts`, and every rendering component (`DayCard`, `NowCard`, Itinerary row, Reservations tab redirect target). No agent may introduce a third marker field or rename either of these.
+- New `TripDetailTab` entry: `Reservations: "res"` — 3-char code matching the existing `itin`/`docs`/`pack` length convention (not `map`'s 3 either, but consistent casing/lowercase style).
+
+### Structure Patterns
+
+**Project Organization:**
+
+- Reservation Server Actions live in a **new** colocated file: `src/app/(app)/trips/[tripId]/reservations/actions.ts` (own file, not appended to the existing `src/app/(app)/trips/[tripId]/actions.ts`), following the same `page.tsx`/`page-client.tsx`/`actions.ts` colocation already used per-tab.
+- `linked-events.ts` lives in `src/lib/` (pure, framework-agnostic, unit-testable in isolation) — not under `src/components/packt/` or the route tree.
+- Reservations tab components (`reservations-tab.tsx`, accordion, row, drawer, Linked Event row treatment additions) go in `src/components/packt/`, each with a colocated `*.test.tsx`, matching every other tab.
+
+**File Structure Patterns:**
+
+- `dbReservationToType()` is added to the existing `src/lib/db-mappers.ts` (not a new mapper file) — all mappers stay in one file per current convention.
+- `ReservationType` and `Reservation` types are added to the existing `src/data/types.ts` (not a new `reservations-types.ts`) — all domain types stay in one file per current convention.
+
+### Format Patterns
+
+**API Response Formats:**
+
+- N/A — Server Actions only. `createReservation`/`updateReservation` return `Promise<void>` (matching `createEvent`/`updateEvent`); no `{ data, error }` wrapper is introduced.
+
+**Data Exchange Formats:**
+
+- `startAt`/`endAt` on `Reservation` are ISO 8601 strings in the domain type (converted to/from `Date` at the mapper/action boundary), matching `TripEvent.startAt`/`endAt` exactly — no new date format introduced.
+- `Reservation.confirmationCode`/`notes`/`endAt` use `?:` optional fields per existing convention — never `| undefined` unions or `| null` in domain types (DB `null` is normalized to `undefined` in the mapper, matching `dbDocToType()`'s existing null-to-optional handling).
+
+### Communication Patterns
+
+**Event System Patterns:**
+
+- N/A — no client/server event bus. "Linked Event" is a data-shape term (a synthetic `TripEvent`), not a pub/sub event; do not introduce event-emitter naming (`onReservationCreated`, etc.) anywhere in this feature.
+
+**State Management Patterns:**
+
+- Accordion expand/collapse state and Add/Edit Drawer state (open/closed, selected `ReservationType`, add-vs-edit mode) are local `useState` in the Reservations tab's client component — no global store, matching `DayCard`'s expand/collapse and `trip-edit-sheet.tsx`'s drawer invocation.
+- FR-9/FR-11 URL params are the only cross-component "state" that crosses route/tab boundaries — read once on mount via `useSearchParams()`, acted on, then cleared via `router.replace()`. No agent should additionally thread this state through props or context.
+
+### Process Patterns
+
+**Error Handling Patterns:**
+
+- Reservation CRUD actions throw `Error("<user-facing message>")` on failure (type-dependent `endAt` requiredness, FR-8 `MAX_TRIP_DAYS` overflow, etc.) — caught in the drawer via `useTransition` + `try/catch` + `toast.error(error.message)`, matching `trip-docs-tab.tsx`'s upload-error handling. No discriminated-union return type (the `RemoveLastDayResult` pattern is reserved for its existing confirmation-flow use case and is NOT reused here — FR-8 has no confirmation step).
+- The FR-8 `days` extension (insert + renumber + update `trip.startDate`/`endDate`) and the Reservation insert/update happen in a single `db.transaction()`, matching `removeLastDay`'s/`createChecklistWithItem`'s transactional pattern — any failure rolls back both.
+
+**Loading State Patterns:**
+
+- The Reservations tab follows the existing `page.tsx` (server, async data fetch) / `page-client.tsx` (`"use client"`) split — no `loading.tsx` files exist for any tab today, and this feature introduces none. Cold-load treatment matches the Itinerary/Documents tabs' existing behavior (server-rendered on navigation, no skeleton).
+- In-flight mutations (create/update/delete Reservation, document attach/detach) use `useTransition`'s `isPending` for local pending UI (disabled buttons, `cursor: wait`), matching `trip-docs-tab.tsx` — no separate global loading state.
+
+### Enforcement Guidelines
+
+**All AI Agents MUST:**
+
+- Use the exact `ReservationType` string literals from #1 (Code Naming) everywhere — DB writes, accordion grouping keys, icon maps, tests.
+- Use exactly `linkedReservationId` and `reservationType` as the only two new optional fields on `TripEvent` — never introduce alternates.
+- Use exactly `action` / `highlight` as the FR-9/FR-11 search-param names, with kebab-case values.
+- Place Reservation Server Actions in `src/app/(app)/trips/[tripId]/reservations/actions.ts`, types/enums in `src/data/types.ts`, mapper in `src/lib/db-mappers.ts`, derivation in `src/lib/linked-events.ts`.
+- Throw `Error` with a user-facing message string for all Reservation/FR-8 failure cases — never a `{ success, error }` wrapper or new result-discriminated-union type.
+
+**Pattern Enforcement:**
+
+- Verified via `packt-build-validator` (ESLint/TypeScript catch naming mismatches on the `TripEvent` marker fields and `ReservationType` union); code review catches search-param/action-location deviations.
+- Pattern violations or needed updates are recorded back in this `architecture.md` document (Implementation Patterns section) — not in a separate decisions log.
+
+### Pattern Examples
+
+**Good Examples:**
+
+- `await createReservation(tripId, input)` in `src/app/(app)/trips/[tripId]/reservations/actions.ts`, returning `Promise<void>`, throwing `Error("End date is required for Lodging reservations.")` on invalid input.
+- `deriveLinkedEvents(reservations)` returning `TripEvent[]` where each synthetic entry has `linkedReservationId: "abc-123"` and `reservationType: "rental-car"`.
+- Navigating with `router.push(`/trips/${tripId}?tab=res&action=add-reservation`)`.
+
+**Anti-Patterns:**
+
+- ❌ `reservationType: "rentalCar"` or `"RentalCar"` (must be `"rental-car"`).
+- ❌ A `linked-events.ts` function named `getLinkedEvents` or a marker field named `reservationId`/`isLinked`.
+- ❌ `?tab=res&open=add` (wrong param name — must be `action=add-reservation`).
+- ❌ `createReservation` returning `{ success: true, data: ... }` — must return `void` and throw on error.
+- ❌ Adding Reservation actions to the existing `src/app/(app)/trips/[tripId]/actions.ts` instead of a new `reservations/actions.ts`.
