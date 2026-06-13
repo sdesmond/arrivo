@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Itinerary — Linked Event Contrast — Key Screen Mock</title>
+<style>
+/*
+  Illustrates: decision-log entries for
+    - Linked Event indicator (FR-7, FR-11): small "Linked" soft badge (--linked-soft/--linked-ink) PLUS
+      a distinct left border accent (--linked-brand) on the Itinerary row — visually distinct from the
+      "happening now" teal --accent-soft/--accent-brand highlight (which has NO left border).
+    - Reservation row time display: full date + time anchors apply to Linked Event rows too
+      ("Check-in: Tue, Jun 16 · 3:00 PM").
+    - day-card / day-card-header shell: rounded-14, var(--surface) header, var(--line) border,
+      bold date title + chevron, soft "Active" badge for today.
+*/
+
+:root {
+  --bg: #ffffff;
+  --surface: #f6f6f4;
+  --surface-2: #efefec;
+  --surface-3: #e6e6e2;
+  --line: rgba(20, 20, 18, 0.08);
+  --line-strong: rgba(20, 20, 18, 0.14);
+  --fg: #131311;
+  --fg-2: #4a4a45;
+  --fg-3: #7a7a72;
+  --fg-4: #a0a098;
+
+  --accent-brand: #0e8b80;
+  --accent-soft: #d6efec;
+  --accent-fg: #ffffff;
+  --accent-ink: #0a4a44;
+
+  /* NEW linked tokens */
+  --linked-brand: #5b5fc7;
+  --linked-soft: rgba(91, 95, 199, 0.12);
+  --linked-ink: #3a3d99;
+
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 1px 0 rgba(0, 0, 0, 0.02), 0 6px 24px rgba(0, 0, 0, 0.06);
+  --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
+
+  --radius: 0.625rem;
+  --font-size-base: 16px;
+  --font-scale: 1;
+  --fs-card-title: 15px;
+  --fs-card-sub: 13px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-2);
+  font-family: var(--font-body, ui-sans-serif), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.phone {
+  max-width: 390px;
+  margin: 24px auto;
+  background: var(--bg);
+  min-height: 760px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  border: 1px solid var(--line);
+}
+
+.screen {
+  padding: 16px 16px 32px;
+}
+
+.page-title {
+  font-family: var(--font-heading, ui-sans-serif);
+  font-size: calc(22px * var(--font-scale));
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  margin-bottom: 16px;
+}
+
+/* Day card shell */
+.day-card {
+  border-radius: 14px;
+  border: 1.5px solid var(--accent-brand);
+  background: var(--bg);
+  margin-bottom: 16px;
+}
+
+.day-card-header {
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 16px 10px;
+}
+
+.day-card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.day-card-title {
+  font-family: var(--font-heading, ui-sans-serif);
+  font-size: calc(var(--fs-card-title) * var(--font-scale));
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.day-card-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stops {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: calc(var(--fs-card-sub) * var(--font-scale));
+  color: var(--fg-3);
+}
+
+.badge-soft {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 500;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.chevron {
+  color: var(--fg-4);
+  transform: rotate(180deg);
+}
+
+.day-card-subtitle {
+  font-size: calc(var(--fs-card-sub) * var(--font-scale));
+  color: var(--fg-3);
+  margin-top: 6px;
+}
+
+/* Event rows */
+.day-card-body {
+  padding: 8px 0;
+}
+
+.event-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.event-row:last-child {
+  border-bottom: none;
+}
+
+.event-row.now-row {
+  background: var(--accent-soft);
+}
+
+.event-row.linked-row {
+  background: var(--linked-soft);
+  border-left: 3px solid var(--linked-brand);
+  padding-left: 13px; /* 16 - 3px border */
+}
+
+.event-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 64px;
+  flex-shrink: 0;
+  font-family: var(--font-mono, ui-monospace);
+  font-size: calc(11px * var(--font-scale));
+  color: var(--fg-3);
+  padding-top: 1px;
+}
+
+.event-row.now-row .event-time,
+.event-row.linked-row .event-time {
+  color: var(--fg-2);
+}
+
+.event-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.event-name {
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.event-meta {
+  font-size: calc(12px * var(--font-scale));
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+/* "Now" pill */
+.now-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--accent-brand);
+  color: var(--accent-fg);
+}
+
+.now-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent-fg);
+}
+
+/* "Linked" badge */
+.linked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 500;
+  background: var(--linked-soft);
+  color: var(--linked-ink);
+}
+
+.linked-badge svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* Caption */
+.caption {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: calc(12.5px * var(--font-scale));
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+.caption b {
+  color: var(--fg);
+}
+
+svg.icon { display: block; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="screen">
+    <div class="page-title">Itinerary</div>
+
+    <div class="day-card">
+      <div class="day-card-header">
+        <div class="day-card-header-row">
+          <div class="day-card-title">Tue, Jun 16</div>
+          <div class="day-card-right">
+            <span class="stops">
+              <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+              3 stops
+            </span>
+            <span class="badge-soft">Active</span>
+            <svg class="chevron icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div class="day-card-subtitle">Arrival day — settle in, explore Baixa</div>
+      </div>
+
+      <div class="day-card-body">
+        <!-- Manual TripEvent — normal styling -->
+        <div class="event-row">
+          <div class="event-time">12:30 PM</div>
+          <div class="event-main">
+            <div class="event-name-row">
+              <span class="event-name">Lunch at Cervejaria Ramiro</span>
+            </div>
+            <div class="event-meta">Seafood spot near Praça da Figueira</div>
+          </div>
+        </div>
+
+        <!-- "Happening now" event — existing teal accent-soft/accent-brand highlight -->
+        <div class="event-row now-row">
+          <div class="event-time">3:15 PM</div>
+          <div class="event-main">
+            <div class="event-name-row">
+              <span class="event-name">Walking tour — Alfama district</span>
+              <span class="now-pill"><span class="now-dot"></span>Now</span>
+            </div>
+            <div class="event-meta">Meet guide at Miradouro das Portas do Sol</div>
+          </div>
+        </div>
+
+        <!-- Linked Event — new indigo/violet linked-soft + linked-brand left border + Linked badge -->
+        <div class="event-row linked-row">
+          <div class="event-time">
+            3:00 PM
+          </div>
+          <div class="event-main">
+            <div class="event-name-row">
+              <span class="event-name">Hotel Check-in — Riverside Inn</span>
+              <span class="linked-badge">
+                <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+                Linked
+              </span>
+            </div>
+            <div class="event-meta">Check-in: Tue, Jun 16 · 3:00 PM — from Lodging reservation</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <b>Manual event</b> (top) uses default row styling. <b>Happening now</b> (middle) uses the existing
+      teal <code>--accent-soft</code> fill with no left border. <b>Linked event</b> (bottom) uses the new
+      indigo/violet <code>--linked-soft</code> fill plus a <code>--linked-brand</code> left border and a
+      "Linked" badge — distinct hue and shape from the "now" row, signaling it opens the Reservations tab
+      instead of inline editing.
+    </div>
+  </div>
+</div>
+</body>
+</html>
