@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7]
 inputDocuments:
   - _bmad-output/prds/prd-packt-2026-06-12/prd.md
   - _bmad-output/ux-designs/ux-packt-2026-06-13/DESIGN.md
@@ -442,3 +442,124 @@ packt/
 **Build Process Structure:** No change — `next build` picks up the new schema/types/components automatically; `npm run db:migrate:e2e` must be re-run once after the `reservations` table + `documents.reservation_id` migration is generated (per `CLAUDE.md`'s existing rule).
 
 **Deployment Structure:** No change — existing Vercel deployment and `drizzle-kit` migration pipeline apply; one new migration file for the schema changes in #1/#2 of Data Architecture.
+
+## Architecture Validation Results
+
+### Coherence Validation ✅
+
+**Decision Compatibility:**
+
+All Step 4 decisions (new `reservations` table, `documents.scope` extension, computed Linked Events, FR-8 real-`days` extension) are mutually compatible and build on the existing Drizzle/Postgres schema without altering any existing table's semantics. No version or technology conflicts — everything uses the already-adopted stack (Next.js 16.2.4 Server Actions, Drizzle, Auth.js v5, Vercel Blob, Vitest, Playwright-BDD).
+
+**Pattern Consistency:**
+
+Step 5's naming patterns (kebab-case `ReservationType` values, `action`/`highlight` search params, `linkedReservationId`/`reservationType` marker fields, `reservations/actions.ts` location, throw-`Error` error handling) are all consistent with and derived from existing Packt conventions (`CoverType`/`DocKind` casing, `RemoveLastDayResult` vs. thrown-`Error` precedent, `useTransition`+`toast.error` UX). No pattern contradicts a Step 4 decision.
+
+**Structure Alignment:**
+
+Step 6's project structure was corrected mid-review to match Packt's actual tab architecture (single route-level `page.tsx`/`page-client.tsx`, `TripDetailTabBody` switching on `activeTab`) rather than an assumed per-tab route split. The corrected structure cleanly supports all Step 4/5 decisions: `ReservationsTab` slots in as a sibling to `TripDocsTab`/`PackingListsView`, `reservations/actions.ts` is an isolated boundary, and `linked-events.ts` sits in `src/lib/` alongside `queries.ts` where it's consumed.
+
+### Requirements Coverage Validation ✅
+
+**Functional Requirements Coverage:**
+
+| FR | Architectural Support |
+|---|---|
+| FR-1–FR-6 (Reservations Tab CRUD, accordion, attachments, empty state) | `reservations` table, `Reservation`/`ReservationType` types, `dbReservationToType()`, `reservations/actions.ts`, `reservations-tab.tsx` + 5 supporting components, `documents.reservation_id` |
+| FR-7 (Linked Event icon/badge on Itinerary) | `linked-events.ts` markers (`linkedReservationId`/`reservationType`) consumed by `day-card-body.tsx` via `reservation-type-badge.tsx`/`linked-event-badge.tsx` |
+| FR-8 (date-range extension + Day renumbering) | `reservations/actions.ts` transactional `days` insert/renumber + `trips.startDate`/`endDate` update |
+| FR-9 (Itinerary CTA row) | `fr9-cta-row.tsx`, `?tab=res&action=add-reservation` |
+| FR-10 (Now Card Linked Events) | `now-card.tsx` consumes merged `todayEvents` (already accepts generic `TripEvent[]`) |
+| FR-11 (tap → Reservations tab redirect) | `?tab=res&highlight={reservationId}`, read/cleared by `reservations-tab.tsx` |
+| FR-12–FR-13 (Cover Overflow Menu) | `trip-hero.tsx` overflow menu (reuses `now-card.tsx` pattern), cover controls removed from `trip-edit-sheet.tsx`/`trip-edit-cover.tsx` |
+
+All 13 FRs map to at least one concrete file/decision; no orphaned FRs.
+
+**Non-Functional Requirements Coverage:**
+
+- **WCAG AA**: not re-specified architecturally — inherited from EXPERIENCE.md's Accessibility Floor (accordion accessible names, click-to-edit keyboard support, paired date/time fieldsets, Linked Event row labeling), which the new components (`reservation-edit-drawer.tsx`, `reservation-type-section.tsx`, `linked-event-badge.tsx`) must implement per that spec.
+- **Coverage thresholds** (≥95%/≥90%): every new `src/lib/**`/`src/components/packt/**` file in Step 6's structure has a paired `*.test.ts(x)`; `queries.ts` changes are within the existing coverage-exclusion.
+- **No new perf/offline/real-time requirements**: confirmed — Linked Events are computed at request time in the existing server-rendered/revalidated flow, no caching or sync layer added.
+
+### Implementation Readiness Validation ✅
+
+**Decision Completeness:** All 4 critical Data Architecture decisions include concrete schema/types/module signatures (Drizzle table DDL, `ReservationType` union values, `deriveLinkedEvents()` signature, FR-8 transaction steps). No open `[ASSUMPTION]` markers remain in `architecture.md`.
+
+**Structure Completeness:** Step 6 enumerates every new/modified file (29 source files + 4 E2E feature/step pairs) with a one-line purpose each; both gaps identified above (accordion sort location, icon-map source of truth) are now resolved into specific files.
+
+**Pattern Completeness:** Step 5 covers all 7 identified conflict points with good/anti-pattern examples; the two gaps from this validation pass are additive clarifications to already-named files (`reservations-tab.tsx`, `reservation-type-badge.tsx`), not new pattern categories.
+
+### Gap Analysis Results
+
+**Critical Gaps:** None.
+
+**Important Gaps:** None remaining — the accordion sort/group helper location (resolved: colocated in `reservations-tab.tsx`) was the only one, now closed.
+
+**Nice-to-Have Gaps:**
+
+- `ReservationType` → icon map centralized in `reservation-type-badge.tsx` (resolved above, but worth calling out as a deliberate single-source choice for the implementer).
+- No architectural guidance was needed for the FR-9 row's "copy changes once ≥1 Reservation exists" microcopy logic — left to UI implementation per EXPERIENCE.md's Voice and Tone table; no architectural impact.
+
+### Validation Issues Addressed
+
+- **Accordion ordering helper location** (Important → resolved): pure sort/group function colocated in `src/components/packt/reservations-tab.tsx`, not a new `src/lib/` module — it has exactly one consumer.
+- **Icon mapping duplication risk** (Nice-to-have → resolved): `reservation-type-badge.tsx` is the single exported source for `ReservationType` → `lucide-react` icon, imported by `reservation-type-picker.tsx` and the accordion header.
+
+### Architecture Completeness Checklist
+
+**Requirements Analysis**
+
+- [x] Project context thoroughly analyzed
+- [x] Scale and complexity assessed
+- [x] Technical constraints identified
+- [x] Cross-cutting concerns mapped
+
+**Architectural Decisions**
+
+- [x] Critical decisions documented with versions
+- [x] Technology stack fully specified
+- [x] Integration patterns defined
+- [x] Performance considerations addressed
+
+**Implementation Patterns**
+
+- [x] Naming conventions established
+- [x] Structure patterns defined
+- [x] Communication patterns specified
+- [x] Process patterns documented
+
+**Project Structure**
+
+- [x] Complete directory structure defined
+- [x] Component boundaries established
+- [x] Integration points mapped
+- [x] Requirements to structure mapping complete
+
+### Architecture Readiness Assessment
+
+**Overall Status:** READY FOR IMPLEMENTATION
+
+**Confidence Level:** High — every decision was grounded in direct inspection of the actual codebase (`schema.ts`, `types.ts`, `db-mappers.ts`, `now-card.tsx`, `trip-detail-tab-body.tsx`, `actions.ts`), and the one structural misassumption (per-tab routing) was caught and corrected during this validation pass before it could mislead implementers.
+
+**Key Strengths:**
+
+- Linked Events have a single, named contract (`linkedReservationId`/`reservationType`) enforced across derivation, query-merge, and three rendering components — the highest-risk cross-component dependency is the most precisely specified.
+- FR-8's date-range extension reuses the existing `days`/`trips` transaction pattern (`addDay`/`removeLastDay`) rather than inventing a new mutation style.
+- Cover Overflow Menu (FR-12/13) is fully decoupled and can be implemented/tested independently of the Reservations work.
+
+**Areas for Future Enhancement:**
+
+- If a future feature needs Reservation-type icon lookups outside the Reservations tab/badges, consider promoting the icon map from `reservation-type-badge.tsx` to a shared `src/lib/` constant — not needed for this feature's scope.
+
+### Implementation Handoff
+
+**AI Agent Guidelines:**
+
+- Follow all architectural decisions exactly as documented
+- Use implementation patterns consistently across all components
+- Respect project structure and boundaries
+- Refer to this document for all architectural questions
+
+**First Implementation Priority:**
+
+Schema + mapper work: add the `reservations` table and `documents.reservation_id` column to `src/db/schema.ts`, add `ReservationType`/`Reservation` types and extend `Document["scope"]` in `src/data/types.ts`, then add `dbReservationToType()` and extend `dbDocToType()` in `src/lib/db-mappers.ts` (with colocated test updates) — this unblocks every other implementation step per the Decision Impact Analysis sequence.
