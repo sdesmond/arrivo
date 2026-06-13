@@ -1,6 +1,6 @@
 ---
 title: Reservations & Trip Logistics — Design
-status: draft
+status: final
 created: 2026-06-13
 updated: 2026-06-13
 sources:
@@ -103,7 +103,7 @@ components:
     iconForeground: "{colors.accent-ink}"
     textColor: "{colors.fg}"
     chevronColor: "{colors.fg-4}"
-    note: "Compact, permanently-visible row (REVISED — supersedes the earlier 'fr9-cta-banner' dismissible-card concept). No button, no shadow, no dismiss control; the whole row is a single <button> at h-12 (≥ h-8 floor)."
+    note: "Compact, permanently-visible row (REVISED — supersedes the earlier 'fr9-cta-banner' dismissible-card concept). Not a card with an inner button, and no shadow or dismiss control; the whole row is a single <button> at h-12 (≥ h-8 floor)."
   cover-overflow-menu:
     triggerBackground: "rgba(0,0,0,0.25)"
     triggerForeground: "#ffffff"
@@ -117,14 +117,14 @@ components:
 
 Packt's visual identity does not change for this feature. The product remains a calm, editorial trip-planning surface: a warm off-white canvas (`var(--bg)` / `var(--surface)` family), a single teal accent (`var(--accent-brand)`) reserved for primary actions and "happening now" states, and a restrained type system (`var(--font-heading)` for titles, `var(--font-body)` for everything else, `var(--font-mono)` for codes/timestamps/metadata). `src/app/globals.css` is the source of truth for every token referenced here.
 
-Reservations & Trip Logistics is additive: a new tab, a new drawer, and a handful of new row/badge patterns, all built from the existing card, badge, button, and empty-state vocabulary that already powers the Itinerary, Documents, and trip-list surfaces. Nothing in this feature introduces a new color, a new radius scale, or a new typographic voice. Where the feature needed a visual cue (the "Linked" indicator), the decision — after one revision — was to *reuse* existing neutral badge styling rather than invent a new accent. That reuse-first posture is the throughline for every component below.
+Reservations & Trip Logistics is additive: a new tab, a new drawer, and a handful of new row/badge patterns, all built from the existing card, badge, button, and empty-state vocabulary that already powers the Itinerary, Documents, and trip-list surfaces. Nothing in this feature introduces a new color, a new radius scale, or a new typographic voice. Where the feature needed a visual cue (the "Linked" indicator), the decision — after one revision — was to _reuse_ existing neutral badge styling rather than invent a new accent. That reuse-first posture is the throughline for every component below.
 
 ## Colors
 
 No new color tokens are introduced by this feature. Every value listed in this DESIGN.md's `colors` frontmatter is restated directly from `src/app/globals.css` (light + dark) for convenience, because the Reservations components below reference them by name.
 
 - **`--accent-brand` / `--accent-soft` / `--accent-fg` / `--accent-ink`** (teal) — unchanged meaning: primary actions ("Add Reservation" button, Save buttons), and the "happening now" highlight on Itinerary event rows (`now-row` background, "Now" pill). Reservations and Linked Events do **not** get their own accent — a Linked Event that is also the "now" event uses the same `--accent-soft`/`now-pill` treatment as any other event.
-- **`--surface` / `--surface-2` / `--surface-3`** — unchanged meaning: `--surface` for card headers and inset panels (accordion headers, FR-9 banner background, inline document rows); `--surface-2` for secondary chips and the "Linked" badge background; `--surface-3` for count badges on accordion headers.
+- **`--surface` / `--surface-2` / `--surface-3`** — unchanged meaning: `--surface` for card headers and inset panels (accordion headers, the FR-9 CTA row background, inline document rows); `--surface-2` for secondary chips and the "Linked" badge background; `--surface-3` for count badges on accordion headers.
 - **`--line` / `--line-strong`** — unchanged meaning: hairline borders on cards, accordions, dashed upload affordances (`--line-strong` for dashed/empty-state borders).
 - **`--fg` / `--fg-2` / `--fg-3` / `--fg-4`** — unchanged text-color ramp: `--fg` for primary text (provider names, event names), `--fg-2` for secondary labels and the "Linked" badge text, `--fg-3` for tertiary metadata (anchor labels, accordion previews, stop counts), `--fg-4` for placeholders and disabled affordances.
 
@@ -161,17 +161,17 @@ No layout/breakpoint changes: the Reservations tab joins the existing responsive
 
 ## Elevation & Depth
 
-Inherited from `globals.css` — `--shadow-1` (subtle, for resting cards: the FR-9 banner), `--shadow-2` (now-card-level elevation, not used by this feature's surfaces), `--shadow-3` (popovers/dropdowns/drawers: the FR-1 type-picker `DropdownMenu`, the Cover Overflow `DropdownMenuContent`, the Add/Edit Reservation `Drawer`). No new elevation tokens. Accordion cards and Reservation rows are flat (border only, no shadow), matching `day-card.tsx`.
+Inherited from `globals.css` — `--shadow-1` (subtle, for resting cards), `--shadow-2` (now-card-level elevation, not used by this feature's surfaces), `--shadow-3` (popovers/dropdowns/drawers: the FR-1 type-picker `DropdownMenu`, the Cover Overflow `DropdownMenuContent`, the Add/Edit Reservation `Drawer`). No new elevation tokens. Accordion cards, Reservation rows, and the FR-9 CTA row are all flat (border only, no shadow), matching `day-card.tsx`.
 
 ## Shapes
 
-Inherited radius scale: `--radius` (`0.625rem` / 10px) as the base, `rounded-sm`/`rounded-md`/`rounded-lg`/`rounded-xl` derived from it per `globals.css`'s `@theme inline` block, plus the app-wide `14px` "card" radius used for day cards and now applied identically to Reservation accordion sections and the FR-9 banner. Pills (`rounded-full` / `9999px`) are used for: the accordion count badge, the "Active" soft badge, the "Now" pill, and the new "Linked" badge — all existing pill usages, no new shape introduced.
+Inherited radius scale: `--radius` (`0.625rem` / 10px) as the base, `rounded-sm`/`rounded-md`/`rounded-lg`/`rounded-xl` derived from it per `globals.css`'s `@theme inline` block, plus the app-wide `14px` "card" radius used for day cards and now applied identically to Reservation accordion sections and the FR-9 CTA row. Pills (`rounded-full` / `9999px`) are used for: the accordion count badge, the "Active" soft badge, the "Now" pill, and the new "Linked" badge — all existing pill usages, no new shape introduced.
 
 Inline document rows and the empty-documents dashed panel use `8px`–`10px` radii, matching the existing `doc-row`/upload-affordance treatment in Documents.
 
 ## Components
 
-> All `Reference: .working/*.html` links below point at the in-progress mock location. If/when these mocks are promoted to `mockups/` at Finalize, update every reference in this section (and in `EXPERIENCE.md`) to the `mockups/` path — this single note covers all such references in both files.
+> `Reference: mockups/*.html` links below point at the promoted key-screen mocks (originally rendered to `.working/` during Discovery, now promoted at Finalize). Spines win on conflict.
 
 ### Add Reservation entry point (FR-1)
 
@@ -181,19 +181,19 @@ Each dropdown item: `6px 8px` padding, `6px` border radius, `10px` gap between i
 
 **Reservation Type → icon mapping (lucide-react, `strokeWidth={1.5}` always):**
 
-| Type | Icon |
-| --- | --- |
-| Flight | `Plane` |
-| Train | `Train` |
-| Bus | `Bus` |
-| Ferry | `Ship` |
-| Rental Car | `Car` |
-| Lodging | `Hotel` |
-| Cruise | `Anchor` |
+| Type       | Icon     |
+| ---------- | -------- |
+| Flight     | `Plane`  |
+| Train      | `Train`  |
+| Bus        | `Bus`    |
+| Ferry      | `Ship`   |
+| Rental Car | `Car`    |
+| Lodging    | `Hotel`  |
+| Cruise     | `Anchor` |
 
 `Anchor` (not `Ship`) is used for Cruise specifically to disambiguate it from Ferry's `Ship` icon — this mapping is used everywhere a Reservation Type icon appears (dropdown items, accordion headers, drawer title icon, Linked Event rows).
 
-Reference: `.working/key-reservations-tab.html` (dropdown shown open, all 7 items).
+Reference: `mockups/key-reservations-tab.html` (dropdown shown open, all 7 items).
 
 ### Reservation Type accordion section (FR-2)
 
@@ -207,7 +207,7 @@ Visually modeled directly on `day-card.tsx` / `day-card-header.tsx`:
 
 Only Reservation Types with ≥1 Reservation get a section. Populated sections are ordered by each type's next-upcoming Reservation's `startTime`, soonest first — re-sorting live as Reservations are added, edited, or deleted across types.
 
-Reference: `.working/key-reservations-tab.html`.
+Reference: `mockups/key-reservations-tab.html`.
 
 ### Reservation row (FR-2, FR-3, FR-5)
 
@@ -221,7 +221,7 @@ Within an expanded accordion section, each Reservation renders as a row: `14px 1
 
 Each editable field (provider, anchor times, confirmation code, notes) is click-to-edit, consistent with `doc-row.tsx`'s inline-rename pattern (click text → input with `border-bottom: 1px solid var(--accent-brand)`, blur/Enter to save, Escape to cancel). `type` is displayed (as the accordion's icon/title) but never editable on the row.
 
-Reference: `.working/key-reservations-tab.html` (two Lodging rows — one with an attached PDF, one with the empty-upload affordance).
+Reference: `mockups/key-reservations-tab.html` (two Lodging rows — one with an attached PDF, one with the empty-upload affordance).
 
 ### Add/Edit Reservation drawer (FR-1, FR-3)
 
@@ -230,8 +230,8 @@ Container: `Drawer` / `DrawerContent` / `DrawerHeader` / `DrawerFooter` — the 
 - **Header**: a `32px`×`32px` rounded (`8px`) icon swatch (`var(--surface)` background, `var(--fg-2)` icon, the selected Reservation Type's icon per the FR-1 mapping) + drawer title ("Add {Type} Reservation" / "Edit {Type} Reservation") in `{typography.drawer-title}`. Below, left-indented to align under the title (`42px` margin-left, matching the icon+gap width): a subtitle, `{typography.drawer-subtitle}` — "Type: {Type} (cannot be changed after saving)" on Add; on Edit, the same subtitle but without the parenthetical (type is simply shown, not editable — no type picker re-shown).
 - **Body**: `16px 20px 24px` padding, `18px` vertical gap between fields, scrollable.
 - **Fields**, each `{typography.field-label}` with a teal `*` (required) or muted "Optional" suffix — both the `*` and "Optional" are part of the `<label>` text itself (not a disconnected sibling element, matching `form-section.tsx`/`trip-edit-sheet.tsx`), and required inputs carry `aria-required="true"`:
-  - **Provider*** — single-line `Input` (`h-9`, per the `sm` size token).
-  - **Time anchor fields** — labeled per Reservation Type (Check-in/Check-out for Lodging, Pickup/Return for Rental Car, Departure/Return for Cruise, Departure/Arrival for Flight/Train/Bus/Ferry). Each anchor is an `input-row`: two `h-9` inputs side by side (date with `Calendar` icon, time with `Clock` icon, both `14px` field icons in `var(--fg-3)`, `aria-hidden="true"`). `endTime`/second-anchor field is required (`*`) for Lodging, Rental Car, Cruise; omitted entirely as a hard requirement (still offered, optional) for Flight/Train/Bus/Ferry — if left blank, only the start Linked Event is generated (FR-7). Each `input-row` is a `<fieldset>` labeled via the visible field label (e.g. `<legend>`/`aria-labelledby` = "Check-in*"); the two inputs within it carry their own `aria-label`s ("Check-in date", "Check-in time") so the pairing and the individual fields are both announced correctly.
+  - **Provider\*** — single-line `Input` (`h-9`, per the `sm` size token).
+  - **Time anchor fields** — labeled per Reservation Type (Check-in/Check-out for Lodging, Pickup/Return for Rental Car, Departure/Return for Cruise, Departure/Arrival for Flight/Train/Bus/Ferry). Each anchor is an `input-row`: two `h-9` inputs side by side (date with `Calendar` icon, time with `Clock` icon, both `14px` field icons in `var(--fg-3)`, `aria-hidden="true"`). `endTime`/second-anchor field is required (`*`) for Lodging, Rental Car, Cruise; omitted entirely as a hard requirement (still offered, optional) for Flight/Train/Bus/Ferry — if left blank, only the start Linked Event is generated (FR-7). Each `input-row` is a `<fieldset>` labeled via the visible field label (e.g. `<legend>`/`aria-labelledby` = "Check-in\*"); the two inputs within it carry their own `aria-label`s ("Check-in date", "Check-in time") so the pairing and the individual fields are both announced correctly.
   - **Confirmation code** (Optional) — single-line `Input`, placeholder "e.g. TAV-88410".
   - **Notes** (Optional) — `Textarea`, `72px` min-height.
   - **Documents** (FR-5) — uppercase `12px` section label ("Documents", weight 600, letter-spacing 0.04em, `var(--fg-3)`), followed by either the existing attached-document inline rows (same styling as the Reservation-row document rows above) or, when empty, a dashed empty panel (`1px dashed var(--line-strong)`, `10px` radius, `var(--surface)` background, centered `FileText` icon in a `32px` `var(--bg)` swatch, "No documents yet" title, descriptive copy, and an "Add document" button at `outline`/`sm` size — directly reusing the Documents-tab empty-state visual language from `trip-docs-tab.tsx`/`empty.tsx`).
@@ -239,7 +239,7 @@ Container: `Drawer` / `DrawerContent` / `DrawerHeader` / `DrawerFooter` — the 
 
 On **Add**, the drawer opens directly into the selected type's fields (no in-drawer type switcher — type is chosen via the FR-1 dropdown before the drawer opens). On **Edit**, the same drawer/fields render with the type shown read-only in the header subtitle.
 
-Reference: `.working/key-add-reservation-drawer.html` (Lodging, both anchors required, one notes line, empty Documents panel).
+Reference: `mockups/key-add-reservation-drawer.html` (Lodging, both anchors required, one notes line, empty Documents panel).
 
 ### Linked Event indicator on the Itinerary (FR-7, FR-11) — REVISED
 
@@ -250,7 +250,7 @@ A Linked Event renders as a **normal Itinerary event row** — same `12px 16px` 
 
 **No left border, no row background tint, no new color token.** The event's meta line shows the same full date+time anchor format as Reservation rows ("Check-in: Tue, Jun 16 · 3:00 PM — from {Type} reservation"). When a Linked Event is also the "happening now" event, the row background becomes `var(--accent-soft)` (#d6efec) as usual — the "Linked" badge's `var(--surface-2)`/`var(--fg-2)` pair remains legible on this lighter background (both are still within AA contrast against `--accent-soft`), so no badge-specific override is needed for the now+Linked co-occurrence.
 
-Reference: `.working/key-itinerary-linked-event.html` — shows a manual event (MapPin, no badge), a "happening now" event (teal highlight, MapPin, "Now" pill), and a Linked Event (Hotel icon, "Linked" badge) side by side for contrast.
+Reference: `mockups/key-itinerary-linked-event.html` — shows a manual event (MapPin, no badge), a "happening now" event (teal highlight, MapPin, "Now" pill), and a Linked Event (Hotel icon, "Linked" badge) side by side for contrast.
 
 ### FR-9 Itinerary CTA row — REVISED
 
@@ -266,7 +266,7 @@ Copy: "Add reservations for hotels, rentals, and more" when the trip has zero Re
 
 Tapping the row is **sequential**: (1) navigates to the Reservations tab, (2) once that transition settles, the FR-1 type-picker `DropdownMenu` auto-opens with focus on its first item. See `{EXPERIENCE.md}` Component Patterns and Accessibility Floor for the full sequencing and `aria-live` behavior.
 
-Reference: `.working/key-itinerary-empty-cta-banner.html`.
+Reference: `mockups/key-itinerary-empty-cta-banner.html`.
 
 ### Reservations tab empty state (FR-6)
 
@@ -285,17 +285,17 @@ Direct reuse of `now-card.tsx`'s overflow pattern, applied to `trip-hero.tsx`'s 
 
 This is a new menu instance on the trip detail page — it does not modify or duplicate the trip-list card's "Edit trip"/"Delete trip" overflow menu in `now-card.tsx`.
 
-Reference: `.working/key-cover-overflow-menu.html` (all three items shown — Photo/Unsplash cover state).
+Reference: `mockups/key-cover-overflow-menu.html` (all three items shown — Photo/Unsplash cover state).
 
 ## Do's and Don'ts
 
-| Do | Don't |
-| --- | --- |
-| Reuse `day-card.tsx`/`day-card-header.tsx` styling (rounded-14, `var(--surface)` header, `var(--line)` border, chevron) for Reservation accordion sections | Invent a new card shell for accordion sections |
-| Use the FR-1 Reservation Type → icon mapping (Plane/Train/Bus/Ship/Car/Hotel/Anchor, `strokeWidth={1.5}`) consistently across the dropdown, accordion headers, drawer titles, and Linked Event rows | Use different icons for the same Reservation Type in different surfaces |
-| Indicate a Linked Event with **only** (1) the Reservation Type icon replacing `MapPin` and (2) a neutral "Linked" badge (`var(--surface-2)`/`var(--fg-2)`, exactly `Badge` `muted`) | Reintroduce the superseded `--linked-brand` / `--linked-soft` / `--linked-ink` violet tokens, a left-border accent, or a tinted row background for Linked Events |
-| Keep the "happening now" `var(--accent-soft)`/"Now" pill treatment as the *only* accent-colored state on Itinerary rows — it can co-occur with the Linked indicator | Add a second accent color or a competing highlight for Linked Events |
-| Reuse `DocKindBadge` and the Documents-tab empty-state composition (`Empty`/`EmptyMedia variant="icon"`/etc.) for Reservation document attachments | Build a parallel document-row or empty-state component for Reservations |
-| Reuse the `now-card.tsx` `MoreHorizontal`/`DropdownMenu` overflow pattern verbatim for the Cover Overflow Menu | Create a new trigger style or menu shell for the Cover Overflow Menu |
-| Keep all new interactive targets at or above `h-8` (icon buttons `size-8`+, primary buttons `h-9`/`h-10` per `CLAUDE.md` size tokens) | Use sub-`h-8` tap targets for inline document upload affordances, dismiss buttons, etc. |
-| Use `strokeWidth={1.5}` on every lucide icon introduced by this feature | Mix icon stroke weights |
+| Do                                                                                                                                                                                                  | Don't                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reuse `day-card.tsx`/`day-card-header.tsx` styling (rounded-14, `var(--surface)` header, `var(--line)` border, chevron) for Reservation accordion sections                                          | Invent a new card shell for accordion sections                                                                                                                   |
+| Use the FR-1 Reservation Type → icon mapping (Plane/Train/Bus/Ship/Car/Hotel/Anchor, `strokeWidth={1.5}`) consistently across the dropdown, accordion headers, drawer titles, and Linked Event rows | Use different icons for the same Reservation Type in different surfaces                                                                                          |
+| Indicate a Linked Event with **only** (1) the Reservation Type icon replacing `MapPin` and (2) a neutral "Linked" badge (`var(--surface-2)`/`var(--fg-2)`, exactly `Badge` `muted`)                 | Reintroduce the superseded `--linked-brand` / `--linked-soft` / `--linked-ink` violet tokens, a left-border accent, or a tinted row background for Linked Events |
+| Keep the "happening now" `var(--accent-soft)`/"Now" pill treatment as the _only_ accent-colored state on Itinerary rows — it can co-occur with the Linked indicator                                 | Add a second accent color or a competing highlight for Linked Events                                                                                             |
+| Reuse `DocKindBadge` and the Documents-tab empty-state composition (`Empty`/`EmptyMedia variant="icon"`/etc.) for Reservation document attachments                                                  | Build a parallel document-row or empty-state component for Reservations                                                                                          |
+| Reuse the `now-card.tsx` `MoreHorizontal`/`DropdownMenu` overflow pattern verbatim for the Cover Overflow Menu                                                                                      | Create a new trigger style or menu shell for the Cover Overflow Menu                                                                                             |
+| Keep all new interactive targets at or above `h-8` (icon buttons `size-8`+, primary buttons `h-9`/`h-10` per `CLAUDE.md` size tokens)                                                               | Use sub-`h-8` tap targets for inline document upload affordances, dismiss buttons, etc.                                                                          |
+| Use `strokeWidth={1.5}` on every lucide icon introduced by this feature                                                                                                                             | Mix icon stroke weights                                                                                                                                          |
