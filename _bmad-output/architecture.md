@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2]
+stepsCompleted: [1, 2, 3]
 inputDocuments:
   - _bmad-output/prds/prd-packt-2026-06-12/prd.md
   - _bmad-output/ux-designs/ux-packt-2026-06-13/DESIGN.md
@@ -56,3 +56,21 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **Itinerary date-range extension & Day renumbering (FR-8)** — must integrate with however Days/dates are currently derived from `trip.startDate`/`endDate`, without breaking `getTripStatus()`'s date-driven status computation.
 - **New tab integration** — `TripDetailTab` gains a Reservations tab following the existing Itinerary/Map/Documents/Packing/Notes tab-shell pattern, no new navigation primitive.
 - **Cover Overflow Menu** — net-new but low-risk; directly reuses `now-card.tsx`'s `MoreHorizontal`/`DropdownMenu` pattern and existing `CoverImagePicker`/attribution dialogs.
+
+## Starter Template Evaluation
+
+### Primary Technology Domain
+
+Full-stack web (Next.js App Router) — not applicable for a fresh starter evaluation.
+
+### Starter Options Considered
+
+N/A. Packt is an existing, established codebase with its full stack, conventions, and tooling already in place (Next.js 16.2.4, React 19.2.4, TypeScript strict, Tailwind v4, @base-ui/react + shadcn, Drizzle ORM + PostgreSQL, Auth.js v5, Vitest, Playwright-BDD — see `_bmad-output/project-context.md`). The Reservations & Trip Logistics feature is additive: new schema, mappers, server actions, and components built within this existing architecture.
+
+### Selected Starter: None — extending existing project
+
+**Rationale for Selection:**
+
+No starter template applies. All architectural decisions in this document build on Packt's current structure (`src/db/schema.ts`, `src/lib/db-mappers.ts`, `src/lib/queries.ts`, `src/app/(app)/trips/[tripId]/`, `src/components/packt/`, `src/components/ui/`) and conventions (enums as const objects, `requireUser()`/`assertTripAccess()`/`revalidatePath()` server-action pattern, colocated tests, etc.).
+
+**Note:** No project initialization story is needed. The first implementation story is the schema/mapper work for the new `Reservation` entity and `Document.scope` extension.
