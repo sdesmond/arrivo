@@ -46,6 +46,8 @@ typography:
     note: "var(--fs-card-sub) = 13px base, scaled by var(--font-scale); color var(--fg-3). Used for accordion preview rows, Reservation anchor lines, Linked Event meta."
   drawer-title:
     note: "18px, font-family var(--font-heading, ui-sans-serif), font-weight 600, letter-spacing -0.01em. Used for Add/Edit Reservation drawer titles."
+  drawer-subtitle:
+    note: "12.5px, color var(--fg-3). Used for the Add/Edit Reservation drawer's type subtitle ('Type: {Type} (cannot be changed after saving)')."
   field-label:
     note: "12.5px, font-weight 500, color var(--fg-2). Used for drawer field labels (Provider, Check-in, Confirmation code, etc.)."
   mono-confirmation:
@@ -75,6 +77,7 @@ components:
     background: "{colors.surface-3}"
     foreground: "{colors.fg-2}"
     radius: "{rounded.full}"
+    note: "This is the accordion header's count badge (e.g. '2' on the Lodging section) — see Components > Reservation Type accordion section. aria-hidden, since the accordion's accessible name already states the count in words."
   reservation-row:
     providerTypography: "{typography.card-title}"
     anchorLabelColor: "{colors.fg-3}"
@@ -83,24 +86,24 @@ components:
     confirmationTypography: "{typography.mono-confirmation}"
   linked-event-badge:
     background: "{colors.surface-2}"
-    foreground: "{colors.fg-3}"
+    foreground: "{colors.fg-2}"
     radius: "{rounded.full}"
-    note: "Reuses Badge component's secondary/muted styling — same background/foreground pair as badge variant=muted ([background:var(--surface-2)] [color:var(--fg-2)]), rendered slightly smaller/lighter (fg-3) per the approved mock. No new variant required if muted is acceptable; otherwise add a same-palette size override only."
+    note: "Reuses Badge component's secondary/muted styling verbatim — same background/foreground pair as badge variant=muted ([background:var(--surface-2)] [color:var(--fg-2)]), ~8.4:1 contrast (AA). The approved mock used a lighter fg-3 foreground (~3.5:1, fails AA); corrected here to fg-2 — no new variant required."
   add-reservation-button:
     size: "default"
     height: "h-10"
     paddingX: "px-4"
     background: "{colors.accent-brand}"
     foreground: "{colors.accent-fg}"
-  fr9-cta-banner:
+  fr9-cta-row:
     radius: "{rounded.card}"
     border: "{colors.line}"
     background: "{colors.surface}"
-    shadow: "var(--shadow-1)"
     iconBackground: "{colors.accent-soft}"
     iconForeground: "{colors.accent-ink}"
-    buttonSize: "sm"
-    dismissButtonSize: "icon-xs"
+    textColor: "{colors.fg}"
+    chevronColor: "{colors.fg-4}"
+    note: "Compact, permanently-visible row (REVISED — supersedes the earlier 'fr9-cta-banner' dismissible-card concept). No button, no shadow, no dismiss control; the whole row is a single <button> at h-12 (≥ h-8 floor)."
   cover-overflow-menu:
     triggerBackground: "rgba(0,0,0,0.25)"
     triggerForeground: "#ffffff"
@@ -134,7 +137,7 @@ Mid-run, a violet/indigo `--linked-brand` / `--linked-soft` / `--linked-ink` tok
 Inherited wholesale from `globals.css` — `var(--font-heading)` for titles and section headers, `var(--font-body)` for body copy, `var(--font-mono)` for codes/timestamps, all with `var(--font-scale)` multipliers for the app's font-size preference. The feature reuses two existing size tokens directly:
 
 - **`var(--fs-card-title)`** (15px base, weight 600, heading font) — accordion section titles (Lodging, Flights, Rental Car, etc.) and each Reservation row's provider name (e.g. "Hotel Avenida Palace").
-- **`var(--fs-card-sub)`** (13px base, color `var(--fg-3)`) — accordion collapsed-preview text ("Next: TAP Air Portugal · Sun, Jun 14 · 8:35 AM"), Reservation anchor lines ("Check-in: Tue, Jun 16 · 3:00 PM"), and Linked Event meta lines.
+- **`var(--fs-card-sub)`** (13px base, color `var(--fg-3)`) — Reservation anchor lines ("Check-in: Tue, Jun 16 · 3:00 PM") and Linked Event meta lines, both at the `var(--fg-3)`-on-`var(--bg)` AA floor (~4.5:1). **Exception**: accordion collapsed-preview text ("Next: TAP Air Portugal · Sun, Jun 14 · 8:35 AM") uses `var(--fg-2)` instead of the default `var(--fg-3)`, since on `var(--surface)` the `fg-3` pairing drops to ~4.3:1 and fails AA — see Components > Reservation Type accordion section.
 
 New, feature-specific typographic roles (sized relative to existing scales, no new tokens):
 
@@ -152,7 +155,7 @@ Standard Tailwind 4-based scale, no new spacing tokens. Notable feature-specific
 - **Reservation row**: `14px 16px` padding, `1px solid var(--line)` bottom border (omitted on the last row in a section) — denser than a day-card event row (`12px 16px`) to fit more fields (provider, two anchor lines, confirmation chip, document row).
 - **Inline document row** (within an expanded Reservation row): `8px 10px` padding, `8px` border-radius, `var(--surface)` background, `1px solid var(--line)` border, `10px` top margin from the confirmation chip.
 - **Add Reservation drawer body**: `16px 20px 24px` padding, `18px` gap between fields — consistent with `trip-edit-sheet.tsx`'s drawer body spacing.
-- **FR-9 CTA banner**: `14px` padding (`40px` right padding to clear the dismiss button), `12px` gap between icon/body, `14px` border radius, `16px` bottom margin before the first day card.
+- **FR-9 CTA row**: `10px 12px` padding, `10px` gap between icon/text/chevron, `14px` border radius, `16px` bottom margin before the first day card, `h-12` overall.
 
 No layout/breakpoint changes: the Reservations tab joins the existing responsive tab shell (bottom tab bar on mobile, top tabs on desktop) used by Itinerary/Map/Documents/Packing/Notes. No custom desktop layout for Reservations.
 
@@ -167,6 +170,8 @@ Inherited radius scale: `--radius` (`0.625rem` / 10px) as the base, `rounded-sm`
 Inline document rows and the empty-documents dashed panel use `8px`–`10px` radii, matching the existing `doc-row`/upload-affordance treatment in Documents.
 
 ## Components
+
+> All `Reference: .working/*.html` links below point at the in-progress mock location. If/when these mocks are promoted to `mockups/` at Finalize, update every reference in this section (and in `EXPERIENCE.md`) to the `mockups/` path — this single note covers all such references in both files.
 
 ### Add Reservation entry point (FR-1)
 
@@ -195,9 +200,9 @@ Reference: `.working/key-reservations-tab.html` (dropdown shown open, all 7 item
 Visually modeled directly on `day-card.tsx` / `day-card-header.tsx`:
 
 - **Container**: `rounded-[14px]`, `1px solid var(--line)`, `var(--bg)` background, `12px` bottom margin, `overflow: hidden`.
-- **Header** (`12px 16px` padding, `var(--surface)` background, clickable to toggle): left side is an icon-title group — the Reservation Type icon (`18px`, `var(--fg-2)`, `strokeWidth={1.5}`) + type name in `{typography.card-title}`. Right side: a count badge (pill, `22px` height, `var(--surface-3)` background, `var(--fg-2)` text, `11px` weight 600) + a `ChevronDown` (`14px`, `var(--fg-4)`, rotates 180° when open) — same chevron-rotation behavior as `DayCardHeader`.
+- **Header** (`12px 16px` padding, `var(--surface)` background, clickable to toggle): left side is an icon-title group — the Reservation Type icon (`18px`, `var(--fg-2)`, `strokeWidth={1.5}`) + type name in `{typography.card-title}`. Right side: a count badge (`{components.reservation-type-badge}` — pill, `22px` height, `11px` weight 600) + a `ChevronDown` (`14px`, `var(--fg-4)`, rotates 180° when open) — same chevron-rotation behavior as `DayCardHeader`. Both the count badge and the `ChevronDown` are `aria-hidden="true"` (decorative): the header `<button>`'s accessible name states the count and expanded/collapsed state in words — see `{EXPERIENCE.md}` Accessibility Floor.
 - **Border between header and body**: `1px solid var(--line)`, only present when expanded (matches `DayCardHeader`'s conditional border).
-- **Collapsed preview**: `0 16px 12px 16px` padding, `var(--surface)` background (continuation of header), `{typography.card-sub}` text — "Next: **{provider}** · {weekday}, {month} {day} · {time}" where the provider name is `var(--fg-2)` weight 500 and the rest is `var(--fg-3)`.
+- **Collapsed preview**: `0 16px 12px 16px` padding, `var(--surface)` background (continuation of header), `{typography.card-sub}` text — "Next: **{provider}** · {weekday}, {month} {day} · {time}" where the provider name is `var(--fg-2)` weight 500 and the rest is `var(--fg-2)` (bumped from `card-sub`'s default `var(--fg-3)` — at ~4.3:1 on `var(--surface)`, `fg-3` fails AA for this text size; `fg-2` is ~8.4:1).
 - **Sections with zero Reservations of that type render no accordion at all** (FR-2).
 
 Only Reservation Types with ≥1 Reservation get a section. Populated sections are ordered by each type's next-upcoming Reservation's `startTime`, soonest first — re-sorting live as Reservations are added, edited, or deleted across types.
@@ -209,8 +214,8 @@ Reference: `.working/key-reservations-tab.html`.
 Within an expanded accordion section, each Reservation renders as a row: `14px 16px` padding, `1px solid var(--line)` bottom border (omitted on the last row).
 
 - **Provider name**: `{typography.card-title}` (15px, weight 600, heading font), `6px` bottom margin.
-- **Anchor lines** (one or two, per Reservation Type — see Glossary): each is a flex row with `6px` gap, baseline-aligned. The label ("Check-in:", "Check-out:", "Departure:", etc.) is `var(--fg-3)`, fixed `68px` min-width; the value ("Tue, Jun 16 · 3:00 PM") is `var(--fg-2)`, both at `{typography.card-sub}` (13px). Format is "{Weekday, Month Day} · {h:mm AM/PM}" — the day-card date format (`Tue, Jun 16`) plus a time, per the decision log.
-- **Confirmation code chip** (if present): inline-flex, `3px 8px` padding, `6px` radius, `var(--surface-2)` background, `{typography.mono-confirmation}`, with a small `Wallet`/credit-card-style icon (`13px`, `var(--fg-3)`) — `8px` top margin from the last anchor line.
+- **Anchor lines** (one or two, per Reservation Type — see Glossary): each is a flex row with `6px` gap, baseline-aligned. The label ("Check-in:", "Check-out:", "Departure:", etc.) is `var(--fg-3)`, fixed `68px` min-width; the value ("Tue, Jun 16 · 3:00 PM") is `var(--fg-2)`, both at `{typography.card-sub}` (13px). Format is "{Weekday, Month Day} · {h:mm AM/PM}" — the day-card date format (`Tue, Jun 16`) plus a time, per the decision log. `var(--fg-3)` on `var(--bg)` is ~4.5:1 — this is the AA floor for this label; do not drop to `var(--fg-4)`.
+- **Confirmation code chip** (if present): inline-flex, `3px 8px` padding, `6px` radius, `var(--surface-2)` background, `{typography.mono-confirmation}`, with a small `Wallet`/credit-card-style icon (`13px`, `var(--fg-3)`, `aria-hidden="true"` — decorative) — `8px` top margin from the last anchor line.
 - **Attached documents** (FR-5): each rendered as an inline document row directly below the confirmation chip — `8px` top margin, flex row with `8px` gap, `8px 10px` padding, `8px` radius, `var(--surface)` background, `1px solid var(--line)` border. Contains a `DocKindBadge` (reused as-is from `doc-kind-badge.tsx`), a truncated filename (`{typography.card-sub}`, `flex: 1`), and a `28px`×`28px` upload-affordance icon button (`6px` radius, `1px dashed var(--line-strong)` border, `var(--fg-3)`) with `title="Add document"`.
 - **No-documents state**: a single dashed row (`border-style: dashed`, centered content, `var(--fg-3)`, `12px` text) reading "Add confirmation document" with an `Upload` icon (`14px`) — same visual family as the Documents-tab empty affordance but inline and compact.
 
@@ -224,9 +229,9 @@ Container: `Drawer` / `DrawerContent` / `DrawerHeader` / `DrawerFooter` — the 
 
 - **Header**: a `32px`×`32px` rounded (`8px`) icon swatch (`var(--surface)` background, `var(--fg-2)` icon, the selected Reservation Type's icon per the FR-1 mapping) + drawer title ("Add {Type} Reservation" / "Edit {Type} Reservation") in `{typography.drawer-title}`. Below, left-indented to align under the title (`42px` margin-left, matching the icon+gap width): a subtitle, `{typography.drawer-subtitle}` — "Type: {Type} (cannot be changed after saving)" on Add; on Edit, the same subtitle but without the parenthetical (type is simply shown, not editable — no type picker re-shown).
 - **Body**: `16px 20px 24px` padding, `18px` vertical gap between fields, scrollable.
-- **Fields**, each `{typography.field-label}` with a teal `*` (required) or muted "Optional" suffix:
+- **Fields**, each `{typography.field-label}` with a teal `*` (required) or muted "Optional" suffix — both the `*` and "Optional" are part of the `<label>` text itself (not a disconnected sibling element, matching `form-section.tsx`/`trip-edit-sheet.tsx`), and required inputs carry `aria-required="true"`:
   - **Provider*** — single-line `Input` (`h-9`, per the `sm` size token).
-  - **Time anchor fields** — labeled per Reservation Type (Check-in/Check-out for Lodging, Pickup/Return for Rental Car, Departure/Return for Cruise, Departure/Arrival for Flight/Train/Bus/Ferry). Each anchor is an `input-row`: two `h-9` inputs side by side (date with `Calendar` icon, time with `Clock` icon, both `14px` field icons in `var(--fg-3)`). `endTime`/second-anchor field is required (`*`) for Lodging, Rental Car, Cruise; omitted entirely as a hard requirement (still offered, optional) for Flight/Train/Bus/Ferry — if left blank, only the start Linked Event is generated (FR-7).
+  - **Time anchor fields** — labeled per Reservation Type (Check-in/Check-out for Lodging, Pickup/Return for Rental Car, Departure/Return for Cruise, Departure/Arrival for Flight/Train/Bus/Ferry). Each anchor is an `input-row`: two `h-9` inputs side by side (date with `Calendar` icon, time with `Clock` icon, both `14px` field icons in `var(--fg-3)`, `aria-hidden="true"`). `endTime`/second-anchor field is required (`*`) for Lodging, Rental Car, Cruise; omitted entirely as a hard requirement (still offered, optional) for Flight/Train/Bus/Ferry — if left blank, only the start Linked Event is generated (FR-7). Each `input-row` is a `<fieldset>` labeled via the visible field label (e.g. `<legend>`/`aria-labelledby` = "Check-in*"); the two inputs within it carry their own `aria-label`s ("Check-in date", "Check-in time") so the pairing and the individual fields are both announced correctly.
   - **Confirmation code** (Optional) — single-line `Input`, placeholder "e.g. TAV-88410".
   - **Notes** (Optional) — `Textarea`, `72px` min-height.
   - **Documents** (FR-5) — uppercase `12px` section label ("Documents", weight 600, letter-spacing 0.04em, `var(--fg-3)`), followed by either the existing attached-document inline rows (same styling as the Reservation-row document rows above) or, when empty, a dashed empty panel (`1px dashed var(--line-strong)`, `10px` radius, `var(--surface)` background, centered `FileText` icon in a `32px` `var(--bg)` swatch, "No documents yet" title, descriptive copy, and an "Add document" button at `outline`/`sm` size — directly reusing the Documents-tab empty-state visual language from `trip-docs-tab.tsx`/`empty.tsx`).
@@ -240,22 +245,26 @@ Reference: `.working/key-add-reservation-drawer.html` (Lodging, both anchors req
 
 A Linked Event renders as a **normal Itinerary event row** — same `12px 16px` padding, same `1px solid var(--line)` bottom border, same time column, same "happening now" `var(--accent-soft)`/"Now" pill treatment if applicable. The **only** two differences from a manually-created event row:
 
-1. **Leading icon**: the Reservation Type's icon (per the FR-1 mapping — e.g. `Hotel` for a Lodging check-in) replaces the default `MapPin` icon used by manual events. Same size (`16px`), same color (`var(--fg-3)`), same `strokeWidth={1.5}`.
-2. **"Linked" badge**: a small pill badge — `18px` height, `0 7px` padding, `999px` radius, `10px` text, weight 500, `var(--surface-2)` background, `var(--fg-3)` foreground — placed inline after the event name, reading "Linked". This is the same neutral palette as the `Badge` component's `muted`/`secondary` variants (`[background:var(--surface-2)] [color:var(--fg-2)]`); no new badge variant is strictly required, though a slightly lighter `var(--fg-3)` foreground was used in the approved mock — see `{components.linked-event-badge}`.
+1. **Leading icon**: the Reservation Type's icon (per the FR-1 mapping — e.g. `Hotel` for a Lodging check-in) replaces the default `MapPin` icon used by manual events. Same size (`16px`), same color (`var(--fg-3)`), same `strokeWidth={1.5}`, `aria-hidden="true"` (decorative — same as the default `MapPin`).
+2. **"Linked" badge**: a small pill badge — `18px` height, `0 7px` padding, `999px` radius, `10px` text, weight 500, `var(--surface-2)` background, `var(--fg-2)` foreground — placed inline after the event name, reading "Linked". This is exactly the `Badge` component's `muted`/`secondary` variant (`[background:var(--surface-2)] [color:var(--fg-2)]`, ~8.4:1 contrast, AA) — no new badge variant required. See `{components.linked-event-badge}`. The badge text is `aria-hidden="true"`; "Linked" is instead exposed via the row's accessible name (see `{EXPERIENCE.md}` Accessibility Floor).
 
-**No left border, no row background tint, no new color token.** The event's meta line shows the same full date+time anchor format as Reservation rows ("Check-in: Tue, Jun 16 · 3:00 PM — from {Type} reservation").
+**No left border, no row background tint, no new color token.** The event's meta line shows the same full date+time anchor format as Reservation rows ("Check-in: Tue, Jun 16 · 3:00 PM — from {Type} reservation"). When a Linked Event is also the "happening now" event, the row background becomes `var(--accent-soft)` (#d6efec) as usual — the "Linked" badge's `var(--surface-2)`/`var(--fg-2)` pair remains legible on this lighter background (both are still within AA contrast against `--accent-soft`), so no badge-specific override is needed for the now+Linked co-occurrence.
 
 Reference: `.working/key-itinerary-linked-event.html` — shows a manual event (MapPin, no badge), a "happening now" event (teal highlight, MapPin, "Now" pill), and a Linked Event (Hotel icon, "Linked" badge) side by side for contrast.
 
-### FR-9 Itinerary empty-state CTA banner
+### FR-9 Itinerary CTA row — REVISED
 
-A compact horizontal card, `rounded-[14px]`, `1px solid var(--line)`, `var(--surface)` background, `var(--shadow-1)`, `14px` padding (`40px` on the right to clear the dismiss control), `16px` bottom margin, positioned above the first day card.
+A small, **permanently-visible, list-item-height row** (`{components.fr9-cta-row}`) — `h-12`, `rounded-[14px]`, `1px solid var(--line)`, `var(--surface)` background, `10px 12px` padding, `16px` bottom margin, positioned above the first day card. No shadow, no dismiss control — this supersedes the earlier "dismissible banner card" concept entirely.
 
-- **Icon swatch**: `36px`×`36px`, `10px` radius, `var(--accent-soft)` background, `var(--accent-ink)` foreground, `Luggage` icon (`18px`, `strokeWidth={1.5}`).
-- **Body**: title (`14px`, weight 600, heading font, `var(--fg)`) + description (`12.5px`, `var(--fg-3)`) + an "Add Reservation" button (`sm` size — `h-9`/`px-3.5`, `var(--accent-brand)` fill, `Plus` icon, `8px` top margin).
-- **Dismiss control**: top-right, `icon-xs`/`size-8` icon button, `var(--fg-4)` foreground, `X` icon (`15px`), `title="Dismiss"`.
+- **Icon**: `28px`×`28px`, `8px` radius, `var(--accent-soft)` background, `var(--accent-ink)` foreground, `Luggage` icon (`15px`, `strokeWidth={1.5}`, `aria-hidden="true"`).
+- **Text**: single line, `{typography.card-sub}` size but `13px`/weight 500/`var(--fg)` (not `var(--fg-3)` — this is primary CTA copy, not metadata), `flex: 1`, truncates if needed.
+- **Trailing chevron**: `ChevronRight`, `16px`, `var(--fg-4)`, `strokeWidth={1.5}`, `aria-hidden="true"` — signals "tap to go elsewhere", matching the tap-to-navigate affordance used for Linked Event rows.
 
-Copy: title "Track your bookings here" / description "Add reservations for hotels, rentals, and more" when the trip has zero Reservations; description switches to a prompt for adding *more* Reservations once ≥1 exists (same shell, same deep-link behavior). Tapping the button navigates to the Reservations tab and immediately opens the FR-1 type-picker `DropdownMenu` — no second tap.
+The entire row is a single `<button>` (not a card with an inner button) — its accessible name is the full copy plus a navigation hint, e.g. `aria-label="Add reservations for hotels, rentals, and more — opens the Reservations tab"`. The icon, text, and chevron are all `aria-hidden="true"`; the `<button>`'s `aria-label` is the sole accessible description.
+
+Copy: "Add reservations for hotels, rentals, and more" when the trip has zero Reservations; switches to "Add another reservation" once ≥1 Reservation exists (same shell, same row, same behavior — the row never disappears, per the PRD's "continues to link to the Reservations tab" wording).
+
+Tapping the row is **sequential**: (1) navigates to the Reservations tab, (2) once that transition settles, the FR-1 type-picker `DropdownMenu` auto-opens with focus on its first item. See `{EXPERIENCE.md}` Component Patterns and Accessibility Floor for the full sequencing and `aria-live` behavior.
 
 Reference: `.working/key-itinerary-empty-cta-banner.html`.
 
@@ -284,7 +293,7 @@ Reference: `.working/key-cover-overflow-menu.html` (all three items shown — Ph
 | --- | --- |
 | Reuse `day-card.tsx`/`day-card-header.tsx` styling (rounded-14, `var(--surface)` header, `var(--line)` border, chevron) for Reservation accordion sections | Invent a new card shell for accordion sections |
 | Use the FR-1 Reservation Type → icon mapping (Plane/Train/Bus/Ship/Car/Hotel/Anchor, `strokeWidth={1.5}`) consistently across the dropdown, accordion headers, drawer titles, and Linked Event rows | Use different icons for the same Reservation Type in different surfaces |
-| Indicate a Linked Event with **only** (1) the Reservation Type icon replacing `MapPin` and (2) a neutral "Linked" badge (`var(--surface-2)`/`var(--fg-3)`, same family as `Badge` `muted`) | Reintroduce the superseded `--linked-brand` / `--linked-soft` / `--linked-ink` violet tokens, a left-border accent, or a tinted row background for Linked Events |
+| Indicate a Linked Event with **only** (1) the Reservation Type icon replacing `MapPin` and (2) a neutral "Linked" badge (`var(--surface-2)`/`var(--fg-2)`, exactly `Badge` `muted`) | Reintroduce the superseded `--linked-brand` / `--linked-soft` / `--linked-ink` violet tokens, a left-border accent, or a tinted row background for Linked Events |
 | Keep the "happening now" `var(--accent-soft)`/"Now" pill treatment as the *only* accent-colored state on Itinerary rows — it can co-occur with the Linked indicator | Add a second accent color or a competing highlight for Linked Events |
 | Reuse `DocKindBadge` and the Documents-tab empty-state composition (`Empty`/`EmptyMedia variant="icon"`/etc.) for Reservation document attachments | Build a parallel document-row or empty-state component for Reservations |
 | Reuse the `now-card.tsx` `MoreHorizontal`/`DropdownMenu` overflow pattern verbatim for the Cover Overflow Menu | Create a new trigger style or menu shell for the Cover Overflow Menu |
