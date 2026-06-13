@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5]
+stepsCompleted: [1, 2, 3, 4, 5, 6]
 inputDocuments:
   - _bmad-output/prds/prd-packt-2026-06-12/prd.md
   - _bmad-output/ux-designs/ux-packt-2026-06-13/DESIGN.md
@@ -288,3 +288,157 @@ No new decisions — existing Vercel deployment, `drizzle-kit` migrations (`npm 
 - ❌ `?tab=res&open=add` (wrong param name — must be `action=add-reservation`).
 - ❌ `createReservation` returning `{ success: true, data: ... }` — must return `void` and throw on error.
 - ❌ Adding Reservation actions to the existing `src/app/(app)/trips/[tripId]/actions.ts` instead of a new `reservations/actions.ts`.
+
+## Project Structure & Boundaries
+
+### Complete Project Directory Structure
+
+New and modified files for Reservations & Trip Logistics, shown within existing Packt structure:
+
+```
+packt/
+├── src/
+│   ├── db/
+│   │   └── schema.ts                          # MODIFIED: add `reservations` table; add `documents.reservation_id` FK
+│   ├── data/
+│   │   └── types.ts                           # MODIFIED: add `ReservationType`, `Reservation`, extend `Document["scope"]`,
+│   │                                           #   extend `TripEvent` with `linkedReservationId?`/`reservationType?`,
+│   │                                           #   add `TripDetailTab.Reservations = "res"`
+│   ├── lib/
+│   │   ├── db-mappers.ts                      # MODIFIED: add `dbReservationToType()`, extend `dbDocToType()` orphan/scope check
+│   │   ├── db-mappers.test.ts                 # MODIFIED: tests for above
+│   │   ├── linked-events.ts                   # NEW: `deriveLinkedEvents(reservations: Reservation[]): TripEvent[]`
+│   │   ├── linked-events.test.ts              # NEW: unit tests for derivation (1–2 events per type, anchor labels)
+│   │   ├── queries.ts                         # MODIFIED: merge `deriveLinkedEvents()` output into `DayItinerary.events`
+│   │   │                                       #   and Now Card `todayEvents` (excluded from coverage per convention)
+│   │   └── utils.ts                           # UNCHANGED: existing `getNow()`/`isEventNow()` reused for Linked Events
+│   ├── app/(app)/trips/[tripId]/
+│   │   ├── actions.ts                         # UNCHANGED — Reservation actions live in their own file (below)
+│   │   ├── trip-detail-tabs.ts                # MODIFIED: `resolveTripDetailTab()` recognizes `TripDetailTab.Reservations`
+│   │   ├── trip-detail-tab-body.tsx           # MODIFIED: add `activeTab === "res"` branch rendering `ReservationsTab`
+│   │   ├── trip-detail-tab-body.test.tsx      # MODIFIED: test for new branch
+│   │   ├── trip-itinerary-view.tsx            # MODIFIED: render FR-9 CTA row above Day 1; pass merged Linked Events through
+│   │   ├── trip-itinerary-view.test.tsx       # MODIFIED: tests for FR-9 row + Linked Event rendering
+│   │   ├── use-trip-detail-handlers.ts        # MODIFIED: add Reservation CRUD + doc attach/detach handlers,
+│   │   │                                       #   FR-9/FR-11 search-param read/clear logic
+│   │   ├── use-trip-detail-handlers.test.tsx  # MODIFIED: tests for above
+│   │   └── reservations/
+│   │       ├── actions.ts                     # NEW: `createReservation`, `updateReservation`, `deleteReservation`
+│   │       │                                   #   (incl. FR-8 transactional `days` extension/renumber)
+│   │       └── actions.test.ts                # NEW: server action tests (CRUD, FR-8 extension, cascade delete + Blob `del()`)
+│   └── components/packt/
+│       ├── reservations-tab.tsx               # NEW: top-level tab — Empty state, "Add Reservation" button,
+│       │                                       #   accordion list, FR-9/FR-11 param handling
+│       ├── reservations-tab.test.tsx          # NEW
+│       ├── reservation-type-section.tsx       # NEW: accordion section per `ReservationType` (header, count badge,
+│       │                                       #   collapsed preview, expand/collapse state)
+│       ├── reservation-type-section.test.tsx  # NEW
+│       ├── reservation-row.tsx                # NEW: expanded Reservation row — fields, inline edit/delete,
+│       │                                       #   attached Documents (reuses `doc-row.tsx`/`doc-kind-badge.tsx`)
+│       ├── reservation-row.test.tsx           # NEW
+│       ├── reservation-type-picker.tsx        # NEW: "Add Reservation" `DropdownMenu` (7 types + icons)
+│       ├── reservation-type-picker.test.tsx   # NEW
+│       ├── reservation-edit-drawer.tsx        # NEW: Add/Edit `Drawer` (type-specific fields, paired date/time fieldsets)
+│       ├── reservation-edit-drawer.test.tsx   # NEW
+│       ├── reservation-type-badge.tsx         # NEW: small icon+label badge (accordion header, Linked Event rows)
+│       ├── reservation-type-badge.test.tsx    # NEW
+│       ├── linked-event-badge.tsx             # NEW: neutral "Linked" `Badge` (soft variant) for Itinerary/Now Card rows
+│       ├── linked-event-badge.test.tsx        # NEW
+│       ├── fr9-cta-row.tsx                    # NEW: permanent compact CTA row above Day 1 (Itinerary tab)
+│       ├── fr9-cta-row.test.tsx               # NEW
+│       ├── now-card.tsx                       # MODIFIED: render `reservation-type-badge`/`linked-event-badge` when
+│       │                                       #   a `todayEvents` entry has `linkedReservationId` set; tap → FR-11 navigation
+│       ├── now-card.test.tsx                  # MODIFIED
+│       ├── day-card-body.tsx                  # MODIFIED: same Linked Event icon/badge treatment for Itinerary rows
+│       ├── day-card-body.test.tsx             # MODIFIED
+│       ├── trip-hero.tsx                      # MODIFIED (FR-12/13, independent): Cover Overflow Menu
+│       │                                       #   (`MoreHorizontal` + `DropdownMenu`, reusing `now-card.tsx` pattern)
+│       ├── trip-hero.test.tsx                 # MODIFIED
+│       ├── trip-edit-sheet.tsx                # MODIFIED (FR-13): remove cover controls
+│       ├── trip-edit-sheet.test.tsx           # MODIFIED
+│       ├── trip-edit-cover.tsx                # MODIFIED (FR-13): cover-editing logic now invoked from
+│       │                                       #   `trip-hero.tsx`'s overflow menu instead of the edit sheet
+│       └── trip-edit-cover.test.tsx           # MODIFIED
+└── tests/e2e/
+    ├── features/
+    │   ├── reservations.feature                  # NEW: FR-1–FR-6 CRUD, accordion, empty state, documents
+    │   ├── linked-events.feature                 # NEW: FR-7, FR-10, FR-11 (Itinerary + Now Card + redirect)
+    │   ├── itinerary-date-extension.feature      # NEW: FR-8 (days insert/renumber/trip date extension)
+    │   └── trip-cover-overflow.feature           # NEW: FR-12/FR-13
+    ├── steps/
+    │   ├── reservations.steps.ts                 # NEW
+    │   ├── linked-events.steps.ts                # NEW
+    │   ├── itinerary-date-extension.steps.ts     # NEW
+    │   └── trip-cover-overflow.steps.ts          # NEW
+    ├── e2e-seed-data.ts                          # MODIFIED if needed: Object Mother helpers for Reservation fixtures
+    └── scenario-fixture.ts                       # MODIFIED if needed: scenario-owned Reservation creation helpers
+```
+
+### Architectural Boundaries
+
+**API Boundaries:**
+
+- No new HTTP/REST/GraphQL surface — all access is via Next.js Server Actions, same as today.
+- New boundary: `src/app/(app)/trips/[tripId]/reservations/actions.ts` owns all Reservation CRUD + Reservation-document attach/detach (reusing `uploadDocumentToEvent`-style logic from the existing `actions.ts`, parameterized for `scope: "reservation"`).
+- Auth boundary unchanged: every Reservation/Document mutation passes through `requireUser()` → `assertTripAccess(tripId, "editor")` before touching the DB.
+
+**Component Boundaries:**
+
+- `TripDetailTabBody` is the single switchboard for tab content — `ReservationsTab` is added as a sibling branch to `TripItineraryView`/`TripDocsTab`/`PackingListsView`, receiving the same kind of props (`tripId`, relevant slice of `TripDetailPayload`, handler callbacks from `use-trip-detail-handlers.ts`).
+- `ReservationsTab` owns all Reservation-specific UI state (accordion expand/collapse, drawer open/type/mode) — no Reservation state lives in `page-client.tsx` or `TripDetailTabBody` beyond passing `activeTab`/search params through.
+- `NowCard` and `DayCard`/`day-card-body.tsx` consume Linked Events purely as `TripEvent[]` entries with the two marker fields — they do not import from `linked-events.ts` or know about `Reservation` directly. Tapping a Linked Event calls a passed-in navigation handler (`onLinkedEventTap(linkedReservationId)`), keeping these components decoupled from routing.
+
+**Data Boundaries:**
+
+- `reservations` table boundary: owned entirely by `reservations/actions.ts` + `dbReservationToType()`. No other module writes to it.
+- `documents.reservation_id`: written only by the Reservation-document attach/detach actions in `reservations/actions.ts`; read by `dbDocToType()`'s scope derivation (shared with `tripId`/`eventId` cases).
+- `days`/`trips.startDate`/`trips.endDate` mutation boundary for FR-8 stays inside `reservations/actions.ts`'s `db.transaction()` — the existing `actions.ts` (`addDay`/`removeLastDay`) is untouched and remains the only other writer of `days`.
+- Linked Events never touch the DB — `linked-events.ts` is a pure function; the only data boundary it crosses is its return value being merged into `queries.ts`'s already-assembled `DayItinerary[]`/`todayEvents` before they reach components.
+
+### Requirements to Structure Mapping
+
+**Feature/Epic Mapping:**
+
+- **Reservations Tab (FR-1–FR-6):** `src/components/packt/reservations-tab.tsx` + `reservation-type-section.tsx` + `reservation-row.tsx` + `reservation-type-picker.tsx` + `reservation-edit-drawer.tsx` + `reservation-type-badge.tsx`; data via `src/app/(app)/trips/[tripId]/reservations/actions.ts` + `dbReservationToType()`; schema in `src/db/schema.ts`; E2E in `tests/e2e/features/reservations.feature`.
+- **Itinerary Integration (FR-7–FR-11):** `src/lib/linked-events.ts` (derivation) + `src/lib/queries.ts` (merge) + `linked-event-badge.tsx` + `reservation-type-badge.tsx` (rendering, shared with FR-1–6) + `now-card.tsx`/`day-card-body.tsx` (consumption) + `fr9-cta-row.tsx` + `trip-itinerary-view.tsx`; FR-8's `days`/`trips` mutation lives in `reservations/actions.ts`; E2E in `linked-events.feature` and `itinerary-date-extension.feature`.
+- **Cover Overflow Menu (FR-12–FR-13):** `trip-hero.tsx` (new menu), `trip-edit-sheet.tsx`/`trip-edit-cover.tsx` (cover controls removed/relocated); E2E in `trip-cover-overflow.feature`. No dependency on the above two groups.
+
+**Cross-Cutting Concerns:**
+
+- **Document scope extension** — schema (`src/db/schema.ts`), types (`src/data/types.ts`), mapper (`src/lib/db-mappers.ts`), and the Reservation-document actions in `reservations/actions.ts` are the four touchpoints; existing trip/event document code paths in `actions.ts` are unchanged.
+- **Linked Event marker contract** (`linkedReservationId`/`reservationType` on `TripEvent`) — defined once in `src/data/types.ts`, produced once in `src/lib/linked-events.ts`, merged once in `src/lib/queries.ts`, consumed by `now-card.tsx`, `day-card-body.tsx`, and `trip-itinerary-view.tsx`.
+
+### Integration Points
+
+**Internal Communication:**
+
+- `page.tsx` (server) fetches `TripDetailPayload` via `queries.ts` (which now includes merged Linked Events) → passes to `page-client.tsx` → `TripDetailTabBody` → tab components, exactly as today's data flow works for Itinerary/Documents/Packing.
+- Reservation mutations: `ReservationsTab` → handler in `use-trip-detail-handlers.ts` → Server Action in `reservations/actions.ts` → `revalidatePath()` → re-fetch flows back down through the same chain.
+- FR-9/FR-11: `fr9-cta-row.tsx` / `now-card.tsx` / Itinerary Linked Event row call `router.push()` with `?tab=res&action=add-reservation` or `?tab=res&highlight={id}`; `ReservationsTab` reads via `useSearchParams()` on mount and clears via `router.replace()`.
+
+**External Integrations:**
+
+- Vercel Blob: Reservation-document upload/delete reuses the existing `put()`/`del()` calls from `actions.ts`'s document helpers, called from `reservations/actions.ts` with `scope: "reservation"`. No new external service.
+
+**Data Flow:**
+
+- Write path: `ReservationsTab` → `reservations/actions.ts` (validates type-dependent `endAt` requirement, runs FR-8 `db.transaction()` if date range extends, writes `reservations`/`documents`/`days`/`trips` rows) → `revalidatePath(/trips/${tripId})`.
+- Read path: `queries.ts` fetches `reservations` (+ joined `documents`), maps via `dbReservationToType()`, calls `deriveLinkedEvents(reservations)`, merges the resulting synthetic `TripEvent[]` into each `DayItinerary.events` (sorted by `startAt`) and into `todayEvents` — all before the payload reaches `page.tsx`.
+
+### File Organization Patterns
+
+**Configuration Files:** No new config files — `drizzle.config.ts`, `vitest.config.mts`, `playwright.config.ts` all apply unchanged to the new files (new tests are picked up by existing glob patterns).
+
+**Source Organization:** Follows existing conventions exactly — domain types centralized (`src/data/types.ts`), mappers centralized (`src/lib/db-mappers.ts`), one new pure module (`src/lib/linked-events.ts`), domain components in `src/components/packt/`, route-scoped server actions in a route subdirectory (`reservations/actions.ts`, new pattern for this feature but consistent with Next.js App Router colocation).
+
+**Test Organization:** Unit/component tests colocated (`*.test.ts`/`*.test.tsx` next to source, per `linked-events.ts`/`reservations-tab.tsx` etc. above); E2E features/steps under `tests/e2e/features/` and `tests/e2e/steps/`, one feature file per FR group as listed above.
+
+**Asset Organization:** No new static assets — Reservation Type icons are `lucide-react` components (`Plane`, `Train`, `Bus`, `Ship`, `Car`, `Hotel`/`BedDouble`, `Anchor`), imported directly per DESIGN.md; no icon files added to `public/`.
+
+### Development Workflow Integration
+
+**Development Server Structure:** No change — `npm run dev` serves the extended trip-detail route as today; new `reservations` subdirectory under `[tripId]/` contains only a server action module (no new route segment/page, since `actions.ts` files don't create routes).
+
+**Build Process Structure:** No change — `next build` picks up the new schema/types/components automatically; `npm run db:migrate:e2e` must be re-run once after the `reservations` table + `documents.reservation_id` migration is generated (per `CLAUDE.md`'s existing rule).
+
+**Deployment Structure:** No change — existing Vercel deployment and `drizzle-kit` migration pipeline apply; one new migration file for the schema changes in #1/#2 of Data Architecture.
