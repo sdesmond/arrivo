@@ -11,7 +11,28 @@ _Working title — confirm._
 
 ## 0. Document Purpose
 
+This PRD is for whoever implements (and reviews) the Reservations tab, its Itinerary integration, and the Cover overflow menu in Packt. It builds on `_bmad-output/brainstorming/brainstorming-session-2026-06-12-0657.md`, which explored the original ideas — this PRD narrows and revises that exploration into an implementation-ready scope (notably, the new tab is reservations-only rather than a full trip-metadata "command center," and the trip edit sheet is retained). The document is organized around named user journeys (§2.3), a shared Glossary (§3) that the rest of the document uses verbatim, and Features with globally-numbered Functional Requirements (§4). `[ASSUMPTION]` tags are used inline where inferred without explicit confirmation, and indexed in §9.
+
+## 1. Vision
+
+Packt currently treats a trip as an Itinerary of day-by-day events, with a separate edit sheet for trip metadata. There's no place to record what's actually been booked — flights, hotel stays, rental cars, trains, buses, ferries, or cruises — beyond manually adding events for them.
+
+This feature adds **Reservations**: a first-class record of a trip's bookings, each with a type, time window, provider, and confirmation code. Reservations live on a new Reservations tab, organized by type so a user can quickly see "what hotels do I have," "what's my rental car situation," and so on. Critically, Reservations aren't just a list — each one projects Linked Events onto the Itinerary (check-in/check-out, pickup/return, departure/arrival), so the day-by-day view automatically reflects what's booked without the user re-entering the same information twice. Editing a Reservation's time updates the Itinerary everywhere it matters, automatically.
+
+Separately, and independently shippable, the trip Cover gains an overflow menu that consolidates image management (edit, remove, attribution) that currently lives in the edit sheet — a small but immediate reduction in edit-sheet surface area.
+
+Together, these changes make Packt a more complete source of truth for a trip: not just "what am I doing each day" but "what have I actually booked," with the two views staying in sync automatically.
+
 ## 2. Target User
+
+### 2.1 Jobs To Be Done
+
+- As a trip planner, I want to record my bookings (flights, hotels, rental cars, etc.) in one place, so I have a single reference for confirmation codes and provider details without digging through email.
+- As a trip planner, I want booking details to automatically show up on the right days in my Itinerary, so I don't have to manually re-create check-in/check-out or pickup/return events.
+- As a traveler mid-trip, I want to quickly find "what time is my rental car pickup" or "what's my hotel confirmation number" without hunting through email or a separate app.
+- As a trip owner, I want to manage my trip's cover image (change it, remove it, check photo credit) without opening the full edit sheet.
+
+### 2.3 Key User Journeys
 
 ### 2.3 Key User Journeys
 
@@ -194,4 +215,48 @@ The trip edit sheet no longer contains cover image controls; all cover managemen
 **Notes:**
 
 - `[NOTE FOR PM]` Confirm whether `trip-edit-cover.tsx` becomes fully dead code after FR-11, or still has a role (e.g., shared sub-component reused by FR-10's Edit Cover dialog).
+
+## 5. Non-Goals (Explicit)
+
+- This feature does not change how trip metadata (name, dates, destination, budget, collaborators) is edited — the edit sheet remains the home for these fields, unchanged except for the removal of cover controls (FR-11).
+- This feature does not introduce cost-tracking or linking Reservations to the trip budget.
+- Reservations do not support attachments/documents (e.g., uploading a PDF boarding pass) — that's the existing Documents tab's domain, not duplicated here.
+- Restaurant reservations, activities, and tours remain plain Itinerary events; they are not a Reservation Type.
+
+## 6. MVP Scope
+
+### 6.1 In Scope
+
+- Reservations tab (FR-1 through FR-5): add, view (grouped by type), edit, delete, empty state.
+- Reservation Types: Flight, Train, Bus, Ferry, Rental Car, Lodging, Cruise.
+- Itinerary integration (FR-6 through FR-9): Linked Events, empty-state CTA, Now Card support, redirect-to-edit.
+- Cover Overflow Menu (FR-10, FR-11): Edit Cover, Remove Cover, Info, removal of cover controls from the edit sheet.
+
+### 6.2 Out of Scope for MVP
+
+- Chronological (all-types, date-sorted) view toggle for the Reservations tab — deferred; the by-type accordion view with collapsed previews is the v1 view. `[NOTE FOR PM]` Revisit if dense itineraries make by-type scanning tedious.
+- Type-specific structured fields beyond the uniform shape (flight number, room number, etc.) — captured via the free-text notes field for now.
+- Cost tracking / budget linkage for Reservations.
+
+## 7. Success Metrics
+
+Given this is a personal project moving toward a public release, success is qualitative for v1:
+
+**Primary**
+
+- **SM-1**: Spenc adds at least one real trip's worth of Reservations (flights, lodging, etc.) and finds the Linked Events on the Itinerary match reality without manual correction. Validates FR-1, FR-6.
+- **SM-2**: Editing a Reservation's time updates the Itinerary correctly every time, with no observed drift between Reservation and Linked Event. Validates FR-3, FR-6.
+
+**Counter-metrics (do not optimize)**
+
+- **SM-C1**: Adding a Reservation should not feel slower or more cumbersome than just adding a manual Itinerary event for the same thing — the type-first picker (FR-1) should not add friction. Counterbalances SM-1.
+
+## 8. Open Questions
+
+1. Does `trip-edit-cover.tsx` become dead code after FR-11, or is it reused by FR-10's Edit Cover dialog? (See `[NOTE FOR PM]` on FR-11.)
+2. Should the chronological view toggle (§6.2) be revisited before or after initial usage feedback?
+
+## 9. Assumptions Index
+
+- No outstanding `[ASSUMPTION]` tags remain — FR-4 and FR-6 were confirmed and resolved during drafting (see `.decision-log.md`).
 
