@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Itinerary — Empty Reservations CTA Banner — Key Screen Mock</title>
+<style>
+/*
+  Illustrates: decision-log entries for
+    - FR-9 Itinerary empty-state CTA — dismissible banner card at the top of the Itinerary tab
+      (above the day cards) shown when a trip has zero Reservations. Icon + copy
+      ("Add reservations for hotels, rentals, and more") + "Add Reservation" button.
+      Tapping the button navigates to the Reservations tab AND auto-opens the FR-1
+      type-picker DropdownMenu immediately (shown here as an annotation, not real navigation).
+      [ASSUMPTION carried from PRD] "dismissible" — shown via a small X icon-button, size-8,
+      title="Dismiss", in the top-right corner of the banner.
+    - Visual language follows src/components/ui/empty.tsx (icon-in-rounded-bg + title +
+      description + content/button composition) as used in trip-docs-tab.tsx, adapted into
+      a compact horizontal banner card rather than a full-page empty state.
+    - "Add Reservation" button uses Packt's sm size token (h-9, px-3.5) per button.tsx.
+    - day-card / day-card-header shell below the banner: rounded-14, var(--surface) header,
+      var(--line) border, bold date title + chevron, soft "Active" badge for today —
+      matching day-card.tsx / day-card-header.tsx.
+*/
+
+:root {
+  --bg: #ffffff;
+  --surface: #f6f6f4;
+  --surface-2: #efefec;
+  --surface-3: #e6e6e2;
+  --line: rgba(20, 20, 18, 0.08);
+  --line-strong: rgba(20, 20, 18, 0.14);
+  --fg: #131311;
+  --fg-2: #4a4a45;
+  --fg-3: #7a7a72;
+  --fg-4: #a0a098;
+
+  --accent-brand: #0e8b80;
+  --accent-soft: #d6efec;
+  --accent-fg: #ffffff;
+  --accent-ink: #0a4a44;
+
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 1px 0 rgba(0, 0, 0, 0.02), 0 6px 24px rgba(0, 0, 0, 0.06);
+  --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
+
+  --radius: 0.625rem;
+  --font-size-base: 16px;
+  --font-scale: 1;
+  --fs-card-title: 15px;
+  --fs-card-sub: 13px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-2);
+  font-family: var(--font-body, ui-sans-serif), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.phone {
+  max-width: 390px;
+  margin: 24px auto;
+  background: var(--bg);
+  min-height: 760px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  border: 1px solid var(--line);
+}
+
+.screen {
+  padding: 16px 16px 32px;
+}
+
+.page-title {
+  font-family: var(--font-heading, ui-sans-serif);
+  font-size: calc(22px * var(--font-scale));
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  margin-bottom: 16px;
+}
+
+/* ─── FR-9 empty-state CTA banner ─── */
+.cta-banner {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  padding: 14px 40px 14px 14px;
+  margin-bottom: 16px;
+}
+
+.cta-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.cta-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cta-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 1px;
+}
+
+.cta-title {
+  font-family: var(--font-heading, ui-sans-serif);
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.3;
+}
+
+.cta-description {
+  font-size: calc(12.5px * var(--font-scale));
+  color: var(--fg-3);
+  line-height: 1.45;
+}
+
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: 36px; /* h-9 */
+  padding: 0 14px; /* px-3.5 */
+  margin-top: 2px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--accent-brand);
+  color: var(--accent-fg);
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.cta-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cta-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; /* size-8 */
+  height: 32px;
+  border-radius: var(--radius-md, 8px);
+  color: var(--fg-4);
+  background: transparent;
+}
+
+.cta-dismiss svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Day card shell (abbreviated, for context below the banner) */
+.day-card {
+  border-radius: 14px;
+  border: 1.5px solid var(--accent-brand);
+  background: var(--bg);
+  margin-bottom: 0;
+}
+
+.day-card-header {
+  border-radius: 14px;
+  background: var(--accent-soft);
+  padding: 12px 16px 12px;
+}
+
+.day-card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.day-card-title {
+  font-family: var(--font-heading, ui-sans-serif);
+  font-size: calc(var(--fs-card-title) * var(--font-scale));
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.day-card-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stops {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: calc(var(--fs-card-sub) * var(--font-scale));
+  color: var(--fg-3);
+}
+
+.badge-soft {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 500;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.chevron {
+  color: var(--fg-4);
+}
+
+.day-card-subtitle {
+  font-size: calc(var(--fs-card-sub) * var(--font-scale));
+  color: var(--fg-3);
+  margin-top: 6px;
+}
+
+/* Annotation callout pointing at the CTA button */
+.annotation {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-strong);
+  background: var(--bg);
+  font-size: calc(12px * var(--font-scale));
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+.annotation svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent-brand);
+}
+
+.annotation b {
+  color: var(--fg);
+}
+
+/* Caption */
+.caption {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: calc(12.5px * var(--font-scale));
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+.caption b {
+  color: var(--fg);
+}
+
+svg.icon { display: block; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="screen">
+    <div class="page-title">Itinerary</div>
+
+    <!-- FR-9 dismissible empty-state CTA banner -->
+    <div class="cta-banner">
+      <div class="cta-icon">
+        <!-- Luggage icon -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/><path d="M8 18V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v14"/><path d="M10 20v2"/><path d="M14 20v2"/><path d="M20 12v4"/><path d="M4 12v4"/></svg>
+      </div>
+      <div class="cta-body">
+        <div class="cta-title">Track your bookings here</div>
+        <div class="cta-description">Add reservations for hotels, rentals, and more</div>
+        <button class="cta-button" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          Add Reservation
+        </button>
+      </div>
+      <button class="cta-dismiss" type="button" title="Dismiss" aria-label="Dismiss">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Annotation: tapping "Add Reservation" navigates to Reservations tab + auto-opens FR-1 type-picker -->
+    <div class="annotation">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      <span>
+        Tapping <b>Add Reservation</b> navigates to the <b>Reservations</b> tab and immediately
+        opens the FR-1 type-picker dropdown (Flight / Train / Bus / Ferry / Rental Car / Lodging /
+        Cruise) — no second tap required.
+      </span>
+    </div>
+
+    <!-- Abbreviated Day 1 card for context, styled per day-card.tsx / day-card-header.tsx -->
+    <div class="day-card" style="margin-top: 16px;">
+      <div class="day-card-header">
+        <div class="day-card-header-row">
+          <div class="day-card-title">Sun, Jun 14</div>
+          <div class="day-card-right">
+            <span class="stops">
+              <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+              2 stops
+            </span>
+            <span class="badge-soft">Active</span>
+            <svg class="chevron icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div class="day-card-subtitle">Arrival in Lisbon — settle in, explore Baixa</div>
+      </div>
+    </div>
+
+    <div class="caption">
+      Trip with <b>zero Reservations</b> (Lisbon &amp; Porto, Jun 14&ndash;22): the FR-9 banner sits
+      above all day cards on the Itinerary tab, styled like the <code>Empty</code> composition
+      (icon-in-rounded-bg + title + description + button) but as a compact dismissible card rather
+      than a full-page state. The <b>X</b> in the corner dismisses the banner; the teal
+      <b>Add Reservation</b> button (sm size, h-9/px-3.5) deep-links into Reservations with the
+      type-picker already open. Once a Reservation exists, this copy switches to a prompt for
+      adding more, still with the same banner shell and deep-link behavior.
+    </div>
+  </div>
+</div>
+</body>
+</html>
