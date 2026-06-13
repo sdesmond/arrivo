@@ -197,7 +197,7 @@ Tapping a Linked Event on the Itinerary takes the user to the Reservations tab t
 
 ### 4.3 Cover Overflow Menu
 
-**Description:** The trip Cover gains a "⋯" overflow menu in its upper-right corner, consolidating cover-image management that previously lived in the trip edit sheet. Realizes UJ-3.
+**Description:** The trip detail page's Cover (`trip-hero.tsx`) gains a "⋯" overflow menu in its upper-right corner, consolidating cover-image management that previously lived in the trip edit sheet. This is a new menu instance on the trip detail page, following the same visual pattern (`MoreHorizontal` trigger, `DropdownMenu`) as the existing trip-list card overflow menu in `now-card.tsx` — it does not modify or duplicate that menu's "Edit trip"/"Delete trip" items. Realizes UJ-3.
 
 **Functional Requirements:**
 
@@ -214,7 +214,7 @@ A user can open a "⋯" menu on the trip Cover with up to three actions, conditi
 
 #### FR-12: Cover controls removed from the edit sheet
 
-The trip edit sheet no longer contains cover image controls; all cover management happens via FR-10.
+The trip edit sheet no longer contains cover image controls; all cover management happens via FR-11.
 
 **Consequences (testable):**
 
