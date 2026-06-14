@@ -126,3 +126,53 @@ Users see their Reservations automatically reflected on the Itinerary and Now Ca
 ### Epic 3: Cover Overflow Menu
 Users can manage their trip's cover image (edit, remove, view photo attribution) via a new "⋯" overflow menu on the cover, with cover controls removed from the edit sheet. Fully independent of Epics 1 & 2 — can be built/shipped in any order relative to them.
 **FRs covered:** FR12, FR13
+
+## Epic 1: Record & Manage Reservations
+
+Users can add, view (grouped by type into accordions), edit, delete, and attach documents to Reservations from a new Reservations tab — giving them a single source of truth for trip bookings, independent of any Itinerary changes.
+
+### Story 1.1: Add a Reservation
+
+As a trip planner,
+I want to add a Reservation (flight, lodging, rental car, or anything else I've booked) to my trip,
+So that I have a single place to record my bookings without re-creating them as itinerary events.
+
+**Acceptance Criteria:**
+
+**Given** I'm on the Reservations tab
+**When** I tap "Add Reservation"
+**Then** a `DropdownMenu` opens listing all 8 Reservation Types (Flight, Train, Bus, Ferry, Rental Car, Lodging, Cruise, Other) with their UX-DR1 icon mapping (`Plane`/`Train`/`Bus`/`Ship`/`Car`/`Hotel`/`Anchor`/`Package`, `strokeWidth={1.5}`)
+
+**Given** the type picker is open
+**When** I select a type (e.g. Lodging)
+**Then** the Add Reservation drawer opens directly into that type's fields per UX-DR4 — title "Add Lodging Reservation", subtitle "Type: Lodging (cannot be changed after saving)", anchor fields labeled "Check-in"/"Check-out", plus Provider*, Confirmation code (Optional), Notes (Optional), and an empty Documents section
+
+**Given** I select "Other"
+**When** the Add Reservation drawer opens
+**Then** it shows title "Add Other Reservation", subtitle "Type: Other (cannot be changed after saving)", and generic anchor field labels "Start"/"End" (rather than a type-specific pair)
+
+**Given** I selected Lodging, Rental Car, or Cruise
+**When** I tap Save without filling in the second anchor (`endTime`)
+**Then** Save is blocked, the `endTime` field shows its required/`aria-invalid` state, and focus moves to it
+
+**Given** I selected Flight, Train, Bus, Ferry, or Other
+**When** I tap Save without filling in `endTime`
+**Then** the Reservation is saved successfully with only `startTime` set
+
+**Given** all required fields are filled in
+**When** I tap Save
+**Then** `createReservation` (in `src/app/(app)/trips/[tripId]/reservations/actions.ts`) runs `requireUser()` → `assertTripAccess(tripId, "editor")` → inserts the `reservations` row → `revalidatePath(/trips/${tripId})`, the drawer closes, and the new Reservation appears as a row in its type's accordion section on the Reservations tab
+
+**Given** a Reservation has been saved
+**When** I view it afterward
+**Then** its `type` is shown via the accordion's icon/title only and is not editable anywhere on the row or in the drawer
+
+**And** `reservations` table added to `src/db/schema.ts` (modeled on `events`, FK to `trips` with cascade delete, no `position` field); `ReservationType` (kebab-case const-object + union: `flight | train | bus | ferry | rental-car | lodging | cruise | other`) and `Reservation` added to `src/data/types.ts`; `dbReservationToType()` added to `src/lib/db-mappers.ts`
+
+**And** `TripDetailTab` gains `Reservations: "res"`, `resolveTripDetailTab()` recognizes it, and `TripDetailTabBody` renders a new `ReservationsTab` component (with minimal accordion rendering sufficient to display newly-added Reservations) when `activeTab === "res"`
+
+**And** a **Reservation Object Mother** is added to `tests/e2e/e2e-seed-data.ts`/`tests/e2e/scenario-fixture.ts` — a default Reservation fixture (overridable `type`/`startAt`/`endAt`/`provider`/`confirmationCode`/`notes`) that materializes a fresh `reservations` row scoped to a scenario-owned trip; Stories 1.2–1.5 and Epic 2 scenarios reuse this mother rather than inventing ad hoc fixtures
+
+**And** unit/component tests: `dbReservationToType()` mapper test, `createReservation` action test (covering type-dependent `endAt` validation for all 8 types, including "Other"), `reservation-type-picker.test.tsx`, `reservation-edit-drawer.test.tsx` (Add mode, including "Other"'s generic Start/End labels)
+
+**And** E2E: `tests/e2e/features/reservations.feature` gains a scenario for adding a Lodging Reservation (via the new Object Mother for trip setup) and verifying it appears in the Lodging accordion section
