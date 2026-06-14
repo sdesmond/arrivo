@@ -320,3 +320,57 @@ So that all the relevant paperwork for a booking lives in one place.
 **And** unit/component tests: `db-mappers.test.ts` (extended `dbDocToType()` orphan/scope tests for `reservation_id`), `reservation-row.test.tsx` (document rows + no-documents dashed affordance), `reservation-edit-drawer.test.tsx` (Documents section populated/empty), `reservations/actions.test.ts` (attach/detach, cascade delete including Blob `del()`-before-cascade)
 
 **And** E2E: `tests/e2e/features/reservations.feature` gains scenarios for (1) attaching a document to a Reservation and seeing it appear inline, and (2) deleting a Reservation with an attached document and verifying both are gone
+
+## Epic 2: Reservations Sync to the Itinerary
+
+Users see their Reservations automatically reflected on the Itinerary and Now Card as Linked Events, with the trip's date range extending automatically to cover bookings outside it, and a permanent CTA guiding users from the Itinerary to Reservations.
+
+### Story 2.1: Linked Events Appear on the Itinerary
+
+As a trip planner,
+I want my Reservations to automatically appear as events on the Itinerary,
+So that I don't have to manually re-create check-in/check-out, pickup/return, or departure/arrival events for things I've already booked.
+
+**Acceptance Criteria:**
+
+**Given** a Reservation with only `startTime` set (Flight, Train, Bus, Ferry, or Other with no `endTime`)
+**When** `deriveLinkedEvents()` runs
+**Then** it produces exactly one synthetic `TripEvent` labeled per the Glossary (e.g. "Departure" for Flight/Train/Bus/Ferry, "Start" for Other), with `linkedReservationId` set to the Reservation's id and `reservationType` set to its type
+
+**Given** a Reservation with both `startTime` and `endTime` set (Lodging, Rental Car, Cruise, or any optional-`endTime` type that has one)
+**When** `deriveLinkedEvents()` runs
+**Then** it produces exactly two synthetic `TripEvent`s, one per anchor (e.g. Check-in/Check-out for Lodging, Pickup/Return for Rental Car, Departure/Return for Cruise, Start/End for Other), each on its corresponding day
+
+**Given** `src/lib/linked-events.ts`
+**When** implemented
+**Then** it exports exactly one function, `deriveLinkedEvents(reservations: Reservation[]): TripEvent[]`, with no alternate or additional exported names
+
+**Given** `TripEvent` in `src/data/types.ts`
+**When** extended for this feature
+**Then** it gains exactly two new optional fields, `linkedReservationId?: string` and `reservationType?: ReservationType`, with no other marker fields added
+
+**Given** `src/lib/queries.ts` builds a trip's `DayItinerary[]`
+**When** it runs
+**Then** it merges `deriveLinkedEvents()` output into each `DayItinerary.events` array, interleaved with real events and sorted by `startAt`, without writing any new `events` rows to the database
+
+**Given** a Day's itinerary contains a Linked Event
+**When** `day-card-body.tsx` renders it
+**Then** the row uses the same padding/border/time-column layout as a manual event row, but the Reservation Type's icon (per UX-DR1) replaces the default `MapPin` icon (`aria-hidden="true"`), and a "Linked" `Badge` `muted`/`secondary` pill (text `aria-hidden="true"`) appears inline after the event name
+
+**Given** a Linked Event row
+**When** inspected by assistive tech
+**Then** the entire row is one `<button>`/link with a single constructed `aria-label` (e.g. "Check-in: Tue, Jun 16 · 3:00 PM — Hotel Avenida Palace, Linked, opens Reservations"), with all visual children (icon, "Linked" badge text, chevron) marked `aria-hidden="true"`, so "Linked" is announced exactly once
+
+**Given** a Linked Event is the chronologically current event for "happening now" purposes
+**When** rendered
+**Then** it uses the standard `var(--accent-soft)`/"Now" pill treatment identical to a manual event's "happening now" state — no left border, no row background tint, and no new color token (per UX-DR6, `--linked-brand`/`--linked-soft`/`--linked-ink` remain rejected)
+
+**Given** `day-card-body.tsx`
+**When** implemented for this story
+**Then** it accepts an `onLinkedEventTap(linkedReservationId: string)` callback prop, invoked when a Linked Event row is tapped; this story wires it as a placeholder/no-op (real navigation to the Reservations tab is implemented in Story 2.4)
+
+**And** tests reuse the **Reservation Object Mother** from Story 1.1, with overrides spanning all 8 Reservation Types and both single-anchor and dual-anchor combinations
+
+**And** unit tests: `linked-events.test.ts` (one TripEvent per single-anchor type, two TripEvents per dual-anchor type, correct Glossary labels including Other's Start/End, correct `linkedReservationId`/`reservationType` on each), `day-card-body.test.tsx` (Linked Event icon/badge rendering, constructed `aria-label`, "happening now" + Linked co-occurrence using standard Now treatment, `onLinkedEventTap` invocation)
+
+**And** E2E: new file `tests/e2e/features/linked-events.feature` with a scenario that materializes a Lodging Reservation (Check-in/Check-out) via the Object Mother and verifies both Linked Events appear on their respective Itinerary days with the "Linked" badge and Hotel icon
