@@ -1,6 +1,10 @@
+---
+baseline_commit: 6383a5beb86ebdb1d67a42174aed19fa76577376
+---
+
 # Story 1.1: Add a Reservation
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -25,55 +29,55 @@ so that I have a single place to record my bookings without re-creating them as 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: `reservations` table** (AC: 8)
-  - [ ] Add `reservations` pgTable to `src/db/schema.ts`, modeled on `events` (see Dev Notes for exact column list)
-  - [ ] Run `npm run db:migrate:e2e` to push the schema to the E2E database
+- [x] **Task 1: `reservations` table** (AC: 8)
+  - [x] Add `reservations` pgTable to `src/db/schema.ts`, modeled on `events` (see Dev Notes for exact column list)
+  - [x] Run `npm run db:migrate:e2e` to push the schema to the E2E database
 
-- [ ] **Task 2: Types** (AC: 8, 9)
-  - [ ] Add `ReservationType` const-object + union to `src/data/types.ts` (kebab-case values, see Dev Notes)
-  - [ ] Add `Reservation` interface and `CreateReservationInput` interface to `src/data/types.ts`
-  - [ ] Add `TripDetailTab.Reservations = "res"` to the `TripDetailTab` const-object
-  - [ ] Add `reservations: Reservation[]` to `TripDetailPayload`
+- [x] **Task 2: Types** (AC: 8, 9)
+  - [x] Add `ReservationType` const-object + union to `src/data/types.ts` (kebab-case values, see Dev Notes)
+  - [x] Add `Reservation` interface and `CreateReservationInput` interface to `src/data/types.ts`
+  - [x] Add `TripDetailTab.Reservations = "res"` to the `TripDetailTab` const-object
+  - [x] Add `reservations: Reservation[]` to `TripDetailPayload`
 
-- [ ] **Task 3: `dbReservationToType()` mapper** (AC: 8, 11)
-  - [ ] Add `dbReservationToType()` to `src/lib/db-mappers.ts`
-  - [ ] Add/extend `src/lib/db-mappers.test.ts` with a `dbReservationToType()` test
+- [x] **Task 3: `dbReservationToType()` mapper** (AC: 8, 11)
+  - [x] Add `dbReservationToType()` to `src/lib/db-mappers.ts`
+  - [x] Add/extend `src/lib/db-mappers.test.ts` with a `dbReservationToType()` test
 
-- [ ] **Task 4: Query layer — load reservations with trip detail** (AC: 9)
-  - [ ] In `src/lib/queries.ts`'s `getTripDetail()`, query `reservations` by `tripId`, map via `dbReservationToType()`, and include in the returned `TripDetailPayload`
+- [x] **Task 4: Query layer — load reservations with trip detail** (AC: 9)
+  - [x] In `src/lib/queries.ts`'s `getTripDetail()`, query `reservations` by `tripId`, map via `dbReservationToType()`, and include in the returned `TripDetailPayload`
 
-- [ ] **Task 5: `createReservation` server action** (AC: 6, 11)
-  - [ ] Create `src/app/(app)/trips/[tripId]/reservations/actions.ts` (new file) with `createReservation(tripId, input: CreateReservationInput): Promise<void>` — `requireUser()` → `assertTripAccess(tripId, user.id!, "editor")` → server-side `endAt` requirement check for Lodging/Rental Car/Cruise (throw `Error(...)` if missing) → `db.insert(reservations).values(...)` → `revalidatePath(/trips/${tripId})`
-  - [ ] Add `src/app/(app)/trips/[tripId]/reservations/actions.test.ts` covering: successful insert for each of the 8 types, `endAt`-required error thrown for Lodging/Rental Car/Cruise when `endAt` is missing, success with `endAt` omitted for Flight/Train/Bus/Ferry/Other, `assertTripAccess` called with `"editor"`, `revalidatePath` called with the trip path
+- [x] **Task 5: `createReservation` server action** (AC: 6, 11)
+  - [x] Create `src/app/(app)/trips/[tripId]/reservations/actions.ts` (new file) with `createReservation(tripId, input: CreateReservationInput): Promise<void>` — `requireUser()` → `assertTripAccess(tripId, user.id!, "editor")` → server-side `endAt` requirement check for Lodging/Rental Car/Cruise (throw `Error(...)` if missing) → `db.insert(reservations).values(...)` → `revalidatePath(/trips/${tripId})`
+  - [x] Add `src/app/(app)/trips/[tripId]/reservations/actions.test.ts` covering: successful insert for each of the 8 types, `endAt`-required error thrown for Lodging/Rental Car/Cruise when `endAt` is missing, success with `endAt` omitted for Flight/Train/Bus/Ferry/Other, `assertTripAccess` called with `"editor"`, `revalidatePath` called with the trip path
 
-- [ ] **Task 6: Reservation Type → icon mapping** (AC: 1, 7, 9)
-  - [ ] Create `src/components/packt/reservation-type-badge.tsx` exporting the centralized `ReservationType → { icon, label }` map (UX-DR1) and a small `ReservationTypeBadge` (or equivalent icon-rendering helper) — single exported source, imported by the type picker and the accordion header
-  - [ ] Create `src/components/packt/reservation-type-badge.test.tsx` asserting all 8 `ReservationType` values have a `RESERVATION_TYPE_META` entry with the correct `label` and `icon`
+- [x] **Task 6: Reservation Type → icon mapping** (AC: 1, 7, 9)
+  - [x] Create `src/components/packt/reservation-type-badge.tsx` exporting the centralized `ReservationType → { icon, label }` map (UX-DR1) and a small `ReservationTypeBadge` (or equivalent icon-rendering helper) — single exported source, imported by the type picker and the accordion header
+  - [x] Create `src/components/packt/reservation-type-badge.test.tsx` asserting all 8 `ReservationType` values have a `RESERVATION_TYPE_META` entry with the correct `label` and `icon`
 
-- [ ] **Task 7: Reservation Type picker** (AC: 1, 11)
-  - [ ] Create `src/components/packt/reservation-type-picker.tsx` — `"use client"` (has `onClick` handlers), explicit `ReservationTypePickerProps` interface, `DropdownMenu`/`DropdownMenuTrigger`("Add Reservation")/`DropdownMenuContent` with 8 `DropdownMenuItem`s (one per `ReservationType`, using the Task 6 icon map), `onClick` invokes a callback with the selected `ReservationType`
-  - [ ] Create `src/components/packt/reservation-type-picker.test.tsx`
+- [x] **Task 7: Reservation Type picker** (AC: 1, 11)
+  - [x] Create `src/components/packt/reservation-type-picker.tsx` — `"use client"` (has `onClick` handlers), explicit `ReservationTypePickerProps` interface, `DropdownMenu`/`DropdownMenuTrigger`("Add Reservation")/`DropdownMenuContent` with 8 `DropdownMenuItem`s (one per `ReservationType`, using the Task 6 icon map), `onClick` invokes a callback with the selected `ReservationType`
+  - [x] Create `src/components/packt/reservation-type-picker.test.tsx`
 
-- [ ] **Task 8: Add Reservation drawer (Add mode)** (AC: 2, 3, 4, 5, 6, 11)
-  - [ ] Create `src/components/packt/reservation-anchor-fieldset.tsx` — `"use client"`, explicit `ReservationAnchorFieldsetProps` interface, the `<fieldset>`/`<legend>` + `DatePicker` + `TimePicker` pair described in Dev Notes (used twice by the drawer, for the start and end anchors) — extracted as its own component to keep the drawer under the file-size limit
-  - [ ] Create `src/components/packt/reservation-anchor-fieldset.test.tsx`
-  - [ ] Create `src/components/packt/reservation-edit-drawer.tsx` — `"use client"`, explicit `ReservationEditDrawerProps` interface, `Drawer`/`DrawerContent`/`DrawerHeader`/`DrawerFooter` per UX-DR4, composed from two `ReservationAnchorFieldset` instances (see Dev Notes for full field spec, anchor-label table, validation rules, and focus management)
-  - [ ] Create `src/components/packt/reservation-edit-drawer.test.tsx` covering: field rendering per type, "Other" generic Start/End labels, `endAt`-required validation + focus movement for Lodging/Rental Car/Cruise, successful save with `endAt` omitted for the other 5 types, `createReservation` called with correct payload, drawer closes on success, focus enters the drawer on open and returns to the "Add Reservation" trigger on close
+- [x] **Task 8: Add Reservation drawer (Add mode)** (AC: 2, 3, 4, 5, 6, 11)
+  - [x] Create `src/components/packt/reservation-anchor-fieldset.tsx` — `"use client"`, explicit `ReservationAnchorFieldsetProps` interface, the `<fieldset>`/`<legend>` + `DatePicker` + `TimePicker` pair described in Dev Notes (used twice by the drawer, for the start and end anchors) — extracted as its own component to keep the drawer under the file-size limit
+  - [x] Create `src/components/packt/reservation-anchor-fieldset.test.tsx`
+  - [x] Create `src/components/packt/reservation-edit-drawer.tsx` — `"use client"`, explicit `ReservationEditDrawerProps` interface, `Drawer`/`DrawerContent`/`DrawerHeader`/`DrawerFooter` per UX-DR4, composed from two `ReservationAnchorFieldset` instances (see Dev Notes for full field spec, anchor-label table, validation rules, and focus management)
+  - [x] Create `src/components/packt/reservation-edit-drawer.test.tsx` covering: field rendering per type, "Other" generic Start/End labels, `endAt`-required validation + focus movement for Lodging/Rental Car/Cruise, successful save with `endAt` omitted for the other 5 types, `createReservation` called with correct payload, drawer closes on success, focus enters the drawer on open and returns to the "Add Reservation" trigger on close
 
-- [ ] **Task 9: `ReservationsTab` + tab wiring** (AC: 9)
-  - [ ] Create `src/components/packt/reservations-tab.tsx` — `"use client"`, explicit `ReservationsTabProps` interface (`{ tripId: string; reservations: Reservation[] }`): renders the Task 7 type picker ("Add Reservation" button), manages `selectedType`/drawer-open local state, renders the Task 8 drawer, and renders a minimal per-type grouping of `reservations` (full accordion polish is Story 1.2 — a simple grouped list is sufficient here)
-  - [ ] Create `src/components/packt/reservations-tab.test.tsx`
-  - [ ] In `src/app/(app)/trips/[tripId]/trip-detail-tabs.ts`, add `case TripDetailTab.Reservations:` to `resolveTripDetailTab()`'s switch
-  - [ ] In `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx`, add `reservations: Reservation[]` to `TripDetailTabBodyProps` and an `{activeTab === "res" && <ReservationsTab tripId={tripId} reservations={reservations} />}` branch
-  - [ ] In `src/app/(app)/trips/[tripId]/page-client.tsx`, add `{ id: "res", label: "Reservations" }` to the `TABS` array and pass `reservations={detail.reservations}` through to `TripDetailTabBody`
+- [x] **Task 9: `ReservationsTab` + tab wiring** (AC: 9)
+  - [x] Create `src/components/packt/reservations-tab.tsx` — `"use client"`, explicit `ReservationsTabProps` interface (`{ tripId: string; reservations: Reservation[] }`): renders the Task 7 type picker ("Add Reservation" button), manages `selectedType`/drawer-open local state, renders the Task 8 drawer, and renders a minimal per-type grouping of `reservations` (full accordion polish is Story 1.2 — a simple grouped list is sufficient here)
+  - [x] Create `src/components/packt/reservations-tab.test.tsx`
+  - [x] In `src/app/(app)/trips/[tripId]/trip-detail-tabs.ts`, add `case TripDetailTab.Reservations:` to `resolveTripDetailTab()`'s switch
+  - [x] In `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx`, add `reservations: Reservation[]` to `TripDetailTabBodyProps` and an `{activeTab === "res" && <ReservationsTab tripId={tripId} reservations={reservations} />}` branch
+  - [x] In `src/app/(app)/trips/[tripId]/page-client.tsx`, add `{ id: "res", label: "Reservations" }` to the `TABS` array and pass `reservations={detail.reservations}` through to `TripDetailTabBody`
 
-- [ ] **Task 10: Reservation Object Mother** (AC: 10)
-  - [ ] In `tests/e2e/e2e-seed-data.ts`: add `ReservationSeed` interface (`type`, `provider`, `startAt?`, `endAt?`, `confirmationCode?`, `notes?`), add `reservations: ReservationSeed[]` to `TripMother`/`TripMotherOverrides`, add `reservations: []` to `THREE_DAY_TRIP_MOTHER`/`DATELESS_TRIP_MOTHER`/`DELETE_TRIP_MOTHER`, add `reservations` merge line to `cloneTripMother()`, add an `E2E_RESERVATION` constant (Lodging type, for the Story 1.1 E2E scenario)
-  - [ ] In `tests/e2e/scenario-fixture.ts`: import `reservations` from `../../src/db/schema`, add a reservations-insertion loop in `createTrip()` (alongside the `documents` loop) inserting `{ tripId: trip.id, type, provider, startAt, endAt, confirmationCode, notes }` for each `ReservationSeed`
+- [x] **Task 10: Reservation Object Mother** (AC: 10)
+  - [x] In `tests/e2e/e2e-seed-data.ts`: add `ReservationSeed` interface (`type`, `provider`, `startAt?`, `endAt?`, `confirmationCode?`, `notes?`), add `reservations: ReservationSeed[]` to `TripMother`/`TripMotherOverrides`, add `reservations: []` to `THREE_DAY_TRIP_MOTHER`/`DATELESS_TRIP_MOTHER`/`DELETE_TRIP_MOTHER`, add `reservations` merge line to `cloneTripMother()`, add an `E2E_RESERVATION` constant (Lodging type, for the Story 1.1 E2E scenario)
+  - [x] In `tests/e2e/scenario-fixture.ts`: import `reservations` from `../../src/db/schema`, add a reservations-insertion loop in `createTrip()` (alongside the `documents` loop) inserting `{ tripId: trip.id, type, provider, startAt, endAt, confirmationCode, notes }` for each `ReservationSeed`
 
-- [ ] **Task 11: E2E scenario** (AC: 12)
-  - [ ] Add a scenario to `tests/e2e/features/reservations.feature` (new file): create a trip via the Object Mother, add a Lodging Reservation via the UI (type picker → drawer → fill Provider/Check-in/Check-out → Save), assert it appears in the Lodging accordion section
-  - [ ] Add `tests/e2e/steps/reservations.steps.ts` (new file) with step definitions for the above
+- [x] **Task 11: E2E scenario** (AC: 12)
+  - [x] Add a scenario to `tests/e2e/features/reservations.feature` (new file): create a trip via the Object Mother, add a Lodging Reservation via the UI (type picker → drawer → fill Provider/Check-in/Check-out → Save), assert it appears in the Lodging accordion section
+  - [x] Add `tests/e2e/steps/reservations.steps.ts` (new file) with step definitions for the above
 
 ## Dev Notes
 
@@ -471,8 +475,61 @@ New `tests/e2e/steps/reservations.steps.ts` with the corresponding step definiti
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
+
+- `npx tsc --noEmit` — clean
+- `npx eslint .` — clean
+- `npm run test:coverage` — 134 files, 1851 tests passed; Statements 94.6%, Branches 90.5%, Functions 95.26%, Lines 96.49% (all thresholds met)
+- `npm run build` — production build succeeds
+- `npx bddgen && npx playwright test .features-gen/tests/e2e/features/reservations.feature.spec.js` — 2 passed (auth setup + "Add a Lodging reservation")
 
 ### Completion Notes List
 
+- Implemented `reservations` table, `ReservationType`/`Reservation`/`CreateReservationInput` types, `dbReservationToType()` mapper, `createReservation` server action with `endAt` requirement enforcement for Lodging/Rental Car/Cruise, `ReservationTypeBadge`/`ReservationTypePicker`/`ReservationAnchorFieldset`/`ReservationEditDrawer`/`ReservationsTab`, and wired the new "Reservations" tab into `TripDetailTab`, `resolveTripDetailTab()`, `TripDetailTabBody`, and `page-client.tsx`.
+- Extended `DatePicker`/`TimePicker` with optional `aria-label`/`aria-invalid` props to support the anchor fieldset's accessibility requirements.
+- Extended the E2E Object Mother (`tests/e2e/e2e-seed-data.ts`, `tests/e2e/scenario-fixture.ts`) with `ReservationSeed`/`E2E_RESERVATION` and a reservations-insertion loop in `createTrip()`.
+- Added `tests/e2e/features/reservations.feature` + `tests/e2e/steps/reservations.steps.ts` covering the add-a-Lodging-reservation flow end to end against the `packt_e2e` database.
+- Initial `npm run test:coverage` run showed function coverage at 94.9% (just under the 95% threshold), localized to three uncovered handlers in `reservation-edit-drawer.tsx` (the Drawer's `onOpenChange` wrapper, and the Confirmation code / Notes `onChange` handlers). Added three tests to `reservation-edit-drawer.test.tsx` (drawer-dismiss via a "Simulate drawer dismiss" escape hatch in the `Drawer` mock, and a save covering Confirmation code + Notes) to bring function coverage to 95.26%.
+- Full regression suite (typecheck, lint, coverage, production build, targeted Playwright E2E) passes.
+
 ### File List
+
+**New files:**
+- `src/app/(app)/trips/[tripId]/reservations/actions.ts`
+- `src/app/(app)/trips/[tripId]/reservations/actions.test.ts`
+- `src/components/packt/reservation-type-badge.tsx`
+- `src/components/packt/reservation-type-badge.test.tsx`
+- `src/components/packt/reservation-type-picker.tsx`
+- `src/components/packt/reservation-type-picker.test.tsx`
+- `src/components/packt/reservation-anchor-fieldset.tsx`
+- `src/components/packt/reservation-anchor-fieldset.test.tsx`
+- `src/components/packt/reservation-edit-drawer.tsx`
+- `src/components/packt/reservation-edit-drawer.test.tsx`
+- `src/components/packt/reservations-tab.tsx`
+- `src/components/packt/reservations-tab.test.tsx`
+- `tests/e2e/features/reservations.feature`
+- `tests/e2e/steps/reservations.steps.ts`
+
+**Modified files:**
+- `src/db/schema.ts`
+- `src/data/types.ts`
+- `src/lib/db-mappers.ts` / `src/lib/db-mappers.test.ts`
+- `src/lib/queries.ts`
+- `src/app/(app)/trips/[tripId]/trip-detail-tabs.ts`
+- `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx`
+- `src/app/(app)/trips/[tripId]/page-client.tsx` / `src/app/(app)/trips/[tripId]/page-client.test.tsx`
+- `src/app/(app)/trips/[tripId]/page.test.tsx`
+- `src/app/(app)/trips/[tripId]/trip-detail-hero.test.tsx`
+- `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.tsx`
+- `src/components/ui/date-picker.tsx` / `src/components/ui/date-picker.test.tsx`
+- `src/components/ui/time-picker.tsx` / `src/components/ui/time-picker.test.tsx`
+- `tests/e2e/e2e-seed-data.ts`
+- `tests/e2e/scenario-fixture.ts`
+
+## Change Log
+
+| Date | Change |
+| --- | --- |
+| 2026-06-14 | Implemented Story 1.1 (Tasks 1-11): reservations data model, `createReservation` action, type picker, add-reservation drawer, `ReservationsTab` + tab wiring, E2E Object Mother extensions, and new `reservations.feature` E2E scenario. Fixed a function-coverage shortfall in `reservation-edit-drawer.test.tsx`. Status set to `review`. |

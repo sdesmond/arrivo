@@ -3,6 +3,7 @@ import {
   users,
   events,
   documents,
+  reservations,
   collaborators,
   itineraryChecklists,
   checklistItems,
@@ -21,6 +22,8 @@ import type {
   UserProfile,
   TripEvent,
   Document,
+  Reservation,
+  ReservationType,
   Collaborator,
   DocPreviewLine,
   Checklist,
@@ -120,6 +123,21 @@ export function dbDocToType(row: typeof documents.$inferSelect): Document {
     scope: row.eventId ? "event" : "trip",
     previewLines: (row.previewLines as DocPreviewLine[] | null) ?? undefined,
     addedAt: row.addedAt?.toISOString() ?? new Date().toISOString(),
+  };
+}
+
+export function dbReservationToType(row: typeof reservations.$inferSelect): Reservation {
+  return {
+    id: row.id,
+    tripId: row.tripId,
+    type: row.type as ReservationType,
+    provider: row.provider,
+    startAt: row.startAt?.toISOString() ?? undefined,
+    endAt: row.endAt?.toISOString() ?? undefined,
+    confirmationCode: row.confirmationCode ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.createdAt?.toISOString() ?? undefined,
+    updatedAt: row.updatedAt?.toISOString() ?? undefined,
   };
 }
 

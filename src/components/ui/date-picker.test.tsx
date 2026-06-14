@@ -6,7 +6,7 @@ import { DatePicker } from "./date-picker";
 
 vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PopoverTrigger: ({ children, ...props }: React.ComponentProps<"button">) => <button {...props}>{children}</button>,
   PopoverContent: ({ children }: { children: React.ReactNode }) => <div data-testid="popover-content">{children}</div>,
 }));
 
@@ -49,5 +49,11 @@ describe("DatePicker", () => {
     render(<DatePicker value="2026-05-19" onChange={onChange} />);
     await user.click(screen.getByRole("button", { name: /clear date/i }));
     expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it("forwards aria-label and aria-invalid to the trigger", () => {
+    render(<DatePicker onChange={onChange} aria-label="Departure date" aria-invalid />);
+    const trigger = screen.getByLabelText("Departure date");
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
   });
 });

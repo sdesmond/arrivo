@@ -76,6 +76,15 @@ export interface NoteSeed {
   content: string;
 }
 
+export interface ReservationSeed {
+  type: string;
+  provider: string;
+  startAt?: string | null;
+  endAt?: string | null;
+  confirmationCode?: string | null;
+  notes?: string | null;
+}
+
 export interface TripSeed {
   name: string;
   startDate?: string | null;
@@ -94,6 +103,7 @@ export interface TripMother {
   packingItems: PackingItemSeed[];
   notes: NoteSeed[];
   checklists: ChecklistSeed[];
+  reservations: ReservationSeed[];
 }
 
 export interface TemplateItemSeed {
@@ -122,6 +132,7 @@ export interface TripMotherOverrides {
   packingItems?: PackingItemSeed[];
   notes?: NoteSeed[];
   checklists?: ChecklistSeed[];
+  reservations?: ReservationSeed[];
 }
 
 export interface TemplateMotherOverrides {
@@ -175,6 +186,7 @@ export const THREE_DAY_TRIP_MOTHER: TripMother = {
   packingItems: [],
   notes: [],
   checklists: [],
+  reservations: [],
 };
 
 export const DATELESS_TRIP_MOTHER: TripMother = {
@@ -190,6 +202,7 @@ export const DATELESS_TRIP_MOTHER: TripMother = {
   packingItems: [],
   notes: [],
   checklists: [],
+  reservations: [],
 };
 
 export const DELETE_TRIP_MOTHER: TripMother = {
@@ -208,6 +221,7 @@ export const DELETE_TRIP_MOTHER: TripMother = {
   packingItems: [],
   notes: [],
   checklists: [],
+  reservations: [],
 };
 
 export const EMPTY_TEMPLATE_MOTHER: TemplateMother = {
@@ -222,6 +236,14 @@ export const E2E_DOCUMENT = {
   kind: "pdf",
   size: "1.2 MB",
   url: "https://example.com/boarding-pass.pdf",
+} as const;
+
+export const E2E_RESERVATION = {
+  type: "lodging",
+  provider: "E2E Hotel Reservation",
+  startAt: "2026-07-01T15:00:00Z",
+  endAt: "2026-07-03T11:00:00Z",
+  confirmationCode: "E2E-CONF-123",
 } as const;
 
 export const E2E_PICK_DOC = {
@@ -429,6 +451,7 @@ export function cloneTripMother(
     packingItems: overrides.packingItems ? cloneValue(overrides.packingItems) : base.packingItems,
     notes: overrides.notes ? cloneValue(overrides.notes) : base.notes,
     checklists: overrides.checklists ? cloneValue(overrides.checklists) : base.checklists,
+    reservations: overrides.reservations ? cloneValue(overrides.reservations) : base.reservations,
   };
 }
 

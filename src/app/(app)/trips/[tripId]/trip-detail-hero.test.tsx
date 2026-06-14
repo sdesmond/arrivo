@@ -24,6 +24,7 @@ function buildDetail(overrides: Partial<TripDetailPayload> = {}): TripDetailPayl
     collaborators: [],
     packingItems: [],
     packingLists: [],
+    reservations: [],
     ...overrides,
   };
 }

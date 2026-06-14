@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
 import { TripDocsTab } from "@/components/packt/trip-docs-tab";
 import { PackingListsView } from "@/components/packt/packing-lists-view";
+import { ReservationsTab } from "@/components/packt/reservations-tab";
 import type {
   DayItinerary,
   TripEvent,
@@ -13,6 +14,7 @@ import type {
   PackingTemplate,
   PullTemplatesResult,
   RemovePackingSectionInput,
+  Reservation,
   TripDetailTab,
   TripPackingList,
 } from "@/data/types";
@@ -25,6 +27,7 @@ export interface TripDetailTabBodyProps {
   docs: Document[];
   packingItems: PackingItem[];
   packingLists: TripPackingList[];
+  reservations: Reservation[];
   templates: PackingTemplate[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
@@ -91,6 +94,7 @@ export function TripDetailTabBody({
   docs,
   packingItems,
   packingLists,
+  reservations,
   templates,
   dateFormat,
   initialExpandedDayNumber,
@@ -197,6 +201,7 @@ export function TripDetailTabBody({
       {activeTab === "notes" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Notes coming soon.</div>
       )}
+      {activeTab === "res" && <ReservationsTab tripId={tripId} reservations={reservations} />}
     </>
   );
 }

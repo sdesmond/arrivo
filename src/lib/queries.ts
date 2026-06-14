@@ -5,6 +5,7 @@ import {
   days,
   events,
   documents,
+  reservations,
   collaborators,
   packingItems,
   tripPackingLists,
@@ -24,6 +25,7 @@ import {
   dbTripToType,
   dbEventToType,
   dbDocToType,
+  dbReservationToType,
   dbCollabToType,
   dbChecklistToType,
   dbLoyaltyToType,
@@ -241,6 +243,8 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(tripPackingLists.tripId, tripId))
     .orderBy(asc(tripPackingLists.position));
 
+  const tripReservations = await db.select().from(reservations).where(eq(reservations.tripId, tripId));
+
   const allNotes =
     tripDays.length > 0
       ? await db
@@ -362,5 +366,6 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     collaborators: tripCollaborators.map(dbCollabToType),
     packingItems: tripPackingItems.map(dbPackingItemToType),
     packingLists: tripPackingListRows.map(dbPackingListToType),
+    reservations: tripReservations.map(dbReservationToType),
   };
 }

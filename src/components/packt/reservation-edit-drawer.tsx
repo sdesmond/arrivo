@@ -1,0 +1,211 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Section, Field } from "@/components/packt/form-section";
+import { ReservationAnchorFieldset } from "@/components/packt/reservation-anchor-fieldset";
+import { RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
+import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { ReservationType, type CreateReservationInput } from "@/data/types";
+import { FileText } from "lucide-react";
+
+export interface ReservationEditDrawerProps {
+  tripId: string;
+  type: ReservationType;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const REQUIRES_END_AT: ReservationType[] = [ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise];
+
+const ANCHOR_LABELS: Record<ReservationType, { start: string; end: string }> = {
+  flight: { start: "Departure", end: "Arrival" },
+  train: { start: "Departure", end: "Arrival" },
+  bus: { start: "Departure", end: "Arrival" },
+  ferry: { start: "Departure", end: "Arrival" },
+  "rental-car": { start: "Pickup", end: "Return" },
+  lodging: { start: "Check-in", end: "Check-out" },
+  cruise: { start: "Departure", end: "Return" },
+  other: { start: "Start", end: "End" },
+};
+
+export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: ReservationEditDrawerProps) {
+  const [provider, setProvider] = useState("");
+  const [startDate, setStartDate] = useState<string | undefined>(undefined);
+  const [startTime, setStartTime] = useState<string | undefined>(undefined);
+  const [endDate, setEndDate] = useState<string | undefined>(undefined);
+  const [endTime, setEndTime] = useState<string | undefined>(undefined);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [notes, setNotes] = useState("");
+  const [endAtError, setEndAtError] = useState<string | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
+
+  const providerInputRef = useRef<HTMLInputElement | null>(null);
+  const endAnchorDateRef = useRef<HTMLDivElement | null>(null);
+
+  const { label, icon: Icon } = RESERVATION_TYPE_META[type];
+  const anchorLabels = ANCHOR_LABELS[type];
+  const endAtRequired = REQUIRES_END_AT.includes(type);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (!open) {
+      setProvider("");
+      setStartDate(undefined);
+      setStartTime(undefined);
+      setEndDate(undefined);
+      setEndTime(undefined);
+      setConfirmationCode("");
+      setNotes("");
+      setEndAtError(undefined);
+      setSaving(false);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [open]);
+
+  function toIsoDateTime(date: string | undefined, time: string | undefined): string | undefined {
+    if (!date) return undefined;
+    return `${date}T${time ?? "00:00"}:00.000Z`;
+  }
+
+  async function handleSave(): Promise<void> {
+    const endAt = toIsoDateTime(endDate, endTime);
+
+    if (endAtRequired && !endAt) {
+      setEndAtError(`${anchorLabels.end} is required for this reservation type.`);
+      endAnchorDateRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+      return;
+    }
+
+    setEndAtError(undefined);
+    setSaving(true);
+
+    const input: CreateReservationInput = {
+      type,
+      provider,
+      startAt: toIsoDateTime(startDate, startTime),
+      endAt,
+      confirmationCode: confirmationCode || undefined,
+      notes: notes || undefined,
+    };
+
+    try {
+      await createReservation(tripId, input);
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save reservation.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Drawer open={open} onOpenChange={(isOpen) => !saving && onOpenChange(isOpen)} direction="right">
+      <DrawerContent className="flex flex-col p-0 rounded-none">
+        <DrawerHeader
+          className="px-5 pt-5 pb-4 shrink-0 flex-row items-center gap-3"
+          style={{ borderBottom: "1px solid var(--line)" }}
+        >
+          <div
+            className="flex items-center justify-center rounded-lg shrink-0"
+            style={{ width: 32, height: 32, background: "var(--surface-2)" }}
+          >
+            <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
+          </div>
+          <div>
+            <DrawerTitle>Add {label} Reservation</DrawerTitle>
+            <p style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-3)" }}>
+              Type: {label} (cannot be changed after saving)
+            </p>
+          </div>
+        </DrawerHeader>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4.5">
+          <Section title="Details">
+            <Field label="Provider *" htmlFor="reservation-provider">
+              <Input
+                id="reservation-provider"
+                ref={providerInputRef}
+                className="h-9"
+                value={provider}
+                onChange={(event) => setProvider(event.target.value)}
+                aria-required="true"
+                disabled={saving}
+              />
+            </Field>
+
+            <ReservationAnchorFieldset
+              legend={anchorLabels.start}
+              required={false}
+              date={startDate}
+              time={startTime}
+              onDateChange={setStartDate}
+              onTimeChange={setStartTime}
+            />
+
+            <div ref={endAnchorDateRef}>
+              <ReservationAnchorFieldset
+                legend={anchorLabels.end}
+                required={endAtRequired}
+                date={endDate}
+                time={endTime}
+                onDateChange={setEndDate}
+                onTimeChange={setEndTime}
+                error={endAtError}
+              />
+            </div>
+
+            <Field label="Confirmation code (Optional)" htmlFor="reservation-confirmation-code">
+              <Input
+                id="reservation-confirmation-code"
+                className="h-9"
+                value={confirmationCode}
+                onChange={(event) => setConfirmationCode(event.target.value)}
+                disabled={saving}
+              />
+            </Field>
+
+            <Field label="Notes (Optional)" htmlFor="reservation-notes">
+              <textarea
+                id="reservation-notes"
+                className="w-full rounded-lg border border-input bg-transparent px-3 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+                style={{ minHeight: 72 }}
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                disabled={saving}
+              />
+            </Field>
+          </Section>
+
+          <Section title="Documents">
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FileText strokeWidth={1.5} />
+                </EmptyMedia>
+                <EmptyTitle>No documents yet</EmptyTitle>
+                <EmptyDescription>Add a document once this reservation has been saved.</EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent />
+            </Empty>
+          </Section>
+        </div>
+
+        <DrawerFooter className="shrink-0 gap-3" style={{ borderTop: "1px solid var(--line)" }}>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  );
+}

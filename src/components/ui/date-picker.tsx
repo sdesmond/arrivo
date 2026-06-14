@@ -13,9 +13,18 @@ export interface DatePickerProps {
   onChange: (value: string | undefined) => void;
   placeholder?: string;
   disabled?: boolean;
+  "aria-label"?: string;
+  "aria-invalid"?: boolean;
 }
 
-export function DatePicker({ value, onChange, placeholder = "Pick a date", disabled }: DatePickerProps) {
+export function DatePicker({
+  value,
+  onChange,
+  placeholder = "Pick a date",
+  disabled,
+  "aria-label": ariaLabel,
+  "aria-invalid": ariaInvalid,
+}: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
   const selected = value ? parseISO(value) : undefined;
 
@@ -24,6 +33,8 @@ export function DatePicker({ value, onChange, placeholder = "Pick a date", disab
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           disabled={disabled}
+          aria-label={ariaLabel}
+          aria-invalid={ariaInvalid}
           className={cn(buttonVariants({ variant: "outline" }), "flex-1 justify-start font-normal")}
           style={{ color: value ? "var(--fg)" : "var(--fg-3)" }}
         >
