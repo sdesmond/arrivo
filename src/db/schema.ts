@@ -149,6 +149,23 @@ export const events = pgTable(
   (table) => [index().on(table.dayId, table.position)]
 );
 
+export const reservations = pgTable("reservations", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  tripId: uuid("trip_id")
+    .notNull()
+    .references(() => trips.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  provider: text("provider").notNull(),
+  startAt: timestamp("start_at", { withTimezone: true }),
+  endAt: timestamp("end_at", { withTimezone: true }),
+  confirmationCode: text("confirmation_code"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
+});
+
 export const documents = pgTable("documents", {
   id: uuid("id")
     .primaryKey()

@@ -1,0 +1,11 @@
+# Deferred Work
+
+## Deferred from: code review of 1-1-add-a-reservation (2026-06-14)
+
+- **Local wall-clock times stored as UTC** — `toIsoDateTime` concatenates the date/time picker values with a literal `Z` (`reservation-edit-drawer.tsx:72`). This shifts times by the user's UTC offset on round-trip. Deferred because it is a pre-existing, app-wide convention — events store and render times the same way (`"2026-05-13T10:00:00Z"` + `toLocaleString`). Revisit globally if timezone-correct storage is pursued, not as part of this story.
+- **Dev-date-picker overlay overlaps the drawer footer Save button** — the dev-only floating mock-date toggle (fixed bottom-right, `z-index: 9999`) intercepts pointer clicks on the right-direction drawer's Save button in dev/E2E; the E2E step uses focus+Enter to work around it (`reservations.steps.ts:29`). Deferred because the overlay only renders when `NODE_ENV === "development"` and is absent in production. Consider repositioning the dev overlay or the drawer footer if it bites again.
+- **No index on `reservations.trip_id`** — `getTripDetail` queries reservations by `tripId` but the table defines no index (unlike `events`). Deferred because the story spec explicitly specified no index; add later if per-trip scan cost matters.
+- **`REQUIRES_END_AT` duplicated** — the required-end-anchor list is copy-pasted in `actions.ts` and `reservation-edit-drawer.tsx`, so the two can drift. Deferred as a minor DRY refactor; hoist to a shared module if a new required-end type is added.
+- **Error text not linked via `aria-describedby`** — `ReservationAnchorFieldset` sets an `errorId` on the error `<p>` but does not wire it to the date/time inputs via `aria-describedby`. Deferred because the error already carries `role="status"`/`aria-live="polite"` (so it is announced) and `aria-invalid` is forwarded to both pickers.
+- **Weak E2E assertions** — the "drawer is open" step asserts substring text visibility rather than drawer role/state. Deferred as test-robustness polish.
+- **AC4 focus-on-error lacks direct test coverage** — the drawer's focus-to-invalid-end-anchor behavior works (DOM order puts the DatePicker button first), but the drawer unit test mocks `ReservationAnchorFieldset`, so the focus move is not directly asserted. Deferred as a test-coverage gap.

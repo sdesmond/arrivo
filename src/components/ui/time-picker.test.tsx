@@ -43,4 +43,10 @@ describe("TimePicker", () => {
     render(<TimePicker onChange={onChange} disabled />);
     expect(getInput().disabled).toBe(true);
   });
+
+  it("forwards aria-label and aria-invalid to the input", () => {
+    render(<TimePicker onChange={onChange} aria-label="Departure time" aria-invalid />);
+    expect(getInput()).toHaveAttribute("aria-label", "Departure time");
+    expect(getInput()).toHaveAttribute("aria-invalid", "true");
+  });
 });

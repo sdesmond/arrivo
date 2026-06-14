@@ -4,6 +4,7 @@ import {
   dbTripToType,
   dbEventToType,
   dbDocToType,
+  dbReservationToType,
   dbCollabToType,
   dbNoteToType,
   dbChecklistToType,
@@ -20,6 +21,7 @@ import type {
   trips,
   events,
   documents,
+  reservations,
   collaborators,
   packingItems,
   tripPackingLists,
@@ -37,6 +39,7 @@ import type {
 type TripRow = typeof trips.$inferSelect;
 type EventRow = typeof events.$inferSelect;
 type DocRow = typeof documents.$inferSelect;
+type ReservationRow = typeof reservations.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
 type PackingItemRow = typeof packingItems.$inferSelect;
 type TripPackingListRow = typeof tripPackingLists.$inferSelect;
@@ -216,6 +219,63 @@ describe("dbEventToType", () => {
     expect(result.locationAddress).toBe("1 Furugome, Narita");
     expect(result.locationLat).toBe(35.7653);
     expect(result.locationLng).toBe(140.3856);
+  });
+});
+
+// ── dbReservationToType ──────────────────────────────────────────────────────
+
+const BASE_RESERVATION: ReservationRow = {
+  id: "reservation-1",
+  tripId: "trip-1",
+  type: "lodging",
+  provider: "Grand Hotel",
+  startAt: null,
+  endAt: null,
+  confirmationCode: null,
+  notes: null,
+  createdAt: null,
+  updatedAt: null,
+};
+
+describe("dbReservationToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbReservationToType(BASE_RESERVATION);
+    expect(result.id).toBe("reservation-1");
+    expect(result.tripId).toBe("trip-1");
+    expect(result.type).toBe("lodging");
+    expect(result.provider).toBe("Grand Hotel");
+  });
+
+  it("null optional fields become undefined", () => {
+    const result = dbReservationToType(BASE_RESERVATION);
+    expect(result.startAt).toBeUndefined();
+    expect(result.endAt).toBeUndefined();
+    expect(result.confirmationCode).toBeUndefined();
+    expect(result.notes).toBeUndefined();
+    expect(result.createdAt).toBeUndefined();
+    expect(result.updatedAt).toBeUndefined();
+  });
+
+  it("converts Date fields to ISO strings", () => {
+    const startAt = new Date("2026-07-01T15:00:00.000Z");
+    const endAt = new Date("2026-07-03T11:00:00.000Z");
+    const createdAt = new Date("2026-06-01T00:00:00.000Z");
+    const updatedAt = new Date("2026-06-02T00:00:00.000Z");
+    const result = dbReservationToType({ ...BASE_RESERVATION, startAt, endAt, createdAt, updatedAt });
+    expect(result.startAt).toBe(startAt.toISOString());
+    expect(result.endAt).toBe(endAt.toISOString());
+    expect(result.createdAt).toBe(createdAt.toISOString());
+    expect(result.updatedAt).toBe(updatedAt.toISOString());
+  });
+
+  it("maps optional confirmation code and notes when present", () => {
+    const result = dbReservationToType({
+      ...BASE_RESERVATION,
+      confirmationCode: "ABC123",
+      notes: "Late check-in arranged",
+    });
+    expect(result.confirmationCode).toBe("ABC123");
+    expect(result.notes).toBe("Late check-in arranged");
   });
 });
 

@@ -26,6 +26,7 @@ const TABS: { id: TripDetailTabValue; label: string }[] = [
   { id: "docs", label: "Documents" },
   { id: "pack", label: "Packing" },
   { id: "notes", label: "Notes" },
+  { id: "res", label: "Reservations" },
 ];
 
 interface TripDetailClientProps {
@@ -56,7 +57,7 @@ export function TripDetailClient({
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists } = detail;
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = detail;
 
   useEffect(() => {
     function handlePopState(): void {
@@ -145,6 +146,7 @@ export function TripDetailClient({
             docs={docs}
             packingItems={packingItems}
             packingLists={packingLists}
+            reservations={reservations}
             templates={templates}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}

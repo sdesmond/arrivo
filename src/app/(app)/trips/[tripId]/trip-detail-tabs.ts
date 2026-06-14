@@ -22,6 +22,7 @@ export function resolveTripDetailTab(value: SearchParamValue): TripDetailTab {
     case TripDetailTab.Documents:
     case TripDetailTab.Packing:
     case TripDetailTab.Notes:
+    case TripDetailTab.Reservations:
       return resolvedValue;
     default:
       return TripDetailTab.Itinerary;

@@ -13,6 +13,7 @@ import {
   packingItems,
   packingTemplateItems,
   packingTemplates,
+  reservations,
   trips,
   userCompanions,
   userLoyaltyNumbers,
@@ -358,6 +359,18 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
             }))
           );
         }
+      }
+
+      for (const reservationSeed of seed.reservations) {
+        await db.insert(reservations).values({
+          tripId: trip.id,
+          type: reservationSeed.type,
+          provider: reservationSeed.provider,
+          startAt: reservationSeed.startAt ? new Date(reservationSeed.startAt) : null,
+          endAt: reservationSeed.endAt ? new Date(reservationSeed.endAt) : null,
+          confirmationCode: reservationSeed.confirmationCode ?? null,
+          notes: reservationSeed.notes ?? null,
+        });
       }
 
       registerCleanup({ entity: "trip", id: trip.id });

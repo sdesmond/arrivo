@@ -59,6 +59,7 @@ export const TripDetailTab = {
   Documents: "docs",
   Packing: "pack",
   Notes: "notes",
+  Reservations: "res",
 } as const;
 export type TripDetailTab = (typeof TripDetailTab)[keyof typeof TripDetailTab];
 
@@ -187,6 +188,35 @@ export interface Document {
   url?: string;
   previewLines?: DocPreviewLine[];
   addedAt?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESERVATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ReservationType = {
+  Flight: "flight",
+  Train: "train",
+  Bus: "bus",
+  Ferry: "ferry",
+  RentalCar: "rental-car",
+  Lodging: "lodging",
+  Cruise: "cruise",
+  Other: "other",
+} as const;
+export type ReservationType = (typeof ReservationType)[keyof typeof ReservationType];
+
+export interface Reservation {
+  id: string;
+  tripId: string;
+  type: ReservationType;
+  provider: string;
+  startAt?: string;
+  endAt?: string;
+  confirmationCode?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -485,6 +515,7 @@ export interface TripDetailPayload {
   collaborators: Collaborator[];
   packingItems: PackingItem[];
   packingLists: TripPackingList[];
+  reservations: Reservation[];
 }
 
 export interface NewTripDraft {
@@ -619,6 +650,15 @@ export interface AddDocumentInput {
   size?: string;
   offline?: boolean;
   url?: string;
+}
+
+export interface CreateReservationInput {
+  type: ReservationType;
+  provider: string;
+  startAt?: string; // ISO datetime
+  endAt?: string;
+  confirmationCode?: string;
+  notes?: string;
 }
 
 export interface AddPackingItemInput {
