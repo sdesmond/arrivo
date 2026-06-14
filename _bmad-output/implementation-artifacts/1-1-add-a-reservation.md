@@ -79,6 +79,25 @@ so that I have a single place to record my bookings without re-creating them as 
   - [x] Add a scenario to `tests/e2e/features/reservations.feature` (new file): create a trip via the Object Mother, add a Lodging Reservation via the UI (type picker → drawer → fill Provider/Check-in/Check-out → Save), assert it appears in the Lodging accordion section
   - [x] Add `tests/e2e/steps/reservations.steps.ts` (new file) with step definitions for the above
 
+### Review Findings
+
+_Code review 2026-06-14 (baseline `6383a5b` → `b6b9b57`). Layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor._
+
+- [ ] [Review][Patch] Enforce start/end ordering & start-required-when-end-present (resolved from decision: patch) — Neither the drawer nor `createReservation` validates that `endAt` ≥ `startAt`, or that `startAt` exists when `endAt` does; a check-out before check-in saves cleanly. [reservation-edit-drawer.tsx:75, actions.ts:11] (blind+edge)
+- [ ] [Review][Patch] Date set but time left blank silently defaults to `00:00` (resolved from decision: patch) — require a time when a date is present (block save with an inline error on the anchor). [reservation-edit-drawer.tsx:70] (blind+edge)
+- [ ] [Review][Patch] Provider required field is not enforced (client + server) — `handleSave` and `createReservation` both accept an empty/whitespace provider; the column is `notNull` but `""` passes, persisting a blank-provider row. The "Provider *" asterisk + `aria-required` are cosmetic. [reservation-edit-drawer.tsx:75, actions.ts:11] (blind+edge)
+- [ ] [Review][Patch] On-open focus to Provider input not implemented; `providerInputRef` is dead code — AC2/Dev-Notes require focus to move to the Provider input on open; the ref is wired but never `.focus()`ed and there is no effect. [reservation-edit-drawer.tsx:47,132] (blind+auditor)
+- [ ] [Review][Patch] Provider required asterisk not styled `var(--accent-brand)` — the anchor fieldsets color their `*`, but the Provider label uses plain `"Provider *"` text, deviating from Dev-Notes item 1. [reservation-edit-drawer.tsx:129] (auditor)
+- [ ] [Review][Patch] Server action does not validate `input.type ∈ ReservationType` (defense-in-depth) — an unknown type bypasses the `endAt` gate and is inserted into the free-text column; the tab then silently drops it from grouping. [actions.ts:11] (blind+edge)
+- [ ] [Review][Patch] `ReservationSeed.type` typed as `string` instead of `ReservationType` — loses type safety on E2E seeds; a typo'd type compiles. [tests/e2e/e2e-seed-data.ts] (blind)
+- [x] [Review][Defer] Local wall-clock times stored as UTC (`...Z` via string concat) — pre-existing, app-wide convention (events store/render identically); not a regression from this story. [reservation-edit-drawer.tsx:72] — deferred, pre-existing (blind+edge)
+- [x] [Review][Defer] Dev-date-picker overlay overlaps the right-drawer footer Save button in dev/E2E (focus+Enter workaround) — dev-only (`NODE_ENV==="development"`), absent in production. [reservations.steps.ts:29] — deferred, dev-only (blind)
+- [x] [Review][Defer] `reservations` table has no index on `trip_id` — spec explicitly specified no index; future perf only. [src/db/schema.ts] — deferred, spec-mandated (blind)
+- [x] [Review][Defer] `REQUIRES_END_AT` constant duplicated in `actions.ts` and `reservation-edit-drawer.tsx` — client/server drift risk. — deferred, minor DRY (blind)
+- [x] [Review][Defer] Error text not linked to date/time inputs via `aria-describedby` — error is already announced via `role="status"`/`aria-live` and `aria-invalid` is forwarded. [reservation-anchor-fieldset.tsx:25] — deferred, minor a11y (edge)
+- [x] [Review][Defer] E2E assertions are weak (drawer-open checks substring text, not drawer role/state). [reservations.steps.ts:13] — deferred, test robustness (blind)
+- [x] [Review][Defer] AC4 focus-to-invalid-end-anchor works but has no direct test (fieldset mocked in the drawer test). — deferred, test coverage gap (blind+auditor+edge)
+
 ## Dev Notes
 
 ### Scope boundary — read first
