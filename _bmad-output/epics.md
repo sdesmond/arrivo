@@ -248,3 +248,39 @@ So that I can keep my booking details accurate as my plans change.
 **And** unit/component tests: `reservation-row.test.tsx` (click-to-edit per field — provider, anchors, confirmation code, notes — covering Enter/blur-save, Escape-cancel, and focus-return), `updateReservation` action test
 
 **And** E2E: `tests/e2e/features/reservations.feature` gains a scenario editing a Reservation's provider and an anchor time inline and verifying the persisted values after reload
+
+### Story 1.4: Delete a Reservation
+
+As a trip planner,
+I want to delete a Reservation, with a confirmation step,
+So that I can remove bookings that were canceled or entered by mistake without accidentally losing data.
+
+**Acceptance Criteria:**
+
+**Given** an expanded accordion section
+**When** I tap the delete affordance on a Reservation row
+**Then** the existing delete-confirmation pattern (`delete-*-alert-dialog.tsx` family) opens, asking me to confirm
+
+**Given** the delete confirmation dialog is open
+**When** I confirm
+**Then** `deleteReservation` (`requireUser()` → `assertTripAccess(tripId, "editor")` → delete → `revalidatePath`) removes the `reservations` row and the row disappears from its accordion section
+
+**Given** the delete confirmation dialog is open
+**When** I cancel instead
+**Then** nothing is deleted and the dialog closes, leaving the row in place
+
+**Given** the deleted Reservation was the last one of its type
+**When** the Reservations tab re-renders
+**Then** that type's accordion section disappears entirely
+
+**Given** the deleted Reservation was the trip's last Reservation overall
+**When** the Reservations tab re-renders
+**Then** the FR-6 empty state (Story 1.2) is shown again
+
+**And** `deleteReservation` is added to `src/app/(app)/trips/[tripId]/reservations/actions.ts`
+
+**And** tests use the **Reservation Object Mother** from Story 1.1 (including overrides to create the "last of its type" and "last overall" scenarios)
+
+**And** unit/component tests: `reservation-row.test.tsx` (delete affordance opens confirmation dialog, cancel vs. confirm), `deleteReservation` action test, `reservation-type-section.test.tsx` (section removal when its last Reservation is deleted), `reservations-tab.test.tsx` (empty state reappears when the last Reservation overall is deleted)
+
+**And** E2E: `tests/e2e/features/reservations.feature` gains a scenario deleting a Reservation via the confirmation dialog and verifying it's gone, including the section-disappears/empty-state-reappears cases
