@@ -374,3 +374,43 @@ So that I don't have to manually re-create check-in/check-out, pickup/return, or
 **And** unit tests: `linked-events.test.ts` (one TripEvent per single-anchor type, two TripEvents per dual-anchor type, correct Glossary labels including Other's Start/End, correct `linkedReservationId`/`reservationType` on each), `day-card-body.test.tsx` (Linked Event icon/badge rendering, constructed `aria-label`, "happening now" + Linked co-occurrence using standard Now treatment, `onLinkedEventTap` invocation)
 
 **And** E2E: new file `tests/e2e/features/linked-events.feature` with a scenario that materializes a Lodging Reservation (Check-in/Check-out) via the Object Mother and verifies both Linked Events appear on their respective Itinerary days with the "Linked" badge and Hotel icon
+
+### Story 2.2: Reservations Extend the Itinerary's Date Range
+
+As a trip planner,
+I want my Itinerary's date range to automatically extend when I add a Reservation outside it,
+So that I don't have to manually add Days before booking a flight that lands before my trip currently starts (or ends after it currently ends).
+
+**Acceptance Criteria:**
+
+**Given** a trip's current date range is `startDate`–`endDate`
+**When** I save a Reservation (via `createReservation` or `updateReservation`) whose `startTime` or `endTime` falls on a date before `startDate` or after `endDate`
+**Then** the trip's `startDate` and/or `endDate` is extended to include that date, and a new `days` row is added for each newly-included date
+
+**Given** a Reservation's date falls before the trip's current `startDate`
+**When** the new Day(s) are inserted at the front of the Itinerary
+**Then** existing Days' `dayNumber` values shift to remain sequential (e.g. a Reservation 2 days before the current Day 1 becomes Day 1, current Day 1 becomes Day 3)
+
+**Given** a Reservation's date falls after the trip's current `endDate`
+**When** the new Day(s) are appended to the Itinerary
+**Then** they receive the next sequential `dayNumber`(s), and existing Days are unaffected
+
+**Given** the days-extension and the Reservation insert/update
+**When** either part fails
+**Then** both are rolled back together — the extension and the Reservation write happen inside a single `db.transaction()`, per the architecture's single-transaction rule
+
+**Given** a Reservation's `startTime`/`endTime` falls within the trip's existing date range
+**When** the Reservation is saved
+**Then** no `days` rows are added and `trip.startDate`/`endDate` are unchanged
+
+**Given** a newly-added Day created by this story
+**When** the Itinerary renders it
+**Then** it displays the triggering Reservation's Linked Event(s) (per Story 2.1's `deriveLinkedEvents()`/query merge) exactly like any other Day — no special-casing for "extension" Days
+
+**And** this is the only feature area that writes to the `days` table; existing `addDay`/`removeLastDay` actions in `src/app/(app)/trips/[tripId]/actions.ts` remain unchanged
+
+**And** tests reuse the **Reservation Object Mother** from Story 1.1, with overrides for dates before/after/within the trip's current range, and for multi-day extensions (Reservation date 2+ days outside range)
+
+**And** unit tests: `reservations/actions.test.ts` extended — `createReservation`/`updateReservation` cases for extend-before (with `dayNumber` reshuffle), extend-after (append), no-extension (in-range), and transactional rollback on simulated failure
+
+**And** E2E: `tests/e2e/features/linked-events.feature` gains a scenario creating a Reservation dated before the trip's current `startDate` (via Object Mother) and verifying a new Day 1 appears on the Itinerary with the Reservation's Linked Event, and prior Days shift their numbering
