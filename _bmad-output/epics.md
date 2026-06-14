@@ -284,3 +284,39 @@ So that I can remove bookings that were canceled or entered by mistake without a
 **And** unit/component tests: `reservation-row.test.tsx` (delete affordance opens confirmation dialog, cancel vs. confirm), `deleteReservation` action test, `reservation-type-section.test.tsx` (section removal when its last Reservation is deleted), `reservations-tab.test.tsx` (empty state reappears when the last Reservation overall is deleted)
 
 **And** E2E: `tests/e2e/features/reservations.feature` gains a scenario deleting a Reservation via the confirmation dialog and verifying it's gone, including the section-disappears/empty-state-reappears cases
+
+### Story 1.5: Attach Documents to a Reservation
+
+As a trip planner,
+I want to attach documents (e.g. a boarding pass PDF, hotel confirmation) directly to a Reservation,
+So that all the relevant paperwork for a booking lives in one place.
+
+**Acceptance Criteria:**
+
+**Given** the `documents` table
+**When** this story is implemented
+**Then** it gains a nullable `reservation_id` FK column (`onDelete: "cascade"`) alongside existing `tripId`/`eventId`; `Document["scope"]` becomes `"trip" | "event" | "reservation"`; and `dbDocToType()`'s orphan check is extended to all three FKs (exactly one must be set, scope derived from which)
+
+**Given** an expanded Reservation row with no attached documents
+**When** rendered
+**Then** it shows a dashed "Add confirmation document" row with an `Upload` icon, matching the Documents-tab empty affordance (UX-DR3)
+
+**Given** an expanded Reservation row (with or without existing documents)
+**When** I use the upload affordance (`size-8` icon button, `title="Add document"`, or the dashed row when empty) to select a file
+**Then** it uploads via the existing `put()` document-upload logic with `scope: "reservation"` and `reservationId` set (respecting the `UPLOAD_STUB` guard in E2E), and appears as an inline document row (`DocKindBadge` + truncated filename + `size-8` upload affordance) below the confirmation chip
+
+**Given** the Add/Edit Reservation drawer's Documents section
+**When** the Reservation has attached documents
+**Then** the same inline document rows render there; when empty, it shows the Documents-tab-style empty composition (`FileText` icon, "No documents yet", "Attach a hotel confirmation, receipt, or other reservation document.", "Add document" button at `outline`/`sm`)
+
+**Given** a Reservation with attached Documents
+**When** it is deleted (via Story 1.4's `deleteReservation`)
+**Then** `deleteReservation` calls `del()` on each attached Document's Blob URL *before* the `reservations` row (and its cascade-deleted `documents` rows) are removed
+
+**And** reservation-document attach/detach actions are added to `src/app/(app)/trips/[tripId]/reservations/actions.ts`, reusing the existing upload/delete document logic from `actions.ts` parameterized for `scope: "reservation"`
+
+**And** tests extend the **Reservation Object Mother** from Story 1.1 with an option to materialize attached Documents (`scope: "reservation"`) for a Reservation
+
+**And** unit/component tests: `db-mappers.test.ts` (extended `dbDocToType()` orphan/scope tests for `reservation_id`), `reservation-row.test.tsx` (document rows + no-documents dashed affordance), `reservation-edit-drawer.test.tsx` (Documents section populated/empty), `reservations/actions.test.ts` (attach/detach, cascade delete including Blob `del()`-before-cascade)
+
+**And** E2E: `tests/e2e/features/reservations.feature` gains scenarios for (1) attaching a document to a Reservation and seeing it appear inline, and (2) deleting a Reservation with an attached document and verifying both are gone
