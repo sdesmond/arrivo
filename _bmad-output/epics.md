@@ -214,3 +214,37 @@ So that I can quickly scan "what hotels do I have" or "what's my rental car situ
 **And** unit/component tests: `reservations-tab.test.tsx` (empty state + populated accordion list), `reservation-type-section.test.tsx` (collapse/expand, preview text, chronological ordering within a section, cross-type section ordering, accessible name)
 
 **And** E2E: `tests/e2e/features/reservations.feature` gains scenarios for (1) the zero-Reservations empty state and (2) a grouped, soonest-first accordion view across multiple types (via Object Mother overrides)
+
+### Story 1.3: Edit a Reservation
+
+As a trip planner,
+I want to edit any field of an existing Reservation (except its type),
+So that I can keep my booking details accurate as my plans change.
+
+**Acceptance Criteria:**
+
+**Given** an expanded accordion section
+**When** I click an editable field on a Reservation row (provider, an anchor date/time, confirmation code, or notes)
+**Then** it becomes an inline input with a teal underline (`doc-row.tsx`'s inline-rename pattern)
+
+**Given** an inline input is open
+**When** I press Enter or blur the field
+**Then** `updateReservation` (`requireUser()` → `assertTripAccess(tripId, "editor")` → update → `revalidatePath`) persists the new value and the row displays it
+
+**Given** an inline input is open
+**When** I press Escape
+**Then** the edit is discarded, the field reverts to its prior value, and focus returns to that field's display element (never lost to `<body>`) per UX-DR10
+
+**Given** any of the up to 5 editable fields on a Reservation row
+**When** not in edit mode
+**Then** each is itself a `<button>` (or `role="button" tabindex="0"` with Enter/Space handlers), focusable in normal tab order with the standard `:focus-visible` ring
+
+**Given** any Reservation, including "Other"-type ones
+**When** I view its row
+**Then** `type` remains displayed via the accordion's icon/title only and is never editable; for "Other", the generic "Start"/"End" anchor labels remain as labels (only the date/time values are editable)
+
+**And** tests use the **Reservation Object Mother** from Story 1.1 with overrides to create an existing Reservation to edit
+
+**And** unit/component tests: `reservation-row.test.tsx` (click-to-edit per field — provider, anchors, confirmation code, notes — covering Enter/blur-save, Escape-cancel, and focus-return), `updateReservation` action test
+
+**And** E2E: `tests/e2e/features/reservations.feature` gains a scenario editing a Reservation's provider and an anchor time inline and verifying the persisted values after reload
