@@ -414,3 +414,37 @@ So that I don't have to manually add Days before booking a flight that lands bef
 **And** unit tests: `reservations/actions.test.ts` extended — `createReservation`/`updateReservation` cases for extend-before (with `dayNumber` reshuffle), extend-after (append), no-extension (in-range), and transactional rollback on simulated failure
 
 **And** E2E: `tests/e2e/features/linked-events.feature` gains a scenario creating a Reservation dated before the trip's current `startDate` (via Object Mother) and verifying a new Day 1 appears on the Itinerary with the Reservation's Linked Event, and prior Days shift their numbering
+
+### Story 2.3: Now Card Surfaces Linked Events
+
+As a trip planner,
+I want my Now Card to show check-ins, pickups, departures, and other booked events when they're happening or coming up next,
+So that I don't miss a flight or check-in just because I created it as a Reservation instead of a manual itinerary event.
+
+**Acceptance Criteria:**
+
+**Given** the Now Card's "current/next-upcoming event" logic in `src/lib/queries.ts`
+**When** building `todayEvents` for the Now Card
+**Then** it includes Linked Events derived via `deriveLinkedEvents()` (Story 2.1), merged with manual events and sorted by `startAt`, exactly like the Itinerary's `DayItinerary.events` merge
+
+**Given** a Linked Event is the chronologically current event (its time window contains "now")
+**When** the Now Card renders
+**Then** it displays the Linked Event exactly as it would a manually-created "happening now" event — same layout, same `var(--accent-soft)`/"Now" pill treatment — plus the Reservation Type icon (replacing `MapPin`, `aria-hidden`) and "Linked" `Badge` `muted` pill (per UX-DR5)
+
+**Given** a Linked Event is the chronologically next-upcoming event (no event is currently "happening now")
+**When** the Now Card renders
+**Then** it displays the Linked Event exactly as it would a manually-created "next up" event, with the same icon/badge treatment as above
+
+**Given** the Now Card displays a Linked Event
+**When** inspected by assistive tech
+**Then** it uses the same single-`aria-label`-button construction as the Itinerary's Linked Event row (Story 2.1), so "Linked" is announced exactly once
+
+**Given** `now-card.tsx`
+**When** it determines which event is "current" vs "next-upcoming"
+**Then** the existing `isEventPast`/`isEventNow` helpers in `src/lib/utils.ts` operate on Linked Events the same as manual events, with no Linked-specific time logic added
+
+**And** tests reuse the **Reservation Object Mother** from Story 1.1, with overrides producing a Reservation whose Linked Event falls in the "happening now" window and another whose Linked Event is "next up"
+
+**And** unit/component tests: `now-card.test.tsx` extended — Linked Event shown when "happening now", Linked Event shown when "next up", icon/badge/aria-label rendering matches Story 2.1's Itinerary row treatment, manual event still preferred when it's chronologically current and a Linked Event is only "next up"
+
+**And** E2E: `tests/e2e/features/linked-events.feature` gains a scenario where a Reservation's Linked Event falls within the seeded "now" window (via Object Mother override) and verifies it appears on the Now Card with the "Now" pill and "Linked" badge
