@@ -40,7 +40,7 @@ export function Section({ title, children }: SectionProps) {
 }
 
 export interface FieldProps {
-  label: string;
+  label: React.ReactNode;
   htmlFor?: string;
   error?: string;
   children: React.ReactNode;

@@ -4,7 +4,7 @@ baseline_commit: 6383a5beb86ebdb1d67a42174aed19fa76577376
 
 # Story 1.1: Add a Reservation
 
-Status: review
+Status: done
 
 ## Story
 
@@ -83,13 +83,13 @@ so that I have a single place to record my bookings without re-creating them as 
 
 _Code review 2026-06-14 (baseline `6383a5b` → `b6b9b57`). Layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor._
 
-- [ ] [Review][Patch] Enforce start/end ordering & start-required-when-end-present (resolved from decision: patch) — Neither the drawer nor `createReservation` validates that `endAt` ≥ `startAt`, or that `startAt` exists when `endAt` does; a check-out before check-in saves cleanly. [reservation-edit-drawer.tsx:75, actions.ts:11] (blind+edge)
-- [ ] [Review][Patch] Date set but time left blank silently defaults to `00:00` (resolved from decision: patch) — require a time when a date is present (block save with an inline error on the anchor). [reservation-edit-drawer.tsx:70] (blind+edge)
-- [ ] [Review][Patch] Provider required field is not enforced (client + server) — `handleSave` and `createReservation` both accept an empty/whitespace provider; the column is `notNull` but `""` passes, persisting a blank-provider row. The "Provider *" asterisk + `aria-required` are cosmetic. [reservation-edit-drawer.tsx:75, actions.ts:11] (blind+edge)
-- [ ] [Review][Patch] On-open focus to Provider input not implemented; `providerInputRef` is dead code — AC2/Dev-Notes require focus to move to the Provider input on open; the ref is wired but never `.focus()`ed and there is no effect. [reservation-edit-drawer.tsx:47,132] (blind+auditor)
-- [ ] [Review][Patch] Provider required asterisk not styled `var(--accent-brand)` — the anchor fieldsets color their `*`, but the Provider label uses plain `"Provider *"` text, deviating from Dev-Notes item 1. [reservation-edit-drawer.tsx:129] (auditor)
-- [ ] [Review][Patch] Server action does not validate `input.type ∈ ReservationType` (defense-in-depth) — an unknown type bypasses the `endAt` gate and is inserted into the free-text column; the tab then silently drops it from grouping. [actions.ts:11] (blind+edge)
-- [ ] [Review][Patch] `ReservationSeed.type` typed as `string` instead of `ReservationType` — loses type safety on E2E seeds; a typo'd type compiles. [tests/e2e/e2e-seed-data.ts] (blind)
+- [x] [Review][Patch] Enforce start/end ordering & start-required-when-end-present (resolved from decision: patch) — Neither the drawer nor `createReservation` validates that `endAt` ≥ `startAt`, or that `startAt` exists when `endAt` does; a check-out before check-in saves cleanly. [reservation-edit-drawer.tsx:75, actions.ts:11] (blind+edge)
+- [x] [Review][Patch] Date set but time left blank silently defaults to `00:00` (resolved from decision: patch) — require a time when a date is present (block save with an inline error on the anchor). [reservation-edit-drawer.tsx:70] (blind+edge)
+- [x] [Review][Patch] Provider required field is not enforced (client + server) — `handleSave` and `createReservation` both accept an empty/whitespace provider; the column is `notNull` but `""` passes, persisting a blank-provider row. The "Provider *" asterisk + `aria-required` are cosmetic. [reservation-edit-drawer.tsx:75, actions.ts:11] (blind+edge)
+- [x] [Review][Patch] On-open focus to Provider input not implemented; `providerInputRef` is dead code — AC2/Dev-Notes require focus to move to the Provider input on open; the ref is wired but never `.focus()`ed and there is no effect. [reservation-edit-drawer.tsx:47,132] (blind+auditor)
+- [x] [Review][Patch] Provider required asterisk not styled `var(--accent-brand)` — the anchor fieldsets color their `*`, but the Provider label uses plain `"Provider *"` text, deviating from Dev-Notes item 1. [reservation-edit-drawer.tsx:129] (auditor)
+- [x] [Review][Patch] Server action does not validate `input.type ∈ ReservationType` (defense-in-depth) — an unknown type bypasses the `endAt` gate and is inserted into the free-text column; the tab then silently drops it from grouping. [actions.ts:11] (blind+edge)
+- [x] [Review][Patch] `ReservationSeed.type` typed as `string` instead of `ReservationType` — loses type safety on E2E seeds; a typo'd type compiles. [tests/e2e/e2e-seed-data.ts] (blind)
 - [x] [Review][Defer] Local wall-clock times stored as UTC (`...Z` via string concat) — pre-existing, app-wide convention (events store/render identically); not a regression from this story. [reservation-edit-drawer.tsx:72] — deferred, pre-existing (blind+edge)
 - [x] [Review][Defer] Dev-date-picker overlay overlaps the right-drawer footer Save button in dev/E2E (focus+Enter workaround) — dev-only (`NODE_ENV==="development"`), absent in production. [reservations.steps.ts:29] — deferred, dev-only (blind)
 - [x] [Review][Defer] `reservations` table has no index on `trip_id` — spec explicitly specified no index; future perf only. [src/db/schema.ts] — deferred, spec-mandated (blind)
@@ -534,6 +534,7 @@ claude-sonnet-4-6
 **Modified files:**
 - `src/db/schema.ts`
 - `src/data/types.ts`
+- `src/components/packt/form-section.tsx` (code review: `Field` label accepts `ReactNode`)
 - `src/lib/db-mappers.ts` / `src/lib/db-mappers.test.ts`
 - `src/lib/queries.ts`
 - `src/app/(app)/trips/[tripId]/trip-detail-tabs.ts`
@@ -552,3 +553,4 @@ claude-sonnet-4-6
 | Date | Change |
 | --- | --- |
 | 2026-06-14 | Implemented Story 1.1 (Tasks 1-11): reservations data model, `createReservation` action, type picker, add-reservation drawer, `ReservationsTab` + tab wiring, E2E Object Mother extensions, and new `reservations.feature` E2E scenario. Fixed a function-coverage shortfall in `reservation-edit-drawer.test.tsx`. Status set to `review`. |
+| 2026-06-14 | Code review: applied 7 patches — provider-required validation (client + server), date/time-consistency + start/end ordering + start-required-when-end validation, on-open Provider focus, accent-colored required asterisk, server-side reservation-type guard, and tightened `ReservationSeed.type`. Updated drawer/action unit tests and the E2E scenario (now sets full check-in + check-out anchors). Status set to `done`. |

@@ -102,9 +102,66 @@ describe("ReservationEditDrawer", () => {
 
     await user.type(screen.getByLabelText("Provider *"), "Grand Hotel");
     await user.type(screen.getByLabelText("Check-in date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Check-in time"), "15:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Check-out is required for this reservation type.");
+    expect(createReservation).not.toHaveBeenCalled();
+  });
+
+  it("focuses the Provider input when the drawer opens", () => {
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Lodging} open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByLabelText("Provider *")).toHaveFocus();
+  });
+
+  it("blocks save and shows an error when the provider is empty", async () => {
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Provider is required.");
+    expect(createReservation).not.toHaveBeenCalled();
+  });
+
+  it("blocks save when a date is provided without a time", async () => {
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
+    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Enter both a date and a time.");
+    expect(createReservation).not.toHaveBeenCalled();
+  });
+
+  it("blocks save when the end anchor is set but the start anchor is missing", async () => {
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
+    await user.type(screen.getByLabelText("Arrival date"), "2026-08-05");
+    await user.type(screen.getByLabelText("Arrival time"), "11:00");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Departure is required when arrival is set.");
+    expect(createReservation).not.toHaveBeenCalled();
+  });
+
+  it("blocks save when the end anchor is before the start anchor", async () => {
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Lodging} open onOpenChange={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Provider *"), "Grand Hotel");
+    await user.type(screen.getByLabelText("Check-in date"), "2026-08-05");
+    await user.type(screen.getByLabelText("Check-in time"), "15:00");
+    await user.type(screen.getByLabelText("Check-out date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Check-out time"), "11:00");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Check-out must be after check-in.");
     expect(createReservation).not.toHaveBeenCalled();
   });
 

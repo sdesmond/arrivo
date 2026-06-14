@@ -33,6 +33,22 @@ const ANCHOR_LABELS: Record<ReservationType, { start: string; end: string }> = {
   other: { start: "Start", end: "End" },
 };
 
+function combineAnchor(date: string | undefined, time: string | undefined): { iso?: string; error?: string } {
+  const hasDate = !!date;
+  const hasTime = !!time;
+  if (hasDate !== hasTime) {
+    return { error: "Enter both a date and a time." };
+  }
+  if (!hasDate) {
+    return {};
+  }
+  return { iso: `${date}T${time}:00.000Z` };
+}
+
+function focusAnchor(ref: React.RefObject<HTMLDivElement | null>): void {
+  ref.current?.querySelector<HTMLElement>("input, button")?.focus();
+}
+
 export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: ReservationEditDrawerProps) {
   const [provider, setProvider] = useState("");
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
@@ -41,10 +57,13 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
   const [endTime, setEndTime] = useState<string | undefined>(undefined);
   const [confirmationCode, setConfirmationCode] = useState("");
   const [notes, setNotes] = useState("");
+  const [providerError, setProviderError] = useState<string | undefined>(undefined);
+  const [startAtError, setStartAtError] = useState<string | undefined>(undefined);
   const [endAtError, setEndAtError] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const providerInputRef = useRef<HTMLInputElement | null>(null);
+  const startAnchorRef = useRef<HTMLDivElement | null>(null);
   const endAnchorDateRef = useRef<HTMLDivElement | null>(null);
 
   const { label, icon: Icon } = RESERVATION_TYPE_META[type];
@@ -53,7 +72,9 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    if (!open) {
+    if (open) {
+      providerInputRef.current?.focus();
+    } else {
       setProvider("");
       setStartDate(undefined);
       setStartTime(undefined);
@@ -61,34 +82,64 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       setEndTime(undefined);
       setConfirmationCode("");
       setNotes("");
+      setProviderError(undefined);
+      setStartAtError(undefined);
       setEndAtError(undefined);
       setSaving(false);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
 
-  function toIsoDateTime(date: string | undefined, time: string | undefined): string | undefined {
-    if (!date) return undefined;
-    return `${date}T${time ?? "00:00"}:00.000Z`;
-  }
-
   async function handleSave(): Promise<void> {
-    const endAt = toIsoDateTime(endDate, endTime);
+    setProviderError(undefined);
+    setStartAtError(undefined);
+    setEndAtError(undefined);
 
-    if (endAtRequired && !endAt) {
-      setEndAtError(`${anchorLabels.end} is required for this reservation type.`);
-      endAnchorDateRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+    if (!provider.trim()) {
+      setProviderError("Provider is required.");
+      providerInputRef.current?.focus();
       return;
     }
 
-    setEndAtError(undefined);
+    const start = combineAnchor(startDate, startTime);
+    if (start.error) {
+      setStartAtError(start.error);
+      focusAnchor(startAnchorRef);
+      return;
+    }
+
+    const end = combineAnchor(endDate, endTime);
+    if (end.error) {
+      setEndAtError(end.error);
+      focusAnchor(endAnchorDateRef);
+      return;
+    }
+
+    if (endAtRequired && !end.iso) {
+      setEndAtError(`${anchorLabels.end} is required for this reservation type.`);
+      focusAnchor(endAnchorDateRef);
+      return;
+    }
+
+    if (end.iso && !start.iso) {
+      setStartAtError(`${anchorLabels.start} is required when ${anchorLabels.end.toLowerCase()} is set.`);
+      focusAnchor(startAnchorRef);
+      return;
+    }
+
+    if (start.iso && end.iso && new Date(end.iso).getTime() < new Date(start.iso).getTime()) {
+      setEndAtError(`${anchorLabels.end} must be after ${anchorLabels.start.toLowerCase()}.`);
+      focusAnchor(endAnchorDateRef);
+      return;
+    }
+
     setSaving(true);
 
     const input: CreateReservationInput = {
       type,
-      provider,
-      startAt: toIsoDateTime(startDate, startTime),
-      endAt,
+      provider: provider.trim(),
+      startAt: start.iso,
+      endAt: end.iso,
       confirmationCode: confirmationCode || undefined,
       notes: notes || undefined,
     };
@@ -126,7 +177,15 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
 
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4.5">
           <Section title="Details">
-            <Field label="Provider *" htmlFor="reservation-provider">
+            <Field
+              label={
+                <>
+                  Provider <span style={{ color: "var(--accent-brand)" }}>*</span>
+                </>
+              }
+              htmlFor="reservation-provider"
+              error={providerError}
+            >
               <Input
                 id="reservation-provider"
                 ref={providerInputRef}
@@ -134,18 +193,22 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                 value={provider}
                 onChange={(event) => setProvider(event.target.value)}
                 aria-required="true"
+                aria-invalid={!!providerError}
                 disabled={saving}
               />
             </Field>
 
-            <ReservationAnchorFieldset
-              legend={anchorLabels.start}
-              required={false}
-              date={startDate}
-              time={startTime}
-              onDateChange={setStartDate}
-              onTimeChange={setStartTime}
-            />
+            <div ref={startAnchorRef}>
+              <ReservationAnchorFieldset
+                legend={anchorLabels.start}
+                required={false}
+                date={startDate}
+                time={startTime}
+                onDateChange={setStartDate}
+                onTimeChange={setStartTime}
+                error={startAtError}
+              />
+            </div>
 
             <div ref={endAnchorDateRef}>
               <ReservationAnchorFieldset

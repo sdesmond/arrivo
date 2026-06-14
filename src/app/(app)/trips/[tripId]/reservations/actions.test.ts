@@ -135,4 +135,35 @@ describe("createReservation", () => {
       endAt: undefined,
     });
   });
+
+  it("rejects an unknown reservation type", async () => {
+    await expect(
+      createReservation("trip-1", {
+        type: "teleport" as ReservationType,
+        provider: "Acme",
+      })
+    ).rejects.toThrow("Invalid reservation type.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a blank provider", async () => {
+    await expect(
+      createReservation("trip-1", {
+        type: ReservationType.Other,
+        provider: "   ",
+      })
+    ).rejects.toThrow("Provider is required.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("trims the provider before inserting", async () => {
+    await createReservation("trip-1", {
+      type: ReservationType.Other,
+      provider: "  Misc  ",
+    });
+
+    expect(insertedValues).toMatchObject({ provider: "Misc" });
+  });
 });

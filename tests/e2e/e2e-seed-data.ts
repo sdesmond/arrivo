@@ -1,3 +1,5 @@
+import type { ReservationType } from "../../src/data/types";
+
 export interface UserSeed {
   name: string;
   initials: string;
@@ -77,7 +79,7 @@ export interface NoteSeed {
 }
 
 export interface ReservationSeed {
-  type: string;
+  type: ReservationType;
   provider: string;
   startAt?: string | null;
   endAt?: string | null;

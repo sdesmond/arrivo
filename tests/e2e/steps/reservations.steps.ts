@@ -18,12 +18,16 @@ When("I fill in the reservation provider with {string}", async ({ page }, provid
   await page.getByLabel("Provider *").fill(provider);
 });
 
-When("I set the Check-out date to today", async ({ page }) => {
-  await page.getByRole("button", { name: "Check-out date" }).click();
+When("I set the {string} date to today", async ({ page }, anchorLabel: string) => {
+  await page.getByRole("button", { name: `${anchorLabel} date` }).click();
   await page
     .locator('[data-slot="popover-content"]')
     .getByRole("button", { name: /^Today,/ })
     .click();
+});
+
+When("I set the {string} time to {string}", async ({ page }, anchorLabel: string, time: string) => {
+  await page.getByLabel(`${anchorLabel} time`).fill(time);
 });
 
 When("I click {string} on the reservation drawer", async ({ page }, buttonText: string) => {
