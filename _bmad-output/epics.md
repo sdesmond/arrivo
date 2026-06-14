@@ -491,3 +491,61 @@ So that I can move fluidly between "what's planned" and "what's booked" without 
 **And** unit/component tests: `itinerary-cta.test.tsx` (zero vs. ≥1 Reservation copy, `aria-label`, click navigation target), `reservations-tab.test.tsx` extended (mount with `action=add-reservation` opens type picker + strips param, mount with `highlight={id}` expands/scrolls/highlights + strips param), `day-card-body.test.tsx`/`now-card.test.tsx` extended (`onLinkedEventTap` now navigates to `?tab=res&highlight={id}`)
 
 **And** E2E: `tests/e2e/features/linked-events.feature` gains scenarios for (1) tapping the empty-state CTA and landing on Reservations with the type picker open, and (2) tapping a Linked Event on the Itinerary and landing on Reservations with the correct accordion section expanded and the Reservation highlighted
+
+## Epic 3: Cover Overflow Menu
+
+Users can manage their trip's cover image (edit, remove, view photo attribution) via a new "⋯" overflow menu on the cover, with cover controls removed from the edit sheet.
+
+### Story 3.1: Cover Overflow Menu (Edit/Remove/Info)
+
+As a trip planner,
+I want a "⋯" menu on my trip's cover image with quick actions to edit, remove, or see photo credit,
+So that I can manage my cover image without opening the full trip edit sheet.
+
+**Acceptance Criteria:**
+
+**Given** `trips.coverPhotographer` and `trips.coverPhotographerUrl` (nullable text columns)
+**When** added to `src/db/schema.ts`
+**Then** `Trip` in `src/data/types.ts` gains optional `coverPhotographer?: string` and `coverPhotographerUrl?: string` fields, and the relevant db-mapper includes them
+
+**Given** `CoverImageSearchResult` and the Unsplash response mapping in `cover-image-search-actions.ts`
+**When** extended for this story
+**Then** each result includes a `photographerUrl` field sourced from Unsplash's `user.links.html` (and the E2E stub builder produces a stub profile URL per result)
+
+**Given** the cover-image search tab's `onImageSelected`
+**When** a user selects an Unsplash search result as their cover
+**Then** `coverImageUrl`, `coverPhotographer`, and `coverPhotographerUrl` are all persisted together on the trip; selecting a Map, Graphic, custom upload, or URL-based Photo cover instead persists `coverImageUrl` with `coverPhotographer`/`coverPhotographerUrl` set to `null`
+
+**Given** `trip-hero.tsx`
+**When** rendered
+**Then** it shows a "⋯" overflow trigger per UX-DR9 (`absolute top-2 right-2`, `MoreHorizontal` `18px`/`strokeWidth={1.5}`, `bg-black/25 text-white backdrop-blur-sm` hover `bg-black/45`, `6px` radius, `title="Cover options"`), opening a `DropdownMenuContent` (`side="bottom" align="end"`, `var(--bg)`/`var(--line)` border/`xl` radius/`shadow-3`) — a new menu instance, not a modification of `now-card.tsx`'s existing trip-list overflow menu
+
+**Given** the Cover Overflow Menu is open, for any `CoverType`
+**When** rendered
+**Then** "Edit Cover" (`Pencil` icon) is always present and, when selected, opens the existing `CoverImagePicker` dialog directly
+
+**Given** the trip's current `CoverType` is Photo or Map
+**When** the Cover Overflow Menu is open
+**Then** "Remove Cover" (`Trash2` icon, destructive-icon styling matching the "Remove day" convention) is shown; selecting it sets the cover to a random Graphic (via the existing `deriveGraphicCover` helper) with no confirmation dialog, and clears `coverPhotographer`/`coverPhotographerUrl`
+
+**Given** the trip's current `CoverType` is Graphic
+**When** the Cover Overflow Menu is open
+**Then** "Remove Cover" is not shown (Edit Cover remains available to choose a new Photo/Map, which is how a Graphic cover is reversed)
+
+**Given** the trip's current cover is an Unsplash photo (`CoverType === "photo"` AND `coverPhotographer` is set)
+**When** the Cover Overflow Menu is open
+**Then** "Info" (`Info` icon) is shown; selecting it opens a dialog displaying the photographer's name and a link to their Unsplash profile (`coverPhotographerUrl`)
+
+**Given** the trip's current cover is a Map, Graphic, custom upload, or URL-based Photo (no `coverPhotographer`)
+**When** the Cover Overflow Menu is open
+**Then** "Info" is not shown
+
+**Given** any action in the Cover Overflow Menu changes `CoverType` (or attribution fields)
+**When** the page re-renders after the change
+**Then** the menu's available items (Remove Cover, Info) immediately reflect the new state on next open — no stale conditional items
+
+**And** a new server action (e.g. `removeTripCover`) is added to `src/app/(app)/trips/actions.ts` following `requireUser()` → `assertTripAccess(tripId, "editor")` → update → `revalidatePath(/trips/${tripId})`, setting a random Graphic cover and clearing attribution fields
+
+**And** unit/component tests: `trip-hero.test.tsx` (overflow trigger renders, conditional Edit/Remove/Info items per `CoverType`/`coverPhotographer` combination, Edit opens `CoverImagePicker`, Remove calls the new action, Info opens the attribution dialog with correct name/link), `actions.test.ts` extended (`removeTripCover` sets Graphic cover + clears attribution), `cover-image-search-actions.test.ts` extended (`photographerUrl` mapping, E2E stub), db-mapper test extended for the new `Trip` fields
+
+**And** E2E: new file `tests/e2e/features/trip-cover-overflow.feature` with scenarios for (1) selecting an Unsplash photo cover then viewing its Info dialog, and (2) removing a Photo cover and verifying it becomes a Graphic with "Remove Cover"/"Info" no longer shown
