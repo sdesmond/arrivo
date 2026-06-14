@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2]
+stepsCompleted: [1, 2, 3]
 inputDocuments:
   - _bmad-output/prds/prd-packt-2026-06-12/prd.md
   - _bmad-output/architecture.md
@@ -549,3 +549,33 @@ So that I can manage my cover image without opening the full trip edit sheet.
 **And** unit/component tests: `trip-hero.test.tsx` (overflow trigger renders, conditional Edit/Remove/Info items per `CoverType`/`coverPhotographer` combination, Edit opens `CoverImagePicker`, Remove calls the new action, Info opens the attribution dialog with correct name/link), `actions.test.ts` extended (`removeTripCover` sets Graphic cover + clears attribution), `cover-image-search-actions.test.ts` extended (`photographerUrl` mapping, E2E stub), db-mapper test extended for the new `Trip` fields
 
 **And** E2E: new file `tests/e2e/features/trip-cover-overflow.feature` with scenarios for (1) selecting an Unsplash photo cover then viewing its Info dialog, and (2) removing a Photo cover and verifying it becomes a Graphic with "Remove Cover"/"Info" no longer shown
+
+### Story 3.2: Remove Cover Controls from the Trip Edit Sheet
+
+As a trip planner,
+I want the trip edit sheet to focus on trip details rather than duplicate cover management,
+So that the edit sheet stays simple and cover editing happens in one place — the Cover Overflow Menu.
+
+**Acceptance Criteria:**
+
+**Given** `trip-edit-sheet.tsx`
+**When** this story is implemented
+**Then** it no longer renders the "Cover image" `Section` (preview, "Edit cover image"/"Remove image" buttons, embedded `CoverImagePicker`) — `coverImageUrl`-related props/state used only for that section are removed from `TripEditSheet`'s props/state
+
+**Given** `trip-edit-cover.tsx` and `trip-edit-cover.test.tsx`
+**When** this story is implemented
+**Then** both files are deleted, as `TripEditCover` becomes unused (the Cover Overflow Menu from Story 3.1 invokes `CoverImagePicker` directly)
+
+**Given** the trip edit sheet's remaining fields (name, dates, destination, budget, collaborators, Delete Trip)
+**When** the edit sheet is opened after this story
+**Then** all of them continue to render and function exactly as before — no other field's layout, validation, or behavior changes
+
+**Given** a trip whose cover was previously editable only via the edit sheet
+**When** a user wants to change it after this story
+**Then** the Cover Overflow Menu (Story 3.1) is the only entry point, and it remains fully functional (Edit/Remove/Info) independent of the edit sheet
+
+**And** any test in `trip-edit-sheet.test.tsx` that exercised the removed cover section (rendering the section, triggering `CoverImagePicker`, "Remove image") is deleted; remaining tests for name/dates/destination/budget/collaborators/Delete Trip are unaffected and continue to pass
+
+**And** a search for other references to `TripEditCover`/`trip-edit-cover` across `src/` confirms no remaining imports after deletion
+
+**And** E2E: `tests/e2e/features/trip-cover-overflow.feature` (from Story 3.1) gains a scenario opening the trip edit sheet and verifying no cover image controls are present, alongside the existing overflow-menu scenarios
