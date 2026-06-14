@@ -176,3 +176,41 @@ So that I have a single place to record my bookings without re-creating them as 
 **And** unit/component tests: `dbReservationToType()` mapper test, `createReservation` action test (covering type-dependent `endAt` validation for all 8 types, including "Other"), `reservation-type-picker.test.tsx`, `reservation-edit-drawer.test.tsx` (Add mode, including "Other"'s generic Start/End labels)
 
 **And** E2E: `tests/e2e/features/reservations.feature` gains a scenario for adding a Lodging Reservation (via the new Object Mother for trip setup) and verifying it appears in the Lodging accordion section
+
+### Story 1.2: View Reservations Grouped by Type, with Empty State
+
+As a trip planner,
+I want to see all my Reservations organized by type, with quick previews, and a helpful empty state when I haven't added any yet,
+So that I can quickly scan "what hotels do I have" or "what's my rental car situation" without hunting through a flat list.
+
+**Acceptance Criteria:**
+
+**Given** the trip has zero Reservations
+**When** I open the Reservations tab
+**Then** I see the FR-6 `Empty` composition (`EmptyHeader`/`EmptyMedia(icon)`/`EmptyTitle` "No reservations yet"/`EmptyDescription` inviting Flight, Lodging, Rental Car, etc./`EmptyContent` with an "Add Reservation" button opening the FR-1 type picker), and no per-type accordion sections render
+
+**Given** the trip has ≥1 Reservation of a given type
+**When** I view the Reservations tab
+**Then** that type gets its own accordion section per UX-DR2 (`rounded-[14px]`, `var(--line)` border, `var(--surface)` header); types with zero Reservations show no section
+
+**Given** an accordion section is collapsed
+**When** rendered
+**Then** the header shows the type icon + name, an `aria-hidden` count badge, and a "Next: **{provider}** · {weekday}, {month} {day} · {time}" preview (in `var(--fg-2)`) of that type's next-upcoming Reservation
+
+**Given** I tap an accordion header
+**When** it expands (chevron rotates 180°, border appears between header and body)
+**Then** every Reservation of that type renders as a row, ordered by `startTime` ascending
+
+**Given** Reservations exist across multiple types
+**When** the Reservations tab renders
+**Then** populated accordion sections are ordered by each type's next-upcoming Reservation's `startTime` (soonest first), and re-sort live as Reservations are added, edited, or deleted
+
+**Given** any accordion header
+**When** inspected by assistive tech
+**Then** its accessible name is "{Type name}, {count} reservation{s}, {expanded|collapsed}", with the count badge and `ChevronDown` marked `aria-hidden="true"`
+
+**And** tests use the **Reservation Object Mother** from Story 1.1 with overrides (varying `type`/`startAt`) to materialize multiple Reservations across types for empty/populated/sorting scenarios
+
+**And** unit/component tests: `reservations-tab.test.tsx` (empty state + populated accordion list), `reservation-type-section.test.tsx` (collapse/expand, preview text, chronological ordering within a section, cross-type section ordering, accessible name)
+
+**And** E2E: `tests/e2e/features/reservations.feature` gains scenarios for (1) the zero-Reservations empty state and (2) a grouped, soonest-first accordion view across multiple types (via Object Mother overrides)
