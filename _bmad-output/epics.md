@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1]
+stepsCompleted: [1, 2]
 inputDocuments:
   - _bmad-output/prds/prd-packt-2026-06-12/prd.md
   - _bmad-output/architecture.md
@@ -99,8 +99,30 @@ UX-DR12: Every icon introduced by this feature uses `strokeWidth={1.5}` consiste
 
 ### FR Coverage Map
 
-{{requirements_coverage_map}}
+FR1: Epic 1 - Add a Reservation (type picker, type-specific fields)
+FR2: Epic 1 - View Reservations grouped by type (accordions)
+FR3: Epic 1 - Edit a Reservation (click-to-edit)
+FR4: Epic 1 - Delete a Reservation (with confirmation)
+FR5: Epic 1 - Attach documents to a Reservation
+FR6: Epic 1 - Empty state for new trips
+FR7: Epic 2 - Linked Events on the Itinerary
+FR8: Epic 2 - Reservations extend the Itinerary's date range
+FR9: Epic 2 - Itinerary empty-state CTA
+FR10: Epic 2 - Now Card surfaces Linked Events
+FR11: Epic 2 - Editing from the Itinerary redirects to Reservations
+FR12: Epic 3 - Cover Overflow Menu (Edit/Remove/Info)
+FR13: Epic 3 - Cover controls removed from the edit sheet
 
 ## Epic List
 
-{{epics_list}}
+### Epic 1: Record & Manage Reservations
+Users can add, view (grouped by type into accordions), edit, delete, and attach documents to Reservations from a new Reservations tab — giving them a single source of truth for trip bookings (flights, lodging, rental cars, etc.), independent of any Itinerary changes. Includes the foundational `reservations` table, `ReservationType`/`Reservation` types, `dbReservationToType()`, and `documents.scope` extension — all needed by Epic 2 as well.
+**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6
+
+### Epic 2: Reservations Sync to the Itinerary
+Users see their Reservations automatically reflected on the Itinerary and Now Card as Linked Events (Check-in/Check-out, Pickup/Return, etc.), with the trip's date range extending automatically to cover bookings outside it, and a permanent CTA guiding users from the Itinerary to Reservations. Builds on Epic 1's Reservation entity and CRUD — cannot function without it. Introduces `src/lib/linked-events.ts`, the query-layer merge, and the FR-9/FR-11 search-param orchestration.
+**FRs covered:** FR7, FR8, FR9, FR10, FR11
+
+### Epic 3: Cover Overflow Menu
+Users can manage their trip's cover image (edit, remove, view photo attribution) via a new "⋯" overflow menu on the cover, with cover controls removed from the edit sheet. Fully independent of Epics 1 & 2 — can be built/shipped in any order relative to them.
+**FRs covered:** FR12, FR13
