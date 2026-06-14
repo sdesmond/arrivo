@@ -448,3 +448,45 @@ So that I don't miss a flight or check-in just because I created it as a Reserva
 **And** unit/component tests: `now-card.test.tsx` extended — Linked Event shown when "happening now", Linked Event shown when "next up", icon/badge/aria-label rendering matches Story 2.1's Itinerary row treatment, manual event still preferred when it's chronologically current and a Linked Event is only "next up"
 
 **And** E2E: `tests/e2e/features/linked-events.feature` gains a scenario where a Reservation's Linked Event falls within the seeded "now" window (via Object Mother override) and verifies it appears on the Now Card with the "Now" pill and "Linked" badge
+
+### Story 2.4: Itinerary CTA and Tap-to-Edit Redirect
+
+As a trip planner,
+I want a prompt on my Itinerary to add reservations, and to be taken straight to the right Reservation when I tap a Linked Event,
+So that I can move fluidly between "what's planned" and "what's booked" without hunting for the right tab or row.
+
+**Acceptance Criteria:**
+
+**Given** a trip with zero Reservations
+**When** I view the Itinerary
+**Then** the FR-9 CTA row (per UX-DR7: `h-12`, `rounded-[14px]`, `Luggage` icon swatch, single `<button>` with constructed `aria-label`) appears above the first day card, with copy "Add reservations for hotels, rentals, and more"
+
+**Given** a trip with ≥1 Reservation
+**When** I view the Itinerary
+**Then** the same CTA row still appears, with copy changed to "Add another reservation"
+
+**Given** the CTA row
+**When** I tap it
+**Then** the app navigates to `?tab=res&action=add-reservation`, an `aria-live="polite"` region announces the tab change once the transition settles, and the FR-1 type-picker `DropdownMenu` auto-opens with focus moved to its first item
+
+**Given** the `ReservationsTab` component
+**When** it mounts with `?action=add-reservation` in the URL
+**Then** it opens the FR-1 type picker automatically, then calls `router.replace()` to strip the `action` param
+
+**Given** a Linked Event row on the Itinerary or Now Card (rendered with `onLinkedEventTap` from Story 2.1/2.3)
+**When** I tap it
+**Then** the app navigates to `?tab=res&highlight={reservationId}`, replacing Story 2.1/2.3's placeholder `onLinkedEventTap` with this real navigation
+
+**Given** the `ReservationsTab` component
+**When** it mounts with `?highlight={reservationId}` in the URL
+**Then** it scrolls to and expands the accordion section containing that Reservation, visually highlights its row, then calls `router.replace()` to strip the `highlight` param
+
+**Given** either `action=add-reservation` or `highlight={reservationId}` has been processed
+**When** the param is stripped via `router.replace()`
+**Then** the URL no longer contains the param, so re-navigating to the tab (e.g. via browser back/forward) does not re-trigger the auto-open/highlight behavior
+
+**And** tests reuse the **Reservation Object Mother** from Story 1.1 for the "≥1 Reservation" CTA-copy case and for the highlight-target Reservation
+
+**And** unit/component tests: `itinerary-cta.test.tsx` (zero vs. ≥1 Reservation copy, `aria-label`, click navigation target), `reservations-tab.test.tsx` extended (mount with `action=add-reservation` opens type picker + strips param, mount with `highlight={id}` expands/scrolls/highlights + strips param), `day-card-body.test.tsx`/`now-card.test.tsx` extended (`onLinkedEventTap` now navigates to `?tab=res&highlight={id}`)
+
+**And** E2E: `tests/e2e/features/linked-events.feature` gains scenarios for (1) tapping the empty-state CTA and landing on Reservations with the type picker open, and (2) tapping a Linked Event on the Itinerary and landing on Reservations with the correct accordion section expanded and the Reservation highlighted
