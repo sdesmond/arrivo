@@ -125,6 +125,22 @@ describe("ReservationRow", () => {
     expect(screen.getByRole("button", { name: "Late checkout requested" })).toBeInTheDocument();
   });
 
+  it("trims surrounding whitespace from the provider's displayed value after a successful edit", async () => {
+    vi.mocked(updateReservation).mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Grand Hotel" }));
+    const input = screen.getByRole("textbox", { name: "Provider" });
+    await user.clear(input);
+    await user.type(input, "  Trimmed Hotel  ");
+    await user.keyboard("{Enter}");
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", { provider: "  Trimmed Hotel  " });
+    expect(await screen.findByRole("button", { name: "Trimmed Hotel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "  Trimmed Hotel  " })).not.toBeInTheDocument();
+  });
+
   it("updates the Check-in anchor after a successful edit", async () => {
     vi.mocked(updateReservation).mockResolvedValueOnce(undefined);
     const user = userEvent.setup();

@@ -52,6 +52,14 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
     throw new Error("Provider is required.");
   }
 
+  if (patch.startAt && Number.isNaN(new Date(patch.startAt).getTime())) {
+    throw new Error("Invalid start date and time.");
+  }
+
+  if (patch.endAt && Number.isNaN(new Date(patch.endAt).getTime())) {
+    throw new Error("Invalid end date and time.");
+  }
+
   const type = existing.type as ReservationType;
   const nextStartAt = patch.startAt !== undefined ? patch.startAt || undefined : existing.startAt?.toISOString();
   const nextEndAt = patch.endAt !== undefined ? patch.endAt || undefined : existing.endAt?.toISOString();

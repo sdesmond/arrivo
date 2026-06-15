@@ -248,6 +248,18 @@ describe("updateReservation", () => {
     expect(updatedValues).toMatchObject({ endAt: new Date("2026-09-02T12:00:00.000Z") });
   });
 
+  it("rejects an unparseable startAt before any update", async () => {
+    await expect(updateReservation("res-1", { startAt: "not-a-date" })).rejects.toThrow("Invalid start date and time.");
+
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unparseable endAt before any update", async () => {
+    await expect(updateReservation("res-1", { endAt: "garbage" })).rejects.toThrow("Invalid end date and time.");
+
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it("updates confirmationCode independently", async () => {
     await updateReservation("res-1", { confirmationCode: "XYZ987" });
 

@@ -39,7 +39,7 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
         inputStyle={{ fontSize: "calc(var(--fs-card-title) * var(--font-scale))", fontWeight: 600 }}
         onSave={async (next) => {
           await updateReservation(reservation.id, { provider: next });
-          setProvider(next);
+          setProvider(next.trim());
         }}
       />
       <div className="flex items-start gap-2" style={{ fontSize: 13 }}>
