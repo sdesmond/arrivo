@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReservationType, type Reservation } from "@/data/types";
 import { ReservationsTab } from "./reservations-tab";
+import { MockDateProvider } from "@/components/providers/mock-date-provider";
 
 vi.mock("@/components/packt/reservation-type-picker", () => ({
   ReservationTypePicker: ({ onSelectType }: { onSelectType: (type: string) => void }) => (
@@ -14,6 +15,12 @@ vi.mock("@/components/packt/reservation-edit-drawer", () => ({
   ReservationEditDrawer: ({ open, type }: { open: boolean; type: string }) =>
     open ? <div data-testid="drawer">Drawer for {type}</div> : null,
 }));
+
+const NOW_ISO = "2026-06-15T12:00:00.000Z";
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
+}
 
 function makeReservation(overrides: Partial<Reservation> = {}): Reservation {
   return {
@@ -28,31 +35,116 @@ function makeReservation(overrides: Partial<Reservation> = {}): Reservation {
 }
 
 describe("ReservationsTab", () => {
-  it("shows an empty state when there are no reservations", () => {
-    render(<ReservationsTab tripId="trip-1" reservations={[]} />);
-    expect(screen.getByText("No reservations yet.")).toBeInTheDocument();
+  it("shows the FR-6 empty state with a single Add Reservation entry point when there are no reservations", () => {
+    render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+    expect(screen.getByText("No reservations yet")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /add reservation/i })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /,.*reservation/i })).not.toBeInTheDocument();
   });
 
-  it("groups reservations by type", () => {
+  it("renders one accordion section per populated type with the title and picker header row", () => {
     render(
       <ReservationsTab
         tripId="trip-1"
         reservations={[
-          makeReservation({ id: "res-1", provider: "Grand Hotel", type: ReservationType.Lodging }),
-          makeReservation({ id: "res-2", provider: "Acme Air", type: ReservationType.Flight, endAt: undefined }),
+          makeReservation({
+            id: "res-1",
+            provider: "Grand Hotel",
+            type: ReservationType.Lodging,
+            startAt: "2026-06-20T15:00:00.000Z",
+          }),
+          makeReservation({
+            id: "res-2",
+            provider: "Acme Air",
+            type: ReservationType.Flight,
+            startAt: "2026-06-18T10:00:00.000Z",
+            endAt: undefined,
+          }),
         ]}
-      />
+      />,
+      { wrapper: Wrapper }
     );
 
-    expect(screen.getByText("Lodging")).toBeInTheDocument();
-    expect(screen.getByText("Flight")).toBeInTheDocument();
-    expect(screen.getByText("Grand Hotel")).toBeInTheDocument();
-    expect(screen.getByText("Acme Air")).toBeInTheDocument();
+    expect(screen.getByText("Reservations")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Flight, 1 reservation, collapsed/ })).toBeInTheDocument();
+  });
+
+  it("orders sections soonest-upcoming-first, with all-past types after upcoming types and undated types last", () => {
+    render(
+      <ReservationsTab
+        tripId="trip-1"
+        reservations={[
+          // Lodging: upcoming, soonest
+          makeReservation({
+            id: "res-lodging",
+            provider: "Grand Hotel",
+            type: ReservationType.Lodging,
+            startAt: "2026-06-17T15:00:00.000Z",
+            endAt: "2026-06-20T11:00:00.000Z",
+          }),
+          // Flight: upcoming, later than lodging
+          makeReservation({
+            id: "res-flight",
+            provider: "Acme Air",
+            type: ReservationType.Flight,
+            startAt: "2026-06-25T10:00:00.000Z",
+            endAt: undefined,
+          }),
+          // Train: all in the past
+          makeReservation({
+            id: "res-train",
+            provider: "Rail Co",
+            type: ReservationType.Train,
+            startAt: "2026-06-01T10:00:00.000Z",
+            endAt: undefined,
+          }),
+          // Cruise: no startAt at all
+          makeReservation({
+            id: "res-cruise",
+            provider: "Sea Co",
+            type: ReservationType.Cruise,
+            startAt: undefined,
+            endAt: undefined,
+          }),
+        ]}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    const headers = screen.getAllByRole("button", { name: /reservation,/ });
+    const labels = headers.map((header) => header.getAttribute("aria-label"));
+
+    expect(labels).toEqual([
+      "Lodging, 1 reservation, collapsed",
+      "Flight, 1 reservation, collapsed",
+      "Train, 1 reservation, collapsed",
+      "Cruise, 1 reservation, collapsed",
+    ]);
+  });
+
+  it("toggles a section open and closed when its header is clicked", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReservationsTab
+        tripId="trip-1"
+        reservations={[makeReservation({ id: "res-1", provider: "Grand Hotel", startAt: "2026-06-20T15:00:00.000Z" })]}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    const header = screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ });
+    await user.click(header);
+    expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ }));
+    expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ })).toBeInTheDocument();
   });
 
   it("opens the drawer for the selected type when Add Reservation is used", async () => {
     const user = userEvent.setup();
-    render(<ReservationsTab tripId="trip-1" reservations={[]} />);
+    render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole("button", { name: /add reservation/i }));
 

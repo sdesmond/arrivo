@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Section, Field } from "@/components/packt/form-section";
 import { ReservationAnchorFieldset } from "@/components/packt/reservation-anchor-fieldset";
-import { RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
+import { ANCHOR_LABELS, RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
 import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type CreateReservationInput } from "@/data/types";
 import { FileText } from "lucide-react";
@@ -21,17 +21,6 @@ export interface ReservationEditDrawerProps {
 }
 
 const REQUIRES_END_AT: ReservationType[] = [ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise];
-
-const ANCHOR_LABELS: Record<ReservationType, { start: string; end: string }> = {
-  flight: { start: "Departure", end: "Arrival" },
-  train: { start: "Departure", end: "Arrival" },
-  bus: { start: "Departure", end: "Arrival" },
-  ferry: { start: "Departure", end: "Arrival" },
-  "rental-car": { start: "Pickup", end: "Return" },
-  lodging: { start: "Check-in", end: "Check-out" },
-  cruise: { start: "Departure", end: "Return" },
-  other: { start: "Start", end: "End" },
-};
 
 function combineAnchor(date: string | undefined, time: string | undefined): { iso?: string; error?: string } {
   const hasDate = !!date;

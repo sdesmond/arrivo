@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ReservationType } from "@/data/types";
-import { RESERVATION_TYPE_META, ReservationTypeBadge } from "./reservation-type-badge";
+import { ANCHOR_LABELS, RESERVATION_TYPE_META, ReservationTypeBadge } from "./reservation-type-badge";
 
 describe("RESERVATION_TYPE_META", () => {
   it.each([
@@ -21,6 +21,23 @@ describe("RESERVATION_TYPE_META", () => {
 
   it("uses a distinct icon for cruise from ferry", () => {
     expect(RESERVATION_TYPE_META.cruise.icon).not.toBe(RESERVATION_TYPE_META.ferry.icon);
+  });
+});
+
+describe("ANCHOR_LABELS", () => {
+  it.each([
+    ReservationType.Flight,
+    ReservationType.Train,
+    ReservationType.Bus,
+    ReservationType.Ferry,
+    ReservationType.RentalCar,
+    ReservationType.Lodging,
+    ReservationType.Cruise,
+    ReservationType.Other,
+  ])("has non-empty start and end labels for %s", (type) => {
+    const labels = ANCHOR_LABELS[type];
+    expect(labels.start.length).toBeGreaterThan(0);
+    expect(labels.end.length).toBeGreaterThan(0);
   });
 });
 

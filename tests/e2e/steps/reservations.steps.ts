@@ -6,6 +6,33 @@ Given("I am on the Reservations tab", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Add Reservation" })).toBeVisible({ timeout: 10_000 });
 });
 
+Given("the trip has reservations across multiple types", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [
+          {
+            type: "lodging",
+            provider: "Soonest Hotel",
+            startAt: "2030-01-10T15:00:00Z",
+            endAt: "2030-01-12T11:00:00Z",
+          },
+          {
+            type: "flight",
+            provider: "Later Air",
+            startAt: "2030-02-15T10:00:00Z",
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+
+  await scenario.gotoCurrentTrip(page);
+  await page.getByRole("button", { name: "Reservations" }).click();
+});
+
 When("I select the {string} reservation type", async ({ page }, typeLabel: string) => {
   await page.getByRole("menuitem", { name: typeLabel }).click();
 });
@@ -41,7 +68,29 @@ When("I click {string} on the reservation drawer", async ({ page }, buttonText: 
 Then(
   "the reservation {string} appears in the {string} section",
   async ({ page }, provider: string, sectionLabel: string) => {
-    await expect(page.getByRole("heading", { name: sectionLabel })).toBeVisible({ timeout: 10_000 });
+    const section = page.getByRole("button", { name: new RegExp(`^${sectionLabel}, `) });
+    await expect(section).toBeVisible({ timeout: 10_000 });
+    if ((await section.getAttribute("aria-expanded")) === "false") {
+      await section.click();
+    }
     await expect(page.getByText(provider)).toBeVisible({ timeout: 10_000 });
+  }
+);
+
+Then("I see the {string} empty state", async ({ page }, title: string) => {
+  await expect(page.getByText(title)).toBeVisible({ timeout: 10_000 });
+});
+
+Then("no reservation type sections are shown", async ({ page }) => {
+  await expect(page.getByRole("button", { name: /reservation,/ })).toHaveCount(0);
+});
+
+Then(
+  "the {string} reservation section appears before the {string} reservation section",
+  async ({ page }, firstLabel: string, secondLabel: string) => {
+    const sections = page.getByRole("button", { name: /reservation,/ });
+    await expect(sections).toHaveCount(2, { timeout: 10_000 });
+    await expect(sections.nth(0)).toHaveAccessibleName(new RegExp(`^${firstLabel}, `));
+    await expect(sections.nth(1)).toHaveAccessibleName(new RegExp(`^${secondLabel}, `));
   }
 );

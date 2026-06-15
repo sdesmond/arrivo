@@ -14,6 +14,17 @@ export const RESERVATION_TYPE_META: Record<ReservationType, { label: string; ico
   other: { label: "Other", icon: Package },
 };
 
+export const ANCHOR_LABELS: Record<ReservationType, { start: string; end: string }> = {
+  flight: { start: "Departure", end: "Arrival" },
+  train: { start: "Departure", end: "Arrival" },
+  bus: { start: "Departure", end: "Arrival" },
+  ferry: { start: "Departure", end: "Arrival" },
+  "rental-car": { start: "Pickup", end: "Return" },
+  lodging: { start: "Check-in", end: "Check-out" },
+  cruise: { start: "Departure", end: "Return" },
+  other: { start: "Start", end: "End" },
+};
+
 export interface ReservationTypeBadgeProps {
   type: ReservationType;
 }
