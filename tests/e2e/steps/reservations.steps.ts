@@ -1,6 +1,4 @@
 import { expect } from "@playwright/test";
-import { reservations } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 
 Given("I am on the Reservations tab", async ({ page }) => {
@@ -9,30 +7,29 @@ Given("I am on the Reservations tab", async ({ page }) => {
 });
 
 Given("the trip has reservations across multiple types", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) {
-    throw new Error("Missing current scenario trip.");
-  }
-
-  await withE2EDb(async (db) => {
-    await db.insert(reservations).values([
-      {
-        tripId: currentTrip.id,
-        type: "lodging",
-        provider: "Soonest Hotel",
-        startAt: new Date("2030-01-10T15:00:00Z"),
-        endAt: new Date("2030-01-12T11:00:00Z"),
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [
+          {
+            type: "lodging",
+            provider: "Soonest Hotel",
+            startAt: "2030-01-10T15:00:00Z",
+            endAt: "2030-01-12T11:00:00Z",
+          },
+          {
+            type: "flight",
+            provider: "Later Air",
+            startAt: "2030-02-15T10:00:00Z",
+          },
+        ],
       },
-      {
-        tripId: currentTrip.id,
-        type: "flight",
-        provider: "Later Air",
-        startAt: new Date("2030-02-15T10:00:00Z"),
-      },
-    ]);
+      setCurrent: true,
+    },
   });
 
-  await page.reload();
+  await scenario.gotoCurrentTrip(page);
   await page.getByRole("button", { name: "Reservations" }).click();
 });
 

@@ -140,6 +140,41 @@ describe("ReservationTypeSection", () => {
     expect(preview.textContent).not.toContain("·");
   });
 
+  it("rotates the chevron and shows a header bottom border when expanded", () => {
+    const reservation = makeReservation({ startAt: "2026-06-16T15:00:00.000Z" });
+    const { rerender } = render(
+      <ReservationTypeSection
+        type={ReservationType.Flight}
+        reservations={[reservation]}
+        open={false}
+        onToggle={vi.fn()}
+        now={NOW}
+      />
+    );
+
+    const header = screen.getByRole("button", { name: /Flight, 1 reservation, collapsed/ });
+    const icons = header.querySelectorAll("svg");
+    const chevron = icons[icons.length - 1];
+    expect(chevron).not.toHaveStyle({ transform: "rotate(180deg)" });
+    expect(header).toHaveStyle({ borderBottom: "none" });
+
+    rerender(
+      <ReservationTypeSection
+        type={ReservationType.Flight}
+        reservations={[reservation]}
+        open
+        onToggle={vi.fn()}
+        now={NOW}
+      />
+    );
+
+    const expandedHeader = screen.getByRole("button", { name: /Flight, 1 reservation, expanded/ });
+    const expandedIcons = expandedHeader.querySelectorAll("svg");
+    const expandedChevron = expandedIcons[expandedIcons.length - 1];
+    expect(expandedChevron).toHaveStyle({ transform: "rotate(180deg)" });
+    expect(expandedHeader).toHaveStyle({ borderBottom: "1px solid var(--line)" });
+  });
+
   it("calls onToggle when the header is clicked", async () => {
     const onToggle = vi.fn();
     const user = userEvent.setup();

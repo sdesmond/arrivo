@@ -4,7 +4,7 @@ baseline_commit: ac3675d50ee5451154e7260efc4f38c6a945edcf
 
 # Story 1.2: View Reservations Grouped by Type, with Empty State
 
-Status: review
+Status: done
 
 ## Story
 
@@ -47,6 +47,17 @@ so that I can quickly scan "what hotels do I have" or "what's my rental car situ
   - [x] Add a scenario to `tests/e2e/features/reservations.feature`: a freshly-created trip (Object Mother, zero `reservations`) shows "No reservations yet" and no accordion section, then "Add Reservation" still works from `EmptyContent`
   - [x] Add a scenario seeding ≥2 Reservations across ≥2 types via `cloneTripMother(..., { reservations: [...] })` overrides (one upcoming Flight, one upcoming Lodging with a later `startAt`) and assert both accordion headers render in soonest-first order
   - [x] Rewrite the existing `Then("the reservation {string} appears in the {string} section", ...)` step in `tests/e2e/steps/reservations.steps.ts`: it currently asserts `getByRole("heading", { name: sectionLabel })`, but the accordion header is now a `<button aria-expanded>` with the AC6 constructed accessible name — assert `getByRole("button", { name: new RegExp(`^${sectionLabel}, `) })` is visible (and expand it if collapsed) before asserting the provider text is visible
+
+### Review Findings
+
+_From `bmad-code-review` (2026-06-15), adversarial layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor._
+
+- [x] [Review][Patch] AC7 — multi-type E2E seeded reservations via raw `db.insert` instead of the `cloneTripMother(...)` Object Mother — resolved by rewriting `Given("the trip has reservations across multiple types")` in `tests/e2e/steps/reservations.steps.ts` to use `scenario.materialize({ trip: { mother: "threeDayTrip", overrides: { reservations: [...] }, setCurrent: true } })` + `scenario.gotoCurrentTrip(page)`, per AC7 / Task 4 subtask 2
+- [x] [Review][Patch] Missing chevron-rotation (`transform: rotate(180deg)`) and header `borderBottom` assertions on expand — added `"rotates the chevron and shows a header bottom border when expanded"` covering both states [src/components/packt/reservation-type-section.test.tsx]
+- [x] [Review][Defer] Timezone-naive `formatAnchorDateTime` (uses `toLocaleDateString`/`toLocaleTimeString` with no `timeZone`) renders destination times in the viewer's local timezone [src/components/packt/reservation-type-section.tsx:15] — deferred, spec-mandated verbatim in Dev Notes / matches existing app date-formatting convention
+- [x] [Review][Defer] A reservation with `endAt` set but `startAt` absent renders an orphan end-anchor line with no start anchor [src/components/packt/reservation-type-section.tsx:154] — deferred, low-severity data-shape edge, not introduced by this change
+- [x] [Review][Defer] E2E `toHaveCount(0)` "no sections" assertion can pass vacuously before content mounts; strengthen by asserting the empty-state title is visible in the same step [tests/e2e/steps/reservations.steps.ts] — deferred, pre-existing test-robustness nit (gated by prior visible-text step)
+- [x] [Review][Defer] Disclosure `<button>` has no `aria-controls` linking it to the region it toggles [src/components/packt/reservation-type-section.tsx:83] — deferred, follows the existing `day-card` accordion pattern; project-wide a11y enhancement
 
 ## Dev Notes
 
