@@ -16,6 +16,14 @@ vi.mock("@/components/packt/reservation-edit-drawer", () => ({
     open ? <div data-testid="drawer">Drawer for {type}</div> : null,
 }));
 
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
+  updateReservation: vi.fn(),
+}));
+
 const NOW_ISO = "2026-06-15T12:00:00.000Z";
 
 function Wrapper({ children }: { children: React.ReactNode }) {
