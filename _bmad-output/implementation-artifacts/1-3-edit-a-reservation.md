@@ -55,6 +55,17 @@ so that I can keep my booking details accurate as my plans change.
   - [x] Add a scenario to `tests/e2e/features/reservations.feature`: materialize a trip with an existing Lodging Reservation (Object Mother), expand its accordion section, edit the provider inline (click → type new value → blur or Enter), edit the "Check-in" anchor inline (click → change date/time → click Save), reload the page, and verify both new values persisted
   - [x] Add the corresponding step definitions to `tests/e2e/steps/reservations.steps.ts` (see Dev Notes for exact step text and Playwright selectors)
 
+### Review Findings
+
+_Code review 2026-06-15 (baseline `8a56f49`..`d15c6fa`). Layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor. 0 decision-needed, 2 patch, 4 deferred, 18 dismissed as noise. Acceptance Auditor confirmed zero AC violations._
+
+- [ ] [Review][Patch] `updateReservation` accepts unparseable dates — a malformed `startAt`/`endAt` makes `new Date(x).getTime()` return `NaN`, so the `nextEnd < nextStart` ordering check is silently skipped (`NaN < NaN` is `false`) and an Invalid Date is written. Add an `isNaN` guard that rejects unparseable values before the ordering check. [src/app/(app)/trips/[tripId]/reservations/actions.ts:56-74] (blind+edge)
+- [ ] [Review][Patch] Provider optimistic state stores the untrimmed value — the server persists `provider.trim()` but the row calls `setProvider(next)` with the raw string, so leading/trailing whitespace shows in the UI until a reload. Trim before `setProvider`. [src/components/packt/reservation-row.tsx:40-43] (blind+edge)
+- [x] [Review][Defer] Timezone-naive anchor edit/display — display uses local-TZ `toLocaleDateString/TimeString` while edit reads/writes UTC via `value.slice(0,10)`/`slice(11,16)` + a forced `Z`, so the hour shown can differ from the hour edited in a non-UTC runtime; the E2E `Then` asserts only the minutes portion as a consequence. Deferred — already tracked in `deferred-work.md` (lines 5, 15) as an app-wide convention. [src/components/packt/reservation-anchor-edit-field.tsx:40-57, src/components/packt/reservation-type-badge.tsx] (blind+edge)
+- [x] [Review][Defer] `updateReservation` select-then-update is non-transactional — the existence/access check and the `db.update` are separate awaits with no optimistic-lock/version check (TOCTOU; last-write-wins). Deferred — consistent with the existing `updateEvent` pattern across the codebase. [src/app/(app)/trips/[tripId]/reservations/actions.ts:44-78] (blind+edge)
+- [x] [Review][Defer] No in-flight/double-submit guard on save — Enter-then-blur (inline field) or a double-click on Save (anchor field) can fire `updateReservation` twice; writes are idempotent (identical patch) so harm is low. Deferred. [src/components/packt/reservation-anchor-edit-field.tsx:50-64, src/components/packt/reservation-inline-text-field.tsx:54-92] (edge)
+- [x] [Review][Defer] `PLACEHOLDER_STYLE` duplicated — defined in both `reservation-row.tsx:19` and `reservation-inline-text-field.tsx:29`, contradicting the Dev Notes "define once, thread down" guidance (output is identical). Deferred as a minor DRY refactor. [src/components/packt/reservation-inline-text-field.tsx:29] (auditor)
+
 ## Dev Notes
 
 ### Scope boundary — read first
