@@ -4,7 +4,7 @@ baseline_commit: 8a56f490dfd30533fe12eb2bc18dcb441d89450d
 
 # Story 1.3: Edit a Reservation
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -25,35 +25,35 @@ so that I can keep my booking details accurate as my plans change.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: `UpdateReservationPatch` type + `updateReservation` server action** (AC: 2, 3, 5)
-  - [ ] Add `UpdateReservationPatch` to `src/data/types.ts` (next to `CreateReservationInput`, ~line 663): `{ provider?: string; startAt?: string; endAt?: string; confirmationCode?: string; notes?: string }` — no `type` field (immutable)
-  - [ ] Add `updateReservation(reservationId: string, patch: UpdateReservationPatch): Promise<void>` to `src/app/(app)/trips/[tripId]/reservations/actions.ts` (see Dev Notes for full implementation — fetches the existing row first to get `tripId`/`type`/current anchors for validation, mirrors `updateEvent`'s `requireUser()` → `assertTripAccess` → `db.update` → `revalidatePath` shape)
-  - [ ] Add `reservations/actions.test.ts` (new file) covering `updateReservation`: successful patch of each field independently, provider-empty rejection, `endAt` cleared on a `REQUIRES_END_AT` type rejection, `endAt` set with no `startAt` rejection, `endAt` before `startAt` rejection, and a successful patch that omits fields (only provided keys change)
+- [x] **Task 1: `UpdateReservationPatch` type + `updateReservation` server action** (AC: 2, 3, 5)
+  - [x] Add `UpdateReservationPatch` to `src/data/types.ts` (next to `CreateReservationInput`, ~line 663): `{ provider?: string; startAt?: string; endAt?: string; confirmationCode?: string; notes?: string }` — no `type` field (immutable)
+  - [x] Add `updateReservation(reservationId: string, patch: UpdateReservationPatch): Promise<void>` to `src/app/(app)/trips/[tripId]/reservations/actions.ts` (see Dev Notes for full implementation — fetches the existing row first to get `tripId`/`type`/current anchors for validation, mirrors `updateEvent`'s `requireUser()` → `assertTripAccess` → `db.update` → `revalidatePath` shape)
+  - [x] Add `reservations/actions.test.ts` (new file) covering `updateReservation`: successful patch of each field independently, provider-empty rejection, `endAt` cleared on a `REQUIRES_END_AT` type rejection, `endAt` set with no `startAt` rejection, `endAt` before `startAt` rejection, and a successful patch that omits fields (only provided keys change)
 
-- [ ] **Task 2: Move `formatAnchorDateTime` to `reservation-type-badge.tsx`** (AC: 1 — refactor to avoid an import cycle)
-  - [ ] Move the `formatAnchorDateTime(iso: string): string` function (currently defined and exported from `reservation-type-section.tsx`) into `reservation-type-badge.tsx`, exported alongside `RESERVATION_TYPE_META`/`ANCHOR_LABELS`
-  - [ ] In `reservation-type-section.tsx`, replace the local definition with `export { formatAnchorDateTime } from "@/components/packt/reservation-type-badge";` so existing imports (including `reservation-type-section.test.tsx`'s `import { formatAnchorDateTime, ... } from "./reservation-type-section"`) keep working unchanged
-  - [ ] No test changes needed for this subtask — `reservation-type-section.test.tsx`'s existing `formatAnchorDateTime` tests must still pass via the re-export
+- [x] **Task 2: Move `formatAnchorDateTime` to `reservation-type-badge.tsx`** (AC: 1 — refactor to avoid an import cycle)
+  - [x] Move the `formatAnchorDateTime(iso: string): string` function (currently defined and exported from `reservation-type-section.tsx`) into `reservation-type-badge.tsx`, exported alongside `RESERVATION_TYPE_META`/`ANCHOR_LABELS`
+  - [x] In `reservation-type-section.tsx`, replace the local definition with `export { formatAnchorDateTime } from "@/components/packt/reservation-type-badge";` so existing imports (including `reservation-type-section.test.tsx`'s `import { formatAnchorDateTime, ... } from "./reservation-type-section"`) keep working unchanged
+  - [x] No test changes needed for this subtask — `reservation-type-section.test.tsx`'s existing `formatAnchorDateTime` tests must still pass via the re-export
 
-- [ ] **Task 3: `ReservationInlineTextField` shared component** (AC: 1, 2, 3, 4 — provider, confirmation code, notes)
-  - [ ] Create `src/components/packt/reservation-inline-text-field.tsx` — `"use client"`, explicit `ReservationInlineTextFieldProps` interface (see Dev Notes). A generic click-to-edit text/textarea field implementing the `doc-row.tsx` inline-rename pattern (display `<button>` → input/textarea with teal underline → Enter (input only) or blur saves → Escape cancels and returns focus to the display `<button>`). Used 3× by `ReservationRow` (Task 5): provider (single-line, required), confirmation code (single-line, optional), notes (multiline, optional)
-  - [ ] Create `src/components/packt/reservation-inline-text-field.test.tsx` covering: display rendering (value vs. muted placeholder when empty/`allowEmpty`), click → edit mode, Enter-save (single-line only) and blur-save calling the provided `onSave`, Escape-cancel with no `onSave` call and focus returned to the display button, multiline mode (textarea, no Enter-save), and an `onSave` rejection showing `toast.error` without exiting edit mode being left in a broken state (field stays editable, draft preserved)
+- [x] **Task 3: `ReservationInlineTextField` shared component** (AC: 1, 2, 3, 4 — provider, confirmation code, notes)
+  - [x] Create `src/components/packt/reservation-inline-text-field.tsx` — `"use client"`, explicit `ReservationInlineTextFieldProps` interface (see Dev Notes). A generic click-to-edit text/textarea field implementing the `doc-row.tsx` inline-rename pattern (display `<button>` → input/textarea with teal underline → Enter (input only) or blur saves → Escape cancels and returns focus to the display `<button>`). Used 3× by `ReservationRow` (Task 5): provider (single-line, required), confirmation code (single-line, optional), notes (multiline, optional)
+  - [x] Create `src/components/packt/reservation-inline-text-field.test.tsx` covering: display rendering (value vs. muted placeholder when empty/`allowEmpty`), click → edit mode, Enter-save (single-line only) and blur-save calling the provided `onSave`, Escape-cancel with no `onSave` call and focus returned to the display button, multiline mode (textarea, no Enter-save), and an `onSave` rejection showing `toast.error` without exiting edit mode being left in a broken state (field stays editable, draft preserved)
 
-- [ ] **Task 4: `ReservationAnchorEditField` shared component** (AC: 1, 2, 3, 4 — start/end anchors)
-  - [ ] Create `src/components/packt/reservation-anchor-edit-field.tsx` — `"use client"`, explicit `ReservationAnchorEditFieldProps` interface (see Dev Notes). A click-to-edit date+time pair: display `<button>` (formatted value or muted "Add {label}" placeholder, both with a constructed `aria-label`) → `DatePicker` + `TimePicker` + Save(`Check`)/Cancel(`X`) icon buttons → Enter in either input or clicking Save calls `onSave`, Escape or clicking Cancel discards and returns focus to the display button. Used 2× by `ReservationRow` (Task 5): start anchor, end anchor
-  - [ ] Create `src/components/packt/reservation-anchor-edit-field.test.tsx` covering: display rendering (formatted value vs. muted "Add {label}" placeholder, both with correct `aria-label`), click → edit mode shows `DatePicker`+`TimePicker`+Save/Cancel, Enter in the time input and clicking Save both call `onSave` with the combined ISO string, Escape and clicking Cancel both discard with no `onSave` call and return focus to the display button, an `onSave` rejection shows an inline `role="status"` error and keeps edit mode open
+- [x] **Task 4: `ReservationAnchorEditField` shared component** (AC: 1, 2, 3, 4 — start/end anchors)
+  - [x] Create `src/components/packt/reservation-anchor-edit-field.tsx` — `"use client"`, explicit `ReservationAnchorEditFieldProps` interface (see Dev Notes). A click-to-edit date+time pair: display `<button>` (formatted value or muted "Add {label}" placeholder, both with a constructed `aria-label`) → `DatePicker` + `TimePicker` + Save(`Check`)/Cancel(`X`) icon buttons → Enter in either input or clicking Save calls `onSave`, Escape or clicking Cancel discards and returns focus to the display button. Used 2× by `ReservationRow` (Task 5): start anchor, end anchor
+  - [x] Create `src/components/packt/reservation-anchor-edit-field.test.tsx` covering: display rendering (formatted value vs. muted "Add {label}" placeholder, both with correct `aria-label`), click → edit mode shows `DatePicker`+`TimePicker`+Save/Cancel, Enter in the time input and clicking Save both call `onSave` with the combined ISO string, Escape and clicking Cancel both discard with no `onSave` call and return focus to the display button, an `onSave` rejection shows an inline `role="status"` error and keeps edit mode open
 
-- [ ] **Task 5: `ReservationRow` orchestrator component** (AC: 1, 2, 3, 4, 5)
-  - [ ] Create `src/components/packt/reservation-row.tsx` — `"use client"`, explicit `ReservationRowProps` interface (`{ reservation: Reservation; type: ReservationType; isLast: boolean }`). Composes `ReservationInlineTextField` (×3: provider, confirmation code, notes) and `ReservationAnchorEditField` (×2: start, end), each wired to `updateReservation` per the Dev Notes spec. Owns the outer row `<div>` (padding/border, unchanged from the current inline markup) and the local `provider`/`startAt`/`endAt`/`confirmationCode`/`notes` display-state mirrors that each `onSave` updates on success
-  - [ ] Create `src/components/packt/reservation-row.test.tsx` — integration-level: renders all 5 fields with correct initial values/placeholders for a populated and a mostly-empty Reservation, verifies the confirmation-code chip vs. placeholder rendering, the provider's bold/`card-title` styling, the anchor labels (including "Other"-type's generic "Start"/"End"), and that editing one field (mocking `updateReservation`) updates only that field's displayed value while leaving the others unchanged — detailed per-field edit-mode behavior is covered by Tasks 3/4's component tests, not duplicated here
+- [x] **Task 5: `ReservationRow` orchestrator component** (AC: 1, 2, 3, 4, 5)
+  - [x] Create `src/components/packt/reservation-row.tsx` — `"use client"`, explicit `ReservationRowProps` interface (`{ reservation: Reservation; type: ReservationType; isLast: boolean }`). Composes `ReservationInlineTextField` (×3: provider, confirmation code, notes) and `ReservationAnchorEditField` (×2: start, end), each wired to `updateReservation` per the Dev Notes spec. Owns the outer row `<div>` (padding/border, unchanged from the current inline markup) and the local `provider`/`startAt`/`endAt`/`confirmationCode`/`notes` display-state mirrors that each `onSave` updates on success
+  - [x] Create `src/components/packt/reservation-row.test.tsx` — integration-level: renders all 5 fields with correct initial values/placeholders for a populated and a mostly-empty Reservation, verifies the confirmation-code chip vs. placeholder rendering, the provider's bold/`card-title` styling, the anchor labels (including "Other"-type's generic "Start"/"End"), and that editing one field (mocking `updateReservation`) updates only that field's displayed value while leaving the others unchanged — detailed per-field edit-mode behavior is covered by Tasks 3/4's component tests, not duplicated here
 
-- [ ] **Task 6: Wire `ReservationRow` into `ReservationTypeSection`** (AC: all)
-  - [ ] Replace the inline expanded-row JSX (the `open && sortReservationsByStartAt(reservations).map(...)` block) with `<ReservationRow key={reservation.id} reservation={reservation} type={type} isLast={index === all.length - 1} />`
-  - [ ] Update `reservation-type-section.test.tsx`: the existing "renders anchor lines and a confirmation-code chip for an expanded row" and "renders expanded rows ordered by startAt..." tests now render `ReservationRow` — verify they still pass given `ReservationRow`'s display-mode output matches the prior inline markup (provider text, anchor label/value pairs, confirmation chip); add one new test confirming a click on the provider field of a row inside `ReservationTypeSection` enters edit mode (integration smoke test — detailed field behavior is covered by Tasks 3-5's component tests)
+- [x] **Task 6: Wire `ReservationRow` into `ReservationTypeSection`** (AC: all)
+  - [x] Replace the inline expanded-row JSX (the `open && sortReservationsByStartAt(reservations).map(...)` block) with `<ReservationRow key={reservation.id} reservation={reservation} type={type} isLast={index === all.length - 1} />`
+  - [x] Update `reservation-type-section.test.tsx`: the existing "renders anchor lines and a confirmation-code chip for an expanded row" and "renders expanded rows ordered by startAt..." tests now render `ReservationRow` — verify they still pass given `ReservationRow`'s display-mode output matches the prior inline markup (provider text, anchor label/value pairs, confirmation chip); add one new test confirming a click on the provider field of a row inside `ReservationTypeSection` enters edit mode (integration smoke test — detailed field behavior is covered by Tasks 3-5's component tests)
 
-- [ ] **Task 7: E2E scenario** (AC: 1, 2, 3)
-  - [ ] Add a scenario to `tests/e2e/features/reservations.feature`: materialize a trip with an existing Lodging Reservation (Object Mother), expand its accordion section, edit the provider inline (click → type new value → blur or Enter), edit the "Check-in" anchor inline (click → change date/time → click Save), reload the page, and verify both new values persisted
-  - [ ] Add the corresponding step definitions to `tests/e2e/steps/reservations.steps.ts` (see Dev Notes for exact step text and Playwright selectors)
+- [x] **Task 7: E2E scenario** (AC: 1, 2, 3)
+  - [x] Add a scenario to `tests/e2e/features/reservations.feature`: materialize a trip with an existing Lodging Reservation (Object Mother), expand its accordion section, edit the provider inline (click → type new value → blur or Enter), edit the "Check-in" anchor inline (click → change date/time → click Save), reload the page, and verify both new values persisted
+  - [x] Add the corresponding step definitions to `tests/e2e/steps/reservations.steps.ts` (see Dev Notes for exact step text and Playwright selectors)
 
 ## Dev Notes
 
@@ -563,16 +563,42 @@ Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabe
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- Task 1: Added `UpdateReservationPatch` to `src/data/types.ts` and implemented `updateReservation` server action in `reservations/actions.ts`, following the `requireUser` → fetch existing → `assertTripAccess` → validate (resulting start/end against `REQUIRES_END_AT` and ordering) → `db.update` → `revalidatePath` shape. Added 17 new test cases to `actions.test.ts` covering not-found, access checks, independent field updates, clearing confirmationCode/notes, `REQUIRES_END_AT` rejection, start/end presence and ordering validation against the post-patch state, and revalidation. All 33 tests in the file pass; `tsc --noEmit` clean.
+- Task 2: Moved `formatAnchorDateTime` to `reservation-type-badge.tsx` and replaced the local definition in `reservation-type-section.tsx` with `export { formatAnchorDateTime }` (importing it for `renderAnchorLine`/`renderPreview`'s continued local use). All existing `reservation-type-section.test.tsx`/`reservation-type-badge.test.tsx` tests (33) pass unchanged.
+- Task 3: Created `ReservationInlineTextField` (`reservation-inline-text-field.tsx`) implementing the `doc-row.tsx` click-to-edit pattern — display `<button>`, single-line `<input>` (Enter/blur save, Escape cancel) or multiline `<textarea>` (Escape-only cancel, blur save), focus-return effect, and an `onSave` rejection path that calls `toast.error` and stays in edit mode with the draft preserved. 8 new tests in `reservation-inline-text-field.test.tsx`, all passing.
+- Task 4: Created `ReservationAnchorEditField` (`reservation-anchor-edit-field.tsx`) — click-to-edit date+time pair using `DatePicker`/`TimePicker` with Save/Cancel icon buttons, Enter/Escape via `onKeyDownCapture`, `aria-label`s of `"{label}: {formatted value}"` / `"Add {label.toLowerCase()}"`, and an inline `role="status"` error on `onSave` rejection or missing date/time pairing. Added optional `displayStyle`/`placeholderStyle` props so `ReservationRow` can thread down the shared style constants. 9 new tests in `reservation-anchor-edit-field.test.tsx`, all passing.
+- Task 5: Created `ReservationRow` (`reservation-row.tsx`) — orchestrator composing 3× `ReservationInlineTextField` (provider, confirmation code with Wallet-icon chip `renderDisplay`, notes) and 2× `ReservationAnchorEditField` (start/end anchors), each with an `onSave` that calls `updateReservation` and updates local display-state on success. 6 tests in `reservation-row.test.tsx` (expanded from the story's suggested set to also exercise the start-anchor, confirmation-code, and notes edit paths for coverage) — all passing.
+- Task 6: Replaced the inline expanded-row JSX in `reservation-type-section.tsx` with `<ReservationRow .../>`, removed the now-unused `renderAnchorLine` function and `Wallet`/`ANCHOR_LABELS` imports. Added `sonner`/`updateReservation` mocks (needed transitively now that `ReservationRow` imports the server action module) to `reservation-type-section.test.tsx` and `reservations-tab.test.tsx`. All existing tests pass plus 1 new integration smoke test for provider click-to-edit (16 tests total in `reservation-type-section.test.tsx`).
+- Task 7: Added an E2E scenario "Edit a reservation's provider and check-in time inline" to `tests/e2e/features/reservations.feature` with step definitions in `tests/e2e/steps/reservations.steps.ts`. Deviated from the story's exact spec for the "Check-in" anchor edit: rather than changing the date via the Calendar's relative-day labels (the flagged "Tomorrow, ..." caveat — react-day-picker's default `labelDayButton` only special-cases "Today", not "Tomorrow"), the scenario edits only the Check-in **time** (leaving the date-picker's pre-filled draft date unchanged), which exercises the same `ReservationAnchorEditField` save path without relying on Calendar day-label text. Assertion still matches the anchor button's `aria-label` by minutes-portion regex per the timezone caveat.
+- Full suite: `npx tsc --noEmit` clean, ESLint clean on all changed files, `npx vitest run` 1922 tests passing, `npm run test:coverage` thresholds met (lines 96.26%, functions 95.37%, branches 90.44%, statements 94.49% — all ≥ required minimums).
 
 ### File List
+
+- src/data/types.ts
+- src/app/(app)/trips/[tripId]/reservations/actions.ts
+- src/app/(app)/trips/[tripId]/reservations/actions.test.ts
+- src/components/packt/reservation-type-badge.tsx
+- src/components/packt/reservation-type-section.tsx
+- src/components/packt/reservation-type-section.test.tsx
+- src/components/packt/reservation-inline-text-field.tsx
+- src/components/packt/reservation-inline-text-field.test.tsx
+- src/components/packt/reservation-anchor-edit-field.tsx
+- src/components/packt/reservation-anchor-edit-field.test.tsx
+- src/components/packt/reservation-row.tsx
+- src/components/packt/reservation-row.test.tsx
+- src/components/packt/reservations-tab.test.tsx
+- tests/e2e/features/reservations.feature
+- tests/e2e/steps/reservations.steps.ts
 
 ## Change Log
 
 | Date | Change |
 | --- | --- |
 | 2026-06-15 | Story 1.3 created via `bmad-create-story` (ultimate context engine analysis). Status set to `ready-for-dev`. |
+| 2026-06-15 | All 7 tasks implemented via `bmad-dev-story` (claude-sonnet-4-6). Status set to `review`. |

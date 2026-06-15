@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronDown, Wallet } from "lucide-react";
-import { ANCHOR_LABELS, RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
+import { ChevronDown } from "lucide-react";
+import { RESERVATION_TYPE_META, formatAnchorDateTime } from "@/components/packt/reservation-type-badge";
+import { ReservationRow } from "@/components/packt/reservation-row";
 import type { Reservation, ReservationType } from "@/data/types";
 
 export interface ReservationTypeSectionProps {
@@ -12,12 +13,7 @@ export interface ReservationTypeSectionProps {
   now: Date;
 }
 
-export function formatAnchorDateTime(iso: string): string {
-  const date = new Date(iso);
-  const datePart = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  const timePart = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${datePart} · ${timePart}`;
-}
+export { formatAnchorDateTime };
 
 export function sortReservationsByStartAt(reservations: Reservation[]): Reservation[] {
   const dated = reservations.filter((reservation) => reservation.startAt);
@@ -40,16 +36,6 @@ export function getNextUpcoming(reservations: Reservation[], now: Date): Reserva
 
   return dated.reduce((latest, candidate) =>
     new Date(candidate.startAt!).getTime() > new Date(latest.startAt!).getTime() ? candidate : latest
-  );
-}
-
-function renderAnchorLine(label: string, value: string | undefined) {
-  if (!value) return null;
-  return (
-    <div className="flex gap-2" style={{ fontSize: 13 }}>
-      <span style={{ color: "var(--fg-3)", minWidth: 68 }}>{label}</span>
-      <span style={{ color: "var(--fg-2)" }}>{formatAnchorDateTime(value)}</span>
-    </div>
   );
 }
 
@@ -142,31 +128,12 @@ export function ReservationTypeSection({ type, reservations, open, onToggle, now
 
       {open &&
         sortReservationsByStartAt(reservations).map((reservation, index, all) => (
-          <div
+          <ReservationRow
             key={reservation.id}
-            className="px-4 py-3.5"
-            style={{ borderBottom: index < all.length - 1 ? "1px solid var(--line)" : "none" }}
-          >
-            <div style={{ fontSize: "calc(var(--fs-card-title) * var(--font-scale))", fontWeight: 600 }}>
-              {reservation.provider}
-            </div>
-            {renderAnchorLine(ANCHOR_LABELS[type].start, reservation.startAt)}
-            {renderAnchorLine(ANCHOR_LABELS[type].end, reservation.endAt)}
-            {reservation.confirmationCode && (
-              <span
-                className="inline-flex items-center gap-1 mt-1.5 rounded"
-                style={{
-                  background: "var(--surface-2)",
-                  padding: "2px 8px",
-                  fontFamily: "var(--font-mono-family, ui-monospace)",
-                  fontSize: 12,
-                }}
-              >
-                <Wallet size={12} strokeWidth={1.5} aria-hidden="true" />
-                {reservation.confirmationCode}
-              </span>
-            )}
-          </div>
+            reservation={reservation}
+            type={type}
+            isLast={index === all.length - 1}
+          />
         ))}
     </div>
   );

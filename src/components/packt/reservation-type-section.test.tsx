@@ -9,6 +9,14 @@ import {
   getNextUpcoming,
 } from "./reservation-type-section";
 
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
+  updateReservation: vi.fn(),
+}));
+
 const NOW = new Date("2026-06-15T12:00:00.000Z");
 
 function makeReservation(overrides: Partial<Reservation>): Reservation {
@@ -255,5 +263,23 @@ describe("ReservationTypeSection", () => {
     );
 
     expect(screen.queryByText("ABC123")).not.toBeInTheDocument();
+  });
+
+  it("enters edit mode when clicking the provider field of an expanded row", async () => {
+    const user = userEvent.setup();
+    const reservation = makeReservation({ provider: "Acme Air", startAt: "2026-06-16T15:00:00.000Z" });
+    render(
+      <ReservationTypeSection
+        type={ReservationType.Flight}
+        reservations={[reservation]}
+        open
+        onToggle={vi.fn()}
+        now={NOW}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Acme Air" }));
+
+    expect(screen.getByRole("textbox", { name: "Provider" })).toBeInTheDocument();
   });
 });

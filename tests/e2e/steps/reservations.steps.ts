@@ -94,3 +94,61 @@ Then(
     await expect(sections.nth(1)).toHaveAccessibleName(new RegExp(`^${secondLabel}, `));
   }
 );
+
+Given("the trip has a Lodging reservation", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [
+          {
+            type: "lodging",
+            provider: "Original Hotel Name",
+            startAt: "2030-01-10T15:00:00Z",
+            endAt: "2030-01-12T11:00:00Z",
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+  await scenario.gotoCurrentTrip(page);
+  await page.getByRole("button", { name: "Reservations" }).click();
+});
+
+Given("the {string} reservation section is expanded", async ({ page }, sectionLabel: string) => {
+  const section = page.getByRole("button", { name: new RegExp(`^${sectionLabel}, `) });
+  await expect(section).toBeVisible({ timeout: 10_000 });
+  if ((await section.getAttribute("aria-expanded")) === "false") {
+    await section.click();
+  }
+});
+
+When("I edit the reservation provider to {string}", async ({ page }, newProvider: string) => {
+  await page.getByRole("button", { name: "Original Hotel Name" }).click();
+  const input = page.getByRole("textbox", { name: "Provider" });
+  await input.fill(newProvider);
+  await input.press("Enter");
+  await expect(page.getByRole("button", { name: newProvider })).toBeVisible({ timeout: 10_000 });
+});
+
+When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel: string, time: string) => {
+  // ReservationAnchorEditField gives the anchor display button a stable aria-label of
+  // "{label}: {formatted value}" — select on that rather than visible text.
+  await page.getByRole("button", { name: new RegExp(`^${anchorLabel}: `) }).click();
+  await page.getByLabel(`${anchorLabel} time`).fill(time);
+  await page.getByRole("button", { name: `Save ${anchorLabel}` }).click();
+});
+
+Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
+  await expect(page.getByRole("button", { name: provider })).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabel: string, time: string) => {
+  // Assert via the anchor button's aria-label ("{label}: {formatted value}") rather than visible
+  // text, matching only the minutes portion since formatAnchorDateTime's hour formatting is
+  // timezone-dependent (see deferred-work.md).
+  await expect(
+    page.getByRole("button", { name: new RegExp(`^${anchorLabel}: .*${time.split(":")[1]}\\s*(AM|PM)`) })
+  ).toBeVisible({ timeout: 10_000 });
+});
