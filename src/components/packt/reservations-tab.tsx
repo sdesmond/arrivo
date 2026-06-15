@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { Luggage } from "lucide-react";
+import { useNow } from "@/components/providers/mock-date-provider";
 import { ReservationTypePicker } from "@/components/packt/reservation-type-picker";
 import { ReservationEditDrawer } from "@/components/packt/reservation-edit-drawer";
-import { RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
+import { ReservationTypeSection, getNextUpcoming } from "@/components/packt/reservation-type-section";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ReservationType, type Reservation } from "@/data/types";
 
 export interface ReservationsTabProps {
@@ -11,64 +14,84 @@ export interface ReservationsTabProps {
   reservations: Reservation[];
 }
 
-function formatReservationDateTime(value?: string): string | undefined {
-  if (!value) return undefined;
-  return new Date(value).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+function sectionSortKey(type: ReservationType, reservations: Reservation[], now: Date): [number, number] {
+  const nextUpcoming = getNextUpcoming(reservations, now);
+  if (!nextUpcoming?.startAt) {
+    return [2, Object.values(ReservationType).indexOf(type)];
+  }
+  const startAtMs = new Date(nextUpcoming.startAt).getTime();
+  if (startAtMs >= now.getTime()) {
+    return [0, startAtMs];
+  }
+  return [1, -startAtMs];
 }
 
 export function ReservationsTab({ tripId, reservations }: ReservationsTabProps) {
+  const now = useNow();
   const [selectedType, setSelectedType] = useState<ReservationType | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [openSections, setOpenSections] = useState<Set<ReservationType>>(new Set());
 
-  const groupedByType = Object.values(ReservationType)
+  function handleSelectType(type: ReservationType): void {
+    setSelectedType(type);
+    setDrawerOpen(true);
+  }
+
+  function toggleSection(type: ReservationType): void {
+    setOpenSections((current) => {
+      const next = new Set(current);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }
+
+  const sections = Object.values(ReservationType)
     .map((type) => ({ type, items: reservations.filter((reservation) => reservation.type === type) }))
-    .filter((group) => group.items.length > 0);
+    .filter((section) => section.items.length > 0)
+    .sort((first, second) => {
+      const keyA = sectionSortKey(first.type, first.items, now);
+      const keyB = sectionSortKey(second.type, second.items, now);
+      return keyA[0] - keyB[0] || keyA[1] - keyB[1];
+    });
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 style={{ fontSize: "calc(16px * var(--font-scale))", fontWeight: 600 }}>Reservations</h2>
-        <ReservationTypePicker
-          onSelectType={(type) => {
-            setSelectedType(type);
-            setDrawerOpen(true);
-          }}
-        />
-      </div>
+      {sections.length > 0 && (
+        <div className="flex items-center justify-between">
+          <h2 style={{ fontSize: "calc(16px * var(--font-scale))", fontWeight: 600 }}>Reservations</h2>
+          <ReservationTypePicker onSelectType={handleSelectType} />
+        </div>
+      )}
 
-      {groupedByType.length === 0 ? (
-        <p style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>No reservations yet.</p>
+      {sections.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Luggage strokeWidth={1.5} />
+            </EmptyMedia>
+            <EmptyTitle>No reservations yet</EmptyTitle>
+            <EmptyDescription>
+              Add a Flight, Lodging, Rental Car, and more to keep your bookings in one place.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <ReservationTypePicker onSelectType={handleSelectType} />
+          </EmptyContent>
+        </Empty>
       ) : (
-        groupedByType.map((group) => (
-          <div key={group.type} className="flex flex-col gap-2">
-            <h3
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "calc(9px * var(--font-scale))",
-                fontWeight: 700,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: "var(--fg-4)",
-                borderBottom: "1px solid var(--line)",
-                paddingBottom: 6,
-              }}
-            >
-              {RESERVATION_TYPE_META[group.type].label}
-            </h3>
-            {group.items.map((reservation) => (
-              <div key={reservation.id} className="flex items-center justify-between py-1.5">
-                <span style={{ fontSize: "calc(14px * var(--font-scale))" }}>{reservation.provider}</span>
-                <span style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)" }}>
-                  {[formatReservationDateTime(reservation.startAt), formatReservationDateTime(reservation.endAt)]
-                    .filter(Boolean)
-                    .join(" – ")}
-                </span>
-              </div>
-            ))}
-          </div>
+        sections.map((section) => (
+          <ReservationTypeSection
+            key={section.type}
+            type={section.type}
+            reservations={section.items}
+            open={openSections.has(section.type)}
+            onToggle={() => toggleSection(section.type)}
+            now={now}
+          />
         ))
       )}
 

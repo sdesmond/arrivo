@@ -4,7 +4,7 @@ baseline_commit: ac3675d50ee5451154e7260efc4f38c6a945edcf
 
 # Story 1.2: View Reservations Grouped by Type, with Empty State
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -26,27 +26,27 @@ so that I can quickly scan "what hotels do I have" or "what's my rental car situ
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Extract `ANCHOR_LABELS` into the shared type-badge module** (AC: 4)
-  - [ ] Move the `ANCHOR_LABELS: Record<ReservationType, { start: string; end: string }>` map (and, if desired, the `REQUIRES_END_AT` list — see Dev Notes) out of `reservation-edit-drawer.tsx` into `reservation-type-badge.tsx`, exported alongside `RESERVATION_TYPE_META`
-  - [ ] Update `reservation-edit-drawer.tsx` to import `ANCHOR_LABELS` from `reservation-type-badge.tsx` instead of defining it locally; no behavior change
-  - [ ] Update `reservation-type-badge.test.tsx` to assert all 8 `ReservationType` values have an `ANCHOR_LABELS` entry with non-empty `start`/`end` strings
-  - [ ] Run `reservation-edit-drawer.test.tsx` unchanged to confirm no regression (Story 1.1's drawer tests still pass against the re-exported map)
+- [x] **Task 1: Extract `ANCHOR_LABELS` into the shared type-badge module** (AC: 4)
+  - [x] Move the `ANCHOR_LABELS: Record<ReservationType, { start: string; end: string }>` map (and, if desired, the `REQUIRES_END_AT` list — see Dev Notes) out of `reservation-edit-drawer.tsx` into `reservation-type-badge.tsx`, exported alongside `RESERVATION_TYPE_META`
+  - [x] Update `reservation-edit-drawer.tsx` to import `ANCHOR_LABELS` from `reservation-type-badge.tsx` instead of defining it locally; no behavior change
+  - [x] Update `reservation-type-badge.test.tsx` to assert all 8 `ReservationType` values have an `ANCHOR_LABELS` entry with non-empty `start`/`end` strings
+  - [x] Run `reservation-edit-drawer.test.tsx` unchanged to confirm no regression (Story 1.1's drawer tests still pass against the re-exported map)
 
-- [ ] **Task 2: `ReservationTypeSection` accordion component** (AC: 2, 3, 4, 6, 8)
-  - [ ] Create `src/components/packt/reservation-type-section.tsx` — `"use client"`, explicit `ReservationTypeSectionProps` interface (`{ type: ReservationType; reservations: Reservation[]; open: boolean; onToggle: () => void; now: Date }`)
-  - [ ] Implement the container styling, header (icon/label, count badge, chevron, accessible-name `aria-label`), collapsed preview line, and expanded row list per the Dev Notes spec (exact styles, formatting helpers, sort helpers)
-  - [ ] Export the row-ordering helper (`sortReservationsByStartAt`) and the date/time formatting helper (`formatAnchorDateTime`) and the "next-upcoming" helper (`getNextUpcoming`) so `reservations-tab.tsx` can reuse them for cross-section ordering — see Dev Notes for exact signatures
-  - [ ] Create `src/components/packt/reservation-type-section.test.tsx` covering: collapsed render (header content, count badge text is `aria-hidden`, preview text, accessible name with singular/plural count and "collapsed"), expand toggle (chevron rotation class/style, border appears, rows render, accessible name switches to "expanded"), within-section ordering (rows ordered by `startAt` ascending, undated rows last), confirmation-code chip rendering, and the "type has reservations but none have `startAt`" preview fallback (Dev Notes)
+- [x] **Task 2: `ReservationTypeSection` accordion component** (AC: 2, 3, 4, 6, 8)
+  - [x] Create `src/components/packt/reservation-type-section.tsx` — `"use client"`, explicit `ReservationTypeSectionProps` interface (`{ type: ReservationType; reservations: Reservation[]; open: boolean; onToggle: () => void; now: Date }`)
+  - [x] Implement the container styling, header (icon/label, count badge, chevron, accessible-name `aria-label`), collapsed preview line, and expanded row list per the Dev Notes spec (exact styles, formatting helpers, sort helpers)
+  - [x] Export the row-ordering helper (`sortReservationsByStartAt`) and the date/time formatting helper (`formatAnchorDateTime`) and the "next-upcoming" helper (`getNextUpcoming`) so `reservations-tab.tsx` can reuse them for cross-section ordering — see Dev Notes for exact signatures
+  - [x] Create `src/components/packt/reservation-type-section.test.tsx` covering: collapsed render (header content, count badge text is `aria-hidden`, preview text, accessible name with singular/plural count and "collapsed"), expand toggle (chevron rotation class/style, border appears, rows render, accessible name switches to "expanded"), within-section ordering (rows ordered by `startAt` ascending, undated rows last), confirmation-code chip rendering, and the "type has reservations but none have `startAt`" preview fallback (Dev Notes)
 
-- [ ] **Task 3: Rewrite `ReservationsTab`** (AC: 1, 5, 7, 8)
-  - [ ] In `src/components/packt/reservations-tab.tsx`, replace the Story 1.1 minimal grouping with: (a) the FR-6 empty state (`Empty`/`EmptyHeader`/`EmptyMedia`/`EmptyTitle`/`EmptyDescription`/`EmptyContent` containing the existing `ReservationTypePicker`) when `reservations.length === 0`, hiding the title+picker header row in that case; (b) otherwise, the title+picker header row plus one `ReservationTypeSection` per populated type, ordered via the cross-section sort algorithm (Dev Notes) using `useNow()`
-  - [ ] Add local `useState<Record<ReservationType, boolean>>` (or `Set<ReservationType>`) for per-section open/closed state, all collapsed by default
-  - [ ] Update `src/components/packt/reservations-tab.test.tsx`: replace/extend the existing tests to cover the empty state (Empty composition renders, no accordion sections, single "Add Reservation" entry point) and the populated multi-type case (correct number of sections, cross-section ordering for a soonest-first scenario, an "all past" type sorts after types with upcoming Reservations, a type with no dated Reservations sorts last)
+- [x] **Task 3: Rewrite `ReservationsTab`** (AC: 1, 5, 7, 8)
+  - [x] In `src/components/packt/reservations-tab.tsx`, replace the Story 1.1 minimal grouping with: (a) the FR-6 empty state (`Empty`/`EmptyHeader`/`EmptyMedia`/`EmptyTitle`/`EmptyDescription`/`EmptyContent` containing the existing `ReservationTypePicker`) when `reservations.length === 0`, hiding the title+picker header row in that case; (b) otherwise, the title+picker header row plus one `ReservationTypeSection` per populated type, ordered via the cross-section sort algorithm (Dev Notes) using `useNow()`
+  - [x] Add local `useState<Record<ReservationType, boolean>>` (or `Set<ReservationType>`) for per-section open/closed state, all collapsed by default
+  - [x] Update `src/components/packt/reservations-tab.test.tsx`: replace/extend the existing tests to cover the empty state (Empty composition renders, no accordion sections, single "Add Reservation" entry point) and the populated multi-type case (correct number of sections, cross-section ordering for a soonest-first scenario, an "all past" type sorts after types with upcoming Reservations, a type with no dated Reservations sorts last)
 
-- [ ] **Task 4: E2E scenarios** (AC: 9)
-  - [ ] Add a scenario to `tests/e2e/features/reservations.feature`: a freshly-created trip (Object Mother, zero `reservations`) shows "No reservations yet" and no accordion section, then "Add Reservation" still works from `EmptyContent`
-  - [ ] Add a scenario seeding ≥2 Reservations across ≥2 types via `cloneTripMother(..., { reservations: [...] })` overrides (one upcoming Flight, one upcoming Lodging with a later `startAt`) and assert both accordion headers render in soonest-first order
-  - [ ] Rewrite the existing `Then("the reservation {string} appears in the {string} section", ...)` step in `tests/e2e/steps/reservations.steps.ts`: it currently asserts `getByRole("heading", { name: sectionLabel })`, but the accordion header is now a `<button aria-expanded>` with the AC6 constructed accessible name — assert `getByRole("button", { name: new RegExp(`^${sectionLabel}, `) })` is visible (and expand it if collapsed) before asserting the provider text is visible
+- [x] **Task 4: E2E scenarios** (AC: 9)
+  - [x] Add a scenario to `tests/e2e/features/reservations.feature`: a freshly-created trip (Object Mother, zero `reservations`) shows "No reservations yet" and no accordion section, then "Add Reservation" still works from `EmptyContent`
+  - [x] Add a scenario seeding ≥2 Reservations across ≥2 types via `cloneTripMother(..., { reservations: [...] })` overrides (one upcoming Flight, one upcoming Lodging with a later `startAt`) and assert both accordion headers render in soonest-first order
+  - [x] Rewrite the existing `Then("the reservation {string} appears in the {string} section", ...)` step in `tests/e2e/steps/reservations.steps.ts`: it currently asserts `getByRole("heading", { name: sectionLabel })`, but the accordion header is now a `<button aria-expanded>` with the AC6 constructed accessible name — assert `getByRole("button", { name: new RegExp(`^${sectionLabel}, `) })` is visible (and expand it if collapsed) before asserting the provider text is visible
 
 ## Dev Notes
 
@@ -418,22 +418,40 @@ Rendering **two** `<ReservationTypePicker>` instances (header row + `EmptyConten
 
 ### Agent Model Used
 
-_To be filled by the Dev agent._
+claude-sonnet-4-6
 
 ### Debug Log References
 
-_To be filled by the Dev agent._
+- `npx eslint` — clean across all touched files (fixed two pre-existing-formatting regressions introduced by the auto-format hook: restored `eslint-disable`/`eslint-enable react-hooks/set-state-in-effect` comments in `reservation-edit-drawer.tsx`, and renamed `a`/`b` sort-comparator params to satisfy `id-length`)
+- `npx tsc --noEmit` — clean
+- `npm run test:coverage` — 135 files / 1884 tests passed; global thresholds met (lines 96.49% ≥ 95, functions 95.36% ≥ 95, branches 90.67% ≥ 90)
+- `npm run build` — production build succeeded
+- `npm run test:e2e` — 128/128 Playwright BDD scenarios passed, including the 2 new `reservations.feature` scenarios
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- Task 1: `ANCHOR_LABELS` moved from `reservation-edit-drawer.tsx` into `reservation-type-badge.tsx` and exported alongside `RESERVATION_TYPE_META`; drawer now imports it. `REQUIRES_END_AT` left in place per Dev Notes.
+- Task 2: Created `reservation-type-section.tsx` — accordion section component with `formatAnchorDateTime`, `sortReservationsByStartAt`, and `getNextUpcoming` exported helpers, plus full `reservation-type-section.test.tsx` coverage (collapsed/expanded states, accessible name pluralization, ordering, preview fallback, confirmation-code chip).
+- Task 3: Rewrote `reservations-tab.tsx` with the FR-6 empty state (`Empty`/`EmptyHeader`/`EmptyMedia`/`EmptyTitle`/`EmptyDescription`/`EmptyContent`), cross-section sorting via `sectionSortKey`, and per-section open/closed `Set<ReservationType>` state. Rewrote `reservations-tab.test.tsx` to cover empty state, multi-section rendering, cross-section ordering (soonest-first / all-past / undated), and section toggle.
+- Task 4: Added an empty-state E2E scenario and a multi-type soonest-first ordering scenario to `reservations.feature`, with new step definitions in `reservations.steps.ts` (including a direct-DB scenario-owned fixture for the multi-type case, following the established `documents.steps.ts` pattern). Rewrote the "appears in the {type} section" step to assert against the new `<button aria-expanded>` accordion header.
+- Fixed a React dev-console warning (mixing `border` shorthand with `borderBottom` on the accordion header) discovered during E2E verification by replacing the shorthand with individual `borderTop`/`borderLeft`/`borderRight`/`borderBottom` properties.
 
 ### File List
 
-_To be filled by the Dev agent._
+- `src/components/packt/reservation-type-badge.tsx` (modified — added `ANCHOR_LABELS` export)
+- `src/components/packt/reservation-type-badge.test.tsx` (modified — added `ANCHOR_LABELS` coverage)
+- `src/components/packt/reservation-edit-drawer.tsx` (modified — import `ANCHOR_LABELS` instead of local definition)
+- `src/components/packt/reservation-type-section.tsx` (new)
+- `src/components/packt/reservation-type-section.test.tsx` (new)
+- `src/components/packt/reservations-tab.tsx` (rewritten)
+- `src/components/packt/reservations-tab.test.tsx` (rewritten)
+- `tests/e2e/features/reservations.feature` (modified — 2 new scenarios)
+- `tests/e2e/steps/reservations.steps.ts` (modified — new/rewritten step definitions)
 
 ## Change Log
 
 | Date | Change |
 | --- | --- |
 | 2026-06-14 | Story 1.2 created via `bmad-create-story` (ultimate context engine analysis). Status set to `ready-for-dev`. |
+| 2026-06-15 | Story 1.2 implemented via `bmad-dev-story`: Tasks 1-4 complete, all ACs satisfied, full validation suite passing. Status set to `review`. |
