@@ -661,6 +661,14 @@ export interface CreateReservationInput {
   notes?: string;
 }
 
+export interface UpdateReservationPatch {
+  provider?: string;
+  startAt?: string;
+  endAt?: string;
+  confirmationCode?: string;
+  notes?: string;
+}
+
 export interface AddPackingItemInput {
   name: string;
   isLabel?: boolean;

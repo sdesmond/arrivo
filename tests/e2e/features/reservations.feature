@@ -24,3 +24,13 @@ Feature: Reservations
   Scenario: Reservation sections render across multiple types in soonest-first order
     Given the trip has reservations across multiple types
     Then the "Lodging" reservation section appears before the "Flight" reservation section
+
+  Scenario: Edit a reservation's provider and check-in time inline
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    When I edit the reservation provider to "Updated Hotel Name"
+    And I edit the "Check-in" anchor time to "10:00"
+    And I reload the page
+    And the "Lodging" reservation section is expanded
+    Then the reservation provider shows "Updated Hotel Name"
+    And the "Check-in" anchor shows a time of "10:00"
