@@ -36,6 +36,8 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, startTransition] = useTransition();
   const [isUploading, startUploadTransition] = useTransition();
+  const [, startRemoveTransition] = useTransition();
+  const [removingDocId, setRemovingDocId] = useState<string | null>(null);
   const deletingRef = useRef(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,11 +63,15 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
   }
 
   function handleRemoveDoc(docId: string) {
-    startTransition(async () => {
+    if (removingDocId) return;
+    setRemovingDocId(docId);
+    startRemoveTransition(async () => {
       try {
         await removeReservationDocument(docId);
       } catch {
         toast.error("Failed to remove document.");
+      } finally {
+        setRemovingDocId(null);
       }
     });
   }
@@ -235,6 +241,7 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
                 title={`Remove ${doc.name}`}
                 aria-label={`Remove ${doc.name}`}
                 onClick={() => handleRemoveDoc(doc.id)}
+                disabled={removingDocId === doc.id}
                 className="inline-flex items-center justify-center size-8 shrink-0 rounded"
                 style={{ border: "none", background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}
               >

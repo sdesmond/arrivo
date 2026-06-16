@@ -4,7 +4,7 @@ baseline_commit: ef28d11c582dac9c30445f1d7243b64af84cbf3e
 
 # Story 1.5 — Attach Documents to a Reservation
 
-**Status:** review
+**Status:** done
 **Epic:** 1 — Reservation Management
 **Branch:** feature/1-5-attach-documents-to-a-reservation
 
@@ -726,10 +726,9 @@ None — this story only modifies existing files.
 
 _Code review 2026-06-16 (baseline `ef28d11` → `7257772`). 3 layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor._
 
-- [ ] [Review][Decision] Blob/DB operation failure semantics are not transactional — In `uploadReservationDocument`, `put()` runs before `db.insert`; if the insert throws, the blob is leaked (no DB row references it). In `deleteReservation`/`removeReservationDocument`, an unguarded `del()` runs before the DB delete, so a transient blob-store error throws and blocks the DB operation, and a `del()` success followed by a DB failure leaves an orphan row pointing at a deleted blob. The spec mandated del-before-cascade, so the safer ordering/rollback (best-effort try/catch, or compensating cleanup) is a deliberate design choice needing your call. [actions.ts:106-110, 126-137, 153-157]
-
-- [ ] [Review][Patch] `inferDocKind(file.name)` mis-classifies every reservation document as `"doc"` — `inferDocKind` branches on MIME strings (`utils.ts:101`), and the two established trip-doc paths call `inferDocKind(file.type)` (`trips/[tripId]/actions.ts:401,736`). Passing `file.name` never matches, so the `DocKindBadge` is always wrong, violating AC2. Fix: use `file.type`; also strengthen the upload happy-path test (currently `toMatchObject({ reservationId, name })`) to assert `kind`. [reservations/actions.ts:125]
-- [ ] [Review][Patch] `handleRemoveDoc` reuses the reservation-delete transition (`isDeleting`) instead of a dedicated one — removing a document flips the same `startTransition`/`isDeleting` used by reservation deletion, bleeding pending state across two unrelated operations; the remove button is also never disabled while pending, allowing double-fire. Fix: add a dedicated `useTransition` (mirroring `startUploadTransition`) for removal and disable the remove button while it is pending. [reservation-row.tsx:37,63-71]
+- [x] [Review][Decision→Patch] Blob/DB operation failure semantics are not transactional — RESOLVED (option 2: best-effort cleanup + upload rollback). `del()` in `deleteReservation`/`removeReservationDocument` is now wrapped in try/catch so a blob-store error cannot block the DB delete; `uploadReservationDocument` rolls back the just-uploaded blob (`del(url)`, skipped under `UPLOAD_STUB`) if `db.insert` throws, then rethrows. Tests added for all three paths. [reservations/actions.ts]
+- [x] [Review][Patch] `inferDocKind(file.name)` mis-classifies every reservation document as `"doc"` — FIXED: now `inferDocKind(file.type)`, matching the trip-doc paths. Upload happy-path test strengthened to assert `kind`/`size`/`url`, plus a new test proving kind follows MIME type not filename. [reservations/actions.ts:125]
+- [x] [Review][Patch] `handleRemoveDoc` reuses the reservation-delete transition — FIXED: dedicated `startRemoveTransition` + `removingDocId` state; the per-doc remove button is disabled while its removal is in flight (guards double-fire). [reservation-row.tsx]
 
 - [x] [Review][Defer] No server-side file-type validation on upload (only size checked) — deferred, pre-existing app-wide pattern (`trips/[tripId]/actions.ts:397-404` is identical). [reservations/actions.ts:121-123]
 - [x] [Review][Defer] Unsanitized client `file.name` used as the public blob key (collision/traversal risk) — deferred, pre-existing pattern shared with the trip-doc path (`trips/[tripId]/actions.ts:410`). [reservations/actions.ts:129]

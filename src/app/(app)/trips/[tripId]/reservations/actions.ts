@@ -103,8 +103,14 @@ export async function deleteReservation(reservationId: string): Promise<void> {
   await assertTripAccess(existing.tripId, user.id!, "editor");
 
   const attachedDocs = await db.select().from(documents).where(eq(documents.reservationId, reservationId));
-  if (attachedDocs.length > 0 && process.env.UPLOAD_STUB !== "true") {
-    await del(attachedDocs.map((doc) => doc.url).filter(Boolean) as string[]);
+  const blobUrls = attachedDocs.map((doc) => doc.url).filter(Boolean) as string[];
+  if (blobUrls.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    // Best-effort cleanup: a transient blob-store error must not block the DB delete.
+    try {
+      await del(blobUrls);
+    } catch {
+      // Orphaned blobs are tolerable; a blocked reservation delete is not.
+    }
   }
 
   await db.delete(reservations).where(eq(reservations.id, reservationId));
@@ -122,19 +128,29 @@ export async function uploadReservationDocument(reservationId: string, formData:
   if (!(file instanceof File)) throw new Error("No file provided.");
   if (file.size > MAX_UPLOAD_BYTES) throw new Error(`File is too large. Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
 
-  const kind = inferDocKind(file.name);
-  const url =
-    process.env.UPLOAD_STUB === "true"
-      ? await saveLocalUpload(file)
-      : (await put(file.name, file, { access: "public" })).url;
+  const kind = inferDocKind(file.type);
+  const isStub = process.env.UPLOAD_STUB === "true";
+  const url = isStub ? await saveLocalUpload(file) : (await put(file.name, file, { access: "public" })).url;
 
-  await db.insert(documents).values({
-    reservationId,
-    name: file.name,
-    kind,
-    size: formatFileSize(file.size),
-    url,
-  });
+  try {
+    await db.insert(documents).values({
+      reservationId,
+      name: file.name,
+      kind,
+      size: formatFileSize(file.size),
+      url,
+    });
+  } catch (error) {
+    // Roll back the just-uploaded blob so a failed insert does not leak storage.
+    if (!isStub) {
+      try {
+        await del(url);
+      } catch {
+        // Swallow rollback failure; surface the original insert error below.
+      }
+    }
+    throw error;
+  }
 
   revalidatePath(`/trips/${reservation.tripId}`);
 }
@@ -151,7 +167,12 @@ export async function removeReservationDocument(docId: string): Promise<void> {
   await assertTripAccess(reservation.tripId, user.id!, "editor");
 
   if (doc.url && process.env.UPLOAD_STUB !== "true") {
-    await del(doc.url);
+    // Best-effort cleanup: a transient blob-store error must not block the DB delete.
+    try {
+      await del(doc.url);
+    } catch {
+      // Orphaned blob is tolerable; a blocked document delete is not.
+    }
   }
 
   await db.delete(documents).where(eq(documents.id, docId));

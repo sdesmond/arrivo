@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-14
-last_updated: 2026-06-16 (story 1.5 created)
+last_updated: 2026-06-16 (story 1.5 code-review patches applied, status → done)
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -47,7 +47,7 @@ development_status:
   1-2-view-reservations-grouped-by-type-with-empty-state: done
   1-3-edit-a-reservation: done
   1-4-delete-a-reservation: done
-  1-5-attach-documents-to-a-reservation: review
+  1-5-attach-documents-to-a-reservation: done
   epic-1-retrospective: optional
 
   epic-2: backlog

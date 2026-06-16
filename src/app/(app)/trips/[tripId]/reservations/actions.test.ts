@@ -492,6 +492,19 @@ describe("deleteReservation — blob cleanup", () => {
 
     expect(del).not.toHaveBeenCalled();
   });
+
+  it("still deletes the reservation when blob cleanup fails (best-effort)", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    db.delete.mockReturnValue({ where: deleteWhere });
+    del.mockRejectedValue(new Error("blob store unavailable"));
+
+    db.select
+      .mockReturnValueOnce({ from: () => ({ where: async () => [baseRow] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) });
+
+    await expect(deleteReservation("res-1")).resolves.toBeUndefined();
+    expect(deleteWhere).toHaveBeenCalled();
+  });
 });
 
 describe("uploadReservationDocument", () => {
@@ -558,7 +571,65 @@ describe("uploadReservationDocument", () => {
     await uploadReservationDocument("res-1", form);
 
     expect(put).toHaveBeenCalled();
-    expect(insertedValues).toMatchObject({ reservationId: "res-1", name: "doc.pdf" });
+    expect(insertedValues).toMatchObject({
+      reservationId: "res-1",
+      name: "doc.pdf",
+      kind: "pdf",
+      size: "0.1 KB",
+      url: "https://blob.example.com/doc.pdf",
+    });
+  });
+
+  it("derives the document kind from the file MIME type, not the filename", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+    let insertedValues: Record<string, unknown> | undefined;
+    db.insert.mockReturnValue({
+      values: async (vals: Record<string, unknown>) => {
+        insertedValues = vals;
+      },
+    });
+
+    // Filename ends in .pdf but the MIME type is an image — kind must follow the MIME type.
+    const file = new File(["x"], "scan.pdf", { type: "image/png" });
+    Object.defineProperty(file, "size", { value: 100, configurable: true });
+    const form = new FormData();
+    form.append("file", file);
+
+    await uploadReservationDocument("res-1", form);
+
+    expect(insertedValues).toMatchObject({ kind: "image" });
+  });
+
+  it("rolls back the uploaded blob when the document insert fails", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+    db.insert.mockReturnValue({
+      values: async () => {
+        throw new Error("insert failed");
+      },
+    });
+
+    const form = new FormData();
+    form.append("file", makeFile("doc.pdf", 100));
+
+    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("insert failed");
+    expect(del).toHaveBeenCalledWith("https://blob.example.com/doc.pdf");
+  });
+
+  it("does not attempt blob rollback when the insert fails under UPLOAD_STUB", async () => {
+    process.env.UPLOAD_STUB = "true";
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+    db.insert.mockReturnValue({
+      values: async () => {
+        throw new Error("insert failed");
+      },
+    });
+
+    const form = new FormData();
+    form.append("file", makeFile("doc.pdf", 100));
+
+    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("insert failed");
+    expect(del).not.toHaveBeenCalled();
+    delete process.env.UPLOAD_STUB;
   });
 
   it("calls saveLocalUpload() when UPLOAD_STUB is 'true'", async () => {
@@ -676,5 +747,18 @@ describe("removeReservationDocument", () => {
     await removeReservationDocument("doc-1");
 
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("still deletes the document row when blob cleanup fails (best-effort)", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    db.delete.mockReturnValue({ where: deleteWhere });
+    del.mockRejectedValue(new Error("blob store unavailable"));
+
+    db.select
+      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
+
+    await expect(removeReservationDocument("doc-1")).resolves.toBeUndefined();
+    expect(deleteWhere).toHaveBeenCalled();
   });
 });
