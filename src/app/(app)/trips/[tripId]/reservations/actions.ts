@@ -93,7 +93,8 @@ export async function deleteReservation(reservationId: string): Promise<void> {
 
   const [existing] = await db.select().from(reservations).where(eq(reservations.id, reservationId));
   if (!existing) {
-    throw new Error("Reservation not found.");
+    // Already deleted — treat as success (idempotent; guards against collaborator-race double-fire).
+    return;
   }
 
   await assertTripAccess(existing.tripId, user.id!, "editor");

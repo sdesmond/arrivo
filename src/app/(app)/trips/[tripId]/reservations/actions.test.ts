@@ -385,10 +385,10 @@ describe("deleteReservation", () => {
     });
   });
 
-  it("throws when the reservation does not exist", async () => {
+  it("resolves silently when the reservation does not exist (idempotent)", async () => {
     mockExistingReservation(undefined);
 
-    await expect(deleteReservation("missing")).rejects.toThrow("Reservation not found.");
+    await expect(deleteReservation("missing")).resolves.toBeUndefined();
 
     expect(assertTripAccess).not.toHaveBeenCalled();
     expect(db.delete).not.toHaveBeenCalled();
@@ -400,10 +400,14 @@ describe("deleteReservation", () => {
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
   });
 
-  it("deletes the reservation row", async () => {
+  it("deletes the reservation row with a where filter on the reservation id", async () => {
+    const whereStub = vi.fn().mockResolvedValue(undefined);
+    db.delete.mockReturnValue({ where: whereStub });
+
     await deleteReservation("res-1");
 
     expect(db.delete).toHaveBeenCalled();
+    expect(whereStub).toHaveBeenCalledWith(expect.anything());
   });
 
   it("revalidates the trip path after a successful delete", async () => {

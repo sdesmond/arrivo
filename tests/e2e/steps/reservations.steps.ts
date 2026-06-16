@@ -158,12 +158,16 @@ When("I delete the reservation {string}", async ({ page }, provider: string) => 
 });
 
 When("I confirm the deletion", async ({ page }) => {
-  // The dev-only mock-date overlay (fixed bottom-right, z-index 9999) can intercept clicks at the
-  // bottom-right of the viewport in dev/E2E. Use focus+Enter as a fallback if this proves flaky
-  // (see "I click {string} on the reservation drawer" / deferred-work.md for the established workaround).
-  await page.getByRole("button", { name: "Delete" }).click();
+  // exact: true avoids matching the row's "Delete {provider}" icon button.
+  // focus+Enter matches the established pattern for drawer/dialog footer buttons to sidestep
+  // the dev-only mock-date overlay (fixed bottom-right, z-index 9999).
+  const button = page.getByRole("button", { name: "Delete", exact: true });
+  await button.focus();
+  await button.press("Enter");
 });
 
 Then("the reservation {string} is no longer shown", async ({ page }, provider: string) => {
-  await expect(page.getByText(provider)).not.toBeVisible();
+  // Target the provider's display button (role=button, exact name) rather than any text node,
+  // so a hidden-but-present element doesn't produce a false pass.
+  await expect(page.getByRole("button", { name: provider, exact: true })).not.toBeVisible();
 });

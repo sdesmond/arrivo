@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { ReservationRow } from "./reservation-row";
 import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type Reservation } from "@/data/types";
@@ -255,5 +256,30 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(deleteReservation).toHaveBeenCalledWith("res-1");
+  });
+
+  it("closes the dialog after a successful delete", async () => {
+    vi.mocked(deleteReservation).mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Delete Grand Hotel" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await vi.waitFor(() => {
+      expect(screen.queryByText(/Delete\s+Grand Hotel\?/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows a toast error and keeps the dialog open when deleteReservation throws", async () => {
+    vi.mocked(deleteReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Delete Grand Hotel" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+    expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { ANCHOR_LABELS } from "@/components/packt/reservation-type-badge";
@@ -28,14 +28,19 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
   const [notes, setNotes] = useState<string | undefined>(reservation.notes);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, startTransition] = useTransition();
+  const deletingRef = useRef(false);
 
   function handleConfirmDelete() {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
     startTransition(async () => {
       try {
         await deleteReservation(reservation.id);
         setConfirmOpen(false);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to delete reservation.");
+      } finally {
+        deletingRef.current = false;
       }
     });
   }
