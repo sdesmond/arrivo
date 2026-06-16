@@ -152,3 +152,22 @@ Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabe
     page.getByRole("button", { name: new RegExp(`^${anchorLabel}: .*${time.split(":")[1]}\\s*(AM|PM)`) })
   ).toBeVisible({ timeout: 10_000 });
 });
+
+When("I delete the reservation {string}", async ({ page }, provider: string) => {
+  await page.getByRole("button", { name: `Delete ${provider}` }).click();
+});
+
+When("I confirm the deletion", async ({ page }) => {
+  // exact: true avoids matching the row's "Delete {provider}" icon button.
+  // focus+Enter matches the established pattern for drawer/dialog footer buttons to sidestep
+  // the dev-only mock-date overlay (fixed bottom-right, z-index 9999).
+  const button = page.getByRole("button", { name: "Delete", exact: true });
+  await button.focus();
+  await button.press("Enter");
+});
+
+Then("the reservation {string} is no longer shown", async ({ page }, provider: string) => {
+  // Target the provider's display button (role=button, exact name) rather than any text node,
+  // so a hidden-but-present element doesn't produce a false pass.
+  await expect(page.getByRole("button", { name: provider, exact: true })).not.toBeVisible();
+});

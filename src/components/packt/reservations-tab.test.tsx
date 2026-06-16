@@ -158,4 +158,48 @@ describe("ReservationsTab", () => {
 
     expect(screen.getByTestId("drawer")).toHaveTextContent("Drawer for lodging");
   });
+
+  it("removes a type's accordion section when all its reservations are deleted (rerender)", () => {
+    const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+    const flightRes = makeReservation({
+      id: "res-flight",
+      type: ReservationType.Flight,
+      startAt: "2026-08-02T10:00:00.000Z",
+      endAt: undefined,
+    });
+
+    const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes, flightRes]} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByRole("button", { name: /^Lodging, 1 reservation/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Flight, 1 reservation/ })).toBeInTheDocument();
+
+    rerender(
+      <Wrapper>
+        <ReservationsTab tripId="trip-1" reservations={[flightRes]} />
+      </Wrapper>
+    );
+
+    expect(screen.queryByRole("button", { name: /^Lodging, / })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Flight, 1 reservation/ })).toBeInTheDocument();
+  });
+
+  it("shows the empty state when the last reservation is deleted (rerender)", () => {
+    const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+
+    const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, { wrapper: Wrapper });
+
+    expect(screen.getByRole("button", { name: /^Lodging, 1 reservation/ })).toBeInTheDocument();
+    expect(screen.queryByText("No reservations yet")).not.toBeInTheDocument();
+
+    rerender(
+      <Wrapper>
+        <ReservationsTab tripId="trip-1" reservations={[]} />
+      </Wrapper>
+    );
+
+    expect(screen.getByText("No reservations yet")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reservation,/ })).not.toBeInTheDocument();
+  });
 });

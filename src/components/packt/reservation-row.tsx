@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Wallet } from "lucide-react";
+import { useState, useTransition, useRef } from "react";
+import { Trash2, Wallet } from "lucide-react";
+import { toast } from "sonner";
 import { ANCHOR_LABELS } from "@/components/packt/reservation-type-badge";
 import { ReservationInlineTextField } from "@/components/packt/reservation-inline-text-field";
 import { ReservationAnchorEditField } from "@/components/packt/reservation-anchor-edit-field";
-import { updateReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { DeleteReservationAlertDialog } from "@/components/packt/delete-reservation-alert-dialog";
+import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type Reservation } from "@/data/types";
 
 export interface ReservationRowProps {
@@ -24,24 +26,56 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
   const [confirmationCode, setConfirmationCode] = useState<string | undefined>(reservation.confirmationCode);
   const [notes, setNotes] = useState<string | undefined>(reservation.notes);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isDeleting, startTransition] = useTransition();
+  const deletingRef = useRef(false);
+
+  function handleConfirmDelete() {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    startTransition(async () => {
+      try {
+        await deleteReservation(reservation.id);
+        setConfirmOpen(false);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete reservation.");
+      } finally {
+        deletingRef.current = false;
+      }
+    });
+  }
 
   return (
     <div className="px-4 py-3.5" style={{ borderBottom: isLast ? "none" : "1px solid var(--line)" }}>
-      <ReservationInlineTextField
-        value={provider}
-        ariaLabel="Provider"
-        placeholder=""
-        displayStyle={{
-          fontSize: "calc(var(--fs-card-title) * var(--font-scale))",
-          fontWeight: 600,
-          color: "var(--fg)",
-        }}
-        inputStyle={{ fontSize: "calc(var(--fs-card-title) * var(--font-scale))", fontWeight: 600 }}
-        onSave={async (next) => {
-          await updateReservation(reservation.id, { provider: next });
-          setProvider(next.trim());
-        }}
-      />
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1">
+          <ReservationInlineTextField
+            value={provider}
+            ariaLabel="Provider"
+            placeholder=""
+            displayStyle={{
+              fontSize: "calc(var(--fs-card-title) * var(--font-scale))",
+              fontWeight: 600,
+              color: "var(--fg)",
+            }}
+            inputStyle={{ fontSize: "calc(var(--fs-card-title) * var(--font-scale))", fontWeight: 600 }}
+            onSave={async (next) => {
+              await updateReservation(reservation.id, { provider: next });
+              setProvider(next.trim());
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          title={`Delete ${provider}`}
+          aria-label={`Delete ${provider}`}
+          onClick={() => setConfirmOpen(true)}
+          className="inline-flex items-center justify-center size-8 shrink-0 rounded"
+          style={{ border: "none", background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}
+        >
+          <Trash2 size={15} strokeWidth={1.5} aria-hidden="true" />
+        </button>
+      </div>
       <div className="flex items-start gap-2" style={{ fontSize: 13 }}>
         <span style={FIELD_LABEL_STYLE}>{ANCHOR_LABELS[type].start}</span>
         <ReservationAnchorEditField
@@ -102,6 +136,13 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
           await updateReservation(reservation.id, { notes: next });
           setNotes(next || undefined);
         }}
+      />
+      <DeleteReservationAlertDialog
+        provider={provider}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={handleConfirmDelete}
+        isDeleting={isDeleting}
       />
     </div>
   );

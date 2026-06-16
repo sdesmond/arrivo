@@ -87,3 +87,19 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
 
   revalidatePath(`/trips/${existing.tripId}`);
 }
+
+export async function deleteReservation(reservationId: string): Promise<void> {
+  const user = await requireUser();
+
+  const [existing] = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+  if (!existing) {
+    // Already deleted — treat as success (idempotent; guards against collaborator-race double-fire).
+    return;
+  }
+
+  await assertTripAccess(existing.tripId, user.id!, "editor");
+
+  await db.delete(reservations).where(eq(reservations.id, reservationId));
+
+  revalidatePath(`/trips/${existing.tripId}`);
+}
