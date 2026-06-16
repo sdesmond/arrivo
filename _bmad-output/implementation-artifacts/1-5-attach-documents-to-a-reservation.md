@@ -1,6 +1,10 @@
+---
+baseline_commit: ef28d11c582dac9c30445f1d7243b64af84cbf3e
+---
+
 # Story 1.5 — Attach Documents to a Reservation
 
-**Status:** ready-for-dev
+**Status:** review
 **Epic:** 1 — Reservation Management
 **Branch:** feature/1-5-attach-documents-to-a-reservation
 

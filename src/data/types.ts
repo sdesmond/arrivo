@@ -183,7 +183,7 @@ export interface Document {
   name: string;
   kind: DocKind;
   size?: string;
-  scope: "trip" | "event";
+  scope: "trip" | "event" | "reservation";
   offline: boolean;
   url?: string;
   previewLines?: DocPreviewLine[];
@@ -215,6 +215,7 @@ export interface Reservation {
   endAt?: string;
   confirmationCode?: string;
   notes?: string;
+  documents?: Document[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -645,6 +646,7 @@ export interface AddCollaboratorInput {
 export interface AddDocumentInput {
   tripId?: string;
   eventId?: string;
+  reservationId?: string;
   name: string;
   kind: string;
   size?: string;

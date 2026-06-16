@@ -245,6 +245,19 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
 
   const tripReservations = await db.select().from(reservations).where(eq(reservations.tripId, tripId));
 
+  const reservationIds = tripReservations.map((row) => row.id);
+  const reservationDocRows =
+    reservationIds.length > 0
+      ? await db.select().from(documents).where(inArray(documents.reservationId, reservationIds))
+      : [];
+  const docsByReservationId = new Map<string, (typeof documents.$inferSelect)[]>();
+  for (const docRow of reservationDocRows) {
+    if (!docRow.reservationId) continue;
+    const existing = docsByReservationId.get(docRow.reservationId) ?? [];
+    existing.push(docRow);
+    docsByReservationId.set(docRow.reservationId, existing);
+  }
+
   const allNotes =
     tripDays.length > 0
       ? await db
@@ -366,6 +379,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     collaborators: tripCollaborators.map(dbCollabToType),
     packingItems: tripPackingItems.map(dbPackingItemToType),
     packingLists: tripPackingListRows.map(dbPackingListToType),
-    reservations: tripReservations.map(dbReservationToType),
+    reservations: tripReservations.map((row) => ({
+      ...dbReservationToType(row),
+      documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
+    })),
   };
 }

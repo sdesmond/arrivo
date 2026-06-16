@@ -240,7 +240,9 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                   <FileText strokeWidth={1.5} />
                 </EmptyMedia>
                 <EmptyTitle>No documents yet</EmptyTitle>
-                <EmptyDescription>Add a document once this reservation has been saved.</EmptyDescription>
+                <EmptyDescription>
+                  Attach a hotel confirmation, receipt, or other reservation document.
+                </EmptyDescription>
               </EmptyHeader>
               <EmptyContent />
             </Empty>
