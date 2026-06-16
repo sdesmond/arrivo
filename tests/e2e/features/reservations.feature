@@ -34,3 +34,12 @@ Feature: Reservations
     And the "Lodging" reservation section is expanded
     Then the reservation provider shows "Updated Hotel Name"
     And the "Check-in" anchor shows a time of "10:00"
+
+  Scenario: Delete a reservation removes it, its section, and shows the empty state
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    When I delete the reservation "Original Hotel Name"
+    And I confirm the deletion
+    Then the reservation "Original Hotel Name" is no longer shown
+    And no reservation type sections are shown
+    And I see the "No reservations yet" empty state

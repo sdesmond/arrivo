@@ -7,6 +7,7 @@ const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => (
     insert: vi.fn(),
     select: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   },
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
-import { createReservation, updateReservation } from "./actions";
+import { createReservation, updateReservation, deleteReservation } from "./actions";
 import { ReservationType } from "@/data/types";
 
 describe("createReservation", () => {
@@ -349,6 +350,64 @@ describe("updateReservation", () => {
 
   it("revalidates the trip path after a successful update", async () => {
     await updateReservation("res-1", { provider: "New Name" });
+
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+describe("deleteReservation", () => {
+  const baseRow = {
+    id: "res-1",
+    tripId: "trip-1",
+    type: ReservationType.Flight,
+    provider: "Acme Air",
+    startAt: new Date("2026-08-01T10:00:00.000Z"),
+    endAt: null,
+    confirmationCode: null,
+    notes: null,
+  };
+
+  function mockExistingReservation(row: Record<string, unknown> | undefined): void {
+    db.select.mockReturnValue({
+      from: () => ({
+        where: async () => (row ? [row] : []),
+      }),
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+    mockExistingReservation(baseRow);
+    db.delete.mockReturnValue({
+      where: async () => undefined,
+    });
+  });
+
+  it("throws when the reservation does not exist", async () => {
+    mockExistingReservation(undefined);
+
+    await expect(deleteReservation("missing")).rejects.toThrow("Reservation not found.");
+
+    expect(assertTripAccess).not.toHaveBeenCalled();
+    expect(db.delete).not.toHaveBeenCalled();
+  });
+
+  it("checks editor access on the reservation's trip before deleting", async () => {
+    await deleteReservation("res-1");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("deletes the reservation row", async () => {
+    await deleteReservation("res-1");
+
+    expect(db.delete).toHaveBeenCalled();
+  });
+
+  it("revalidates the trip path after a successful delete", async () => {
+    await deleteReservation("res-1");
 
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });

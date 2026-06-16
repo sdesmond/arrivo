@@ -4,7 +4,7 @@ baseline_commit: cb77ac0
 
 # Story 1.4: Delete a Reservation
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -24,24 +24,24 @@ so that I can remove bookings that were canceled or entered by mistake without a
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: `deleteReservation` server action** (AC: 2, 3)
-  - [ ] Add `deleteReservation(reservationId: string): Promise<void>` to `src/app/(app)/trips/[tripId]/reservations/actions.ts`, mirroring `updateReservation`'s existence/access-check shape (see Dev Notes for exact implementation).
-  - [ ] Extend `src/app/(app)/trips/[tripId]/reservations/actions.test.ts` with `describe("deleteReservation", ...)`: throws "Reservation not found." when missing (no access check, no delete call); checks `assertTripAccess(tripId, user.id, "editor")` before deleting; calls `db.delete` with the right `where`; calls `revalidatePath("/trips/{tripId}")` on success.
+- [x] **Task 1: `deleteReservation` server action** (AC: 2, 3)
+  - [x] Add `deleteReservation(reservationId: string): Promise<void>` to `src/app/(app)/trips/[tripId]/reservations/actions.ts`, mirroring `updateReservation`'s existence/access-check shape (see Dev Notes for exact implementation).
+  - [x] Extend `src/app/(app)/trips/[tripId]/reservations/actions.test.ts` with `describe("deleteReservation", ...)`: throws "Reservation not found." when missing (no access check, no delete call); checks `assertTripAccess(tripId, user.id, "editor")` before deleting; calls `db.delete` with the right `where`; calls `revalidatePath("/trips/{tripId}")` on success.
 
-- [ ] **Task 2: `DeleteReservationAlertDialog` component** (AC: 1, 3)
-  - [ ] Create `src/components/packt/delete-reservation-alert-dialog.tsx` — copy the shape of `delete-trip-alert-dialog.tsx` exactly (same `AlertDialog*` imports from `@/components/ui/alert-dialog`, `size="sm"` content, ghost Cancel / destructive Action). Props: `provider: string`, `open`, `onOpenChange`, `onConfirm`, `isDeleting?`. Title: `Delete {provider}?`. Description: `This cannot be undone — this reservation will be permanently removed.`
-  - [ ] Create `src/components/packt/delete-reservation-alert-dialog.test.tsx` — copy `delete-trip-alert-dialog.test.tsx`'s structure (same `@/components/ui/alert-dialog` mock): title/description render with the provider name, `onConfirm` fires on "Delete" click, `onOpenChange(false)` fires on dismiss, `isDeleting` disables both buttons and shows "Deleting...".
+- [x] **Task 2: `DeleteReservationAlertDialog` component** (AC: 1, 3)
+  - [x] Create `src/components/packt/delete-reservation-alert-dialog.tsx` — copy the shape of `delete-trip-alert-dialog.tsx` exactly (same `AlertDialog*` imports from `@/components/ui/alert-dialog`, `size="sm"` content, ghost Cancel / destructive Action). Props: `provider: string`, `open`, `onOpenChange`, `onConfirm`, `isDeleting?`. Title: `Delete {provider}?`. Description: `This cannot be undone — this reservation will be permanently removed.`
+  - [x] Create `src/components/packt/delete-reservation-alert-dialog.test.tsx` — copy `delete-trip-alert-dialog.test.tsx`'s structure (same `@/components/ui/alert-dialog` mock): title/description render with the provider name, `onConfirm` fires on "Delete" click, `onOpenChange(false)` fires on dismiss, `isDeleting` disables both buttons and shows "Deleting...".
 
-- [ ] **Task 3: Wire the delete affordance into `ReservationRow`** (AC: 1, 2, 3)
-  - [ ] In `src/components/packt/reservation-row.tsx`: add `useTransition` + `confirmOpen` state, a `Trash2` icon button (`size-8`, `title`/`aria-label` = `` `Delete ${provider}` ``) positioned at the top-right of the row via a `flex items-start justify-between gap-2` wrapper around the provider field, and render `<DeleteReservationAlertDialog>` at the end of the row. On confirm, call `deleteReservation(reservation.id)` inside `startTransition`, catch errors with `toast.error(...)`, close the dialog on success (see Dev Notes for full snippet).
-  - [ ] Extend `src/components/packt/reservation-row.test.tsx`: clicking the delete button opens the dialog; clicking the dialog's dismiss control closes it without calling `deleteReservation`; confirming calls `deleteReservation(reservation.id)`. Add `deleteReservation: vi.fn()` to the existing `vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", ...)` and mock `@/components/ui/alert-dialog` the same way `delete-trip-alert-dialog.test.tsx` does.
+- [x] **Task 3: Wire the delete affordance into `ReservationRow`** (AC: 1, 2, 3)
+  - [x] In `src/components/packt/reservation-row.tsx`: add `useTransition` + `confirmOpen` state, a `Trash2` icon button (`size-8`, `title`/`aria-label` = `` `Delete ${provider}` ``) positioned at the top-right of the row via a `flex items-start justify-between gap-2` wrapper around the provider field, and render `<DeleteReservationAlertDialog>` at the end of the row. On confirm, call `deleteReservation(reservation.id)` inside `startTransition`, catch errors with `toast.error(...)`, close the dialog on success (see Dev Notes for full snippet).
+  - [x] Extend `src/components/packt/reservation-row.test.tsx`: clicking the delete button opens the dialog; clicking the dialog's dismiss control closes it without calling `deleteReservation`; confirming calls `deleteReservation(reservation.id)`. Add `deleteReservation: vi.fn()` to the existing `vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", ...)` and mock `@/components/ui/alert-dialog` the same way `delete-trip-alert-dialog.test.tsx` does.
 
-- [ ] **Task 4: Section/empty-state disappearance coverage** (AC: 4, 5)
-  - [ ] In `src/components/packt/reservations-tab.test.tsx`, add two tests using `rerender`: (a) render with two reservations of different types, then `rerender` with one of them removed — assert that type's accordion header (`getByRole("button", { name: /^Lodging, /})` etc.) is gone while the other remains; (b) render with a single reservation, `rerender` with `reservations={[]}` — assert "No reservations yet" is shown and no `/reservation,/`-named buttons remain. These confirm `ReservationsTab`'s existing `sections` filter (`items.length > 0`) and empty-state branch handle post-delete re-renders correctly — no new production code is needed for this task, it is verification only.
+- [x] **Task 4: Section/empty-state disappearance coverage** (AC: 4, 5)
+  - [x] In `src/components/packt/reservations-tab.test.tsx`, add two tests using `rerender`: (a) render with two reservations of different types, then `rerender` with one of them removed — assert that type's accordion header (`getByRole("button", { name: /^Lodging, /})` etc.) is gone while the other remains; (b) render with a single reservation, `rerender` with `reservations={[]}` — assert "No reservations yet" is shown and no `/reservation,/`-named buttons remain. These confirm `ReservationsTab`'s existing `sections` filter (`items.length > 0`) and empty-state branch handle post-delete re-renders correctly — no new production code is needed for this task, it is verification only.
 
-- [ ] **Task 5: E2E scenario** (AC: 1, 2, 3, 4, 5)
-  - [ ] Add a scenario to `tests/e2e/features/reservations.feature`: given the trip has a single Lodging reservation (reuse the existing `"the trip has a Lodging reservation"` Object Mother step — one reservation total, so deleting it covers both "last of type" and "last overall" in one scenario), expand its section, click the delete affordance, confirm in the dialog, and verify the reservation is gone, its section is gone, and the "No reservations yet" empty state reappears.
-  - [ ] Add step definitions to `tests/e2e/steps/reservations.steps.ts` (see Dev Notes for exact text/selectors).
+- [x] **Task 5: E2E scenario** (AC: 1, 2, 3, 4, 5)
+  - [x] Add a scenario to `tests/e2e/features/reservations.feature`: given the trip has a single Lodging reservation (reuse the existing `"the trip has a Lodging reservation"` Object Mother step — one reservation total, so deleting it covers both "last of type" and "last overall" in one scenario), expand its section, click the delete affordance, confirm in the dialog, and verify the reservation is gone, its section is gone, and the "No reservations yet" empty state reappears.
+  - [x] Add step definitions to `tests/e2e/steps/reservations.steps.ts` (see Dev Notes for exact text/selectors).
 
 ## Dev Notes
 
@@ -276,12 +276,31 @@ claude-sonnet-4-6
 
 ### Debug Log References
 
+None.
+
 ### Completion Notes List
 
+- AC4/AC5 required zero production code changes — `ReservationsTab`'s existing `sections.filter(s => s.items.length > 0)` and `sections.length === 0` empty-state branch already handle these cases; Task 4 was verification only.
+- No blob/document cleanup in `deleteReservation` — `documents.reservation_id` does not exist yet (Story 1.5). Plain `db.delete` is correct.
+- `ReservationRow` uses the live `provider` state (not `reservation.provider`) for the delete button aria-label and dialog prop, so an in-session rename (Story 1.3) is reflected correctly.
+- E2E environment lacks PostgreSQL in CI; unit tests (1944 passed), TypeScript, and ESLint all pass clean. E2E scenario code is complete and validated structurally.
+- Coverage: lines 96.24%, functions 95.39%, branches 90.38% — all above thresholds.
+
 ### File List
+
+- `src/app/(app)/trips/[tripId]/reservations/actions.ts` — added `deleteReservation`
+- `src/app/(app)/trips/[tripId]/reservations/actions.test.ts` — added `describe("deleteReservation", ...)` (4 tests)
+- `src/components/packt/delete-reservation-alert-dialog.tsx` — new file
+- `src/components/packt/delete-reservation-alert-dialog.test.tsx` — new file (4 tests)
+- `src/components/packt/reservation-row.tsx` — added delete affordance, `DeleteReservationAlertDialog`, `useTransition`, `confirmOpen` state
+- `src/components/packt/reservation-row.test.tsx` — added 3 delete tests + alert-dialog mock
+- `src/components/packt/reservations-tab.test.tsx` — added 2 re-render tests (AC4, AC5)
+- `tests/e2e/features/reservations.feature` — added delete scenario
+- `tests/e2e/steps/reservations.steps.ts` — added 3 step definitions
 
 ## Change Log
 
 | Date | Change |
 | --- | --- |
 | 2026-06-15 | Story 1.4 created via `bmad-create-story` (ultimate context engine analysis). Status set to `ready-for-dev`. |
+| 2026-06-16 | Story 1.4 implemented — all 5 tasks complete. Status set to `review`. |

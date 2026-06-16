@@ -152,3 +152,18 @@ Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabe
     page.getByRole("button", { name: new RegExp(`^${anchorLabel}: .*${time.split(":")[1]}\\s*(AM|PM)`) })
   ).toBeVisible({ timeout: 10_000 });
 });
+
+When("I delete the reservation {string}", async ({ page }, provider: string) => {
+  await page.getByRole("button", { name: `Delete ${provider}` }).click();
+});
+
+When("I confirm the deletion", async ({ page }) => {
+  // The dev-only mock-date overlay (fixed bottom-right, z-index 9999) can intercept clicks at the
+  // bottom-right of the viewport in dev/E2E. Use focus+Enter as a fallback if this proves flaky
+  // (see "I click {string} on the reservation drawer" / deferred-work.md for the established workaround).
+  await page.getByRole("button", { name: "Delete" }).click();
+});
+
+Then("the reservation {string} is no longer shown", async ({ page }, provider: string) => {
+  await expect(page.getByText(provider)).not.toBeVisible();
+});
