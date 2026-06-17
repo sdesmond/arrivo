@@ -102,6 +102,15 @@ describe("createReservation", () => {
       provider: "Grand Hotel",
       startAt: "2026-08-01T15:00:00.000Z",
       endAt: "2026-08-05T11:00:00.000Z",
+      startAddress: "123 Main St, New York, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "456 Main St, Los Angeles, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+      cost: 499.99,
       confirmationCode: "ABC123",
       notes: "Late checkout requested",
     });
@@ -112,6 +121,15 @@ describe("createReservation", () => {
       provider: "Grand Hotel",
       startAt: new Date("2026-08-01T15:00:00.000Z"),
       endAt: new Date("2026-08-05T11:00:00.000Z"),
+      startAddress: "123 Main St, New York, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "456 Main St, Los Angeles, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+      cost: "499.99",
       confirmationCode: "ABC123",
       notes: "Late checkout requested",
     });
@@ -189,6 +207,15 @@ describe("updateReservation", () => {
     provider: "Acme Air",
     startAt: new Date("2026-08-01T10:00:00.000Z"),
     endAt: null,
+    startAddress: null,
+    startLocationName: null,
+    startLocationLat: null,
+    startLocationLng: null,
+    endAddress: null,
+    endLocationName: null,
+    endLocationLat: null,
+    endLocationLng: null,
+    cost: null,
     confirmationCode: null,
     notes: null,
   };
@@ -281,6 +308,83 @@ describe("updateReservation", () => {
     expect(updatedValues).toMatchObject({ confirmationCode: null, notes: null });
   });
 
+  it("updates startAddress and endAddress independently", async () => {
+    await updateReservation("res-1", {
+      startAddress: "JFK International Airport, NY",
+      endAddress: "LAX International Airport, CA",
+    });
+
+    expect(updatedValues).toMatchObject({
+      startAddress: "JFK International Airport, NY",
+      endAddress: "LAX International Airport, CA",
+    });
+  });
+
+  it("updates structured start and end location fields when addresses are patched", async () => {
+    await updateReservation("res-1", {
+      startAddress: "JFK International Airport, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "LAX International Airport, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+    });
+
+    expect(updatedValues).toMatchObject({
+      startAddress: "JFK International Airport, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "LAX International Airport, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+    });
+  });
+
+  it("clears startAddress and endAddress when set to an empty string", async () => {
+    mockExistingReservation({
+      ...baseRow,
+      startAddress: "JFK",
+      startLocationName: "JFK Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "LAX",
+      endLocationName: "LAX Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+    });
+
+    await updateReservation("res-1", { startAddress: "", endAddress: "" });
+
+    expect(updatedValues).toMatchObject({
+      startAddress: null,
+      startLocationName: null,
+      startLocationLat: null,
+      startLocationLng: null,
+      endAddress: null,
+      endLocationName: null,
+      endLocationLat: null,
+      endLocationLng: null,
+    });
+  });
+
+  it("updates cost independently, converting to a numeric string", async () => {
+    await updateReservation("res-1", { cost: 349.5 });
+
+    expect(updatedValues).toMatchObject({ cost: "349.5" });
+  });
+
+  it("clears cost when set to null", async () => {
+    mockExistingReservation({ ...baseRow, cost: "199.00" });
+
+    await updateReservation("res-1", { cost: null });
+
+    expect(updatedValues).toMatchObject({ cost: null });
+  });
+
   it.each([ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise])(
     "rejects clearing endAt for %s reservations",
     async (type) => {
@@ -363,6 +467,15 @@ describe("deleteReservation", () => {
     provider: "Acme Air",
     startAt: new Date("2026-08-01T10:00:00.000Z"),
     endAt: null,
+    startAddress: null,
+    startLocationName: null,
+    startLocationLat: null,
+    startLocationLng: null,
+    endAddress: null,
+    endLocationName: null,
+    endLocationLat: null,
+    endLocationLng: null,
+    cost: null,
     confirmationCode: null,
     notes: null,
   };

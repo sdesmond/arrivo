@@ -37,8 +37,14 @@ export function ReservationAnchorEditField({
 
   function openEdit() {
     if (value) {
-      setDateDraft(value.slice(0, 10));
-      setTimeDraft(value.slice(11, 16));
+      const date = new Date(value);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      setDateDraft(`${year}-${month}-${day}`);
+      setTimeDraft(`${hours}:${minutes}`);
     } else {
       setDateDraft(undefined);
       setTimeDraft(undefined);
@@ -54,7 +60,7 @@ export function ReservationAnchorEditField({
       setError("Enter both a date and a time.");
       return;
     }
-    const nextIso = hasDate ? `${dateDraft}T${timeDraft}:00.000Z` : "";
+    const nextIso = hasDate ? new Date(`${dateDraft}T${timeDraft}:00`).toISOString() : "";
     try {
       await onSave(nextIso);
       setEditing(false);

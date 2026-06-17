@@ -206,6 +206,12 @@ export function extractCity(fullLocation: string | null | undefined): string {
   return commaIndex === -1 ? trimmed : trimmed.slice(0, commaIndex).trim();
 }
 
+export function getLocationDisplayLabel(name: string | null | undefined, address: string | null | undefined): string {
+  const trimmedName = name?.trim();
+  if (trimmedName) return trimmedName;
+  return address?.trim() ?? "";
+}
+
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, (_key, val) =>
     val !== null && typeof val === "object" && !Array.isArray(val)
