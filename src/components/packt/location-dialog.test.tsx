@@ -29,6 +29,7 @@ vi.mock("./location-lookup-input", () => ({
     value,
     onValueChange,
     onResolved,
+    onClearResolved,
     onSubmit,
   }: {
     value: string;
@@ -41,6 +42,7 @@ vi.mock("./location-lookup-input", () => ({
       country: string;
       countryCode: string;
     }) => void;
+    onClearResolved?: () => void;
     onSubmit?: () => void;
   }) => (
     <div>
@@ -66,6 +68,7 @@ vi.mock("./location-lookup-input", () => ({
       >
         resolve-location
       </button>
+      <button onClick={() => onClearResolved?.()}>clear-location</button>
     </div>
   ),
 }));
@@ -193,6 +196,29 @@ describe("LocationDialog", () => {
       name: "Tokyo Tower",
       lat: 35.6586,
       lng: 139.7454,
+    });
+  });
+
+  it("falls back to a plain address after clearing a resolved location", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <LocationDialog
+        address="4 Chome-2-8 Shibakoen, Minato City, Tokyo"
+        locationName="Tokyo Tower"
+        locationLat={35.6586}
+        locationLng={139.7454}
+        open
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "clear-location" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(onSave).toHaveBeenCalledWith({
+      address: "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
     });
   });
 });

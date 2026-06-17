@@ -53,6 +53,7 @@ vi.mock("./location-lookup-input", () => ({
     value,
     onValueChange,
     onResolved,
+    onClearResolved,
     onSubmit,
   }: {
     id?: string;
@@ -66,6 +67,7 @@ vi.mock("./location-lookup-input", () => ({
       country: string;
       countryCode: string;
     }) => void;
+    onClearResolved?: () => void;
     onSubmit?: () => void;
   }) => (
     <div>
@@ -92,6 +94,7 @@ vi.mock("./location-lookup-input", () => ({
       >
         resolve-location
       </button>
+      <button onClick={() => onClearResolved?.()}>clear-location</button>
     </div>
   ),
 }));
@@ -302,6 +305,31 @@ describe("ReservationFieldDialog", () => {
       name: "LAX Airport",
       lat: 33.9416,
       lng: -118.4085,
+    });
+  });
+
+  it("falls back to a plain address after clearing a resolved location", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReservationFieldDialog
+        mode="location"
+        title="Departure address"
+        value="1 World Way, Los Angeles, CA"
+        locationName="LAX Airport"
+        locationLat={33.9416}
+        locationLng={-118.4085}
+        open
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "clear-location" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith({
+      address: "1 World Way, Los Angeles, CA",
     });
   });
 });

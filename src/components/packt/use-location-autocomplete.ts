@@ -14,6 +14,7 @@ export interface AutocompleteSuggestionOption {
   primaryText: string;
   secondaryText?: string;
   inputValue: string;
+  resolvedLocation?: RetrievedLocation;
 }
 
 export interface UseLocationAutocompleteOptions {
@@ -92,6 +93,7 @@ export function useLocationAutocomplete({
               primaryText: result.name,
               secondaryText: result.fullAddress !== result.name ? result.fullAddress : undefined,
               inputValue: result.fullAddress,
+              resolvedLocation: result.resolvedLocation,
             }))
           );
         }
@@ -133,7 +135,8 @@ export function useLocationAutocomplete({
     cancelRetrieveRef.current = false;
 
     try {
-      const location = await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current);
+      const location =
+        suggestion.resolvedLocation ?? (await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current));
       if (cancelRetrieveRef.current) {
         sessionTokenRef.current = crypto.randomUUID();
         return;

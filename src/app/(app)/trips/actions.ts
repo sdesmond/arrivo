@@ -626,6 +626,7 @@ export interface LocationLookupSuggestion {
   name: string;
   fullAddress: string;
   mapboxId: string;
+  resolvedLocation?: RetrievedLocation;
 }
 
 export interface RetrievedLocation {
@@ -741,6 +742,14 @@ export async function searchAddressLocations(query: string, sessionToken: string
         name: "Paris",
         fullAddress: "Paris, France",
         mapboxId: "stub-paris-id",
+        resolvedLocation: {
+          name: "Paris",
+          fullAddress: "Paris, France",
+          placeName: "Paris, France",
+          country: "France",
+          countryCode: "FR",
+          center: [2.3488, 48.8534],
+        },
       },
     ];
   }
