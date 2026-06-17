@@ -32,7 +32,13 @@ export async function createReservation(tripId: string, input: CreateReservation
     startAt: input.startAt ? new Date(input.startAt) : undefined,
     endAt: input.endAt ? new Date(input.endAt) : undefined,
     startAddress: input.startAddress,
+    startLocationName: input.startLocationName,
+    startLocationLat: input.startLocationLat,
+    startLocationLng: input.startLocationLng,
     endAddress: input.endAddress,
+    endLocationName: input.endLocationName,
+    endLocationLat: input.endLocationLat,
+    endLocationLng: input.endLocationLng,
     cost: input.cost != null ? String(input.cost) : undefined,
     confirmationCode: input.confirmationCode,
     notes: input.notes,
@@ -83,8 +89,18 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
   if (patch.provider !== undefined) updates.provider = patch.provider.trim();
   if (patch.startAt !== undefined) updates.startAt = patch.startAt ? new Date(patch.startAt) : null;
   if (patch.endAt !== undefined) updates.endAt = patch.endAt ? new Date(patch.endAt) : null;
-  if (patch.startAddress !== undefined) updates.startAddress = patch.startAddress || null;
-  if (patch.endAddress !== undefined) updates.endAddress = patch.endAddress || null;
+  if (patch.startAddress !== undefined) {
+    updates.startAddress = patch.startAddress || null;
+    updates.startLocationName = patch.startLocationName ?? null;
+    updates.startLocationLat = patch.startLocationLat ?? null;
+    updates.startLocationLng = patch.startLocationLng ?? null;
+  }
+  if (patch.endAddress !== undefined) {
+    updates.endAddress = patch.endAddress || null;
+    updates.endLocationName = patch.endLocationName ?? null;
+    updates.endLocationLat = patch.endLocationLat ?? null;
+    updates.endLocationLng = patch.endLocationLng ?? null;
+  }
   if (patch.cost !== undefined) updates.cost = patch.cost != null ? String(patch.cost) : null;
   if (patch.confirmationCode !== undefined) updates.confirmationCode = patch.confirmationCode || null;
   if (patch.notes !== undefined) updates.notes = patch.notes || null;

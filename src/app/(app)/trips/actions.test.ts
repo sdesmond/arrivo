@@ -84,6 +84,7 @@ import {
   removePackingItem,
   retrieveLocation,
   saveTripListAsTemplate,
+  searchAddressLocations,
   searchLocations,
   togglePackingItem,
   updatePackingItem,
@@ -946,6 +947,76 @@ describe("searchLocations", () => {
   });
 });
 
+describe("searchAddressLocations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-mapbox-token");
+    requireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("maps Search Box suggest results to address lookup suggestions", async () => {
+    mockSearchBoxSuggest.mockResolvedValue({
+      suggestions: [
+        {
+          name: "Tokyo Tower",
+          full_address: "4 Chome-2-8 Shibakoen, Minato City, Tokyo, Japan",
+          mapbox_id: "tokyo-tower-id",
+        },
+        {
+          name: "Paris",
+          place_formatted: "Paris, France",
+          context: { country: { name: "France", country_code: "FR" } },
+          mapbox_id: "paris-id",
+        },
+      ],
+    });
+
+    await expect(searchAddressLocations("Tok", "sess")).resolves.toEqual([
+      {
+        name: "Tokyo Tower",
+        fullAddress: "4 Chome-2-8 Shibakoen, Minato City, Tokyo, Japan",
+        mapboxId: "tokyo-tower-id",
+      },
+      {
+        name: "Paris",
+        fullAddress: "Paris, France",
+        mapboxId: "paris-id",
+      },
+    ]);
+    expect(requireUser).toHaveBeenCalled();
+  });
+
+  it("returns the E2E stub lookup suggestion when configured", async () => {
+    vi.stubEnv("E2E_MAPBOX_STUB", "true");
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
+
+    await expect(searchAddressLocations("Par", "sess")).resolves.toEqual([
+      {
+        name: "Paris",
+        fullAddress: "Paris, France",
+        mapboxId: "stub-paris-id",
+      },
+    ]);
+    expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
+  });
+
+  it("throws when the query is empty", async () => {
+    await expect(searchAddressLocations("  ", "sess")).rejects.toThrow("Search query must not be empty");
+    expect(requireUser).not.toHaveBeenCalled();
+  });
+
+  it("throws when the Mapbox token is missing", async () => {
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
+
+    await expect(searchAddressLocations("Tokyo", "sess")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
+    expect(requireUser).not.toHaveBeenCalled();
+  });
+});
+
 describe("packing actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1574,6 +1645,8 @@ describe("retrieveLocation", () => {
     });
 
     await expect(retrieveLocation("dXJuOm1hcGJveA==", "test-session-token")).resolves.toEqual({
+      name: "Tokyo",
+      fullAddress: "Tokyo, Tokyo, Japan",
       placeName: "Tokyo, Japan",
       country: "Japan",
       countryCode: "JP",
@@ -1602,6 +1675,8 @@ describe("retrieveLocation", () => {
     });
 
     await expect(retrieveLocation("some-id", "sess")).resolves.toEqual({
+      name: "10th arrondissement",
+      fullAddress: "10th arrondissement, Paris, Île-de-France, France",
       placeName: "10th arrondissement, Paris, France",
       country: "France",
       countryCode: "FR",
@@ -1629,6 +1704,8 @@ describe("retrieveLocation", () => {
     });
 
     await expect(retrieveLocation("some-id", "sess")).resolves.toEqual({
+      name: "Heber City",
+      fullAddress: "Heber City, Utah, United States",
       placeName: "Heber City, Utah, United States",
       country: "United States",
       countryCode: "US",
@@ -1641,6 +1718,8 @@ describe("retrieveLocation", () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
 
     await expect(retrieveLocation("stub-paris-id", "sess")).resolves.toEqual({
+      name: "Paris",
+      fullAddress: "Paris, France",
       placeName: "Paris, France",
       country: "France",
       countryCode: "FR",

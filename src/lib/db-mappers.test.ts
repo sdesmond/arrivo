@@ -232,7 +232,13 @@ const BASE_RESERVATION: ReservationRow = {
   startAt: null,
   endAt: null,
   startAddress: null,
+  startLocationName: null,
+  startLocationLat: null,
+  startLocationLng: null,
   endAddress: null,
+  endLocationName: null,
+  endLocationLat: null,
+  endLocationLng: null,
   cost: null,
   confirmationCode: null,
   notes: null,
@@ -254,7 +260,13 @@ describe("dbReservationToType", () => {
     expect(result.startAt).toBeUndefined();
     expect(result.endAt).toBeUndefined();
     expect(result.startAddress).toBeUndefined();
+    expect(result.startLocationName).toBeUndefined();
+    expect(result.startLocationLat).toBeUndefined();
+    expect(result.startLocationLng).toBeUndefined();
     expect(result.endAddress).toBeUndefined();
+    expect(result.endLocationName).toBeUndefined();
+    expect(result.endLocationLat).toBeUndefined();
+    expect(result.endLocationLng).toBeUndefined();
     expect(result.cost).toBeUndefined();
     expect(result.confirmationCode).toBeUndefined();
     expect(result.notes).toBeUndefined();
@@ -292,6 +304,25 @@ describe("dbReservationToType", () => {
     });
     expect(result.startAddress).toBe("JFK International Airport, New York, NY");
     expect(result.endAddress).toBe("LAX International Airport, Los Angeles, CA");
+  });
+
+  it("maps structured reservation location fields when present", () => {
+    const result = dbReservationToType({
+      ...BASE_RESERVATION,
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+    });
+
+    expect(result.startLocationName).toBe("John F. Kennedy International Airport");
+    expect(result.startLocationLat).toBe(40.6413);
+    expect(result.startLocationLng).toBe(-73.7781);
+    expect(result.endLocationName).toBe("Los Angeles International Airport");
+    expect(result.endLocationLat).toBe(33.9416);
+    expect(result.endLocationLng).toBe(-118.4085);
   });
 
   it("converts cost numeric string to number", () => {

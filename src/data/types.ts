@@ -214,7 +214,13 @@ export interface Reservation {
   startAt?: string;
   endAt?: string;
   startAddress?: string;
+  startLocationName?: string;
+  startLocationLat?: number;
+  startLocationLng?: number;
   endAddress?: string;
+  endLocationName?: string;
+  endLocationLat?: number;
+  endLocationLng?: number;
   cost?: number;
   confirmationCode?: string;
   notes?: string;
@@ -242,6 +248,19 @@ export interface EventLocation {
   name?: string;
   address?: string;
   geo?: GeoCoords;
+}
+
+export interface SavedLocationValue {
+  name?: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+}
+
+export interface LocationLookupSelection {
+  name: string;
+  fullAddress: string;
+  center: [number, number];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -661,7 +680,13 @@ export interface CreateReservationInput {
   startAt?: string; // ISO datetime
   endAt?: string;
   startAddress?: string;
+  startLocationName?: string;
+  startLocationLat?: number;
+  startLocationLng?: number;
   endAddress?: string;
+  endLocationName?: string;
+  endLocationLat?: number;
+  endLocationLng?: number;
   cost?: number;
   confirmationCode?: string;
   notes?: string;
@@ -672,7 +697,13 @@ export interface UpdateReservationPatch {
   startAt?: string;
   endAt?: string;
   startAddress?: string;
+  startLocationName?: string;
+  startLocationLat?: number;
+  startLocationLng?: number;
   endAddress?: string;
+  endLocationName?: string;
+  endLocationLat?: number;
+  endLocationLng?: number;
   cost?: number | null;
   confirmationCode?: string;
   notes?: string;
