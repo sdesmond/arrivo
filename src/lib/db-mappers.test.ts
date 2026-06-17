@@ -231,6 +231,9 @@ const BASE_RESERVATION: ReservationRow = {
   provider: "Grand Hotel",
   startAt: null,
   endAt: null,
+  startAddress: null,
+  endAddress: null,
+  cost: null,
   confirmationCode: null,
   notes: null,
   createdAt: null,
@@ -250,6 +253,9 @@ describe("dbReservationToType", () => {
     const result = dbReservationToType(BASE_RESERVATION);
     expect(result.startAt).toBeUndefined();
     expect(result.endAt).toBeUndefined();
+    expect(result.startAddress).toBeUndefined();
+    expect(result.endAddress).toBeUndefined();
+    expect(result.cost).toBeUndefined();
     expect(result.confirmationCode).toBeUndefined();
     expect(result.notes).toBeUndefined();
     expect(result.createdAt).toBeUndefined();
@@ -276,6 +282,21 @@ describe("dbReservationToType", () => {
     });
     expect(result.confirmationCode).toBe("ABC123");
     expect(result.notes).toBe("Late check-in arranged");
+  });
+
+  it("maps startAddress and endAddress when present", () => {
+    const result = dbReservationToType({
+      ...BASE_RESERVATION,
+      startAddress: "JFK International Airport, New York, NY",
+      endAddress: "LAX International Airport, Los Angeles, CA",
+    });
+    expect(result.startAddress).toBe("JFK International Airport, New York, NY");
+    expect(result.endAddress).toBe("LAX International Airport, Los Angeles, CA");
+  });
+
+  it("converts cost numeric string to number", () => {
+    const result = dbReservationToType({ ...BASE_RESERVATION, cost: "249.99" });
+    expect(result.cost).toBe(249.99);
   });
 });
 

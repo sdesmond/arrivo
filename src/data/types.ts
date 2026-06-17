@@ -213,6 +213,9 @@ export interface Reservation {
   provider: string;
   startAt?: string;
   endAt?: string;
+  startAddress?: string;
+  endAddress?: string;
+  cost?: number;
   confirmationCode?: string;
   notes?: string;
   createdAt?: string;
@@ -657,6 +660,9 @@ export interface CreateReservationInput {
   provider: string;
   startAt?: string; // ISO datetime
   endAt?: string;
+  startAddress?: string;
+  endAddress?: string;
+  cost?: number;
   confirmationCode?: string;
   notes?: string;
 }
@@ -665,6 +671,9 @@ export interface UpdateReservationPatch {
   provider?: string;
   startAt?: string;
   endAt?: string;
+  startAddress?: string;
+  endAddress?: string;
+  cost?: number | null;
   confirmationCode?: string;
   notes?: string;
 }
