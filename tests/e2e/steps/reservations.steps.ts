@@ -1,4 +1,7 @@
 import { expect } from "@playwright/test";
+import { and, eq } from "drizzle-orm";
+import { reservations } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 
 Given("I am on the Reservations tab", async ({ page }) => {
@@ -64,6 +67,18 @@ When("I click {string} on the reservation drawer", async ({ page }, buttonText: 
   await button.focus();
   await button.press("Enter");
 });
+
+When(
+  "I choose the first lookup suggestion for the {string} reservation address",
+  async ({ page }, anchorLabel: string) => {
+    const input = page.getByLabel(new RegExp(`^${anchorLabel} address`));
+    await input.fill("Par");
+    await expect(page.getByRole("listbox")).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("option").first().click();
+    await expect(input).toHaveValue("Paris, France");
+    await expect(input).not.toHaveAttribute("aria-busy", "true");
+  }
+);
 
 Then(
   "the reservation {string} appears in the {string} section",
@@ -151,6 +166,17 @@ Then("the reservation provider shows {string}", async ({ page }, provider: strin
   await expect(page.getByRole("button", { name: provider, exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
+Then(
+  "the reservation {string} shows the {string} address {string}",
+  async ({ page }, provider: string, anchorLabel: string, address: string) => {
+    const row = page
+      .locator("div")
+      .filter({ has: page.getByRole("button", { name: provider, exact: true }) })
+      .first();
+    await expect(row.getByRole("button", { name: `${anchorLabel} · ${address}` })).toBeVisible({ timeout: 10_000 });
+  }
+);
+
 Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabel: string, time: string) => {
   // After reload the panel is collapsed. Open it, verify the time input value (HH:MM,
   // timezone-independent), then click away to close without altering anything.
@@ -183,4 +209,26 @@ Then("the reservation {string} is no longer shown", async ({ page }, provider: s
   // Target the provider's display button (role=button, exact name) rather than any text node,
   // so a hidden-but-present element doesn't produce a false pass.
   await expect(page.getByRole("button", { name: provider, exact: true })).not.toBeVisible();
+});
+
+Then("the reservation {string} location fields are persisted", async ({ scenario }, provider: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Missing current scenario trip.");
+
+  await withE2EDb(async (db) => {
+    const [reservation] = await db
+      .select()
+      .from(reservations)
+      .where(and(eq(reservations.tripId, currentTrip.id), eq(reservations.provider, provider)));
+
+    expect(reservation).toBeDefined();
+    expect(reservation.startAddress).toBe("Paris, France");
+    expect(reservation.startLocationName).toBeNull();
+    expect(reservation.startLocationLat).toBe(48.8534);
+    expect(reservation.startLocationLng).toBe(2.3488);
+    expect(reservation.endAddress).toBe("Paris, France");
+    expect(reservation.endLocationName).toBeNull();
+    expect(reservation.endLocationLat).toBe(48.8534);
+    expect(reservation.endLocationLng).toBe(2.3488);
+  });
 });
