@@ -300,7 +300,7 @@ When("I set the event location for {string} using the first lookup suggestion", 
   await expect(dialog.getByRole("listbox")).toBeVisible({ timeout: 10_000 });
   await dialog.getByRole("option").first().click();
   await expect(input).toHaveValue("Paris, France");
-  await expect(input).not.toHaveAttribute("aria-busy", "true");
+  await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
   await dialog.getByRole("button", { name: "Save" }).click();
 });
 

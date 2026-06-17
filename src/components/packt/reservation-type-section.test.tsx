@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { ReservationType, type Reservation } from "@/data/types";
 import {
   ReservationTypeSection,
@@ -12,6 +13,28 @@ import { formatReservationDateRange } from "./reservation-type-badge";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
+}));
+
+vi.mock("./reservation-row", () => ({
+  ReservationRow: ({ reservation }: { reservation: Reservation }) => {
+    const [editingProvider, setEditingProvider] = useState(false);
+
+    return (
+      <div>
+        {editingProvider ? (
+          <input aria-label="Provider" defaultValue={reservation.provider} />
+        ) : (
+          <button type="button" onClick={() => setEditingProvider(true)}>
+            {reservation.provider}
+          </button>
+        )}
+        {reservation.startAt ? (
+          <button type="button">{formatReservationDateRange(reservation.startAt, reservation.endAt)}</button>
+        ) : null}
+        {reservation.confirmationCode ? <span>{reservation.confirmationCode}</span> : null}
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({

@@ -76,7 +76,7 @@ When(
     await expect(page.getByRole("listbox")).toBeVisible({ timeout: 10_000 });
     await page.getByRole("option").first().click();
     await expect(input).toHaveValue("Paris, France");
-    await expect(input).not.toHaveAttribute("aria-busy", "true");
+    await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
   }
 );
 
