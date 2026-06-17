@@ -1,73 +1,143 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import type { RetrievedLocation } from "@/app/(app)/trips/actions";
+import type { SavedLocationValue } from "@/data/types";
+import { LocationLookupInput } from "./location-lookup-input";
 
-export interface ReservationFieldDialogProps {
+interface ReservationFieldDialogBaseProps {
   title: string;
-  value?: string;
   placeholder?: string;
-  inputStyle?: React.CSSProperties;
+  inputStyle?: CSSProperties;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface ReservationFieldDialogTextProps extends ReservationFieldDialogBaseProps {
+  mode?: "text";
+  value?: string;
   onSave: (value?: string) => void;
 }
 
-export function ReservationFieldDialog({
-  title,
-  value,
-  placeholder,
-  inputStyle,
-  open,
-  onOpenChange,
-  onSave,
-}: ReservationFieldDialogProps) {
-  const [draft, setDraft] = useState(value ?? "");
+interface ReservationFieldDialogLocationProps extends ReservationFieldDialogBaseProps {
+  mode: "location";
+  value?: string;
+  locationName?: string;
+  locationLat?: number;
+  locationLng?: number;
+  onSave: (value?: SavedLocationValue) => void;
+}
 
-  // Sync draft from prop each time the dialog opens so stale state doesn't cause accidental clears
+export type ReservationFieldDialogProps = ReservationFieldDialogTextProps | ReservationFieldDialogLocationProps;
+
+export function ReservationFieldDialog(props: ReservationFieldDialogProps) {
+  const locationName = props.mode === "location" ? props.locationName : undefined;
+  const locationLat = props.mode === "location" ? props.locationLat : undefined;
+  const locationLng = props.mode === "location" ? props.locationLng : undefined;
+  const [draft, setDraft] = useState(props.value ?? "");
+  const [resolvedLocation, setResolvedLocation] = useState<SavedLocationValue | undefined>(
+    props.mode === "location" && props.value
+      ? {
+          name: locationName,
+          address: props.value,
+          lat: locationLat,
+          lng: locationLng,
+        }
+      : undefined
+  );
+
   useEffect(() => {
+    if (!props.open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (open) setDraft(value ?? "");
-  }, [open, value]);
+    setDraft(props.value ?? "");
+    if (props.mode === "location") {
+      setResolvedLocation(
+        props.value
+          ? {
+              name: locationName,
+              address: props.value,
+              lat: locationLat,
+              lng: locationLng,
+            }
+          : undefined
+      );
+      return;
+    }
+    setResolvedLocation(undefined);
+  }, [locationLat, locationLng, locationName, props.mode, props.open, props.value]);
 
   function handleSave() {
-    onSave(draft.trim() || undefined);
-    onOpenChange(false);
+    const trimmedValue = draft.trim();
+    if (props.mode === "location") {
+      props.onSave(
+        !trimmedValue
+          ? undefined
+          : resolvedLocation && resolvedLocation.address === trimmedValue
+            ? resolvedLocation
+            : { address: trimmedValue }
+      );
+    } else {
+      props.onSave(trimmedValue || undefined);
+    }
+    props.onOpenChange(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => onOpenChange(isOpen as boolean)}>
+    <Dialog open={props.open} onOpenChange={(isOpen) => props.onOpenChange(isOpen as boolean)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>{props.title}</DialogTitle>
         </DialogHeader>
-        <Input
-          placeholder={placeholder}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") handleSave();
-          }}
-          style={inputStyle}
-          autoFocus
-        />
+        {props.mode === "location" ? (
+          <LocationLookupInput
+            id="reservation-location"
+            value={draft}
+            resolvedValue={resolvedLocation?.address ?? null}
+            placeholder={props.placeholder}
+            inputStyle={props.inputStyle}
+            autoFocus
+            onValueChange={setDraft}
+            onResolved={(location: RetrievedLocation) =>
+              setResolvedLocation({
+                name: location.fullAddress !== location.placeName ? location.name : undefined,
+                address: location.fullAddress,
+                lat: location.center[1],
+                lng: location.center[0],
+              })
+            }
+            onClearResolved={() => setResolvedLocation(undefined)}
+            onSubmit={handleSave}
+          />
+        ) : (
+          <Input
+            placeholder={props.placeholder}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handleSave();
+            }}
+            style={props.inputStyle}
+            autoFocus
+          />
+        )}
         <DialogFooter>
-          {value && (
+          {props.value && (
             <Button
               variant="ghost"
               className="sm:mr-auto"
               onClick={() => {
-                onSave(undefined);
-                onOpenChange(false);
+                props.onSave(undefined);
+                props.onOpenChange(false);
               }}
             >
               Remove
             </Button>
           )}
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
               Cancel
             </Button>
             <Button onClick={handleSave}>Save</Button>

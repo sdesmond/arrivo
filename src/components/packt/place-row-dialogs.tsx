@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripEvent, Document } from "@/data/types";
+import type { TripEvent, Document, SavedLocationValue } from "@/data/types";
 import { toHHMM } from "@/lib/utils";
 import { TimeDialog } from "./time-dialog";
 import { CostDialog } from "./cost-dialog";
@@ -19,7 +19,7 @@ export interface PlaceRowDialogsProps {
   onCostSave: (cost?: number) => void;
   showLocationDialog: boolean;
   onLocationOpenChange: (v: boolean) => void;
-  onLocationSave: (address?: string) => void;
+  onLocationSave: (location?: SavedLocationValue) => void;
   showAddDocDialog: boolean;
   onAddDocOpenChange: (v: boolean) => void;
   showDeleteDialog: boolean;
@@ -62,6 +62,9 @@ export function PlaceRowDialogs({
       />
       <LocationDialog
         address={place.locationAddress}
+        locationName={place.locationName}
+        locationLat={place.locationLat}
+        locationLng={place.locationLng}
         eventName={place.name}
         open={showLocationDialog}
         onOpenChange={onLocationOpenChange}

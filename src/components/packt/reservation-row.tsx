@@ -12,7 +12,8 @@ import { TimePicker } from "@/components/ui/time-picker";
 import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { CostDialog } from "@/components/packt/cost-dialog";
 import { ReservationFieldDialog } from "@/components/packt/reservation-field-dialog";
-import { ReservationType, type Reservation, type UpdateReservationPatch } from "@/data/types";
+import { ReservationType, type Reservation, type SavedLocationValue, type UpdateReservationPatch } from "@/data/types";
+import { getLocationDisplayLabel } from "@/lib/utils";
 
 export interface ReservationRowProps {
   reservation: Reservation;
@@ -24,12 +25,42 @@ const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth:
 const FIELD_VALUE_STYLE: React.CSSProperties = { color: "var(--fg-2)", fontSize: 13 };
 const PLACEHOLDER_STYLE: React.CSSProperties = { color: "var(--fg-3)", fontSize: 13, fontStyle: "italic" };
 
+function buildSavedLocationValue(
+  address: string | undefined,
+  name?: string,
+  lat?: number,
+  lng?: number
+): SavedLocationValue | undefined {
+  return address
+    ? {
+        address,
+        name,
+        lat,
+        lng,
+      }
+    : undefined;
+}
+
 export function ReservationRow({ reservation, type, isLast }: ReservationRowProps) {
   const [provider, setProvider] = useState(reservation.provider);
   const [startAt, setStartAt] = useState<string | undefined>(reservation.startAt);
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
-  const [startAddress, setStartAddress] = useState<string | undefined>(reservation.startAddress);
-  const [endAddress, setEndAddress] = useState<string | undefined>(reservation.endAddress);
+  const [startLocation, setStartLocation] = useState<SavedLocationValue | undefined>(
+    buildSavedLocationValue(
+      reservation.startAddress,
+      reservation.startLocationName,
+      reservation.startLocationLat,
+      reservation.startLocationLng
+    )
+  );
+  const [endLocation, setEndLocation] = useState<SavedLocationValue | undefined>(
+    buildSavedLocationValue(
+      reservation.endAddress,
+      reservation.endLocationName,
+      reservation.endLocationLat,
+      reservation.endLocationLng
+    )
+  );
   const [cost, setCost] = useState<number | undefined>(reservation.cost);
   const [confirmationCode, setConfirmationCode] = useState<string | undefined>(reservation.confirmationCode);
   const [notes, setNotes] = useState<string | undefined>(reservation.notes);
@@ -52,6 +83,8 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
   const deletingRef = useRef(false);
   const isCalendarOpenRef = useRef(false);
   const dateEditRef = useRef<HTMLDivElement>(null);
+  const startLocationLabel = getLocationDisplayLabel(startLocation?.name, startLocation?.address);
+  const endLocationLabel = getLocationDisplayLabel(endLocation?.name, endLocation?.address);
 
   useEffect(() => {
     if (editingDates) {
@@ -248,16 +281,16 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
           className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-            color: startAddress ? "var(--accent-ink)" : "var(--fg-4)",
-            background: startAddress ? "var(--accent-soft)" : "none",
+            color: startLocation?.address ? "var(--accent-ink)" : "var(--fg-4)",
+            background: startLocation?.address ? "var(--accent-soft)" : "none",
             border: "1px solid transparent",
             maxWidth: 180,
           }}
         >
           <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} aria-hidden="true" />
           <span className="truncate">
-            {startAddress
-              ? `${ANCHOR_LABELS[type].start} · ${startAddress}`
+            {startLocation?.address
+              ? `${ANCHOR_LABELS[type].start} · ${startLocationLabel}`
               : `Add ${ANCHOR_LABELS[type].start.toLowerCase()} address`}
           </span>
         </button>
@@ -267,16 +300,16 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
           className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-            color: endAddress ? "var(--accent-ink)" : "var(--fg-4)",
-            background: endAddress ? "var(--accent-soft)" : "none",
+            color: endLocation?.address ? "var(--accent-ink)" : "var(--fg-4)",
+            background: endLocation?.address ? "var(--accent-soft)" : "none",
             border: "1px solid transparent",
             maxWidth: 180,
           }}
         >
           <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} aria-hidden="true" />
           <span className="truncate">
-            {endAddress
-              ? `${ANCHOR_LABELS[type].end} · ${endAddress}`
+            {endLocation?.address
+              ? `${ANCHOR_LABELS[type].end} · ${endLocationLabel}`
               : `Add ${ANCHOR_LABELS[type].end.toLowerCase()} address`}
           </span>
         </button>
@@ -328,29 +361,53 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
         }}
       />
       <ReservationFieldDialog
+        mode="location"
         title={`${ANCHOR_LABELS[type].start} address`}
-        value={startAddress}
+        value={startLocation?.address}
+        locationName={startLocation?.name}
+        locationLat={startLocation?.lat}
+        locationLng={startLocation?.lng}
         placeholder="Enter address or place name"
         open={showStartAddressDialog}
         onOpenChange={setShowStartAddressDialog}
         onSave={(next) => {
-          setStartAddress(next);
-          void updateReservation(reservation.id, { startAddress: next ?? "" }).catch((err) =>
-            toast.error(err instanceof Error ? err.message : "Failed to save.")
-          );
+          setStartLocation(next);
+          void updateReservation(
+            reservation.id,
+            next
+              ? {
+                  startAddress: next.address,
+                  startLocationName: next.name,
+                  startLocationLat: next.lat,
+                  startLocationLng: next.lng,
+                }
+              : { startAddress: "" }
+          ).catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
         }}
       />
       <ReservationFieldDialog
+        mode="location"
         title={`${ANCHOR_LABELS[type].end} address`}
-        value={endAddress}
+        value={endLocation?.address}
+        locationName={endLocation?.name}
+        locationLat={endLocation?.lat}
+        locationLng={endLocation?.lng}
         placeholder="Enter address or place name"
         open={showEndAddressDialog}
         onOpenChange={setShowEndAddressDialog}
         onSave={(next) => {
-          setEndAddress(next);
-          void updateReservation(reservation.id, { endAddress: next ?? "" }).catch((err) =>
-            toast.error(err instanceof Error ? err.message : "Failed to save.")
-          );
+          setEndLocation(next);
+          void updateReservation(
+            reservation.id,
+            next
+              ? {
+                  endAddress: next.address,
+                  endLocationName: next.name,
+                  endLocationLat: next.lat,
+                  endLocationLng: next.lng,
+                }
+              : { endAddress: "" }
+          ).catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
         }}
       />
       <CostDialog

@@ -2,15 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Section, Field } from "@/components/packt/form-section";
+import { LocationLookupInput } from "@/components/packt/location-lookup-input";
 import { ReservationAnchorFieldset } from "@/components/packt/reservation-anchor-fieldset";
 import { ANCHOR_LABELS, RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
 import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
-import { ReservationType, type CreateReservationInput } from "@/data/types";
+import { ReservationType, type CreateReservationInput, type SavedLocationValue } from "@/data/types";
 import { FileText } from "lucide-react";
 
 export interface ReservationEditDrawerProps {
@@ -45,7 +47,9 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [endTime, setEndTime] = useState<string | undefined>(undefined);
   const [startAddress, setStartAddress] = useState("");
+  const [startResolvedLocation, setStartResolvedLocation] = useState<SavedLocationValue | undefined>(undefined);
   const [endAddress, setEndAddress] = useState("");
+  const [endResolvedLocation, setEndResolvedLocation] = useState<SavedLocationValue | undefined>(undefined);
   const [cost, setCost] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [notes, setNotes] = useState("");
@@ -74,7 +78,9 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       setEndDate(undefined);
       setEndTime(undefined);
       setStartAddress("");
+      setStartResolvedLocation(undefined);
       setEndAddress("");
+      setEndResolvedLocation(undefined);
       setCost("");
       setConfirmationCode("");
       setNotes("");
@@ -144,7 +150,13 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       startAt: start.iso,
       endAt: end.iso,
       startAddress: startAddress || undefined,
+      startLocationName: startResolvedLocation?.name,
+      startLocationLat: startResolvedLocation?.lat,
+      startLocationLng: startResolvedLocation?.lng,
       endAddress: endAddress || undefined,
+      endLocationName: endResolvedLocation?.name,
+      endLocationLat: endResolvedLocation?.lat,
+      endLocationLng: endResolvedLocation?.lng,
       cost: cost ? parseFloat(cost) : undefined,
       confirmationCode: confirmationCode || undefined,
       notes: notes || undefined,
@@ -229,21 +241,41 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
             </div>
 
             <Field label={`${anchorLabels.start} address (Optional)`} htmlFor="reservation-start-address">
-              <Input
+              <LocationLookupInput
                 id="reservation-start-address"
-                className="h-9"
                 value={startAddress}
-                onChange={(event) => setStartAddress(event.target.value)}
+                resolvedValue={startResolvedLocation?.address ?? null}
+                className="h-9"
+                onValueChange={setStartAddress}
+                onResolved={(location: RetrievedLocation) =>
+                  setStartResolvedLocation({
+                    name: location.fullAddress !== location.placeName ? location.name : undefined,
+                    address: location.fullAddress,
+                    lat: location.center[1],
+                    lng: location.center[0],
+                  })
+                }
+                onClearResolved={() => setStartResolvedLocation(undefined)}
                 disabled={saving}
               />
             </Field>
 
             <Field label={`${anchorLabels.end} address (Optional)`} htmlFor="reservation-end-address">
-              <Input
+              <LocationLookupInput
                 id="reservation-end-address"
-                className="h-9"
                 value={endAddress}
-                onChange={(event) => setEndAddress(event.target.value)}
+                resolvedValue={endResolvedLocation?.address ?? null}
+                className="h-9"
+                onValueChange={setEndAddress}
+                onResolved={(location: RetrievedLocation) =>
+                  setEndResolvedLocation({
+                    name: location.fullAddress !== location.placeName ? location.name : undefined,
+                    address: location.fullAddress,
+                    lat: location.center[1],
+                    lng: location.center[0],
+                  })
+                }
+                onClearResolved={() => setEndResolvedLocation(undefined)}
                 disabled={saving}
               />
             </Field>

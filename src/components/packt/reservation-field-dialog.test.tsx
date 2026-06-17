@@ -47,6 +47,55 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 
+vi.mock("./location-lookup-input", () => ({
+  LocationLookupInput: ({
+    id,
+    value,
+    onValueChange,
+    onResolved,
+    onSubmit,
+  }: {
+    id?: string;
+    value: string;
+    onValueChange: (value: string) => void;
+    onResolved: (location: {
+      name: string;
+      fullAddress: string;
+      center: [number, number];
+      placeName: string;
+      country: string;
+      countryCode: string;
+    }) => void;
+    onSubmit?: () => void;
+  }) => (
+    <div>
+      <input
+        id={id}
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onSubmit?.();
+        }}
+      />
+      <button
+        onClick={() => {
+          onValueChange("1 World Way, Los Angeles, CA");
+          onResolved({
+            name: "LAX Airport",
+            fullAddress: "1 World Way, Los Angeles, CA",
+            center: [-118.4085, 33.9416],
+            placeName: "LAX Airport",
+            country: "United States",
+            countryCode: "US",
+          });
+        }}
+      >
+        resolve-location
+      </button>
+    </div>
+  ),
+}));
+
 describe("ReservationFieldDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -223,5 +272,36 @@ describe("ReservationFieldDialog", () => {
       />
     );
     expect(screen.getByRole("textbox")).toHaveStyle({ fontFamily: "monospace" });
+  });
+
+  it("saves a manual location address in location mode", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReservationFieldDialog mode="location" title="Departure address" open onOpenChange={vi.fn()} onSave={onSave} />
+    );
+
+    await user.type(screen.getByRole("textbox"), "  LAX Airport  ");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith({ address: "LAX Airport" });
+  });
+
+  it("saves structured location data when a suggestion is selected", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReservationFieldDialog mode="location" title="Departure address" open onOpenChange={vi.fn()} onSave={onSave} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "resolve-location" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith({
+      address: "1 World Way, Los Angeles, CA",
+      name: "LAX Airport",
+      lat: 33.9416,
+      lng: -118.4085,
+    });
   });
 });

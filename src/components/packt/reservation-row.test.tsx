@@ -6,7 +6,6 @@ import { ReservationRow } from "./reservation-row";
 import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type Reservation } from "@/data/types";
 import { formatReservationDateRange } from "./reservation-type-badge";
-import type { ReservationFieldDialogProps } from "./reservation-field-dialog";
 import type { CostDialogProps } from "@/components/packt/cost-dialog";
 
 vi.mock("sonner", () => ({
@@ -86,13 +85,34 @@ vi.mock("@/components/ui/time-picker", () => ({
 }));
 
 vi.mock("./reservation-field-dialog", () => ({
-  ReservationFieldDialog: ({ title, open, onOpenChange, onSave }: ReservationFieldDialogProps) =>
+  ReservationFieldDialog: ({
+    title,
+    open,
+    onOpenChange,
+    onSave,
+    mode,
+  }: {
+    title: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: (value?: string | { address: string; name?: string; lat?: number; lng?: number }) => void;
+    mode?: "text" | "location";
+  }) =>
     open ? (
       <div>
         <p data-testid="dialog-title">{title}</p>
         <button
           onClick={() => {
-            onSave("Updated value");
+            onSave(
+              mode === "location"
+                ? {
+                    address: "Updated value",
+                    name: "Updated place",
+                    lat: 40.7128,
+                    lng: -74.006,
+                  }
+                : "Updated value"
+            );
             onOpenChange(false);
           }}
         >
@@ -144,7 +164,13 @@ const populatedReservation: Reservation = {
   startAt: "2026-08-01T15:00:00.000Z",
   endAt: "2026-08-05T11:00:00.000Z",
   startAddress: "123 Airport Rd, New York",
+  startLocationName: "JFK Airport",
+  startLocationLat: 40.6413,
+  startLocationLng: -73.7781,
   endAddress: "456 Hotel Ave, Paris",
+  endLocationName: "Grand Hotel Paris",
+  endLocationLat: 48.8566,
+  endLocationLng: 2.3522,
   cost: 499,
   confirmationCode: "ABC123",
   notes: "Late checkout requested",
@@ -173,8 +199,8 @@ describe("ReservationRow", () => {
     const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
     expect(screen.getByRole("button", { name: expectedRange })).toBeInTheDocument();
 
-    expect(screen.getByRole("button", { name: "Check-in · 123 Airport Rd, New York" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Check-out · 456 Hotel Ave, Paris" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check-in · JFK Airport" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "499.00" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ABC123" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Late checkout requested" })).toBeInTheDocument();
@@ -295,7 +321,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Check-in · 123 Airport Rd, New York" }));
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
 
     expect(screen.getByTestId("dialog-title")).toHaveTextContent("Check-in address");
   });
@@ -304,7 +330,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Check-out · 456 Hotel Ave, Paris" }));
+    await user.click(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" }));
 
     expect(screen.getByTestId("dialog-title")).toHaveTextContent("Check-out address");
   });
@@ -313,18 +339,23 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Check-in · 123 Airport Rd, New York" }));
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { startAddress: "Updated value" });
-    expect(screen.getByRole("button", { name: "Check-in · Updated value" })).toBeInTheDocument();
+    expect(updateReservation).toHaveBeenCalledWith("res-1", {
+      startAddress: "Updated value",
+      startLocationName: "Updated place",
+      startLocationLat: 40.7128,
+      startLocationLng: -74.006,
+    });
+    expect(screen.getByRole("button", { name: "Check-in · Updated place" })).toBeInTheDocument();
   });
 
   it("clears startAddress when Remove is clicked in the dialog", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Check-in · 123 Airport Rd, New York" }));
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
     await user.click(screen.getByRole("button", { name: "dialog-remove" }));
 
     expect(updateReservation).toHaveBeenCalledWith("res-1", { startAddress: "" });
@@ -335,11 +366,16 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Check-out · 456 Hotel Ave, Paris" }));
+    await user.click(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { endAddress: "Updated value" });
-    expect(screen.getByRole("button", { name: "Check-out · Updated value" })).toBeInTheDocument();
+    expect(updateReservation).toHaveBeenCalledWith("res-1", {
+      endAddress: "Updated value",
+      endLocationName: "Updated place",
+      endLocationLat: 40.7128,
+      endLocationLng: -74.006,
+    });
+    expect(screen.getByRole("button", { name: "Check-out · Updated place" })).toBeInTheDocument();
   });
 
   it("updates cost after saving through the cost dialog", async () => {
@@ -384,7 +420,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Check-in · 123 Airport Rd, New York" }));
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
@@ -395,7 +431,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Check-in · 123 Airport Rd, New York" }));
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Failed to save."));

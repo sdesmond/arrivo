@@ -24,6 +24,52 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock("./location-lookup-input", () => ({
+  LocationLookupInput: ({
+    value,
+    onValueChange,
+    onResolved,
+    onSubmit,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+    onResolved: (location: {
+      name: string;
+      fullAddress: string;
+      center: [number, number];
+      placeName: string;
+      country: string;
+      countryCode: string;
+    }) => void;
+    onSubmit?: () => void;
+  }) => (
+    <div>
+      <input
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onSubmit?.();
+        }}
+      />
+      <button
+        onClick={() => {
+          onValueChange("4 Chome-2-8 Shibakoen, Minato City, Tokyo");
+          onResolved({
+            name: "Tokyo Tower",
+            fullAddress: "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
+            center: [139.7454, 35.6586],
+            placeName: "Tokyo Tower",
+            country: "Japan",
+            countryCode: "JP",
+          });
+        }}
+      >
+        resolve-location
+      </button>
+    </div>
+  ),
+}));
+
 import { LocationDialog } from "./location-dialog";
 
 describe("LocationDialog", () => {
@@ -53,7 +99,23 @@ describe("LocationDialog", () => {
     render(<LocationDialog open onOpenChange={vi.fn()} onSave={onSave} />);
     await user.type(screen.getByRole("textbox"), "Tokyo");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
-    expect(onSave).toHaveBeenCalledWith("Tokyo");
+    expect(onSave).toHaveBeenCalledWith({ address: "Tokyo" });
+  });
+
+  it("calls onSave with structured location when a suggestion is selected", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<LocationDialog open onOpenChange={vi.fn()} onSave={onSave} />);
+
+    await user.click(screen.getByRole("button", { name: "resolve-location" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(onSave).toHaveBeenCalledWith({
+      address: "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
+      name: "Tokyo Tower",
+      lat: 35.6586,
+      lng: 139.7454,
+    });
   });
 
   it("calls onSave(undefined) when Remove is clicked", async () => {
@@ -77,7 +139,7 @@ describe("LocationDialog", () => {
     const onSave = vi.fn();
     render(<LocationDialog open onOpenChange={vi.fn()} onSave={onSave} />);
     await user.type(screen.getByRole("textbox"), "London{Enter}");
-    expect(onSave).toHaveBeenCalledWith("London");
+    expect(onSave).toHaveBeenCalledWith({ address: "London" });
   });
 
   it("Cancel button calls onOpenChange(false)", async () => {
@@ -107,5 +169,30 @@ describe("LocationDialog", () => {
   it("shows eventName as subtitle when provided", () => {
     render(<LocationDialog open eventName="Day hike" onOpenChange={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText("Day hike")).toBeInTheDocument();
+  });
+
+  it("keeps existing structured location data when saving without changing the resolved value", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <LocationDialog
+        address="4 Chome-2-8 Shibakoen, Minato City, Tokyo"
+        locationName="Tokyo Tower"
+        locationLat={35.6586}
+        locationLng={139.7454}
+        open
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(onSave).toHaveBeenCalledWith({
+      address: "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
+      name: "Tokyo Tower",
+      lat: 35.6586,
+      lng: 139.7454,
+    });
   });
 });
