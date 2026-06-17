@@ -8,6 +8,7 @@ import {
   sortReservationsByStartAt,
   getNextUpcoming,
 } from "./reservation-type-section";
+import { formatReservationDateRange } from "./reservation-type-badge";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -245,8 +246,10 @@ describe("ReservationTypeSection", () => {
       />
     );
 
-    expect(screen.getByText("Check-in")).toBeInTheDocument();
-    expect(screen.getByText("Check-out")).toBeInTheDocument();
+    const expectedRange = formatReservationDateRange(reservation.startAt, reservation.endAt);
+    expect(screen.getByRole("button", { name: expectedRange })).toBeInTheDocument();
+    expect(screen.queryByText("Check-in")).not.toBeInTheDocument();
+    expect(screen.queryByText("Check-out")).not.toBeInTheDocument();
     expect(screen.getByText("ABC123")).toBeInTheDocument();
   });
 

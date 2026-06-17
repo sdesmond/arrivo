@@ -76,7 +76,7 @@ describe("ReservationAnchorEditField", () => {
     await user.type(timeInput, "10:00");
     await user.click(screen.getByRole("button", { name: "Save Check-in" }));
 
-    expect(onSave).toHaveBeenCalledWith("2026-09-01T10:00:00.000Z");
+    expect(onSave).toHaveBeenCalledWith(new Date("2026-09-01T10:00:00").toISOString());
   });
 
   it("saves the combined ISO string on Enter in the time input", async () => {

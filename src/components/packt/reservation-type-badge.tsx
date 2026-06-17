@@ -32,6 +32,29 @@ export function formatAnchorDateTime(iso: string): string {
   return `${datePart} · ${timePart}`;
 }
 
+function formatDatePart(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+}
+
+function formatTimePart(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+export function formatReservationDateRange(startAt: string | undefined, endAt: string | undefined): string {
+  if (startAt && !endAt) return `${formatDatePart(startAt)}, ${formatTimePart(startAt)}`;
+  if (!startAt && endAt) return `${formatDatePart(endAt)}, ${formatTimePart(endAt)}`;
+  if (!startAt) return "";
+
+  const startDate = new Date(startAt);
+  const endDate = new Date(endAt!);
+  const sameDay = startDate.toDateString() === endDate.toDateString();
+
+  if (sameDay) {
+    return `${formatDatePart(startAt)}, ${formatTimePart(startAt)} – ${formatTimePart(endAt!)}`;
+  }
+  return `${formatDatePart(startAt)}, ${formatTimePart(startAt)} – ${formatDatePart(endAt!)}, ${formatTimePart(endAt!)}`;
+}
+
 export interface ReservationTypeBadgeProps {
   type: ReservationType;
 }
