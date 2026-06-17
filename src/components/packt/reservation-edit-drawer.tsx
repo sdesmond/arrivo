@@ -31,7 +31,7 @@ function combineAnchor(date: string | undefined, time: string | undefined): { is
   if (!hasDate) {
     return {};
   }
-  return { iso: `${date}T${time}:00.000Z` };
+  return { iso: new Date(`${date}T${time}:00`).toISOString() };
 }
 
 function focusAnchor(ref: React.RefObject<HTMLDivElement | null>): void {
@@ -44,11 +44,15 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
   const [startTime, setStartTime] = useState<string | undefined>(undefined);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [endTime, setEndTime] = useState<string | undefined>(undefined);
+  const [startAddress, setStartAddress] = useState("");
+  const [endAddress, setEndAddress] = useState("");
+  const [cost, setCost] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [notes, setNotes] = useState("");
   const [providerError, setProviderError] = useState<string | undefined>(undefined);
   const [startAtError, setStartAtError] = useState<string | undefined>(undefined);
   const [endAtError, setEndAtError] = useState<string | undefined>(undefined);
+  const [costError, setCostError] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const providerInputRef = useRef<HTMLInputElement | null>(null);
@@ -69,11 +73,15 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       setStartTime(undefined);
       setEndDate(undefined);
       setEndTime(undefined);
+      setStartAddress("");
+      setEndAddress("");
+      setCost("");
       setConfirmationCode("");
       setNotes("");
       setProviderError(undefined);
       setStartAtError(undefined);
       setEndAtError(undefined);
+      setCostError(undefined);
       setSaving(false);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -83,6 +91,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
     setProviderError(undefined);
     setStartAtError(undefined);
     setEndAtError(undefined);
+    setCostError(undefined);
 
     if (!provider.trim()) {
       setProviderError("Provider is required.");
@@ -104,21 +113,26 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       return;
     }
 
+    if (!start.iso) {
+      setStartAtError(`${anchorLabels.start} is required.`);
+      focusAnchor(startAnchorRef);
+      return;
+    }
+
     if (endAtRequired && !end.iso) {
       setEndAtError(`${anchorLabels.end} is required for this reservation type.`);
       focusAnchor(endAnchorDateRef);
       return;
     }
 
-    if (end.iso && !start.iso) {
-      setStartAtError(`${anchorLabels.start} is required when ${anchorLabels.end.toLowerCase()} is set.`);
-      focusAnchor(startAnchorRef);
+    if (end.iso && new Date(end.iso).getTime() < new Date(start.iso).getTime()) {
+      setEndAtError(`${anchorLabels.end} must be after ${anchorLabels.start.toLowerCase()}.`);
+      focusAnchor(endAnchorDateRef);
       return;
     }
 
-    if (start.iso && end.iso && new Date(end.iso).getTime() < new Date(start.iso).getTime()) {
-      setEndAtError(`${anchorLabels.end} must be after ${anchorLabels.start.toLowerCase()}.`);
-      focusAnchor(endAnchorDateRef);
+    if (cost && isNaN(parseFloat(cost))) {
+      setCostError("Cost must be a valid number.");
       return;
     }
 
@@ -129,6 +143,9 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       provider: provider.trim(),
       startAt: start.iso,
       endAt: end.iso,
+      startAddress: startAddress || undefined,
+      endAddress: endAddress || undefined,
+      cost: cost ? parseFloat(cost) : undefined,
       confirmationCode: confirmationCode || undefined,
       notes: notes || undefined,
     };
@@ -190,7 +207,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
             <div ref={startAnchorRef}>
               <ReservationAnchorFieldset
                 legend={anchorLabels.start}
-                required={false}
+                required={true}
                 date={startDate}
                 time={startTime}
                 onDateChange={setStartDate}
@@ -210,6 +227,38 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                 error={endAtError}
               />
             </div>
+
+            <Field label={`${anchorLabels.start} address (Optional)`} htmlFor="reservation-start-address">
+              <Input
+                id="reservation-start-address"
+                className="h-9"
+                value={startAddress}
+                onChange={(event) => setStartAddress(event.target.value)}
+                disabled={saving}
+              />
+            </Field>
+
+            <Field label={`${anchorLabels.end} address (Optional)`} htmlFor="reservation-end-address">
+              <Input
+                id="reservation-end-address"
+                className="h-9"
+                value={endAddress}
+                onChange={(event) => setEndAddress(event.target.value)}
+                disabled={saving}
+              />
+            </Field>
+
+            <Field label="Cost (Optional)" htmlFor="reservation-cost" error={costError}>
+              <Input
+                id="reservation-cost"
+                className="h-9"
+                inputMode="decimal"
+                value={cost}
+                onChange={(event) => setCost(event.target.value)}
+                aria-invalid={!!costError}
+                disabled={saving}
+              />
+            </Field>
 
             <Field label="Confirmation code (Optional)" htmlFor="reservation-confirmation-code">
               <Input
