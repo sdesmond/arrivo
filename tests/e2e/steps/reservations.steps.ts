@@ -125,32 +125,45 @@ Given("the {string} reservation section is expanded", async ({ page }, sectionLa
 });
 
 When("I edit the reservation provider to {string}", async ({ page }, newProvider: string) => {
-  await page.getByRole("button", { name: "Original Hotel Name" }).click();
+  await page.getByRole("button", { name: "Original Hotel Name", exact: true }).click();
   const input = page.getByRole("textbox", { name: "Provider" });
   await input.fill(newProvider);
   await input.press("Enter");
-  await expect(page.getByRole("button", { name: newProvider })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: newProvider, exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel: string, time: string) => {
-  // ReservationAnchorEditField gives the anchor display button a stable aria-label of
-  // "{label}: {formatted value}" — select on that rather than visible text.
-  await page.getByRole("button", { name: new RegExp(`^${anchorLabel}: `) }).click();
-  await page.getByLabel(`${anchorLabel} time`).fill(time);
-  await page.getByRole("button", { name: `Save ${anchorLabel}` }).click();
+  // Clicking the compact date-range display opens the inline date/time inputs directly.
+  const timeInput = page.getByLabel(`${anchorLabel} time`);
+  if (!(await timeInput.isVisible())) {
+    await page
+      .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
+      .or(page.getByRole("button", { name: "Add dates" }))
+      .first()
+      .click();
+  }
+  await timeInput.fill(time);
+  // Click away from the edit section to save and collapse.
+  await page.locator("body").click({ position: { x: 10, y: 10 } });
 });
 
 Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
-  await expect(page.getByRole("button", { name: provider })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: provider, exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabel: string, time: string) => {
-  // Assert via the anchor button's aria-label ("{label}: {formatted value}") rather than visible
-  // text, matching only the minutes portion since formatAnchorDateTime's hour formatting is
-  // timezone-dependent (see deferred-work.md).
-  await expect(
-    page.getByRole("button", { name: new RegExp(`^${anchorLabel}: .*${time.split(":")[1]}\\s*(AM|PM)`) })
-  ).toBeVisible({ timeout: 10_000 });
+  // After reload the panel is collapsed. Open it, verify the time input value (HH:MM,
+  // timezone-independent), then click away to close without altering anything.
+  const timeInput = page.getByLabel(`${anchorLabel} time`);
+  if (!(await timeInput.isVisible())) {
+    await page
+      .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
+      .or(page.getByRole("button", { name: "Add dates" }))
+      .first()
+      .click();
+  }
+  await expect(timeInput).toHaveValue(time, { timeout: 10_000 });
+  await page.locator("body").click({ position: { x: 10, y: 10 } });
 });
 
 When("I delete the reservation {string}", async ({ page }, provider: string) => {
