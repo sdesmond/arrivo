@@ -11,6 +11,7 @@ import {
   formatTripDate,
   detectDefaultDateFormat,
   formatDate,
+  combineDateAndTimeToIso,
   toHHMM,
   inferDocKind,
   formatFileSize,
@@ -218,6 +219,25 @@ describe("formatDate", () => {
 
   it("handles single-digit day without leading zero", () => {
     expect(formatDate("2026-01-05", "DD/MM/YYYY")).toBe("5 Jan 2026");
+  });
+});
+
+describe("combineDateAndTimeToIso", () => {
+  it("combines a date and time into an ISO instant", () => {
+    const result = combineDateAndTimeToIso("2026-05-19", "09:05");
+    expect(result).toBe(new Date("2026-05-19T09:05:00").toISOString());
+  });
+
+  it("returns undefined when date is missing", () => {
+    expect(combineDateAndTimeToIso(undefined, "09:05")).toBeUndefined();
+  });
+
+  it("returns undefined when time is missing", () => {
+    expect(combineDateAndTimeToIso("2026-05-19", undefined)).toBeUndefined();
+  });
+
+  it("returns undefined when both are missing", () => {
+    expect(combineDateAndTimeToIso(undefined, undefined)).toBeUndefined();
   });
 });
 

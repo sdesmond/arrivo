@@ -89,6 +89,11 @@ export function pluralize(count: number, singular: string, plural?: string): str
   return count === 1 ? singular : (plural ?? `${singular}s`);
 }
 
+export function combineDateAndTimeToIso(date: string | undefined, time: string | undefined): string | undefined {
+  if (!date || !time) return undefined;
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
 export function toHHMM(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return "";
