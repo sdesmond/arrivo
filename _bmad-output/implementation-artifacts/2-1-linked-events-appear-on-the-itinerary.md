@@ -4,7 +4,7 @@ baseline_commit: cb77a2b
 
 # Story 2.1 — Linked Events Appear on the Itinerary
 
-**Status:** review
+**Status:** done
 **Epic:** 2 — Reservations Sync to the Itinerary
 **Branch:** feature/2-1-linked-events-appear-on-the-itinerary
 
@@ -542,6 +542,18 @@ Given("the trip has a Lodging reservation with Check-in on Day 1 and Check-out o
   `npm run test:coverage`
   `npm run test:e2e`
   `npm run build`
+
+### Review Findings
+
+- [x] [Review][Patch] Add an E2E scenario dragging a manual event past/around a Linked Event row to prove real `@dnd-kit` reordering stays correct with a sortable-context gap [tests/e2e/features/linked-events.feature] — resolved from [Decision]: DnD exclusion safety was unverified against real drag interactions; user chose to add E2E coverage
+- [x] [Review][Patch] Fragile em-dash name parsing can silently corrupt the Linked Event aria-label/meta text [src/components/packt/place-row.tsx:84]
+- [x] [Review][Patch] Redundant `linkedAnchorKey` re-derivation duplicates `linkedAnchorLabel` with a silent "start" fallback [src/components/packt/place-row.tsx:96-101]
+- [x] [Review][Patch] Stray 2-space indentation on `last_updated` breaks key alignment in sprint-status.yaml [_bmad-output/implementation-artifacts/sprint-status.yaml:596]
+- [x] [Review][Patch] AC5 violation: Linked Events never interleaved with real events by time — real `events.position` is a small sequential integer while `deriveLinkedEvents()` used raw epoch-ms, so Linked Events always sorted after every manual event/note/checklist on the day regardless of actual time [src/lib/linked-events.ts, src/lib/queries.ts] — discovered while building the E2E drag fix above. Fixed by offsetting Linked Event `position` by a large negative constant so they always render at the top of the day, sorted chronologically among themselves, without disturbing the user's manually-dragged order for real items.
+- [x] [Review][Patch] Adding an item via the gap immediately after a Linked Event row wrote an astronomical `position` value into the real `events`/`notes`/`checklists` tables (derived from the Linked Event's huge/offset position) [src/components/packt/day-card-dnd.tsx, src/components/packt/day-card-body.tsx] — fixed by computing the gap's insert position from the nearest preceding real item instead, and by no longer passing a Linked Event's synthetic id as `afterEventId` when committing a draft.
+- [x] [Review][Patch] Dragging a manual event when a Linked Event coexists on the same day included the Linked Event's synthetic (non-persisted) id in the `onReorderDayItems` payload, tripping the server action's `CONCURRENT_MODIFICATION_ERROR` item-count check and silently rolling back the entire reorder [src/components/packt/day-card-dnd.tsx] — caught by the new E2E drag scenario above; fixed by filtering Linked Events out of the payload sent to the server while keeping them in the optimistic client-side order.
+- [x] [Review][Defer] Linked Events outside the trip's day range are silently dropped by the `startsWith` day-matching filter [src/lib/queries.ts:368] — deferred, pre-existing design tradeoff explicitly accepted in this story's own Dev Notes
+- [x] [Review][Defer] Unrelated AGENTS.md change bundled into this story's diff [AGENTS.md:8-11] — deferred, pre-existing scope creep from an earlier commit on the branch, harmless doc cleanup
 
 ## File List
 

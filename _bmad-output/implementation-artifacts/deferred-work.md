@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: code review of 2-1-linked-events-appear-on-the-itinerary (2026-06-18)
+
+- **Linked Events outside the trip's day range are silently dropped** — `queries.ts:368` assigns a linked event to a day via `linkedEvent.startAt.startsWith(day.date)`; a reservation anchor falling before day 1 or after the last day simply has no matching day and is dropped with no fallback or warning. Deferred — this is the exact day-matching strategy the story's own Dev Notes specify and accept as "simpler and more reliable" than day-number arithmetic; revisit only if out-of-range reservations turn out to be a real product scenario.
+- **Unrelated `AGENTS.md` change bundled into this story's diff** — removes the "This is NOT the Next.js you know" warning block (`AGENTS.md:8-11`), which has nothing to do with linked events. Deferred — harmless doc cleanup that rode in on this branch from an earlier commit, not introduced by this story's logic.
+
 ## Deferred from: code review of 1-5-attach-documents-to-a-reservation (2026-06-16)
 
 - **No server-side file-type validation on upload** — `uploadReservationDocument` only checks `file instanceof File` and `file.size`; any content/type is accepted and stored `access: "public"`. Deferred because it is a pre-existing, app-wide pattern — the trip-doc upload path (`trips/[tripId]/actions.ts:397-404`) is identical. Revisit globally as a security hardening pass (allowlist by MIME/extension) rather than in this story.
