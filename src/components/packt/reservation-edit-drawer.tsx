@@ -10,7 +10,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Section, Field } from "@/components/packt/form-section";
 import { LocationLookupInput } from "@/components/packt/location-lookup-input";
 import { ReservationAnchorFieldset } from "@/components/packt/reservation-anchor-fieldset";
-import { ANCHOR_LABELS, RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
+import { ANCHOR_LABELS, RESERVATION_TYPE_META, SERVICE_NUMBER_LABELS } from "@/components/packt/reservation-type-badge";
 import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type CreateReservationInput, type SavedLocationValue } from "@/data/types";
 import { combineDateAndTimeToIso } from "@/lib/utils";
@@ -50,6 +50,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
   const [endResolvedLocation, setEndResolvedLocation] = useState<SavedLocationValue | undefined>(undefined);
   const [cost, setCost] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
+  const [serviceNumber, setServiceNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [providerError, setProviderError] = useState<string | undefined>(undefined);
   const [startAtError, setStartAtError] = useState<string | undefined>(undefined);
@@ -63,6 +64,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
 
   const { label, icon: Icon } = RESERVATION_TYPE_META[type];
   const anchorLabels = ANCHOR_LABELS[type];
+  const serviceNumberLabel = SERVICE_NUMBER_LABELS[type];
   const endAtRequired = REQUIRES_END_AT.includes(type);
 
   useEffect(() => {
@@ -81,6 +83,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       setEndResolvedLocation(undefined);
       setCost("");
       setConfirmationCode("");
+      setServiceNumber("");
       setNotes("");
       setProviderError(undefined);
       setStartAtError(undefined);
@@ -157,6 +160,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       endLocationLng: endResolvedLocation?.lng,
       cost: cost ? parseFloat(cost) : undefined,
       confirmationCode: confirmationCode || undefined,
+      serviceNumber: serviceNumber || undefined,
       notes: notes || undefined,
     };
 
@@ -299,6 +303,18 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                 disabled={saving}
               />
             </Field>
+
+            {serviceNumberLabel && (
+              <Field label={`${serviceNumberLabel} (Optional)`} htmlFor="reservation-service-number">
+                <Input
+                  id="reservation-service-number"
+                  className="h-9"
+                  value={serviceNumber}
+                  onChange={(event) => setServiceNumber(event.target.value)}
+                  disabled={saving}
+                />
+              </Field>
+            )}
 
             <Field label="Notes (Optional)" htmlFor="reservation-notes">
               <textarea

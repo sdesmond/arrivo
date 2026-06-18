@@ -393,6 +393,50 @@ describe("ReservationEditDrawer", () => {
     );
   });
 
+  it.each([
+    ReservationType.Flight,
+    ReservationType.Train,
+    ReservationType.Bus,
+    ReservationType.Ferry,
+    ReservationType.Cruise,
+  ])("renders a service number field for %s", (type) => {
+    render(<ReservationEditDrawer tripId="trip-1" type={type} open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByLabelText(/(Flight|Train|Bus|Sailing|Voyage) number \(Optional\)/)).toBeInTheDocument();
+  });
+
+  it.each([ReservationType.RentalCar, ReservationType.Lodging, ReservationType.Other])(
+    "renders no service number field for %s",
+    (type) => {
+      render(<ReservationEditDrawer tripId="trip-1" type={type} open onOpenChange={vi.fn()} />);
+
+      expect(screen.queryByLabelText(/number \(Optional\)/)).not.toBeInTheDocument();
+    }
+  );
+
+  it("includes the flight number in the save payload", async () => {
+    vi.mocked(createReservation).mockResolvedValueOnce(undefined);
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={onOpenChange} />);
+
+    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
+    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Departure time"), "10:00");
+    await user.type(screen.getByLabelText("Flight number (Optional)"), "AA123");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await vi.waitFor(() =>
+      expect(createReservation).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({
+          provider: "Acme Air",
+          serviceNumber: "AA123",
+        })
+      )
+    );
+  });
+
   it("renders the Documents section with the correct empty state description", () => {
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={vi.fn()} />);
 
