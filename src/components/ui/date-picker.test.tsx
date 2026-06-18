@@ -52,6 +52,18 @@ describe("DatePicker", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("calls onChange(undefined) when Clear is clicked", async () => {
+    const user = userEvent.setup();
+    render(<DatePicker value="2026-05-19" onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: /clear date/i }));
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it("hides the Clear button when clearable is false, even with a value", () => {
+    render(<DatePicker value="2026-05-19" onChange={onChange} clearable={false} />);
+    expect(screen.queryByRole("button", { name: /clear date/i })).not.toBeInTheDocument();
+  });
+
   it("forwards aria-label and aria-invalid to the trigger", () => {
     render(<DatePicker onChange={onChange} aria-label="Departure date" aria-invalid />);
     const trigger = screen.getByLabelText("Departure date");
