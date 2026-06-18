@@ -625,6 +625,38 @@ describe("DayCard", () => {
     expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Afternoon Walk", "ev-s1");
   });
 
+  it("inserting event after a Linked Event row falls back to insertAtPosition instead of the linked event's id", async () => {
+    const user = userEvent.setup();
+    const onAddEvent = vi.fn();
+    const linkedEvent: TripEvent = {
+      id: "linked-1",
+      name: "Check-in — Torel Avantgarde",
+      startAt: "2030-06-16T15:00:00Z",
+      position: -123,
+      linkedReservationId: "reservation-1",
+      reservationType: "lodging",
+    };
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [linkedEvent, scheduledEvent],
+    };
+    render(
+      <DayCard
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddEvent={onAddEvent}
+      />,
+      { wrapper: Wrapper }
+    );
+    await user.click(screen.getByTitle("Insert item here"));
+    await user.click(screen.getByTitle("Add event"));
+    await user.type(screen.getByPlaceholderText("Event name"), "Late Arrival Snack");
+    await user.keyboard("{Enter}");
+    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Late Arrival Snack", undefined, 0);
+  });
+
   it("renders inline notes from d.notes", () => {
     const dayWithNote: DayItinerary = {
       ...baseDay,

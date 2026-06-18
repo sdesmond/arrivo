@@ -111,11 +111,23 @@ export function DayCardDnd({
     setOptimisticOrder(reordered.map((item) => item.data.id));
     onReorderDayItems(
       dayNumber,
-      reordered.map((item) => ({ type: item.kind, id: item.data.id }))
+      reordered.filter((item) => !isLinkedTimelineEvent(item)).map((item) => ({ type: item.kind, id: item.data.id }))
     );
   }
 
   const activeItem = activeId !== null ? timelineItems.find((item) => item.data.id === activeId) : undefined;
+
+  function isLinkedTimelineEvent(item: TimelineItem): boolean {
+    return item.kind === "event" && !!item.data.linkedReservationId;
+  }
+
+  function insertPositionAfter(idx: number): number {
+    for (let index = idx; index >= 0; index--) {
+      const candidate = timelineItems[index];
+      if (!isLinkedTimelineEvent(candidate)) return candidate.position + 1;
+    }
+    return 0;
+  }
 
   return (
     <DndContext
@@ -209,7 +221,7 @@ export function DayCardDnd({
                 <SortableNoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />
               )}
               {!isLast && entry.type === "timeline" && (
-                <GapZone {...makeGapProps(`ti-${entry.idx}`, entry.item.position + 1)} />
+                <GapZone {...makeGapProps(`ti-${entry.idx}`, insertPositionAfter(entry.idx))} />
               )}
               {!isLast && entry.type === "draft" && <div style={{ height: 28 }} />}
             </div>

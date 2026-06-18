@@ -119,7 +119,8 @@ export function DayCardBody({
     } else {
       const gapIndex = draft.gapKey === "bottom" ? -1 : parseInt(draft.gapKey.slice(3), 10);
       const itemBefore = gapIndex >= 0 ? timelineItems[gapIndex] : undefined;
-      const afterEventId = itemBefore?.kind === "event" ? itemBefore.data.id : undefined;
+      const afterEventId =
+        itemBefore?.kind === "event" && !itemBefore.data.linkedReservationId ? itemBefore.data.id : undefined;
       if (afterEventId) {
         onAddEvent?.(day.dayNumber, content, afterEventId);
       } else {

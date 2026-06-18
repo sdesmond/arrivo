@@ -9,6 +9,7 @@ interface SortableContextCapture {
 
 interface DndHandlerCapture {
   onDragStart?: (event: { active: { id: string } }) => void;
+  onDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void;
 }
 
 interface SortableContextProps {
@@ -32,11 +33,14 @@ vi.mock("@dnd-kit/core", () => ({
   DndContext: ({
     children,
     onDragStart,
+    onDragEnd,
   }: {
     children: ReactNode;
     onDragStart?: (event: { active: { id: string } }) => void;
+    onDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void;
   }) => {
     dndHandlerCapture.onDragStart = onDragStart;
+    dndHandlerCapture.onDragEnd = onDragEnd;
     return <>{children}</>;
   },
   DragOverlay: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -52,7 +56,12 @@ vi.mock("@dnd-kit/sortable", () => ({
     return <>{children}</>;
   },
   verticalListSortingStrategy: {},
-  arrayMove: vi.fn((items: unknown[]) => items),
+  arrayMove: vi.fn(<ItemType,>(items: ItemType[], from: number, to: number) => {
+    const result = [...items];
+    const [moved] = result.splice(from, 1);
+    result.splice(to, 0, moved);
+    return result;
+  }),
 }));
 
 vi.mock("./place-row", () => ({
@@ -202,6 +211,39 @@ describe("DayCardDnd", () => {
     expect(screen.queryByTestId("sortable-place-row-linked-event-1")).not.toBeInTheDocument();
   });
 
+  it("computes a safe insertAtPosition for gaps near a Linked Event row instead of using its sort-only position", () => {
+    const makeGapProps = vi.fn((gapKey: string) => ({
+      gapKey,
+      isActive: false,
+      onOpen: vi.fn(),
+      onSelectType: vi.fn(),
+      onDismiss: vi.fn(),
+    }));
+
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={makeGapProps}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    // Gap after the Linked Event (idx 0, position 0): no preceding real item exists, so it falls back to 0
+    // instead of using the Linked Event's own position (which would be a huge negative number in production).
+    expect(makeGapProps).toHaveBeenCalledWith("ti-0", 0);
+    // Gap after the manual event (idx 1, position 1): unaffected, behaves exactly as before the fix.
+    expect(makeGapProps).toHaveBeenCalledWith("ti-1", 2);
+  });
+
   it("keeps manual events sortable", () => {
     render(
       <DayCardDnd
@@ -349,6 +391,46 @@ describe("DayCardDnd", () => {
     });
 
     expect(screen.getByRole("button", { name: "direct-place-row-manual-event-1" })).toBeInTheDocument();
+  });
+
+  it("excludes the Linked Event from the reorder payload sent to the server", () => {
+    const onReorderDayItems = vi.fn();
+
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={onReorderDayItems}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    // Dragging "manual-event-1" past "note-1" moves it within the full timelineItems array,
+    // which still contains the Linked Event at index 0 — that entry must not reach the server,
+    // since it has no corresponding DB row and would trip the reorder action's count check.
+    act(() => {
+      dndHandlerCapture.onDragEnd?.({ active: { id: "manual-event-1" }, over: { id: "note-1" } });
+    });
+
+    expect(onReorderDayItems).toHaveBeenCalledWith(1, [
+      { type: "note", id: "note-1" },
+      { type: "event", id: "manual-event-1" },
+      { type: "checklist", id: "checklist-1" },
+    ]);
   });
 
   it("renders the note draft row and commits through the provided callback", async () => {
