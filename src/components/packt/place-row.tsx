@@ -258,15 +258,7 @@ export function PlaceRow({
         onCostSave={(cost) => onUpdate({ ...place, cost })}
         showLocationDialog={showLocationDialog}
         onLocationOpenChange={setShowLocationDialog}
-        onLocationSave={(location) =>
-          onUpdate({
-            ...place,
-            locationName: location?.name,
-            locationAddress: location?.address,
-            locationLat: location?.lat,
-            locationLng: location?.lng,
-          })
-        }
+        onLocationSave={(address) => onUpdate({ ...place, locationAddress: address })}
         showAddDocDialog={showAddDocDialog}
         onAddDocOpenChange={setShowAddDocDialog}
         showDeleteDialog={showDeleteDialog}

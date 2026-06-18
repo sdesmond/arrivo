@@ -19,7 +19,6 @@ import {
   parseGraphicCover,
   deriveGraphicCover,
   extractCity,
-  getLocationDisplayLabel,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
 } from "@/lib/utils";
@@ -508,19 +507,5 @@ describe("extractCity", () => {
 
   it("trims whitespace from the result", () => {
     expect(extractCity("  Paris , France")).toBe("Paris");
-  });
-});
-
-describe("getLocationDisplayLabel", () => {
-  it("prefers a saved place name when present", () => {
-    expect(getLocationDisplayLabel("JFK Airport", "Queens, NY 11430")).toBe("JFK Airport");
-  });
-
-  it("falls back to the address when there is no saved place name", () => {
-    expect(getLocationDisplayLabel(undefined, "Paris, France")).toBe("Paris, France");
-  });
-
-  it("returns an empty string when neither value is available", () => {
-    expect(getLocationDisplayLabel(undefined, undefined)).toBe("");
   });
 });

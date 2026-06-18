@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
+import { searchLocations, retrieveLocation } from "@/app/(app)/trips/actions";
+import type { LocationSuggestion, RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Field, Section } from "@/components/packt/form-section";
 import { Input } from "@/components/ui/input";
-import { useLocationAutocomplete } from "./use-location-autocomplete";
+import { toast } from "sonner";
 
 export interface TripEditDestinationProps {
   value: string;
@@ -27,37 +28,120 @@ export function TripEditDestination({
   onClear,
   disabled = false,
 }: TripEditDestinationProps) {
-  const [resolvedValue, setResolvedValue] = useState<string | null>(value || null);
-  const {
-    highlightedIndex,
-    retrieveLoading,
-    suggestions,
-    suggestionsLoading,
-    handleInputChange,
-    handleKeyDown,
-    handleSuggestionSelect,
-    reset,
-  } = useLocationAutocomplete({
-    value,
-    resolvedValue,
-    mode: "destination",
-    onValueChange: onInputChange,
-    onResolved: (location: RetrievedLocation) => {
-      setResolvedValue(location.placeName);
+  const sessionTokenRef = useRef<string>("");
+  const cancelRetrieveRef = useRef(false);
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [retrieveLoading, setRetrieveLoading] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [lastResolvedName, setLastResolvedName] = useState<string | null>(value || null);
+
+  useEffect(() => {
+    if (!sessionTokenRef.current) {
+      sessionTokenRef.current = crypto.randomUUID();
+    }
+  }, []);
+
+  useEffect(() => {
+    const searchQuery = lastResolvedName === value ? "" : value.trim();
+    if (searchQuery.length < 2) {
+      return;
+    }
+
+    let active = true;
+    const sessionToken = sessionTokenRef.current;
+
+    const timerId = window.setTimeout(async () => {
+      setSuggestionsLoading(true);
+      try {
+        const results = await searchLocations(searchQuery, sessionToken);
+        if (!active) return;
+        setSuggestions(results.slice(0, 5));
+        setHighlightedIndex(-1);
+      } catch {
+        if (!active) return;
+        setSuggestions([]);
+        toast.error("Could not search locations");
+      } finally {
+        if (active) setSuggestionsLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timerId);
+    };
+  }, [value, lastResolvedName]);
+
+  async function handleSuggestionSelect(suggestion: LocationSuggestion) {
+    cancelRetrieveRef.current = true;
+    onInputChange(suggestion.placeName);
+    setSuggestions([]);
+    setHighlightedIndex(-1);
+    setSuggestionsLoading(false);
+    setRetrieveLoading(true);
+    cancelRetrieveRef.current = false;
+
+    try {
+      const location: RetrievedLocation = await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current);
+      if (cancelRetrieveRef.current) {
+        sessionTokenRef.current = crypto.randomUUID();
+        return;
+      }
+      sessionTokenRef.current = crypto.randomUUID();
+      setLastResolvedName(location.placeName);
       onSelect({
         name: location.placeName,
         country: location.country ?? null,
         countryCode: location.countryCode ?? null,
         center: location.center,
       });
-    },
-    searchErrorMessage: "Could not search locations",
-    retrieveErrorMessage: "Could not load location details",
-  });
+    } catch (error) {
+      if (!cancelRetrieveRef.current) {
+        console.error("Location retrieve failed:", error);
+        toast.error("Could not load location details");
+      }
+    } finally {
+      if (!cancelRetrieveRef.current) setRetrieveLoading(false);
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      setSuggestions([]);
+      setHighlightedIndex(-1);
+      return;
+    }
+
+    if (suggestions.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightedIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+      return;
+    }
+
+    if (event.key === "Enter" && highlightedIndex >= 0) {
+      event.preventDefault();
+      void handleSuggestionSelect(suggestions[highlightedIndex]);
+    }
+  }
 
   function handleClear() {
-    reset();
-    setResolvedValue(null);
+    cancelRetrieveRef.current = true;
+    setSuggestions([]);
+    setHighlightedIndex(-1);
+    setSuggestionsLoading(false);
+    setRetrieveLoading(false);
+    setLastResolvedName(null);
+    sessionTokenRef.current = crypto.randomUUID();
     onClear();
   }
 
@@ -84,10 +168,16 @@ export function TripEditDestination({
               autoComplete="off"
               disabled={disabled}
               style={{ paddingRight: value ? "2rem" : undefined }}
-              onChange={(event) => handleInputChange(event.target.value)}
-              onKeyDown={(event) => {
-                void handleKeyDown(event);
+              onChange={(event) => {
+                cancelRetrieveRef.current = true;
+                setRetrieveLoading(false);
+                setLastResolvedName(null);
+                setSuggestions([]);
+                setHighlightedIndex(-1);
+                setSuggestionsLoading(event.target.value.trim().length >= 2);
+                onInputChange(event.target.value);
               }}
+              onKeyDown={handleKeyDown}
             />
             {value ? (
               <button
@@ -155,7 +245,7 @@ export function TripEditDestination({
             >
               {suggestions.map((suggestion, index) => (
                 <li
-                  key={`${index}-${suggestion.mapboxId}`}
+                  key={`${index}-${suggestion.mapboxId ?? suggestion.placeName}`}
                   id={`trip-edit-destination-suggestion-${index}`}
                   role="option"
                   aria-selected={highlightedIndex === index}
@@ -171,7 +261,7 @@ export function TripEditDestination({
                     void handleSuggestionSelect(suggestion);
                   }}
                 >
-                  {suggestion.primaryText}
+                  {suggestion.placeName}
                 </li>
               ))}
             </ul>

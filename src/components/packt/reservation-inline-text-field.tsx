@@ -8,8 +8,6 @@ export interface ReservationInlineTextFieldProps {
   placeholder: string;
   ariaLabel: string;
   multiline?: boolean;
-  chip?: boolean;
-  icon?: ReactNode;
   displayStyle?: React.CSSProperties;
   inputStyle?: React.CSSProperties;
   renderDisplay?: (value: string) => ReactNode;
@@ -35,8 +33,6 @@ export function ReservationInlineTextField({
   placeholder,
   ariaLabel,
   multiline = false,
-  chip = false,
-  icon,
   displayStyle,
   inputStyle,
   renderDisplay,
@@ -56,13 +52,12 @@ export function ReservationInlineTextField({
   }, [editing]);
 
   async function save() {
-    const trimmed = draft.trim();
-    if (trimmed === value) {
+    if (draft === value) {
       setEditing(false);
       return;
     }
     try {
-      await onSave(trimmed);
+      await onSave(draft);
       setEditing(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save reservation.");
@@ -130,29 +125,6 @@ export function ReservationInlineTextField({
     );
   }
 
-  if (chip) {
-    return (
-      <button
-        type="button"
-        ref={displayRef}
-        onClick={() => {
-          setDraft(value);
-          setEditing(true);
-        }}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-        style={{
-          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: value ? "var(--accent-ink)" : "var(--fg-4)",
-          background: value ? "var(--accent-soft)" : "none",
-          border: "1px solid transparent",
-        }}
-      >
-        {icon}
-        <span className="truncate">{value || placeholder}</span>
-      </button>
-    );
-  }
-
   return (
     <button
       type="button"
@@ -161,7 +133,7 @@ export function ReservationInlineTextField({
         setDraft(value);
         setEditing(true);
       }}
-      style={{ textAlign: "left", ...(value ? displayStyle : PLACEHOLDER_STYLE) }}
+      style={value ? displayStyle : PLACEHOLDER_STYLE}
     >
       {value ? (renderDisplay ? renderDisplay(value) : value) : placeholder}
     </button>

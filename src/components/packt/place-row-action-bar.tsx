@@ -2,7 +2,7 @@
 
 import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
 import type { TripEvent } from "@/data/types";
-import { toHHMM, pluralize, getLocationDisplayLabel } from "@/lib/utils";
+import { toHHMM, pluralize } from "@/lib/utils";
 import { IconSize } from "@/lib/size-tokens";
 
 function formatTime(timeStr: string): string {
@@ -41,7 +41,6 @@ export function PlaceRowActionBar({
       ? `${formatTime(toHHMM(place.startAt))} – ${formatTime(toHHMM(place.endAt))}`
       : formatTime(toHHMM(place.startAt))
     : null;
-  const locationLabel = getLocationDisplayLabel(place.locationName, place.locationAddress);
 
   return (
     <div className="flex items-center gap-1 flex-wrap mt-2">
@@ -73,7 +72,7 @@ export function PlaceRowActionBar({
         }}
       >
         <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-        <span className="truncate">{locationLabel || "Add location"}</span>
+        <span className="truncate">{place.locationAddress ?? "Add location"}</span>
       </button>
 
       {/* Cost */}

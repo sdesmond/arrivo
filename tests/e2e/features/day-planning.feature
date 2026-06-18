@@ -19,13 +19,6 @@ Feature: Day Planning
     When I open the time picker and set a start time
     Then the event should display the time
 
-  Scenario: User selects an event location suggestion
-    Given a day has an event named "Lunch at the market"
-    When I set the event location for "Lunch at the market" using the first lookup suggestion
-    And I reload the page
-    Then the event "Lunch at the market" should show location "Paris, France"
-    And the event "Lunch at the market" location is persisted with coordinates
-
   @trip-with-deletable-event
   Scenario: User deletes an event
     When I delete the event named "Event to Remove"

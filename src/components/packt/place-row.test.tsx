@@ -46,7 +46,7 @@ vi.mock("./place-row-dialogs", () => ({
     onCostSave: (cost?: number) => void;
     showLocationDialog: boolean;
     onLocationOpenChange: (v: boolean) => void;
-    onLocationSave: (location?: { address: string; name?: string; lat?: number; lng?: number }) => void;
+    onLocationSave: (a?: string) => void;
     showAddDocDialog: boolean;
     onAddDocOpenChange: (v: boolean) => void;
     showDeleteDialog: boolean;
@@ -82,18 +82,7 @@ vi.mock("./place-row-dialogs", () => ({
       )}
       {showLocationDialog && (
         <div data-testid="location-dialog">
-          <button
-            onClick={() =>
-              onLocationSave({
-                address: "Tokyo",
-                name: "Tokyo Tower",
-                lat: 35.6586,
-                lng: 139.7454,
-              })
-            }
-          >
-            loc-save
-          </button>
+          <button onClick={() => onLocationSave("Tokyo")}>loc-save</button>
           <button onClick={() => onLocationOpenChange(false)}>loc-close</button>
         </div>
       )}
@@ -364,14 +353,7 @@ describe("PlaceRow", () => {
     });
     await user.click(screen.getByRole("button", { name: /add location/i }));
     await user.click(screen.getByRole("button", { name: "loc-save" }));
-    expect(onUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        locationAddress: "Tokyo",
-        locationName: "Tokyo Tower",
-        locationLat: 35.6586,
-        locationLng: 139.7454,
-      })
-    );
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ locationAddress: "Tokyo" }));
   });
 
   it("clicking cost button shows cost dialog", async () => {

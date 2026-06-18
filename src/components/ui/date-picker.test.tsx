@@ -44,12 +44,11 @@ describe("DatePicker", () => {
     expect(onChange).toHaveBeenCalledWith("2026-06-15");
   });
 
-  it("calls onOpenChange when the popover opens and closes", async () => {
-    const onOpenChange = vi.fn();
+  it("calls onChange(undefined) when Clear is clicked", async () => {
     const user = userEvent.setup();
-    render(<DatePicker onChange={onChange} onOpenChange={onOpenChange} />);
-    await user.click(screen.getByTestId("calendar-day"));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    render(<DatePicker value="2026-05-19" onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: /clear date/i }));
+    expect(onChange).toHaveBeenCalledWith(undefined);
   });
 
   it("forwards aria-label and aria-invalid to the trigger", () => {

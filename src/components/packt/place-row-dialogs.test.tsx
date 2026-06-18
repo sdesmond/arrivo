@@ -52,12 +52,12 @@ vi.mock("./location-dialog", () => ({
   }: {
     open: boolean;
     onOpenChange: (v: boolean) => void;
-    onSave: (location?: { address: string; name?: string; lat?: number; lng?: number }) => void;
+    onSave: (a?: string) => void;
   }) =>
     open ? (
       <button
         onClick={() => {
-          onSave({ address: "Paris", name: "Paris", lat: 48.8566, lng: 2.3522 });
+          onSave("Paris");
           onOpenChange(false);
         }}
       >

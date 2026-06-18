@@ -290,20 +290,6 @@ Given("a day has an event without a time", async ({ page }) => {
   await expect(row).toBeVisible();
 });
 
-When("I set the event location for {string} using the first lookup suggestion", async ({ page }, name: string) => {
-  const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
-  await expect(row).toBeVisible();
-  await row.getByRole("button", { name: /add location/i }).click();
-  const dialog = page.getByRole("dialog");
-  const input = dialog.getByRole("combobox");
-  await input.fill("Par");
-  await expect(dialog.getByRole("listbox")).toBeVisible({ timeout: 10_000 });
-  await dialog.getByRole("option").first().click();
-  await expect(input).toHaveValue("Paris, France");
-  await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
-  await dialog.getByRole("button", { name: "Save" }).click();
-});
-
 When("I open the time picker and set a start time", async ({ page }) => {
   const row = page.locator('[id^="event-"]').filter({ hasText: E2E_EVENT_UNTIMED.name }).first();
   await row.getByRole("button", { name: "Add time" }).click();
@@ -314,27 +300,6 @@ When("I open the time picker and set a start time", async ({ page }) => {
 Then("the event should display the time", async ({ page }) => {
   const eventRow = page.locator('[id^="event-"]').filter({ hasText: E2E_EVENT_UNTIMED.name }).first();
   await expect(eventRow.getByText(/\d+:\d{2}\s*(AM|PM)/i)).toBeVisible();
-});
-
-Then("the event {string} should show location {string}", async ({ page }, name: string, address: string) => {
-  await openFirstDay(page);
-  const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
-  await expect(row.getByRole("button", { name: new RegExp(address) })).toBeVisible({ timeout: 10_000 });
-});
-
-Then("the event {string} location is persisted with coordinates", async ({ scenario }, name: string) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Missing current scenario trip.");
-
-  await withE2EDb(async (db) => {
-    const [eventRow] = await db.select().from(events).where(eq(events.tripId, currentTrip.id));
-    expect(eventRow).toBeDefined();
-    expect(eventRow.name).toBe(name);
-    expect(eventRow.locationName).toBeNull();
-    expect(eventRow.locationAddress).toBe("Paris, France");
-    expect(eventRow.locationLat).toBe(48.8534);
-    expect(eventRow.locationLng).toBe(2.3488);
-  });
 });
 
 When("I delete that event", async ({ page }) => {
