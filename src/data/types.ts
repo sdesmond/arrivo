@@ -223,6 +223,7 @@ export interface Reservation {
   endLocationLng?: number;
   cost?: number;
   confirmationCode?: string;
+  serviceNumber?: string;
   notes?: string;
   documents?: Document[];
   createdAt?: string;
@@ -691,6 +692,7 @@ export interface CreateReservationInput {
   endLocationLng?: number;
   cost?: number;
   confirmationCode?: string;
+  serviceNumber?: string;
   notes?: string;
 }
 
@@ -708,6 +710,7 @@ export interface UpdateReservationPatch {
   endLocationLng?: number;
   cost?: number | null;
   confirmationCode?: string;
+  serviceNumber?: string;
   notes?: string;
 }
 

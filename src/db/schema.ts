@@ -170,6 +170,7 @@ export const reservations = pgTable("reservations", {
   endLocationLng: doublePrecision("end_location_lng"),
   cost: numeric("cost", { precision: 12, scale: 2 }),
   confirmationCode: text("confirmation_code"),
+  serviceNumber: text("service_number"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
