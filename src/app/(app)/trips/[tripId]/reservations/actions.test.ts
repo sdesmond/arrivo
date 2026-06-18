@@ -371,6 +371,23 @@ describe("updateReservation", () => {
     });
   });
 
+  it("leaves existing structured location data untouched when only the address text is patched", async () => {
+    mockExistingReservation({
+      ...baseRow,
+      startAddress: "JFK",
+      startLocationName: "JFK Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+    });
+
+    await updateReservation("res-1", { startAddress: "JFK Terminal 4" });
+
+    expect(updatedValues).toMatchObject({ startAddress: "JFK Terminal 4" });
+    expect(updatedValues).not.toHaveProperty("startLocationName");
+    expect(updatedValues).not.toHaveProperty("startLocationLat");
+    expect(updatedValues).not.toHaveProperty("startLocationLng");
+  });
+
   it("updates cost independently, converting to a numeric string", async () => {
     await updateReservation("res-1", { cost: 349.5 });
 

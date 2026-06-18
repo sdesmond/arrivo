@@ -91,15 +91,27 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
   if (patch.endAt !== undefined) updates.endAt = patch.endAt ? new Date(patch.endAt) : null;
   if (patch.startAddress !== undefined) {
     updates.startAddress = patch.startAddress || null;
-    updates.startLocationName = patch.startLocationName ?? null;
-    updates.startLocationLat = patch.startLocationLat ?? null;
-    updates.startLocationLng = patch.startLocationLng ?? null;
+    if (!patch.startAddress) {
+      updates.startLocationName = null;
+      updates.startLocationLat = null;
+      updates.startLocationLng = null;
+    } else {
+      if (patch.startLocationName !== undefined) updates.startLocationName = patch.startLocationName || null;
+      if (patch.startLocationLat !== undefined) updates.startLocationLat = patch.startLocationLat;
+      if (patch.startLocationLng !== undefined) updates.startLocationLng = patch.startLocationLng;
+    }
   }
   if (patch.endAddress !== undefined) {
     updates.endAddress = patch.endAddress || null;
-    updates.endLocationName = patch.endLocationName ?? null;
-    updates.endLocationLat = patch.endLocationLat ?? null;
-    updates.endLocationLng = patch.endLocationLng ?? null;
+    if (!patch.endAddress) {
+      updates.endLocationName = null;
+      updates.endLocationLat = null;
+      updates.endLocationLng = null;
+    } else {
+      if (patch.endLocationName !== undefined) updates.endLocationName = patch.endLocationName || null;
+      if (patch.endLocationLat !== undefined) updates.endLocationLat = patch.endLocationLat;
+      if (patch.endLocationLng !== undefined) updates.endLocationLng = patch.endLocationLng;
+    }
   }
   if (patch.cost !== undefined) updates.cost = patch.cost != null ? String(patch.cost) : null;
   if (patch.confirmationCode !== undefined) updates.confirmationCode = patch.confirmationCode || null;
