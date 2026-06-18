@@ -28,10 +28,11 @@ interface MockChecklistItemProps {
   onCancelDraft?: () => void;
 }
 interface MockPlaceRowProps {
-  place: { id: string; name: string };
+  place: { id: string; name: string; linkedReservationId?: string };
   isDraft?: boolean;
   onCreate?: (name: string) => void;
   onCancelDraft?: () => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
 }
 interface MockChildrenProps {
   children: ReactNode;
@@ -112,7 +113,7 @@ vi.mock("./checklist-item", () => ({
 }));
 
 vi.mock("./place-row", () => ({
-  PlaceRow: ({ place, isDraft, onCreate, onCancelDraft }: MockPlaceRowProps) => {
+  PlaceRow: ({ place, isDraft, onCreate, onCancelDraft, onLinkedEventTap }: MockPlaceRowProps) => {
     if (isDraft) {
       return (
         <input
@@ -132,6 +133,20 @@ vi.mock("./place-row", () => ({
             else onCancelDraft?.();
           }}
         />
+      );
+    }
+    if (place.linkedReservationId) {
+      return (
+        <button
+          onClick={() => {
+            if (place.linkedReservationId) {
+              onLinkedEventTap?.(place.linkedReservationId);
+            }
+          }}
+          data-testid={`linked-place-row-${place.id}`}
+        >
+          {place.name}
+        </button>
       );
     }
     return <div data-testid={`place-row-${place.id}`}>{place.name}</div>;
@@ -610,6 +625,38 @@ describe("DayCard", () => {
     expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Afternoon Walk", "ev-s1");
   });
 
+  it("inserting event after a Linked Event row falls back to insertAtPosition instead of the linked event's id", async () => {
+    const user = userEvent.setup();
+    const onAddEvent = vi.fn();
+    const linkedEvent: TripEvent = {
+      id: "linked-1",
+      name: "Check-in — Torel Avantgarde",
+      startAt: "2030-06-16T15:00:00Z",
+      position: -123,
+      linkedReservationId: "reservation-1",
+      reservationType: "lodging",
+    };
+    const day: DayItinerary = {
+      ...baseDay,
+      events: [linkedEvent, scheduledEvent],
+    };
+    render(
+      <DayCard
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddEvent={onAddEvent}
+      />,
+      { wrapper: Wrapper }
+    );
+    await user.click(screen.getByTitle("Insert item here"));
+    await user.click(screen.getByTitle("Add event"));
+    await user.type(screen.getByPlaceholderText("Event name"), "Late Arrival Snack");
+    await user.keyboard("{Enter}");
+    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Late Arrival Snack", undefined, 0);
+  });
+
   it("renders inline notes from d.notes", () => {
     const dayWithNote: DayItinerary = {
       ...baseDay,
@@ -906,5 +953,38 @@ describe("DayCard", () => {
     expect(screen.getByTitle("Add event")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTitle("Add event")).not.toBeInTheDocument();
+  });
+
+  it("threads onLinkedEventTap through DayCard to linked event rows", async () => {
+    const user = userEvent.setup();
+    const onLinkedEventTap = vi.fn();
+    const linkedDay: DayItinerary = {
+      ...baseDay,
+      events: [
+        {
+          id: "linked-event-1",
+          name: "Check-in — Torel Avantgarde",
+          startAt: "2030-06-16T15:00:00Z",
+          position: 0,
+          linkedReservationId: "reservation-1",
+          reservationType: "lodging",
+        },
+      ],
+    };
+
+    render(
+      <DayCard
+        day={linkedDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onLinkedEventTap={onLinkedEventTap}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    await user.click(screen.getByTestId("linked-place-row-linked-event-1"));
+
+    expect(onLinkedEventTap).toHaveBeenCalledWith("reservation-1");
   });
 });

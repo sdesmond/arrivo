@@ -13,6 +13,7 @@ export interface DayCardBodyProps {
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
@@ -40,6 +41,7 @@ export function DayCardBody({
   tripDocs,
   onUpdateEvent,
   onDeleteEvent,
+  onLinkedEventTap,
   onReorderDayItems,
   onAddEvent,
   onAddNote,
@@ -87,7 +89,11 @@ export function DayCardBody({
     if (propIds === optimisticIds) setOptimisticOrder(null);
   }, [propTimelineItems, optimisticOrder]);
 
-  const maxTimelinePosition = timelineItems.length > 0 ? Math.max(...timelineItems.map((item) => item.position)) : -1;
+  const persistedTimelineItems = timelineItems.filter(
+    (item) => item.kind !== "event" || !item.data.linkedReservationId
+  );
+  const maxTimelinePosition =
+    persistedTimelineItems.length > 0 ? Math.max(...persistedTimelineItems.map((item) => item.position)) : -1;
   const bottomInsertPosition = maxTimelinePosition + 1;
   const renderEntries: RenderEntry[] = timelineItems.map((item, index) => ({
     type: "timeline" as const,
@@ -117,7 +123,8 @@ export function DayCardBody({
     } else {
       const gapIndex = draft.gapKey === "bottom" ? -1 : parseInt(draft.gapKey.slice(3), 10);
       const itemBefore = gapIndex >= 0 ? timelineItems[gapIndex] : undefined;
-      const afterEventId = itemBefore?.kind === "event" ? itemBefore.data.id : undefined;
+      const afterEventId =
+        itemBefore?.kind === "event" && !itemBefore.data.linkedReservationId ? itemBefore.data.id : undefined;
       if (afterEventId) {
         onAddEvent?.(day.dayNumber, content, afterEventId);
       } else {
@@ -156,6 +163,7 @@ export function DayCardBody({
         onReorderDayItems={onReorderDayItems}
         onUpdateEvent={onUpdateEvent}
         onDeleteEvent={onDeleteEvent}
+        onLinkedEventTap={onLinkedEventTap}
         onAddChecklist={onAddChecklist}
         onUpdateNote={onUpdateNote}
         onDeleteNote={onDeleteNote}
