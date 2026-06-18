@@ -1,92 +1,427 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 
-vi.mock("./day-card-dnd", () => ({
-  DayCardDnd: ({
-    makeGapProps,
+interface SortableContextCapture {
+  lastItems: string[];
+}
+
+interface DndHandlerCapture {
+  onDragStart?: (event: { active: { id: string } }) => void;
+}
+
+interface SortableContextProps {
+  children: ReactNode;
+  items: string[];
+}
+
+interface MockPlaceRowProps {
+  place: { id: string; name: string; linkedReservationId?: string };
+  onLinkedEventTap?: (linkedReservationId: string) => void;
+}
+
+interface MockSortablePlaceRowProps {
+  place: { id: string; name: string };
+}
+
+const sortableContextCapture = vi.hoisted<SortableContextCapture>(() => ({ lastItems: [] }));
+const dndHandlerCapture = vi.hoisted<DndHandlerCapture>(() => ({}));
+
+vi.mock("@dnd-kit/core", () => ({
+  DndContext: ({
+    children,
+    onDragStart,
   }: {
-    makeGapProps: (gapKey: string, insertAtPosition: number) => { onOpenPackingListPicker?: () => void };
+    children: ReactNode;
+    onDragStart?: (event: { active: { id: string } }) => void;
   }) => {
-    const gapProps = makeGapProps("gap-0", 1);
-    return (
-      <div data-testid="day-card-dnd">
-        {gapProps.onOpenPackingListPicker && (
-          <button onClick={gapProps.onOpenPackingListPicker}>Gap packing picker</button>
-        )}
-      </div>
-    );
+    dndHandlerCapture.onDragStart = onDragStart;
+    return <>{children}</>;
   },
+  DragOverlay: ({ children }: { children: ReactNode }) => <>{children}</>,
+  closestCenter: vi.fn(),
+  PointerSensor: vi.fn(),
+  useSensor: vi.fn(() => ({})),
+  useSensors: vi.fn(() => []),
 }));
 
-vi.mock("./day-card-bottom-add", () => ({
-  DayCardBottomAdd: ({
-    dayNumber,
-    onOpenPackingListPicker,
-  }: {
-    dayNumber: number;
-    onOpenPackingListPicker?: (pos: number) => void;
-  }) => (
-    <div>
-      <span data-testid="day-number">{dayNumber}</span>
-      {onOpenPackingListPicker && <button onClick={() => onOpenPackingListPicker(0)}>Open packing picker</button>}
-    </div>
+vi.mock("@dnd-kit/sortable", () => ({
+  SortableContext: ({ children, items }: SortableContextProps) => {
+    sortableContextCapture.lastItems = items;
+    return <>{children}</>;
+  },
+  verticalListSortingStrategy: {},
+  arrayMove: vi.fn((items: unknown[]) => items),
+}));
+
+vi.mock("./place-row", () => ({
+  PlaceRow: ({ place, onLinkedEventTap }: MockPlaceRowProps) => (
+    <button onClick={() => place.linkedReservationId && onLinkedEventTap?.(place.linkedReservationId)}>
+      direct-place-row-{place.id}
+    </button>
   ),
 }));
 
-import { DayCardBody } from "./day-card-body";
-import type { DayItinerary } from "@/data/types";
+vi.mock("./day-card-sortables", () => ({
+  SortablePlaceRow: ({ place }: MockSortablePlaceRowProps) => (
+    <div data-testid={`sortable-place-row-${place.id}`}>sortable-place-row-{place.id}</div>
+  ),
+  SortableNoteItem: ({ note }: { note: { id: string } }) => <div data-testid={`sortable-note-${note.id}`} />,
+  SortableChecklistItem: ({ checklist }: { checklist: { id: string } }) => (
+    <div data-testid={`sortable-checklist-${checklist.id}`} />
+  ),
+}));
 
-const day: DayItinerary = {
-  id: "day-1",
-  dayNumber: 3,
-  date: "2026-06-01",
-  label: "Day 3",
-  events: [],
-  notes: [],
-  checklists: [],
+vi.mock("./note-item", () => ({
+  NoteItem: ({
+    note,
+    isDraft,
+    onCreate,
+    onCancelDraft,
+  }: {
+    note: { id: string };
+    isDraft?: boolean;
+    onCreate?: (content: string) => void;
+    onCancelDraft?: () => void;
+  }) =>
+    isDraft ? (
+      <div>
+        <button onClick={() => onCreate?.("Draft note")}>create-note-draft</button>
+        <button onClick={() => onCancelDraft?.()}>cancel-note-draft</button>
+      </div>
+    ) : (
+      <div data-testid={`note-item-${note.id}`} />
+    ),
+}));
+
+vi.mock("./checklist-item", () => ({
+  ChecklistItem: ({
+    checklist,
+    isDraft,
+    onCommitDraft,
+    onCancelDraft,
+  }: {
+    checklist: { id: string };
+    isDraft?: boolean;
+    onCommitDraft?: (firstItemContent?: string) => void;
+    onCancelDraft?: () => void;
+  }) =>
+    isDraft ? (
+      <div>
+        <button onClick={() => onCommitDraft?.("Passport")}>commit-checklist-draft</button>
+        <button onClick={() => onCancelDraft?.()}>cancel-checklist-draft</button>
+      </div>
+    ) : (
+      <div data-testid={`checklist-item-${checklist.id}`} />
+    ),
+}));
+
+vi.mock("./gap-zone", () => ({
+  GapZone: () => <div data-testid="gap-zone" />,
+}));
+
+import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
+
+const linkedEventItem: TimelineItem = {
+  kind: "event",
+  data: {
+    id: "linked-event-1",
+    name: "Check-in — Torel Avantgarde",
+    linkedReservationId: "reservation-1",
+    reservationType: "lodging",
+    position: 0,
+  },
+  position: 0,
 };
 
-describe("DayCardBody — onOpenPackingListPicker threading", () => {
-  it("does not render the packing picker button when prop is omitted", () => {
-    render(<DayCardBody day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Open packing picker" })).not.toBeInTheDocument();
-  });
+const manualEventItem: TimelineItem = {
+  kind: "event",
+  data: {
+    id: "manual-event-1",
+    name: "Museum Visit",
+    position: 1,
+  },
+  position: 1,
+};
 
-  it("threads onOpenPackingListPicker to DayCardBottomAdd when provided", async () => {
-    const onOpenPackingListPicker = vi.fn();
-    const user = userEvent.setup();
+const noteItem: TimelineItem = {
+  kind: "note",
+  data: {
+    id: "note-1",
+    content: "Bring sunscreen",
+    position: 2,
+  },
+  position: 2,
+};
+
+const checklistItem: TimelineItem = {
+  kind: "checklist",
+  data: {
+    id: "checklist-1",
+    tripDayId: "day-1",
+    position: 3,
+    items: [],
+  },
+  position: 3,
+};
+
+const timelineItems: TimelineItem[] = [linkedEventItem, manualEventItem, noteItem, checklistItem];
+const renderEntries: RenderEntry[] = timelineItems.map((item, idx) => ({
+  type: "timeline",
+  item,
+  idx,
+}));
+
+describe("DayCardDnd", () => {
+  it("renders linked events as direct PlaceRow entries and not as SortablePlaceRow entries", () => {
     render(
-      <DayCardBody
-        day={day}
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderDayItems={vi.fn()}
-        onOpenPackingListPicker={onOpenPackingListPicker}
+        onLinkedEventTap={vi.fn()}
       />
     );
-    await user.click(screen.getByRole("button", { name: "Open packing picker" }));
-    expect(onOpenPackingListPicker).toHaveBeenCalledWith(0);
+
+    expect(screen.getByRole("button", { name: "direct-place-row-linked-event-1" })).toBeInTheDocument();
+    expect(screen.queryByTestId("sortable-place-row-linked-event-1")).not.toBeInTheDocument();
   });
 
-  it("threads onOpenPackingListPicker through makeGapProps to gap zones", async () => {
-    const onOpenPackingListPicker = vi.fn();
-    const user = userEvent.setup();
+  it("keeps manual events sortable", () => {
     render(
-      <DayCardBody
-        day={day}
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
-        onReorderDayItems={vi.fn()}
-        onOpenPackingListPicker={onOpenPackingListPicker}
+        onLinkedEventTap={vi.fn()}
       />
     );
-    await user.click(screen.getByRole("button", { name: "Gap packing picker" }));
-    expect(onOpenPackingListPicker).toHaveBeenCalledWith(1);
+
+    expect(screen.getByTestId("sortable-place-row-manual-event-1")).toBeInTheDocument();
   });
 
-  it("does not include onOpenPackingListPicker in gap props when prop is omitted", () => {
-    render(<DayCardBody day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Gap packing picker" })).not.toBeInTheDocument();
+  it("threads onLinkedEventTap to linked PlaceRow rows", async () => {
+    const user = userEvent.setup();
+    const onLinkedEventTap = vi.fn();
+
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={onLinkedEventTap}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "direct-place-row-linked-event-1" }));
+
+    expect(onLinkedEventTap).toHaveBeenCalledWith("reservation-1");
+  });
+
+  it("excludes linked event ids from the SortableContext items list", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    expect(sortableContextCapture.lastItems).not.toContain("linked-event-1");
+    expect(sortableContextCapture.lastItems).toEqual(["manual-event-1", "note-1", "checklist-1"]);
+  });
+
+  it("renders the note drag overlay when a note becomes active", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    act(() => {
+      dndHandlerCapture.onDragStart?.({ active: { id: "note-1" } });
+    });
+
+    expect(screen.getByTestId("note-item-note-1")).toBeInTheDocument();
+  });
+
+  it("renders the event drag overlay when an event becomes active", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    act(() => {
+      dndHandlerCapture.onDragStart?.({ active: { id: "manual-event-1" } });
+    });
+
+    expect(screen.getByRole("button", { name: "direct-place-row-manual-event-1" })).toBeInTheDocument();
+  });
+
+  it("renders the note draft row and commits through the provided callback", async () => {
+    const user = userEvent.setup();
+    const commitDraft = vi.fn();
+    const cancelDraft = vi.fn();
+
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={[{ type: "draft", draftKind: "note" }]}
+        draftInsertAtPosition={7}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={commitDraft}
+        cancelDraft={cancelDraft}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "create-note-draft" }));
+    await user.click(screen.getByRole("button", { name: "cancel-note-draft" }));
+
+    expect(commitDraft).toHaveBeenCalledWith("Draft note");
+    expect(cancelDraft).toHaveBeenCalledOnce();
+  });
+
+  it("renders the checklist draft row and commits through the provided callback", async () => {
+    const user = userEvent.setup();
+    const onAddChecklist = vi.fn();
+    const cancelDraft = vi.fn();
+
+    render(
+      <DayCardDnd
+        dayNumber={4}
+        dayId="day-4"
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={[{ type: "draft", draftKind: "checklist" }]}
+        draftInsertAtPosition={9}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={cancelDraft}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+        onAddChecklist={onAddChecklist}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "commit-checklist-draft" }));
+    await user.click(screen.getByRole("button", { name: "cancel-checklist-draft" }));
+
+    expect(onAddChecklist).toHaveBeenCalledWith(4, 9, "Passport");
+    expect(cancelDraft).toHaveBeenCalledTimes(2);
   });
 });

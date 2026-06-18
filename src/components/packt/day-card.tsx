@@ -14,6 +14,7 @@ interface DayCardProps {
   initialOpen?: boolean;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
   onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
@@ -40,6 +41,7 @@ export function DayCard({
   initialOpen,
   onUpdateEvent,
   onDeleteEvent,
+  onLinkedEventTap,
   onReorderDayItems,
   onUpdateDay,
   onAddEvent,
@@ -111,6 +113,7 @@ export function DayCard({
           onReorderDayItems={onReorderDayItems}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
+          onLinkedEventTap={onLinkedEventTap}
           onAddEvent={onAddEvent}
           onAddNote={onAddNote}
           onUpdateNote={onUpdateNote}

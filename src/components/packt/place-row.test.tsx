@@ -9,6 +9,9 @@ vi.mock("lucide-react", async (importOriginal) => {
     MapPin: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
       <svg data-testid="map-pin-icon" data-stroke-width={strokeWidth} {...props} />
     ),
+    Hotel: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+      <svg data-testid="hotel-icon" data-stroke-width={strokeWidth} {...props} />
+    ),
   };
 });
 
@@ -115,6 +118,7 @@ vi.mock("./place-row-dialogs", () => ({
 import { PlaceRow } from "./place-row";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { TripEvent } from "@/data/types";
+import { ANCHOR_LABELS, RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-badge";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
@@ -128,6 +132,16 @@ const basePlace: TripEvent = {
   startAt: "2026-05-13T10:00:00Z",
   endAt: "2026-05-13T11:00:00Z",
   position: 0,
+};
+
+const linkedPlace: TripEvent = {
+  id: "linked-1",
+  tripId: "trip-1",
+  name: "Check-in — Torel Avantgarde",
+  startAt: "2030-06-16T15:00:00Z",
+  position: new Date("2030-06-16T15:00:00Z").getTime(),
+  linkedReservationId: "reservation-1",
+  reservationType: "lodging",
 };
 
 describe("PlaceRow", () => {
@@ -416,6 +430,28 @@ describe("PlaceRow", () => {
     expect(screen.queryByTestId("docs-block")).not.toBeInTheDocument();
   });
 
+  it("clicking add from the docs block opens the add-doc dialog", async () => {
+    const user = userEvent.setup();
+    const place = {
+      ...basePlace,
+      docs: [
+        {
+          id: "d1",
+          name: "Plan.pdf",
+          kind: "pdf" as const,
+          scope: "event" as const,
+          offline: false,
+        },
+      ],
+    };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByTitle("Show attached documents"));
+    await user.click(screen.getByRole("button", { name: "add-doc-in-block" }));
+
+    expect(screen.getByTestId("add-doc-dialog")).toBeInTheDocument();
+  });
+
   it("clicking attach button shows add-doc dialog", async () => {
     const user = userEvent.setup();
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
@@ -554,6 +590,68 @@ describe("PlaceRow", () => {
     });
     const icons = screen.getAllByTestId("map-pin-icon");
     expect(icons[0]).toHaveAttribute("data-stroke-width", "1.5");
+  });
+
+  it("renders Linked Event with Hotel icon instead of MapPin", () => {
+    render(<PlaceRow place={linkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByTestId("hotel-icon")).toHaveAttribute("data-stroke-width", "1.5");
+    expect(screen.queryByTestId("map-pin-icon")).not.toBeInTheDocument();
+  });
+
+  it("renders Linked Event with 'Linked' badge after event name", () => {
+    render(<PlaceRow place={linkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByText("Linked")).toBeInTheDocument();
+    expect(screen.getByText("Linked")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("renders Linked Event with correct aria-label", () => {
+    const anchorLabel = ANCHOR_LABELS.lodging.start;
+    const expectedLabel = `${anchorLabel}: ${formatAnchorDateTime(linkedPlace.startAt!)} — Torel Avantgarde, Linked, opens Reservations`;
+
+    render(<PlaceRow place={linkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByRole("button", { name: expectedLabel })).toBeInTheDocument();
+  });
+
+  it("renders Linked Event meta line with anchor label and reservation type", () => {
+    const anchorLabel = ANCHOR_LABELS.lodging.start;
+    const reservationLabel = RESERVATION_TYPE_META.lodging.label;
+    const expectedMeta = `${anchorLabel}: ${formatAnchorDateTime(linkedPlace.startAt!)} — from ${reservationLabel} reservation`;
+
+    render(<PlaceRow place={linkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByText(expectedMeta)).toBeInTheDocument();
+  });
+
+  it("calls onLinkedEventTap when Linked Event row is activated", async () => {
+    const user = userEvent.setup();
+    const onLinkedEventTap = vi.fn();
+
+    render(<PlaceRow place={linkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={onLinkedEventTap} />, {
+      wrapper: Wrapper,
+    });
+
+    await user.click(screen.getByRole("button", { name: /opens Reservations$/i }));
+
+    expect(onLinkedEventTap).toHaveBeenCalledWith("reservation-1");
+  });
+
+  it("renders manual event normally without linked event indicators", () => {
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.queryByText("Linked")).not.toBeInTheDocument();
   });
 
   // ── isDraft mode ──────────────────────────────────────────────────────────

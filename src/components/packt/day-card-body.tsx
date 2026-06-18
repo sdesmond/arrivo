@@ -13,6 +13,7 @@ export interface DayCardBodyProps {
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
@@ -40,6 +41,7 @@ export function DayCardBody({
   tripDocs,
   onUpdateEvent,
   onDeleteEvent,
+  onLinkedEventTap,
   onReorderDayItems,
   onAddEvent,
   onAddNote,
@@ -156,6 +158,7 @@ export function DayCardBody({
         onReorderDayItems={onReorderDayItems}
         onUpdateEvent={onUpdateEvent}
         onDeleteEvent={onDeleteEvent}
+        onLinkedEventTap={onLinkedEventTap}
         onAddChecklist={onAddChecklist}
         onUpdateNote={onUpdateNote}
         onDeleteNote={onDeleteNote}

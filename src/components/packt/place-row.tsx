@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Trash2 } from "lucide-react";
+import { ChevronRight, MapPin, Trash2 } from "lucide-react";
 import { IconSize } from "@/lib/size-tokens";
 import { type TripEvent, type Document } from "@/data/types";
 import { isEventNow } from "@/lib/utils";
@@ -10,6 +10,9 @@ import { DocsBlock } from "./docs-block";
 import { PlaceRowNameField } from "./place-row-name-field";
 import { PlaceRowActionBar } from "./place-row-action-bar";
 import { PlaceRowDialogs } from "./place-row-dialogs";
+import { LinkedEventBadge } from "./linked-event-badge";
+import { PlaceRowNoteEditor } from "./place-row-note-editor";
+import { ANCHOR_LABELS, RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-badge";
 
 function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHHMM: string) {
   if (!dayDate) return { startAt: undefined, endAt: undefined };
@@ -25,6 +28,7 @@ export interface PlaceRowProps {
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
   dragHandle?: React.ReactNode;
   id?: string;
   isDraft?: boolean;
@@ -39,6 +43,7 @@ export function PlaceRow({
   isLast,
   onUpdate,
   onDelete,
+  onLinkedEventTap,
   dragHandle,
   id,
   isDraft,
@@ -64,6 +69,31 @@ export function PlaceRow({
   const now = useNow();
   const hasDocs = (place.docs?.length ?? 0) > 0;
   const isNow = isEventNow(place, now);
+  const isLinkedEvent = !!place.linkedReservationId && !!place.reservationType;
+  const reservationMeta = place.reservationType
+    ? (RESERVATION_TYPE_META[place.reservationType] ?? RESERVATION_TYPE_META.other)
+    : undefined;
+  const anchorLabels = place.reservationType
+    ? (ANCHOR_LABELS[place.reservationType] ?? ANCHOR_LABELS.other)
+    : undefined;
+  const linkedIcon = reservationMeta?.icon;
+  const LinkedIcon = linkedIcon;
+  const [linkedAnchorLabel = place.name, linkedProviderLabel = ""] = place.name.split(" — ", 2);
+  const linkedDateTime = place.startAt ? formatAnchorDateTime(place.startAt) : "";
+  const linkedAriaLabel =
+    isLinkedEvent && linkedDateTime
+      ? `${linkedAnchorLabel}: ${linkedDateTime} — ${linkedProviderLabel}, Linked, opens Reservations`
+      : undefined;
+  const linkedAnchorKey =
+    anchorLabels && place.name.startsWith(`${anchorLabels.start} —`)
+      ? "start"
+      : anchorLabels && place.name.startsWith(`${anchorLabels.end} —`)
+        ? "end"
+        : "start";
+  const linkedMetaLabel =
+    isLinkedEvent && place.startAt && anchorLabels
+      ? `${anchorLabels[linkedAnchorKey]}: ${formatAnchorDateTime(place.startAt)} — from ${reservationMeta?.label} reservation`
+      : undefined;
 
   function saveName() {
     const trimmed = draftName.trim();
@@ -93,121 +123,136 @@ export function PlaceRow({
       <div
         className="flex items-start gap-3 rounded-[8px] px-3 py-2.5"
         style={{
-          background: isNow ? "var(--accent-soft)" : undefined,
-          border: isNow ? "1px solid var(--accent-brand)" : "1px solid transparent",
+          background: isNow && !isLinkedEvent ? "var(--accent-soft)" : undefined,
+          border: isNow && !isLinkedEvent ? "1px solid var(--accent-brand)" : "1px solid transparent",
         }}
       >
         {/* Event icon */}
         <div className="flex flex-col items-center shrink-0 pt-0.5" style={{ width: 16 }}>
-          <MapPin
-            size={16}
-            strokeWidth={1.5}
-            style={{ color: isNow ? "var(--accent-brand)" : "var(--fg-3)", flexShrink: 0 }}
-          />
+          {isLinkedEvent && LinkedIcon ? (
+            <LinkedIcon
+              size={16}
+              strokeWidth={1.5}
+              aria-hidden="true"
+              style={{ color: "var(--fg-3)", flexShrink: 0 }}
+            />
+          ) : (
+            <MapPin
+              size={16}
+              strokeWidth={1.5}
+              style={{ color: isNow ? "var(--accent-brand)" : "var(--fg-3)", flexShrink: 0 }}
+            />
+          )}
           {!isLast && <div style={{ width: 1, flex: 1, minHeight: 12, background: "var(--line)", marginTop: 2 }} />}
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <PlaceRowNameField
-            isEditingName={isEditingName}
-            draftName={draftName}
-            onDraftChange={setDraftName}
-            onBlur={saveName}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") saveName();
-              if (event.key === "Escape") {
-                if (isDraft) {
-                  onCancelDraft?.();
-                  return;
-                }
-                setDraftName(place.name);
-                setIsEditingName(false);
-              }
-            }}
-            displayName={place.name}
-            isHovered={isHovered}
-            isDraft={isDraft}
-            onStartEdit={() => {
-              setDraftName(place.name);
-              setIsEditingName(true);
-            }}
-          />
-
-          {/* Note area */}
-          <div className="mt-1.5">
-            {isEditingNote ? (
-              <textarea
-                autoFocus
-                value={draftNote}
-                onChange={(event) => setDraftNote(event.target.value)}
-                onBlur={saveNote}
+          {isLinkedEvent ? (
+            <button
+              type="button"
+              onClick={() => place.linkedReservationId && onLinkedEventTap?.(place.linkedReservationId)}
+              aria-label={linkedAriaLabel}
+              className="flex w-full items-start justify-between gap-3 rounded-[8px] text-left"
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    style={{
+                      fontSize: "calc(14px * var(--font-scale))",
+                      fontWeight: 600,
+                      color: "var(--fg)",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {place.name}
+                  </span>
+                  <LinkedEventBadge />
+                </div>
+                {linkedMetaLabel && (
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
+                      color: "var(--fg-2)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {linkedMetaLabel}
+                  </div>
+                )}
+              </div>
+              <ChevronRight
+                aria-hidden="true"
+                size={16}
+                strokeWidth={1.5}
+                style={{ color: "var(--fg-4)", flexShrink: 0 }}
+              />
+            </button>
+          ) : (
+            <>
+              <PlaceRowNameField
+                isEditingName={isEditingName}
+                draftName={draftName}
+                onDraftChange={setDraftName}
+                onBlur={saveName}
                 onKeyDown={(event) => {
+                  if (event.key === "Enter") saveName();
                   if (event.key === "Escape") {
-                    setDraftNote(place.note ?? "");
-                    setIsEditingNote(false);
+                    if (isDraft) {
+                      onCancelDraft?.();
+                      return;
+                    }
+                    setDraftName(place.name);
+                    setIsEditingName(false);
                   }
                 }}
-                rows={2}
-                style={{
-                  width: "100%",
-                  fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
-                  color: "var(--fg-2)",
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--accent-brand)",
-                  borderLeft: "2px solid var(--accent-brand)",
-                  borderRadius: 6,
-                  padding: "6px 10px",
-                  outline: "none",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                  lineHeight: 1.5,
+                displayName={place.name}
+                isHovered={isHovered}
+                isDraft={isDraft}
+                onStartEdit={() => {
+                  setDraftName(place.name);
+                  setIsEditingName(true);
                 }}
               />
-            ) : (
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  setDraftNote(place.note ?? "");
-                  setIsEditingNote(true);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
+
+              {/* Note area */}
+              <div className="mt-1.5">
+                <PlaceRowNoteEditor
+                  note={place.note}
+                  isEditingNote={isEditingNote}
+                  draftNote={draftNote}
+                  onDraftChange={setDraftNote}
+                  onSave={saveNote}
+                  onCancel={() => {
+                    setDraftNote(place.note ?? "");
+                    setIsEditingNote(false);
+                  }}
+                  onStartEdit={() => {
                     setDraftNote(place.note ?? "");
                     setIsEditingNote(true);
-                  }
-                }}
-                style={{
-                  fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
-                  cursor: "text",
-                  borderRadius: 6,
-                  padding: "4px 10px",
-                  lineHeight: 1.5,
-                  whiteSpace: "pre-wrap",
-                  color: place.note ? "var(--fg-2)" : "var(--fg-4)",
-                }}
-              >
-                {place.note ?? "Add a note…"}
+                  }}
+                />
               </div>
-            )}
-          </div>
 
-          <PlaceRowActionBar
-            place={place}
-            showDocs={showDocs}
-            onToggleDocs={() => setShowDocs((prev) => !prev)}
-            onOpenTime={() => setShowTimeDialog(true)}
-            onOpenLocation={() => setShowLocationDialog(true)}
-            onOpenCost={() => setShowCostDialog(true)}
-            onOpenAddDoc={() => setShowAddDocDialog(true)}
-          />
+              <PlaceRowActionBar
+                place={place}
+                showDocs={showDocs}
+                onToggleDocs={() => setShowDocs((prev) => !prev)}
+                onOpenTime={() => setShowTimeDialog(true)}
+                onOpenLocation={() => setShowLocationDialog(true)}
+                onOpenCost={() => setShowCostDialog(true)}
+                onOpenAddDoc={() => setShowAddDocDialog(true)}
+              />
 
-          {showDocs && hasDocs && <DocsBlock docs={place.docs!} onAdd={() => setShowAddDocDialog(true)} />}
+              {showDocs && hasDocs && <DocsBlock docs={place.docs!} onAdd={() => setShowAddDocDialog(true)} />}
+            </>
+          )}
         </div>
 
         {/* Drag handle — always visible on mobile, hover-only on desktop */}
-        {dragHandle && (
+        {dragHandle && !isLinkedEvent && (
           <span
             className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
             style={{ color: "var(--fg-4)" }}
@@ -217,61 +262,65 @@ export function PlaceRow({
         )}
 
         {/* Trash icon — always visible on mobile, hover-only on desktop */}
-        <button
-          onClick={() => {
-            if (hasDocs) {
-              setShowDeleteDialog(true);
-            } else {
-              onDelete(place.id);
-            }
-          }}
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
-          style={{
-            color: "var(--fg-4)",
-            padding: 4,
-            borderRadius: 4,
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-          title="Delete event"
-        >
-          <Trash2 size={IconSize.placeAction} strokeWidth={1.5} />
-        </button>
+        {!isLinkedEvent && (
+          <button
+            onClick={() => {
+              if (hasDocs) {
+                setShowDeleteDialog(true);
+              } else {
+                onDelete(place.id);
+              }
+            }}
+            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
+            style={{
+              color: "var(--fg-4)",
+              padding: 4,
+              borderRadius: 4,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+            title="Delete event"
+          >
+            <Trash2 size={IconSize.placeAction} strokeWidth={1.5} />
+          </button>
+        )}
       </div>
 
-      <PlaceRowDialogs
-        place={place}
-        tripDocs={tripDocs}
-        showTimeDialog={showTimeDialog}
-        onTimeOpenChange={setShowTimeDialog}
-        onTimeSave={(time, et) => {
-          if (!time) {
-            onUpdate({ ...place, startAt: undefined, endAt: undefined });
-          } else {
-            onUpdate({ ...place, ...composeStartEndAt(dayDate, time, et ?? time) });
+      {!isLinkedEvent && (
+        <PlaceRowDialogs
+          place={place}
+          tripDocs={tripDocs}
+          showTimeDialog={showTimeDialog}
+          onTimeOpenChange={setShowTimeDialog}
+          onTimeSave={(time, et) => {
+            if (!time) {
+              onUpdate({ ...place, startAt: undefined, endAt: undefined });
+            } else {
+              onUpdate({ ...place, ...composeStartEndAt(dayDate, time, et ?? time) });
+            }
+          }}
+          showCostDialog={showCostDialog}
+          onCostOpenChange={setShowCostDialog}
+          onCostSave={(cost) => onUpdate({ ...place, cost })}
+          showLocationDialog={showLocationDialog}
+          onLocationOpenChange={setShowLocationDialog}
+          onLocationSave={(location) =>
+            onUpdate({
+              ...place,
+              locationName: location?.name,
+              locationAddress: location?.address,
+              locationLat: location?.lat,
+              locationLng: location?.lng,
+            })
           }
-        }}
-        showCostDialog={showCostDialog}
-        onCostOpenChange={setShowCostDialog}
-        onCostSave={(cost) => onUpdate({ ...place, cost })}
-        showLocationDialog={showLocationDialog}
-        onLocationOpenChange={setShowLocationDialog}
-        onLocationSave={(location) =>
-          onUpdate({
-            ...place,
-            locationName: location?.name,
-            locationAddress: location?.address,
-            locationLat: location?.lat,
-            locationLng: location?.lng,
-          })
-        }
-        showAddDocDialog={showAddDocDialog}
-        onAddDocOpenChange={setShowAddDocDialog}
-        showDeleteDialog={showDeleteDialog}
-        onDeleteOpenChange={setShowDeleteDialog}
-      />
+          showAddDocDialog={showAddDocDialog}
+          onAddDocOpenChange={setShowAddDocDialog}
+          showDeleteDialog={showDeleteDialog}
+          onDeleteOpenChange={setShowDeleteDialog}
+        />
+      )}
     </div>
   );
 }

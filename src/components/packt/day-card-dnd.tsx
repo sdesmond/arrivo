@@ -51,6 +51,7 @@ export interface DayCardDndProps {
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
   onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
@@ -78,6 +79,7 @@ export function DayCardDnd({
   onReorderDayItems,
   onUpdateEvent,
   onDeleteEvent,
+  onLinkedEventTap,
   onAddChecklist,
   onUpdateNote,
   onDeleteNote,
@@ -124,7 +126,12 @@ export function DayCardDnd({
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext items={timelineItems.map((item) => item.data.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        items={timelineItems
+          .filter((item) => !(item.kind === "event" && item.data.linkedReservationId))
+          .map((item) => item.data.id)}
+        strategy={verticalListSortingStrategy}
+      >
         {renderEntries.map((entry, renderIdx) => {
           const isLast = renderIdx === renderEntries.length - 1;
           const key = entry.type === "draft" ? "draft" : entry.item.data.id;
@@ -177,15 +184,27 @@ export function DayCardDnd({
                   onToggleItem={onToggleChecklistItem}
                 />
               ) : entry.item.kind === "event" ? (
-                <SortablePlaceRow
-                  id={`event-${entry.item.data.id}`}
-                  place={entry.item.data}
-                  dayDate={dayDate}
-                  isLast={isLast}
-                  onUpdate={onUpdateEvent}
-                  onDelete={onDeleteEvent}
-                  tripDocs={tripDocs}
-                />
+                entry.item.data.linkedReservationId ? (
+                  <PlaceRow
+                    place={entry.item.data}
+                    dayDate={dayDate}
+                    isLast={isLast}
+                    onUpdate={onUpdateEvent}
+                    onDelete={onDeleteEvent}
+                    tripDocs={tripDocs}
+                    onLinkedEventTap={onLinkedEventTap}
+                  />
+                ) : (
+                  <SortablePlaceRow
+                    id={`event-${entry.item.data.id}`}
+                    place={entry.item.data}
+                    dayDate={dayDate}
+                    isLast={isLast}
+                    onUpdate={onUpdateEvent}
+                    onDelete={onDeleteEvent}
+                    tripDocs={tripDocs}
+                  />
+                )
               ) : (
                 <SortableNoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />
               )}
