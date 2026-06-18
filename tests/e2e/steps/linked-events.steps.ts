@@ -33,6 +33,35 @@ Given(
   }
 );
 
+Given(
+  "the trip has a Lodging reservation with Check-in on Day 1 and draggable events {string} and {string} on Day 1",
+  async ({ page, scenario }, firstEventName: string, secondEventName: string) => {
+    await scenario.materialize({
+      trip: {
+        mother: "threeDayTrip",
+        overrides: {
+          reservations: [
+            {
+              type: "lodging",
+              provider: "Torel Avantgarde",
+              startAt: "2026-07-01T15:00:00Z",
+              endAt: "2026-07-02T11:00:00Z",
+            },
+          ],
+          events: [
+            { name: firstEventName, position: 0, dayNumber: 1 },
+            { name: secondEventName, position: 1, dayNumber: 1 },
+          ],
+        },
+        setCurrent: true,
+      },
+    });
+
+    await scenario.gotoCurrentTrip(page);
+    await ensureDayExpanded(page, 1);
+  }
+);
+
 When("I view the Itinerary tab", async ({ page }) => {
   const itineraryTab = page.getByRole("button", { name: "Itinerary" });
   if ((await itineraryTab.count()) > 0) {

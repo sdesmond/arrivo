@@ -6,3 +6,10 @@ Feature: Linked Events
     When I view the Itinerary tab
     Then I see a "Check-in" Linked Event on Day 1 with a Hotel icon and a "Linked" badge
     And I see a "Check-out" Linked Event on Day 2 with a Hotel icon and a "Linked" badge
+
+  Scenario: Manual events stay draggable when a Linked Event sits above them
+    Given I am signed in
+    And the trip has a Lodging reservation with Check-in on Day 1 and draggable events "Morning Walk" and "Afternoon Walk" on Day 1
+    When I drag "Afternoon Walk" above "Morning Walk"
+    Then the order should be "Afternoon Walk" then "Morning Walk"
+    And I see a "Check-in" Linked Event on Day 1 with a Hotel icon and a "Linked" badge
