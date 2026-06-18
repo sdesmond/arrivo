@@ -267,4 +267,13 @@ describe("ReservationEditDrawer", () => {
       )
     );
   });
+
+  it("renders the Documents section with the correct empty state description", () => {
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByText("No documents yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Attach a hotel confirmation, receipt, or other reservation document.")
+    ).toBeInTheDocument();
+  });
 });

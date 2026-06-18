@@ -3,7 +3,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationRow } from "./reservation-row";
-import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import {
+  updateReservation,
+  deleteReservation,
+  uploadReservationDocument,
+  removeReservationDocument,
+} from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type Reservation } from "@/data/types";
 import { formatAnchorDateTime } from "./reservation-type-badge";
 
@@ -14,6 +19,8 @@ vi.mock("sonner", () => ({
 vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
   updateReservation: vi.fn(),
   deleteReservation: vi.fn(),
+  uploadReservationDocument: vi.fn(),
+  removeReservationDocument: vi.fn(),
 }));
 
 vi.mock("@/components/ui/alert-dialog", () => ({
@@ -92,6 +99,7 @@ const populatedReservation: Reservation = {
   endAt: "2026-08-05T11:00:00.000Z",
   confirmationCode: "ABC123",
   notes: "Late checkout requested",
+  documents: [],
 };
 
 const emptyReservation: Reservation = {
@@ -99,6 +107,21 @@ const emptyReservation: Reservation = {
   tripId: "trip-1",
   type: ReservationType.Other,
   provider: "Misc Booking",
+};
+
+const withDocReservation: Reservation = {
+  ...populatedReservation,
+  documents: [
+    {
+      id: "doc-1",
+      name: "confirmation.pdf",
+      kind: "pdf",
+      size: "1 KB",
+      scope: "reservation",
+      offline: false,
+      addedAt: "2026-08-01T00:00:00.000Z",
+    },
+  ],
 };
 
 describe("ReservationRow", () => {
@@ -281,5 +304,97 @@ describe("ReservationRow", () => {
 
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
     expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
+  });
+
+  it("shows the 'Add confirmation document' dashed button when there are no documents", () => {
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    expect(screen.getByRole("button", { name: "Add confirmation document" })).toBeInTheDocument();
+  });
+
+  it("renders attached documents with name and remove button", () => {
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByText("confirmation.pdf")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove confirmation.pdf" })).toBeInTheDocument();
+  });
+
+  it("does not show the dashed add button when documents exist", () => {
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.queryByRole("button", { name: "Add confirmation document" })).not.toBeInTheDocument();
+  });
+
+  it("shows the 'Add document' icon button when documents exist", () => {
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByRole("button", { name: "Add document" })).toBeInTheDocument();
+  });
+
+  it("calls uploadReservationDocument with the reservation id and formData on file change", async () => {
+    vi.mocked(uploadReservationDocument).mockResolvedValueOnce(undefined);
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["content"], "test.pdf", { type: "application/pdf" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(uploadReservationDocument).toHaveBeenCalledWith("res-2", expect.any(FormData));
+    });
+  });
+
+  it("rejects a file larger than MAX_UPLOAD_BYTES with a toast error", async () => {
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const bigFile = new File(["x"], "big.pdf", { type: "application/pdf" });
+    Object.defineProperty(bigFile, "size", { value: 30 * 1024 * 1024 });
+    Object.defineProperty(input, "files", { value: [bigFile], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("File is too large. Max 25 MB.");
+    });
+    expect(uploadReservationDocument).not.toHaveBeenCalled();
+  });
+
+  it("calls removeReservationDocument with the doc id when remove is clicked", async () => {
+    vi.mocked(removeReservationDocument).mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Remove confirmation.pdf" }));
+
+    await vi.waitFor(() => {
+      expect(removeReservationDocument).toHaveBeenCalledWith("doc-1");
+    });
+  });
+
+  it("shows a toast error when upload fails", async () => {
+    vi.mocked(uploadReservationDocument).mockRejectedValueOnce(new Error("Server error"));
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["content"], "test.pdf", { type: "application/pdf" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Upload failed. Please try again.");
+    });
+  });
+
+  it("shows a toast error when remove fails", async () => {
+    vi.mocked(removeReservationDocument).mockRejectedValueOnce(new Error("Server error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Remove confirmation.pdf" }));
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Failed to remove document.");
+    });
   });
 });

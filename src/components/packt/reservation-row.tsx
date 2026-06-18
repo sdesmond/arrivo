@@ -1,13 +1,20 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { Trash2, Wallet } from "lucide-react";
+import { Trash2, Wallet, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { ANCHOR_LABELS } from "@/components/packt/reservation-type-badge";
 import { ReservationInlineTextField } from "@/components/packt/reservation-inline-text-field";
 import { ReservationAnchorEditField } from "@/components/packt/reservation-anchor-edit-field";
 import { DeleteReservationAlertDialog } from "@/components/packt/delete-reservation-alert-dialog";
-import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { DocKindBadge } from "@/components/packt/doc-kind-badge";
+import {
+  updateReservation,
+  deleteReservation,
+  uploadReservationDocument,
+  removeReservationDocument,
+} from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { MAX_UPLOAD_BYTES } from "@/lib/utils";
 import { ReservationType, type Reservation } from "@/data/types";
 
 export interface ReservationRowProps {
@@ -28,7 +35,46 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
   const [notes, setNotes] = useState<string | undefined>(reservation.notes);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, startTransition] = useTransition();
+  const [isUploading, startUploadTransition] = useTransition();
+  const [, startRemoveTransition] = useTransition();
+  const [removingDocId, setRemovingDocId] = useState<string | null>(null);
   const deletingRef = useRef(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("File is too large. Max 25 MB.");
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    startUploadTransition(async () => {
+      try {
+        await uploadReservationDocument(reservation.id, formData);
+      } catch {
+        toast.error("Upload failed. Please try again.");
+      } finally {
+        if (uploadInputRef.current) uploadInputRef.current.value = "";
+      }
+    });
+  }
+
+  function handleRemoveDoc(docId: string) {
+    if (removingDocId) return;
+    setRemovingDocId(docId);
+    startRemoveTransition(async () => {
+      try {
+        await removeReservationDocument(docId);
+      } catch {
+        toast.error("Failed to remove document.");
+      } finally {
+        setRemovingDocId(null);
+      }
+    });
+  }
 
   function handleConfirmDelete() {
     if (deletingRef.current) return;
@@ -137,6 +183,87 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
           setNotes(next || undefined);
         }}
       />
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+        aria-label="Upload document"
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0,0,0,0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+        onChange={handleFileChange}
+      />
+      {(reservation.documents ?? []).length === 0 ? (
+        <button
+          type="button"
+          aria-label="Add confirmation document"
+          onClick={() => uploadInputRef.current?.click()}
+          disabled={isUploading}
+          className="inline-flex items-center gap-1.5 h-8 rounded px-3"
+          style={{
+            border: "1px dashed var(--line)",
+            background: "transparent",
+            color: "var(--fg-3)",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          <Upload size={12} strokeWidth={1.5} aria-hidden="true" />
+          Add confirmation document
+        </button>
+      ) : (
+        <div className="mt-1.5 flex flex-col gap-1">
+          {(reservation.documents ?? []).map((doc) => (
+            <div key={doc.id} className="flex items-center gap-1.5">
+              <DocKindBadge kind={doc.kind} />
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "var(--fg-2)",
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {doc.name}
+              </span>
+              <button
+                type="button"
+                title={`Remove ${doc.name}`}
+                aria-label={`Remove ${doc.name}`}
+                onClick={() => handleRemoveDoc(doc.id)}
+                disabled={removingDocId === doc.id}
+                className="inline-flex items-center justify-center size-8 shrink-0 rounded"
+                style={{ border: "none", background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}
+              >
+                <Trash2 size={13} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {(reservation.documents ?? []).length > 0 && (
+        <button
+          type="button"
+          title="Add document"
+          aria-label="Add document"
+          onClick={() => uploadInputRef.current?.click()}
+          disabled={isUploading}
+          className="inline-flex items-center justify-center size-8 shrink-0 rounded mt-0.5"
+          style={{ border: "none", background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}
+        >
+          <Upload size={13} strokeWidth={1.5} aria-hidden="true" />
+        </button>
+      )}
       <DeleteReservationAlertDialog
         provider={provider}
         open={confirmOpen}

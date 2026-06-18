@@ -46,9 +46,10 @@ export interface EventSeed {
 export interface DocumentSeed {
   name: string;
   kind: string;
-  size: string;
+  size?: string | number;
   url: string;
   eventName?: string;
+  reservationProvider?: string;
 }
 
 export interface PackingItemSeed {

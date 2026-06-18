@@ -1,10 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { put, del } from "@vercel/blob";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { reservations } from "@/db/schema";
+import { reservations, documents } from "@/db/schema";
 import { revalidatePath } from "next/cache";
+import { MAX_UPLOAD_BYTES, inferDocKind, formatFileSize } from "@/lib/utils";
+import { saveLocalUpload } from "@/lib/local-upload";
 import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
 
 const REQUIRES_END_AT: ReservationType[] = [ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise];
@@ -99,7 +102,79 @@ export async function deleteReservation(reservationId: string): Promise<void> {
 
   await assertTripAccess(existing.tripId, user.id!, "editor");
 
+  const attachedDocs = await db.select().from(documents).where(eq(documents.reservationId, reservationId));
+  const blobUrls = attachedDocs.map((doc) => doc.url).filter(Boolean) as string[];
+  if (blobUrls.length > 0 && process.env.UPLOAD_STUB !== "true") {
+    // Best-effort cleanup: a transient blob-store error must not block the DB delete.
+    try {
+      await del(blobUrls);
+    } catch {
+      // Orphaned blobs are tolerable; a blocked reservation delete is not.
+    }
+  }
+
   await db.delete(reservations).where(eq(reservations.id, reservationId));
 
   revalidatePath(`/trips/${existing.tripId}`);
+}
+
+export async function uploadReservationDocument(reservationId: string, formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const [reservation] = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+  if (!reservation) throw new Error("Reservation not found.");
+  await assertTripAccess(reservation.tripId, user.id!, "editor");
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) throw new Error("No file provided.");
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error(`File is too large. Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+
+  const kind = inferDocKind(file.type);
+  const isStub = process.env.UPLOAD_STUB === "true";
+  const url = isStub ? await saveLocalUpload(file) : (await put(file.name, file, { access: "public" })).url;
+
+  try {
+    await db.insert(documents).values({
+      reservationId,
+      name: file.name,
+      kind,
+      size: formatFileSize(file.size),
+      url,
+    });
+  } catch (error) {
+    // Roll back the just-uploaded blob so a failed insert does not leak storage.
+    if (!isStub) {
+      try {
+        await del(url);
+      } catch {
+        // Swallow rollback failure; surface the original insert error below.
+      }
+    }
+    throw error;
+  }
+
+  revalidatePath(`/trips/${reservation.tripId}`);
+}
+
+export async function removeReservationDocument(docId: string): Promise<void> {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  if (!doc.reservationId) throw new Error("Document is not attached to a reservation.");
+
+  const [reservation] = await db.select().from(reservations).where(eq(reservations.id, doc.reservationId));
+  if (!reservation) throw new Error("Reservation not found.");
+
+  await assertTripAccess(reservation.tripId, user.id!, "editor");
+
+  if (doc.url && process.env.UPLOAD_STUB !== "true") {
+    // Best-effort cleanup: a transient blob-store error must not block the DB delete.
+    try {
+      await del(doc.url);
+    } catch {
+      // Orphaned blob is tolerable; a blocked document delete is not.
+    }
+  }
+
+  await db.delete(documents).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${reservation.tripId}`);
 }

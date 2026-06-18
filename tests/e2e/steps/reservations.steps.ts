@@ -125,11 +125,11 @@ Given("the {string} reservation section is expanded", async ({ page }, sectionLa
 });
 
 When("I edit the reservation provider to {string}", async ({ page }, newProvider: string) => {
-  await page.getByRole("button", { name: "Original Hotel Name" }).click();
+  await page.getByRole("button", { name: "Original Hotel Name", exact: true }).click();
   const input = page.getByRole("textbox", { name: "Provider" });
   await input.fill(newProvider);
   await input.press("Enter");
-  await expect(page.getByRole("button", { name: newProvider })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: newProvider, exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel: string, time: string) => {
@@ -141,7 +141,7 @@ When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel
 });
 
 Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
-  await expect(page.getByRole("button", { name: provider })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: provider, exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabel: string, time: string) => {
@@ -170,4 +170,50 @@ Then("the reservation {string} is no longer shown", async ({ page }, provider: s
   // Target the provider's display button (role=button, exact name) rather than any text node,
   // so a hidden-but-present element doesn't produce a false pass.
   await expect(page.getByRole("button", { name: provider, exact: true })).not.toBeVisible();
+});
+
+Given("the trip has a Lodging reservation with an attached document", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [
+          {
+            type: "lodging",
+            provider: "Original Hotel Name",
+            startAt: "2030-01-10T15:00:00Z",
+            endAt: "2030-01-12T11:00:00Z",
+          },
+        ],
+        documents: [
+          {
+            name: "test-doc.pdf",
+            kind: "pdf",
+            size: 1024,
+            url: "http://localhost/stub/test-doc.pdf",
+            reservationProvider: "Original Hotel Name",
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+  await scenario.gotoCurrentTrip(page);
+  await page.getByRole("button", { name: "Reservations" }).click();
+});
+
+When("I attach a file to the reservation {string}", async ({ page }) => {
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: "Add confirmation document" }).click(),
+  ]);
+  await fileChooser.setFiles({
+    name: "test-doc.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("PDF content"),
+  });
+});
+
+Then("the document {string} appears on the reservation {string}", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
 });

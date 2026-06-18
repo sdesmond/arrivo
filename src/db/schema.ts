@@ -172,6 +172,7 @@ export const documents = pgTable("documents", {
     .default(sql`gen_random_uuid()`),
   tripId: uuid("trip_id").references(() => trips.id, { onDelete: "cascade" }),
   eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
+  reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   kind: text("kind").notNull(),
   size: text("size"),

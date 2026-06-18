@@ -43,3 +43,16 @@ Feature: Reservations
     Then the reservation "Original Hotel Name" is no longer shown
     And no reservation type sections are shown
     And I see the "No reservations yet" empty state
+
+  Scenario: Attach a document to a reservation
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    When I attach a file to the reservation "Original Hotel Name"
+    Then the document "test-doc.pdf" appears on the reservation "Original Hotel Name"
+
+  Scenario: Delete a reservation with an attached document
+    Given the trip has a Lodging reservation with an attached document
+    And the "Lodging" reservation section is expanded
+    When I delete the reservation "Original Hotel Name"
+    And I confirm the deletion
+    Then the reservation "Original Hotel Name" is no longer shown
