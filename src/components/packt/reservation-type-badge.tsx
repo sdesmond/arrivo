@@ -25,6 +25,14 @@ export const ANCHOR_LABELS: Record<ReservationType, { start: string; end: string
   other: { start: "Start", end: "End" },
 };
 
+export const SERVICE_NUMBER_LABELS: Partial<Record<ReservationType, string>> = {
+  flight: "Flight number",
+  train: "Train number",
+  bus: "Bus number",
+  ferry: "Sailing number",
+  cruise: "Voyage number",
+};
+
 export function formatAnchorDateTime(iso: string): string {
   const date = new Date(iso);
   const datePart = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });

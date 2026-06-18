@@ -4,6 +4,7 @@ import { ReservationType } from "@/data/types";
 import {
   ANCHOR_LABELS,
   RESERVATION_TYPE_META,
+  SERVICE_NUMBER_LABELS,
   ReservationTypeBadge,
   formatReservationDateRange,
 } from "./reservation-type-badge";
@@ -44,6 +45,25 @@ describe("ANCHOR_LABELS", () => {
     expect(labels.start.length).toBeGreaterThan(0);
     expect(labels.end.length).toBeGreaterThan(0);
   });
+});
+
+describe("SERVICE_NUMBER_LABELS", () => {
+  it.each([
+    ReservationType.Flight,
+    ReservationType.Train,
+    ReservationType.Bus,
+    ReservationType.Ferry,
+    ReservationType.Cruise,
+  ])("has a non-empty label for %s", (type) => {
+    expect(SERVICE_NUMBER_LABELS[type]?.length).toBeGreaterThan(0);
+  });
+
+  it.each([ReservationType.RentalCar, ReservationType.Lodging, ReservationType.Other])(
+    "has no label for %s",
+    (type) => {
+      expect(SERVICE_NUMBER_LABELS[type]).toBeUndefined();
+    }
+  );
 });
 
 describe("ReservationTypeBadge", () => {
