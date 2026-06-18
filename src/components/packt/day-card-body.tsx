@@ -89,7 +89,11 @@ export function DayCardBody({
     if (propIds === optimisticIds) setOptimisticOrder(null);
   }, [propTimelineItems, optimisticOrder]);
 
-  const maxTimelinePosition = timelineItems.length > 0 ? Math.max(...timelineItems.map((item) => item.position)) : -1;
+  const persistedTimelineItems = timelineItems.filter(
+    (item) => item.kind !== "event" || !item.data.linkedReservationId
+  );
+  const maxTimelinePosition =
+    persistedTimelineItems.length > 0 ? Math.max(...persistedTimelineItems.map((item) => item.position)) : -1;
   const bottomInsertPosition = maxTimelinePosition + 1;
   const renderEntries: RenderEntry[] = timelineItems.map((item, index) => ({
     type: "timeline" as const,

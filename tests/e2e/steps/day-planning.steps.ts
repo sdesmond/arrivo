@@ -12,15 +12,7 @@ import { Given, When, Then, Before } from "../fixtures";
 
 async function openFirstDay(page: Page): Promise<void> {
   const dayToggles = page.locator("button").filter({ hasText: /\d+ stops/ });
-  const toggleCount = await dayToggles.count();
-  let firstDayToggle = dayToggles.first();
-  for (let index = 0; index < toggleCount; index += 1) {
-    const candidate = dayToggles.nth(index);
-    if (await candidate.isVisible().catch(() => false)) {
-      firstDayToggle = candidate;
-      break;
-    }
-  }
+  const firstDayToggle = dayToggles.first();
 
   await expect(firstDayToggle).toBeVisible();
 
