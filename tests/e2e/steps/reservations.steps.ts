@@ -264,17 +264,69 @@ Given("the trip has a Lodging reservation with an attached document", async ({ p
 });
 
 When("I attach a file to the reservation {string}", async ({ page }) => {
-  const [fileChooser] = await Promise.all([
-    page.waitForEvent("filechooser"),
-    page.getByRole("button", { name: "Add confirmation document" }).click(),
-  ]);
-  await fileChooser.setFiles({
+  await page.getByRole("button", { name: "Attach" }).click();
+  await page.locator('input[type="file"]').setInputFiles({
     name: "test-doc.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from("PDF content"),
   });
+  await page.getByRole("dialog").getByRole("button", { name: "Attach" }).click();
 });
 
 Then("the document {string} appears on the reservation {string}", async ({ page }, docName: string) => {
+  await page.getByRole("button", { name: /^docs?$/i }).click();
   await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
+});
+
+Given(
+  "the trip has a Lodging reservation and a trip-level document {string}",
+  async ({ page, scenario }, docName: string) => {
+    await scenario.materialize({
+      trip: {
+        mother: "threeDayTrip",
+        overrides: {
+          reservations: [
+            {
+              type: "lodging",
+              provider: "Original Hotel Name",
+              startAt: "2030-01-10T15:00:00Z",
+              endAt: "2030-01-12T11:00:00Z",
+            },
+          ],
+          documents: [
+            {
+              name: docName,
+              kind: "pdf",
+              size: 1024,
+              url: "http://localhost/stub/trip-doc.pdf",
+            },
+          ],
+        },
+        setCurrent: true,
+      },
+    });
+    await scenario.gotoCurrentTrip(page);
+    await page.getByRole("button", { name: "Reservations" }).click();
+  }
+);
+
+When("I rename the reservation doc {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+  await page.getByRole("button", { name: /^docs?$/i }).click();
+  await page.getByText(oldName, { exact: true }).first().click();
+  const input = page.getByRole("textbox");
+  await input.fill(newName);
+  await input.press("Enter");
+});
+
+Then("the reservation doc {string} is visible", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
+});
+
+When("I promote the reservation doc {string} to trip level", async ({ page }, docName: string) => {
+  await page.getByRole("button", { name: /^docs?$/i }).click();
+  await page.getByRole("button", { name: `Move ${docName} to trip` }).click();
+});
+
+Then("the reservation doc {string} is no longer visible on the reservation", async ({ page }, docName: string) => {
+  await expect(page.getByRole("button", { name: `Move ${docName} to trip` })).not.toBeVisible({ timeout: 10_000 });
 });

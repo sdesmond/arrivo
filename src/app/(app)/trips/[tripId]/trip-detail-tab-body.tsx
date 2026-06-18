@@ -201,7 +201,13 @@ export function TripDetailTabBody({
       {activeTab === "notes" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Notes coming soon.</div>
       )}
-      {activeTab === "res" && <ReservationsTab tripId={tripId} reservations={reservations} />}
+      {activeTab === "res" && (
+        <ReservationsTab
+          tripId={tripId}
+          reservations={reservations}
+          tripDocs={docs.filter((document) => document.scope === "trip")}
+        />
+      )}
     </>
   );
 }

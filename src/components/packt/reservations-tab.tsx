@@ -7,11 +7,12 @@ import { ReservationTypePicker } from "@/components/packt/reservation-type-picke
 import { ReservationEditDrawer } from "@/components/packt/reservation-edit-drawer";
 import { ReservationTypeSection, getNextUpcoming } from "@/components/packt/reservation-type-section";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { ReservationType, type Reservation } from "@/data/types";
+import { ReservationType, type Document, type Reservation } from "@/data/types";
 
 export interface ReservationsTabProps {
   tripId: string;
   reservations: Reservation[];
+  tripDocs?: Document[];
 }
 
 function sectionSortKey(type: ReservationType, reservations: Reservation[], now: Date): [number, number] {
@@ -26,7 +27,7 @@ function sectionSortKey(type: ReservationType, reservations: Reservation[], now:
   return [1, -startAtMs];
 }
 
-export function ReservationsTab({ tripId, reservations }: ReservationsTabProps) {
+export function ReservationsTab({ tripId, reservations, tripDocs }: ReservationsTabProps) {
   const now = useNow();
   const [selectedType, setSelectedType] = useState<ReservationType | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -91,6 +92,7 @@ export function ReservationsTab({ tripId, reservations }: ReservationsTabProps) 
             open={openSections.has(section.type)}
             onToggle={() => toggleSection(section.type)}
             now={now}
+            tripDocs={tripDocs}
           />
         ))
       )}

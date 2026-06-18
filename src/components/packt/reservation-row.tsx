@@ -1,30 +1,33 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { Trash2, Wallet, MapPin, DollarSign, Upload } from "lucide-react";
+import { Trash2, Wallet, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { IconSize } from "@/lib/size-tokens";
 import { ANCHOR_LABELS, formatReservationDateRange } from "@/components/packt/reservation-type-badge";
 import { ReservationInlineTextField } from "@/components/packt/reservation-inline-text-field";
 import { DeleteReservationAlertDialog } from "@/components/packt/delete-reservation-alert-dialog";
-import { DocKindBadge } from "@/components/packt/doc-kind-badge";
+import { ReservationDocsBlock } from "@/components/packt/reservation-docs-block";
+import { AddReservationDocDialog } from "@/components/packt/add-reservation-doc-dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimePicker } from "@/components/ui/time-picker";
-import {
-  updateReservation,
-  deleteReservation,
-  uploadReservationDocument,
-  removeReservationDocument,
-} from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { CostDialog } from "@/components/packt/cost-dialog";
 import { ReservationFieldDialog } from "@/components/packt/reservation-field-dialog";
-import { ReservationType, type Reservation, type SavedLocationValue, type UpdateReservationPatch } from "@/data/types";
-import { combineDateAndTimeToIso, getLocationDisplayLabel, MAX_UPLOAD_BYTES } from "@/lib/utils";
+import {
+  ReservationType,
+  type Document,
+  type Reservation,
+  type SavedLocationValue,
+  type UpdateReservationPatch,
+} from "@/data/types";
+import { combineDateAndTimeToIso, getLocationDisplayLabel, pluralize } from "@/lib/utils";
 
 export interface ReservationRowProps {
   reservation: Reservation;
   type: ReservationType;
   isLast: boolean;
+  tripDocs?: Document[];
 }
 
 const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68, fontSize: 13 };
@@ -47,7 +50,7 @@ function buildSavedLocationValue(
     : undefined;
 }
 
-export function ReservationRow({ reservation, type, isLast }: ReservationRowProps) {
+export function ReservationRow({ reservation, type, isLast, tripDocs }: ReservationRowProps) {
   const [provider, setProvider] = useState(reservation.provider);
   const [startAt, setStartAt] = useState<string | undefined>(reservation.startAt);
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
@@ -86,13 +89,13 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
       ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cost)
       : "";
   const [isDeleting, startTransition] = useTransition();
-  const [isUploading, startUploadTransition] = useTransition();
-  const [, startRemoveTransition] = useTransition();
-  const [removingDocId, setRemovingDocId] = useState<string | null>(null);
+  const [showAddDocDialog, setShowAddDocDialog] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
+  const docs = reservation.documents ?? [];
+  const hasDocs = docs.length > 0;
   const deletingRef = useRef(false);
   const isCalendarOpenRef = useRef(false);
   const dateEditRef = useRef<HTMLDivElement>(null);
-  const uploadInputRef = useRef<HTMLInputElement>(null);
   const startLocationLabel = getLocationDisplayLabel(startLocation?.name, startLocation?.address);
   const endLocationLabel = getLocationDisplayLabel(endLocation?.name, endLocation?.address);
 
@@ -165,41 +168,6 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
     setEditingDates(false);
   }
 
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("File is too large. Max 25 MB.");
-      if (uploadInputRef.current) uploadInputRef.current.value = "";
-      return;
-    }
-    const formData = new FormData();
-    formData.append("file", file);
-    startUploadTransition(async () => {
-      try {
-        await uploadReservationDocument(reservation.id, formData);
-      } catch {
-        toast.error("Upload failed. Please try again.");
-      } finally {
-        if (uploadInputRef.current) uploadInputRef.current.value = "";
-      }
-    });
-  }
-
-  function handleRemoveDoc(docId: string) {
-    if (removingDocId) return;
-    setRemovingDocId(docId);
-    startRemoveTransition(async () => {
-      try {
-        await removeReservationDocument(docId);
-      } catch {
-        toast.error("Failed to remove document.");
-      } finally {
-        setRemovingDocId(null);
-      }
-    });
-  }
-
   function handleConfirmDelete() {
     if (deletingRef.current) return;
     deletingRef.current = true;
@@ -216,7 +184,7 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
   }
 
   return (
-    <div className="px-4 py-3.5" style={{ borderBottom: isLast ? "none" : "1px solid var(--line)" }}>
+    <div className="px-4 py-8" style={{ borderBottom: isLast ? "none" : "1px solid var(--line-strong)" }}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <ReservationInlineTextField
@@ -387,6 +355,47 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
           <Wallet size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
           {confirmationCode || "Add confirmation code"}
         </button>
+        {hasDocs ? (
+          <button
+            type="button"
+            onClick={() => setShowDocs((prev) => !prev)}
+            aria-expanded={showDocs}
+            title="Show attached documents"
+            className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+            style={{
+              fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
+              color: "var(--accent-ink)",
+              background: "var(--accent-soft)",
+              border: "1px solid transparent",
+            }}
+          >
+            <FileText size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
+            {pluralize(docs.length, "doc")}
+            <ChevronDown
+              size={10}
+              aria-hidden="true"
+              style={{
+                transform: showDocs ? "rotate(180deg)" : undefined,
+                transition: "transform 0.15s",
+              }}
+            />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowAddDocDialog(true)}
+            title="Attach document"
+            className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+            style={{
+              fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
+              color: "var(--fg-4)",
+              border: "1px solid transparent",
+            }}
+          >
+            <Paperclip size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
+            Attach
+          </button>
+        )}
       </div>
       <ReservationInlineTextField
         value={notes ?? ""}
@@ -405,87 +414,14 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
           setNotes(next || undefined);
         }}
       />
-      <input
-        ref={uploadInputRef}
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
-        aria-label="Upload document"
-        style={{
-          position: "absolute",
-          width: 1,
-          height: 1,
-          padding: 0,
-          margin: -1,
-          overflow: "hidden",
-          clip: "rect(0,0,0,0)",
-          whiteSpace: "nowrap",
-          border: 0,
-        }}
-        onChange={handleFileChange}
+      {showDocs && hasDocs && <ReservationDocsBlock docs={docs} onAdd={() => setShowAddDocDialog(true)} />}
+      <AddReservationDocDialog
+        reservationId={reservation.id}
+        providerName={provider}
+        open={showAddDocDialog}
+        onOpenChange={setShowAddDocDialog}
+        tripDocs={tripDocs}
       />
-      {(reservation.documents ?? []).length === 0 ? (
-        <button
-          type="button"
-          aria-label="Add confirmation document"
-          onClick={() => uploadInputRef.current?.click()}
-          disabled={isUploading}
-          className="inline-flex items-center gap-1.5 h-8 rounded px-3 mt-2"
-          style={{
-            border: "1px dashed var(--line)",
-            background: "transparent",
-            color: "var(--fg-3)",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          <Upload size={12} strokeWidth={1.5} aria-hidden="true" />
-          Add confirmation document
-        </button>
-      ) : (
-        <div className="mt-1.5 flex flex-col gap-1">
-          {(reservation.documents ?? []).map((doc) => (
-            <div key={doc.id} className="flex items-center gap-1.5">
-              <DocKindBadge kind={doc.kind} />
-              <span
-                style={{
-                  fontSize: 12,
-                  color: "var(--fg-2)",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {doc.name}
-              </span>
-              <button
-                type="button"
-                title={`Remove ${doc.name}`}
-                aria-label={`Remove ${doc.name}`}
-                onClick={() => handleRemoveDoc(doc.id)}
-                disabled={removingDocId === doc.id}
-                className="inline-flex items-center justify-center size-8 shrink-0 rounded"
-                style={{ border: "none", background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}
-              >
-                <Trash2 size={13} strokeWidth={1.5} aria-hidden="true" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {(reservation.documents ?? []).length > 0 && (
-        <button
-          type="button"
-          title="Add document"
-          aria-label="Add document"
-          onClick={() => uploadInputRef.current?.click()}
-          disabled={isUploading}
-          className="inline-flex items-center justify-center size-8 shrink-0 rounded mt-0.5"
-          style={{ border: "none", background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}
-        >
-          <Upload size={13} strokeWidth={1.5} aria-hidden="true" />
-        </button>
-      )}
       <ReservationFieldDialog
         mode="location"
         title={`${ANCHOR_LABELS[type].start} address`}

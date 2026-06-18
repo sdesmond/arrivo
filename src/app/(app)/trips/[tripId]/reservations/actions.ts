@@ -12,6 +12,15 @@ import { ReservationType, type CreateReservationInput, type UpdateReservationPat
 
 const REQUIRES_END_AT: ReservationType[] = [ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise];
 
+async function getReservationTripId(reservationId: string): Promise<string> {
+  const [reservation] = await db
+    .select({ tripId: reservations.tripId })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId));
+  if (!reservation) throw new Error("Reservation not found.");
+  return reservation.tripId;
+}
+
 export async function createReservation(tripId: string, input: CreateReservationInput): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
@@ -168,6 +177,7 @@ export async function uploadReservationDocument(reservationId: string, formData:
 
   try {
     await db.insert(documents).values({
+      tripId: reservation.tripId,
       reservationId,
       name: file.name,
       kind,
@@ -211,4 +221,34 @@ export async function removeReservationDocument(docId: string): Promise<void> {
 
   await db.delete(documents).where(eq(documents.id, docId));
   revalidatePath(`/trips/${reservation.tripId}`);
+}
+
+export async function renameReservationDocument(docId: string, newName: string): Promise<void> {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.reservationId ? await getReservationTripId(doc.reservationId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function promoteReservationDocToTrip(docId: string): Promise<void> {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.reservationId ? await getReservationTripId(doc.reservationId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ tripId, reservationId: null }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function attachTripDocToReservation(docId: string, reservationId: string): Promise<void> {
+  const user = await requireUser();
+  const tripId = await getReservationTripId(reservationId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ reservationId }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
 }

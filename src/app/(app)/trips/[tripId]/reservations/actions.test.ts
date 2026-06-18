@@ -48,6 +48,9 @@ import {
   deleteReservation,
   uploadReservationDocument,
   removeReservationDocument,
+  renameReservationDocument,
+  promoteReservationDocToTrip,
+  attachTripDocToReservation,
 } from "./actions";
 import { ReservationType } from "@/data/types";
 
@@ -702,6 +705,7 @@ describe("uploadReservationDocument", () => {
 
     expect(put).toHaveBeenCalled();
     expect(insertedValues).toMatchObject({
+      tripId: "trip-1",
       reservationId: "res-1",
       name: "doc.pdf",
       kind: "pdf",
@@ -889,6 +893,126 @@ describe("removeReservationDocument", () => {
 
     await removeReservationDocument("doc-1");
 
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+describe("renameReservationDocument", () => {
+  const reservationRow = { id: "res-1", tripId: "trip-1" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+    db.update.mockReturnValue({ set: () => ({ where: async () => undefined }) });
+  });
+
+  it("does nothing when the document does not exist", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+
+    await expect(renameReservationDocument("missing", "New name")).resolves.toBeUndefined();
+    expect(assertTripAccess).not.toHaveBeenCalled();
+  });
+
+  it("resolves the trip via the reservation when the doc has no tripId", async () => {
+    db.select
+      .mockReturnValueOnce({
+        from: () => ({ where: async () => [{ id: "doc-1", tripId: null, reservationId: "res-1" }] }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
+
+    await renameReservationDocument("doc-1", "New name");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("updates the document name and revalidates the trip path", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [{ id: "doc-1", tripId: "trip-1" }] }) });
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await renameReservationDocument("doc-1", "New name");
+
+    expect(setSpy).toHaveBeenCalledWith({ name: "New name" });
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+describe("promoteReservationDocToTrip", () => {
+  const reservationRow = { id: "res-1", tripId: "trip-1" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("does nothing when the document does not exist", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+
+    await expect(promoteReservationDocToTrip("missing")).resolves.toBeUndefined();
+    expect(assertTripAccess).not.toHaveBeenCalled();
+  });
+
+  it("sets tripId and clears reservationId, resolving the trip via the reservation when needed", async () => {
+    db.select
+      .mockReturnValueOnce({
+        from: () => ({ where: async () => [{ id: "doc-1", tripId: null, reservationId: "res-1" }] }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await promoteReservationDocToTrip("doc-1");
+
+    expect(setSpy).toHaveBeenCalledWith({ tripId: "trip-1", reservationId: null });
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("uses the doc's existing tripId without a reservation lookup", async () => {
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "doc-1", tripId: "trip-1" }] }) });
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await promoteReservationDocToTrip("doc-1");
+
+    expect(setSpy).toHaveBeenCalledWith({ tripId: "trip-1", reservationId: null });
+  });
+});
+
+describe("attachTripDocToReservation", () => {
+  const reservationRow = { id: "res-1", tripId: "trip-1" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+  });
+
+  it("throws when the reservation does not exist", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+
+    await expect(attachTripDocToReservation("doc-1", "missing")).rejects.toThrow("Reservation not found.");
+  });
+
+  it("checks editor access before attaching", async () => {
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await attachTripDocToReservation("doc-1", "res-1");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("sets the reservationId on the document and revalidates the trip path", async () => {
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await attachTripDocToReservation("doc-1", "res-1");
+
+    expect(setSpy).toHaveBeenCalledWith({ reservationId: "res-1" });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });

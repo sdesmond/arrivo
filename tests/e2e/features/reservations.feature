@@ -75,3 +75,23 @@ Feature: Reservations
     When I delete the reservation "Original Hotel Name"
     And I confirm the deletion
     Then the reservation "Original Hotel Name" is no longer shown
+
+  Scenario: Pick an existing trip document for a reservation
+    Given the trip has a Lodging reservation and a trip-level document "E2E Trip Pick Doc"
+    And the "Lodging" reservation section is expanded
+    When I click "Attach"
+    And I select "E2E Trip Pick Doc" from the pick list
+    Then the document "E2E Trip Pick Doc" appears on the reservation "Original Hotel Name"
+
+  Scenario: Rename a reservation document
+    Given the trip has a Lodging reservation with an attached document
+    And the "Lodging" reservation section is expanded
+    When I rename the reservation doc "test-doc.pdf" to "Renamed Confirmation.pdf"
+    Then the reservation doc "Renamed Confirmation.pdf" is visible
+
+  Scenario: Promote a reservation document to trip level
+    Given the trip has a Lodging reservation with an attached document
+    And the "Lodging" reservation section is expanded
+    When I promote the reservation doc "test-doc.pdf" to trip level
+    Then the reservation doc "test-doc.pdf" is no longer visible on the reservation
+    And the Documents tab shows "test-doc.pdf"

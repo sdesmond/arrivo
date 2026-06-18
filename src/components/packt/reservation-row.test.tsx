@@ -3,13 +3,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationRow } from "./reservation-row";
-import {
-  updateReservation,
-  deleteReservation,
-  uploadReservationDocument,
-  removeReservationDocument,
-} from "@/app/(app)/trips/[tripId]/reservations/actions";
-import { ReservationType, type Reservation } from "@/data/types";
+import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { ReservationType, type Document, type Reservation } from "@/data/types";
 import { formatReservationDateRange } from "./reservation-type-badge";
 import type { CostDialogProps } from "@/components/packt/cost-dialog";
 
@@ -20,8 +15,22 @@ vi.mock("sonner", () => ({
 vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
   updateReservation: vi.fn(),
   deleteReservation: vi.fn(),
-  uploadReservationDocument: vi.fn(),
-  removeReservationDocument: vi.fn(),
+}));
+
+vi.mock("./reservation-docs-block", () => ({
+  ReservationDocsBlock: ({ docs, onAdd }: { docs: Document[]; onAdd: () => void }) => (
+    <div>
+      {docs.map((doc) => (
+        <span key={doc.id}>{doc.name}</span>
+      ))}
+      <button onClick={onAdd}>Add doc</button>
+    </div>
+  ),
+}));
+
+vi.mock("./add-reservation-doc-dialog", () => ({
+  AddReservationDocDialog: ({ open, reservationId }: { open: boolean; reservationId: string }) =>
+    open ? <div data-testid="add-doc-dialog">Add doc dialog for {reservationId}</div> : null,
 }));
 
 vi.mock("@/components/ui/alert-dialog", () => ({
@@ -513,6 +522,39 @@ describe("ReservationRow", () => {
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Failed to save."));
   });
 
+  it("shows a toast when saving the end address dialog fails", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("shows a toast when saving the cost dialog fails", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "499.00" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("shows a toast when saving the confirmation code dialog fails", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "ABC123" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
   it("updates notes after a successful inline edit", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
@@ -585,117 +627,71 @@ describe("ReservationRow", () => {
     expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
   });
 
-  it("shows the 'Add confirmation document' dashed button when there are no documents", () => {
+  it("shows an 'Attach' chip when there are no documents", () => {
     render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
 
-    expect(screen.getByRole("button", { name: "Add confirmation document" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Attach" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /doc/i })).not.toBeInTheDocument();
   });
 
-  it("renders attached documents with name and remove button", () => {
+  it("opens the AddReservationDocDialog when the 'Attach' chip is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    expect(screen.queryByTestId("add-doc-dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Attach" }));
+
+    expect(screen.getByTestId("add-doc-dialog")).toHaveTextContent("res-2");
+  });
+
+  it("shows a docs count chip instead of the Attach chip when documents exist", () => {
     render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
 
+    expect(screen.getByRole("button", { name: /doc/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Attach" })).not.toBeInTheDocument();
+  });
+
+  it("does not show the ReservationDocsBlock until the docs chip is expanded", () => {
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.queryByText("confirmation.pdf")).not.toBeInTheDocument();
+  });
+
+  it("expands the ReservationDocsBlock when the docs chip is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const docsChip = screen.getByRole("button", { name: /doc/i });
+    expect(docsChip).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(docsChip);
+
+    expect(docsChip).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("confirmation.pdf")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Remove confirmation.pdf" })).toBeInTheDocument();
   });
 
-  it("does not show the dashed add button when documents exist", () => {
-    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
-
-    expect(screen.queryByRole("button", { name: "Add confirmation document" })).not.toBeInTheDocument();
-  });
-
-  it("shows the 'Add document' icon button when documents exist", () => {
-    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
-
-    expect(screen.getByRole("button", { name: "Add document" })).toBeInTheDocument();
-  });
-
-  it("opens the file picker when the dashed 'Add confirmation document' button is clicked", async () => {
-    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
-    const user = userEvent.setup();
-    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
-
-    await user.click(screen.getByRole("button", { name: "Add confirmation document" }));
-
-    expect(clickSpy).toHaveBeenCalled();
-    clickSpy.mockRestore();
-  });
-
-  it("opens the file picker when the 'Add document' icon button is clicked", async () => {
-    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
+  it("collapses the ReservationDocsBlock when the docs chip is clicked again", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Add document" }));
+    const docsChip = screen.getByRole("button", { name: /doc/i });
+    await user.click(docsChip);
+    expect(screen.getByText("confirmation.pdf")).toBeInTheDocument();
 
-    expect(clickSpy).toHaveBeenCalled();
-    clickSpy.mockRestore();
+    await user.click(docsChip);
+
+    expect(screen.queryByText("confirmation.pdf")).not.toBeInTheDocument();
   });
 
-  it("calls uploadReservationDocument with the reservation id and formData on file change", async () => {
-    vi.mocked(uploadReservationDocument).mockResolvedValueOnce(undefined);
-    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
-
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(["content"], "test.pdf", { type: "application/pdf" });
-    Object.defineProperty(input, "files", { value: [file], configurable: true });
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-
-    await vi.waitFor(() => {
-      expect(uploadReservationDocument).toHaveBeenCalledWith("res-2", expect.any(FormData));
-    });
-  });
-
-  it("rejects a file larger than MAX_UPLOAD_BYTES with a toast error", async () => {
-    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
-
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const bigFile = new File(["x"], "big.pdf", { type: "application/pdf" });
-    Object.defineProperty(bigFile, "size", { value: 30 * 1024 * 1024 });
-    Object.defineProperty(input, "files", { value: [bigFile], configurable: true });
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-
-    await vi.waitFor(() => {
-      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("File is too large. Max 25 MB.");
-    });
-    expect(uploadReservationDocument).not.toHaveBeenCalled();
-  });
-
-  it("calls removeReservationDocument with the doc id when remove is clicked", async () => {
-    vi.mocked(removeReservationDocument).mockResolvedValueOnce(undefined);
+  it("opens the AddReservationDocDialog from the 'Add doc' button inside the expanded block", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Remove confirmation.pdf" }));
+    await user.click(screen.getByRole("button", { name: /doc/i }));
+    expect(screen.queryByTestId("add-doc-dialog")).not.toBeInTheDocument();
 
-    await vi.waitFor(() => {
-      expect(removeReservationDocument).toHaveBeenCalledWith("doc-1");
-    });
-  });
+    await user.click(screen.getByRole("button", { name: "Add doc" }));
 
-  it("shows a toast error when upload fails", async () => {
-    vi.mocked(uploadReservationDocument).mockRejectedValueOnce(new Error("Server error"));
-    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
-
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(["content"], "test.pdf", { type: "application/pdf" });
-    Object.defineProperty(input, "files", { value: [file], configurable: true });
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-
-    await vi.waitFor(() => {
-      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Upload failed. Please try again.");
-    });
-  });
-
-  it("shows a toast error when remove fails", async () => {
-    vi.mocked(removeReservationDocument).mockRejectedValueOnce(new Error("Server error"));
-    const user = userEvent.setup();
-    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
-
-    await user.click(screen.getByRole("button", { name: "Remove confirmation.pdf" }));
-
-    await vi.waitFor(() => {
-      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Failed to remove document.");
-    });
+    expect(screen.getByTestId("add-doc-dialog")).toHaveTextContent("res-1");
   });
 });

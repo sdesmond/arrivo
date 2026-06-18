@@ -3,7 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { RESERVATION_TYPE_META, formatAnchorDateTime } from "@/components/packt/reservation-type-badge";
 import { ReservationRow } from "@/components/packt/reservation-row";
-import type { Reservation, ReservationType } from "@/data/types";
+import type { Document, Reservation, ReservationType } from "@/data/types";
 
 export interface ReservationTypeSectionProps {
   type: ReservationType;
@@ -11,6 +11,7 @@ export interface ReservationTypeSectionProps {
   open: boolean;
   onToggle: () => void;
   now: Date;
+  tripDocs?: Document[];
 }
 
 export { formatAnchorDateTime };
@@ -56,7 +57,14 @@ function renderPreview(reservations: Reservation[], now: Date) {
   );
 }
 
-export function ReservationTypeSection({ type, reservations, open, onToggle, now }: ReservationTypeSectionProps) {
+export function ReservationTypeSection({
+  type,
+  reservations,
+  open,
+  onToggle,
+  now,
+  tripDocs,
+}: ReservationTypeSectionProps) {
   const { label, icon: Icon } = RESERVATION_TYPE_META[type];
   const count = reservations.length;
   const accessibleName = `${label}, ${count} reservation${count === 1 ? "" : "s"}, ${open ? "expanded" : "collapsed"}`;
@@ -133,6 +141,7 @@ export function ReservationTypeSection({ type, reservations, open, onToggle, now
             reservation={reservation}
             type={type}
             isLast={index === all.length - 1}
+            tripDocs={tripDocs}
           />
         ))}
     </div>
