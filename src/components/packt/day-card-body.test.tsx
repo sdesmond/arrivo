@@ -5,6 +5,7 @@ import { DayCardBody } from "./day-card-body";
 
 interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
+  onLinkedEventTap?: (linkedReservationId: string) => void;
 }
 
 interface MockDayCardBottomAddProps {
@@ -13,11 +14,12 @@ interface MockDayCardBottomAddProps {
 }
 
 vi.mock("./day-card-dnd", () => ({
-  DayCardDnd: ({ timelineItems }: MockDayCardDndProps) => (
+  DayCardDnd: ({ timelineItems, onLinkedEventTap }: MockDayCardDndProps) => (
     <div>
       {timelineItems.map((item) => (
         <span key={item.data.id}>{item.data.id}</span>
       ))}
+      {onLinkedEventTap && <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap</button>}
     </div>
   ),
 }));
@@ -65,5 +67,22 @@ describe("DayCardBody", () => {
 
     screen.getByRole("button", { name: "Open packing picker" }).click();
     expect(onOpenPackingListPicker).toHaveBeenCalledWith(0);
+  });
+
+  it("threads onLinkedEventTap to DayCardDnd when provided", () => {
+    const onLinkedEventTap = vi.fn();
+
+    render(
+      <DayCardBody
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onLinkedEventTap={onLinkedEventTap}
+      />
+    );
+
+    screen.getByRole("button", { name: "Trigger linked tap" }).click();
+    expect(onLinkedEventTap).toHaveBeenCalledWith("linked-reservation-1");
   });
 });

@@ -51,6 +51,7 @@ export interface DayCardDndProps {
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
   onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
@@ -78,6 +79,7 @@ export function DayCardDnd({
   onReorderDayItems,
   onUpdateEvent,
   onDeleteEvent,
+  onLinkedEventTap,
   onAddChecklist,
   onUpdateNote,
   onDeleteNote,
@@ -109,11 +111,23 @@ export function DayCardDnd({
     setOptimisticOrder(reordered.map((item) => item.data.id));
     onReorderDayItems(
       dayNumber,
-      reordered.map((item) => ({ type: item.kind, id: item.data.id }))
+      reordered.filter((item) => !isLinkedTimelineEvent(item)).map((item) => ({ type: item.kind, id: item.data.id }))
     );
   }
 
   const activeItem = activeId !== null ? timelineItems.find((item) => item.data.id === activeId) : undefined;
+
+  function isLinkedTimelineEvent(item: TimelineItem): boolean {
+    return item.kind === "event" && !!item.data.linkedReservationId;
+  }
+
+  function insertPositionAfter(idx: number): number {
+    for (let index = idx; index >= 0; index--) {
+      const candidate = timelineItems[index];
+      if (!isLinkedTimelineEvent(candidate)) return candidate.position + 1;
+    }
+    return 0;
+  }
 
   return (
     <DndContext
@@ -124,7 +138,12 @@ export function DayCardDnd({
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext items={timelineItems.map((item) => item.data.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        items={timelineItems
+          .filter((item) => !(item.kind === "event" && item.data.linkedReservationId))
+          .map((item) => item.data.id)}
+        strategy={verticalListSortingStrategy}
+      >
         {renderEntries.map((entry, renderIdx) => {
           const isLast = renderIdx === renderEntries.length - 1;
           const key = entry.type === "draft" ? "draft" : entry.item.data.id;
@@ -177,20 +196,32 @@ export function DayCardDnd({
                   onToggleItem={onToggleChecklistItem}
                 />
               ) : entry.item.kind === "event" ? (
-                <SortablePlaceRow
-                  id={`event-${entry.item.data.id}`}
-                  place={entry.item.data}
-                  dayDate={dayDate}
-                  isLast={isLast}
-                  onUpdate={onUpdateEvent}
-                  onDelete={onDeleteEvent}
-                  tripDocs={tripDocs}
-                />
+                entry.item.data.linkedReservationId ? (
+                  <PlaceRow
+                    place={entry.item.data}
+                    dayDate={dayDate}
+                    isLast={isLast}
+                    onUpdate={onUpdateEvent}
+                    onDelete={onDeleteEvent}
+                    tripDocs={tripDocs}
+                    onLinkedEventTap={onLinkedEventTap}
+                  />
+                ) : (
+                  <SortablePlaceRow
+                    id={`event-${entry.item.data.id}`}
+                    place={entry.item.data}
+                    dayDate={dayDate}
+                    isLast={isLast}
+                    onUpdate={onUpdateEvent}
+                    onDelete={onDeleteEvent}
+                    tripDocs={tripDocs}
+                  />
+                )
               ) : (
                 <SortableNoteItem note={entry.item.data} onUpdate={onUpdateNote} onDelete={onDeleteNote} />
               )}
               {!isLast && entry.type === "timeline" && (
-                <GapZone {...makeGapProps(`ti-${entry.idx}`, entry.item.position + 1)} />
+                <GapZone {...makeGapProps(`ti-${entry.idx}`, insertPositionAfter(entry.idx))} />
               )}
               {!isLast && entry.type === "draft" && <div style={{ height: 28 }} />}
             </div>

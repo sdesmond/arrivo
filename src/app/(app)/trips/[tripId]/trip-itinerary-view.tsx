@@ -136,6 +136,8 @@ export function TripItineraryView({
     await onInsertFromPackingSource(pickerState.dayNumber, pickerState.insertAtPosition, sourceType, sourceId);
   }
 
+  function handleLinkedEventTap(): void {}
+
   return (
     <>
       <div>
@@ -175,6 +177,7 @@ export function TripItineraryView({
               tripDocs={tripDocs}
               onUpdateEvent={onUpdateEvent}
               onDeleteEvent={onDeleteEvent}
+              onLinkedEventTap={handleLinkedEventTap}
               onReorderDayItems={onReorderDayItems}
               onUpdateDay={onUpdateDay}
               onAddEvent={onAddEvent}
