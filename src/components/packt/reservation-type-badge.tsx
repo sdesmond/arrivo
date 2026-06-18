@@ -30,6 +30,14 @@ export function formatAnchorDateTime(iso: string): string {
   return `${datePart} · ${timePart}`;
 }
 
+export function formatAnchorDateTimeRange(startIso: string, endIso: string): string {
+  const startDate = new Date(startIso);
+  const datePart = startDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const startTimePart = startDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const endTimePart = new Date(endIso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${datePart} · ${startTimePart} – ${endTimePart}`;
+}
+
 function formatDatePart(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric" });
 }

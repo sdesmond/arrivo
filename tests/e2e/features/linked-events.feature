@@ -13,3 +13,10 @@ Feature: Linked Events
     When I drag "Afternoon Walk" above "Morning Walk"
     Then the order should be "Afternoon Walk" then "Morning Walk"
     And I see a "Check-in" Linked Event on Day 1 with a Hotel icon and a "Linked" badge
+
+  Scenario: Flight reservation departing and arriving the same day shows as one Linked Event
+    Given I am signed in
+    And the trip has a Flight reservation with Delta departing and arriving on Day 1
+    When I view the Itinerary tab
+    Then I see a single "Delta" Linked Event on Day 1 with a Plane icon and a "Linked" badge
+    And I do not see separate "Departure" or "Arrival" Linked Events on Day 1

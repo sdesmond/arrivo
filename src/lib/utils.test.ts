@@ -13,6 +13,7 @@ import {
   formatDate,
   combineDateAndTimeToIso,
   toHHMM,
+  toLocalDateKey,
   inferDocKind,
   formatFileSize,
   shareDoc,
@@ -261,6 +262,35 @@ describe("toHHMM", () => {
 
   it("returns empty string for an empty string", () => {
     expect(toHHMM("")).toBe("");
+  });
+});
+
+describe("toLocalDateKey", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("formats a date well within the local day as YYYY-MM-DD", () => {
+    process.env.TZ = "America/Denver";
+    expect(toLocalDateKey("2026-04-24T20:05:00.000Z")).toBe("2026-04-24");
+  });
+
+  it("rolls a late-evening local time back from the UTC date", () => {
+    // 8:05 PM Denver (UTC-6) on Apr 24 serializes to 2:05 AM UTC on Apr 25
+    process.env.TZ = "America/Denver";
+    expect(toLocalDateKey("2026-04-25T02:05:00.000Z")).toBe("2026-04-24");
+  });
+
+  it("rolls an early-morning UTC time forward to the next local date in positive-offset zones", () => {
+    process.env.TZ = "Pacific/Auckland";
+    expect(toLocalDateKey("2026-04-24T20:05:00.000Z")).toBe("2026-04-25");
+  });
+
+  it("zero-pads single-digit months and days", () => {
+    process.env.TZ = "UTC";
+    expect(toLocalDateKey("2026-01-05T00:00:00.000Z")).toBe("2026-01-05");
   });
 });
 

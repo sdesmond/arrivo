@@ -139,7 +139,7 @@ describe("deriveLinkedEvents", () => {
       id: "reservation-9",
       type: "other",
       provider: "Some Booking",
-      endAt: "2030-06-16T18:00:00Z",
+      endAt: "2030-06-17T18:00:00Z",
     });
 
     expect(deriveLinkedEvents([reservation]).map((event) => event.name)).toEqual([
@@ -213,12 +213,69 @@ describe("deriveLinkedEvents", () => {
     ]);
   });
 
+  it("combines start and end into a single TripEvent when they fall on the same local day", () => {
+    const reservation = createReservation({
+      id: "reservation-17",
+      type: "flight",
+      provider: "Delta",
+      startAt: "2030-06-16T18:00:00Z",
+      endAt: "2030-06-17T02:00:00Z",
+    });
+
+    expect(deriveLinkedEvents([reservation])).toEqual([
+      expect.objectContaining({
+        id: "linked-reservation-17",
+        name: "Delta",
+        startAt: "2030-06-16T18:00:00Z",
+        endAt: "2030-06-17T02:00:00Z",
+        linkedReservationId: "reservation-17",
+        reservationType: "flight",
+      }),
+    ]);
+  });
+
+  it("keeps two separate TripEvents when start and end fall on different local days", () => {
+    const reservation = createReservation({
+      id: "reservation-18",
+      type: "flight",
+      provider: "Delta",
+      startAt: "2030-06-16T08:00:00Z",
+      endAt: "2030-06-17T20:00:00Z",
+    });
+
+    expect(deriveLinkedEvents([reservation]).map((event) => event.name)).toEqual([
+      "Departure — Delta",
+      "Arrival — Delta",
+    ]);
+  });
+
+  it("uses the local calendar day, not the UTC day, to decide whether to combine", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      // 5:00 PM Apr 24 Denver (UTC-6) -> 2030-04-24T23:00:00Z
+      // 10:00 PM Apr 24 Denver (UTC-6) -> 2030-04-25T04:00:00Z
+      // Same local day (Apr 24) despite different UTC calendar days.
+      const reservation = createReservation({
+        id: "reservation-19",
+        type: "flight",
+        provider: "Delta",
+        startAt: "2030-04-24T23:00:00.000Z",
+        endAt: "2030-04-25T04:00:00.000Z",
+      });
+
+      expect(deriveLinkedEvents([reservation])).toHaveLength(1);
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("falls back to Other labels when a legacy reservation type slips through at runtime", () => {
     const reservation = createReservation({
       id: "reservation-14",
       type: "hotel" as Reservation["type"],
       provider: "Legacy Booking",
-      endAt: "2030-06-16T18:00:00Z",
+      endAt: "2030-06-17T18:00:00Z",
     });
 
     expect(deriveLinkedEvents([reservation])).toEqual([

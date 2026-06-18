@@ -12,7 +12,7 @@ import { PlaceRowActionBar } from "./place-row-action-bar";
 import { PlaceRowDialogs } from "./place-row-dialogs";
 import { LinkedEventBadge } from "./linked-event-badge";
 import { PlaceRowNoteEditor } from "./place-row-note-editor";
-import { RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-badge";
+import { RESERVATION_TYPE_META, formatAnchorDateTime, formatAnchorDateTimeRange } from "./reservation-type-badge";
 
 function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHHMM: string) {
   if (!dayDate) return { startAt: undefined, endAt: undefined };
@@ -70,6 +70,7 @@ export function PlaceRow({
   const hasDocs = (place.docs?.length ?? 0) > 0;
   const isNow = isEventNow(place, now);
   const isLinkedEvent = !!place.linkedReservationId && !!place.reservationType;
+  const isCombinedLinkedEvent = isLinkedEvent && !!place.startAt && !!place.endAt;
   const reservationMeta = place.reservationType
     ? (RESERVATION_TYPE_META[place.reservationType] ?? RESERVATION_TYPE_META.other)
     : undefined;
@@ -78,15 +79,24 @@ export function PlaceRow({
   const linkedSeparatorIndex = place.name.indexOf(" — ");
   const linkedAnchorLabel = linkedSeparatorIndex === -1 ? place.name : place.name.slice(0, linkedSeparatorIndex);
   const linkedProviderLabel = linkedSeparatorIndex === -1 ? "" : place.name.slice(linkedSeparatorIndex + 3);
-  const linkedDateTime = place.startAt ? formatAnchorDateTime(place.startAt) : "";
+  const linkedDateTime = isCombinedLinkedEvent
+    ? formatAnchorDateTimeRange(place.startAt!, place.endAt!)
+    : place.startAt
+      ? formatAnchorDateTime(place.startAt)
+      : "";
   const linkedAriaLabel =
     isLinkedEvent && linkedDateTime
-      ? `${linkedAnchorLabel}: ${linkedDateTime} — ${linkedProviderLabel}, Linked, opens Reservations`
+      ? isCombinedLinkedEvent
+        ? `${place.name}: ${linkedDateTime}, Linked, opens Reservations`
+        : `${linkedAnchorLabel}: ${linkedDateTime} — ${linkedProviderLabel}, Linked, opens Reservations`
       : undefined;
-  const linkedMetaLabel =
-    isLinkedEvent && place.startAt
-      ? `${linkedAnchorLabel}: ${formatAnchorDateTime(place.startAt)} — from ${reservationMeta?.label} reservation`
-      : undefined;
+  const linkedMetaLabel = isLinkedEvent
+    ? isCombinedLinkedEvent
+      ? `${linkedDateTime} — from ${reservationMeta?.label} reservation`
+      : place.startAt
+        ? `${linkedAnchorLabel}: ${formatAnchorDateTime(place.startAt)} — from ${reservationMeta?.label} reservation`
+        : undefined
+    : undefined;
 
   function saveName() {
     const trimmed = draftName.trim();

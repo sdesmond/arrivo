@@ -118,7 +118,12 @@ vi.mock("./place-row-dialogs", () => ({
 import { PlaceRow } from "./place-row";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { TripEvent } from "@/data/types";
-import { ANCHOR_LABELS, RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-badge";
+import {
+  ANCHOR_LABELS,
+  RESERVATION_TYPE_META,
+  formatAnchorDateTime,
+  formatAnchorDateTimeRange,
+} from "./reservation-type-badge";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
@@ -666,6 +671,68 @@ describe("PlaceRow", () => {
     });
 
     expect(screen.getByRole("button", { name: expectedLabel })).toBeInTheDocument();
+  });
+
+  // ── Combined same-day Linked Event (startAt + endAt both set) ──────────────
+
+  const combinedLinkedPlace: TripEvent = {
+    id: "linked-2",
+    tripId: "trip-1",
+    name: "Delta",
+    startAt: "2030-06-16T12:00:00Z",
+    endAt: "2030-06-16T20:00:00Z",
+    position: new Date("2030-06-16T12:00:00Z").getTime(),
+    linkedReservationId: "reservation-2",
+    reservationType: "flight",
+  };
+
+  it("renders a single row for a Linked Event whose start and end are on the same day", () => {
+    render(<PlaceRow place={combinedLinkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByText("Delta")).toBeInTheDocument();
+    expect(screen.queryByText(/Departure/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Arrival/)).not.toBeInTheDocument();
+  });
+
+  it("renders the combined Linked Event meta line with the start–end time range", () => {
+    const expectedMeta = `${formatAnchorDateTimeRange(combinedLinkedPlace.startAt!, combinedLinkedPlace.endAt!)} — from ${RESERVATION_TYPE_META.flight.label} reservation`;
+
+    render(<PlaceRow place={combinedLinkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByText(expectedMeta)).toBeInTheDocument();
+  });
+
+  it("renders the combined Linked Event with a name-only aria-label and the time range", () => {
+    const expectedLabel = `Delta: ${formatAnchorDateTimeRange(combinedLinkedPlace.startAt!, combinedLinkedPlace.endAt!)}, Linked, opens Reservations`;
+
+    render(<PlaceRow place={combinedLinkedPlace} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByRole("button", { name: expectedLabel })).toBeInTheDocument();
+  });
+
+  it("calls onLinkedEventTap when a combined same-day Linked Event row is activated", async () => {
+    const user = userEvent.setup();
+    const onLinkedEventTap = vi.fn();
+
+    render(
+      <PlaceRow
+        place={combinedLinkedPlace}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+        onLinkedEventTap={onLinkedEventTap}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    await user.click(screen.getByRole("button", { name: /opens Reservations$/i }));
+
+    expect(onLinkedEventTap).toHaveBeenCalledWith("reservation-2");
   });
 
   // ── isDraft mode ──────────────────────────────────────────────────────────

@@ -62,6 +62,27 @@ Given(
   }
 );
 
+Given("the trip has a Flight reservation with Delta departing and arriving on Day 1", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [
+          {
+            type: "flight",
+            provider: "Delta",
+            startAt: "2026-07-01T18:00:00Z",
+            endAt: "2026-07-02T02:00:00Z",
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+
+  await scenario.gotoCurrentTrip(page);
+});
+
 When("I view the Itinerary tab", async ({ page }) => {
   const itineraryTab = page.getByRole("button", { name: "Itinerary" });
   if ((await itineraryTab.count()) > 0) {
@@ -84,5 +105,23 @@ Then(
     await ensureDayExpanded(page, 2);
     await expect(page.getByText(`${anchorLabel} — Torel Avantgarde`)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(badgeText).first()).toBeVisible({ timeout: 10_000 });
+  }
+);
+
+Then(
+  "I see a single {string} Linked Event on Day 1 with a Plane icon and a {string} badge",
+  async ({ page }, provider: string, badgeText: string) => {
+    await ensureDayExpanded(page, 1);
+    await expect(page.getByText(provider, { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(badgeText).first()).toBeVisible({ timeout: 10_000 });
+  }
+);
+
+Then(
+  "I do not see separate {string} or {string} Linked Events on Day 1",
+  async ({ page }, first: string, second: string) => {
+    await ensureDayExpanded(page, 1);
+    await expect(page.getByText(first, { exact: false })).not.toBeVisible();
+    await expect(page.getByText(second, { exact: false })).not.toBeVisible();
   }
 );

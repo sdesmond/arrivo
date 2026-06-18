@@ -38,6 +38,7 @@ import {
   dbTemplateItemToType,
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
+import { toLocalDateKey } from "@/lib/utils";
 import type { PackingTemplate, PackingTemplateItem, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
@@ -367,7 +368,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
       travelSummary: day.travelSummary ?? undefined,
       events: [
         ...linkedEvents.filter(
-          (linkedEvent) => !!day.date && !!linkedEvent.startAt && linkedEvent.startAt.startsWith(day.date)
+          (linkedEvent) => !!day.date && !!linkedEvent.startAt && toLocalDateKey(linkedEvent.startAt) === day.date
         ),
         ...(eventsByDay.get(day.id) ?? []).map((event) => ({
           ...dbEventToType(event),

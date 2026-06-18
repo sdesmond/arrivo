@@ -1,5 +1,6 @@
 import { ReservationType, type Reservation, type TripEvent } from "@/data/types";
 import { ANCHOR_LABELS } from "@/components/packt/reservation-type-badge";
+import { toLocalDateKey } from "@/lib/utils";
 
 // Manual events/notes/checklists share one small-sequential-integer position space (see
 // shiftItemsAtOrAbove in trips/[tripId]/actions.ts). Subtracting this offset from the anchor's
@@ -18,6 +19,25 @@ export function deriveLinkedEvents(reservations: Reservation[]): TripEvent[] {
     const reservationType = normalizeReservationType(reservation.type);
     const anchorLabels = ANCHOR_LABELS[reservationType] ?? ANCHOR_LABELS.other;
     const providerSuffix = reservation.provider ?? "";
+
+    const isSameLocalDay =
+      !!reservation.startAt &&
+      !!reservation.endAt &&
+      toLocalDateKey(reservation.startAt) === toLocalDateKey(reservation.endAt);
+
+    if (isSameLocalDay) {
+      linkedEvents.push({
+        id: `linked-${reservation.id}`,
+        tripId: reservation.tripId,
+        name: providerSuffix,
+        startAt: reservation.startAt,
+        endAt: reservation.endAt,
+        linkedReservationId: reservation.id,
+        reservationType,
+        position: new Date(reservation.startAt!).getTime() + LINKED_EVENT_POSITION_OFFSET,
+      });
+      continue;
+    }
 
     if (reservation.startAt) {
       linkedEvents.push({
