@@ -144,6 +144,7 @@ export function dbReservationToType(row: typeof reservations.$inferSelect): Rese
     endLocationLng: row.endLocationLng ?? undefined,
     cost: row.cost != null ? Number(row.cost) : undefined,
     confirmationCode: row.confirmationCode ?? undefined,
+    serviceNumber: row.serviceNumber ?? undefined,
     notes: row.notes ?? undefined,
     createdAt: row.createdAt?.toISOString() ?? undefined,
     updatedAt: row.updatedAt?.toISOString() ?? undefined,

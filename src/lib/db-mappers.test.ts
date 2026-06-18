@@ -241,6 +241,7 @@ const BASE_RESERVATION: ReservationRow = {
   endLocationLng: null,
   cost: null,
   confirmationCode: null,
+  serviceNumber: null,
   notes: null,
   createdAt: null,
   updatedAt: null,
@@ -269,6 +270,7 @@ describe("dbReservationToType", () => {
     expect(result.endLocationLng).toBeUndefined();
     expect(result.cost).toBeUndefined();
     expect(result.confirmationCode).toBeUndefined();
+    expect(result.serviceNumber).toBeUndefined();
     expect(result.notes).toBeUndefined();
     expect(result.createdAt).toBeUndefined();
     expect(result.updatedAt).toBeUndefined();
@@ -286,13 +288,15 @@ describe("dbReservationToType", () => {
     expect(result.updatedAt).toBe(updatedAt.toISOString());
   });
 
-  it("maps optional confirmation code and notes when present", () => {
+  it("maps optional confirmation code, service number, and notes when present", () => {
     const result = dbReservationToType({
       ...BASE_RESERVATION,
       confirmationCode: "ABC123",
+      serviceNumber: "AA123",
       notes: "Late check-in arranged",
     });
     expect(result.confirmationCode).toBe("ABC123");
+    expect(result.serviceNumber).toBe("AA123");
     expect(result.notes).toBe("Late check-in arranged");
   });
 
