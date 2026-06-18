@@ -1,4 +1,7 @@
 import { expect } from "@playwright/test";
+import { and, eq } from "drizzle-orm";
+import { reservations } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 
 Given("I am on the Reservations tab", async ({ page }) => {
@@ -64,6 +67,18 @@ When("I click {string} on the reservation drawer", async ({ page }, buttonText: 
   await button.focus();
   await button.press("Enter");
 });
+
+When(
+  "I choose the first lookup suggestion for the {string} reservation address",
+  async ({ page }, anchorLabel: string) => {
+    const input = page.getByLabel(new RegExp(`^${anchorLabel} address`));
+    await input.fill("Par");
+    await expect(page.getByRole("listbox")).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("option").first().click();
+    await expect(input).toHaveValue("Paris, France");
+    await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
+  }
+);
 
 Then(
   "the reservation {string} appears in the {string} section",
@@ -133,24 +148,48 @@ When("I edit the reservation provider to {string}", async ({ page }, newProvider
 });
 
 When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel: string, time: string) => {
-  // ReservationAnchorEditField gives the anchor display button a stable aria-label of
-  // "{label}: {formatted value}" — select on that rather than visible text.
-  await page.getByRole("button", { name: new RegExp(`^${anchorLabel}: `) }).click();
-  await page.getByLabel(`${anchorLabel} time`).fill(time);
-  await page.getByRole("button", { name: `Save ${anchorLabel}` }).click();
+  // Clicking the compact date-range display opens the inline date/time inputs directly.
+  const timeInput = page.getByLabel(`${anchorLabel} time`);
+  if (!(await timeInput.isVisible())) {
+    await page
+      .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
+      .or(page.getByRole("button", { name: "Add dates" }))
+      .first()
+      .click();
+  }
+  await timeInput.fill(time);
+  // Click away from the edit section to save and collapse.
+  await page.locator("body").click({ position: { x: 10, y: 10 } });
 });
 
 Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
   await expect(page.getByRole("button", { name: provider, exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
+Then(
+  "the reservation {string} shows the {string} address {string}",
+  async ({ page }, provider: string, anchorLabel: string, address: string) => {
+    const row = page
+      .locator("div")
+      .filter({ has: page.getByRole("button", { name: provider, exact: true }) })
+      .first();
+    await expect(row.getByRole("button", { name: `${anchorLabel} · ${address}` })).toBeVisible({ timeout: 10_000 });
+  }
+);
+
 Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabel: string, time: string) => {
-  // Assert via the anchor button's aria-label ("{label}: {formatted value}") rather than visible
-  // text, matching only the minutes portion since formatAnchorDateTime's hour formatting is
-  // timezone-dependent (see deferred-work.md).
-  await expect(
-    page.getByRole("button", { name: new RegExp(`^${anchorLabel}: .*${time.split(":")[1]}\\s*(AM|PM)`) })
-  ).toBeVisible({ timeout: 10_000 });
+  // After reload the panel is collapsed. Open it, verify the time input value (HH:MM,
+  // timezone-independent), then click away to close without altering anything.
+  const timeInput = page.getByLabel(`${anchorLabel} time`);
+  if (!(await timeInput.isVisible())) {
+    await page
+      .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
+      .or(page.getByRole("button", { name: "Add dates" }))
+      .first()
+      .click();
+  }
+  await expect(timeInput).toHaveValue(time, { timeout: 10_000 });
+  await page.locator("body").click({ position: { x: 10, y: 10 } });
 });
 
 When("I delete the reservation {string}", async ({ page }, provider: string) => {
@@ -170,6 +209,28 @@ Then("the reservation {string} is no longer shown", async ({ page }, provider: s
   // Target the provider's display button (role=button, exact name) rather than any text node,
   // so a hidden-but-present element doesn't produce a false pass.
   await expect(page.getByRole("button", { name: provider, exact: true })).not.toBeVisible();
+});
+
+Then("the reservation {string} location fields are persisted", async ({ scenario }, provider: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Missing current scenario trip.");
+
+  await withE2EDb(async (db) => {
+    const [reservation] = await db
+      .select()
+      .from(reservations)
+      .where(and(eq(reservations.tripId, currentTrip.id), eq(reservations.provider, provider)));
+
+    expect(reservation).toBeDefined();
+    expect(reservation.startAddress).toBe("Paris, France");
+    expect(reservation.startLocationName).toBeNull();
+    expect(reservation.startLocationLat).toBe(48.8534);
+    expect(reservation.startLocationLng).toBe(2.3488);
+    expect(reservation.endAddress).toBe("Paris, France");
+    expect(reservation.endLocationName).toBeNull();
+    expect(reservation.endLocationLat).toBe(48.8534);
+    expect(reservation.endLocationLng).toBe(2.3488);
+  });
 });
 
 Given("the trip has a Lodging reservation with an attached document", async ({ page, scenario }) => {
@@ -203,17 +264,69 @@ Given("the trip has a Lodging reservation with an attached document", async ({ p
 });
 
 When("I attach a file to the reservation {string}", async ({ page }) => {
-  const [fileChooser] = await Promise.all([
-    page.waitForEvent("filechooser"),
-    page.getByRole("button", { name: "Add confirmation document" }).click(),
-  ]);
-  await fileChooser.setFiles({
+  await page.getByRole("button", { name: "Attach" }).click();
+  await page.locator('input[type="file"]').setInputFiles({
     name: "test-doc.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from("PDF content"),
   });
+  await page.getByRole("dialog").getByRole("button", { name: "Attach" }).click();
 });
 
 Then("the document {string} appears on the reservation {string}", async ({ page }, docName: string) => {
+  await page.getByRole("button", { name: /^docs?$/i }).click();
   await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
+});
+
+Given(
+  "the trip has a Lodging reservation and a trip-level document {string}",
+  async ({ page, scenario }, docName: string) => {
+    await scenario.materialize({
+      trip: {
+        mother: "threeDayTrip",
+        overrides: {
+          reservations: [
+            {
+              type: "lodging",
+              provider: "Original Hotel Name",
+              startAt: "2030-01-10T15:00:00Z",
+              endAt: "2030-01-12T11:00:00Z",
+            },
+          ],
+          documents: [
+            {
+              name: docName,
+              kind: "pdf",
+              size: 1024,
+              url: "http://localhost/stub/trip-doc.pdf",
+            },
+          ],
+        },
+        setCurrent: true,
+      },
+    });
+    await scenario.gotoCurrentTrip(page);
+    await page.getByRole("button", { name: "Reservations" }).click();
+  }
+);
+
+When("I rename the reservation doc {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+  await page.getByRole("button", { name: /^docs?$/i }).click();
+  await page.getByText(oldName, { exact: true }).first().click();
+  const input = page.getByRole("textbox");
+  await input.fill(newName);
+  await input.press("Enter");
+});
+
+Then("the reservation doc {string} is visible", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
+});
+
+When("I promote the reservation doc {string} to trip level", async ({ page }, docName: string) => {
+  await page.getByRole("button", { name: /^docs?$/i }).click();
+  await page.getByRole("button", { name: `Move ${docName} to trip` }).click();
+});
+
+Then("the reservation doc {string} is no longer visible on the reservation", async ({ page }, docName: string) => {
+  await expect(page.getByRole("button", { name: `Move ${docName} to trip` })).not.toBeVisible({ timeout: 10_000 });
 });

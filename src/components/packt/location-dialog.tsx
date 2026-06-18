@@ -1,74 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import type { SavedLocationValue } from "@/data/types";
+import { ReservationFieldDialog } from "./reservation-field-dialog";
 
 export interface LocationDialogProps {
   address?: string;
+  locationName?: string;
+  locationLat?: number;
+  locationLng?: number;
   eventName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (address?: string) => void;
+  onSave: (location?: SavedLocationValue) => void;
 }
 
-export function LocationDialog({ address, eventName, open, onOpenChange, onSave }: LocationDialogProps) {
-  const [draft, setDraft] = useState(address ?? "");
-
-  // Sync draft from prop each time the dialog opens so stale state doesn't cause accidental clears
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (open) setDraft(address ?? "");
-  }, [open, address]);
-
-  function handleSave() {
-    onSave(draft.trim() || undefined);
-    onOpenChange(false);
-  }
-
+export function LocationDialog({
+  address,
+  locationName,
+  locationLat,
+  locationLng,
+  eventName,
+  open,
+  onOpenChange,
+  onSave,
+}: LocationDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => onOpenChange(isOpen as boolean)}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>Location</DialogTitle>
-          {eventName && (
-            <p style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)", marginTop: -4 }}>
-              {eventName}
-            </p>
-          )}
-        </DialogHeader>
-        <Input
-          placeholder="Enter address or place name"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") handleSave();
-          }}
-          autoFocus
-        />
-        <DialogFooter>
-          {address && (
-            <Button
-              variant="ghost"
-              className="sm:mr-auto"
-              onClick={() => {
-                onSave(undefined);
-                onOpenChange(false);
-              }}
-            >
-              Remove
-            </Button>
-          )}
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave}>Save</Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ReservationFieldDialog
+      mode="location"
+      id="event-location"
+      title="Location"
+      subtitle={eventName}
+      value={address}
+      locationName={locationName}
+      locationLat={locationLat}
+      locationLng={locationLng}
+      placeholder="Enter address or place name"
+      open={open}
+      onOpenChange={onOpenChange}
+      onSave={onSave}
+    />
   );
 }

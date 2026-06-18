@@ -11,6 +11,7 @@ import {
   formatTripDate,
   detectDefaultDateFormat,
   formatDate,
+  combineDateAndTimeToIso,
   toHHMM,
   inferDocKind,
   formatFileSize,
@@ -19,6 +20,7 @@ import {
   parseGraphicCover,
   deriveGraphicCover,
   extractCity,
+  getLocationDisplayLabel,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
 } from "@/lib/utils";
@@ -217,6 +219,25 @@ describe("formatDate", () => {
 
   it("handles single-digit day without leading zero", () => {
     expect(formatDate("2026-01-05", "DD/MM/YYYY")).toBe("5 Jan 2026");
+  });
+});
+
+describe("combineDateAndTimeToIso", () => {
+  it("combines a date and time into an ISO instant", () => {
+    const result = combineDateAndTimeToIso("2026-05-19", "09:05");
+    expect(result).toBe(new Date("2026-05-19T09:05:00").toISOString());
+  });
+
+  it("returns undefined when date is missing", () => {
+    expect(combineDateAndTimeToIso(undefined, "09:05")).toBeUndefined();
+  });
+
+  it("returns undefined when time is missing", () => {
+    expect(combineDateAndTimeToIso("2026-05-19", undefined)).toBeUndefined();
+  });
+
+  it("returns undefined when both are missing", () => {
+    expect(combineDateAndTimeToIso(undefined, undefined)).toBeUndefined();
   });
 });
 
@@ -507,5 +528,19 @@ describe("extractCity", () => {
 
   it("trims whitespace from the result", () => {
     expect(extractCity("  Paris , France")).toBe("Paris");
+  });
+});
+
+describe("getLocationDisplayLabel", () => {
+  it("prefers a saved place name when present", () => {
+    expect(getLocationDisplayLabel("JFK Airport", "Queens, NY 11430")).toBe("JFK Airport");
+  });
+
+  it("falls back to the address when there is no saved place name", () => {
+    expect(getLocationDisplayLabel(undefined, "Paris, France")).toBe("Paris, France");
+  });
+
+  it("returns an empty string when neither value is available", () => {
+    expect(getLocationDisplayLabel(undefined, undefined)).toBe("");
   });
 });

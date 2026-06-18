@@ -16,6 +16,41 @@ vi.mock("@/components/packt/reservation-edit-drawer", () => ({
     open ? <div data-testid="drawer">Drawer for {type}</div> : null,
 }));
 
+vi.mock("@/components/packt/reservation-type-section", () => ({
+  ReservationTypeSection: ({
+    type,
+    reservations,
+    open,
+    onToggle,
+  }: {
+    type: string;
+    reservations: Reservation[];
+    open: boolean;
+    onToggle: () => void;
+  }) => (
+    <button
+      type="button"
+      aria-label={`${type[0].toUpperCase()}${type.slice(1)}, ${reservations.length} reservation${reservations.length === 1 ? "" : "s"}, ${open ? "expanded" : "collapsed"}`}
+      onClick={onToggle}
+    >
+      {`${type[0].toUpperCase()}${type.slice(1)}, ${reservations.length} reservation${reservations.length === 1 ? "" : "s"}, ${open ? "expanded" : "collapsed"}`}
+    </button>
+  ),
+  getNextUpcoming: (reservations: Reservation[], now: Date) => {
+    const dated = reservations.filter((reservation) => reservation.startAt);
+    if (dated.length === 0) return reservations[0];
+    const upcoming = dated.filter((reservation) => new Date(reservation.startAt!).getTime() >= now.getTime());
+    if (upcoming.length > 0) {
+      return upcoming.reduce((soonest, candidate) =>
+        new Date(candidate.startAt!).getTime() < new Date(soonest.startAt!).getTime() ? candidate : soonest
+      );
+    }
+    return dated.reduce((latest, candidate) =>
+      new Date(candidate.startAt!).getTime() > new Date(latest.startAt!).getTime() ? candidate : latest
+    );
+  },
+}));
+
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));

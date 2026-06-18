@@ -99,41 +99,55 @@ async function seedGroupedPackingItems(db: E2EDb, tripId: string, itemsToSeed: G
 }
 
 async function dragItemOntoTarget(page: Page, sourceName: string, target: ReturnType<Page["locator"]>): Promise<void> {
-  const handle = page.getByTitle(`Reorder ${sourceName}`);
-  await expect(handle).toBeVisible({ timeout: 10_000 });
-  // The drag source must be inside the viewport: mouse.down() fires at raw page
-  // coordinates with no auto-scroll, so an off-screen handle never receives the
-  // pointerdown and the PointerSensor never activates. Scroll it into view and
-  // re-measure both points (the target sits close enough to share the viewport).
-  await handle.scrollIntoViewIfNeeded();
-  const source = await handle.boundingBox();
-  const dest = await target.boundingBox();
-  if (!source || !dest) throw new Error(`Could not measure drag source/target for ${sourceName}`);
+  const targetContainer = target.locator("xpath=ancestor::*[@data-packing-container][1]");
+  const sourceInTarget = targetContainer.locator('[data-packing-kind="item"]').filter({ hasText: sourceName });
 
-  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
-  await page.mouse.down();
-  // PointerSensor needs a move past its 5px activation distance before tracking.
-  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
-  await page.mouse.move(dest.x + dest.width / 2, dest.y + dest.height / 2, { steps: 12 });
+  async function performDrag(): Promise<void> {
+    const handle = page.getByTitle(`Reorder ${sourceName}`);
+    await expect(handle).toBeVisible({ timeout: 10_000 });
+    // The drag source must be inside the viewport: mouse.down() fires at raw page
+    // coordinates with no auto-scroll, so an off-screen handle never receives the
+    // pointerdown and the PointerSensor never activates. Scroll it into view and
+    // re-measure both points (the target sits close enough to share the viewport).
+    await handle.scrollIntoViewIfNeeded();
+    const source = await handle.boundingBox();
+    const dest = await target.boundingBox();
+    if (!source || !dest) throw new Error(`Could not measure drag source/target for ${sourceName}`);
 
-  // The live cross-container preview (onDragOver) reparents the dragged item,
-  // which reflows the layout and moves the target out from under the cursor.
-  // Re-hover the target a few times so the final position lands on a real `over`
-  // even as the list settles, then release.
-  let lastBox = dest;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await page.waitForTimeout(80);
-    const box = await target.boundingBox();
-    if (!box) {
-      await page.waitForTimeout(100);
-      continue;
+    await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+    await page.mouse.down();
+    // PointerSensor needs a move past its 5px activation distance before tracking.
+    await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
+    await page.mouse.move(dest.x + dest.width / 2, dest.y + dest.height / 2, { steps: 12 });
+
+    // The live cross-container preview (onDragOver) reparents the dragged item,
+    // which reflows the layout and moves the target out from under the cursor.
+    // Re-hover the target a few times so the final position lands on a real `over`
+    // even as the list settles, then release.
+    let lastBox = dest;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await page.waitForTimeout(80);
+      const box = await target.boundingBox();
+      if (!box) {
+        await page.waitForTimeout(100);
+        continue;
+      }
+      lastBox = box;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
     }
-    lastBox = box;
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
+    await page.mouse.move(lastBox.x + lastBox.width / 2, lastBox.y + lastBox.height / 2, { steps: 3 });
+    await page.waitForTimeout(60);
+    await page.mouse.up();
   }
-  await page.mouse.move(lastBox.x + lastBox.width / 2, lastBox.y + lastBox.height / 2, { steps: 3 });
-  await page.waitForTimeout(60);
-  await page.mouse.up();
+
+  await performDrag();
+
+  if ((await sourceInTarget.count()) === 1) {
+    return;
+  }
+
+  await page.waitForTimeout(120);
+  await performDrag();
 }
 
 async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<void> {

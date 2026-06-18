@@ -12,6 +12,15 @@ import { ReservationType, type CreateReservationInput, type UpdateReservationPat
 
 const REQUIRES_END_AT: ReservationType[] = [ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise];
 
+async function getReservationTripId(reservationId: string): Promise<string> {
+  const [reservation] = await db
+    .select({ tripId: reservations.tripId })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId));
+  if (!reservation) throw new Error("Reservation not found.");
+  return reservation.tripId;
+}
+
 export async function createReservation(tripId: string, input: CreateReservationInput): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
@@ -34,6 +43,15 @@ export async function createReservation(tripId: string, input: CreateReservation
     provider: input.provider.trim(),
     startAt: input.startAt ? new Date(input.startAt) : undefined,
     endAt: input.endAt ? new Date(input.endAt) : undefined,
+    startAddress: input.startAddress,
+    startLocationName: input.startLocationName,
+    startLocationLat: input.startLocationLat,
+    startLocationLng: input.startLocationLng,
+    endAddress: input.endAddress,
+    endLocationName: input.endLocationName,
+    endLocationLat: input.endLocationLat,
+    endLocationLng: input.endLocationLng,
+    cost: input.cost != null ? String(input.cost) : undefined,
     confirmationCode: input.confirmationCode,
     notes: input.notes,
   });
@@ -83,6 +101,31 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
   if (patch.provider !== undefined) updates.provider = patch.provider.trim();
   if (patch.startAt !== undefined) updates.startAt = patch.startAt ? new Date(patch.startAt) : null;
   if (patch.endAt !== undefined) updates.endAt = patch.endAt ? new Date(patch.endAt) : null;
+  if (patch.startAddress !== undefined) {
+    updates.startAddress = patch.startAddress || null;
+    if (!patch.startAddress) {
+      updates.startLocationName = null;
+      updates.startLocationLat = null;
+      updates.startLocationLng = null;
+    } else {
+      if (patch.startLocationName !== undefined) updates.startLocationName = patch.startLocationName || null;
+      if (patch.startLocationLat !== undefined) updates.startLocationLat = patch.startLocationLat;
+      if (patch.startLocationLng !== undefined) updates.startLocationLng = patch.startLocationLng;
+    }
+  }
+  if (patch.endAddress !== undefined) {
+    updates.endAddress = patch.endAddress || null;
+    if (!patch.endAddress) {
+      updates.endLocationName = null;
+      updates.endLocationLat = null;
+      updates.endLocationLng = null;
+    } else {
+      if (patch.endLocationName !== undefined) updates.endLocationName = patch.endLocationName || null;
+      if (patch.endLocationLat !== undefined) updates.endLocationLat = patch.endLocationLat;
+      if (patch.endLocationLng !== undefined) updates.endLocationLng = patch.endLocationLng;
+    }
+  }
+  if (patch.cost !== undefined) updates.cost = patch.cost != null ? String(patch.cost) : null;
   if (patch.confirmationCode !== undefined) updates.confirmationCode = patch.confirmationCode || null;
   if (patch.notes !== undefined) updates.notes = patch.notes || null;
 
@@ -134,6 +177,7 @@ export async function uploadReservationDocument(reservationId: string, formData:
 
   try {
     await db.insert(documents).values({
+      tripId: reservation.tripId,
       reservationId,
       name: file.name,
       kind,
@@ -177,4 +221,34 @@ export async function removeReservationDocument(docId: string): Promise<void> {
 
   await db.delete(documents).where(eq(documents.id, docId));
   revalidatePath(`/trips/${reservation.tripId}`);
+}
+
+export async function renameReservationDocument(docId: string, newName: string): Promise<void> {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.reservationId ? await getReservationTripId(doc.reservationId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function promoteReservationDocToTrip(docId: string): Promise<void> {
+  const user = await requireUser();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
+  if (!doc) return;
+  const tripId = doc.tripId ?? (doc.reservationId ? await getReservationTripId(doc.reservationId) : null);
+  if (!tripId) return;
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ tripId, reservationId: null }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function attachTripDocToReservation(docId: string, reservationId: string): Promise<void> {
+  const user = await requireUser();
+  const tripId = await getReservationTripId(reservationId);
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db.update(documents).set({ reservationId }).where(eq(documents.id, docId));
+  revalidatePath(`/trips/${tripId}`);
 }

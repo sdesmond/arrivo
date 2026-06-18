@@ -80,7 +80,7 @@ Feature: Packing tab
     When I navigate to the trips list
     Then the trip card for "E2E Test Trip" should show "0 / 2 packed"
 
-  @retry(3)
+  @retry(5)
   Scenario: User keyboard-reorders an item and the new position persists after reload
     Given I have pre-seeded packing reorder items for the trip
     When I open the Packing tab

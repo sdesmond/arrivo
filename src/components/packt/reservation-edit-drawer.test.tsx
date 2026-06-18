@@ -66,6 +66,47 @@ vi.mock("@/components/packt/reservation-anchor-fieldset", () => ({
   ),
 }));
 
+vi.mock("@/components/packt/location-lookup-input", () => ({
+  LocationLookupInput: ({
+    id,
+    value,
+    onValueChange,
+    onResolved,
+  }: {
+    id?: string;
+    value: string;
+    onValueChange: (value: string) => void;
+    onResolved: (location: {
+      name: string;
+      fullAddress: string;
+      center: [number, number];
+      placeName: string;
+      country: string;
+      countryCode: string;
+    }) => void;
+  }) => (
+    <div>
+      <input id={id} value={value} onChange={(event) => onValueChange(event.target.value)} />
+      <button
+        onClick={() => {
+          const fullAddress = id === "reservation-start-address" ? "Queens, NY 11430" : "1 World Way, Los Angeles, CA";
+          onValueChange(fullAddress);
+          onResolved({
+            name: id === "reservation-start-address" ? "JFK Airport" : "LAX Airport",
+            fullAddress,
+            center: id === "reservation-start-address" ? [-73.7781, 40.6413] : [-118.4085, 33.9416],
+            placeName: id === "reservation-start-address" ? "JFK Airport" : "LAX Airport",
+            country: "United States",
+            countryCode: "US",
+          });
+        }}
+      >
+        {id}-resolve
+      </button>
+    </div>
+  ),
+}));
+
 describe("ReservationEditDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -92,8 +133,8 @@ describe("ReservationEditDrawer", () => {
     [ReservationType.Other, "Start", "End"],
   ])("renders the %s anchor labels", (type, startLabel, endLabel) => {
     render(<ReservationEditDrawer tripId="trip-1" type={type} open onOpenChange={vi.fn()} />);
-    expect(screen.getByText(new RegExp(startLabel))).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(endLabel))).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: new RegExp(startLabel) })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: new RegExp(endLabel) })).toBeInTheDocument();
   });
 
   it("shows a validation error and does not save when endAt is required but missing", async () => {
@@ -172,6 +213,8 @@ describe("ReservationEditDrawer", () => {
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={onOpenChange} />);
 
     await user.type(screen.getByLabelText("Provider *"), "Acme Air");
+    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Departure time"), "10:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     await vi.waitFor(() =>
@@ -204,12 +247,90 @@ describe("ReservationEditDrawer", () => {
       expect(createReservation).toHaveBeenCalledWith("trip-1", {
         type: ReservationType.Lodging,
         provider: "Grand Hotel",
-        startAt: "2026-08-01T15:00:00.000Z",
-        endAt: "2026-08-05T11:00:00.000Z",
+        startAt: new Date("2026-08-01T15:00:00").toISOString(),
+        endAt: new Date("2026-08-05T11:00:00").toISOString(),
+        startAddress: undefined,
+        endAddress: undefined,
+        cost: undefined,
         confirmationCode: undefined,
         notes: undefined,
       })
     );
+  });
+
+  it("saves with address fields and cost when provided", async () => {
+    vi.mocked(createReservation).mockResolvedValueOnce(undefined);
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={onOpenChange} />);
+
+    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
+    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Departure time"), "10:00");
+    await user.type(screen.getByLabelText("Departure address (Optional)"), "JFK Airport, New York");
+    await user.type(screen.getByLabelText("Arrival address (Optional)"), "LAX Airport, Los Angeles");
+    await user.type(screen.getByLabelText("Cost (Optional)"), "349.99");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await vi.waitFor(() =>
+      expect(createReservation).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({
+          startAddress: "JFK Airport, New York",
+          startLocationName: undefined,
+          startLocationLat: undefined,
+          startLocationLng: undefined,
+          endAddress: "LAX Airport, Los Angeles",
+          endLocationName: undefined,
+          endLocationLat: undefined,
+          endLocationLng: undefined,
+          cost: 349.99,
+        })
+      )
+    );
+  });
+
+  it("saves structured location fields when suggestions are selected", async () => {
+    vi.mocked(createReservation).mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
+    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Departure time"), "10:00");
+    await user.click(screen.getByRole("button", { name: "reservation-start-address-resolve" }));
+    await user.click(screen.getByRole("button", { name: "reservation-end-address-resolve" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await vi.waitFor(() =>
+      expect(createReservation).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({
+          startAddress: "Queens, NY 11430",
+          startLocationName: "JFK Airport",
+          startLocationLat: 40.6413,
+          startLocationLng: -73.7781,
+          endAddress: "1 World Way, Los Angeles, CA",
+          endLocationName: "LAX Airport",
+          endLocationLat: 33.9416,
+          endLocationLng: -118.4085,
+        })
+      )
+    );
+  });
+
+  it("blocks save and shows an error when cost is not a valid number", async () => {
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
+    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Departure time"), "10:00");
+    await user.type(screen.getByLabelText("Cost (Optional)"), "abc");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Cost must be a valid number.");
+    expect(createReservation).not.toHaveBeenCalled();
   });
 
   it("shows a toast and does not close the drawer when createReservation fails", async () => {
@@ -219,6 +340,8 @@ describe("ReservationEditDrawer", () => {
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={onOpenChange} />);
 
     await user.type(screen.getByLabelText("Provider *"), "Misc");
+    await user.type(screen.getByLabelText("Start date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Start time"), "10:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"));
@@ -252,6 +375,8 @@ describe("ReservationEditDrawer", () => {
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={onOpenChange} />);
 
     await user.type(screen.getByLabelText("Provider *"), "Misc");
+    await user.type(screen.getByLabelText("Start date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Start time"), "10:00");
     await user.type(screen.getByLabelText("Confirmation code (Optional)"), "ABC123");
     await user.type(screen.getByLabelText("Notes (Optional)"), "Bring ID");
     await user.click(screen.getByRole("button", { name: /save/i }));

@@ -1,53 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
-import { packingTemplateItems, packingTemplates } from "../../../src/db/schema";
-import { type E2EDb, withE2EDb } from "../e2e-db";
-import { E2E_TEMPLATE_EDITOR_ITEMS, E2E_TEMPLATE_LABEL_ITEMS, type TemplateItemSeed } from "../e2e-seed-data";
+import { packingTemplates } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
+import { type TemplateItemSeed } from "../e2e-seed-data";
+import { type ScenarioFixtureContext } from "../scenario-fixture";
 import { Given, Then, When } from "../fixtures";
-
-async function insertTemplateItem(
-  db: E2EDb,
-  values: {
-    templateId: string;
-    text: string;
-    isLabel: boolean;
-    position: number;
-    labelId: string | null;
-  }
-): Promise<string> {
-  const rows = (await db.insert(packingTemplateItems).values(values).returning({ id: packingTemplateItems.id })) as {
-    id: string;
-  }[];
-
-  return rows[0].id;
-}
-
-async function seedTemplateEditor(userId: string, name: string, items: TemplateItemSeed[] = []): Promise<string> {
-  return withE2EDb(async (db) => {
-    const [template] = await db
-      .insert(packingTemplates)
-      .values({ userId, name })
-      .returning({ id: packingTemplates.id });
-    const labelIdsByName = new Map<string, string>();
-
-    for (const item of items) {
-      const labelId = item.isLabel ? null : item.under ? (labelIdsByName.get(item.under) ?? null) : null;
-      const itemId = await insertTemplateItem(db, {
-        templateId: template.id,
-        text: item.text,
-        isLabel: item.isLabel,
-        position: item.position,
-        labelId,
-      });
-
-      if (item.isLabel) {
-        labelIdsByName.set(item.text, itemId);
-      }
-    }
-
-    return template.id;
-  });
-}
 
 async function getTemplateEditorId(userId: string, name: string): Promise<string> {
   return withE2EDb(async (db) => {
@@ -95,33 +52,40 @@ Given("I am signed in as the template editor user", async ({ page, scenario }) =
   await scenario.signIn(page);
 });
 
+async function materializeTemplateFromStep(
+  ctx: { materialize: ScenarioFixtureContext["materialize"] },
+  name: string,
+  items: TemplateItemSeed[] = []
+): Promise<string> {
+  const result = await ctx.materialize({
+    template: { overrides: { template: { name }, items }, setCurrent: false },
+  });
+  return result.template!.id;
+}
+
 Given("the template editor {string} exists", async ({ scenario }, name: string) => {
-  const currentUser = await scenario.ensureCurrentUser();
-  const templateId = await seedTemplateEditor(currentUser.id, name);
+  const templateId = await materializeTemplateFromStep(scenario, name);
   scenario.setValue("templateEditorId", templateId);
   scenario.setValue("templateEditorName", name);
 });
 
 Given("the template editor {string} has no items", async ({ scenario }, name: string) => {
-  const currentUser = await scenario.ensureCurrentUser();
-  const templateId = await seedTemplateEditor(currentUser.id, name);
+  const templateId = await materializeTemplateFromStep(scenario, name);
   scenario.setValue("templateEditorId", templateId);
   scenario.setValue("templateEditorName", name);
 });
 
 Given("the template editor {string} has an item {string}", async ({ scenario }, name: string, itemText: string) => {
-  const currentUser = await scenario.ensureCurrentUser();
-  const templateId = await seedTemplateEditor(currentUser.id, name, [
-    { ...E2E_TEMPLATE_EDITOR_ITEMS[0], text: itemText },
+  const templateId = await materializeTemplateFromStep(scenario, name, [
+    { text: itemText, isLabel: false, position: 0 },
   ]);
   scenario.setValue("templateEditorId", templateId);
   scenario.setValue("templateEditorName", name);
 });
 
 Given("the template editor {string} has a label {string}", async ({ scenario }, name: string, labelText: string) => {
-  const currentUser = await scenario.ensureCurrentUser();
-  const templateId = await seedTemplateEditor(currentUser.id, name, [
-    { ...E2E_TEMPLATE_LABEL_ITEMS[0], text: labelText },
+  const templateId = await materializeTemplateFromStep(scenario, name, [
+    { text: labelText, isLabel: true, position: 0 },
   ]);
   scenario.setValue("templateEditorId", templateId);
   scenario.setValue("templateEditorName", name);
@@ -130,8 +94,7 @@ Given("the template editor {string} has a label {string}", async ({ scenario }, 
 Given(
   "the template editor {string} has a label {string} with item {string}",
   async ({ scenario }, name: string, labelText: string, itemText: string) => {
-    const currentUser = await scenario.ensureCurrentUser();
-    const templateId = await seedTemplateEditor(currentUser.id, name, [
+    const templateId = await materializeTemplateFromStep(scenario, name, [
       { text: labelText, isLabel: true, position: 0 },
       { text: itemText, isLabel: false, position: 1, under: labelText },
     ]);
@@ -143,8 +106,7 @@ Given(
 Given(
   "the template editor {string} has items {string} and {string}",
   async ({ scenario }, name: string, first: string, second: string) => {
-    const currentUser = await scenario.ensureCurrentUser();
-    const templateId = await seedTemplateEditor(currentUser.id, name, [
+    const templateId = await materializeTemplateFromStep(scenario, name, [
       { text: first, isLabel: false, position: 0 },
       { text: second, isLabel: false, position: 1 },
     ]);

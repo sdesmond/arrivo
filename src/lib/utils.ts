@@ -89,6 +89,11 @@ export function pluralize(count: number, singular: string, plural?: string): str
   return count === 1 ? singular : (plural ?? `${singular}s`);
 }
 
+export function combineDateAndTimeToIso(date: string | undefined, time: string | undefined): string | undefined {
+  if (!date || !time) return undefined;
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
 export function toHHMM(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return "";
@@ -204,6 +209,12 @@ export function extractCity(fullLocation: string | null | undefined): string {
   const trimmed = fullLocation.trim();
   const commaIndex = trimmed.indexOf(",");
   return commaIndex === -1 ? trimmed : trimmed.slice(0, commaIndex).trim();
+}
+
+export function getLocationDisplayLabel(name: string | null | undefined, address: string | null | undefined): string {
+  const trimmedName = name?.trim();
+  if (trimmedName) return trimmedName;
+  return address?.trim() ?? "";
 }
 
 export function stableStringify(value: unknown): string {

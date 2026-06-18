@@ -13,6 +13,8 @@ export interface DatePickerProps {
   onChange: (value: string | undefined) => void;
   placeholder?: string;
   disabled?: boolean;
+  clearable?: boolean;
+  onOpenChange?: (open: boolean) => void;
   "aria-label"?: string;
   "aria-invalid"?: boolean;
 }
@@ -22,15 +24,22 @@ export function DatePicker({
   onChange,
   placeholder = "Pick a date",
   disabled,
+  clearable = true,
+  onOpenChange,
   "aria-label": ariaLabel,
   "aria-invalid": ariaInvalid,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
   const selected = value ? parseISO(value) : undefined;
 
+  function handleOpenChange(isOpen: boolean) {
+    setOpen(isOpen);
+    onOpenChange?.(isOpen);
+  }
+
   return (
     <div className="flex items-center gap-1">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger
           disabled={disabled}
           aria-label={ariaLabel}
@@ -47,12 +56,12 @@ export function DatePicker({
             selected={selected}
             onSelect={(date) => {
               onChange(date ? format(date, "yyyy-MM-dd") : undefined);
-              setOpen(false);
+              handleOpenChange(false);
             }}
           />
         </PopoverContent>
       </Popover>
-      {value && (
+      {clearable && value && (
         <Button
           variant="ghost"
           size="icon"

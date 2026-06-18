@@ -135,4 +135,14 @@ describe("PlaceRowActionBar", () => {
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
     expect(screen.getByText("1,234,567.89")).toBeInTheDocument();
   });
+
+  it("shows the saved place name when a location has one", () => {
+    const place: TripEvent = {
+      ...basePlace,
+      locationName: "JFK Airport",
+      locationAddress: "Queens, NY 11430",
+    };
+    render(<PlaceRowActionBar {...defaultProps} place={place} />);
+    expect(screen.getByRole("button", { name: /jfk airport/i })).toBeInTheDocument();
+  });
 });

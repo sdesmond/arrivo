@@ -48,6 +48,9 @@ import {
   deleteReservation,
   uploadReservationDocument,
   removeReservationDocument,
+  renameReservationDocument,
+  promoteReservationDocToTrip,
+  attachTripDocToReservation,
 } from "./actions";
 import { ReservationType } from "@/data/types";
 
@@ -120,6 +123,15 @@ describe("createReservation", () => {
       provider: "Grand Hotel",
       startAt: "2026-08-01T15:00:00.000Z",
       endAt: "2026-08-05T11:00:00.000Z",
+      startAddress: "123 Main St, New York, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "456 Main St, Los Angeles, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+      cost: 499.99,
       confirmationCode: "ABC123",
       notes: "Late checkout requested",
     });
@@ -130,6 +142,15 @@ describe("createReservation", () => {
       provider: "Grand Hotel",
       startAt: new Date("2026-08-01T15:00:00.000Z"),
       endAt: new Date("2026-08-05T11:00:00.000Z"),
+      startAddress: "123 Main St, New York, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "456 Main St, Los Angeles, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+      cost: "499.99",
       confirmationCode: "ABC123",
       notes: "Late checkout requested",
     });
@@ -207,6 +228,15 @@ describe("updateReservation", () => {
     provider: "Acme Air",
     startAt: new Date("2026-08-01T10:00:00.000Z"),
     endAt: null,
+    startAddress: null,
+    startLocationName: null,
+    startLocationLat: null,
+    startLocationLng: null,
+    endAddress: null,
+    endLocationName: null,
+    endLocationLat: null,
+    endLocationLng: null,
+    cost: null,
     confirmationCode: null,
     notes: null,
   };
@@ -299,6 +329,100 @@ describe("updateReservation", () => {
     expect(updatedValues).toMatchObject({ confirmationCode: null, notes: null });
   });
 
+  it("updates startAddress and endAddress independently", async () => {
+    await updateReservation("res-1", {
+      startAddress: "JFK International Airport, NY",
+      endAddress: "LAX International Airport, CA",
+    });
+
+    expect(updatedValues).toMatchObject({
+      startAddress: "JFK International Airport, NY",
+      endAddress: "LAX International Airport, CA",
+    });
+  });
+
+  it("updates structured start and end location fields when addresses are patched", async () => {
+    await updateReservation("res-1", {
+      startAddress: "JFK International Airport, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "LAX International Airport, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+    });
+
+    expect(updatedValues).toMatchObject({
+      startAddress: "JFK International Airport, NY",
+      startLocationName: "John F. Kennedy International Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "LAX International Airport, CA",
+      endLocationName: "Los Angeles International Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+    });
+  });
+
+  it("clears startAddress and endAddress when set to an empty string", async () => {
+    mockExistingReservation({
+      ...baseRow,
+      startAddress: "JFK",
+      startLocationName: "JFK Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+      endAddress: "LAX",
+      endLocationName: "LAX Airport",
+      endLocationLat: 33.9416,
+      endLocationLng: -118.4085,
+    });
+
+    await updateReservation("res-1", { startAddress: "", endAddress: "" });
+
+    expect(updatedValues).toMatchObject({
+      startAddress: null,
+      startLocationName: null,
+      startLocationLat: null,
+      startLocationLng: null,
+      endAddress: null,
+      endLocationName: null,
+      endLocationLat: null,
+      endLocationLng: null,
+    });
+  });
+
+  it("leaves existing structured location data untouched when only the address text is patched", async () => {
+    mockExistingReservation({
+      ...baseRow,
+      startAddress: "JFK",
+      startLocationName: "JFK Airport",
+      startLocationLat: 40.6413,
+      startLocationLng: -73.7781,
+    });
+
+    await updateReservation("res-1", { startAddress: "JFK Terminal 4" });
+
+    expect(updatedValues).toMatchObject({ startAddress: "JFK Terminal 4" });
+    expect(updatedValues).not.toHaveProperty("startLocationName");
+    expect(updatedValues).not.toHaveProperty("startLocationLat");
+    expect(updatedValues).not.toHaveProperty("startLocationLng");
+  });
+
+  it("updates cost independently, converting to a numeric string", async () => {
+    await updateReservation("res-1", { cost: 349.5 });
+
+    expect(updatedValues).toMatchObject({ cost: "349.5" });
+  });
+
+  it("clears cost when set to null", async () => {
+    mockExistingReservation({ ...baseRow, cost: "199.00" });
+
+    await updateReservation("res-1", { cost: null });
+
+    expect(updatedValues).toMatchObject({ cost: null });
+  });
+
   it.each([ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise])(
     "rejects clearing endAt for %s reservations",
     async (type) => {
@@ -381,6 +505,15 @@ describe("deleteReservation", () => {
     provider: "Acme Air",
     startAt: new Date("2026-08-01T10:00:00.000Z"),
     endAt: null,
+    startAddress: null,
+    startLocationName: null,
+    startLocationLat: null,
+    startLocationLng: null,
+    endAddress: null,
+    endLocationName: null,
+    endLocationLat: null,
+    endLocationLng: null,
+    cost: null,
     confirmationCode: null,
     notes: null,
   };
@@ -558,9 +691,9 @@ describe("uploadReservationDocument", () => {
 
   it("calls put() with the file and inserts a document row", async () => {
     db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-    let insertedValues: unknown;
+    let insertedValues: Record<string, unknown> | undefined;
     db.insert.mockReturnValue({
-      values: async (vals: unknown) => {
+      values: async (vals: Record<string, unknown>) => {
         insertedValues = vals;
       },
     });
@@ -572,6 +705,7 @@ describe("uploadReservationDocument", () => {
 
     expect(put).toHaveBeenCalled();
     expect(insertedValues).toMatchObject({
+      tripId: "trip-1",
       reservationId: "res-1",
       name: "doc.pdf",
       kind: "pdf",
@@ -739,16 +873,6 @@ describe("removeReservationDocument", () => {
     expect(del).not.toHaveBeenCalled();
   });
 
-  it("revalidates the trip path after removal", async () => {
-    db.select
-      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) })
-      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
-
-    await removeReservationDocument("doc-1");
-
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-  });
-
   it("still deletes the document row when blob cleanup fails (best-effort)", async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     db.delete.mockReturnValue({ where: deleteWhere });
@@ -760,5 +884,135 @@ describe("removeReservationDocument", () => {
 
     await expect(removeReservationDocument("doc-1")).resolves.toBeUndefined();
     expect(deleteWhere).toHaveBeenCalled();
+  });
+
+  it("revalidates the trip path after removal", async () => {
+    db.select
+      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
+
+    await removeReservationDocument("doc-1");
+
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+describe("renameReservationDocument", () => {
+  const reservationRow = { id: "res-1", tripId: "trip-1" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+    db.update.mockReturnValue({ set: () => ({ where: async () => undefined }) });
+  });
+
+  it("does nothing when the document does not exist", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+
+    await expect(renameReservationDocument("missing", "New name")).resolves.toBeUndefined();
+    expect(assertTripAccess).not.toHaveBeenCalled();
+  });
+
+  it("resolves the trip via the reservation when the doc has no tripId", async () => {
+    db.select
+      .mockReturnValueOnce({
+        from: () => ({ where: async () => [{ id: "doc-1", tripId: null, reservationId: "res-1" }] }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
+
+    await renameReservationDocument("doc-1", "New name");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("updates the document name and revalidates the trip path", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [{ id: "doc-1", tripId: "trip-1" }] }) });
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await renameReservationDocument("doc-1", "New name");
+
+    expect(setSpy).toHaveBeenCalledWith({ name: "New name" });
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+describe("promoteReservationDocToTrip", () => {
+  const reservationRow = { id: "res-1", tripId: "trip-1" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("does nothing when the document does not exist", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+
+    await expect(promoteReservationDocToTrip("missing")).resolves.toBeUndefined();
+    expect(assertTripAccess).not.toHaveBeenCalled();
+  });
+
+  it("sets tripId and clears reservationId, resolving the trip via the reservation when needed", async () => {
+    db.select
+      .mockReturnValueOnce({
+        from: () => ({ where: async () => [{ id: "doc-1", tripId: null, reservationId: "res-1" }] }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await promoteReservationDocToTrip("doc-1");
+
+    expect(setSpy).toHaveBeenCalledWith({ tripId: "trip-1", reservationId: null });
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("uses the doc's existing tripId without a reservation lookup", async () => {
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "doc-1", tripId: "trip-1" }] }) });
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await promoteReservationDocToTrip("doc-1");
+
+    expect(setSpy).toHaveBeenCalledWith({ tripId: "trip-1", reservationId: null });
+  });
+});
+
+describe("attachTripDocToReservation", () => {
+  const reservationRow = { id: "res-1", tripId: "trip-1" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+  });
+
+  it("throws when the reservation does not exist", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+
+    await expect(attachTripDocToReservation("doc-1", "missing")).rejects.toThrow("Reservation not found.");
+  });
+
+  it("checks editor access before attaching", async () => {
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await attachTripDocToReservation("doc-1", "res-1");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("sets the reservationId on the document and revalidates the trip path", async () => {
+    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+    db.update.mockReturnValue({ set: setSpy });
+
+    await attachTripDocToReservation("doc-1", "res-1");
+
+    expect(setSpy).toHaveBeenCalledWith({ reservationId: "res-1" });
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });

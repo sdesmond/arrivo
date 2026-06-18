@@ -1,16 +1,8 @@
 import { expect } from "@playwright/test";
-import { packingTemplates } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
 import { Given, Then, When } from "../fixtures";
 
 interface TemplateTable {
   hashes: () => Array<{ name: string }>;
-}
-
-async function seedTemplate(userId: string, name: string): Promise<void> {
-  await withE2EDb(async (db) => {
-    await db.insert(packingTemplates).values({ userId, name });
-  });
 }
 
 When("I click the Packing Templates link in the sidebar", async ({ page }) => {
@@ -31,14 +23,16 @@ Given("I have no packing templates", async ({ scenario }) => {
 });
 
 Given("I have a packing template named {string}", async ({ scenario }, name: string) => {
-  const currentUser = await scenario.ensureCurrentUser();
-  await seedTemplate(currentUser.id, name);
+  await scenario.materialize({
+    template: { overrides: { template: { name } }, setCurrent: false },
+  });
 });
 
 Given("I have packing templates:", async ({ scenario }, table: TemplateTable) => {
-  const currentUser = await scenario.ensureCurrentUser();
   for (const row of table.hashes()) {
-    await seedTemplate(currentUser.id, row.name);
+    await scenario.materialize({
+      template: { overrides: { template: { name: row.name } }, setCurrent: false },
+    });
   }
 });
 

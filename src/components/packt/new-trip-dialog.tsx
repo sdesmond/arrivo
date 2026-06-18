@@ -1,16 +1,15 @@
 "use client";
 
 import { LoaderCircle, X } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { retrieveLocation, searchLocations } from "@/app/(app)/trips/actions";
-import type { LocationSuggestion, RetrievedLocation } from "@/app/(app)/trips/actions";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Button } from "@/components/ui/button";
 import { Field, Section } from "@/components/packt/form-section";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { NewTripDraft } from "@/data/types";
-import { toast } from "sonner";
+import { useLocationAutocomplete } from "./use-location-autocomplete";
 
 export interface NewTripDialogProps {
   open: boolean;
@@ -35,22 +34,34 @@ function sanitizeBudget(value: string) {
 
 export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false }: NewTripDialogProps) {
   const titleRef = useRef<HTMLInputElement>(null);
-  const sessionTokenRef = useRef<string>("");
-
-  useEffect(() => {
-    if (open && !sessionTokenRef.current) {
-      sessionTokenRef.current = crypto.randomUUID();
-    }
-  }, [open]);
-  const cancelRetrieveRef = useRef(false);
   const [draft, setDraft] = useState<NewTripDraft>(EMPTY_DRAFT);
   const [titleError, setTitleError] = useState("");
   const [destinationInput, setDestinationInput] = useState("");
+  const [resolvedValue, setResolvedValue] = useState<string | null>(null);
   const [destinationData, setDestinationData] = useState<RetrievedLocation | null>(null);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [retrieveLoading, setRetrieveLoading] = useState(false);
+
+  const {
+    highlightedIndex,
+    retrieveLoading,
+    suggestions,
+    suggestionsLoading,
+    handleInputChange,
+    handleKeyDown,
+    handleSuggestionSelect,
+    reset,
+  } = useLocationAutocomplete({
+    value: destinationInput,
+    resolvedValue,
+    mode: "destination",
+    onValueChange: setDestinationInput,
+    onResolved: (location) => {
+      setResolvedValue(location.placeName);
+      setDestinationData(location);
+    },
+    onClearResolved: () => setDestinationData(null),
+    searchErrorMessage: "Could not search locations",
+    retrieveErrorMessage: "Could not load location details",
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -58,111 +69,15 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
     return () => window.clearTimeout(timerId);
   }, [open]);
 
-  useEffect(() => {
-    const searchQuery = destinationData?.placeName === destinationInput ? "" : destinationInput.trim();
-    if (searchQuery.length < 2) {
-      return;
-    }
-
-    let active = true;
-    const sessionToken = sessionTokenRef.current;
-
-    const timerId = window.setTimeout(async () => {
-      try {
-        const results = await searchLocations(searchQuery, sessionToken);
-        if (!active) return;
-        setSuggestions(results.slice(0, 5));
-        setHighlightedIndex(-1);
-      } catch {
-        if (!active) return;
-        setSuggestions([]);
-        toast.error("Could not search locations");
-      } finally {
-        if (active) {
-          setSuggestionsLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timerId);
-    };
-  }, [destinationData, destinationInput]);
-
-  function resetDestinationState() {
-    cancelRetrieveRef.current = true;
-    setDestinationInput("");
-    setDestinationData(null);
-    setHighlightedIndex(-1);
-    setSuggestions([]);
-    setSuggestionsLoading(false);
-    setRetrieveLoading(false);
-    sessionTokenRef.current = crypto.randomUUID();
-  }
-
-  async function handleSuggestionSelect(suggestion: LocationSuggestion) {
-    cancelRetrieveRef.current = true; // cancel any pending retrieve first
-    setDestinationInput(suggestion.placeName);
-    setSuggestions([]);
-    setHighlightedIndex(-1);
-    setSuggestionsLoading(false);
-    setRetrieveLoading(true);
-    cancelRetrieveRef.current = false; // now safe to accept the new one
-    try {
-      const location = await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current);
-      if (cancelRetrieveRef.current) {
-        sessionTokenRef.current = crypto.randomUUID();
-        return; // user typed since — discard stale result
-      }
-      sessionTokenRef.current = crypto.randomUUID();
-      setDestinationData(location);
-    } catch (error) {
-      if (!cancelRetrieveRef.current) {
-        console.error("Location retrieve failed:", error);
-        toast.error("Could not load location details");
-        setDestinationData(null);
-      }
-    } finally {
-      if (!cancelRetrieveRef.current) {
-        setRetrieveLoading(false);
-      }
-    }
-  }
-
-  function handleDestinationKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      setSuggestions([]);
-      setHighlightedIndex(-1);
-      event.currentTarget.focus();
-      return;
-    }
-
-    if (suggestions.length === 0) return;
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setHighlightedIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
-      return;
-    }
-
-    if (event.key === "Enter" && highlightedIndex >= 0) {
-      event.preventDefault();
-      void handleSuggestionSelect(suggestions[highlightedIndex]);
-    }
+  function handleClearDestination() {
+    reset();
+    setResolvedValue(null);
   }
 
   function closeDialog() {
     setDraft(EMPTY_DRAFT);
     setTitleError("");
-    resetDestinationState();
+    handleClearDestination();
     onOpenChange(false);
   }
 
@@ -242,22 +157,16 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
                       placeholder="Optional destination"
                       autoComplete="off"
                       style={{ paddingRight: destinationInput ? "2rem" : undefined }}
-                      onChange={(event) => {
-                        cancelRetrieveRef.current = true;
-                        setRetrieveLoading(false);
-                        setDestinationInput(event.target.value);
-                        setDestinationData(null);
-                        setSuggestions([]);
-                        setHighlightedIndex(-1);
-                        setSuggestionsLoading(event.target.value.trim().length >= 2);
+                      onChange={(event) => handleInputChange(event.target.value)}
+                      onKeyDown={(event) => {
+                        void handleKeyDown(event);
                       }}
-                      onKeyDown={handleDestinationKeyDown}
                     />
                     {destinationInput ? (
                       <button
                         type="button"
                         title="Clear destination"
-                        onClick={resetDestinationState}
+                        onClick={handleClearDestination}
                         style={{
                           position: "absolute",
                           right: "0.5rem",
@@ -318,7 +227,7 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
                     >
                       {suggestions.map((suggestion, index) => (
                         <li
-                          key={`${index}-${suggestion.mapboxId ?? suggestion.placeName}`}
+                          key={`${index}-${suggestion.mapboxId}`}
                           id={`new-trip-destination-suggestion-${index}`}
                           role="option"
                           aria-selected={highlightedIndex === index}
@@ -334,7 +243,7 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
                             void handleSuggestionSelect(suggestion);
                           }}
                         >
-                          {suggestion.placeName}
+                          {suggestion.primaryText}
                         </li>
                       ))}
                     </ul>
