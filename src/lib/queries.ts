@@ -366,12 +366,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
       weather: day.weather ?? undefined,
       travelSummary: day.travelSummary ?? undefined,
       events: [
-        ...linkedEvents
-          .filter((linkedEvent) => !!day.date && !!linkedEvent.startAt && linkedEvent.startAt.startsWith(day.date))
-          .map((linkedEvent) => ({
-            ...linkedEvent,
-            position: new Date(linkedEvent.startAt!).getTime(),
-          })),
+        ...linkedEvents.filter(
+          (linkedEvent) => !!day.date && !!linkedEvent.startAt && linkedEvent.startAt.startsWith(day.date)
+        ),
         ...(eventsByDay.get(day.id) ?? []).map((event) => ({
           ...dbEventToType(event),
           docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),

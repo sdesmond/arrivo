@@ -1,6 +1,12 @@
 import { ReservationType, type Reservation, type TripEvent } from "@/data/types";
 import { ANCHOR_LABELS } from "@/components/packt/reservation-type-badge";
 
+// Manual events/notes/checklists share one small-sequential-integer position space (see
+// shiftItemsAtOrAbove in trips/[tripId]/actions.ts). Subtracting this offset from the anchor's
+// epoch-ms timestamp guarantees every Linked Event sorts above any real item while still
+// preserving correct chronological order among Linked Events on the same day.
+const LINKED_EVENT_POSITION_OFFSET = -10_000_000_000_000;
+
 function normalizeReservationType(type: Reservation["type"]): ReservationType {
   return typeof type === "string" && Object.hasOwn(ANCHOR_LABELS, type) ? type : ReservationType.Other;
 }
@@ -21,7 +27,7 @@ export function deriveLinkedEvents(reservations: Reservation[]): TripEvent[] {
         startAt: reservation.startAt,
         linkedReservationId: reservation.id,
         reservationType,
-        position: new Date(reservation.startAt).getTime(),
+        position: new Date(reservation.startAt).getTime() + LINKED_EVENT_POSITION_OFFSET,
       });
     }
 
@@ -33,7 +39,7 @@ export function deriveLinkedEvents(reservations: Reservation[]): TripEvent[] {
         startAt: reservation.endAt,
         linkedReservationId: reservation.id,
         reservationType,
-        position: new Date(reservation.endAt).getTime(),
+        position: new Date(reservation.endAt).getTime() + LINKED_EVENT_POSITION_OFFSET,
       });
     }
   }

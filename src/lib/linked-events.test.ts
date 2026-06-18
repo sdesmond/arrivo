@@ -148,12 +148,21 @@ describe("deriveLinkedEvents", () => {
     ]);
   });
 
-  it("sets position to epoch ms of startAt for correct chronological sorting", () => {
+  it("sets position far below any real item's position so Linked Events always sort first", () => {
     const reservation = createReservation({
       startAt: "2030-06-16T15:00:00Z",
     });
 
-    expect(deriveLinkedEvents([reservation])[0]?.position).toBe(new Date("2030-06-16T15:00:00Z").getTime());
+    expect(deriveLinkedEvents([reservation])[0]?.position).toBeLessThan(-1_000_000_000);
+  });
+
+  it("preserves chronological order between two Linked Events on the same day", () => {
+    const earlier = createReservation({ id: "reservation-15", startAt: "2030-06-16T08:00:00Z" });
+    const later = createReservation({ id: "reservation-16", startAt: "2030-06-16T20:00:00Z" });
+
+    const [earlierEvent, laterEvent] = deriveLinkedEvents([earlier, later]);
+
+    expect(earlierEvent?.position).toBeLessThan(laterEvent!.position);
   });
 
   it("handles missing startAt defensively (skips start anchor)", () => {
