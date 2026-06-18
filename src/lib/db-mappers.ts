@@ -110,8 +110,8 @@ export function dbEventToType(row: typeof events.$inferSelect): TripEvent {
 }
 
 export function dbDocToType(row: typeof documents.$inferSelect): Document {
-  if (!row.tripId && !row.eventId) {
-    throw new Error(`Orphan document id=${row.id}: both tripId and eventId are null`);
+  if (!row.tripId && !row.eventId && !row.reservationId) {
+    throw new Error(`Orphan document id=${row.id}: tripId, eventId, and reservationId are all null`);
   }
   return {
     id: row.id,
@@ -120,7 +120,7 @@ export function dbDocToType(row: typeof documents.$inferSelect): Document {
     size: row.size ?? undefined,
     offline: row.offline ?? false,
     url: row.url ?? undefined,
-    scope: row.eventId ? "event" : "trip",
+    scope: row.reservationId ? "reservation" : row.eventId ? "event" : "trip",
     previewLines: (row.previewLines as DocPreviewLine[] | null) ?? undefined,
     addedAt: row.addedAt?.toISOString() ?? new Date().toISOString(),
   };

@@ -299,17 +299,6 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         eventIdsByName.set(eventSeed.name, eventRow.id);
       }
 
-      for (const documentSeed of seed.documents) {
-        await db.insert(documents).values({
-          tripId: trip.id,
-          eventId: documentSeed.eventName ? (eventIdsByName.get(documentSeed.eventName) ?? null) : null,
-          name: documentSeed.name,
-          kind: documentSeed.kind,
-          size: documentSeed.size,
-          url: documentSeed.url,
-        });
-      }
-
       const labelIdsByName = new Map<string, string>();
       for (const item of seed.packingItems) {
         const [packingRow] = await db
@@ -365,23 +354,44 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         }
       }
 
+      const reservationIdsByProvider = new Map<string, string>();
       for (const reservationSeed of seed.reservations) {
-        await db.insert(reservations).values({
-          tripId: trip.id,
-          type: reservationSeed.type,
-          provider: reservationSeed.provider,
-          startAt: reservationSeed.startAt ? new Date(reservationSeed.startAt) : null,
-          endAt: reservationSeed.endAt ? new Date(reservationSeed.endAt) : null,
-          startAddress: reservationSeed.startAddress ?? null,
-          startLocationName: reservationSeed.startLocationName ?? null,
-          startLocationLat: reservationSeed.startLocationLat ?? null,
-          startLocationLng: reservationSeed.startLocationLng ?? null,
-          endAddress: reservationSeed.endAddress ?? null,
-          endLocationName: reservationSeed.endLocationName ?? null,
-          endLocationLat: reservationSeed.endLocationLat ?? null,
-          endLocationLng: reservationSeed.endLocationLng ?? null,
-          confirmationCode: reservationSeed.confirmationCode ?? null,
-          notes: reservationSeed.notes ?? null,
+        const [insertedReservation] = await db
+          .insert(reservations)
+          .values({
+            tripId: trip.id,
+            type: reservationSeed.type,
+            provider: reservationSeed.provider,
+            startAt: reservationSeed.startAt ? new Date(reservationSeed.startAt) : null,
+            endAt: reservationSeed.endAt ? new Date(reservationSeed.endAt) : null,
+            startAddress: reservationSeed.startAddress ?? null,
+            startLocationName: reservationSeed.startLocationName ?? null,
+            startLocationLat: reservationSeed.startLocationLat ?? null,
+            startLocationLng: reservationSeed.startLocationLng ?? null,
+            endAddress: reservationSeed.endAddress ?? null,
+            endLocationName: reservationSeed.endLocationName ?? null,
+            endLocationLat: reservationSeed.endLocationLat ?? null,
+            endLocationLng: reservationSeed.endLocationLng ?? null,
+            confirmationCode: reservationSeed.confirmationCode ?? null,
+            notes: reservationSeed.notes ?? null,
+          })
+          .returning({ id: reservations.id });
+        reservationIdsByProvider.set(reservationSeed.provider, insertedReservation.id);
+      }
+
+      for (const documentSeed of seed.documents) {
+        const eventId = documentSeed.eventName ? (eventIdsByName.get(documentSeed.eventName) ?? null) : null;
+        const reservationId = documentSeed.reservationProvider
+          ? (reservationIdsByProvider.get(documentSeed.reservationProvider) ?? null)
+          : null;
+        await db.insert(documents).values({
+          tripId: reservationId ? null : trip.id,
+          eventId,
+          reservationId,
+          name: documentSeed.name,
+          kind: documentSeed.kind,
+          size: documentSeed.size != null ? String(documentSeed.size) : null,
+          url: documentSeed.url,
         });
       }
 

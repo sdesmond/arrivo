@@ -232,3 +232,49 @@ Then("the reservation {string} location fields are persisted", async ({ scenario
     expect(reservation.endLocationLng).toBe(2.3488);
   });
 });
+
+Given("the trip has a Lodging reservation with an attached document", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [
+          {
+            type: "lodging",
+            provider: "Original Hotel Name",
+            startAt: "2030-01-10T15:00:00Z",
+            endAt: "2030-01-12T11:00:00Z",
+          },
+        ],
+        documents: [
+          {
+            name: "test-doc.pdf",
+            kind: "pdf",
+            size: 1024,
+            url: "http://localhost/stub/test-doc.pdf",
+            reservationProvider: "Original Hotel Name",
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+  await scenario.gotoCurrentTrip(page);
+  await page.getByRole("button", { name: "Reservations" }).click();
+});
+
+When("I attach a file to the reservation {string}", async ({ page }) => {
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: "Add confirmation document" }).click(),
+  ]);
+  await fileChooser.setFiles({
+    name: "test-doc.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("PDF content"),
+  });
+});
+
+Then("the document {string} appears on the reservation {string}", async ({ page }, docName: string) => {
+  await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
+});

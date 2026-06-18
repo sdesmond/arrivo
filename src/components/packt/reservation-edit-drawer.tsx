@@ -117,19 +117,19 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       return;
     }
 
-    if (!start.iso) {
-      setStartAtError(`${anchorLabels.start} is required.`);
-      focusAnchor(startAnchorRef);
-      return;
-    }
-
     if (endAtRequired && !end.iso) {
       setEndAtError(`${anchorLabels.end} is required for this reservation type.`);
       focusAnchor(endAnchorDateRef);
       return;
     }
 
-    if (end.iso && new Date(end.iso).getTime() < new Date(start.iso).getTime()) {
+    if (end.iso && !start.iso) {
+      setStartAtError(`${anchorLabels.start} is required when ${anchorLabels.end.toLowerCase()} is set.`);
+      focusAnchor(startAnchorRef);
+      return;
+    }
+
+    if (start.iso && end.iso && new Date(end.iso).getTime() < new Date(start.iso).getTime()) {
       setEndAtError(`${anchorLabels.end} must be after ${anchorLabels.start.toLowerCase()}.`);
       focusAnchor(endAnchorDateRef);
       return;
@@ -217,7 +217,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
             <div ref={startAnchorRef}>
               <ReservationAnchorFieldset
                 legend={anchorLabels.start}
-                required={true}
+                required={false}
                 date={startDate}
                 time={startTime}
                 onDateChange={setStartDate}
@@ -319,7 +319,9 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                   <FileText strokeWidth={1.5} />
                 </EmptyMedia>
                 <EmptyTitle>No documents yet</EmptyTitle>
-                <EmptyDescription>Add a document once this reservation has been saved.</EmptyDescription>
+                <EmptyDescription>
+                  Attach a hotel confirmation, receipt, or other reservation document.
+                </EmptyDescription>
               </EmptyHeader>
               <EmptyContent />
             </Empty>

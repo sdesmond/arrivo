@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of 1-5-attach-documents-to-a-reservation (2026-06-16)
+
+- **No server-side file-type validation on upload** — `uploadReservationDocument` only checks `file instanceof File` and `file.size`; any content/type is accepted and stored `access: "public"`. Deferred because it is a pre-existing, app-wide pattern — the trip-doc upload path (`trips/[tripId]/actions.ts:397-404`) is identical. Revisit globally as a security hardening pass (allowlist by MIME/extension) rather than in this story.
+- **Unsanitized client `file.name` used as the public blob key** — `put(file.name, file, ...)` lets the client filename become the blob pathname, risking collisions/overwrites and key injection. Deferred because the trip-doc path (`trips/[tripId]/actions.ts:410`) does the same; sanitize or generate keys app-wide if it bites.
+- **Reservation documents have no deterministic ordering** — the `inArray` docs query in `getTripDetail` (`queries.ts:249-252`) has no `orderBy`, so the inline doc list order can flicker across reloads. Deferred as minor with no AC; add `.orderBy(documents.addedAt)` if order becomes user-visible or causes E2E flake.
+- **Minor upload input edge cases** — a zero-byte `File` passes the upload guard and creates an empty document; `del()` could receive an empty array if every attached doc's `url` is null (the length guard is on the pre-filter array). Deferred as low-likelihood robustness polish.
+
 ## Deferred from: code review of 1-1-add-a-reservation (2026-06-14)
 
 - **Local wall-clock times stored as UTC** — `toIsoDateTime` concatenates the date/time picker values with a literal `Z` (`reservation-edit-drawer.tsx:72`). This shifts times by the user's UTC offset on round-trip. Deferred because it is a pre-existing, app-wide convention — events store and render times the same way (`"2026-05-13T10:00:00Z"` + `toLocaleString`). Revisit globally if timezone-correct storage is pursued, not as part of this story.

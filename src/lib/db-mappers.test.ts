@@ -337,6 +337,7 @@ const BASE_DOC: DocRow = {
   id: "doc-1",
   tripId: "trip-1",
   eventId: null,
+  reservationId: null,
   name: "Boarding Pass",
   kind: "pdf",
   size: null,
@@ -347,9 +348,9 @@ const BASE_DOC: DocRow = {
 };
 
 describe("dbDocToType", () => {
-  it("throws for an orphan document (both tripId and eventId are null)", () => {
-    expect(() => dbDocToType({ ...BASE_DOC, tripId: null, eventId: null })).toThrow(
-      "Orphan document id=doc-1: both tripId and eventId are null"
+  it("throws when tripId, eventId, and reservationId are all null", () => {
+    expect(() => dbDocToType({ ...BASE_DOC, tripId: null, eventId: null, reservationId: null })).toThrow(
+      "Orphan document id=doc-1: tripId, eventId, and reservationId are all null"
     );
   });
 
@@ -368,6 +369,14 @@ describe("dbDocToType", () => {
   it("scope is event when eventId is set", () => {
     // both tripId and eventId set → event-scoped (eventId takes precedence)
     expect(dbDocToType({ ...BASE_DOC, eventId: "event-1" }).scope).toBe("event");
+  });
+
+  it("maps scope to 'reservation' when reservationId is set", () => {
+    expect(dbDocToType({ ...BASE_DOC, tripId: null, eventId: null, reservationId: "res-1" }).scope).toBe("reservation");
+  });
+
+  it("maps scope to 'event' when eventId is set and reservationId is null", () => {
+    expect(dbDocToType({ ...BASE_DOC, eventId: "event-1", reservationId: null }).scope).toBe("event");
   });
 
   it("null optional fields become undefined", () => {

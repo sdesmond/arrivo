@@ -178,18 +178,7 @@ describe("ReservationEditDrawer", () => {
     expect(createReservation).not.toHaveBeenCalled();
   });
 
-  it("blocks save when the start anchor is missing", async () => {
-    const user = userEvent.setup();
-    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
-
-    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
-    await user.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(await screen.findByRole("status")).toHaveTextContent("Departure is required.");
-    expect(createReservation).not.toHaveBeenCalled();
-  });
-
-  it("blocks save when start is missing even when end anchor is set", async () => {
+  it("blocks save when the end anchor is set but the start anchor is missing", async () => {
     const user = userEvent.setup();
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
 
@@ -198,7 +187,7 @@ describe("ReservationEditDrawer", () => {
     await user.type(screen.getByLabelText("Arrival time"), "11:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Departure is required.");
+    expect(await screen.findByRole("status")).toHaveTextContent("Departure is required when arrival is set.");
     expect(createReservation).not.toHaveBeenCalled();
   });
 
@@ -402,5 +391,14 @@ describe("ReservationEditDrawer", () => {
         })
       )
     );
+  });
+
+  it("renders the Documents section with the correct empty state description", () => {
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByText("No documents yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Attach a hotel confirmation, receipt, or other reservation document.")
+    ).toBeInTheDocument();
   });
 });
