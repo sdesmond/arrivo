@@ -200,6 +200,17 @@ const emptyReservation: Reservation = {
   provider: "Misc Booking",
 };
 
+const populatedFlightReservation: Reservation = {
+  id: "res-3",
+  tripId: "trip-1",
+  type: ReservationType.Flight,
+  provider: "Acme Air",
+  startAt: "2026-08-01T10:00:00.000Z",
+  endAt: "2026-08-01T12:00:00.000Z",
+  confirmationCode: "ABC123",
+  serviceNumber: "AA123",
+};
+
 const withDocReservation: Reservation = {
   ...populatedReservation,
   documents: [
@@ -550,6 +561,53 @@ describe("ReservationRow", () => {
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
     await user.click(screen.getByRole("button", { name: "ABC123" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("does not render a service number chip for a reservation type with no label (lodging)", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.queryByTitle("Flight number")).not.toBeInTheDocument();
+  });
+
+  it("renders a button to add a flight number when absent for a flight reservation", () => {
+    render(
+      <ReservationRow
+        reservation={{ ...populatedFlightReservation, serviceNumber: undefined }}
+        type={ReservationType.Flight}
+        isLast={false}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Add flight number" })).toBeInTheDocument();
+  });
+
+  it("renders a flight-number chip with the value when present", () => {
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    expect(screen.getByRole("button", { name: "AA123" })).toBeInTheDocument();
+  });
+
+  it("updates the flight number after saving through the dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "AA123" }));
+    expect(screen.getByTestId("dialog-title")).toHaveTextContent("Flight number");
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: "Updated value" });
+    expect(screen.getByRole("button", { name: "Updated value" })).toBeInTheDocument();
+  });
+
+  it("shows a toast when saving the flight number dialog fails", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "AA123" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));

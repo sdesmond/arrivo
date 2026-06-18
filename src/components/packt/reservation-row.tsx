@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { Trash2, Wallet, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
+import { Trash2, Wallet, MapPin, DollarSign, FileText, ChevronDown, Paperclip, Hash } from "lucide-react";
 import { toast } from "sonner";
 import { IconSize } from "@/lib/size-tokens";
-import { ANCHOR_LABELS, formatReservationDateRange } from "@/components/packt/reservation-type-badge";
+import {
+  ANCHOR_LABELS,
+  SERVICE_NUMBER_LABELS,
+  formatReservationDateRange,
+} from "@/components/packt/reservation-type-badge";
 import { ReservationInlineTextField } from "@/components/packt/reservation-inline-text-field";
 import { DeleteReservationAlertDialog } from "@/components/packt/delete-reservation-alert-dialog";
 import { ReservationDocsBlock } from "@/components/packt/reservation-docs-block";
@@ -72,11 +76,13 @@ export function ReservationRow({ reservation, type, isLast, tripDocs }: Reservat
   );
   const [cost, setCost] = useState<number | undefined>(reservation.cost);
   const [confirmationCode, setConfirmationCode] = useState<string | undefined>(reservation.confirmationCode);
+  const [serviceNumber, setServiceNumber] = useState<string | undefined>(reservation.serviceNumber);
   const [notes, setNotes] = useState<string | undefined>(reservation.notes);
   const [showStartAddressDialog, setShowStartAddressDialog] = useState(false);
   const [showEndAddressDialog, setShowEndAddressDialog] = useState(false);
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showConfirmationCodeDialog, setShowConfirmationCodeDialog] = useState(false);
+  const [showServiceNumberDialog, setShowServiceNumberDialog] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [editingDates, setEditingDates] = useState(false);
   const [startDateDraft, setStartDateDraft] = useState<string | undefined>(undefined);
@@ -98,6 +104,7 @@ export function ReservationRow({ reservation, type, isLast, tripDocs }: Reservat
   const dateEditRef = useRef<HTMLDivElement>(null);
   const startLocationLabel = getLocationDisplayLabel(startLocation?.name, startLocation?.address);
   const endLocationLabel = getLocationDisplayLabel(endLocation?.name, endLocation?.address);
+  const serviceNumberLabel = SERVICE_NUMBER_LABELS[type];
 
   useEffect(() => {
     if (editingDates) {
@@ -355,6 +362,24 @@ export function ReservationRow({ reservation, type, isLast, tripDocs }: Reservat
           <Wallet size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
           {confirmationCode || "Add confirmation code"}
         </button>
+        {serviceNumberLabel && (
+          <button
+            type="button"
+            onClick={() => setShowServiceNumberDialog(true)}
+            title={serviceNumberLabel}
+            className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+            style={{
+              fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
+              color: serviceNumber ? "var(--accent-ink)" : "var(--fg-4)",
+              background: serviceNumber ? "var(--accent-soft)" : "none",
+              border: "1px solid transparent",
+              fontFamily: serviceNumber ? "var(--font-mono-family, ui-monospace)" : undefined,
+            }}
+          >
+            <Hash size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
+            {serviceNumber || `Add ${serviceNumberLabel.toLowerCase()}`}
+          </button>
+        )}
         {hasDocs ? (
           <button
             type="button"
@@ -498,6 +523,21 @@ export function ReservationRow({ reservation, type, isLast, tripDocs }: Reservat
         }}
         inputStyle={{ fontFamily: "var(--font-mono-family, ui-monospace)" }}
       />
+      {serviceNumberLabel && (
+        <ReservationFieldDialog
+          title={serviceNumberLabel}
+          value={serviceNumber}
+          placeholder={`Enter ${serviceNumberLabel.toLowerCase()}`}
+          open={showServiceNumberDialog}
+          onOpenChange={setShowServiceNumberDialog}
+          onSave={(next) => {
+            void updateReservation(reservation.id, { serviceNumber: next ?? "" })
+              .then(() => setServiceNumber(next))
+              .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
+          }}
+          inputStyle={{ fontFamily: "var(--font-mono-family, ui-monospace)" }}
+        />
+      )}
       <DeleteReservationAlertDialog
         provider={provider}
         open={confirmOpen}
