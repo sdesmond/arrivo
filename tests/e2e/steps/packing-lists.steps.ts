@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { packingTemplateItems, packingTemplates, tripPackingLists } from "../../../src/db/schema";
+import { tripPackingLists } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 
@@ -18,18 +18,17 @@ Given("I have a seeded packing list named {string}", async ({ page, scenario }, 
 });
 
 Given("I have a seeded packing template named {string} with items", async ({ page, scenario }, name: string) => {
-  const user = scenario.currentUser;
-  if (!user) throw new Error("No current user in scenario");
-  await withE2EDb(async (db) => {
-    const [template] = await db
-      .insert(packingTemplates)
-      .values({ userId: user.id, name })
-      .returning({ id: packingTemplates.id });
-    if (!template) throw new Error("Failed to create template");
-    await db.insert(packingTemplateItems).values([
-      { templateId: template.id, text: "Sunscreen", isLabel: false, position: 0, labelId: null },
-      { templateId: template.id, text: "Towel", isLabel: false, position: 1, labelId: null },
-    ]);
+  await scenario.materialize({
+    template: {
+      overrides: {
+        template: { name },
+        items: [
+          { text: "Sunscreen", isLabel: false, position: 0 },
+          { text: "Towel", isLabel: false, position: 1 },
+        ],
+      },
+      setCurrent: false,
+    },
   });
   await reloadTrip(page);
 });
