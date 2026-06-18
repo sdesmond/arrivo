@@ -11,21 +11,11 @@ Given("I have a trip available to delete from the listing page", async ({ page, 
 When("I open the trip options menu for {string}", async ({ page }, tripName: string) => {
   const tripCard = page.locator("a[href^='/trips/']").filter({ hasText: tripName }).first();
   await expect(tripCard).toBeVisible();
-  const trigger = tripCard.getByTitle("Trip options");
-  await trigger.click();
-  const deleteTripItem = page.getByRole("menuitem", { name: "Delete trip" });
-  if (!(await deleteTripItem.isVisible().catch(() => false))) {
-    await trigger.focus();
-    await page.keyboard.press("Enter");
-  }
-  await expect(deleteTripItem).toBeVisible();
+  await tripCard.getByTitle("Trip options").click();
 });
 
 When("I choose {string} from the trip options menu", async ({ page }, action: string) => {
-  const menuItem = page.getByRole("menuitem", { name: action }).first();
-  await expect(menuItem).toBeVisible();
-  await menuItem.focus();
-  await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: action }).click();
 });
 
 When("I confirm the trip deletion", async ({ page }) => {

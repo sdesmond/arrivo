@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
 import { ReservationType, type Reservation } from "@/data/types";
 import {
   ReservationTypeSection,
@@ -9,32 +8,9 @@ import {
   sortReservationsByStartAt,
   getNextUpcoming,
 } from "./reservation-type-section";
-import { formatReservationDateRange } from "./reservation-type-badge";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
-}));
-
-vi.mock("./reservation-row", () => ({
-  ReservationRow: ({ reservation }: { reservation: Reservation }) => {
-    const [editingProvider, setEditingProvider] = useState(false);
-
-    return (
-      <div>
-        {editingProvider ? (
-          <input aria-label="Provider" defaultValue={reservation.provider} />
-        ) : (
-          <button type="button" onClick={() => setEditingProvider(true)}>
-            {reservation.provider}
-          </button>
-        )}
-        {reservation.startAt ? (
-          <button type="button">{formatReservationDateRange(reservation.startAt, reservation.endAt)}</button>
-        ) : null}
-        {reservation.confirmationCode ? <span>{reservation.confirmationCode}</span> : null}
-      </div>
-    );
-  },
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
@@ -269,10 +245,8 @@ describe("ReservationTypeSection", () => {
       />
     );
 
-    const expectedRange = formatReservationDateRange(reservation.startAt, reservation.endAt);
-    expect(screen.getByRole("button", { name: expectedRange })).toBeInTheDocument();
-    expect(screen.queryByText("Check-in")).not.toBeInTheDocument();
-    expect(screen.queryByText("Check-out")).not.toBeInTheDocument();
+    expect(screen.getByText("Check-in")).toBeInTheDocument();
+    expect(screen.getByText("Check-out")).toBeInTheDocument();
     expect(screen.getByText("ABC123")).toBeInTheDocument();
   });
 

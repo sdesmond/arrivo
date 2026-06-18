@@ -290,10 +290,6 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           startAt: eventSeed.startAt ? new Date(eventSeed.startAt) : null,
           endAt: eventSeed.endAt ? new Date(eventSeed.endAt) : null,
           displacedDate: eventSeed.displacedDate ?? null,
-          locationName: eventSeed.locationName ?? null,
-          locationAddress: eventSeed.locationAddress ?? null,
-          locationLat: eventSeed.locationLat ?? null,
-          locationLng: eventSeed.locationLng ?? null,
         };
         const [eventRow] = await db.insert(events).values(eventValues).returning({ id: events.id });
         eventIdsByName.set(eventSeed.name, eventRow.id);
@@ -372,14 +368,6 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           provider: reservationSeed.provider,
           startAt: reservationSeed.startAt ? new Date(reservationSeed.startAt) : null,
           endAt: reservationSeed.endAt ? new Date(reservationSeed.endAt) : null,
-          startAddress: reservationSeed.startAddress ?? null,
-          startLocationName: reservationSeed.startLocationName ?? null,
-          startLocationLat: reservationSeed.startLocationLat ?? null,
-          startLocationLng: reservationSeed.startLocationLng ?? null,
-          endAddress: reservationSeed.endAddress ?? null,
-          endLocationName: reservationSeed.endLocationName ?? null,
-          endLocationLat: reservationSeed.endLocationLat ?? null,
-          endLocationLng: reservationSeed.endLocationLng ?? null,
           confirmationCode: reservationSeed.confirmationCode ?? null,
           notes: reservationSeed.notes ?? null,
         });

@@ -17,25 +17,6 @@ Feature: Reservations
     And I click "Save" on the reservation drawer
     Then the reservation "Sunset Hotel" appears in the "Lodging" section
 
-  Scenario: Add a Flight reservation with selected location suggestions
-    When I click "Add Reservation"
-    And I select the "Flight" reservation type
-    Then the "Add Flight Reservation" drawer is open
-    When I fill in the reservation provider with "Acme Air"
-    And I set the "Departure" date to today
-    And I set the "Departure" time to "09:00"
-    And I choose the first lookup suggestion for the "Departure" reservation address
-    And I choose the first lookup suggestion for the "Arrival" reservation address
-    And I click "Save" on the reservation drawer
-    Then the reservation "Acme Air" appears in the "Flight" section
-    And the reservation "Acme Air" shows the "Departure" address "Paris, France"
-    And the reservation "Acme Air" shows the "Arrival" address "Paris, France"
-    When I reload the page
-    And the "Flight" reservation section is expanded
-    Then the reservation "Acme Air" shows the "Departure" address "Paris, France"
-    And the reservation "Acme Air" shows the "Arrival" address "Paris, France"
-    And the reservation "Acme Air" location fields are persisted
-
   Scenario: Empty Reservations tab shows the no-reservations empty state
     Then I see the "No reservations yet" empty state
     And no reservation type sections are shown

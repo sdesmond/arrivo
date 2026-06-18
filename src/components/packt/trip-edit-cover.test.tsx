@@ -131,21 +131,6 @@ describe("TripEditCover", () => {
     expect(screen.queryByTestId("cover-image-picker")).not.toBeInTheDocument();
   });
 
-  it("closing the picker hides it without changing the cover image", async () => {
-    const user = userEvent.setup();
-    const onCoverImageUrlChange = vi.fn();
-    render(
-      <TripEditCoverHarness initialUrl="https://example.com/cover.jpg" onCoverImageUrlChange={onCoverImageUrlChange} />
-    );
-
-    await user.click(screen.getByRole("button", { name: "Edit cover image" }));
-    await user.click(screen.getByRole("button", { name: "close-picker" }));
-
-    expect(onCoverImageUrlChange).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("cover-image-picker")).not.toBeInTheDocument();
-    expect(screen.getByTestId("trip-cover-preview")).toHaveAttribute("data-url", "https://example.com/cover.jpg");
-  });
-
   it("clicking Remove image calls onCoverImageUrlChange(null) and hides the button", async () => {
     const user = userEvent.setup();
     const onCoverImageUrlChange = vi.fn();

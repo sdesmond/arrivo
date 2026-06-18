@@ -41,10 +41,6 @@ export interface EventSeed {
   startAt?: string | null;
   endAt?: string | null;
   displacedDate?: string | null;
-  locationName?: string | null;
-  locationAddress?: string | null;
-  locationLat?: number | null;
-  locationLng?: number | null;
 }
 
 export interface DocumentSeed {
@@ -87,14 +83,6 @@ export interface ReservationSeed {
   provider: string;
   startAt?: string | null;
   endAt?: string | null;
-  startAddress?: string | null;
-  startLocationName?: string | null;
-  startLocationLat?: number | null;
-  startLocationLng?: number | null;
-  endAddress?: string | null;
-  endLocationName?: string | null;
-  endLocationLat?: number | null;
-  endLocationLng?: number | null;
   confirmationCode?: string | null;
   notes?: string | null;
 }
