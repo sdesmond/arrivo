@@ -10,6 +10,7 @@ import { LocationLookupInput } from "./location-lookup-input";
 
 interface ReservationFieldDialogBaseProps {
   title: string;
+  subtitle?: string;
   placeholder?: string;
   inputStyle?: CSSProperties;
   open: boolean;
@@ -24,6 +25,7 @@ interface ReservationFieldDialogTextProps extends ReservationFieldDialogBaseProp
 
 interface ReservationFieldDialogLocationProps extends ReservationFieldDialogBaseProps {
   mode: "location";
+  id?: string;
   value?: string;
   locationName?: string;
   locationLat?: number;
@@ -90,10 +92,15 @@ export function ReservationFieldDialog(props: ReservationFieldDialogProps) {
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{props.title}</DialogTitle>
+          {props.subtitle && (
+            <p style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)", marginTop: -4 }}>
+              {props.subtitle}
+            </p>
+          )}
         </DialogHeader>
         {props.mode === "location" ? (
           <LocationLookupInput
-            id="reservation-location"
+            id={props.id ?? "reservation-location"}
             value={draft}
             resolvedValue={resolvedLocation?.address ?? null}
             placeholder={props.placeholder}
