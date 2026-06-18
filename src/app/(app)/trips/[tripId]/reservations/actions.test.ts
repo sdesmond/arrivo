@@ -133,6 +133,7 @@ describe("createReservation", () => {
       endLocationLng: -118.4085,
       cost: 499.99,
       confirmationCode: "ABC123",
+      serviceNumber: "SVC-9",
       notes: "Late checkout requested",
     });
 
@@ -152,6 +153,7 @@ describe("createReservation", () => {
       endLocationLng: -118.4085,
       cost: "499.99",
       confirmationCode: "ABC123",
+      serviceNumber: "SVC-9",
       notes: "Late checkout requested",
     });
   });
@@ -238,6 +240,7 @@ describe("updateReservation", () => {
     endLocationLng: null,
     cost: null,
     confirmationCode: null,
+    serviceNumber: null,
     notes: null,
   };
 
@@ -315,18 +318,24 @@ describe("updateReservation", () => {
     expect(updatedValues).toMatchObject({ confirmationCode: "XYZ987" });
   });
 
+  it("updates serviceNumber independently", async () => {
+    await updateReservation("res-1", { serviceNumber: "TP 202" });
+
+    expect(updatedValues).toMatchObject({ serviceNumber: "TP 202" });
+  });
+
   it("updates notes independently", async () => {
     await updateReservation("res-1", { notes: "Window seat please" });
 
     expect(updatedValues).toMatchObject({ notes: "Window seat please" });
   });
 
-  it("clears confirmationCode and notes when set to an empty string", async () => {
-    mockExistingReservation({ ...baseRow, confirmationCode: "ABC123", notes: "Old notes" });
+  it("clears confirmationCode, serviceNumber, and notes when set to an empty string", async () => {
+    mockExistingReservation({ ...baseRow, confirmationCode: "ABC123", serviceNumber: "TP 202", notes: "Old notes" });
 
-    await updateReservation("res-1", { confirmationCode: "", notes: "" });
+    await updateReservation("res-1", { confirmationCode: "", serviceNumber: "", notes: "" });
 
-    expect(updatedValues).toMatchObject({ confirmationCode: null, notes: null });
+    expect(updatedValues).toMatchObject({ confirmationCode: null, serviceNumber: null, notes: null });
   });
 
   it("updates startAddress and endAddress independently", async () => {
