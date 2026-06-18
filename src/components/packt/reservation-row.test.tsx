@@ -220,6 +220,59 @@ describe("ReservationRow", () => {
     expect(screen.getByRole("button", { name: "Add notes" })).toBeInTheDocument();
   });
 
+  describe("editing dates inline", () => {
+    it("saves both start and end when both are valid and closes the editor", async () => {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+      await user.click(screen.getByRole("button", { name: "Add dates" }));
+      await user.type(screen.getByLabelText("Start date"), "2026-08-01");
+      await user.type(screen.getByLabelText("Start time"), "10:00");
+      await user.type(screen.getByLabelText("End date"), "2026-08-02");
+      await user.type(screen.getByLabelText("End time"), "12:00");
+      await user.tab();
+
+      expect(updateReservation).toHaveBeenCalledWith("res-2", {
+        startAt: new Date("2026-08-01T10:00:00").toISOString(),
+        endAt: new Date("2026-08-02T12:00:00").toISOString(),
+      });
+      expect(screen.queryByLabelText("Start date")).not.toBeInTheDocument();
+    });
+
+    it("saves a valid start change even when the end draft is incomplete, without closing the editor", async () => {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+      await user.click(screen.getByRole("button", { name: "Add dates" }));
+      await user.type(screen.getByLabelText("Start date"), "2026-08-01");
+      await user.type(screen.getByLabelText("Start time"), "10:00");
+      await user.type(screen.getByLabelText("End date"), "2026-08-02");
+      await user.tab();
+      await user.tab();
+
+      expect(updateReservation).toHaveBeenCalledWith("res-2", {
+        startAt: new Date("2026-08-01T10:00:00").toISOString(),
+      });
+      expect(screen.getByText("Enter both a date and a time.")).toBeInTheDocument();
+      expect(screen.getByLabelText("Start date")).toBeInTheDocument();
+    });
+
+    it("blocks saving either anchor when the end is before the start", async () => {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+      await user.click(screen.getByRole("button", { name: "Add dates" }));
+      await user.type(screen.getByLabelText("Start date"), "2026-08-02");
+      await user.type(screen.getByLabelText("Start time"), "10:00");
+      await user.type(screen.getByLabelText("End date"), "2026-08-01");
+      await user.type(screen.getByLabelText("End time"), "09:00");
+      await user.tab();
+
+      expect(updateReservation).not.toHaveBeenCalled();
+      expect(screen.getByText("End must be after start.")).toBeInTheDocument();
+    });
+  });
+
   it("renders a confirmation-code chip with the wallet icon when present", () => {
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 

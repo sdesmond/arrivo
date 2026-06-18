@@ -13,7 +13,7 @@ import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]
 import { CostDialog } from "@/components/packt/cost-dialog";
 import { ReservationFieldDialog } from "@/components/packt/reservation-field-dialog";
 import { ReservationType, type Reservation, type SavedLocationValue, type UpdateReservationPatch } from "@/data/types";
-import { getLocationDisplayLabel } from "@/lib/utils";
+import { combineDateAndTimeToIso, getLocationDisplayLabel } from "@/lib/utils";
 
 export interface ReservationRowProps {
   reservation: Reservation;
@@ -123,36 +123,34 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
 
   async function handleDoneEditingDates() {
     setDateError(undefined);
-    const startHasDate = !!startDateDraft;
-    const startHasTime = !!startTimeDraft;
-    if (startHasDate !== startHasTime) {
-      setDateError("Enter both a date and a time.");
-      return;
-    }
-    const endHasDate = !!endDateDraft;
-    const endHasTime = !!endTimeDraft;
-    if (endHasDate !== endHasTime) {
-      setDateError("Enter both a date and a time.");
-      return;
-    }
-    const newStartAt = startHasDate ? new Date(`${startDateDraft}T${startTimeDraft}:00`).toISOString() : "";
-    const newEndAt = endHasDate ? new Date(`${endDateDraft}T${endTimeDraft}:00`).toISOString() : "";
+    const startValid = !!startDateDraft === !!startTimeDraft;
+    const endValid = !!endDateDraft === !!endTimeDraft;
+
+    const newStartAt = startValid ? (combineDateAndTimeToIso(startDateDraft, startTimeDraft) ?? "") : undefined;
+    const newEndAt = endValid ? (combineDateAndTimeToIso(endDateDraft, endTimeDraft) ?? "") : undefined;
+
     if (newStartAt && newEndAt && new Date(newEndAt) < new Date(newStartAt)) {
       setDateError(`${ANCHOR_LABELS[type].end} must be after ${ANCHOR_LABELS[type].start.toLowerCase()}.`);
       return;
     }
+
     const patch: UpdateReservationPatch = {};
-    if (newStartAt !== (startAt ?? "")) patch.startAt = newStartAt;
-    if (newEndAt !== (endAt ?? "")) patch.endAt = newEndAt;
+    if (newStartAt !== undefined && newStartAt !== (startAt ?? "")) patch.startAt = newStartAt;
+    if (newEndAt !== undefined && newEndAt !== (endAt ?? "")) patch.endAt = newEndAt;
     if (Object.keys(patch).length > 0) {
       try {
         await updateReservation(reservation.id, patch);
-        setStartAt(newStartAt || undefined);
-        setEndAt(newEndAt || undefined);
+        if (newStartAt !== undefined) setStartAt(newStartAt || undefined);
+        if (newEndAt !== undefined) setEndAt(newEndAt || undefined);
       } catch (error) {
         setDateError(error instanceof Error ? error.message : "Failed to save dates.");
         return;
       }
+    }
+
+    if (!startValid || !endValid) {
+      setDateError("Enter both a date and a time.");
+      return;
     }
     setEditingDates(false);
   }
@@ -235,6 +233,7 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
               <DatePicker
                 value={startDateDraft}
                 onChange={setStartDateDraft}
+                clearable={false}
                 onOpenChange={(open) => {
                   isCalendarOpenRef.current = open;
                 }}
@@ -253,6 +252,7 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
               <DatePicker
                 value={endDateDraft}
                 onChange={setEndDateDraft}
+                clearable={false}
                 onOpenChange={(open) => {
                   isCalendarOpenRef.current = open;
                 }}
@@ -371,7 +371,6 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
         open={showStartAddressDialog}
         onOpenChange={setShowStartAddressDialog}
         onSave={(next) => {
-          setStartLocation(next);
           void updateReservation(
             reservation.id,
             next
@@ -382,7 +381,9 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
                   startLocationLng: next.lng,
                 }
               : { startAddress: "" }
-          ).catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
+          )
+            .then(() => setStartLocation(next))
+            .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
         }}
       />
       <ReservationFieldDialog
@@ -396,7 +397,6 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
         open={showEndAddressDialog}
         onOpenChange={setShowEndAddressDialog}
         onSave={(next) => {
-          setEndLocation(next);
           void updateReservation(
             reservation.id,
             next
@@ -407,7 +407,9 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
                   endLocationLng: next.lng,
                 }
               : { endAddress: "" }
-          ).catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
+          )
+            .then(() => setEndLocation(next))
+            .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
         }}
       />
       <CostDialog
@@ -428,10 +430,9 @@ export function ReservationRow({ reservation, type, isLast }: ReservationRowProp
         open={showConfirmationCodeDialog}
         onOpenChange={setShowConfirmationCodeDialog}
         onSave={(next) => {
-          setConfirmationCode(next);
-          void updateReservation(reservation.id, { confirmationCode: next ?? "" }).catch((err) =>
-            toast.error(err instanceof Error ? err.message : "Failed to save.")
-          );
+          void updateReservation(reservation.id, { confirmationCode: next ?? "" })
+            .then(() => setConfirmationCode(next))
+            .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
         }}
         inputStyle={{ fontFamily: "var(--font-mono-family, ui-monospace)" }}
       />
