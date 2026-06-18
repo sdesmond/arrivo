@@ -654,6 +654,20 @@ describe("PlaceRow", () => {
     expect(screen.queryByText("Linked")).not.toBeInTheDocument();
   });
 
+  it("keeps the full provider name intact when it contains an em dash separator", () => {
+    const place: TripEvent = {
+      ...linkedPlace,
+      name: "Check-in — Suites — Downtown",
+    };
+    const expectedLabel = `Check-in: ${formatAnchorDateTime(place.startAt!)} — Suites — Downtown, Linked, opens Reservations`;
+
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} onLinkedEventTap={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByRole("button", { name: expectedLabel })).toBeInTheDocument();
+  });
+
   // ── isDraft mode ──────────────────────────────────────────────────────────
 
   it("isDraft renders name input focused with empty placeholder", () => {
