@@ -13,6 +13,7 @@ import { ReservationAnchorFieldset } from "@/components/packt/reservation-anchor
 import { ANCHOR_LABELS, RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
 import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type CreateReservationInput, type SavedLocationValue } from "@/data/types";
+import { combineDateAndTimeToIso } from "@/lib/utils";
 import { FileText } from "lucide-react";
 
 export interface ReservationEditDrawerProps {
@@ -30,10 +31,7 @@ function combineAnchor(date: string | undefined, time: string | undefined): { is
   if (hasDate !== hasTime) {
     return { error: "Enter both a date and a time." };
   }
-  if (!hasDate) {
-    return {};
-  }
-  return { iso: new Date(`${date}T${time}:00`).toISOString() };
+  return { iso: combineDateAndTimeToIso(date, time) };
 }
 
 function focusAnchor(ref: React.RefObject<HTMLDivElement | null>): void {
