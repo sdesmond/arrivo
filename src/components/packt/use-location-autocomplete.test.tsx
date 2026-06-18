@@ -344,6 +344,27 @@ describe("useLocationAutocomplete", () => {
     expect(result.current.retrieveLoading).toBe(false);
   });
 
+  it("rotates the session token after a failed retrieve", async () => {
+    vi.mocked(retrieveLocation).mockRejectedValueOnce(new Error("boom"));
+    vi.useFakeTimers();
+
+    const { result } = renderAutocomplete();
+
+    await act(async () => {
+      await result.current.handleSuggestionSelect(buildSuggestion());
+    });
+
+    act(() => {
+      result.current.handleInputChange("Par");
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(searchAddressLocations).toHaveBeenLastCalledWith("Par", "token-2");
+  });
+
   it("handles Escape even when there are no suggestions", () => {
     const { result } = renderAutocomplete();
     const event = createKeyEvent("Escape");

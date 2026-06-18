@@ -138,10 +138,8 @@ export function useLocationAutocomplete({
       const location =
         suggestion.resolvedLocation ?? (await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current));
       if (cancelRetrieveRef.current) {
-        sessionTokenRef.current = crypto.randomUUID();
         return;
       }
-      sessionTokenRef.current = crypto.randomUUID();
       onValueChange(mode === "destination" ? location.placeName : location.fullAddress);
       onResolved(location);
     } catch (error) {
@@ -150,6 +148,7 @@ export function useLocationAutocomplete({
         toast.error(retrieveErrorMessage);
       }
     } finally {
+      sessionTokenRef.current = crypto.randomUUID();
       if (!cancelRetrieveRef.current) {
         setRetrieveLoading(false);
       }
