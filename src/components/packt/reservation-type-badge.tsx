@@ -1,5 +1,3 @@
-"use client";
-
 import { Anchor, Bus, Car, Hotel, Package, Plane, Ship, Train, type LucideIcon } from "lucide-react";
 import { ReservationType } from "@/data/types";
 

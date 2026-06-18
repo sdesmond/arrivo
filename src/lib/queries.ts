@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 import { eq, and, sql, inArray, asc, count, isNull } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
+import { deriveLinkedEvents } from "@/lib/linked-events";
 import {
   dbTripToType,
   dbEventToType,
@@ -258,6 +259,12 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     docsByReservationId.set(docRow.reservationId, existing);
   }
 
+  const reservationsDomain = tripReservations.map((row) => ({
+    ...dbReservationToType(row),
+    documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
+  }));
+  const linkedEvents = deriveLinkedEvents(reservationsDomain);
+
   const allNotes =
     tripDays.length > 0
       ? await db
@@ -358,10 +365,18 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
       subtitle: day.subtitle ?? undefined,
       weather: day.weather ?? undefined,
       travelSummary: day.travelSummary ?? undefined,
-      events: (eventsByDay.get(day.id) ?? []).map((event) => ({
-        ...dbEventToType(event),
-        docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
-      })),
+      events: [
+        ...linkedEvents
+          .filter((linkedEvent) => !!day.date && !!linkedEvent.startAt && linkedEvent.startAt.startsWith(day.date))
+          .map((linkedEvent) => ({
+            ...linkedEvent,
+            position: new Date(linkedEvent.startAt!).getTime(),
+          })),
+        ...(eventsByDay.get(day.id) ?? []).map((event) => ({
+          ...dbEventToType(event),
+          docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
+        })),
+      ].sort((first, second) => first.position - second.position),
       notes: (notesByDay.get(day.id) ?? []).map((note) => ({
         id: note.id,
         content: note.content,
@@ -379,9 +394,6 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     collaborators: tripCollaborators.map(dbCollabToType),
     packingItems: tripPackingItems.map(dbPackingItemToType),
     packingLists: tripPackingListRows.map(dbPackingListToType),
-    reservations: tripReservations.map((row) => ({
-      ...dbReservationToType(row),
-      documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
-    })),
+    reservations: reservationsDomain,
   };
 }

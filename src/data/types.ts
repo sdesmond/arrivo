@@ -301,6 +301,8 @@ export interface TripEvent {
   docs?: Document[];
 
   position: number;
+  linkedReservationId?: string;
+  reservationType?: ReservationType;
   createdAt?: string;
   updatedAt?: string;
 }
