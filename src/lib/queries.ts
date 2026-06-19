@@ -104,7 +104,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
   const todayISO = now.toISOString().slice(0, 10);
   const tripIds = rows.map(({ trip }) => trip.id);
 
-  const [allTodayEvents, dayCountAggs, packingAggs, allDocs, allCollabs] = await Promise.all([
+  const [allTodayEvents, dayCountAggs, packingAggs, allDocs, allCollabs, allReservations] = await Promise.all([
     db
       .select()
       .from(events)
@@ -132,15 +132,21 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
       .from(documents)
       .where(and(inArray(documents.tripId, tripIds), isNull(documents.eventId))),
     db.select().from(collaborators).where(inArray(collaborators.tripId, tripIds)),
+    db.select().from(reservations).where(inArray(reservations.tripId, tripIds)),
   ]);
 
   type EventRow = (typeof allTodayEvents)[number];
   type DocRow = (typeof allDocs)[number];
   type CollabRow = (typeof allCollabs)[number];
   type PackAgg = (typeof packingAggs)[number];
+  type ReservationRow = (typeof allReservations)[number];
 
   const eventsByTrip = allTodayEvents.reduce<Record<string, EventRow[]>>((acc, eventRow) => {
     (acc[eventRow.tripId] ??= []).push(eventRow);
+    return acc;
+  }, {});
+  const reservationsByTrip = allReservations.reduce<Record<string, ReservationRow[]>>((acc, reservationRow) => {
+    (acc[reservationRow.tripId] ??= []).push(reservationRow);
     return acc;
   }, {});
   const dayTotalsByTrip = dayCountAggs.reduce<Record<string, number>>((acc, dayCountAgg) => {
@@ -165,6 +171,15 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     const packingProgress =
       packAgg && packAgg.total > 0 ? { checked: packAgg.checked, total: packAgg.total } : undefined;
     const tripEntry = dbTripToType(trip);
+
+    const linkedEventsForTrip = deriveLinkedEvents((reservationsByTrip[trip.id] ?? []).map(dbReservationToType));
+    const todayLinkedEvents = linkedEventsForTrip.filter(
+      (linkedEvent) => !!linkedEvent.startAt && linkedEvent.startAt.slice(0, 10) === todayISO
+    );
+    const todayEvents = [...todayLinkedEvents, ...(eventsByTrip[trip.id] ?? []).map(dbEventToType)]
+      .filter((event) => event.startAt)
+      .sort((first, second) => new Date(first.startAt!).getTime() - new Date(second.startAt!).getTime());
+
     return {
       trip: {
         ...tripEntry,
@@ -175,7 +190,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
           .filter((collabRow) => collabRow.userId !== userId)
           .map(dbCollabToType),
       },
-      todayEvents: (eventsByTrip[trip.id] ?? []).map(dbEventToType),
+      todayEvents,
     };
   });
 }

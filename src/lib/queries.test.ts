@@ -10,6 +10,7 @@ const { mockAssertTripAccess, mockDbSelect, schemaTokens } = vi.hoisted(() => ({
     events: { tripId: "events.tripId", startAt: "events.startAt", position: "events.position" },
     documents: { tripId: "documents.tripId", eventId: "documents.eventId" },
     collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId" },
+    reservations: { tripId: "reservations.tripId" },
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
     tripPackingLists: {},
     itineraryNotes: {},
@@ -59,6 +60,7 @@ vi.mock("@/lib/db-mappers", () => ({
   dbEventToType: vi.fn((event: unknown) => event),
   dbDocToType: vi.fn((doc: unknown) => doc),
   dbCollabToType: vi.fn((collaborator: unknown) => collaborator),
+  dbReservationToType: vi.fn((reservation: unknown) => reservation),
   dbChecklistToType: vi.fn(),
   dbLoyaltyToType: vi.fn(),
   dbWishlistToType: vi.fn(),
@@ -124,6 +126,11 @@ describe("listTripsForUser", () => {
         from: () => ({
           where: async () => [],
         }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
       });
 
     const result = await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
@@ -136,5 +143,77 @@ describe("listTripsForUser", () => {
         dayTotal: 3,
       })
     );
+  });
+
+  it("merges Linked Events derived from reservations into todayEvents, sorted by startAt", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            orderBy: async () => [
+              {
+                trip: {
+                  id: "trip-1",
+                  name: "Lisbon Trip",
+                  startDate: "2026-05-13",
+                  endDate: "2026-05-20",
+                },
+              },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [
+              { id: "ev-1", tripId: "trip-1", name: "Dinner", startAt: "2026-05-13T19:00:00.000Z", position: 0 },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "res-1",
+              tripId: "trip-1",
+              type: "lodging",
+              provider: "Hotel Avenida Palace",
+              startAt: "2026-05-13T15:00:00.000Z",
+              endAt: "2026-05-14T11:00:00.000Z",
+            },
+          ],
+        }),
+      });
+
+    const result = await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
+
+    expect(result).toHaveLength(1);
+    expect(result[0].todayEvents.map((event) => event.name)).toEqual(["Check-in — Hotel Avenida Palace", "Dinner"]);
   });
 });

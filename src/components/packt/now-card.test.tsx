@@ -2,6 +2,16 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("lucide-react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("lucide-react")>();
+  return {
+    ...actual,
+    Hotel: ({ strokeWidth, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+      <svg data-testid="hotel-icon" data-stroke-width={strokeWidth} {...props} />
+    ),
+  };
+});
+
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -49,9 +59,30 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { NowCard } from "./now-card";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
+import { formatAnchorDateTime } from "./reservation-type-badge";
 import type { Trip, TripEvent } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
+
+const linkedEventNow: TripEvent = {
+  id: "linked-1",
+  tripId: "trip-1",
+  name: "Check-in — Hotel Avenida Palace",
+  startAt: "2026-05-13T11:00:00Z",
+  position: new Date("2026-05-13T11:00:00Z").getTime(),
+  linkedReservationId: "res-1",
+  reservationType: "lodging",
+};
+
+const linkedEventNextUp: TripEvent = {
+  id: "linked-2",
+  tripId: "trip-1",
+  name: "Check-in — Hotel Avenida Palace",
+  startAt: "2026-05-13T14:00:00Z",
+  position: new Date("2026-05-13T14:00:00Z").getTime(),
+  linkedReservationId: "res-1",
+  reservationType: "lodging",
+};
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
@@ -192,5 +223,104 @@ describe("NowCard", () => {
     const eventsNoStart: TripEvent[] = [{ id: "ev-4", name: "Open-ended", position: 0 }];
     render(<NowCard trip={activeTrip} todayEvents={eventsNoStart} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.queryByText("Open-ended")).not.toBeInTheDocument();
+  });
+
+  it("renders Linked Event with icon and badge when currently happening", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[linkedEventNow]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByTestId("hotel-icon")).toBeInTheDocument();
+    expect(screen.getByText("Linked")).toBeInTheDocument();
+    expect(screen.getByText("Now")).toBeInTheDocument();
+  });
+
+  it("renders Linked Event with icon and badge when next up", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[linkedEventNextUp]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByTestId("hotel-icon")).toBeInTheDocument();
+    expect(screen.getByText("Linked")).toBeInTheDocument();
+    expect(screen.getByText("Next Event")).toBeInTheDocument();
+    expect(screen.queryByText("Now")).not.toBeInTheDocument();
+  });
+
+  it("uses single-button aria-label for Linked Event row", () => {
+    render(<NowCard trip={activeTrip} todayEvents={[linkedEventNow]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    const expectedLabel = `Check-in: ${formatAnchorDateTime(linkedEventNow.startAt!)} — Hotel Avenida Palace, Linked, opens Reservations`;
+    const button = screen.getByRole("button", { name: expectedLabel });
+    expect(button).toBeInTheDocument();
+    for (const child of Array.from(button.children)) {
+      expect(child).toHaveAttribute("aria-hidden", "true");
+    }
+  });
+
+  it("manual event preferred when chronologically current alongside Linked Event", () => {
+    const manualEvent: TripEvent = { id: "ev-manual", name: "Breakfast", startAt: "2026-05-13T10:00:00Z", position: 0 };
+    const linkedEvent: TripEvent = { ...linkedEventNow, startAt: "2026-05-13T13:00:00Z" };
+    render(<NowCard trip={activeTrip} todayEvents={[manualEvent, linkedEvent]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByText("Breakfast")).toBeInTheDocument();
+    expect(screen.queryByText("Check-in — Hotel Avenida Palace")).not.toBeInTheDocument();
+  });
+
+  it("manual event row is not a button", () => {
+    render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    const eventLink = screen.getByText("Museum Visit").closest("a");
+    expect(eventLink).toBeInTheDocument();
+    expect(screen.getByText("Museum Visit").closest("button")).not.toBeInTheDocument();
+  });
+
+  it("renders same-day Linked Event with flat aria-label (no separator in name)", () => {
+    const sameDayLinked: TripEvent = {
+      id: "linked-same",
+      tripId: "trip-1",
+      name: "Hotel Avenida Palace",
+      startAt: "2026-05-13T11:00:00Z",
+      position: new Date("2026-05-13T11:00:00Z").getTime(),
+      linkedReservationId: "res-same",
+      reservationType: "lodging",
+    };
+    render(<NowCard trip={activeTrip} todayEvents={[sameDayLinked]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    const expectedLabel = `Hotel Avenida Palace: ${formatAnchorDateTime(sameDayLinked.startAt!)}, Linked, opens Reservations`;
+    const button = screen.getByRole("button", { name: expectedLabel });
+    expect(button).toBeInTheDocument();
+  });
+
+  it("renders Linked Event with fallback aria-label when startAt is missing", () => {
+    const noStartLinked: TripEvent = {
+      id: "linked-no-start",
+      tripId: "trip-1",
+      name: "Check-in — Hotel Avenida Palace",
+      position: 0,
+      linkedReservationId: "res-no-start",
+      reservationType: "lodging",
+    };
+    render(<NowCard trip={activeTrip} todayEvents={[noStartLinked]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    const expectedLabel = "Check-in — Hotel Avenida Palace, time not set, Linked, opens Reservations";
+    const button = screen.getByRole("button", { name: expectedLabel });
+    expect(button).toBeInTheDocument();
+  });
+
+  it("calls onLinkedEventTap with the linked reservation id when the Linked Event row is tapped", async () => {
+    const user = userEvent.setup();
+    const onLinkedEventTap = vi.fn();
+    render(
+      <NowCard
+        trip={activeTrip}
+        todayEvents={[linkedEventNow]}
+        onLinkedEventTap={onLinkedEventTap}
+        dateFormat="MM/DD/YYYY"
+      />,
+      { wrapper: Wrapper }
+    );
+    await user.click(screen.getByText("Linked"));
+    expect(onLinkedEventTap).toHaveBeenCalledWith("res-1");
   });
 });
