@@ -357,6 +357,31 @@ describe("createReservation", () => {
     });
   });
 
+  it("extends startDate by multiple days, shifting every existing and newly-inserted day in order", async () => {
+    mockSelectResults(
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
+      [{ count: 6 }],
+      buildDateRows("2030-06-10", "2030-06-15")
+    );
+
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Far Early Air",
+      startAt: "2030-06-07T10:00:00.000Z",
+    });
+
+    expect(updatedDayValues).toHaveLength(6);
+    expect(insertedDayValues).toEqual([
+      { tripId: "trip-1", dayNumber: 1, date: "2030-06-09", label: "Day 1" },
+      { tripId: "trip-1", dayNumber: 1, date: "2030-06-08", label: "Day 1" },
+      { tripId: "trip-1", dayNumber: 1, date: "2030-06-07", label: "Day 1" },
+    ]);
+    expect(updatedTripValues).toContainEqual({
+      startDate: "2030-06-07",
+      updatedAt: expect.any(Date),
+    });
+  });
+
   it("extends both startDate and endDate when reservation spans beyond both boundaries", async () => {
     mockSelectResults(
       [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
@@ -456,6 +481,7 @@ describe("createReservation", () => {
 
     expect(insertedReservationValues).toBeUndefined();
     expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
