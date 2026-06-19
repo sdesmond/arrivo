@@ -1,10 +1,35 @@
 import { expect, type Page } from "@playwright/test";
 import { asc, eq } from "drizzle-orm";
 import { days } from "../../../src/db/schema";
+import type { DaySeed, EventSeed, ReservationSeed, TripMotherOverrides } from "../e2e-seed-data";
 import { withE2EDb } from "../e2e-db";
 import { Given, Then, When } from "../fixtures";
 
 const EXTENSION_PROVIDER = "Extension Hotel";
+const LINKED_EVENTS_START_DATE = "2026-09-01";
+const LINKED_EVENTS_END_DATE = "2026-09-03";
+const LINKED_EVENTS_DAYS = [
+  { dayNumber: 1, date: "2026-09-01", label: "Day 1" },
+  { dayNumber: 2, date: "2026-09-02", label: "Day 2" },
+  { dayNumber: 3, date: "2026-09-03", label: "Day 3" },
+] satisfies DaySeed[];
+
+function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): TripMotherOverrides {
+  return {
+    trip: {
+      startDate: LINKED_EVENTS_START_DATE,
+      endDate: LINKED_EVENTS_END_DATE,
+      ...overrides.trip,
+    },
+    days: overrides.days ?? LINKED_EVENTS_DAYS,
+    events: overrides.events as EventSeed[] | undefined,
+    reservations: overrides.reservations as ReservationSeed[] | undefined,
+    documents: overrides.documents,
+    packingItems: overrides.packingItems,
+    notes: overrides.notes,
+    checklists: overrides.checklists,
+  };
+}
 
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
   const dayToggle = page.getByRole("button", { name: /stops?$/ }).nth(dayIndex - 1);
@@ -60,16 +85,16 @@ Given(
     await scenario.materialize({
       trip: {
         mother: "threeDayTrip",
-        overrides: {
+        overrides: buildLinkedEventsTripOverrides({
           reservations: [
             {
               type: "lodging",
               provider: "Torel Avantgarde",
-              startAt: "2026-07-01T15:00:00Z",
-              endAt: "2026-07-02T11:00:00Z",
+              startAt: "2026-09-01T15:00:00Z",
+              endAt: "2026-09-02T11:00:00Z",
             },
           ],
-        },
+        }),
         setCurrent: true,
       },
     });
@@ -84,20 +109,20 @@ Given(
     await scenario.materialize({
       trip: {
         mother: "threeDayTrip",
-        overrides: {
+        overrides: buildLinkedEventsTripOverrides({
           reservations: [
             {
               type: "lodging",
               provider: "Torel Avantgarde",
-              startAt: "2026-07-01T15:00:00Z",
-              endAt: "2026-07-02T11:00:00Z",
+              startAt: "2026-09-01T15:00:00Z",
+              endAt: "2026-09-02T11:00:00Z",
             },
           ],
           events: [
             { name: firstEventName, position: 0, dayNumber: 1 },
             { name: secondEventName, position: 1, dayNumber: 1 },
           ],
-        },
+        }),
         setCurrent: true,
       },
     });
@@ -111,16 +136,16 @@ Given("the trip has a Flight reservation with Delta departing and arriving on Da
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
-      overrides: {
+      overrides: buildLinkedEventsTripOverrides({
         reservations: [
           {
             type: "flight",
             provider: "Delta",
-            startAt: "2026-07-01T18:00:00Z",
-            endAt: "2026-07-02T02:00:00Z",
+            startAt: "2026-09-01T18:00:00Z",
+            endAt: "2026-09-02T02:00:00Z",
           },
         ],
-      },
+      }),
       setCurrent: true,
     },
   });
@@ -128,13 +153,13 @@ Given("the trip has a Flight reservation with Delta departing and arriving on Da
   await scenario.gotoCurrentTrip(page);
 });
 
-Given("I start from a three-day trip dated July 1, 2026 through July 3, 2026", async ({ page, scenario }) => {
+Given("I start from a three-day trip dated September 1, 2026 through September 3, 2026", async ({ page, scenario }) => {
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
-      overrides: {
+      overrides: buildLinkedEventsTripOverrides({
         reservations: [],
-      },
+      }),
       setCurrent: true,
     },
   });

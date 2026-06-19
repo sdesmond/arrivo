@@ -301,7 +301,7 @@ describe("ReservationsTab", () => {
       render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, { wrapper: Wrapper });
 
       expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ })).toBeInTheDocument();
-      expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res", { scroll: false });
+      expect(mockRouterReplace).not.toHaveBeenCalled();
     });
 
     it("preserves unrelated params when stripping the one-shot action param", () => {
@@ -325,6 +325,77 @@ describe("ReservationsTab", () => {
       );
 
       expect(mockRouterReplace).toHaveBeenCalledTimes(1);
+    });
+
+    it("reopens the picker when the same action param is added again later", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[]} />
+        </Wrapper>
+      );
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[]} />
+        </Wrapper>
+      );
+
+      expect(mockRouterReplace).toHaveBeenCalledTimes(2);
+      expect(mockRouterReplace).toHaveBeenNthCalledWith(2, "/trips/trip-1?tab=res", { scroll: false });
+    });
+
+    it("re-highlights the same reservation when the same highlight param is added again later", () => {
+      const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
+      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, {
+        wrapper: Wrapper,
+      });
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+        </Wrapper>
+      );
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+        </Wrapper>
+      );
+
+      expect(mockRouterReplace).toHaveBeenCalledTimes(2);
+      expect(mockRouterReplace).toHaveBeenNthCalledWith(2, "/trips/trip-1?tab=res", { scroll: false });
+      expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toHaveAttribute(
+        "data-highlighted-reservation-id",
+        "res-lodging"
+      );
+    });
+
+    it("keeps an unmatched highlight param until the matching reservation is available", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
+      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+
+      const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+        </Wrapper>
+      );
+
+      expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res", { scroll: false });
+      expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toHaveAttribute(
+        "data-highlighted-reservation-id",
+        "res-lodging"
+      );
     });
   });
 });

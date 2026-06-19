@@ -40,39 +40,46 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
   const [openSections, setOpenSections] = useState<Set<ReservationType>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
   const [highlightedReservationId, setHighlightedReservationId] = useState<string | null>(null);
-  const consumedActionRef = useRef<string | null>(null);
-  const consumedHighlightRef = useRef<string | null>(null);
+  const handledActionSearchRef = useRef<string | null>(null);
+  const handledHighlightSearchRef = useRef<string | null>(null);
 
   const actionParam = searchParams.get("action");
   const highlightParam = searchParams.get("highlight");
+  const searchParamsString = searchParams.toString();
 
-  function stripOneShotParam(paramName: string): void {
-    const nextSearchParams = new URLSearchParams(searchParams.toString());
-    nextSearchParams.delete(paramName);
+  useEffect(() => {
+    if (actionParam !== "add-reservation") {
+      handledActionSearchRef.current = null;
+      return;
+    }
+    if (handledActionSearchRef.current === searchParamsString) return;
+    handledActionSearchRef.current = searchParamsString;
+
+    setPickerOpen(true);
+    const nextSearchParams = new URLSearchParams(searchParamsString);
+    nextSearchParams.delete("action");
     const nextQueryString = nextSearchParams.toString();
     router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
-  }
+  }, [actionParam, pathname, router, searchParamsString]);
 
   useEffect(() => {
-    if (actionParam !== "add-reservation") return;
-    if (consumedActionRef.current === actionParam) return;
-    consumedActionRef.current = actionParam;
-    setPickerOpen(true);
-    stripOneShotParam("action");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionParam]);
-
-  useEffect(() => {
-    if (!highlightParam) return;
-    if (consumedHighlightRef.current === highlightParam) return;
-    consumedHighlightRef.current = highlightParam;
+    if (!highlightParam) {
+      handledHighlightSearchRef.current = null;
+      return;
+    }
 
     const target = reservations.find((reservation) => reservation.id === highlightParam);
+    if (!target) return;
+    if (handledHighlightSearchRef.current === searchParamsString) return;
+    handledHighlightSearchRef.current = searchParamsString;
+
     setOpenSections((current) => (target ? new Set(current).add(target.type) : current));
-    setHighlightedReservationId(target ? highlightParam : null);
-    stripOneShotParam("highlight");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightParam]);
+    setHighlightedReservationId(highlightParam);
+    const nextSearchParams = new URLSearchParams(searchParamsString);
+    nextSearchParams.delete("highlight");
+    const nextQueryString = nextSearchParams.toString();
+    router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
+  }, [highlightParam, pathname, reservations, router, searchParamsString]);
 
   useEffect(() => {
     if (!highlightedReservationId) return;
