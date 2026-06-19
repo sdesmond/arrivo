@@ -1,5 +1,10 @@
 import { expect, type Page } from "@playwright/test";
+import { asc, eq } from "drizzle-orm";
+import { days } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
 import { Given, Then, When } from "../fixtures";
+
+const EXTENSION_PROVIDER = "Extension Hotel";
 
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
   const dayToggle = page.getByRole("button", { name: /stops?$/ }).nth(dayIndex - 1);
@@ -7,6 +12,46 @@ async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
   if (expanded === "false") {
     await dayToggle.click();
   }
+}
+
+async function openAddLodgingReservationDrawer(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Reservations" }).click();
+  await page.getByRole("button", { name: "Add Reservation" }).click();
+  await page.getByRole("menuitem", { name: "Lodging" }).click();
+  await expect(page.getByText("Add Lodging Reservation")).toBeVisible({ timeout: 10_000 });
+}
+
+async function saveReservation(page: Page): Promise<void> {
+  const saveButton = page.getByRole("button", { name: "Save" });
+  await saveButton.focus();
+  await saveButton.press("Enter");
+  await expect(page.getByText("Add Lodging Reservation")).not.toBeVisible({ timeout: 10_000 });
+}
+
+async function selectCalendarDate(page: Page, ariaLabel: string, dateString: string): Promise<void> {
+  const [yearString, monthString, dayString] = dateString.split("-");
+  const year = Number(yearString);
+  const month = Number(monthString);
+  const day = Number(dayString);
+  const today = new Date();
+  const targetMonthIndex = year * 12 + (month - 1);
+  const currentMonthIndex = today.getUTCFullYear() * 12 + today.getUTCMonth();
+  const stepCount = targetMonthIndex - currentMonthIndex;
+  const navButtonName = stepCount >= 0 ? /Go to the Next Month/i : /Go to the Previous Month/i;
+  const targetDataDay = `${month}/${day}/${year}`;
+
+  await page.getByLabel(ariaLabel).click();
+  const popover = page.locator('[data-slot="popover-content"]').last();
+  for (let attempt = 0; attempt < Math.abs(stepCount); attempt++) {
+    if ((await popover.locator(`[data-day="${targetDataDay}"]`).count()) > 0) {
+      break;
+    }
+    await popover.getByRole("button", { name: navButtonName }).click();
+  }
+
+  const targetDay = popover.locator(`[data-day="${targetDataDay}"]`).first();
+  await expect(targetDay).toBeVisible({ timeout: 10_000 });
+  await targetDay.click();
 }
 
 Given(
@@ -83,12 +128,39 @@ Given("the trip has a Flight reservation with Delta departing and arriving on Da
   await scenario.gotoCurrentTrip(page);
 });
 
+Given("I start from a three-day trip dated July 1, 2026 through July 3, 2026", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [],
+      },
+      setCurrent: true,
+    },
+  });
+
+  await scenario.gotoCurrentTrip(page);
+});
+
 When("I view the Itinerary tab", async ({ page }) => {
   const itineraryTab = page.getByRole("button", { name: "Itinerary" });
   if ((await itineraryTab.count()) > 0) {
     await itineraryTab.click();
   }
 });
+
+When(
+  "I add a Lodging reservation from {string} at {string} to {string} at {string}",
+  async ({ page }, startDate: string, startTime: string, endDate: string, endTime: string) => {
+    await openAddLodgingReservationDrawer(page);
+    await page.getByLabel("Provider *").fill(EXTENSION_PROVIDER);
+    await selectCalendarDate(page, "Check-in date", startDate);
+    await page.getByLabel("Check-in time").fill(startTime);
+    await selectCalendarDate(page, "Check-out date", endDate);
+    await page.getByLabel("Check-out time").fill(endTime);
+    await saveReservation(page);
+  }
+);
 
 Then(
   "I see a {string} Linked Event on Day 1 with a Hotel icon and a {string} badge",
@@ -107,6 +179,33 @@ Then(
     await expect(page.getByText(badgeText).first()).toBeVisible({ timeout: 10_000 });
   }
 );
+
+Then("I see a new Day {int} with a {string} Linked Event", async ({ page }, dayNumber: number, anchorLabel: string) => {
+  await ensureDayExpanded(page, dayNumber);
+  await expect(page.getByText(`Day ${dayNumber}`)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(`${anchorLabel} — ${EXTENSION_PROVIDER}`)).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the previous Day {int} is now Day {int}", async ({ scenario }, oldDayNumber: number, newDayNumber: number) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) {
+    throw new Error("Missing current scenario trip.");
+  }
+  if (!currentTrip.startDate) {
+    throw new Error("Scenario trip has no startDate to compare against.");
+  }
+
+  await withE2EDb(async (database) => {
+    const tripDays = await database
+      .select({ dayNumber: days.dayNumber, date: days.date })
+      .from(days)
+      .where(eq(days.tripId, currentTrip.id))
+      .orderBy(asc(days.dayNumber));
+
+    const shiftedDay = tripDays.find((day) => day.dayNumber === newDayNumber);
+    expect(shiftedDay?.date).toBe(currentTrip.startDate);
+  });
+});
 
 Then(
   "I see a single {string} Linked Event on Day 1 with a Plane icon and a {string} badge",

@@ -1,17 +1,29 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => ({
-  assertTripAccess: vi.fn(),
-  db: {
-    insert: vi.fn(),
-    select: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-  requireUser: vi.fn(),
-  revalidatePath: vi.fn(),
-}));
+const { assertTripAccess, db, daysTable, documentsTable, requireUser, reservationsTable, revalidatePath, tripsTable } =
+  vi.hoisted(() => ({
+    assertTripAccess: vi.fn(),
+    db: {
+      insert: vi.fn(),
+      select: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      transaction: vi.fn(),
+    },
+    daysTable: {
+      id: "days.id",
+      tripId: "days.tripId",
+      dayNumber: "days.dayNumber",
+      date: "days.date",
+      label: "days.label",
+    },
+    documentsTable: { id: "documents.id", reservationId: "documents.reservationId", url: "documents.url" },
+    requireUser: vi.fn(),
+    reservationsTable: { id: "reservations.id", tripId: "reservations.tripId" },
+    revalidatePath: vi.fn(),
+    tripsTable: { id: "trips.id", startDate: "trips.startDate", endDate: "trips.endDate" },
+  }));
 
 vi.mock("@/lib/auth-helpers", () => ({
   assertTripAccess,
@@ -23,8 +35,10 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  reservations: {},
-  documents: {},
+  reservations: reservationsTable,
+  documents: documentsTable,
+  days: daysTable,
+  trips: tripsTable,
 }));
 
 vi.mock("next/cache", () => ({
@@ -54,19 +68,91 @@ import {
 } from "./actions";
 import { ReservationType } from "@/data/types";
 
+function createAwaitableRows(rows: unknown[]) {
+  return {
+    orderBy: async () => rows,
+    then: (onfulfilled?: ((value: unknown[]) => unknown) | null, onrejected?: ((reason: unknown) => unknown) | null) =>
+      Promise.resolve(rows).then(onfulfilled, onrejected),
+  };
+}
+
+function createSelectMock(rows: unknown[]) {
+  return {
+    from: () => ({
+      where: () => createAwaitableRows(rows),
+    }),
+  };
+}
+
+function nextDateString(date: string): string {
+  const nextDate = new Date(`${date}T00:00:00.000Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  return nextDate.toISOString().slice(0, 10);
+}
+
+function buildDateRows(startDate: string, endDate: string): { date: string }[] {
+  const dateRows: { date: string }[] = [];
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    dateRows.push({ date: cursor });
+    cursor = nextDateString(cursor);
+  }
+  return dateRows;
+}
+
+function buildDayNumberRows(totalDays: number): { dayNumber: number }[] {
+  return Array.from({ length: totalDays }, (_, index) => ({ dayNumber: index + 1 }));
+}
+
 describe("createReservation", () => {
-  let insertedValues: unknown;
+  let insertedReservationValues: Record<string, unknown> | undefined;
+  let insertedDayValues: Record<string, unknown>[];
+  let updatedDayValues: Record<string, unknown>[];
+  let updatedTripValues: Record<string, unknown>[];
+
+  function mockSelectResults(...results: unknown[][]): void {
+    db.select.mockReset();
+    for (const result of results) {
+      db.select.mockReturnValueOnce(createSelectMock(result));
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    insertedValues = undefined;
-    db.insert.mockReturnValue({
-      values: async (values: unknown) => {
-        insertedValues = values;
-      },
+    insertedReservationValues = undefined;
+    insertedDayValues = [];
+    updatedDayValues = [];
+    updatedTripValues = [];
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof db) => Promise<void>) => {
+      await callback(db);
     });
+
+    db.select.mockReturnValue(createSelectMock([{ startDate: "2026-08-01", endDate: "2026-08-05" }]));
+    db.insert.mockImplementation((table: unknown) => ({
+      values: async (values: Record<string, unknown>) => {
+        if (table === reservationsTable) {
+          insertedReservationValues = values;
+          return;
+        }
+        if (table === daysTable) {
+          insertedDayValues.push(values);
+        }
+      },
+    }));
+    db.update.mockImplementation((table: unknown) => ({
+      set: (values: Record<string, unknown>) => {
+        if (table === daysTable) {
+          updatedDayValues.push(values);
+        }
+        if (table === tripsTable) {
+          updatedTripValues.push(values);
+        }
+        return { where: async () => undefined };
+      },
+    }));
   });
 
   it.each([ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise])(
@@ -97,8 +183,7 @@ describe("createReservation", () => {
       startAt: "2026-08-01T10:00:00.000Z",
     });
 
-    expect(db.insert).toHaveBeenCalled();
-    expect(insertedValues).toMatchObject({
+    expect(insertedReservationValues).toMatchObject({
       tripId: "trip-1",
       type,
       provider: "Acme",
@@ -137,7 +222,7 @@ describe("createReservation", () => {
       notes: "Late checkout requested",
     });
 
-    expect(insertedValues).toEqual({
+    expect(insertedReservationValues).toEqual({
       tripId: "trip-1",
       type: ReservationType.Lodging,
       provider: "Grand Hotel",
@@ -174,7 +259,7 @@ describe("createReservation", () => {
       provider: "Misc",
     });
 
-    expect(insertedValues).toMatchObject({
+    expect(insertedReservationValues).toMatchObject({
       startAt: undefined,
       endAt: undefined,
     });
@@ -208,21 +293,200 @@ describe("createReservation", () => {
       provider: "  Misc  ",
     });
 
-    expect(insertedValues).toMatchObject({ provider: "Misc" });
+    expect(insertedReservationValues).toMatchObject({ provider: "Misc" });
+  });
+
+  it("extends endDate when reservation falls after trip endDate", async () => {
+    mockSelectResults(
+      [{ startDate: "2030-06-01", endDate: "2030-06-05" }],
+      [{ count: 5 }],
+      [buildDateRows("2030-06-01", "2030-06-05")[0], ...buildDateRows("2030-06-02", "2030-06-05")],
+      buildDayNumberRows(5)
+    );
+
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Acme Air",
+      startAt: "2030-06-06T10:00:00.000Z",
+    });
+
+    expect(insertedDayValues).toEqual([
+      {
+        tripId: "trip-1",
+        dayNumber: 6,
+        date: "2030-06-06",
+        label: "Day 6",
+      },
+    ]);
+    expect(updatedTripValues).toContainEqual({
+      endDate: "2030-06-06",
+      updatedAt: expect.any(Date),
+    });
+    expect(insertedReservationValues).toMatchObject({
+      provider: "Acme Air",
+      startAt: new Date("2030-06-06T10:00:00.000Z"),
+    });
+  });
+
+  it("extends startDate when reservation falls before trip startDate", async () => {
+    mockSelectResults(
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
+      [{ count: 6 }],
+      buildDateRows("2030-06-10", "2030-06-15"),
+      buildDayNumberRows(6)
+    );
+
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Early Air",
+      startAt: "2030-06-09T10:00:00.000Z",
+    });
+
+    expect(updatedDayValues).toHaveLength(2);
+    expect(insertedDayValues).toEqual([
+      {
+        tripId: "trip-1",
+        dayNumber: 1,
+        date: "2030-06-09",
+        label: "Day 1",
+      },
+    ]);
+    expect(updatedTripValues).toContainEqual({
+      startDate: "2030-06-09",
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it("extends startDate by multiple days, shifting every existing and newly-inserted day in order", async () => {
+    mockSelectResults(
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
+      [{ count: 6 }],
+      buildDateRows("2030-06-10", "2030-06-15")
+    );
+
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Far Early Air",
+      startAt: "2030-06-07T10:00:00.000Z",
+    });
+
+    expect(updatedDayValues).toHaveLength(6);
+    expect(insertedDayValues).toEqual([
+      { tripId: "trip-1", dayNumber: 1, date: "2030-06-09", label: "Day 1" },
+      { tripId: "trip-1", dayNumber: 1, date: "2030-06-08", label: "Day 1" },
+      { tripId: "trip-1", dayNumber: 1, date: "2030-06-07", label: "Day 1" },
+    ]);
+    expect(updatedTripValues).toContainEqual({
+      startDate: "2030-06-07",
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it("extends both startDate and endDate when reservation spans beyond both boundaries", async () => {
+    mockSelectResults(
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
+      [{ count: 6 }],
+      buildDateRows("2030-06-10", "2030-06-15"),
+      buildDayNumberRows(6).map((row) => ({ dayNumber: row.dayNumber + 1 }))
+    );
+
+    await createReservation("trip-1", {
+      type: ReservationType.Lodging,
+      provider: "Grand Hotel",
+      startAt: "2030-06-09T15:00:00.000Z",
+      endAt: "2030-06-16T11:00:00.000Z",
+    });
+
+    expect(insertedDayValues).toEqual([
+      {
+        tripId: "trip-1",
+        dayNumber: 1,
+        date: "2030-06-09",
+        label: "Day 1",
+      },
+      {
+        tripId: "trip-1",
+        dayNumber: 8,
+        date: "2030-06-16",
+        label: "Day 8",
+      },
+    ]);
+    expect(updatedTripValues).toContainEqual({
+      startDate: "2030-06-09",
+      endDate: "2030-06-16",
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it("does not extend when reservation falls within the existing range", async () => {
+    mockSelectResults([{ startDate: "2030-06-10", endDate: "2030-06-15" }]);
+
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Within Range Air",
+      startAt: "2030-06-12T10:00:00.000Z",
+    });
+
+    expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
+  });
+
+  it("throws when the extension would exceed MAX_TRIP_DAYS", async () => {
+    mockSelectResults(
+      [{ startDate: "2030-06-01", endDate: "2030-07-15" }],
+      [{ count: 45 }],
+      buildDateRows("2030-06-01", "2030-07-15")
+    );
+
+    await expect(
+      createReservation("trip-1", {
+        type: ReservationType.Flight,
+        provider: "Overflow Air",
+        startAt: "2030-07-16T10:00:00.000Z",
+      })
+    ).rejects.toThrow("Trip cannot exceed 45 days.");
+
+    expect(insertedReservationValues).toBeUndefined();
+    expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
+  });
+
+  it("does not duplicate days when the reservation starts on the existing boundary date", async () => {
+    mockSelectResults([{ startDate: "2030-06-10", endDate: "2030-06-15" }]);
+
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Boundary Air",
+      startAt: "2030-06-10T15:00:00.000Z",
+    });
+
+    expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
+  });
+
+  it("does not insert the reservation when date-range extension fails", async () => {
+    db.select
+      .mockReturnValueOnce(createSelectMock([{ startDate: "2030-06-10", endDate: "2030-06-15" }]))
+      .mockImplementationOnce(() => {
+        throw new Error("extension failed");
+      });
+
+    await expect(
+      createReservation("trip-1", {
+        type: ReservationType.Flight,
+        provider: "Broken Air",
+        startAt: "2030-06-09T10:00:00.000Z",
+      })
+    ).rejects.toThrow("extension failed");
+
+    expect(insertedReservationValues).toBeUndefined();
+    expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 
 describe("updateReservation", () => {
-  let updatedValues: Record<string, unknown> | undefined;
-
-  function mockExistingReservation(row: Record<string, unknown> | undefined): void {
-    db.select.mockReturnValue({
-      from: () => ({
-        where: async () => (row ? [row] : []),
-      }),
-    });
-  }
-
   const baseRow = {
     id: "res-1",
     tripId: "trip-1",
@@ -243,23 +507,57 @@ describe("updateReservation", () => {
     serviceNumber: null,
     notes: null,
   };
+  let insertedDayValues: Record<string, unknown>[];
+  let updatedDayValues: Record<string, unknown>[];
+  let updatedReservationValues: Record<string, unknown> | undefined;
+  let updatedTripValues: Record<string, unknown>[];
+
+  function mockSelectResults(...results: unknown[][]): void {
+    db.select.mockReset();
+    for (const result of results) {
+      db.select.mockReturnValueOnce(createSelectMock(result));
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    updatedValues = undefined;
-    mockExistingReservation(baseRow);
-    db.update.mockReturnValue({
+    insertedDayValues = [];
+    updatedDayValues = [];
+    updatedReservationValues = undefined;
+    updatedTripValues = [];
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof db) => Promise<void>) => {
+      await callback(db);
+    });
+
+    mockSelectResults([baseRow], [{ startDate: "2026-08-01", endDate: "2026-08-05" }]);
+    db.insert.mockImplementation((table: unknown) => ({
+      values: async (values: Record<string, unknown>) => {
+        if (table === daysTable) {
+          insertedDayValues.push(values);
+        }
+      },
+    }));
+    db.update.mockImplementation((table: unknown) => ({
       set: (values: Record<string, unknown>) => {
-        updatedValues = values;
+        if (table === reservationsTable) {
+          updatedReservationValues = values;
+        }
+        if (table === daysTable) {
+          updatedDayValues.push(values);
+        }
+        if (table === tripsTable) {
+          updatedTripValues.push(values);
+        }
         return { where: async () => undefined };
       },
-    });
+    }));
   });
 
   it("throws when the reservation does not exist", async () => {
-    mockExistingReservation(undefined);
+    mockSelectResults([]);
 
     await expect(updateReservation("missing", { provider: "New Name" })).rejects.toThrow("Reservation not found.");
 
@@ -276,9 +574,9 @@ describe("updateReservation", () => {
   it("updates the provider independently and trims it", async () => {
     await updateReservation("res-1", { provider: "  New Name  " });
 
-    expect(updatedValues).toMatchObject({ provider: "New Name" });
-    expect(updatedValues).not.toHaveProperty("startAt");
-    expect(updatedValues).not.toHaveProperty("endAt");
+    expect(updatedReservationValues).toMatchObject({ provider: "New Name" });
+    expect(updatedReservationValues).not.toHaveProperty("startAt");
+    expect(updatedReservationValues).not.toHaveProperty("endAt");
   });
 
   it("rejects an empty provider", async () => {
@@ -288,16 +586,20 @@ describe("updateReservation", () => {
   });
 
   it("updates startAt independently, converting to a Date", async () => {
+    mockSelectResults([baseRow], [{ startDate: "2026-08-01", endDate: "2026-09-05" }]);
+
     await updateReservation("res-1", { startAt: "2026-09-01T12:00:00.000Z" });
 
-    expect(updatedValues).toMatchObject({ startAt: new Date("2026-09-01T12:00:00.000Z") });
-    expect(updatedValues).not.toHaveProperty("provider");
+    expect(updatedReservationValues).toMatchObject({ startAt: new Date("2026-09-01T12:00:00.000Z") });
+    expect(updatedReservationValues).not.toHaveProperty("provider");
   });
 
   it("updates endAt independently, converting to a Date", async () => {
+    mockSelectResults([baseRow], [{ startDate: "2026-08-01", endDate: "2026-09-05" }]);
+
     await updateReservation("res-1", { endAt: "2026-09-02T12:00:00.000Z" });
 
-    expect(updatedValues).toMatchObject({ endAt: new Date("2026-09-02T12:00:00.000Z") });
+    expect(updatedReservationValues).toMatchObject({ endAt: new Date("2026-09-02T12:00:00.000Z") });
   });
 
   it("rejects an unparseable startAt before any update", async () => {
@@ -315,27 +617,30 @@ describe("updateReservation", () => {
   it("updates confirmationCode independently", async () => {
     await updateReservation("res-1", { confirmationCode: "XYZ987" });
 
-    expect(updatedValues).toMatchObject({ confirmationCode: "XYZ987" });
+    expect(updatedReservationValues).toMatchObject({ confirmationCode: "XYZ987" });
   });
 
   it("updates serviceNumber independently", async () => {
     await updateReservation("res-1", { serviceNumber: "TP 202" });
 
-    expect(updatedValues).toMatchObject({ serviceNumber: "TP 202" });
+    expect(updatedReservationValues).toMatchObject({ serviceNumber: "TP 202" });
   });
 
   it("updates notes independently", async () => {
     await updateReservation("res-1", { notes: "Window seat please" });
 
-    expect(updatedValues).toMatchObject({ notes: "Window seat please" });
+    expect(updatedReservationValues).toMatchObject({ notes: "Window seat please" });
   });
 
   it("clears confirmationCode, serviceNumber, and notes when set to an empty string", async () => {
-    mockExistingReservation({ ...baseRow, confirmationCode: "ABC123", serviceNumber: "TP 202", notes: "Old notes" });
+    mockSelectResults(
+      [{ ...baseRow, confirmationCode: "ABC123", serviceNumber: "TP 202", notes: "Old notes" }],
+      [{ startDate: "2026-08-01", endDate: "2026-08-05" }]
+    );
 
     await updateReservation("res-1", { confirmationCode: "", serviceNumber: "", notes: "" });
 
-    expect(updatedValues).toMatchObject({ confirmationCode: null, serviceNumber: null, notes: null });
+    expect(updatedReservationValues).toMatchObject({ confirmationCode: null, serviceNumber: null, notes: null });
   });
 
   it("updates startAddress and endAddress independently", async () => {
@@ -344,7 +649,7 @@ describe("updateReservation", () => {
       endAddress: "LAX International Airport, CA",
     });
 
-    expect(updatedValues).toMatchObject({
+    expect(updatedReservationValues).toMatchObject({
       startAddress: "JFK International Airport, NY",
       endAddress: "LAX International Airport, CA",
     });
@@ -362,7 +667,7 @@ describe("updateReservation", () => {
       endLocationLng: -118.4085,
     });
 
-    expect(updatedValues).toMatchObject({
+    expect(updatedReservationValues).toMatchObject({
       startAddress: "JFK International Airport, NY",
       startLocationName: "John F. Kennedy International Airport",
       startLocationLat: 40.6413,
@@ -375,21 +680,26 @@ describe("updateReservation", () => {
   });
 
   it("clears startAddress and endAddress when set to an empty string", async () => {
-    mockExistingReservation({
-      ...baseRow,
-      startAddress: "JFK",
-      startLocationName: "JFK Airport",
-      startLocationLat: 40.6413,
-      startLocationLng: -73.7781,
-      endAddress: "LAX",
-      endLocationName: "LAX Airport",
-      endLocationLat: 33.9416,
-      endLocationLng: -118.4085,
-    });
+    mockSelectResults(
+      [
+        {
+          ...baseRow,
+          startAddress: "JFK",
+          startLocationName: "JFK Airport",
+          startLocationLat: 40.6413,
+          startLocationLng: -73.7781,
+          endAddress: "LAX",
+          endLocationName: "LAX Airport",
+          endLocationLat: 33.9416,
+          endLocationLng: -118.4085,
+        },
+      ],
+      [{ startDate: "2026-08-01", endDate: "2026-08-05" }]
+    );
 
     await updateReservation("res-1", { startAddress: "", endAddress: "" });
 
-    expect(updatedValues).toMatchObject({
+    expect(updatedReservationValues).toMatchObject({
       startAddress: null,
       startLocationName: null,
       startLocationLat: null,
@@ -402,45 +712,52 @@ describe("updateReservation", () => {
   });
 
   it("leaves existing structured location data untouched when only the address text is patched", async () => {
-    mockExistingReservation({
-      ...baseRow,
-      startAddress: "JFK",
-      startLocationName: "JFK Airport",
-      startLocationLat: 40.6413,
-      startLocationLng: -73.7781,
-    });
+    mockSelectResults(
+      [
+        {
+          ...baseRow,
+          startAddress: "JFK",
+          startLocationName: "JFK Airport",
+          startLocationLat: 40.6413,
+          startLocationLng: -73.7781,
+        },
+      ],
+      [{ startDate: "2026-08-01", endDate: "2026-08-05" }]
+    );
 
     await updateReservation("res-1", { startAddress: "JFK Terminal 4" });
 
-    expect(updatedValues).toMatchObject({ startAddress: "JFK Terminal 4" });
-    expect(updatedValues).not.toHaveProperty("startLocationName");
-    expect(updatedValues).not.toHaveProperty("startLocationLat");
-    expect(updatedValues).not.toHaveProperty("startLocationLng");
+    expect(updatedReservationValues).toMatchObject({ startAddress: "JFK Terminal 4" });
+    expect(updatedReservationValues).not.toHaveProperty("startLocationName");
+    expect(updatedReservationValues).not.toHaveProperty("startLocationLat");
+    expect(updatedReservationValues).not.toHaveProperty("startLocationLng");
   });
 
   it("updates cost independently, converting to a numeric string", async () => {
     await updateReservation("res-1", { cost: 349.5 });
 
-    expect(updatedValues).toMatchObject({ cost: "349.5" });
+    expect(updatedReservationValues).toMatchObject({ cost: "349.5" });
   });
 
   it("clears cost when set to null", async () => {
-    mockExistingReservation({ ...baseRow, cost: "199.00" });
+    mockSelectResults([{ ...baseRow, cost: "199.00" }], [{ startDate: "2026-08-01", endDate: "2026-08-05" }]);
 
     await updateReservation("res-1", { cost: null });
 
-    expect(updatedValues).toMatchObject({ cost: null });
+    expect(updatedReservationValues).toMatchObject({ cost: null });
   });
 
   it.each([ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise])(
     "rejects clearing endAt for %s reservations",
     async (type) => {
-      mockExistingReservation({
-        ...baseRow,
-        type,
-        startAt: new Date("2026-08-01T10:00:00.000Z"),
-        endAt: new Date("2026-08-05T11:00:00.000Z"),
-      });
+      mockSelectResults([
+        {
+          ...baseRow,
+          type,
+          startAt: new Date("2026-08-01T10:00:00.000Z"),
+          endAt: new Date("2026-08-05T11:00:00.000Z"),
+        },
+      ]);
 
       await expect(updateReservation("res-1", { endAt: "" })).rejects.toThrow(
         "An end date and time is required for this reservation type."
@@ -451,7 +768,7 @@ describe("updateReservation", () => {
   );
 
   it("rejects setting endAt when the resulting startAt is unset", async () => {
-    mockExistingReservation({ ...baseRow, startAt: null, endAt: null });
+    mockSelectResults([{ ...baseRow, startAt: null, endAt: null }]);
 
     await expect(updateReservation("res-1", { endAt: "2026-09-02T12:00:00.000Z" })).rejects.toThrow(
       "A start date and time is required when an end date and time is set."
@@ -461,12 +778,14 @@ describe("updateReservation", () => {
   });
 
   it("rejects clearing startAt when the resulting endAt is still set", async () => {
-    mockExistingReservation({
-      ...baseRow,
-      startAt: new Date("2026-08-01T10:00:00.000Z"),
-      endAt: new Date("2026-08-05T11:00:00.000Z"),
-      type: ReservationType.Other,
-    });
+    mockSelectResults([
+      {
+        ...baseRow,
+        startAt: new Date("2026-08-01T10:00:00.000Z"),
+        endAt: new Date("2026-08-05T11:00:00.000Z"),
+        type: ReservationType.Other,
+      },
+    ]);
 
     await expect(updateReservation("res-1", { startAt: "" })).rejects.toThrow(
       "A start date and time is required when an end date and time is set."
@@ -484,7 +803,7 @@ describe("updateReservation", () => {
   });
 
   it("validates endAt against the existing startAt when only endAt is patched", async () => {
-    mockExistingReservation({ ...baseRow, startAt: new Date("2026-09-05T10:00:00.000Z"), endAt: null });
+    mockSelectResults([{ ...baseRow, startAt: new Date("2026-09-05T10:00:00.000Z"), endAt: null }]);
 
     await expect(updateReservation("res-1", { endAt: "2026-09-01T10:00:00.000Z" })).rejects.toThrow(
       "The end date and time must be after the start date and time."
@@ -496,13 +815,100 @@ describe("updateReservation", () => {
   it("allows a successful patch that omits fields, changing only the provided keys", async () => {
     await updateReservation("res-1", { notes: "Updated notes" });
 
-    expect(updatedValues).toEqual({ updatedAt: expect.any(Date), notes: "Updated notes" });
+    expect(updatedReservationValues).toEqual({ updatedAt: expect.any(Date), notes: "Updated notes" });
   });
 
   it("revalidates the trip path after a successful update", async () => {
     await updateReservation("res-1", { provider: "New Name" });
 
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("extends trip date range when an updated startAt falls before the current range", async () => {
+    mockSelectResults(
+      [{ ...baseRow, startAt: new Date("2030-06-12T10:00:00.000Z") }],
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
+      [{ count: 6 }],
+      buildDateRows("2030-06-10", "2030-06-15"),
+      buildDayNumberRows(6)
+    );
+
+    await updateReservation("res-1", { startAt: "2030-06-09T10:00:00.000Z" });
+
+    expect(updatedDayValues).toHaveLength(2);
+    expect(insertedDayValues).toEqual([
+      {
+        tripId: "trip-1",
+        dayNumber: 1,
+        date: "2030-06-09",
+        label: "Day 1",
+      },
+    ]);
+    expect(updatedTripValues).toContainEqual({
+      startDate: "2030-06-09",
+      updatedAt: expect.any(Date),
+    });
+    expect(updatedReservationValues).toMatchObject({
+      startAt: new Date("2030-06-09T10:00:00.000Z"),
+    });
+  });
+
+  it("does not extend when the update changes only provider text", async () => {
+    mockSelectResults(
+      [{ ...baseRow, startAt: new Date("2030-06-12T10:00:00.000Z") }],
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }]
+    );
+
+    await updateReservation("res-1", { provider: "Updated Name" });
+
+    expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
+    expect(updatedReservationValues).toMatchObject({
+      provider: "Updated Name",
+    });
+  });
+
+  it("does not extend when only the reservation time changes on the same calendar date", async () => {
+    mockSelectResults(
+      [{ ...baseRow, startAt: new Date("2030-06-12T10:00:00.000Z") }],
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }]
+    );
+
+    await updateReservation("res-1", { startAt: "2030-06-12T12:30:00.000Z" });
+
+    expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
+    expect(updatedReservationValues).toMatchObject({
+      startAt: new Date("2030-06-12T12:30:00.000Z"),
+    });
+  });
+
+  it("extends when an added endAt falls after the current trip range", async () => {
+    mockSelectResults(
+      [{ ...baseRow, type: ReservationType.Other, startAt: new Date("2030-06-12T10:00:00.000Z"), endAt: null }],
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
+      [{ count: 6 }],
+      buildDateRows("2030-06-10", "2030-06-15"),
+      buildDayNumberRows(6)
+    );
+
+    await updateReservation("res-1", { endAt: "2030-06-16T11:00:00.000Z" });
+
+    expect(insertedDayValues).toEqual([
+      {
+        tripId: "trip-1",
+        dayNumber: 7,
+        date: "2030-06-16",
+        label: "Day 7",
+      },
+    ]);
+    expect(updatedTripValues).toContainEqual({
+      endDate: "2030-06-16",
+      updatedAt: expect.any(Date),
+    });
+    expect(updatedReservationValues).toMatchObject({
+      endAt: new Date("2030-06-16T11:00:00.000Z"),
+    });
   });
 });
 
@@ -537,6 +943,7 @@ describe("deleteReservation", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     mockExistingReservation(baseRow);
@@ -593,6 +1000,7 @@ describe("deleteReservation — blob cleanup", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     del.mockResolvedValue(undefined);
@@ -660,6 +1068,7 @@ describe("uploadReservationDocument", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     put.mockResolvedValue({ url: "https://blob.example.com/doc.pdf" });
@@ -807,6 +1216,7 @@ describe("removeReservationDocument", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     del.mockResolvedValue(undefined);
@@ -911,6 +1321,7 @@ describe("renameReservationDocument", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     db.update.mockReturnValue({ set: () => ({ where: async () => undefined }) });
@@ -952,6 +1363,7 @@ describe("promoteReservationDocToTrip", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
   });
@@ -995,6 +1407,7 @@ describe("attachTripDocToReservation", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
