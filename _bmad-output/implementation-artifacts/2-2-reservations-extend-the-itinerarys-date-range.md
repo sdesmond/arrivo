@@ -4,7 +4,7 @@ baseline_commit: cb77a2b
 
 # Story 2.2 — Reservations Extend the Itinerary's Date Range
 
-**Status:** review
+**Status:** done
 **Epic:** 2 — Reservations Sync to the Itinerary
 **Branch:** feature/2-2-reservations-extend-the-itinerarys-date-range
 
@@ -536,6 +536,17 @@ Then("the previous Day {int} is now Day {int}", async ({ page, int: oldDay, int:
   await expect(page.getByText(`Day ${newDay}`)).toBeVisible();
 });
 ```
+
+### Review Findings
+
+- [x] [Review][Defer] Dateless-trip + reservation interaction is unaddressed by any AC [src/app/(app)/trips/[tripId]/reservations/actions.ts:51-72] — confirmed reachable: the New Trip dialog allows an empty date range, and `addDay`/`updateTripMetadata` both produce/maintain `days` rows with `date: null`. Adding a dated Reservation to such a trip currently inserts brand-new dated `days` rows alongside the orphaned null-date ones (no merge), while `existingDayCount` counts both toward `MAX_TRIP_DAYS`. Intended behavior: the reservation's dates should fill in the existing dateless day rows (in `dayNumber` order) before any new days are inserted, effectively giving the trip dates. — deferred, pre-existing: this depends on dateless-trip semantics broader than this story (the existing `addDay`/`updateTripMetadata` dateless handling), so it's tracked as a follow-up story rather than patched here.
+- [x] [Review][Patch] No unit test covers a multi-day front extension [src/app/(app)/trips/[tripId]/reservations/actions.ts:90-114] — the Debug Log claims a real DB uniqueness collision was fixed for exactly this scenario (2+ days inserted before the original `startDate` in one call), but every "extends startDate" test case only inserts a single day before the boundary. Fixed: added `"extends startDate by multiple days, shifting every existing and newly-inserted day in order"` covering a 3-day front gap.
+- [x] [Review][Patch] Rollback test doesn't assert the trip row was untouched [src/app/(app)/trips/[tripId]/reservations/actions.test.ts:442-460] — `"does not insert the reservation when date-range extension fails"` checks `insertedReservationValues`/`insertedDayValues` are empty but never asserts `updatedTripValues` is empty, leaving the AC4 "trip update" leg of the rollback unverified. Fixed: added `expect(updatedTripValues).toEqual([])`.
+- [x] [Review][Patch] `selectCalendarDate` E2E helper computes month-stepping with local-timezone `Date` construction [tests/e2e/steps/linked-events.steps.ts:1914-1927] — comparing a local `new Date()` "today" against UTC-intended target dates risks off-by-one navigation (and test timeout) when the CI runner's timezone isn't UTC, especially near month/year boundaries. Fixed: target month is now derived directly from the parsed date string and "today" uses `getUTCFullYear()`/`getUTCMonth()`.
+- [x] [Review][Patch] `"the previous Day 1 is now Day 2"` step is hard-coded to one scenario's literal dates [tests/e2e/steps/linked-events.steps.ts:1995-2015] despite a Gherkin sentence that reads as generic — unlike the adjacent `"I see a new Day {int}"` step, it isn't parameterized, so reusing this step text for a different scenario would silently assert the wrong dates. Fixed: parameterized with `{int}`/`{int}` and asserts against `scenario.currentTrip.startDate` instead of a hard-coded date array.
+- [x] [Review][Patch] `extendTripDateRange` builds the full date range with a `while` loop before checking `MAX_TRIP_DAYS` [src/app/(app)/trips/[tripId]/reservations/actions.ts:50-55] — a pathological multi-year `startAt`/`endAt` gap iterates the loop extensively inside an open transaction before the cap throws. Fixed: added an early day-span check (date arithmetic, no loop) right after computing `newStartDate`/`newEndDate`.
+- [x] [Review][Defer] No row-level locking around the trip-dates read + days/trip writes [src/app/(app)/trips/[tripId]/reservations/actions.ts:173-220] — concurrent `createReservation`/`updateReservation` calls for the same trip could both pass the `MAX_TRIP_DAYS` check off the same snapshot under default isolation. — deferred, pre-existing: matches the existing `addDay`/`removeLastDay` pattern in `src/app/(app)/trips/[tripId]/actions.ts`, which has the identical gap; fixing it is an architectural decision (isolation level or `SELECT ... FOR UPDATE`) beyond this story's scope.
+- [x] [Review][Defer] `createReservation` never validates that `input.startAt`/`endAt` are well-formed ISO datetime strings before they're sliced and string-compared in `extendTripDateRange` [src/app/(app)/trips/[tripId]/reservations/actions.ts:157-171], unlike `updateReservation` which validates parseability. — deferred, pre-existing: the missing validation predates this diff (real UI input always goes through `combineDateAndTime`'s `toISOString()`, which normalizes to UTC); this diff just adds a new consumer of the unchecked field. Worth hardening if `createReservation` is ever called with unsanitized input.
 
 ---
 
