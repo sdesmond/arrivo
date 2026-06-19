@@ -48,6 +48,13 @@ async function extendTripDateRange(
     return {};
   }
 
+  const newRangeSpanMs =
+    new Date(`${newEndDate}T00:00:00.000Z`).getTime() - new Date(`${newStartDate}T00:00:00.000Z`).getTime();
+  const newRangeSpanDays = Math.round(newRangeSpanMs / (24 * 60 * 60 * 1000)) + 1;
+  if (newRangeSpanDays > MAX_TRIP_DAYS) {
+    throw new Error("Trip cannot exceed 45 days.");
+  }
+
   const existingDayCount =
     (
       await transaction
