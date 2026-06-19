@@ -4,7 +4,7 @@ baseline_commit: bd3ee40
 
 # Story 2.4 — Itinerary CTA and Tap-to-Edit Redirect
 
-**Status:** review
+**Status:** done
 **Epic:** 2 — Reservations Sync to the Itinerary
 **Branch:** feature/2-4-itinerary-cta-and-tap-to-edit-redirect
 
@@ -231,6 +231,12 @@ Add scenarios for:
 2. Tapping a Linked Event on the Itinerary and landing on Reservations with the correct accordion expanded and the matching row highlighted
 
 Use scenario-owned fixture creation only. No new global seed rows in `global-setup.ts`.
+
+### Review Findings
+
+- [x] [Review][Patch] Same-value one-shot params cannot rerun while `ReservationsTab` stays mounted [src/components/packt/reservations-tab.tsx:43]
+- [x] [Review][Patch] Linked-events E2E scenarios reuse the base seed trip start date, risking nondeterministic trip lookup collisions [tests/e2e/steps/linked-events.steps.ts:131]
+- [x] [Review][Patch] Unknown `highlight` targets are stripped before a matching reservation can be resolved, turning stale or racey deep links into silent no-ops [src/components/packt/reservations-tab.tsx:70]
 
 ---
 
