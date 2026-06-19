@@ -273,6 +273,41 @@ describe("NowCard", () => {
     expect(screen.getByText("Museum Visit").closest("button")).not.toBeInTheDocument();
   });
 
+  it("renders same-day Linked Event with flat aria-label (no separator in name)", () => {
+    const sameDayLinked: TripEvent = {
+      id: "linked-same",
+      tripId: "trip-1",
+      name: "Hotel Avenida Palace",
+      startAt: "2026-05-13T11:00:00Z",
+      position: new Date("2026-05-13T11:00:00Z").getTime(),
+      linkedReservationId: "res-same",
+      reservationType: "lodging",
+    };
+    render(<NowCard trip={activeTrip} todayEvents={[sameDayLinked]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    const expectedLabel = `Hotel Avenida Palace: ${formatAnchorDateTime(sameDayLinked.startAt!)}, Linked, opens Reservations`;
+    const button = screen.getByRole("button", { name: expectedLabel });
+    expect(button).toBeInTheDocument();
+  });
+
+  it("renders Linked Event with fallback aria-label when startAt is missing", () => {
+    const noStartLinked: TripEvent = {
+      id: "linked-no-start",
+      tripId: "trip-1",
+      name: "Check-in — Hotel Avenida Palace",
+      position: 0,
+      linkedReservationId: "res-no-start",
+      reservationType: "lodging",
+    };
+    render(<NowCard trip={activeTrip} todayEvents={[noStartLinked]} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    const expectedLabel = "Check-in — Hotel Avenida Palace, time not set, Linked, opens Reservations";
+    const button = screen.getByRole("button", { name: expectedLabel });
+    expect(button).toBeInTheDocument();
+  });
+
   it("calls onLinkedEventTap with the linked reservation id when the Linked Event row is tapped", async () => {
     const user = userEvent.setup();
     const onLinkedEventTap = vi.fn();

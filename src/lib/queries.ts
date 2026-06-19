@@ -176,9 +176,9 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     const todayLinkedEvents = linkedEventsForTrip.filter(
       (linkedEvent) => !!linkedEvent.startAt && linkedEvent.startAt.slice(0, 10) === todayISO
     );
-    const todayEvents = [...todayLinkedEvents, ...(eventsByTrip[trip.id] ?? []).map(dbEventToType)].sort(
-      (first, second) => new Date(first.startAt!).getTime() - new Date(second.startAt!).getTime()
-    );
+    const todayEvents = [...todayLinkedEvents, ...(eventsByTrip[trip.id] ?? []).map(dbEventToType)]
+      .filter((event) => event.startAt)
+      .sort((first, second) => new Date(first.startAt!).getTime() - new Date(second.startAt!).getTime());
 
     return {
       trip: {

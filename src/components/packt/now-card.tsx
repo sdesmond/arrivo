@@ -42,11 +42,20 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
       ? `${formatDate(trip.startDate, dateFormat)} – ${formatDate(trip.endDate, dateFormat)}`
       : "No dates";
 
-  const currentEvent =
-    [...todayEvents].reverse().find((event) => {
-      if (!event.startAt) return false;
-      return new Date(event.startAt) <= now;
-    }) ?? null;
+  const currentEvent = (() => {
+    const reversed = [...todayEvents].reverse();
+    return (
+      reversed.find((event) => {
+        if (!event.startAt) return false;
+        return new Date(event.startAt) <= now && !event.linkedReservationId;
+      }) ??
+      reversed.find((event) => {
+        if (!event.startAt) return false;
+        return new Date(event.startAt) <= now;
+      }) ??
+      null
+    );
+  })();
 
   const nextEvent =
     todayEvents.find((event) => {
@@ -66,10 +75,13 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
     displayEvent && linkedSeparatorIndex !== -1 ? displayEvent.name.slice(0, linkedSeparatorIndex) : "";
   const linkedProviderLabel =
     displayEvent && linkedSeparatorIndex !== -1 ? displayEvent.name.slice(linkedSeparatorIndex + 3) : "";
-  const linkedAriaLabel =
-    isLinkedEvent && displayEvent?.startAt
-      ? `${linkedAnchorLabel}: ${formatAnchorDateTime(displayEvent.startAt)} — ${linkedProviderLabel}, Linked, opens Reservations`
-      : undefined;
+  const linkedAriaLabel = isLinkedEvent
+    ? displayEvent?.startAt
+      ? linkedSeparatorIndex !== -1
+        ? `${linkedAnchorLabel}: ${formatAnchorDateTime(displayEvent.startAt)} — ${linkedProviderLabel}, Linked, opens Reservations`
+        : `${displayEvent.name}: ${formatAnchorDateTime(displayEvent.startAt)}, Linked, opens Reservations`
+      : `${displayEvent?.name ?? "Linked event"}, time not set, Linked, opens Reservations`
+    : undefined;
 
   return (
     <div
@@ -274,8 +286,6 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
               }}
             >
               {displayEvent.startAt ? fmtTime(displayEvent.startAt) : "—"}
-              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
-              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>— km
             </div>
           </button>
         )}

@@ -4,7 +4,7 @@ baseline_commit: cb77a2b
 
 # Story 2.3 — Now Card Surfaces Linked Events
 
-**Status:** review
+**Status:** done
 **Epic:** 2 — Reservations Sync to the Itinerary
 **Branch:** feature/2-3-now-card-surfaces-linked-events
 
@@ -292,3 +292,20 @@ Full E2E suite: 142/143 pass; the one red (`packing-tab.feature` keyboard-reorde
 
 - 2026-06-19: Added Linked Event rendering (icon swap, badge, single-button aria-label) to the Now Card; fixed `listTripsForUser()` to merge derived Linked Events into `todayEvents` (previously missing, which made AC1 unreachable); wired `onLinkedEventTap` placeholder through `trips-desktop-layout.tsx`; added unit and E2E coverage.
 - 2026-06-19: Fixed a pre-existing, unrelated test-infra bug blocking the coverage gate — Node 22+'s global `localStorage`/`sessionStorage` accessor was shadowing jsdom's real implementation in `vitest.setup.mts`, breaking 18 tests across `template-editor-view.test.tsx` and `trips-desktop-layout.test.tsx`.
+
+### Review Findings
+
+#### Patch
+
+- [x] [Review][Patch] Same-day Linked Event aria-label malformed [now-card.tsx:64-71] — fixed: flat aria-label when no separator found
+- [x] [Review][Patch] Hardcoded "— km" placeholder renders for all linked events [now-card.tsx:276-278] — fixed: removed from linked event block
+- [x] [Review][Patch] No MapPin fallback when reservationType is missing [now-card.tsx:60-63] — dismissed: reservationType is required at creation time
+- [x] [Review][Patch] AC7 preference not enforced — manual event should win over linked when both are chronologically "current" [now-card.tsx:45-49] — fixed: prefer non-linked events in currentEvent selection
+- [x] [Review][Patch] Linked event falsy startAt → button has zero accessible name [now-card.tsx:69-72] — fixed: fallback aria-label when startAt missing
+- [x] [Review][Patch] Sort comparator NaN risk when event has no startAt [queries.ts:179-181] — fixed: filter before sort
+- [x] [Review][Patch] Missing test for same-day Linked Event aria-label [now-card.test.tsx] — fixed: tests added for same-day and missing-startAt cases
+
+#### Defer
+
+- [x] [Review][Defer] aria-label says "opens Reservations" but onClick may be no-op [now-card.tsx:72,215] — deferred, placeholder per AC6, Story 2.4 replaces with real navigation
+- [x] [Review][Defer] UTC midnight timezone edge case in today date filter [queries.ts:176-177] — deferred, matches existing codebase pattern
