@@ -4,6 +4,13 @@ When starting work on this Next.js project, ALWAYS call the `init` tool from `ne
 
 <!-- END:nextjs-agent-rules -->
 
+## Default Agent Mode
+
+- Default all agents to the `caveman` skill in `full` intensity for every response
+- Keep that mode active across turns and subagents unless the user says `stop caveman` or `normal mode`
+- Follow the clarity/safety escape hatches from `.agents/skills/caveman/SKILL.md` when compression would create risk or ambiguity, then resume `caveman`
+- Apply the mode to prose only; code, commits, and PR text stay normal
+
 ## Response Style Rules
 
 - NEVER start with 'Let me' or 'Let's' — use present-participle gerunds instead: 'Looking into...', 'Running tests...', 'Found X in Y', 'Checking...'. NEVER start a sentence with "Now..." for example, "Now looking into...," "Now changing..." It can be assumed that you're doing the thing now so there's no need to say it.
