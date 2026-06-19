@@ -574,7 +574,7 @@ describe("createTrip", () => {
           {
             id: "img-1",
             urls: { regular: "https://images.example/paris.jpg" },
-            user: { name: "Photographer" },
+            user: { name: "Photographer", links: { html: "https://unsplash.com/@photographer" } },
             alt_description: "Paris skyline",
             description: null,
           },
@@ -1784,7 +1784,10 @@ describe("searchCoverImages", () => {
           {
             id: "abc123",
             urls: { regular: "https://images.unsplash.com/abc" },
-            user: { name: "John Photographer" },
+            user: {
+              name: "John Photographer",
+              links: { html: "https://unsplash.com/@john-photographer" },
+            },
             alt_description: "Tokyo skyline",
             description: null,
           },
@@ -1797,6 +1800,7 @@ describe("searchCoverImages", () => {
         id: "abc123",
         url: "https://images.unsplash.com/abc",
         photographer: "John Photographer",
+        photographerUrl: "https://unsplash.com/@john-photographer",
         alt: "Tokyo skyline",
       },
     ]);
@@ -1896,7 +1900,7 @@ describe("searchCoverImages", () => {
           {
             id: "xyz",
             urls: { regular: "https://images.unsplash.com/xyz" },
-            user: { name: "Jane" },
+            user: { name: "Jane", links: { html: "https://unsplash.com/@jane" } },
             alt_description: null,
             description: "A beautiful view",
           },
@@ -1916,7 +1920,7 @@ describe("searchCoverImages", () => {
           {
             id: "xyz",
             urls: { regular: "https://images.unsplash.com/xyz" },
-            user: { name: "Jane" },
+            user: { name: "Jane", links: { html: "https://unsplash.com/@jane" } },
             alt_description: null,
             description: null,
           },
@@ -1926,6 +1930,32 @@ describe("searchCoverImages", () => {
 
     const result = await searchCoverImages("Paris");
     expect(result[0].alt).toBe("");
+  });
+
+  it("returns stub photographer profile urls in E2E mode", async () => {
+    vi.stubEnv("E2E_UNSPLASH_STUB", "true");
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "");
+
+    const results = await searchCoverImages("Paris", { page: 1, perPage: 2 });
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        id: "stub-paris-1",
+        photographer: "Stub Photographer 1",
+        photographerUrl: "https://unsplash.com/@stub-photographer-1",
+        alt: "Paris travel photo 1",
+      }),
+      expect.objectContaining({
+        id: "stub-paris-2",
+        photographer: "Stub Photographer 2",
+        photographerUrl: "https://unsplash.com/@stub-photographer-2",
+        alt: "Paris travel photo 2",
+      }),
+    ]);
+    expect(results[0]?.url).toContain("data:image/svg+xml");
+    expect(results[1]?.url).toContain("data:image/svg+xml");
+
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 

@@ -11,6 +11,7 @@ const {
   mockRevalidatePath,
   mockBlobDel,
   mockBlobPut,
+  mockDeriveGraphicCover,
   mockSaveLocalUpload,
   schemaTokens,
 } = vi.hoisted(() => {
@@ -23,6 +24,7 @@ const {
   const mockRevalidatePath = vi.fn();
   const mockBlobDel = vi.fn();
   const mockBlobPut = vi.fn();
+  const mockDeriveGraphicCover = vi.fn((title: string) => `graphic:${title}`);
   const mockSaveLocalUpload = vi.fn();
   const schemaTokens: Record<string, unknown> = {
     checklistItems: {},
@@ -44,6 +46,7 @@ const {
     mockRevalidatePath,
     mockBlobDel,
     mockBlobPut,
+    mockDeriveGraphicCover,
     mockSaveLocalUpload,
     schemaTokens,
   };
@@ -82,6 +85,7 @@ vi.mock("@/lib/local-upload", () => ({
 vi.mock("@/lib/utils", () => ({
   MAX_COVER_IMAGE_UPLOAD_BYTES: 12 * 1024 * 1024,
   MAX_UPLOAD_BYTES: 25 * 1024 * 1024,
+  deriveGraphicCover: mockDeriveGraphicCover,
   formatFileSize: vi.fn(),
   inferDocKind: vi.fn(),
 }));
@@ -97,7 +101,15 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => "sql"),
 }));
 
-import { addChecklistFromPackingSource, addDay, removeLastDay, reorderDayItems, uploadCoverImage } from "./actions";
+import {
+  addChecklistFromPackingSource,
+  addDay,
+  removeLastDay,
+  removeTripCover,
+  reorderDayItems,
+  setTripCoverWithAttribution,
+  uploadCoverImage,
+} from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 
 interface ReorderTransactionFixture {
@@ -376,6 +388,101 @@ describe("uploadCoverImage", () => {
     await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/new-cover.png");
 
     expect(mockBlobDel).not.toHaveBeenCalledWith("https://images.example.com/old-cover.png");
+  });
+});
+
+describe("setTripCoverWithAttribution", () => {
+  const mockWhere = vi.fn();
+  const mockSet = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockWhere.mockResolvedValue(undefined);
+    mockSet.mockReturnValue({ where: mockWhere });
+    mockDbUpdate.mockReturnValue({
+      set: mockSet,
+    });
+  });
+
+  it("persists cover url and attribution fields", async () => {
+    await setTripCoverWithAttribution(
+      "trip-1",
+      "https://images.example.com/cover.jpg",
+      "Jane Lens",
+      "https://unsplash.com/@janelens"
+    );
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbUpdate).toHaveBeenCalledWith(trips);
+    expect(mockSet).toHaveBeenCalledWith({
+      coverImageUrl: "https://images.example.com/cover.jpg",
+      coverPhotographer: "Jane Lens",
+      coverPhotographerUrl: "https://unsplash.com/@janelens",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("clears attribution when photographer fields are null", async () => {
+    await setTripCoverWithAttribution("trip-1", "graphic:Summer Trip", null, null);
+
+    expect(mockSet).toHaveBeenCalledWith({
+      coverImageUrl: "graphic:Summer Trip",
+      coverPhotographer: null,
+      coverPhotographerUrl: null,
+    });
+  });
+});
+
+describe("removeTripCover", () => {
+  const mockWhere = vi.fn();
+  const mockSet = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [{ name: "Summer Trip" }]),
+        })),
+      })),
+    });
+    mockWhere.mockResolvedValue(undefined);
+    mockSet.mockReturnValue({ where: mockWhere });
+    mockDbUpdate.mockReturnValue({
+      set: mockSet,
+    });
+  });
+
+  it("replaces the cover with a derived graphic and clears attribution", async () => {
+    await removeTripCover("trip-1");
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDeriveGraphicCover).toHaveBeenCalledWith("Summer Trip");
+    expect(mockSet).toHaveBeenCalledWith({
+      coverImageUrl: "graphic:Summer Trip",
+      coverPhotographer: null,
+      coverPhotographerUrl: null,
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("throws when the trip no longer exists", async () => {
+    mockDbSelect.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => []),
+        })),
+      })),
+    });
+
+    await expect(removeTripCover("trip-1")).rejects.toThrow("Trip not found");
+
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });
 

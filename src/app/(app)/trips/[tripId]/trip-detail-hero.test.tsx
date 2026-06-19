@@ -1,10 +1,92 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { TripDetailPayload } from "@/data/types";
 import { TripDetailHero } from "./trip-detail-hero";
 
+const mockRemoveTripCover = vi.fn();
+const mockSetTripCoverWithAttribution = vi.fn();
+
 vi.mock("@/components/packt/trip-cover", () => ({
   TripCover: () => <div data-testid="trip-cover" />,
+}));
+
+vi.mock("@/components/packt/cover-image-picker", () => ({
+  CoverImagePicker: ({
+    onImageSelected,
+  }: {
+    onImageSelected: (image: { url: string; photographer?: string; photographerUrl?: string }) => void;
+  }) => (
+    <div data-testid="cover-image-picker">
+      <button
+        onClick={() =>
+          onImageSelected({
+            url: "https://images.example.com/selected-cover.jpg",
+            photographer: "Casey Camera",
+            photographerUrl: "https://unsplash.com/@caseycamera",
+          })
+        }
+      >
+        apply-search-photo
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("@/components/packt/cover-attribution-dialog", () => ({
+  CoverAttributionDialog: ({
+    open,
+    photographer,
+    photographerUrl,
+  }: {
+    open: boolean;
+    photographer: string;
+    photographerUrl?: string;
+  }) =>
+    open ? (
+      <div data-testid="cover-attribution-dialog">
+        <span>{photographer}</span>
+        {photographerUrl ? <a href={photographerUrl}>View on Unsplash</a> : null}
+      </div>
+    ) : null,
+}));
+
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({
+    children,
+    title,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    title?: string;
+    onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  }) => (
+    <button type="button" title={title} onClick={onClick}>
+      {children}
+    </button>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  }) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
+  removeTripCover: (...args: unknown[]) => mockRemoveTripCover(...args),
+  setTripCoverWithAttribution: (...args: unknown[]) => mockSetTripCoverWithAttribution(...args),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
 }));
 
 vi.mock("next/link", () => ({
@@ -17,6 +99,7 @@ function buildDetail(overrides: Partial<TripDetailPayload> = {}): TripDetailPayl
       id: "trip-1",
       name: "Summer Getaway",
       status: "draft",
+      ...overrides.trip,
     },
     days: [{ id: "day-1", dayNumber: 1, label: "Day 1", events: [] }],
     unscheduledEvents: [],
@@ -30,6 +113,12 @@ function buildDetail(overrides: Partial<TripDetailPayload> = {}): TripDetailPayl
 }
 
 describe("TripDetailHero", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRemoveTripCover.mockResolvedValue(undefined);
+    mockSetTripCoverWithAttribution.mockResolvedValue(undefined);
+  });
+
   it("shows the correct day count for a dateless trip with one day (AC14)", () => {
     render(
       <TripDetailHero detail={buildDetail()} nowISO="2026-07-01T00:00:00Z" dateFormat="MM/DD/YYYY" onEdit={vi.fn()} />
@@ -69,5 +158,163 @@ describe("TripDetailHero", () => {
     render(<TripDetailHero detail={detail} nowISO="2026-07-01T00:00:00Z" dateFormat="MM/DD/YYYY" onEdit={vi.fn()} />);
 
     expect(screen.getByText("3 days")).toBeInTheDocument();
+  });
+
+  it("renders cover overflow trigger", () => {
+    render(
+      <TripDetailHero detail={buildDetail()} nowISO="2026-07-01T00:00:00Z" dateFormat="MM/DD/YYYY" onEdit={vi.fn()} />
+    );
+
+    expect(screen.getByTitle("Cover options")).toBeInTheDocument();
+  });
+
+  it("shows edit only for graphic covers", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          trip: { id: "trip-1", name: "Summer Getaway", status: "draft", coverImageUrl: "graphic:foo/bar/baz" },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Edit Cover" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Cover" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Info" })).not.toBeInTheDocument();
+  });
+
+  it("shows remove but not info for map covers", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "/api/mapbox/static?lng=2.347&lat=48.859",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Remove Cover" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Info" })).not.toBeInTheDocument();
+  });
+
+  it("shows remove and info for attributed photo covers", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+            coverPhotographer: "Casey Camera",
+            coverPhotographerUrl: "https://unsplash.com/@caseycamera",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Remove Cover" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Info" })).toBeInTheDocument();
+  });
+
+  it("opens the cover image picker from Edit Cover", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero detail={buildDetail()} nowISO="2026-07-01T00:00:00Z" dateFormat="MM/DD/YYYY" onEdit={vi.fn()} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit Cover" }));
+
+    expect(screen.getByTestId("cover-image-picker")).toBeInTheDocument();
+  });
+
+  it("persists selected cover attribution from the picker", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero detail={buildDetail()} nowISO="2026-07-01T00:00:00Z" dateFormat="MM/DD/YYYY" onEdit={vi.fn()} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit Cover" }));
+    await user.click(screen.getByRole("button", { name: "apply-search-photo" }));
+
+    await waitFor(() => {
+      expect(mockSetTripCoverWithAttribution).toHaveBeenCalledWith(
+        "trip-1",
+        "https://images.example.com/selected-cover.jpg",
+        "Casey Camera",
+        "https://unsplash.com/@caseycamera"
+      );
+    });
+  });
+
+  it("removes current cover through server action", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Cover" }));
+
+    await waitFor(() => {
+      expect(mockRemoveTripCover).toHaveBeenCalledWith("trip-1");
+    });
+  });
+
+  it("opens attribution dialog with photographer details", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+            coverPhotographer: "Casey Camera",
+            coverPhotographerUrl: "https://unsplash.com/@caseycamera",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Info" }));
+
+    expect(screen.getByTestId("cover-attribution-dialog")).toBeInTheDocument();
+    expect(screen.getByText("Casey Camera")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View on Unsplash" })).toHaveAttribute(
+      "href",
+      "https://unsplash.com/@caseycamera"
+    );
   });
 });

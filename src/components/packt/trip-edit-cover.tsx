@@ -5,6 +5,7 @@ import { Section } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { TripCover } from "@/components/packt/trip-cover";
 import { CoverImagePicker } from "@/components/packt/cover-image-picker";
+import type { CoverImageSelection } from "@/data/types";
 
 export interface TripEditCoverProps {
   tripId: string;
@@ -56,8 +57,8 @@ export function TripEditCover({
           destinationCountry={destinationCountry}
           center={center}
           currentCoverImageUrl={coverImageUrl}
-          onImageSelected={(url) => {
-            onCoverImageUrlChange(url);
+          onImageSelected={(image: CoverImageSelection) => {
+            onCoverImageUrlChange(image.url);
             setIsPickerOpen(false);
           }}
           onClose={() => setIsPickerOpen(false)}

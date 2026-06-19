@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 export default defineConfig({
   resolve: {
     alias: {
+      "next/server": resolve("./tests/support/next-server.ts"),
       "server-only": resolve("./tests/support/server-only.ts"),
     },
   },

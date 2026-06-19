@@ -88,6 +88,8 @@ export const trips = pgTable("trips", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   coverImageUrl: text("cover_image_url"),
+  coverPhotographer: text("cover_photographer"),
+  coverPhotographerUrl: text("cover_photographer_url"),
   destinationName: text("destination_name"),
   destinationCountry: text("destination_country"),
   destinationCountryCode: text("destination_country_code"),

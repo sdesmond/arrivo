@@ -19,7 +19,7 @@ vi.mock("./cover-image-picker", () => ({
   }: {
     center?: [number, number];
     currentCoverImageUrl?: string;
-    onImageSelected: (url: string) => void;
+    onImageSelected: (image: { url: string }) => void;
     onClose: () => void;
   }) => (
     <div
@@ -27,7 +27,7 @@ vi.mock("./cover-image-picker", () => ({
       data-center={center ? center.join(",") : ""}
       data-current-cover-url={currentCoverImageUrl ?? ""}
     >
-      <button onClick={() => onImageSelected("https://example.com/new.jpg")}>select-image</button>
+      <button onClick={() => onImageSelected({ url: "https://example.com/new.jpg" })}>select-image</button>
       <button onClick={onClose}>close-picker</button>
     </div>
   ),

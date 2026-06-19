@@ -9,6 +9,7 @@ import { CoverImagePickerUrl } from "./cover-image-picker-url";
 import { CoverImagePickerCustom } from "./cover-image-picker-custom";
 import { CoverImagePickerSearchTab } from "./cover-image-picker-search-tab";
 import { GRAPHIC_COVER_COLORS, GRAPHIC_COVER_ICONS, GRAPHIC_COVER_PATTERNS, parseGraphicCover } from "@/lib/utils";
+import type { CoverImageSelection } from "@/data/types";
 
 export interface CoverImagePickerProps {
   tripId: string;
@@ -16,7 +17,7 @@ export interface CoverImagePickerProps {
   destinationCountry?: string;
   center?: [number, number];
   currentCoverImageUrl?: string;
-  onImageSelected: (url: string) => void;
+  onImageSelected: (image: CoverImageSelection) => void;
   onClose: () => void;
 }
 
@@ -28,8 +29,9 @@ export function CoverImagePicker({
   onImageSelected,
   onClose,
 }: CoverImagePickerProps) {
-  function handleSelect(url: string) {
-    onImageSelected(url);
+  function handleSelect(selected: string | CoverImageSelection) {
+    const image = typeof selected === "string" ? { url: selected } : selected;
+    onImageSelected(image);
     onClose();
   }
 
@@ -72,14 +74,14 @@ export function CoverImagePicker({
             />
           </TabsContent>
           <TabsContent value="upload" className="min-h-0 flex-1 overflow-y-auto">
-            <CoverImagePickerUpload tripId={tripId} onImageSelected={onImageSelected} onClose={onClose} />
+            <CoverImagePickerUpload tripId={tripId} onImageSelected={handleSelect} onClose={onClose} />
           </TabsContent>
           <TabsContent value="url" className="min-h-0 flex-1 overflow-y-auto">
-            <CoverImagePickerUrl onImageSelected={onImageSelected} onClose={onClose} />
+            <CoverImagePickerUrl onImageSelected={handleSelect} onClose={onClose} />
           </TabsContent>
           <TabsContent value="custom" className="min-h-0 flex-1 overflow-y-auto">
             <CoverImagePickerCustom
-              onImageSelected={onImageSelected}
+              onImageSelected={handleSelect}
               onClose={onClose}
               defaultColor={graphicCover?.color as (typeof GRAPHIC_COVER_COLORS)[number] | undefined}
               defaultPattern={graphicCover?.pattern as (typeof GRAPHIC_COVER_PATTERNS)[number] | undefined}

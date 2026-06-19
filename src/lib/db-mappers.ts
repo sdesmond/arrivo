@@ -53,6 +53,8 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
     endDate: row.endDate ?? undefined,
     status: getTripStatus(row.startDate, row.endDate),
     coverImageUrl: row.coverImageUrl ?? undefined,
+    coverPhotographer: row.coverPhotographer ?? undefined,
+    coverPhotographerUrl: row.coverPhotographerUrl ?? undefined,
     destinationName: row.destinationName ?? undefined,
     destinationCountry: row.destinationCountry ?? undefined,
     destinationCountryCode: row.destinationCountryCode ?? undefined,

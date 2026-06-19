@@ -56,6 +56,8 @@ const BASE_TRIP: TripRow = {
   startDate: "2020-01-01",
   endDate: "2020-01-10",
   coverImageUrl: null,
+  coverPhotographer: null,
+  coverPhotographerUrl: null,
   destinationName: null,
   destinationCountry: null,
   destinationCountryCode: null,
@@ -87,6 +89,8 @@ describe("dbTripToType", () => {
   it("null optional fields become undefined", () => {
     const result = dbTripToType(BASE_TRIP);
     expect(result.coverImageUrl).toBeUndefined();
+    expect(result.coverPhotographer).toBeUndefined();
+    expect(result.coverPhotographerUrl).toBeUndefined();
     expect(result.notes).toBeUndefined();
     expect(result.budget).toBeUndefined();
   });
@@ -105,9 +109,13 @@ describe("dbTripToType", () => {
     const result = dbTripToType({
       ...BASE_TRIP,
       coverImageUrl: "https://example.com/img.jpg",
+      coverPhotographer: "Jane Lens",
+      coverPhotographerUrl: "https://unsplash.com/@janelens",
       notes: "Pack light",
     });
     expect(result.coverImageUrl).toBe("https://example.com/img.jpg");
+    expect(result.coverPhotographer).toBe("Jane Lens");
+    expect(result.coverPhotographerUrl).toBe("https://unsplash.com/@janelens");
     expect(result.notes).toBe("Pack light");
   });
 

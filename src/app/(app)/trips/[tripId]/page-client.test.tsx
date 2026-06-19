@@ -40,6 +40,37 @@ vi.mock("@/components/packt/trip-cover", () => ({
   ),
 }));
 
+vi.mock("./trip-detail-hero", () => ({
+  TripDetailHero: ({ detail, nowISO }: { detail: TripDetailPayload; nowISO: string }) => {
+    const { trip, days, unscheduledEvents, docs, collaborators } = detail;
+    if (!trip.startDate || !trip.endDate) {
+      return (
+        <div>
+          <span>UNSCHEDULED TRIP · OFFLINE</span>
+          <span>
+            {days.length} {days.length === 1 ? "day" : "days"}
+          </span>
+          <span>{days.reduce((count, day) => count + day.events.length, 0) + unscheduledEvents.length} place</span>
+          <span>
+            {docs.length} {docs.length === 1 ? "doc" : "docs"}
+          </span>
+          <span>
+            {collaborators.length} {collaborators.length === 1 ? "collaborator" : "collaborators"}
+          </span>
+        </div>
+      );
+    }
+
+    const start = new Date(`${trip.startDate}T00:00:00Z`);
+    const end = new Date(`${trip.endDate}T00:00:00Z`);
+    const now = new Date(nowISO);
+    const dayTotal = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+    const dayNumber = Math.floor((now.getTime() - start.getTime()) / 86_400_000) + 1;
+
+    return <div>{`${dayTotal} days · day ${dayNumber} today`}</div>;
+  },
+}));
+
 vi.mock("./trip-detail-tab-body", () => ({
   TripDetailTabBody: ({
     activeTab,
@@ -64,6 +95,11 @@ vi.mock("@/components/packt/trip-confetti", () => ({
 
 vi.mock("@/components/packt/trip-edit-sheet", () => ({
   TripEditSheet: () => null,
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
+  removeTripCover: vi.fn(),
+  setTripCoverWithAttribution: vi.fn(),
 }));
 
 vi.mock("@/lib/use-focus-scroll", () => ({
@@ -299,7 +335,9 @@ describe("TripDetailClient", () => {
 
     await user.click(screen.getByRole("button", { name: "Activate CTA" }));
 
-    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?new=1&tab=res&action=add-reservation");
+    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?new=1&tab=res&action=add-reservation", {
+      scroll: false,
+    });
   });
 
   it("navigates to Reservations with a highlight param when a linked event is tapped", async () => {
@@ -311,7 +349,9 @@ describe("TripDetailClient", () => {
 
     await user.click(screen.getByRole("button", { name: "Tap linked event" }));
 
-    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?tab=res&highlight=reservation-1");
+    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?tab=res&highlight=reservation-1", {
+      scroll: false,
+    });
   });
 
   it("announces the Reservations tab once a CTA-triggered tab switch settles", async () => {
