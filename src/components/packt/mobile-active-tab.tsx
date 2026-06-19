@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { TripCover } from "@/components/packt/trip-cover";
+import { buildReservationsDeepLinkHref } from "@/app/(app)/trips/[tripId]/trip-detail-tabs";
 import { type Trip, type TripEvent } from "@/data/types";
 import { getActiveDayNumber, getTodayDisplay, getTripStatus, isEventNow, isEventPast, pluralize } from "@/lib/utils";
 
@@ -10,6 +11,16 @@ interface MobileActiveTabProps {
   trip: Trip | null;
   todayEvents: TripEvent[];
   now: Date;
+}
+
+function eventHref(tripId: string, fallbackHref: string, event: TripEvent): string {
+  if (event.linkedReservationId) {
+    return buildReservationsDeepLinkHref(`/trips/${tripId}`, new URLSearchParams(), {
+      kind: "highlight",
+      reservationId: event.linkedReservationId,
+    });
+  }
+  return fallbackHref;
 }
 
 export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps) {
@@ -97,7 +108,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
 
       {status === "active" && displayEvent ? (
         <Link
-          href={`/trips/${trip.id}?focus=${displayEvent.id}`}
+          href={eventHref(trip.id, `/trips/${trip.id}?focus=${displayEvent.id}`, displayEvent)}
           className="group rounded-[14px]"
           style={{
             background: "var(--accent-soft)",
@@ -185,7 +196,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
           {todayEvents.map((event) => (
             <Link
               key={event.id}
-              href={`/trips/${trip.id}/days/${activeDayNum ?? 1}?focus=${event.id}`}
+              href={eventHref(trip.id, `/trips/${trip.id}/days/${activeDayNum ?? 1}?focus=${event.id}`, event)}
               className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface"
               style={{
                 opacity: isEventPast(event, now) ? 0.5 : 1,

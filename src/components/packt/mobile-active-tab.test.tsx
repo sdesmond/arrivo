@@ -151,4 +151,80 @@ describe("MobileActiveTab", () => {
     expect(screen.queryByText(/TODAY/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Now")).not.toBeInTheDocument();
   });
+
+  it("routes a linked-event summary card to the Reservations highlight deep link", () => {
+    render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[
+          {
+            id: "linked-now",
+            name: "Check-in — Hotel Avenida Palace",
+            startAt: "2026-05-13T11:30:00Z",
+            position: 0,
+            linkedReservationId: "res-1",
+            reservationType: "lodging",
+          },
+        ]}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getAllByRole("link", { name: /Check-in/i })[0]).toHaveAttribute(
+      "href",
+      "/trips/trip-1?tab=res&highlight=res-1"
+    );
+  });
+
+  it("keeps the manual-event focus link for a non-linked event in the today list", () => {
+    render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[
+          { id: "event-untimed", name: "Free Explore", position: 0 },
+          {
+            id: "linked-row",
+            name: "Pickup — Rental Car",
+            startAt: "2026-05-13T09:00:00Z",
+            endAt: "2026-05-13T09:30:00Z",
+            position: 1,
+            linkedReservationId: "res-2",
+            reservationType: "rental-car",
+          },
+        ]}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: /Free Explore/i })).toHaveAttribute(
+      "href",
+      "/trips/trip-1/days/4?focus=event-untimed"
+    );
+  });
+
+  it("routes a linked-event row in the today list to the Reservations highlight deep link", () => {
+    render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[
+          { id: "event-untimed", name: "Free Explore", position: 0 },
+          {
+            id: "linked-row",
+            name: "Pickup — Rental Car",
+            startAt: "2026-05-13T09:00:00Z",
+            endAt: "2026-05-13T09:30:00Z",
+            position: 1,
+            linkedReservationId: "res-2",
+            reservationType: "rental-car",
+          },
+        ]}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getAllByRole("link", { name: /Pickup/i })[0]).toHaveAttribute(
+      "href",
+      "/trips/trip-1?tab=res&highlight=res-2"
+    );
+  });
 });

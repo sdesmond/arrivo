@@ -10,7 +10,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { NowCard } from "@/components/packt/now-card";
+import { TripsActiveEntryPanel } from "@/components/packt/trips-active-entry-panel";
 import { TripCard } from "@/components/packt/trip-card";
 import { TripCover } from "@/components/packt/trip-cover";
 import { NewTripCard } from "@/components/packt/new-trip-card";
@@ -67,16 +67,12 @@ export function TripsDesktopLayout({
       <div className="flex-1 overflow-y-auto scroll-thin">
         <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
           {activeEntry !== null && (
-            <>
-              <NowCard
-                trip={activeEntry.trip}
-                todayEvents={activeEntry.todayEvents}
-                onEditTrip={(trip) => onEditTrip(trip.id)}
-                onDeleteTrip={onDeleteTrip}
-                onLinkedEventTap={() => {}}
-                dateFormat={dateFormat}
-              />
-            </>
+            <TripsActiveEntryPanel
+              activeEntry={activeEntry}
+              dateFormat={dateFormat}
+              onEditTrip={onEditTrip}
+              onDeleteTrip={onDeleteTrip}
+            />
           )}
 
           {/* Master view toggle */}
