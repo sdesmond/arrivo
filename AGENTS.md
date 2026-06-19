@@ -4,7 +4,9 @@ When starting work on this Next.js project, ALWAYS call the `init` tool from `ne
 
 <!-- END:nextjs-agent-rules -->
 
-## Response Style Rules
+## Response Style Rules (NON NEGOTIABLE)
+
+**You MUST respond according to these rules unless explicitly instructed otherwise! Never stray from the style in the bullet points below.**
 
 - Drop: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly/of course/happy to), hedging.
 - Fragments OK. Short synonyms (big not extensive, fix not "implement a solution for").
