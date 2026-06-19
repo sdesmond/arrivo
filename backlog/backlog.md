@@ -14,6 +14,10 @@ use proper breadcrumbs as shown at https://ui.shadcn.com/docs/components/base/br
 
 ## Bugs
 
+### Now event
+
+clicking on the event happening now in the active trip card should bring me to the trip, scroll to the day, open the day, and scroll to the highlighted event corresponding to what is happening now. This is not happening.
+
 ### Delete day
 
 When deleting a day with items in it, I should see the same warnings I get when shortening a trip would delete days.
