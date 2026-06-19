@@ -25,13 +25,14 @@ import {
   type SavedLocationValue,
   type UpdateReservationPatch,
 } from "@/data/types";
-import { combineDateAndTimeToIso, getLocationDisplayLabel, pluralize } from "@/lib/utils";
+import { cn, combineDateAndTimeToIso, getLocationDisplayLabel, pluralize } from "@/lib/utils";
 
 export interface ReservationRowProps {
   reservation: Reservation;
   type: ReservationType;
   isLast: boolean;
   tripDocs?: Document[];
+  highlighted?: boolean;
 }
 
 const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68, fontSize: 13 };
@@ -54,7 +55,7 @@ function buildSavedLocationValue(
     : undefined;
 }
 
-export function ReservationRow({ reservation, type, isLast, tripDocs }: ReservationRowProps) {
+export function ReservationRow({ reservation, type, isLast, tripDocs, highlighted = false }: ReservationRowProps) {
   const [provider, setProvider] = useState(reservation.provider);
   const [startAt, setStartAt] = useState<string | undefined>(reservation.startAt);
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
@@ -191,7 +192,16 @@ export function ReservationRow({ reservation, type, isLast, tripDocs }: Reservat
   }
 
   return (
-    <div className="px-4 py-8" style={{ borderBottom: isLast ? "none" : "1px solid var(--line-strong)" }}>
+    <div
+      id={`reservation-${reservation.id}`}
+      data-testid={`reservation-row-${reservation.id}`}
+      tabIndex={-1}
+      className={cn("px-4 py-8", highlighted && "reservation-row-highlight-pulse")}
+      style={{
+        borderBottom: isLast ? "none" : "1px solid var(--line-strong)",
+        ...(highlighted ? { outline: "2px solid var(--accent-brand)", outlineOffset: 2 } : {}),
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <ReservationInlineTextField

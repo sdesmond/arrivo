@@ -12,6 +12,7 @@ export interface ReservationTypeSectionProps {
   onToggle: () => void;
   now: Date;
   tripDocs?: Document[];
+  highlightedReservationId?: string | null;
 }
 
 export { formatAnchorDateTime };
@@ -64,6 +65,7 @@ export function ReservationTypeSection({
   onToggle,
   now,
   tripDocs,
+  highlightedReservationId,
 }: ReservationTypeSectionProps) {
   const { label, icon: Icon } = RESERVATION_TYPE_META[type];
   const count = reservations.length;
@@ -142,6 +144,7 @@ export function ReservationTypeSection({
             type={type}
             isLast={index === all.length - 1}
             tripDocs={tripDocs}
+            highlighted={reservation.id === highlightedReservationId}
           />
         ))}
     </div>

@@ -461,6 +461,22 @@ html[data-font-size="large"] {
   animation: pulse-ring 1.6s ease-out infinite;
 }
 
+/* ─── Background pulse for deep-linked reservation rows ─── */
+@keyframes reservation-row-highlight-pulse {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+
+  50% {
+    background-color: var(--accent-soft);
+  }
+}
+
+.reservation-row-highlight-pulse {
+  animation: reservation-row-highlight-pulse 0.5s ease-in-out 2;
+}
+
 /* ─── Checklist completion ceremony ─── */
 @keyframes checklist-complete {
   0% {

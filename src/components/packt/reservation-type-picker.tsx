@@ -13,11 +13,13 @@ import { RESERVATION_TYPE_META } from "./reservation-type-badge";
 
 export interface ReservationTypePickerProps {
   onSelectType: (type: ReservationType) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function ReservationTypePicker({ onSelectType }: ReservationTypePickerProps) {
+export function ReservationTypePicker({ onSelectType, open, onOpenChange }: ReservationTypePickerProps) {
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger render={<Button />}>
         <Plus strokeWidth={1.5} />
         Add Reservation

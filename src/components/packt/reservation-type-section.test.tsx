@@ -16,11 +16,11 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("./reservation-row", () => ({
-  ReservationRow: ({ reservation }: { reservation: Reservation }) => {
+  ReservationRow: ({ reservation, highlighted }: { reservation: Reservation; highlighted?: boolean }) => {
     const [editingProvider, setEditingProvider] = useState(false);
 
     return (
-      <div>
+      <div data-testid={`reservation-row-${reservation.id}`} data-highlighted={highlighted ?? false}>
         {editingProvider ? (
           <input aria-label="Provider" defaultValue={reservation.provider} />
         ) : (
@@ -307,5 +307,40 @@ describe("ReservationTypeSection", () => {
     await user.click(screen.getByRole("button", { name: "Acme Air" }));
 
     expect(screen.getByRole("textbox", { name: "Provider" })).toBeInTheDocument();
+  });
+
+  it("marks only the matching reservation row as highlighted when highlightedReservationId is set", () => {
+    const target = makeReservation({ id: "target", startAt: "2026-06-16T15:00:00.000Z" });
+    const other = makeReservation({ id: "other", startAt: "2026-06-18T15:00:00.000Z" });
+
+    render(
+      <ReservationTypeSection
+        type={ReservationType.Flight}
+        reservations={[target, other]}
+        open
+        onToggle={vi.fn()}
+        now={NOW}
+        highlightedReservationId="target"
+      />
+    );
+
+    expect(screen.getByTestId("reservation-row-target")).toHaveAttribute("data-highlighted", "true");
+    expect(screen.getByTestId("reservation-row-other")).toHaveAttribute("data-highlighted", "false");
+  });
+
+  it("does not highlight any row when highlightedReservationId is not set", () => {
+    const reservation = makeReservation({ startAt: "2026-06-16T15:00:00.000Z" });
+
+    render(
+      <ReservationTypeSection
+        type={ReservationType.Flight}
+        reservations={[reservation]}
+        open
+        onToggle={vi.fn()}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getByTestId("reservation-row-res-1")).toHaveAttribute("data-highlighted", "false");
   });
 });
