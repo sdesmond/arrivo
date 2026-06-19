@@ -5,7 +5,7 @@ import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 
 Given("I am on the Reservations tab", async ({ page }) => {
-  await page.getByRole("button", { name: "Reservations" }).click();
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
   await expect(page.getByRole("button", { name: "Add Reservation" })).toBeVisible({ timeout: 10_000 });
 });
 
@@ -33,7 +33,7 @@ Given("the trip has reservations across multiple types", async ({ page, scenario
   });
 
   await scenario.gotoCurrentTrip(page);
-  await page.getByRole("button", { name: "Reservations" }).click();
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
 });
 
 When("I select the {string} reservation type", async ({ page }, typeLabel: string) => {
@@ -128,7 +128,7 @@ Given("the trip has a Lodging reservation", async ({ page, scenario }) => {
     },
   });
   await scenario.gotoCurrentTrip(page);
-  await page.getByRole("button", { name: "Reservations" }).click();
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
 });
 
 Given("the {string} reservation section is expanded", async ({ page }, sectionLabel: string) => {
@@ -260,7 +260,7 @@ Given("the trip has a Lodging reservation with an attached document", async ({ p
     },
   });
   await scenario.gotoCurrentTrip(page);
-  await page.getByRole("button", { name: "Reservations" }).click();
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
 });
 
 When("I attach a file to the reservation {string}", async ({ page }) => {
@@ -306,7 +306,7 @@ Given(
       },
     });
     await scenario.gotoCurrentTrip(page);
-    await page.getByRole("button", { name: "Reservations" }).click();
+    await page.getByRole("button", { name: "Reservations", exact: true }).click();
   }
 );
 

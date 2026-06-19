@@ -15,7 +15,7 @@ async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
 }
 
 async function openAddLodgingReservationDrawer(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Reservations" }).click();
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
   await page.getByRole("button", { name: "Add Reservation" }).click();
   await page.getByRole("menuitem", { name: "Lodging" }).click();
   await expect(page.getByText("Add Lodging Reservation")).toBeVisible({ timeout: 10_000 });
@@ -261,5 +261,32 @@ Then(
     await ensureDayExpanded(page, 1);
     await expect(page.getByText(first, { exact: false })).not.toBeVisible();
     await expect(page.getByText(second, { exact: false })).not.toBeVisible();
+  }
+);
+
+When("I tap the itinerary reservations CTA", async ({ page }) => {
+  await page.getByRole("button", { name: /opens the Reservations tab/i }).click();
+});
+
+When("I tap the {string} Linked Event on Day 1", async ({ page }, anchorLabel: string) => {
+  await ensureDayExpanded(page, 1);
+  await page.getByRole("button", { name: new RegExp(`^${anchorLabel}.*Linked, opens Reservations`) }).click();
+});
+
+Then("I land on the Reservations tab with the reservation type picker open", async ({ page }) => {
+  await expect(page).toHaveURL(/tab=res/);
+  await expect(page.getByRole("menuitem", { name: "Lodging" })).toBeVisible({ timeout: 10_000 });
+});
+
+Then(
+  "I land on the Reservations tab with the {string} section expanded and the {string} row highlighted",
+  async ({ page }, typeLabel: string, providerName: string) => {
+    await expect(page).toHaveURL(/tab=res/);
+    await expect(
+      page.getByRole("button", { name: new RegExp(`^${typeLabel}, \\d+ reservations?, expanded`) })
+    ).toBeVisible({ timeout: 10_000 });
+
+    const row = page.locator('[data-testid^="reservation-row-"]').filter({ hasText: providerName });
+    await expect(row).toBeFocused({ timeout: 10_000 });
   }
 );

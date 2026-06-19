@@ -42,3 +42,17 @@ Feature: Linked Events
     And the trip has a Lodging reservation whose Check-in is "now"
     When I view the trip list
     Then the Now Card shows the "Check-in" Linked Event with the "Now" pill and "Linked" badge
+
+  Scenario: Tapping the itinerary CTA opens Reservations with the type picker
+    Given I am signed in
+    And I start from a three-day trip dated July 1, 2026 through July 3, 2026
+    When I view the Itinerary tab
+    And I tap the itinerary reservations CTA
+    Then I land on the Reservations tab with the reservation type picker open
+
+  Scenario: Tapping a Linked Event opens Reservations with the row highlighted
+    Given I am signed in
+    And the trip has a Lodging reservation with Check-in on Day 1 and Check-out on Day 2
+    When I view the Itinerary tab
+    And I tap the "Check-in" Linked Event on Day 1
+    Then I land on the Reservations tab with the "Lodging" section expanded and the "Torel Avantgarde" row highlighted
