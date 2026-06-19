@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
@@ -18,7 +18,12 @@ import type {
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { buildTripDetailTabHref, resolveTripDetailTab } from "./trip-detail-tabs";
+import {
+  buildReservationsDeepLinkHref,
+  buildTripDetailTabHref,
+  resolveTripDetailTab,
+  type ReservationsDeepLinkTarget,
+} from "./trip-detail-tabs";
 
 const TABS: { id: TripDetailTabValue; label: string }[] = [
   { id: "itin", label: "Itinerary" },
@@ -51,13 +56,21 @@ export function TripDetailClient({
   useFocusScroll();
 
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TripDetailTabValue>(initialActiveTab);
   const [editingTrip, setEditingTrip] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
+  const [reservationsAnnouncement, setReservationsAnnouncement] = useState("");
+  const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
   const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = detail;
+
+  const tabParam = searchParams.get("tab");
+  const previousTabParamRef = useRef(tabParam);
+  const pendingCtaAnnouncementRef = useRef(false);
 
   useEffect(() => {
     function handlePopState(): void {
@@ -68,6 +81,28 @@ export function TripDetailClient({
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  // Child components (CTA, linked-event taps, ReservationsTab) navigate via next/navigation's router
+  // rather than raw history APIs, so this syncs activeTab from the live search params instead of
+  // relying solely on the popstate listener above, which only catches browser back/forward.
+  useEffect(() => {
+    if (previousTabParamRef.current === tabParam) return;
+    previousTabParamRef.current = tabParam;
+    const nextTab = resolveTripDetailTab(tabParam);
+    setActiveTab(nextTab);
+    if (nextTab === TripDetailTab.Reservations && pendingCtaAnnouncementRef.current) {
+      setAnnouncementId((current) => current + 1);
+      setReservationsAnnouncement("Reservations tab");
+    }
+    pendingCtaAnnouncementRef.current = false;
+  }, [tabParam]);
+
+  function navigateToReservations(target: ReservationsDeepLinkTarget): void {
+    if (target.kind === "add-reservation") {
+      pendingCtaAnnouncementRef.current = true;
+    }
+    router.push(buildReservationsDeepLinkHref(pathname, searchParams, target), { scroll: false });
+  }
 
   async function handleTripSave(patch: UpdateTripPatch): Promise<void> {
     const result = await handlers.handleTripSave(patch);
@@ -106,6 +141,10 @@ export function TripDetailClient({
 
   return (
     <div className="flex flex-col min-h-full">
+      <div aria-live="polite" className="sr-only">
+        <span key={announcementId}>{reservationsAnnouncement}</span>
+      </div>
+
       <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
 
       {/* Tab bar */}
@@ -183,6 +222,8 @@ export function TripDetailClient({
             onInsertFromPackingSource={handlers.handleInsertFromPackingSource}
             isDateless={!trip.startDate}
             onOpenEditDates={() => setEditingTrip(true)}
+            onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
+            onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

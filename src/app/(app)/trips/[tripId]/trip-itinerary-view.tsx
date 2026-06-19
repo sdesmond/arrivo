@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PackingListPickerDialog } from "@/components/packt/packing-list-picker-dialog";
+import { ItineraryCta } from "@/components/packt/itinerary-cta";
 import type { DayItinerary, TripEvent, DayItemType, Document, TripPackingList, PackingTemplate } from "@/data/types";
 import { UnscheduledEventsSection } from "./unscheduled-events-section";
 
@@ -24,6 +25,9 @@ export interface TripItineraryViewProps {
   unscheduledEvents: TripEvent[];
   isDateless: boolean;
   onOpenEditDates: () => void;
+  reservationCount: number;
+  onActivateReservationsCta: () => void;
+  onLinkedEventTap: (linkedReservationId: string) => void;
   dateFormat?: string;
   initialExpandedDayNumber?: number;
   isNew?: boolean;
@@ -75,6 +79,9 @@ export function TripItineraryView({
   unscheduledEvents,
   isDateless,
   onOpenEditDates,
+  reservationCount,
+  onActivateReservationsCta,
+  onLinkedEventTap,
   dateFormat,
   initialExpandedDayNumber,
   isNew,
@@ -136,8 +143,6 @@ export function TripItineraryView({
     await onInsertFromPackingSource(pickerState.dayNumber, pickerState.insertAtPosition, sourceType, sourceId);
   }
 
-  function handleLinkedEventTap(): void {}
-
   return (
     <>
       <div>
@@ -166,6 +171,7 @@ export function TripItineraryView({
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
         />
+        <ItineraryCta reservationCount={reservationCount} onActivate={onActivateReservationsCta} />
         {days.map((day, index) => {
           const canRemove = days.length > 1 && day.dayNumber === lastDay?.dayNumber;
           const dayCard = (
@@ -177,7 +183,7 @@ export function TripItineraryView({
               tripDocs={tripDocs}
               onUpdateEvent={onUpdateEvent}
               onDeleteEvent={onDeleteEvent}
-              onLinkedEventTap={handleLinkedEventTap}
+              onLinkedEventTap={onLinkedEventTap}
               onReorderDayItems={onReorderDayItems}
               onUpdateDay={onUpdateDay}
               onAddEvent={onAddEvent}

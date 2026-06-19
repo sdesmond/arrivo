@@ -1,13 +1,27 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReservationType, type Reservation } from "@/data/types";
 import { ReservationsTab } from "./reservations-tab";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 
+const { mockPathname, mockSearchParams, mockRouterReplace } = vi.hoisted(() => ({
+  mockPathname: vi.fn(() => "/trips/trip-1"),
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
+  mockRouterReplace: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname(),
+  useSearchParams: () => mockSearchParams(),
+  useRouter: () => ({ replace: mockRouterReplace, push: vi.fn() }),
+}));
+
 vi.mock("@/components/packt/reservation-type-picker", () => ({
-  ReservationTypePicker: ({ onSelectType }: { onSelectType: (type: string) => void }) => (
-    <button onClick={() => onSelectType(ReservationType.Lodging)}>Add Reservation</button>
+  ReservationTypePicker: ({ onSelectType, open }: { onSelectType: (type: string) => void; open?: boolean }) => (
+    <button data-open={open ?? false} onClick={() => onSelectType(ReservationType.Lodging)}>
+      Add Reservation
+    </button>
   ),
 }));
 
@@ -22,14 +36,17 @@ vi.mock("@/components/packt/reservation-type-section", () => ({
     reservations,
     open,
     onToggle,
+    highlightedReservationId,
   }: {
     type: string;
     reservations: Reservation[];
     open: boolean;
     onToggle: () => void;
+    highlightedReservationId?: string | null;
   }) => (
     <button
       type="button"
+      data-highlighted-reservation-id={highlightedReservationId ?? ""}
       aria-label={`${type[0].toUpperCase()}${type.slice(1)}, ${reservations.length} reservation${reservations.length === 1 ? "" : "s"}, ${open ? "expanded" : "collapsed"}`}
       onClick={onToggle}
     >
@@ -78,6 +95,15 @@ function makeReservation(overrides: Partial<Reservation> = {}): Reservation {
 }
 
 describe("ReservationsTab", () => {
+  beforeEach(() => {
+    mockPathname.mockReturnValue("/trips/trip-1");
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("shows the FR-6 empty state with a single Add Reservation entry point when there are no reservations", () => {
     render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
 
@@ -236,5 +262,140 @@ describe("ReservationsTab", () => {
 
     expect(screen.getByText("No reservations yet")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /reservation,/ })).not.toBeInTheDocument();
+  });
+
+  describe("one-shot search params", () => {
+    it("auto-opens the type picker and strips the action param when mounted with action=add-reservation", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+
+      render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+      expect(screen.getByRole("button", { name: "Add Reservation" })).toHaveAttribute("data-open", "true");
+      expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res", { scroll: false });
+    });
+
+    it("does not auto-open the picker when there is no action param", () => {
+      render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+      expect(screen.getByRole("button", { name: "Add Reservation" })).toHaveAttribute("data-open", "false");
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("expands the matching section, sets the highlight target, and strips the highlight param when mounted with highlight={id}", () => {
+      const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
+
+      render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, { wrapper: Wrapper });
+
+      expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toHaveAttribute(
+        "data-highlighted-reservation-id",
+        "res-lodging"
+      );
+      expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res", { scroll: false });
+    });
+
+    it("ignores a highlight param that does not match any reservation", () => {
+      const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=does-not-exist"));
+
+      render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, { wrapper: Wrapper });
+
+      expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ })).toBeInTheDocument();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("preserves unrelated params when stripping the one-shot action param", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation&new=1"));
+
+      render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+      expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res&new=1", { scroll: false });
+    });
+
+    it("does not retrigger the picker auto-open on a rerender once the action param is already gone", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+      expect(mockRouterReplace).toHaveBeenCalledTimes(1);
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[]} />
+        </Wrapper>
+      );
+
+      expect(mockRouterReplace).toHaveBeenCalledTimes(1);
+    });
+
+    it("reopens the picker when the same action param is added again later", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[]} />
+        </Wrapper>
+      );
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[]} />
+        </Wrapper>
+      );
+
+      expect(mockRouterReplace).toHaveBeenCalledTimes(2);
+      expect(mockRouterReplace).toHaveBeenNthCalledWith(2, "/trips/trip-1?tab=res", { scroll: false });
+    });
+
+    it("re-highlights the same reservation when the same highlight param is added again later", () => {
+      const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
+      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, {
+        wrapper: Wrapper,
+      });
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+        </Wrapper>
+      );
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+        </Wrapper>
+      );
+
+      expect(mockRouterReplace).toHaveBeenCalledTimes(2);
+      expect(mockRouterReplace).toHaveBeenNthCalledWith(2, "/trips/trip-1?tab=res", { scroll: false });
+      expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toHaveAttribute(
+        "data-highlighted-reservation-id",
+        "res-lodging"
+      );
+    });
+
+    it("keeps an unmatched highlight param until the matching reservation is available", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
+      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+
+      const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+        </Wrapper>
+      );
+
+      expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res", { scroll: false });
+      expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toHaveAttribute(
+        "data-highlighted-reservation-id",
+        "res-lodging"
+      );
+    });
   });
 });

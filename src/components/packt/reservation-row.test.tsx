@@ -752,4 +752,40 @@ describe("ReservationRow", () => {
 
     expect(screen.getByTestId("add-doc-dialog")).toHaveTextContent("res-1");
   });
+
+  it("exposes a stable, focusable scroll/highlight target keyed by reservation id", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const root = screen.getByTestId("reservation-row-res-1");
+    expect(root).toHaveAttribute("id", "reservation-res-1");
+    expect(root).toHaveAttribute("tabIndex", "-1");
+  });
+
+  it("applies a non-color-only highlight affordance when highlighted is true", () => {
+    render(
+      <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} highlighted />
+    );
+
+    expect(screen.getByTestId("reservation-row-res-1")).toHaveStyle({ outline: "2px solid var(--accent-brand)" });
+  });
+
+  it("does not apply the highlight affordance by default", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByTestId("reservation-row-res-1")).not.toHaveStyle({ outline: "2px solid var(--accent-brand)" });
+  });
+
+  it("applies the background pulse animation class when highlighted is true", () => {
+    render(
+      <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} highlighted />
+    );
+
+    expect(screen.getByTestId("reservation-row-res-1")).toHaveClass("reservation-row-highlight-pulse");
+  });
+
+  it("does not apply the background pulse animation class by default", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByTestId("reservation-row-res-1")).not.toHaveClass("reservation-row-highlight-pulse");
+  });
 });

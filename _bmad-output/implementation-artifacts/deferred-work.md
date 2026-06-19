@@ -52,3 +52,10 @@
 
 - **aria-label says "opens Reservations" but onClick may be no-op** [now-card.tsx:72,215] — deferred, placeholder per AC6, Story 2.4 replaces with real navigation
 - **UTC midnight timezone edge case in today date filter** [queries.ts:176-177] — deferred, matches existing codebase pattern
+
+## Deferred from: code review of 2-4-itinerary-cta-and-tap-to-edit-redirect (2026-06-19)
+
+- **Self-race in highlight deferred-resolve** — `reservations-tab.tsx` — Deferred matching can re-process stale highlight if user navigates away/back; pre-existing design tradeoff
+- **`searchParams.toString()` stability dependency** — `reservations-tab.tsx` — Fragile if Next.js changes `useSearchParams` return behavior; Next.js implementation-dependent
+- **`handleTabChange` vs `router.push` navigation race** — `page-client.tsx` — Two navigation mechanisms could theoretically race; impractical to fix
+- **highlight state vs DOM rendering race** — `reservations-tab.tsx` — React 18+ batching handles it; fragile to concurrent features changes

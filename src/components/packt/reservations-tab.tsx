@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Luggage } from "lucide-react";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { ReservationTypePicker } from "@/components/packt/reservation-type-picker";
@@ -8,6 +9,8 @@ import { ReservationEditDrawer } from "@/components/packt/reservation-edit-drawe
 import { ReservationTypeSection, getNextUpcoming } from "@/components/packt/reservation-type-section";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
+
+const HIGHLIGHT_DURATION_MS = 1000;
 
 export interface ReservationsTabProps {
   tripId: string;
@@ -29,9 +32,65 @@ function sectionSortKey(type: ReservationType, reservations: Reservation[], now:
 
 export function ReservationsTab({ tripId, reservations, tripDocs }: ReservationsTabProps) {
   const now = useNow();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [selectedType, setSelectedType] = useState<ReservationType | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Set<ReservationType>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [highlightedReservationId, setHighlightedReservationId] = useState<string | null>(null);
+  const handledActionSearchRef = useRef<string | null>(null);
+  const handledHighlightSearchRef = useRef<string | null>(null);
+
+  const actionParam = searchParams.get("action");
+  const highlightParam = searchParams.get("highlight");
+  const searchParamsString = searchParams.toString();
+
+  useEffect(() => {
+    const nextSearchParams = new URLSearchParams(searchParamsString);
+    let needsReplace = false;
+
+    if (actionParam !== "add-reservation") {
+      handledActionSearchRef.current = null;
+    } else if (handledActionSearchRef.current !== searchParamsString) {
+      handledActionSearchRef.current = searchParamsString;
+      setPickerOpen(true);
+      nextSearchParams.delete("action");
+      needsReplace = true;
+    }
+
+    if (!highlightParam) {
+      handledHighlightSearchRef.current = null;
+    } else {
+      const target = reservations.find((reservation) => reservation.id === highlightParam);
+      if (target && handledHighlightSearchRef.current !== searchParamsString) {
+        handledHighlightSearchRef.current = searchParamsString;
+        const targetType = target.type;
+        setOpenSections((current) => new Set(current).add(targetType));
+        setHighlightedReservationId(highlightParam);
+        nextSearchParams.delete("highlight");
+        needsReplace = true;
+      }
+    }
+
+    if (needsReplace) {
+      const nextQueryString = nextSearchParams.toString();
+      router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
+    }
+  }, [actionParam, highlightParam, pathname, reservations, router, searchParamsString]);
+
+  useEffect(() => {
+    if (!highlightedReservationId) return;
+    const target = containerRef.current?.querySelector(`[data-reservation-id="${highlightedReservationId}"]`);
+    if (target instanceof HTMLElement) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus();
+    }
+    const timeoutId = setTimeout(() => setHighlightedReservationId(null), HIGHLIGHT_DURATION_MS);
+    return () => clearTimeout(timeoutId);
+  }, [highlightedReservationId]);
 
   function handleSelectType(type: ReservationType): void {
     setSelectedType(type);
@@ -64,7 +123,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
       {sections.length > 0 && (
         <div className="flex items-center justify-between">
           <h2 style={{ fontSize: "calc(16px * var(--font-scale))", fontWeight: 600 }}>Reservations</h2>
-          <ReservationTypePicker onSelectType={handleSelectType} />
+          <ReservationTypePicker onSelectType={handleSelectType} open={pickerOpen} onOpenChange={setPickerOpen} />
         </div>
       )}
 
@@ -80,7 +139,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <ReservationTypePicker onSelectType={handleSelectType} />
+            <ReservationTypePicker onSelectType={handleSelectType} open={pickerOpen} onOpenChange={setPickerOpen} />
           </EmptyContent>
         </Empty>
       ) : (
@@ -93,6 +152,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
             onToggle={() => toggleSection(section.type)}
             now={now}
             tripDocs={tripDocs}
+            highlightedReservationId={highlightedReservationId}
           />
         ))
       )}

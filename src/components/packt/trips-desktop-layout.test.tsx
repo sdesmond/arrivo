@@ -94,7 +94,7 @@ describe("TripsDesktopLayout", () => {
     expect(screen.getByText("Trips")).toBeInTheDocument();
   });
 
-  it("renders NowCard when activeEntry present", () => {
+  it("renders active entry panel when activeEntry present", () => {
     render(
       <TripsDesktopLayout
         activeEntry={activeEntry}
@@ -219,7 +219,7 @@ describe("TripsDesktopLayout", () => {
     expect(onEditTrip).toHaveBeenCalled();
   });
 
-  it("calls onEditTrip from NowCard", async () => {
+  it("calls onEditTrip from active entry panel", async () => {
     const user = userEvent.setup();
     const onEditTrip = vi.fn();
     render(
