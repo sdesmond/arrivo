@@ -36,3 +36,9 @@ Feature: Linked Events
     And I view the Itinerary tab
     Then I see a new Day 4 with a "Check-in" Linked Event
     And I see a new Day 5 with a "Check-out" Linked Event
+
+  Scenario: Now Card shows a Linked Event in the current-time window
+    Given I am signed in
+    And the trip has a Lodging reservation whose Check-in is "now"
+    When I view the trip list
+    Then the Now Card shows the "Check-in" Linked Event with the "Now" pill and "Linked" badge

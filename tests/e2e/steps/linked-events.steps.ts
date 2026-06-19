@@ -142,12 +142,51 @@ Given("I start from a three-day trip dated July 1, 2026 through July 3, 2026", a
   await scenario.gotoCurrentTrip(page);
 });
 
+Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ scenario }, window: string) => {
+  const now = new Date();
+  const startAt = window === "now" ? now.toISOString() : new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        trip: {
+          startDate: now.toISOString().slice(0, 10),
+          endDate: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        },
+        reservations: [
+          {
+            type: "lodging",
+            provider: "Torel Avantgarde",
+            startAt,
+            endAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+});
+
 When("I view the Itinerary tab", async ({ page }) => {
   const itineraryTab = page.getByRole("button", { name: "Itinerary" });
   if ((await itineraryTab.count()) > 0) {
     await itineraryTab.click();
   }
 });
+
+When("I view the trip list", async ({ page }) => {
+  await page.goto("/trips");
+});
+
+Then(
+  "the Now Card shows the {string} Linked Event with the {string} pill and {string} badge",
+  async ({ page }, eventName: string, pill: string, badgeText: string) => {
+    const nowCard = page.locator('[data-testid="now-card"]');
+    await expect(nowCard).toContainText(eventName);
+    await expect(nowCard).toContainText(pill);
+    await expect(nowCard).toContainText(badgeText);
+  }
+);
 
 When(
   "I add a Lodging reservation from {string} at {string} to {string} at {string}",
