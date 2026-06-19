@@ -387,7 +387,7 @@ describe("createReservation", () => {
       [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
       [{ count: 6 }],
       buildDateRows("2030-06-10", "2030-06-15"),
-      buildDayNumberRows(6)
+      buildDayNumberRows(6).map((row) => ({ dayNumber: row.dayNumber + 1 }))
     );
 
     await createReservation("trip-1", {
@@ -406,9 +406,9 @@ describe("createReservation", () => {
       },
       {
         tripId: "trip-1",
-        dayNumber: 7,
+        dayNumber: 8,
         date: "2030-06-16",
-        label: "Day 7",
+        label: "Day 8",
       },
     ]);
     expect(updatedTripValues).toContainEqual({
