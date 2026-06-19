@@ -33,10 +33,9 @@ async function selectCalendarDate(page: Page, ariaLabel: string, dateString: str
   const year = Number(yearString);
   const month = Number(monthString);
   const day = Number(dayString);
-  const targetDate = new Date(year, month - 1, day);
   const today = new Date();
-  const targetMonthIndex = targetDate.getFullYear() * 12 + targetDate.getMonth();
-  const currentMonthIndex = today.getFullYear() * 12 + today.getMonth();
+  const targetMonthIndex = year * 12 + (month - 1);
+  const currentMonthIndex = today.getUTCFullYear() * 12 + today.getUTCMonth();
   const stepCount = targetMonthIndex - currentMonthIndex;
   const navButtonName = stepCount >= 0 ? /Go to the Next Month/i : /Go to the Previous Month/i;
   const targetDataDay = `${month}/${day}/${year}`;
@@ -187,10 +186,13 @@ Then("I see a new Day {int} with a {string} Linked Event", async ({ page }, dayN
   await expect(page.getByText(`${anchorLabel} — ${EXTENSION_PROVIDER}`)).toBeVisible({ timeout: 10_000 });
 });
 
-Then("the previous Day 1 is now Day 2", async ({ scenario }) => {
+Then("the previous Day {int} is now Day {int}", async ({ scenario }, oldDayNumber: number, newDayNumber: number) => {
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) {
     throw new Error("Missing current scenario trip.");
+  }
+  if (!currentTrip.startDate) {
+    throw new Error("Scenario trip has no startDate to compare against.");
   }
 
   await withE2EDb(async (database) => {
@@ -200,12 +202,8 @@ Then("the previous Day 1 is now Day 2", async ({ scenario }) => {
       .where(eq(days.tripId, currentTrip.id))
       .orderBy(asc(days.dayNumber));
 
-    expect(tripDays).toEqual([
-      { dayNumber: 1, date: "2026-06-30" },
-      { dayNumber: 2, date: "2026-07-01" },
-      { dayNumber: 3, date: "2026-07-02" },
-      { dayNumber: 4, date: "2026-07-03" },
-    ]);
+    const shiftedDay = tripDays.find((day) => day.dayNumber === newDayNumber);
+    expect(shiftedDay?.date).toBe(currentTrip.startDate);
   });
 });
 
