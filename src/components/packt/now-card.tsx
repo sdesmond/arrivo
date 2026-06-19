@@ -63,7 +63,9 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
       return new Date(event.startAt) > now;
     }) ?? null;
 
-  const displayEvent = currentEvent ?? nextEvent;
+  const undatedLinkedEvent = todayEvents.find((event) => !event.startAt && event.linkedReservationId) ?? null;
+
+  const displayEvent = currentEvent ?? nextEvent ?? undatedLinkedEvent;
   const eventLabel = currentEvent ? "Now" : "Next Event";
 
   const isLinkedEvent = !!displayEvent?.linkedReservationId && !!displayEvent?.reservationType;
