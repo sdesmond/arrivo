@@ -77,6 +77,8 @@ export interface TripDetailTabBodyProps {
   ) => Promise<void>;
   isDateless: boolean;
   onOpenEditDates: () => void;
+  onActivateReservationsCta: () => void;
+  onLinkedEventTap: (linkedReservationId: string) => void;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -129,6 +131,8 @@ export function TripDetailTabBody({
   onInsertFromPackingSource,
   isDateless,
   onOpenEditDates,
+  onActivateReservationsCta,
+  onLinkedEventTap,
   onAddDay,
   onRemoveLastDay,
   addingDay,
@@ -165,6 +169,9 @@ export function TripDetailTabBody({
           onToggleChecklistItem={onToggleChecklistItem}
           isDateless={isDateless}
           onOpenEditDates={onOpenEditDates}
+          reservationCount={reservations.length}
+          onActivateReservationsCta={onActivateReservationsCta}
+          onLinkedEventTap={onLinkedEventTap}
           onAddDay={onAddDay}
           onRemoveLastDay={onRemoveLastDay}
           addingDay={addingDay}

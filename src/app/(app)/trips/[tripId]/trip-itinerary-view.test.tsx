@@ -7,6 +7,7 @@ import { TripItineraryView, type TripItineraryViewProps } from "./trip-itinerary
 interface MockDayCardProps {
   day: DayItinerary;
   onRemove?: () => void;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
 }
 
 interface MockPlaceRowProps {
@@ -14,10 +15,13 @@ interface MockPlaceRowProps {
 }
 
 vi.mock("@/components/packt/day-card", () => ({
-  DayCard: ({ day, onRemove }: MockDayCardProps) => (
+  DayCard: ({ day, onRemove, onLinkedEventTap }: MockDayCardProps) => (
     <section data-testid={`day-card-${day.dayNumber}`}>
       <span>{day.label}</span>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
+      {onLinkedEventTap && (
+        <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap on {day.label}</button>
+      )}
     </section>
   ),
 }));
@@ -52,6 +56,9 @@ function buildProps(days: DayItinerary[], overrides: Partial<TripItineraryViewPr
     unscheduledEvents: [],
     isDateless: false,
     onOpenEditDates: vi.fn(),
+    reservationCount: 0,
+    onActivateReservationsCta: vi.fn(),
+    onLinkedEventTap: vi.fn(),
     onUpdateEvent: vi.fn(),
     onDeleteEvent: vi.fn(),
     onReorderDayItems: vi.fn(),
@@ -218,5 +225,34 @@ describe("TripItineraryView", () => {
 
     await user.click(screen.getByRole("button", { name: /set trip dates/i }));
     expect(onOpenEditDates).toHaveBeenCalledOnce();
+  });
+
+  it("renders the FR-9 CTA above the day stack", () => {
+    const props = buildProps([dayOne, dayTwo]);
+    render(<TripItineraryView {...props} />);
+
+    const cta = screen.getByRole("button", { name: /opens the Reservations tab/i });
+    const dayCard = screen.getByTestId("day-card-1");
+    expect(cta.compareDocumentPosition(dayCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("calls onActivateReservationsCta when the CTA is activated", async () => {
+    const user = userEvent.setup();
+    const onActivateReservationsCta = vi.fn();
+    const props = buildProps([dayOne], { onActivateReservationsCta });
+    render(<TripItineraryView {...props} />);
+
+    await user.click(screen.getByRole("button", { name: /opens the Reservations tab/i }));
+    expect(onActivateReservationsCta).toHaveBeenCalledOnce();
+  });
+
+  it("threads onLinkedEventTap to DayCard instead of a dead no-op", async () => {
+    const user = userEvent.setup();
+    const onLinkedEventTap = vi.fn();
+    const props = buildProps([dayOne], { onLinkedEventTap });
+    render(<TripItineraryView {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Trigger linked tap on Day 1" }));
+    expect(onLinkedEventTap).toHaveBeenCalledWith("linked-reservation-1");
   });
 });
