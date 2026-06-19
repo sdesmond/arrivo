@@ -4,7 +4,7 @@ baseline_commit: 6e5365095e062a2e1909829c9d918566d9f7ca07
 
 # Story 3.1: Cover Overflow Menu — Edit/Remove/Info
 
-Status: review
+Status: done
 
 ## Story
 
@@ -372,6 +372,21 @@ No changes needed to the E2E Object Mother — cover fields are on the `trips` t
 - `src/lib/db-mappers.test.ts`
 - `vitest.config.mts`
 - `vitest.setup.mts`
+
+### Review Findings
+
+- [x] [Review][Patch] Upload tab double DB write — `uploadCoverImage` already updates the DB, then `handleSelect`→`handleCoverSelection` calls `setTripCoverWithAttribution` doing a second identical write [src/components/packt/cover-image-picker.tsx]
+- [x] [Review][Patch] DropdownMenuTrigger preventDefault suppresses menu toggle — `event.preventDefault()` on trigger click can inhibit Radix dropdown toggle [src/app/(app)/trips/[tripId]/trip-detail-hero.tsx:142-146]
+- [x] [Review][Patch] Picker closes before async save settles — `handleSelect` calls `onClose()` synchronously before `startTransition` async work completes; error toasts fire after dialog is invisible [src/components/packt/cover-image-picker.tsx, src/app/(app)/trips/[tripId]/trip-detail-hero.tsx]
+- [x] [Review][Patch] DropdownMenuTrigger not disabled during `isPending` — menu items disabled but trigger isn't, enabling double-submit [src/app/(app)/trips/[tripId]/trip-detail-hero.tsx]
+- [x] [Review][Patch] Redundant `next/server` mock — both `vitest.config.mts` alias and `vitest.setup.mts` `vi.mock` define `NextResponse` [vitest.config.mts, vitest.setup.mts]
+- [x] [Review][Patch] No test for photo cover without attribution — only graphic/map/photo-with-attribution combos tested; uploaded cover (photo, no attribution) missing [src/app/(app)/trips/[tripId]/trip-detail-hero.test.tsx]
+- [x] [Review][Patch] Empty-string photographer persists as `""` instead of `null` — `image.photographer ?? null` keeps `""` when DB should receive `null` [src/app/(app)/trips/[tripId]/trip-detail-hero.tsx:82]
+- [x] [Review][Patch] No test for `CoverAttributionDialog` without `photographerUrl` — link visibility not tested when URL is absent [src/components/packt/cover-attribution-dialog.test.tsx]
+- [x] [Review][Patch] No test for server-action failure toast in hero — `mockRemoveTripCover`/`mockSetTripCoverWithAttribution` rejection paths untested [src/app/(app)/trips/[tripId]/trip-detail-hero.test.tsx]
+- [x] [Review][Defer] `user.id!` non-null assertion — existing pattern in codebase, not introduced by this change — deferred, pre-existing
+- [x] [Review][Defer] `uploadCoverImage` discards previous attribution — pre-existing behavior, not introduced by this change — deferred, pre-existing
+- [x] [Review][Defer] TOCTOU race in `removeTripCover` — pre-existing race condition across all server actions, not specific to this change — deferred, pre-existing
 
 ### Change Log
 

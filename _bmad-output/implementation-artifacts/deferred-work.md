@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of 3-1-cover-overflow-menu-edit-remove-info (2026-06-19)
+
+- **`user.id!` non-null assertion** — existing pattern in codebase, not introduced by this change.
+- **`uploadCoverImage` discards previous attribution** — pre-existing behavior, not introduced by this change.
+- **TOCTOU race in `removeTripCover`** — pre-existing race condition across all server actions, not specific to this change.
+
 ## Deferred from: code review of 2-2-reservations-extend-the-itinerarys-date-range (2026-06-19)
 
 - **Dateless-trip + reservation interaction creates orphaned/duplicate day rows** — `extendTripDateRange` (`reservations/actions.ts:51-72`) treats a dateless trip's existing `date: null` `days` rows as unrelated to the reservation's new date range, inserting brand-new dated days alongside them rather than filling them in, while `existingDayCount` counts both toward `MAX_TRIP_DAYS`. Confirmed reachable: the New Trip dialog permits an empty date range, and `addDay`/`updateTripMetadata` both produce/maintain null-date day rows. Intended fix (per product direction): adding a dated Reservation to a dateless trip should fill in the existing null-date days in `dayNumber` order before inserting any new ones, effectively giving the trip dates the same way a dated trip would extend. Deferred — scope spans the existing dateless-trip handling (`addDay`, `updateTripMetadata`) beyond this story; track as its own follow-up story.

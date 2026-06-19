@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import type { TripDetailPayload } from "@/data/types";
 import { TripDetailHero } from "./trip-detail-hero";
 
@@ -316,5 +317,70 @@ describe("TripDetailHero", () => {
       "href",
       "https://unsplash.com/@caseycamera"
     );
+  });
+
+  it("shows remove but not info for photo covers without attribution", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/uploaded-cover.jpg",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Edit Cover" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Cover" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Info" })).not.toBeInTheDocument();
+  });
+
+  it("shows toast on setTripCoverWithAttribution failure", async () => {
+    mockSetTripCoverWithAttribution.mockRejectedValue(new Error("Network error"));
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero detail={buildDetail()} nowISO="2026-07-01T00:00:00Z" dateFormat="MM/DD/YYYY" onEdit={vi.fn()} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit Cover" }));
+    await user.click(screen.getByRole("button", { name: "apply-search-photo" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Could not save cover image");
+    });
+  });
+
+  it("shows toast on removeTripCover failure", async () => {
+    mockRemoveTripCover.mockRejectedValue(new Error("Network error"));
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Cover" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Could not remove cover image");
+    });
   });
 });

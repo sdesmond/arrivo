@@ -32,7 +32,6 @@ export function CoverImagePicker({
   function handleSelect(selected: string | CoverImageSelection) {
     const image = typeof selected === "string" ? { url: selected } : selected;
     onImageSelected(image);
-    onClose();
   }
 
   const graphicCover = currentCoverImageUrl ? parseGraphicCover(currentCoverImageUrl) : null;
@@ -74,7 +73,7 @@ export function CoverImagePicker({
             />
           </TabsContent>
           <TabsContent value="upload" className="min-h-0 flex-1 overflow-y-auto">
-            <CoverImagePickerUpload tripId={tripId} onImageSelected={handleSelect} onClose={onClose} />
+            <CoverImagePickerUpload tripId={tripId} onImageSelected={() => onClose()} onClose={onClose} />
           </TabsContent>
           <TabsContent value="url" className="min-h-0 flex-1 overflow-y-auto">
             <CoverImagePickerUrl onImageSelected={handleSelect} onClose={onClose} />

@@ -21,6 +21,26 @@ describe("CoverAttributionDialog", () => {
     );
   });
 
+  it("hides the Unsplash link when photographerUrl is absent", () => {
+    render(<CoverAttributionDialog open photographer="Casey Camera" onClose={vi.fn()} />);
+
+    expect(screen.getByText("Casey Camera")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View on Unsplash" })).not.toBeInTheDocument();
+  });
+
+  it("does not render when closed", () => {
+    render(
+      <CoverAttributionDialog
+        open={false}
+        photographer="Casey Camera"
+        photographerUrl="https://unsplash.com/@caseycamera"
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText("Casey Camera")).not.toBeInTheDocument();
+  });
+
   it("calls onClose from the Close button", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

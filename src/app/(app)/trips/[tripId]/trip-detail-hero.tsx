@@ -79,9 +79,10 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
         await setTripCoverWithAttribution(
           trip.id,
           image.url,
-          image.photographer ?? null,
-          image.photographerUrl ?? null
+          image.photographer || null,
+          image.photographerUrl || null
         );
+        setIsPickerOpen(false);
       } catch {
         toast.error("Could not save cover image");
       }
@@ -140,9 +141,9 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
           <DropdownMenu>
             <DropdownMenuTrigger
               title="Cover options"
+              disabled={isPending}
               className="rounded-[6px] bg-black/25 p-2 text-white backdrop-blur-sm transition-colors hover:bg-black/45"
               onClick={(event) => {
-                event.preventDefault();
                 event.stopPropagation();
               }}
             >
