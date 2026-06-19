@@ -73,6 +73,7 @@ export function TripsDesktopLayout({
                 todayEvents={activeEntry.todayEvents}
                 onEditTrip={(trip) => onEditTrip(trip.id)}
                 onDeleteTrip={onDeleteTrip}
+                onLinkedEventTap={() => {}}
                 dateFormat={dateFormat}
               />
             </>
