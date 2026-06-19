@@ -60,8 +60,11 @@ export function buildReservationsDeepLinkHref(
   if (target.kind === "add-reservation") {
     nextSearchParams.set("action", "add-reservation");
     nextSearchParams.delete("highlight");
-  } else {
+  } else if (target.reservationId) {
     nextSearchParams.set("highlight", target.reservationId);
+    nextSearchParams.delete("action");
+  } else {
+    nextSearchParams.delete("highlight");
     nextSearchParams.delete("action");
   }
 

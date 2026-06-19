@@ -91,17 +91,17 @@ export function TripDetailClient({
     const nextTab = resolveTripDetailTab(tabParam);
     setActiveTab(nextTab);
     if (nextTab === TripDetailTab.Reservations && pendingCtaAnnouncementRef.current) {
-      pendingCtaAnnouncementRef.current = false;
       setAnnouncementId((current) => current + 1);
       setReservationsAnnouncement("Reservations tab");
     }
+    pendingCtaAnnouncementRef.current = false;
   }, [tabParam]);
 
   function navigateToReservations(target: ReservationsDeepLinkTarget): void {
     if (target.kind === "add-reservation") {
       pendingCtaAnnouncementRef.current = true;
     }
-    router.push(buildReservationsDeepLinkHref(pathname, searchParams, target));
+    router.push(buildReservationsDeepLinkHref(pathname, searchParams, target), { scroll: false });
   }
 
   async function handleTripSave(patch: UpdateTripPatch): Promise<void> {

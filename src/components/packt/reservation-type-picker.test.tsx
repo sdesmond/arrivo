@@ -62,4 +62,12 @@ describe("ReservationTypePicker", () => {
 
     expect(screen.getByRole("button", { name: /lodging/i })).toBeInTheDocument();
   });
+
+  it("renders focusable menu items that can receive focus after programmatic open", () => {
+    render(<ReservationTypePicker onSelectType={vi.fn()} open onOpenChange={vi.fn()} />);
+
+    const lodgingButton = screen.getByRole("button", { name: /lodging/i });
+    lodgingButton.focus();
+    expect(document.activeElement).toBe(lodgingButton);
+  });
 });

@@ -237,6 +237,23 @@ Use scenario-owned fixture creation only. No new global seed rows in `global-set
 - [x] [Review][Patch] Same-value one-shot params cannot rerun while `ReservationsTab` stays mounted [src/components/packt/reservations-tab.tsx:43]
 - [x] [Review][Patch] Linked-events E2E scenarios reuse the base seed trip start date, risking nondeterministic trip lookup collisions [tests/e2e/steps/linked-events.steps.ts:131]
 - [x] [Review][Patch] Unknown `highlight` targets are stripped before a matching reservation can be resolved, turning stale or racey deep links into silent no-ops [src/components/packt/reservations-tab.tsx:70]
+- [x] [Review][Decision] CTA vertical padding conflicts with h-12 [src/components/packt/itinerary-cta.tsx] — Resolved: keep `h-12` + `items-center` centering (spec deviation accepted).
+- [x] [Review][Patch] Concurrent `router.replace()` race when both `action` and `highlight` present [src/components/packt/reservations-tab.tsx] — Fixed: combined into single effect
+- [x] [Review][Patch] Missing `{ scroll: false }` on `router.push` in navigateToReservations [src/app/(app)/trips/[tripId]/page-client.tsx] — Fixed: added `{ scroll: false }`
+- [x] [Review][Patch] Dead ternary in highlight effect [src/components/packt/reservations-tab.tsx] — Fixed: removed by combined-effect refactor
+- [x] [Review][Patch] CSS animation duration (1s) inconsistent with `HIGHLIGHT_DURATION_MS` (2s) [src/app/globals.css] — Fixed: reduced `HIGHLIGHT_DURATION_MS` to 1000
+- [x] [Review][Patch] `document.getElementById` bypasses React reconciliation [src/components/packt/reservations-tab.tsx] — Fixed: scoped to container ref via `data-reservation-id`
+- [x] [Review][Patch] Undated linked event labeled "Next Event" [src/components/packt/now-card.tsx] — Fixed: added "Linked Event" fallback label
+- [x] [Review][Patch] Stale `pendingCtaAnnouncementRef` survives failed CTA navigation [src/app/(app)/trips/[tripId]/page-client.tsx] — Fixed: always reset on tabParam change
+- [x] [Review][Patch] No debounce on rapid CTA clicks [src/components/packt/itinerary-cta.tsx] — Fixed: one-shot disabled state after click
+- [x] [Review][Patch] Highlight pulse animation ignores `prefers-reduced-motion` [src/app/globals.css] — Fixed: wrapped in `@media (prefers-reduced-motion: no-preference)`
+- [x] [Review][Patch] Empty-string `reservationId` produces malformed deep link [src/app/(app)/trips/[tripId]/trip-detail-tabs.ts] — Fixed: skip set when reservationId is empty
+- [x] [Review][Patch] Missing `trips-desktop-layout.test.tsx` update [src/components/packt/trips-desktop-layout.tsx] — Fixed: updated test names
+- [x] [Review][Patch] Focus-on-first-item after programmatic picker open not tested [src/components/packt/reservation-type-picker.tsx] — Fixed: added focusability assertion
+- [x] [Review][Defer] Self-race in highlight deferred-resolve pattern [src/components/packt/reservations-tab.tsx] — Deferred matching can re-process stale highlight if user navigates away/back; pre-existing design tradeoff, deferred
+- [x] [Review][Defer] `searchParams.toString()` stability dependency [src/components/packt/reservations-tab.tsx] — Fragile if Next.js changes useSearchParams return behavior; Next.js implementation-dependent
+- [x] [Review][Defer] `handleTabChange` vs `router.push` navigation race [src/app/(app)/trips/[tripId]/page-client.tsx] — Two navigation mechanisms could theoretically race; impractical to fix
+- [x] [Review][Defer] highlight state vs DOM rendering race [src/components/packt/reservations-tab.tsx] — React 18+ batching handles it; fragile to concurrent features changes
 
 ---
 

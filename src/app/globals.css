@@ -473,8 +473,10 @@ html[data-font-size="large"] {
   }
 }
 
-.reservation-row-highlight-pulse {
-  animation: reservation-row-highlight-pulse 0.5s ease-in-out 2;
+@media (prefers-reduced-motion: no-preference) {
+  .reservation-row-highlight-pulse {
+    animation: reservation-row-highlight-pulse 0.5s ease-in-out 2;
+  }
 }
 
 /* ─── Checklist completion ceremony ─── */

@@ -194,6 +194,7 @@ export function ReservationRow({ reservation, type, isLast, tripDocs, highlighte
   return (
     <div
       id={`reservation-${reservation.id}`}
+      data-reservation-id={reservation.id}
       data-testid={`reservation-row-${reservation.id}`}
       tabIndex={-1}
       className={cn("px-4 py-8", highlighted && "reservation-row-highlight-pulse")}

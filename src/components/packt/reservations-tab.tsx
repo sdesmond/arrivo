@@ -10,7 +10,7 @@ import { ReservationTypeSection, getNextUpcoming } from "@/components/packt/rese
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 
-const HIGHLIGHT_DURATION_MS = 2000;
+const HIGHLIGHT_DURATION_MS = 1000;
 
 export interface ReservationsTabProps {
   tripId: string;
@@ -35,6 +35,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [selectedType, setSelectedType] = useState<ReservationType | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Set<ReservationType>>(new Set());
@@ -48,44 +49,45 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
   const searchParamsString = searchParams.toString();
 
   useEffect(() => {
+    const nextSearchParams = new URLSearchParams(searchParamsString);
+    let needsReplace = false;
+
     if (actionParam !== "add-reservation") {
       handledActionSearchRef.current = null;
-      return;
+    } else if (handledActionSearchRef.current !== searchParamsString) {
+      handledActionSearchRef.current = searchParamsString;
+      setPickerOpen(true);
+      nextSearchParams.delete("action");
+      needsReplace = true;
     }
-    if (handledActionSearchRef.current === searchParamsString) return;
-    handledActionSearchRef.current = searchParamsString;
 
-    setPickerOpen(true);
-    const nextSearchParams = new URLSearchParams(searchParamsString);
-    nextSearchParams.delete("action");
-    const nextQueryString = nextSearchParams.toString();
-    router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
-  }, [actionParam, pathname, router, searchParamsString]);
-
-  useEffect(() => {
     if (!highlightParam) {
       handledHighlightSearchRef.current = null;
-      return;
+    } else {
+      const target = reservations.find((reservation) => reservation.id === highlightParam);
+      if (target && handledHighlightSearchRef.current !== searchParamsString) {
+        handledHighlightSearchRef.current = searchParamsString;
+        const targetType = target.type;
+        setOpenSections((current) => new Set(current).add(targetType));
+        setHighlightedReservationId(highlightParam);
+        nextSearchParams.delete("highlight");
+        needsReplace = true;
+      }
     }
 
-    const target = reservations.find((reservation) => reservation.id === highlightParam);
-    if (!target) return;
-    if (handledHighlightSearchRef.current === searchParamsString) return;
-    handledHighlightSearchRef.current = searchParamsString;
-
-    setOpenSections((current) => (target ? new Set(current).add(target.type) : current));
-    setHighlightedReservationId(highlightParam);
-    const nextSearchParams = new URLSearchParams(searchParamsString);
-    nextSearchParams.delete("highlight");
-    const nextQueryString = nextSearchParams.toString();
-    router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
-  }, [highlightParam, pathname, reservations, router, searchParamsString]);
+    if (needsReplace) {
+      const nextQueryString = nextSearchParams.toString();
+      router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
+    }
+  }, [actionParam, highlightParam, pathname, reservations, router, searchParamsString]);
 
   useEffect(() => {
     if (!highlightedReservationId) return;
-    const target = document.getElementById(`reservation-${highlightedReservationId}`);
-    target?.scrollIntoView({ behavior: "smooth", block: "center" });
-    target?.focus();
+    const target = containerRef.current?.querySelector(`[data-reservation-id="${highlightedReservationId}"]`);
+    if (target instanceof HTMLElement) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus();
+    }
     const timeoutId = setTimeout(() => setHighlightedReservationId(null), HIGHLIGHT_DURATION_MS);
     return () => clearTimeout(timeoutId);
   }, [highlightedReservationId]);
