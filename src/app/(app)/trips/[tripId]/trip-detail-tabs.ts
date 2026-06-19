@@ -45,3 +45,26 @@ export function buildTripDetailTabHref(
   const nextQueryString = nextSearchParams.toString();
   return nextQueryString ? `${pathname}?${nextQueryString}` : pathname;
 }
+
+export type ReservationsDeepLinkTarget = { kind: "add-reservation" } | { kind: "highlight"; reservationId: string };
+
+export function buildReservationsDeepLinkHref(
+  pathname: string,
+  searchParams: SearchParamsLike,
+  target: ReservationsDeepLinkTarget
+): string {
+  const nextSearchParams = new URLSearchParams(searchParams.toString());
+  nextSearchParams.set("tab", TripDetailTab.Reservations);
+  nextSearchParams.delete("focus");
+
+  if (target.kind === "add-reservation") {
+    nextSearchParams.set("action", "add-reservation");
+    nextSearchParams.delete("highlight");
+  } else {
+    nextSearchParams.set("highlight", target.reservationId);
+    nextSearchParams.delete("action");
+  }
+
+  const nextQueryString = nextSearchParams.toString();
+  return nextQueryString ? `${pathname}?${nextQueryString}` : pathname;
+}

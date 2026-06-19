@@ -5,13 +5,15 @@ import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
 import type { TripDetailPayload } from "@/data/types";
 
-const { tripConfettiMock, mockPathname, mockSearchParams } = vi.hoisted(() => ({
+const { tripConfettiMock, mockPathname, mockSearchParams, mockRouterPush, mockRouterReplace } = vi.hoisted(() => ({
   tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
     void tripId;
     return null;
   }),
   mockPathname: vi.fn(() => "/trips/trip-1"),
   mockSearchParams: vi.fn(() => new URLSearchParams()),
+  mockRouterPush: vi.fn(),
+  mockRouterReplace: vi.fn(),
 }));
 
 interface TripCoverProps {
@@ -22,6 +24,7 @@ interface TripCoverProps {
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname(),
   useSearchParams: () => mockSearchParams(),
+  useRouter: () => ({ push: mockRouterPush, replace: mockRouterReplace }),
 }));
 
 vi.mock("next/link", () => ({
@@ -38,8 +41,20 @@ vi.mock("@/components/packt/trip-cover", () => ({
 }));
 
 vi.mock("./trip-detail-tab-body", () => ({
-  TripDetailTabBody: ({ activeTab }: { activeTab: string }) => (
-    <div data-testid="trip-detail-tab-body">{activeTab}</div>
+  TripDetailTabBody: ({
+    activeTab,
+    onActivateReservationsCta,
+    onLinkedEventTap,
+  }: {
+    activeTab: string;
+    onActivateReservationsCta: () => void;
+    onLinkedEventTap: (reservationId: string) => void;
+  }) => (
+    <div data-testid="trip-detail-tab-body">
+      {activeTab}
+      <button onClick={onActivateReservationsCta}>Activate CTA</button>
+      <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
+    </div>
   ),
 }));
 
@@ -259,5 +274,75 @@ describe("TripDetailClient", () => {
 
     expect(pushStateSpy).toHaveBeenCalledWith(null, "", "/trips/trip-1?focus=event-1");
     expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
+  });
+
+  it("syncs activeTab when the tab search param changes outside of a tab-button click", () => {
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+    const { rerender } = render(
+      <TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
+
+    mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
+    rerender(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("res");
+  });
+
+  it("navigates to Reservations with action=add-reservation, stripping focus and preserving unrelated params, when the CTA activates", async () => {
+    const user = userEvent.setup();
+    mockPathname.mockReturnValue("/trips/trip-1");
+    mockSearchParams.mockReturnValue(new URLSearchParams("focus=event-1&new=1"));
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Activate CTA" }));
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?new=1&tab=res&action=add-reservation");
+  });
+
+  it("navigates to Reservations with a highlight param when a linked event is tapped", async () => {
+    const user = userEvent.setup();
+    mockPathname.mockReturnValue("/trips/trip-1");
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Tap linked event" }));
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?tab=res&highlight=reservation-1");
+  });
+
+  it("announces the Reservations tab once a CTA-triggered tab switch settles", async () => {
+    const user = userEvent.setup();
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+
+    const { container, rerender } = render(
+      <TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Activate CTA" }));
+
+    mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+    rerender(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(container.querySelector("[aria-live=polite]")).toHaveTextContent("Reservations tab");
+  });
+
+  it("does not announce the Reservations tab when navigating via a linked-event highlight tap", async () => {
+    const user = userEvent.setup();
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+
+    const { container, rerender } = render(
+      <TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Tap linked event" }));
+
+    mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=reservation-1"));
+    rerender(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(container.querySelector("[aria-live=polite]")).toHaveTextContent("");
   });
 });
