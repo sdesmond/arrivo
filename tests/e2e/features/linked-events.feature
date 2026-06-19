@@ -20,3 +20,19 @@ Feature: Linked Events
     When I view the Itinerary tab
     Then I see a single "Delta" Linked Event on Day 1 with a Plane icon and a "Linked" badge
     And I do not see separate "Departure" or "Arrival" Linked Events on Day 1
+
+  Scenario: Reservation before trip startDate creates a new Day 1
+    Given I am signed in
+    And I start from a three-day trip dated July 1, 2026 through July 3, 2026
+    When I add a Lodging reservation from "2026-06-30" at "15:00" to "2026-07-01" at "11:00"
+    And I view the Itinerary tab
+    Then I see a new Day 1 with a "Check-in" Linked Event
+    And the previous Day 1 is now Day 2
+
+  Scenario: Reservation after trip endDate creates a new last Day
+    Given I am signed in
+    And I start from a three-day trip dated July 1, 2026 through July 3, 2026
+    When I add a Lodging reservation from "2026-07-04" at "15:00" to "2026-07-05" at "11:00"
+    And I view the Itinerary tab
+    Then I see a new Day 4 with a "Check-in" Linked Event
+    And I see a new Day 5 with a "Check-out" Linked Event
