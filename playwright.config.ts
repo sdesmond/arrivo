@@ -31,6 +31,7 @@ export default defineConfig({
       NEXT_DISTDIR: ".next-e2e",
       PACKT_E2E: "true",
       E2E_MAPBOX_STUB: "true",
+      E2E_UNSPLASH_STUB: "true",
       UPLOAD_STUB: "true",
     },
   },

@@ -3,7 +3,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { LoaderIcon, Search } from "lucide-react";
 import { toast } from "sonner";
-import type { CoverImageSearchResult } from "@/data/types";
+import type { CoverImageSearchResult, CoverImageSelection } from "@/data/types";
 import type { LocationSuggestion } from "@/app/(app)/trips/actions";
 import { searchLocations, retrieveLocation } from "@/app/(app)/trips/actions";
 import { resolveDestinationCenter, searchCoverImages } from "@/app/(app)/trips/cover-image-search-actions";
@@ -22,7 +22,7 @@ function simplifyLocationName(name: string): string {
 export interface CoverImagePickerSearchTabProps {
   destinationName?: string;
   center?: [number, number];
-  onImageSelected: (url: string) => void;
+  onImageSelected: (selection: string | CoverImageSelection) => void;
 }
 
 function buildMapTileUrl(center?: [number, number]) {
@@ -335,7 +335,13 @@ export function CoverImagePickerSearchTab({
                   type="button"
                   title={item.photographer}
                   aria-label={item.alt || item.photographer}
-                  onClick={() => onImageSelected(item.url)}
+                  onClick={() =>
+                    onImageSelected({
+                      url: item.url,
+                      photographer: item.photographer,
+                      photographerUrl: item.photographerUrl,
+                    })
+                  }
                   style={{
                     aspectRatio: "1 / 1",
                     border: "1px solid var(--line)",

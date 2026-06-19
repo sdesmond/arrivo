@@ -1,12 +1,34 @@
 "use client";
 
-import type { ReactElement } from "react";
+import { useState, useTransition, type ReactElement } from "react";
 import Link from "next/link";
-import { ChevronLeft, Share2, Download, Calendar, MapPin, FileText, Users, Pencil } from "lucide-react";
+import {
+  ChevronLeft,
+  Share2,
+  Download,
+  Calendar,
+  MapPin,
+  FileText,
+  Users,
+  Pencil,
+  MoreHorizontal,
+  Trash2,
+  Info,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TripCover } from "@/components/packt/trip-cover";
-import type { TripDetailPayload } from "@/data/types";
-import { getTripStatus, getTripDays, formatDate, pluralize } from "@/lib/utils";
+import { CoverAttributionDialog } from "@/components/packt/cover-attribution-dialog";
+import { CoverImagePicker } from "@/components/packt/cover-image-picker";
+import { removeTripCover, setTripCoverWithAttribution } from "@/app/(app)/trips/[tripId]/actions";
+import type { CoverImageSelection, CoverType, TripDetailPayload } from "@/data/types";
+import { getTripStatus, getTripDays, formatDate, parseGraphicCover, pluralize } from "@/lib/utils";
 
 interface TripDetailHeroProps {
   detail: TripDetailPayload;
@@ -15,9 +37,24 @@ interface TripDetailHeroProps {
   onEdit: () => void;
 }
 
+function getCoverType(coverImageUrl?: string): CoverType {
+  if (!coverImageUrl || parseGraphicCover(coverImageUrl)) {
+    return "graphic";
+  }
+
+  if (coverImageUrl.startsWith("/api/mapbox/static")) {
+    return "map";
+  }
+
+  return "photo";
+}
+
 export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetailHeroProps): ReactElement {
   const now = new Date(nowISO);
   const { trip, days, unscheduledEvents, docs, collaborators } = detail;
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isAttributionOpen, setIsAttributionOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const eventCount = days.reduce((count, day) => count + day.events.length, 0) + unscheduledEvents.length;
   const dayTotal = trip.startDate && trip.endDate ? getTripDays(trip.startDate, trip.endDate) : days.length;
@@ -32,6 +69,35 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
     trip.startDate && trip.endDate
       ? `${formatDate(trip.startDate, dateFormat)} — ${formatDate(trip.endDate, dateFormat)}`
       : "";
+  const coverType = getCoverType(trip.coverImageUrl);
+  const canRemoveCover = coverType === "photo" || coverType === "map";
+  const canShowAttribution = coverType === "photo" && !!trip.coverPhotographer;
+
+  function handleCoverSelection(image: CoverImageSelection) {
+    startTransition(async () => {
+      try {
+        await setTripCoverWithAttribution(
+          trip.id,
+          image.url,
+          image.photographer || null,
+          image.photographerUrl || null
+        );
+        setIsPickerOpen(false);
+      } catch {
+        toast.error("Could not save cover image");
+      }
+    });
+  }
+
+  function handleRemoveCover() {
+    startTransition(async () => {
+      try {
+        await removeTripCover(trip.id);
+      } catch {
+        toast.error("Could not remove cover image");
+      }
+    });
+  }
 
   return (
     <>
@@ -71,6 +137,43 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
 
       {/* Hero */}
       <div className="relative shrink-0" style={{ minHeight: 260 }}>
+        <div className="absolute right-2 top-2 z-10">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              title="Cover options"
+              disabled={isPending}
+              className="rounded-[6px] bg-black/25 p-2 text-white backdrop-blur-sm transition-colors hover:bg-black/45"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <MoreHorizontal size={18} strokeWidth={1.5} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="bottom"
+              align="end"
+              className="rounded-xl shadow-3"
+              style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
+            >
+              <DropdownMenuItem disabled={isPending} onClick={() => setIsPickerOpen(true)}>
+                <Pencil size={13} strokeWidth={1.5} />
+                Edit Cover
+              </DropdownMenuItem>
+              {canRemoveCover ? (
+                <DropdownMenuItem variant="destructive" disabled={isPending} onClick={handleRemoveCover}>
+                  <Trash2 size={13} strokeWidth={1.5} />
+                  Remove Cover
+                </DropdownMenuItem>
+              ) : null}
+              {canShowAttribution ? (
+                <DropdownMenuItem disabled={isPending} onClick={() => setIsAttributionOpen(true)}>
+                  <Info size={13} strokeWidth={1.5} />
+                  Info
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <TripCover
           name={trip.name}
           country=""
@@ -133,6 +236,24 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
           </div>
         </div>
       </div>
+      {isPickerOpen ? (
+        <CoverImagePicker
+          tripId={trip.id}
+          destinationName={trip.destinationName}
+          destinationCountry={trip.destinationCountry}
+          currentCoverImageUrl={trip.coverImageUrl}
+          onImageSelected={handleCoverSelection}
+          onClose={() => setIsPickerOpen(false)}
+        />
+      ) : null}
+      {trip.coverPhotographer ? (
+        <CoverAttributionDialog
+          open={isAttributionOpen}
+          photographer={trip.coverPhotographer}
+          photographerUrl={trip.coverPhotographerUrl}
+          onClose={() => setIsAttributionOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

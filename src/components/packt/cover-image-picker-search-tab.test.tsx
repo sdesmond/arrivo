@@ -31,6 +31,7 @@ function makeImage(id: string): CoverImageSearchResult {
     id,
     url: `https://img.example.com/${id}.jpg`,
     photographer: `Photographer ${id}`,
+    photographerUrl: `https://unsplash.com/@${id}`,
     alt: `Alt ${id}`,
   };
 }
@@ -195,7 +196,7 @@ describe("CoverImagePickerSearchTab", () => {
     });
   });
 
-  it("calls onImageSelected with the image URL when a photo is clicked", async () => {
+  it("calls onImageSelected with photographer metadata when a photo is clicked", async () => {
     const onImageSelected = vi.fn();
     mockSearchCoverImages.mockResolvedValue([makeImage("test-img")]);
 
@@ -207,7 +208,11 @@ describe("CoverImagePickerSearchTab", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Alt test-img" }));
-    expect(onImageSelected).toHaveBeenCalledWith("https://img.example.com/test-img.jpg");
+    expect(onImageSelected).toHaveBeenCalledWith({
+      url: "https://img.example.com/test-img.jpg",
+      photographer: "Photographer test-img",
+      photographerUrl: "https://unsplash.com/@test-img",
+    });
   });
 
   it("shows 'No images found' when search returns empty results and there is no map tile", async () => {

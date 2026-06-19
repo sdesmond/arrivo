@@ -18,6 +18,9 @@ interface UnsplashSearchResponse {
     };
     user: {
       name: string;
+      links: {
+        html: string;
+      };
     };
     alt_description: string | null;
     description: string | null;
@@ -47,11 +50,13 @@ function buildE2EUnsplashStub(query: string, page: number, perPage: number): Cov
 
   return Array.from({ length: perPage }, (_, index) => {
     const imageNumber = pageStart + index + 1;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#dbeafe"/><text x="60" y="56" font-size="14" text-anchor="middle" fill="#1e3a8a">${query}</text><text x="60" y="78" font-size="12" text-anchor="middle" fill="#1e3a8a">Stub ${imageNumber}</text></svg>`;
 
     return {
       id: `stub-${slug}-${imageNumber}`,
-      url: `https://images.example.com/${slug}-${imageNumber}.jpg`,
+      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
       photographer: `Stub Photographer ${imageNumber}`,
+      photographerUrl: `https://unsplash.com/@stub-photographer-${imageNumber}`,
       alt: `${query} travel photo ${imageNumber}`,
     };
   });
@@ -157,6 +162,7 @@ export async function searchCoverImages(
       id: result.id,
       url: result.urls.regular,
       photographer: result.user.name,
+      photographerUrl: result.user.links.html,
       alt: result.alt_description ?? result.description ?? "",
     }));
   } catch (error) {

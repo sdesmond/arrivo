@@ -243,7 +243,14 @@ export interface CoverImageSearchResult {
   id: string;
   url: string;
   photographer: string;
+  photographerUrl?: string;
   alt: string;
+}
+
+export interface CoverImageSelection {
+  url: string;
+  photographer?: string;
+  photographerUrl?: string;
 }
 
 export interface EventLocation {
@@ -422,6 +429,8 @@ export interface Trip {
   todayMonth?: string;
 
   coverImageUrl?: string;
+  coverPhotographer?: string;
+  coverPhotographerUrl?: string;
   destinationName?: string;
   destinationCountry?: string;
   destinationCountryCode?: string;

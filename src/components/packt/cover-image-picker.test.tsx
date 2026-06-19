@@ -18,12 +18,21 @@ vi.mock("./cover-image-picker-search-tab", () => ({
   }: {
     destinationName?: string;
     center?: [number, number];
-    onImageSelected: (url: string) => void;
+    onImageSelected: (selection: string | { url: string; photographer?: string; photographerUrl?: string }) => void;
   }) => (
     <div data-testid="cover-search-tab" data-destination={destinationName ?? ""} data-center={center?.join(",") ?? ""}>
-      <button onClick={() => onImageSelected("https://images.example.com/search-result.jpg")}>
+      <button
+        onClick={() =>
+          onImageSelected({
+            url: "https://images.example.com/search-result.jpg",
+            photographer: "Search Photographer",
+            photographerUrl: "https://unsplash.com/@search-photographer",
+          })
+        }
+      >
         select-search-image
       </button>
+      <button onClick={() => onImageSelected("/api/mapbox/static?lng=1&lat=2")}>select-map-image</button>
     </div>
   ),
 }));
@@ -55,7 +64,7 @@ describe("CoverImagePicker", () => {
     expect(screen.getByTestId("cover-search-tab")).toHaveAttribute("data-center", "2.347,48.859");
   });
 
-  it("routes search-tab image selection through onImageSelected and onClose", async () => {
+  it("routes search photo selection through onImageSelected and onClose", async () => {
     const user = userEvent.setup();
     const onImageSelected = vi.fn();
     const onClose = vi.fn();
@@ -64,7 +73,24 @@ describe("CoverImagePicker", () => {
 
     await user.click(screen.getByRole("button", { name: "select-search-image" }));
 
-    expect(onImageSelected).toHaveBeenCalledWith("https://images.example.com/search-result.jpg");
+    expect(onImageSelected).toHaveBeenCalledWith({
+      url: "https://images.example.com/search-result.jpg",
+      photographer: "Search Photographer",
+      photographerUrl: "https://unsplash.com/@search-photographer",
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("normalizes map string selections into image objects", async () => {
+    const user = userEvent.setup();
+    const onImageSelected = vi.fn();
+    const onClose = vi.fn();
+
+    render(<CoverImagePicker {...defaultProps} onImageSelected={onImageSelected} onClose={onClose} />);
+
+    await user.click(screen.getByRole("button", { name: "select-map-image" }));
+
+    expect(onImageSelected).toHaveBeenCalledWith({ url: "/api/mapbox/static?lng=1&lat=2" });
     expect(onClose).toHaveBeenCalled();
   });
 

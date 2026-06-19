@@ -60,3 +60,15 @@ vi.mock("next/headers", () => ({
   })),
   headers: vi.fn(() => new Headers()),
 }));
+
+vi.mock("next/server", () => ({
+  NextResponse: class NextResponse extends Response {
+    static next() {
+      return new Response(null);
+    }
+
+    static redirect(url: string | URL) {
+      return Response.redirect(url.toString());
+    }
+  },
+}));

@@ -19,7 +19,13 @@ import { eq, and, max, gte, sql, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { del, put } from "@vercel/blob";
 import { saveLocalUpload, isBlobUploadUrl } from "@/lib/local-upload";
-import { inferDocKind, formatFileSize, MAX_COVER_IMAGE_UPLOAD_BYTES, MAX_UPLOAD_BYTES } from "@/lib/utils";
+import {
+  deriveGraphicCover,
+  inferDocKind,
+  formatFileSize,
+  MAX_COVER_IMAGE_UPLOAD_BYTES,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/utils";
 import type {
   CreateEventInput,
   UpdateEventPatch,
@@ -415,6 +421,42 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function setTripCoverWithAttribution(
+  tripId: string,
+  coverImageUrl: string,
+  coverPhotographer?: string | null,
+  coverPhotographerUrl?: string | null
+): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+  await db
+    .update(trips)
+    .set({
+      coverImageUrl,
+      coverPhotographer: coverPhotographer ?? null,
+      coverPhotographerUrl: coverPhotographerUrl ?? null,
+    })
+    .where(eq(trips.id, tripId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function removeTripCover(tripId: string): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+  const [trip] = await db.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId)).limit(1);
+  if (!trip) throw new Error("Trip not found");
+
+  await db
+    .update(trips)
+    .set({
+      coverImageUrl: deriveGraphicCover(trip.name),
+      coverPhotographer: null,
+      coverPhotographerUrl: null,
+    })
+    .where(eq(trips.id, tripId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
 export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
@@ -442,7 +484,10 @@ export async function uploadCoverImage(tripId: string, formData: FormData): Prom
       uploadedBlobUrl = result.url;
     }
 
-    await db.update(trips).set({ coverImageUrl: url }).where(eq(trips.id, tripId));
+    await db
+      .update(trips)
+      .set({ coverImageUrl: url, coverPhotographer: null, coverPhotographerUrl: null })
+      .where(eq(trips.id, tripId));
 
     if (previousUrl && isBlobUploadUrl(previousUrl)) {
       await del(previousUrl).catch((cleanupError) =>
