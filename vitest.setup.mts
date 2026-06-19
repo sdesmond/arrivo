@@ -2,6 +2,22 @@ import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
 if (typeof window !== "undefined") {
+  // Node 22+ defines a global `localStorage`/`sessionStorage` accessor (Web Storage API gated behind
+  // --localstorage-file) that shadows jsdom's real implementation: Vitest's jsdom environment only
+  // copies window properties it doesn't recognize as already present on `global`, so it skips these
+  // two and Node's broken (undefined-returning) accessor wins. Restore the real jsdom-backed storage.
+  const jsdomWindow = (globalThis as { jsdom?: { window: Window } }).jsdom?.window;
+  if (jsdomWindow) {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get: () => jsdomWindow.localStorage,
+    });
+    Object.defineProperty(window, "sessionStorage", {
+      configurable: true,
+      get: () => jsdomWindow.sessionStorage,
+    });
+  }
+
   if (!window.PointerEvent) {
     class PointerEvent extends MouseEvent {
       constructor(type: string, params: PointerEventInit = {}) {
