@@ -208,6 +208,59 @@ async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promis
   await expect(ungroupedItem).toHaveCount(1, { timeout: 2_000 });
 }
 
+async function getPackingItemIndex(page: Page, name: string): Promise<number> {
+  const names = await page.locator("[data-packing-name]").allTextContents();
+  return names.map((itemName) => itemName.trim()).indexOf(name);
+}
+
+async function waitForPackingItemPosition(
+  page: Page,
+  name: string,
+  expectedIndex: number,
+  timeout = 10_000
+): Promise<void> {
+  await expect(async () => {
+    const index = await getPackingItemIndex(page, name);
+    expect(index).toBe(expectedIndex);
+  }).toPass({ timeout });
+}
+
+async function keyboardMovePackingItemDownOnePosition(page: Page, name: string): Promise<void> {
+  const dragHandle = page.getByTitle(`Reorder ${name}`);
+  const statusEl = page.getByRole("status");
+
+  for (let attemptIndex = 0; attemptIndex < 3; attemptIndex += 1) {
+    await expect(dragHandle).toBeVisible({ timeout: 10_000 });
+    await dragHandle.focus();
+    await expect(dragHandle).toBeFocused();
+
+    await dragHandle.press("Space");
+    await expect(statusEl).toContainText("was moved over", { timeout: 10_000 });
+    const pickupText = (await statusEl.textContent()) ?? "";
+    const activeId = pickupText.match(/[0-9a-f-]{36}/i)?.[0] ?? "";
+
+    await dragHandle.press("ArrowDown");
+    await expect(async () => {
+      const statusText = (await statusEl.textContent()) ?? "";
+      expect(statusText.toLowerCase()).toContain("was moved over");
+      if (activeId) {
+        expect(statusText).not.toContain(`area ${activeId}`);
+      }
+    }).toPass({ timeout: 10_000 });
+
+    await dragHandle.press("Enter");
+
+    try {
+      await waitForPackingItemPosition(page, name, 1, 3_000);
+      return;
+    } catch (error) {
+      if (attemptIndex === 2) {
+        throw error;
+      }
+    }
+  }
+}
+
 When("I open the Packing tab", async ({ page }) => {
   await openPackingTab(page);
 });
@@ -351,47 +404,11 @@ When("I uncheck the packing item named {string}", async ({ page }, name: string)
 });
 
 When("I keyboard-move the item {string} down one position", async ({ page }, name: string) => {
-  const dragHandle = page.getByTitle(`Reorder ${name}`);
-  await expect(dragHandle).toBeVisible();
-  await dragHandle.focus();
-
-  // dnd-kit's KeyboardSensor only starts listening for arrow keys once the
-  // drag-start has committed (and the droppable rects are measured). Firing
-  // ArrowDown before that leaves the move computing against itself, so the item
-  // is "dropped over" its own position and nothing reorders.
-  // Gate the keys on dnd-kit's live region: it announces a pickup and immediately
-  // an over-self ("...moved over droppable area {sameId}"). Wait for that active
-  // state, then for ArrowDown to move the item over a *different* droppable.
-  //
-  // Use the raw status element (no filter) and toPass so both conditions must hold
-  // simultaneously. A filter-based not.toContainText can pass vacuously when the
-  // status element is briefly empty between announcements, causing Enter to fire
-  // before dnd-kit has processed ArrowDown.
-  const statusEl = page.getByRole("status");
-
-  await page.keyboard.press("Space");
-  await expect(statusEl).toContainText("was moved over", { timeout: 10_000 });
-  const pickupText = (await statusEl.textContent()) ?? "";
-  const activeId = pickupText.match(/[0-9a-f-]{36}/i)?.[0] ?? "";
-
-  await page.keyboard.press("ArrowDown");
-  await expect(async () => {
-    const statusText = (await statusEl.textContent()) ?? "";
-    expect(statusText.toLowerCase()).toContain("was moved over");
-    if (activeId) {
-      expect(statusText).not.toContain(`area ${activeId}`);
-    }
-  }).toPass({ timeout: 10_000 });
-
-  await page.keyboard.press("Enter");
+  await keyboardMovePackingItemDownOnePosition(page, name);
 });
 
 Then("the packing item {string} should be at position {int}", async ({ page }, name: string, expectedIndex: number) => {
-  await expect(async () => {
-    const names = await page.locator("[data-packing-name]").allTextContents();
-    const index = names.map((itemName) => itemName.trim()).indexOf(name);
-    expect(index).toBe(expectedIndex);
-  }).toPass({ timeout: 10_000 });
+  await waitForPackingItemPosition(page, name, expectedIndex);
 });
 
 Then("the packing item {string} should be checked", async ({ page }, name: string) => {

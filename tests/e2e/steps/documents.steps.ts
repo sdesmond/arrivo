@@ -41,6 +41,10 @@ Then("the document {string} appears in the Documents list", async ({ page }, fil
   await expect(page.getByText(filename)).toBeVisible({ timeout: 10_000 });
 });
 
+Then("I see the upload error {string}", async ({ page }, message: string) => {
+  await expect(page.getByText(message)).toBeVisible({ timeout: 10_000 });
+});
+
 When("I delete the document {string}", async ({ page }, docName: string) => {
   await page.getByRole("button", { name: `Delete ${docName}` }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();

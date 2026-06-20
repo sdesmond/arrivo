@@ -28,6 +28,13 @@ Feature: Trip cover overflow menu
     And I upload a new cover image from the picker
     Then the uploaded cover image persists after reloading the page
 
+  Scenario: User sees an error for unsupported cover upload type
+    Given I have an existing trip
+    When I open the cover picker from the cover options menu
+    And I try to upload an invalid cover file from the picker
+    Then I see the cover upload error "Unsupported cover image type. Choose JPG, PNG, WEBP, HEIC, GIF, or AVIF."
+    And the cover picker remains open
+
   Scenario: User opens the cover picker from the cover options menu
     Given I have an existing trip
     When I open the cover picker from the cover options menu

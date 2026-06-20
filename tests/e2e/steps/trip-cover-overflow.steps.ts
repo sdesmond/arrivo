@@ -114,6 +114,17 @@ When("I upload a new cover image from the picker", async ({ page }) => {
   await expect(pickerDialog).not.toBeVisible({ timeout: 10000 });
 });
 
+When("I try to upload an invalid cover file from the picker", async ({ page }) => {
+  const pickerDialog = page.getByRole("dialog");
+  await expect(pickerDialog).toBeVisible();
+  await pickerDialog.getByRole("tab", { name: "Upload" }).click();
+  await pickerDialog.locator("#cover-upload-input").setInputFiles({
+    name: "e2e-cover.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from("<svg></svg>"),
+  });
+});
+
 Then("the cover picker defaults to the Custom tab", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Custom", selected: true })).toBeVisible();
 });
@@ -124,6 +135,14 @@ Then("the uploaded cover image persists after reloading the page", async ({ page
   await page.getByTitle("Cover options").click();
   await expect(page.getByRole("menuitem", { name: "Remove Cover" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Info" })).not.toBeVisible();
+});
+
+Then("I see the cover upload error {string}", async ({ page }, message: string) => {
+  await expect(page.getByText(message)).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the cover picker remains open", async ({ page }) => {
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10_000 });
 });
 
 Then("I see no cover image editing controls", async ({ page }) => {
