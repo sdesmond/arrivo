@@ -24,7 +24,7 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
+vi.mock("@/app/(app)/trips/[tripId]/reservations/reservation-document-actions", () => ({
   attachTripDocToReservation: vi.fn().mockResolvedValue(undefined),
   uploadReservationDocument: vi.fn().mockResolvedValue(undefined),
 }));
@@ -32,7 +32,10 @@ vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 import { AddReservationDocDialog } from "./add-reservation-doc-dialog";
-import { attachTripDocToReservation, uploadReservationDocument } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import {
+  attachTripDocToReservation,
+  uploadReservationDocument,
+} from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 
 const makeDoc = (overrides: Record<string, unknown> = {}) => ({
   id: "doc-1",

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
@@ -41,7 +41,7 @@ vi.mock("@/components/packt/trip-cover", () => ({
 }));
 
 vi.mock("./trip-detail-hero", () => ({
-  TripDetailHero: ({ detail, nowISO }: { detail: TripDetailPayload; nowISO: string }) => {
+  TripDetailHero: ({ detail, nowISO, onEdit }: { detail: TripDetailPayload; nowISO: string; onEdit: () => void }) => {
     const { trip, days, unscheduledEvents, docs, collaborators } = detail;
     if (!trip.startDate || !trip.endDate) {
       return (
@@ -57,6 +57,7 @@ vi.mock("./trip-detail-hero", () => ({
           <span>
             {collaborators.length} {collaborators.length === 1 ? "collaborator" : "collaborators"}
           </span>
+          <button onClick={onEdit}>Edit trip</button>
         </div>
       );
     }
@@ -67,7 +68,12 @@ vi.mock("./trip-detail-hero", () => ({
     const dayTotal = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
     const dayNumber = Math.floor((now.getTime() - start.getTime()) / 86_400_000) + 1;
 
-    return <div>{`${dayTotal} days · day ${dayNumber} today`}</div>;
+    return (
+      <div>
+        {`${dayTotal} days · day ${dayNumber} today`}
+        <button onClick={onEdit}>Edit trip</button>
+      </div>
+    );
   },
 }));
 
@@ -76,15 +82,18 @@ vi.mock("./trip-detail-tab-body", () => ({
     activeTab,
     onActivateReservationsCta,
     onLinkedEventTap,
+    onOpenEditDates,
   }: {
     activeTab: string;
     onActivateReservationsCta: () => void;
     onLinkedEventTap: (reservationId: string) => void;
+    onOpenEditDates: () => void;
   }) => (
     <div data-testid="trip-detail-tab-body">
       {activeTab}
       <button onClick={onActivateReservationsCta}>Activate CTA</button>
       <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
+      <button onClick={onOpenEditDates}>Open edit dates</button>
     </div>
   ),
 }));
@@ -94,7 +103,8 @@ vi.mock("@/components/packt/trip-confetti", () => ({
 }));
 
 vi.mock("@/components/packt/trip-edit-sheet", () => ({
-  TripEditSheet: () => null,
+  TripEditSheet: ({ open, highlightDates }: { open: boolean; highlightDates?: boolean }) =>
+    open ? <div data-testid="trip-edit-sheet" data-highlight-dates={String(!!highlightDates)} /> : null,
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
@@ -384,5 +394,43 @@ describe("TripDetailClient", () => {
     rerender(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(container.querySelector("[aria-live=polite]")).toHaveTextContent("");
+  });
+
+  it("opens the trip edit sheet with dates highlighted when the Set trip dates CTA is used", async () => {
+    const user = userEvent.setup();
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Open edit dates" }));
+
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "true");
+  });
+
+  it("opens the trip edit sheet without highlighting dates when edited via the hero pencil", async () => {
+    const user = userEvent.setup();
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Edit trip" }));
+
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "false");
+  });
+
+  it("clears the dates highlight after the pulse duration elapses", () => {
+    vi.useFakeTimers();
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Open edit dates" }));
+    });
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "false");
+    vi.useRealTimers();
   });
 });

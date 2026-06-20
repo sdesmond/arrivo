@@ -2,20 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Luggage } from "lucide-react";
+import { CalendarDays, Luggage } from "lucide-react";
 import { useNow } from "@/components/providers/mock-date-provider";
+import { Button } from "@/components/ui/button";
 import { ReservationTypePicker } from "@/components/packt/reservation-type-picker";
 import { ReservationEditDrawer } from "@/components/packt/reservation-edit-drawer";
 import { ReservationTypeSection, getNextUpcoming } from "@/components/packt/reservation-type-section";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 
-const HIGHLIGHT_DURATION_MS = 1000;
+const HIGHLIGHT_DURATION_MS = 1500;
 
 export interface ReservationsTabProps {
   tripId: string;
   reservations: Reservation[];
   tripDocs?: Document[];
+  isDateless: boolean;
+  onOpenEditDates: () => void;
 }
 
 function sectionSortKey(type: ReservationType, reservations: Reservation[], now: Date): [number, number] {
@@ -30,7 +33,7 @@ function sectionSortKey(type: ReservationType, reservations: Reservation[], now:
   return [1, -startAtMs];
 }
 
-export function ReservationsTab({ tripId, reservations, tripDocs }: ReservationsTabProps) {
+export function ReservationsTab({ tripId, reservations, tripDocs, isDateless, onOpenEditDates }: ReservationsTabProps) {
   const now = useNow();
   const router = useRouter();
   const pathname = usePathname();
@@ -56,7 +59,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
       handledActionSearchRef.current = null;
     } else if (handledActionSearchRef.current !== searchParamsString) {
       handledActionSearchRef.current = searchParamsString;
-      setPickerOpen(true);
+      setPickerOpen(!isDateless);
       nextSearchParams.delete("action");
       needsReplace = true;
     }
@@ -79,7 +82,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
       const nextQueryString = nextSearchParams.toString();
       router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
     }
-  }, [actionParam, highlightParam, pathname, reservations, router, searchParamsString]);
+  }, [actionParam, highlightParam, isDateless, pathname, reservations, router, searchParamsString]);
 
   useEffect(() => {
     if (!highlightedReservationId) return;
@@ -119,7 +122,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
     });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={containerRef} className="flex flex-col gap-4">
       {sections.length > 0 && (
         <div className="flex items-center justify-between">
           <h2 style={{ fontSize: "calc(16px * var(--font-scale))", fontWeight: 600 }}>Reservations</h2>
@@ -127,7 +130,25 @@ export function ReservationsTab({ tripId, reservations, tripDocs }: Reservations
         </div>
       )}
 
-      {sections.length === 0 ? (
+      {isDateless ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <CalendarDays strokeWidth={1.5} />
+            </EmptyMedia>
+            <EmptyTitle>Set trip dates to add reservations</EmptyTitle>
+            <EmptyDescription>
+              Reservations need real itinerary days to attach to — set your trip&apos;s dates before adding one.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" size="sm" onClick={onOpenEditDates}>
+              <CalendarDays strokeWidth={1.5} />
+              Set trip dates
+            </Button>
+          </EmptyContent>
+        </Empty>
+      ) : sections.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">

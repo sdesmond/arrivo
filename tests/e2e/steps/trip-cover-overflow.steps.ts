@@ -9,7 +9,19 @@ const COVER_UPLOAD_PNG = Buffer.from(
 );
 
 async function applyFirstStubCoverPhoto(page: Page): Promise<void> {
-  await page.getByRole("menuitem", { name: "Edit Cover" }).click();
+  const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
+  let menuOpen = false;
+  try {
+    await expect(editCoverItem).toBeVisible({ timeout: 2000 });
+    menuOpen = true;
+  } catch {
+    /* menu likely closed — will open below */
+  }
+  if (!menuOpen) {
+    await page.getByTitle("Cover options").click();
+    await expect(editCoverItem).toBeVisible({ timeout: 5000 });
+  }
+  await editCoverItem.click();
   const pickerDialog = page.getByRole("dialog");
   const stubPhotoButton = pickerDialog.locator('button[title="Stub Photographer 1"]');
   const searchInput = pickerDialog.getByRole("combobox", { name: "Search location for photos" });

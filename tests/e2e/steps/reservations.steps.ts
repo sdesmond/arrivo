@@ -6,7 +6,9 @@ import { Given, When, Then } from "../fixtures";
 
 Given("I am on the Reservations tab", async ({ page }) => {
   await page.getByRole("button", { name: "Reservations", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Add Reservation" })).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.getByRole("button", { name: "Add Reservation" }).or(page.getByRole("button", { name: "Set trip dates" }))
+  ).toBeVisible({ timeout: 10_000 });
 });
 
 Given("the trip has reservations across multiple types", async ({ page, scenario }) => {
@@ -94,6 +96,10 @@ Then(
 
 Then("I see the {string} empty state", async ({ page }, title: string) => {
   await expect(page.getByText(title)).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the Add Reservation button is visible", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Add Reservation" })).toBeVisible({ timeout: 10_000 });
 });
 
 Then("no reservation type sections are shown", async ({ page }) => {

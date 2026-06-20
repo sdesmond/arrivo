@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import type { Document } from "@/data/types";
 import { DocKindBadge } from "./doc-kind-badge";
-import { attachTripDocToReservation, uploadReservationDocument } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import {
+  attachTripDocToReservation,
+  uploadReservationDocument,
+} from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { MAX_UPLOAD_BYTES } from "@/lib/utils";
 
 type DialogMode = "pick" | "upload";

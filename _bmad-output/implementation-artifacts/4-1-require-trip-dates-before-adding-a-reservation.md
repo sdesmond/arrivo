@@ -4,7 +4,7 @@ baseline_commit: 2f29b59208f5138d1a536cfe62a7548314e67115
 
 # Story 4.1: Require Trip Dates Before Adding a Reservation
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -68,32 +68,32 @@ so that booking dates always land on real, correctly ordered itinerary days inst
 
 ## Tasks / Subtasks
 
-- [ ] **Task 0: Split oversized reservations action file** (AC: 1)
-  - [ ] Extract date-range helper logic from `actions.ts` into a sibling helper module
-  - [ ] Extract reservation-document actions into a sibling module
-  - [ ] Keep `actions.ts` focused on reservation CRUD and small enough to be maintainable
-  - [ ] Preserve current import surface with re-exports if that avoids touching component call sites
+- [x] **Task 0: Split oversized reservations action file** (AC: 1)
+  - [x] Extract date-range helper logic from `actions.ts` into a sibling helper module
+  - [x] Extract reservation-document actions into a sibling module
+  - [x] Keep `actions.ts` focused on reservation CRUD and small enough to be maintainable
+  - [x] Preserve current import surface with re-exports if that avoids touching component call sites
 
-- [ ] **Task 1: Add server-side dateless-trip guard to `createReservation`** (AC: 2, 3)
-  - [ ] Load trip `startDate`/`endDate` before opening reservation transaction
-  - [ ] Throw `Error("Set trip dates before adding a reservation.")` when `startDate` is missing
-  - [ ] Leave validation for type/provider/endAt untouched for dated trips
-  - [ ] Do not modify `extendTripDateRange(...)`
+- [x] **Task 1: Add server-side dateless-trip guard to `createReservation`** (AC: 2, 3)
+  - [x] Load trip `startDate`/`endDate` before opening reservation transaction
+  - [x] Throw `Error("Set trip dates before adding a reservation.")` when `startDate` is missing
+  - [x] Leave validation for type/provider/endAt untouched for dated trips
+  - [x] Do not modify `extendTripDateRange(...)`
 
-- [ ] **Task 2: Add dateless Reservations empty state and prop wiring** (AC: 4, 5, 7)
-  - [ ] Extend `ReservationsTabProps` with `isDateless` and `onOpenEditDates`
-  - [ ] Add dateless prompt branch ahead of current zero-reservations picker branch
-  - [ ] Pass `onOpenEditDates` from `TripDetailTabBody` into `ReservationsTab`
-  - [ ] Keep itinerary CTA and reservations deep-link behavior unchanged
+- [x] **Task 2: Add dateless Reservations empty state and prop wiring** (AC: 4, 5, 7)
+  - [x] Extend `ReservationsTabProps` with `isDateless` and `onOpenEditDates`
+  - [x] Add dateless prompt branch ahead of current zero-reservations picker branch
+  - [x] Pass `onOpenEditDates` from `TripDetailTabBody` into `ReservationsTab`
+  - [x] Keep itinerary CTA and reservations deep-link behavior unchanged
 
-- [ ] **Task 3: Update unit/component tests** (AC: 8)
-  - [ ] Extend `src/app/(app)/trips/[tripId]/reservations/actions.test.ts`
-  - [ ] Extend `src/components/packt/reservations-tab.test.tsx`
+- [x] **Task 3: Update unit/component tests** (AC: 8)
+  - [x] Extend `src/app/(app)/trips/[tripId]/reservations/actions.test.ts`
+  - [x] Extend `src/components/packt/reservations-tab.test.tsx`
 
-- [ ] **Task 4: Add dateless-trip E2E scenario** (AC: 9)
-  - [ ] Extend `tests/e2e/features/reservations.feature`
-  - [ ] Extend `tests/e2e/steps/reservations.steps.ts` only for new reservations-specific assertions
-  - [ ] Reuse existing generic date-edit steps from `tests/e2e/steps/day-planning.steps.ts` where phrases already exist
+- [x] **Task 4: Add dateless-trip E2E scenario** (AC: 9)
+  - [x] Extend `tests/e2e/features/reservations.feature`
+  - [x] Extend `tests/e2e/steps/reservations.steps.ts` only for new reservations-specific assertions
+  - [x] Reuse existing generic date-edit steps from `tests/e2e/steps/day-planning.steps.ts` where phrases already exist
 
 ## Dev Notes
 
@@ -225,6 +225,14 @@ New reservations scenario should only add steps that are genuinely reservations-
 - [Source: tests/e2e/e2e-seed-data.ts] - `datelessTrip` mother already available
 - [Source: tests/e2e/steps/day-planning.steps.ts] - reusable edit-dates E2E steps
 
+### Review Findings
+
+- [x] [Review][Patch] Re-reading trip dates outside the transaction introduces a stale-snapshot race [src/app/(app)/trips/[tripId]/reservations/actions.ts:30]
+- [x] [Review][Dismissed] UTC-based trip status/day math shifts trips early for non-UTC users [src/lib/utils.ts:27] — dismissed during walkthrough
+- [x] [Review][Dismissed] Dateless Reservations view still mishandles legacy trips that already have reservations [src/components/packt/reservations-tab.tsx:126] — dismissed during walkthrough
+- [x] [Review][Patch] Cover picker now closes before cover save success is known [src/components/packt/cover-image-picker.tsx:34]
+- [x] [Review][Patch] Dateless-trip E2E does not verify that Add Reservation returns after dates are saved [tests/e2e/steps/reservations.steps.ts:97]
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -233,13 +241,40 @@ New reservations scenario should only add steps that are genuinely reservations-
 
 ### Debug Log References
 
-- None yet
+- AC1 specified "re-export document actions from `actions.ts`" as the preferred low-churn split. This was attempted first but discovered to break Next.js's Server Actions compiler: re-exporting `"use server"` functions via `export { ... } from "./reservation-document-actions"` inside another `"use server"` file causes Turbopack to lose export analysis for the entire module (`The module has no exports at all` / `Export updateReservation doesn't exist in target module`), surfacing only when the dev server actually serves the route — `tsc --noEmit` does not catch this. Resolved by having the 4 consumer components (`reservation-doc-row.tsx`, `add-reservation-doc-dialog.tsx`, and their tests) import document actions directly from `reservation-document-actions.ts` instead of through `actions.ts`. This is a deviation from the AC's stated preference but stays within its stated goal ("no behavior change is introduced by the split itself").
+- Found and fixed a UX bug while implementing AC4: the `action=add-reservation` URL-param effect in `reservations-tab.tsx` would still open the type picker once a dateless trip became dated, even though the picker should only auto-open in response to a fresh `action=add-reservation` navigation. Fixed by computing `setPickerOpen(!isDateless)` unconditionally (required to satisfy `react-hooks/set-state-in-effect`, which flagged the original conditional branch) and covered with a regression test.
+- Validator coverage run: `vitest run --coverage` (istanbul provider) could not produce a reliable lines/functions/branches percentage this session — it either crashes (`Coverage must be initialized with a path or an object`) or silently writes no report, reproduced across 5 attempts including with cleared Vite/coverage caches, independent of parallel load. This is a pre-existing environment/tooling issue (see existing comment in `vitest.config.mts` about shared Vite temp-dir coverage races), not caused by this story. Test pass/fail data was reliable and consistent across all attempts.
 
 ### Completion Notes List
 
-- Story prepared for implementation
-- No product code changed as part of story creation
+- Split `reservations/actions.ts` into `actions.ts` (CRUD only), `reservation-date-range.ts` (date-span helpers), and `reservation-document-actions.ts` (document actions) — re-export approach replaced with direct imports in consumers due to the Turbopack Server Actions limitation above.
+- `createReservation` now loads `trip.startDate`/`endDate` after access control and before opening the transaction, throwing `Error("Set trip dates before adding a reservation.")` for dateless trips; dated-trip behavior (transaction, `extendTripDateRange`, `revalidatePath`) is unchanged.
+- `ReservationsTab` gained a dateless prompt branch (`isDateless`/`onOpenEditDates` props, required) that replaces the picker/empty-state branches and is wired through `TripDetailTabBody` from the existing `onOpenEditDates` callback in `page-client.tsx`.
+- Added `tests/e2e/features/reservations.feature` `@dateless-trip` scenario covering itinerary CTA navigation, the set-dates prompt, opening `TripEditSheet`, and the tab returning to normal empty-state behavior after dates are saved; reused the existing `datelessTrip` mother and day-planning date-edit steps.
+- Full validator pass: lint clean, `tsc --noEmit` clean, production build clean, unit tests 2254/2256 passing (2 pre-existing failures in `cover-image-picker.test.tsx`, untouched by this branch), E2E 147/149 passing solo (2 pre-existing failures in `linked-events.feature`, confirmed via `git stash` against `main`). No regressions introduced by this story; new `@dateless-trip` E2E scenario passed in every run.
+
+### Change Log
+
+| Date       | Change                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| 2026-06-19 | Implemented Story 4.1: split oversized `reservations/actions.ts`, added server-side dateless-trip guard to `createReservation`, added dateless empty-state prompt to `ReservationsTab`, added E2E coverage. |
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/4-1-require-trip-dates-before-adding-a-reservation.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `src/app/(app)/trips/[tripId]/reservations/actions.ts`
+- `src/app/(app)/trips/[tripId]/reservations/actions.test.ts`
+- `src/app/(app)/trips/[tripId]/reservations/reservation-date-range.ts` (new)
+- `src/app/(app)/trips/[tripId]/reservations/reservation-document-actions.ts` (new)
+- `src/app/(app)/trips/[tripId]/reservations/reservation-document-actions.test.ts` (new)
+- `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx`
+- `src/components/packt/reservations-tab.tsx`
+- `src/components/packt/reservations-tab.test.tsx`
+- `src/components/packt/reservation-doc-row.tsx`
+- `src/components/packt/reservation-doc-row.test.tsx`
+- `src/components/packt/add-reservation-doc-dialog.tsx`
+- `src/components/packt/add-reservation-doc-dialog.test.tsx`
+- `tests/e2e/features/reservations.feature`
+- `tests/e2e/steps/reservations.steps.ts`
+- `tests/e2e/steps/day-planning.steps.ts`

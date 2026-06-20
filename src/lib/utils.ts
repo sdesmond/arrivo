@@ -24,20 +24,17 @@ export function getTripStatus(
   now = getNow()
 ): "upcoming" | "active" | "past" {
   if (!startDate || !endDate) return "upcoming";
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate + "T00:00:00");
-  const end = new Date(endDate + "T00:00:00");
-  if (today < start) return "upcoming";
-  if (today > end) return "past";
+  const todayUTC = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
+  if (todayUTC < startDate) return "upcoming";
+  if (todayUTC > endDate) return "past";
   return "active";
 }
 
 export function getActiveDayNumber(startDate: string, now = getNow()): number {
-  const start = new Date(startDate + "T00:00:00");
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  return Math.floor((today.getTime() - start.getTime()) / 86_400_000) + 1;
+  const startParts = startDate.split("-").map(Number);
+  const start = Date.UTC(startParts[0], startParts[1] - 1, startParts[2]);
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.floor((today - start) / 86_400_000) + 1;
 }
 
 export function getTodayDisplay(now = getNow()): { date: number; month: string } {

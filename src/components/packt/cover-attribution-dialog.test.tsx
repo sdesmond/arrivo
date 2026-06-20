@@ -51,4 +51,15 @@ describe("CoverAttributionDialog", () => {
 
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("calls onClose when dismissed via Escape", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(<CoverAttributionDialog open photographer="Casey Camera" onClose={onClose} />);
+
+    await user.keyboard("{Escape}");
+
+    expect(onClose).toHaveBeenCalled();
+  });
 });

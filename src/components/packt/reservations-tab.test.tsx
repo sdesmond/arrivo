@@ -77,6 +77,7 @@ vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
 }));
 
 const NOW_ISO = "2026-06-15T12:00:00.000Z";
+const mockOnOpenEditDates = vi.fn();
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
@@ -105,7 +106,10 @@ describe("ReservationsTab", () => {
   });
 
   it("shows the FR-6 empty state with a single Add Reservation entry point when there are no reservations", () => {
-    render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+    render(
+      <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+      { wrapper: Wrapper }
+    );
 
     expect(screen.getByText("No reservations yet")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /add reservation/i })).toHaveLength(1);
@@ -116,6 +120,8 @@ describe("ReservationsTab", () => {
     render(
       <ReservationsTab
         tripId="trip-1"
+        isDateless={false}
+        onOpenEditDates={mockOnOpenEditDates}
         reservations={[
           makeReservation({
             id: "res-1",
@@ -144,6 +150,8 @@ describe("ReservationsTab", () => {
     render(
       <ReservationsTab
         tripId="trip-1"
+        isDateless={false}
+        onOpenEditDates={mockOnOpenEditDates}
         reservations={[
           // Lodging: upcoming, soonest
           makeReservation({
@@ -198,6 +206,8 @@ describe("ReservationsTab", () => {
     render(
       <ReservationsTab
         tripId="trip-1"
+        isDateless={false}
+        onOpenEditDates={mockOnOpenEditDates}
         reservations={[makeReservation({ id: "res-1", provider: "Grand Hotel", startAt: "2026-06-20T15:00:00.000Z" })]}
       />,
       { wrapper: Wrapper }
@@ -213,7 +223,10 @@ describe("ReservationsTab", () => {
 
   it("opens the drawer for the selected type when Add Reservation is used", async () => {
     const user = userEvent.setup();
-    render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+    render(
+      <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+      { wrapper: Wrapper }
+    );
 
     await user.click(screen.getByRole("button", { name: /add reservation/i }));
 
@@ -229,16 +242,29 @@ describe("ReservationsTab", () => {
       endAt: undefined,
     });
 
-    const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes, flightRes]} />, {
-      wrapper: Wrapper,
-    });
+    const { rerender } = render(
+      <ReservationsTab
+        tripId="trip-1"
+        isDateless={false}
+        onOpenEditDates={mockOnOpenEditDates}
+        reservations={[lodgingRes, flightRes]}
+      />,
+      {
+        wrapper: Wrapper,
+      }
+    );
 
     expect(screen.getByRole("button", { name: /^Lodging, 1 reservation/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Flight, 1 reservation/ })).toBeInTheDocument();
 
     rerender(
       <Wrapper>
-        <ReservationsTab tripId="trip-1" reservations={[flightRes]} />
+        <ReservationsTab
+          tripId="trip-1"
+          isDateless={false}
+          onOpenEditDates={mockOnOpenEditDates}
+          reservations={[flightRes]}
+        />
       </Wrapper>
     );
 
@@ -249,14 +275,22 @@ describe("ReservationsTab", () => {
   it("shows the empty state when the last reservation is deleted (rerender)", () => {
     const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
 
-    const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, { wrapper: Wrapper });
+    const { rerender } = render(
+      <ReservationsTab
+        tripId="trip-1"
+        isDateless={false}
+        onOpenEditDates={mockOnOpenEditDates}
+        reservations={[lodgingRes]}
+      />,
+      { wrapper: Wrapper }
+    );
 
     expect(screen.getByRole("button", { name: /^Lodging, 1 reservation/ })).toBeInTheDocument();
     expect(screen.queryByText("No reservations yet")).not.toBeInTheDocument();
 
     rerender(
       <Wrapper>
-        <ReservationsTab tripId="trip-1" reservations={[]} />
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />
       </Wrapper>
     );
 
@@ -268,14 +302,20 @@ describe("ReservationsTab", () => {
     it("auto-opens the type picker and strips the action param when mounted with action=add-reservation", () => {
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
 
-      render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+      render(
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        { wrapper: Wrapper }
+      );
 
       expect(screen.getByRole("button", { name: "Add Reservation" })).toHaveAttribute("data-open", "true");
       expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res", { scroll: false });
     });
 
     it("does not auto-open the picker when there is no action param", () => {
-      render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+      render(
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        { wrapper: Wrapper }
+      );
 
       expect(screen.getByRole("button", { name: "Add Reservation" })).toHaveAttribute("data-open", "false");
       expect(mockRouterReplace).not.toHaveBeenCalled();
@@ -285,7 +325,15 @@ describe("ReservationsTab", () => {
       const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
 
-      render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, { wrapper: Wrapper });
+      render(
+        <ReservationsTab
+          tripId="trip-1"
+          isDateless={false}
+          onOpenEditDates={mockOnOpenEditDates}
+          reservations={[lodgingRes]}
+        />,
+        { wrapper: Wrapper }
+      );
 
       expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toHaveAttribute(
         "data-highlighted-reservation-id",
@@ -298,7 +346,15 @@ describe("ReservationsTab", () => {
       const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=does-not-exist"));
 
-      render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, { wrapper: Wrapper });
+      render(
+        <ReservationsTab
+          tripId="trip-1"
+          isDateless={false}
+          onOpenEditDates={mockOnOpenEditDates}
+          reservations={[lodgingRes]}
+        />,
+        { wrapper: Wrapper }
+      );
 
       expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ })).toBeInTheDocument();
       expect(mockRouterReplace).not.toHaveBeenCalled();
@@ -307,20 +363,26 @@ describe("ReservationsTab", () => {
     it("preserves unrelated params when stripping the one-shot action param", () => {
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation&new=1"));
 
-      render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+      render(
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        { wrapper: Wrapper }
+      );
 
       expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res&new=1", { scroll: false });
     });
 
     it("does not retrigger the picker auto-open on a rerender once the action param is already gone", () => {
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
-      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+      const { rerender } = render(
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        { wrapper: Wrapper }
+      );
       expect(mockRouterReplace).toHaveBeenCalledTimes(1);
 
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
       rerender(
         <Wrapper>
-          <ReservationsTab tripId="trip-1" reservations={[]} />
+          <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />
         </Wrapper>
       );
 
@@ -329,19 +391,22 @@ describe("ReservationsTab", () => {
 
     it("reopens the picker when the same action param is added again later", () => {
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
-      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+      const { rerender } = render(
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        { wrapper: Wrapper }
+      );
 
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
       rerender(
         <Wrapper>
-          <ReservationsTab tripId="trip-1" reservations={[]} />
+          <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />
         </Wrapper>
       );
 
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
       rerender(
         <Wrapper>
-          <ReservationsTab tripId="trip-1" reservations={[]} />
+          <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />
         </Wrapper>
       );
 
@@ -352,21 +417,39 @@ describe("ReservationsTab", () => {
     it("re-highlights the same reservation when the same highlight param is added again later", () => {
       const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
-      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />, {
-        wrapper: Wrapper,
-      });
+      const { rerender } = render(
+        <ReservationsTab
+          tripId="trip-1"
+          isDateless={false}
+          onOpenEditDates={mockOnOpenEditDates}
+          reservations={[lodgingRes]}
+        />,
+        {
+          wrapper: Wrapper,
+        }
+      );
 
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
       rerender(
         <Wrapper>
-          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+          <ReservationsTab
+            tripId="trip-1"
+            isDateless={false}
+            onOpenEditDates={mockOnOpenEditDates}
+            reservations={[lodgingRes]}
+          />
         </Wrapper>
       );
 
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
       rerender(
         <Wrapper>
-          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+          <ReservationsTab
+            tripId="trip-1"
+            isDateless={false}
+            onOpenEditDates={mockOnOpenEditDates}
+            reservations={[lodgingRes]}
+          />
         </Wrapper>
       );
 
@@ -380,14 +463,22 @@ describe("ReservationsTab", () => {
 
     it("keeps an unmatched highlight param until the matching reservation is available", () => {
       mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&highlight=res-lodging"));
-      const { rerender } = render(<ReservationsTab tripId="trip-1" reservations={[]} />, { wrapper: Wrapper });
+      const { rerender } = render(
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        { wrapper: Wrapper }
+      );
 
       expect(mockRouterReplace).not.toHaveBeenCalled();
 
       const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
       rerender(
         <Wrapper>
-          <ReservationsTab tripId="trip-1" reservations={[lodgingRes]} />
+          <ReservationsTab
+            tripId="trip-1"
+            isDateless={false}
+            onOpenEditDates={mockOnOpenEditDates}
+            reservations={[lodgingRes]}
+          />
         </Wrapper>
       );
 
@@ -396,6 +487,71 @@ describe("ReservationsTab", () => {
         "data-highlighted-reservation-id",
         "res-lodging"
       );
+    });
+  });
+
+  describe("dateless trip", () => {
+    it("shows the set-dates prompt instead of the no-reservations empty state", () => {
+      render(
+        <ReservationsTab tripId="trip-1" isDateless={true} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        {
+          wrapper: Wrapper,
+        }
+      );
+
+      expect(screen.getByText("Set trip dates to add reservations")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Set trip dates" })).toBeInTheDocument();
+      expect(screen.queryByText("No reservations yet")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /add reservation/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /reservation,/ })).not.toBeInTheDocument();
+    });
+
+    it("calls onOpenEditDates when Set trip dates is clicked", async () => {
+      const user = userEvent.setup();
+      render(
+        <ReservationsTab tripId="trip-1" isDateless={true} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        {
+          wrapper: Wrapper,
+        }
+      );
+
+      await user.click(screen.getByRole("button", { name: "Set trip dates" }));
+
+      expect(mockOnOpenEditDates).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps showing the prompt and never opens the picker when action=add-reservation is present", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+
+      render(
+        <ReservationsTab tripId="trip-1" isDateless={true} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        {
+          wrapper: Wrapper,
+        }
+      );
+
+      expect(screen.getByText("Set trip dates to add reservations")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add Reservation" })).not.toBeInTheDocument();
+      expect(mockRouterReplace).toHaveBeenCalledWith("/trips/trip-1?tab=res", { scroll: false });
+    });
+
+    it("does not auto-open the picker after dates are saved and the trip becomes dated", () => {
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res&action=add-reservation"));
+
+      const { rerender } = render(
+        <ReservationsTab tripId="trip-1" isDateless={true} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />,
+        { wrapper: Wrapper }
+      );
+
+      mockSearchParams.mockReturnValue(new URLSearchParams("tab=res"));
+      rerender(
+        <Wrapper>
+          <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />
+        </Wrapper>
+      );
+
+      expect(screen.getByText("No reservations yet")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /add reservation/i })).toHaveAttribute("data-open", "false");
     });
   });
 });

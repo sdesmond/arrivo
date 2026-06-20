@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,16 +19,16 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (name.trim().length === 0) {
+  async function handleSave(): Promise<void> {
+    const trimmed = name.trim();
+    if (trimmed.length === 0) {
       setError("Template name is required");
       return;
     }
     setError(null);
     setIsSaving(true);
     try {
-      const templateId = await onSave(name.trim());
+      const templateId = await onSave(trimmed);
       if (templateId) {
         toast.success("Template saved");
         setName("");
@@ -46,8 +46,15 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
     if (error) setError(null);
   }
 
+  function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "Enter" && !isSaving) {
+      event.preventDefault();
+      void handleSave();
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={() => onClose()}>
+    <Dialog open={open} onOpenChange={() => onClose()} disablePointerDismissal>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <div className="flex items-center justify-between">
@@ -65,7 +72,7 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <label
               htmlFor="save-template-name"
@@ -80,6 +87,7 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
               value={name}
               maxLength={30}
               onChange={(event) => handleNameChange(event.target.value)}
+              onKeyDown={handleInputKeyDown}
               style={{ color: "var(--fg)" }}
             />
             {error && (
@@ -99,12 +107,17 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" className="min-h-11 min-w-11" disabled={name.trim().length === 0 || isSaving}>
+            <Button
+              type="button"
+              className="min-h-11 min-w-11"
+              disabled={name.trim().length === 0 || isSaving}
+              onClick={() => void handleSave()}
+            >
               <Save size={16} strokeWidth={1.5} />
               Save template
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -72,6 +72,8 @@ describe("SaveAsTemplateDialog", () => {
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={onSave} itemCount={3} />);
 
     await user.type(screen.getByLabelText("Template name"), "  Beach Trip  ");
+    // Verify the button is enabled before clicking
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save template" })).not.toBeDisabled());
     await user.click(screen.getByRole("button", { name: "Save template" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith("Beach Trip"));
@@ -130,11 +132,12 @@ describe("SaveAsTemplateDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("shows inline validation error when form submitted programmatically with empty name", () => {
+  it("shows inline validation error when submitting empty name via Enter key", async () => {
+    const user = userEvent.setup();
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={vi.fn()} itemCount={3} />);
 
-    const form = screen.getByRole("button", { name: "Save template" }).closest("form")!;
-    fireEvent.submit(form);
+    const input = screen.getByLabelText("Template name");
+    await user.type(input, "{Enter}");
 
     expect(screen.getByRole("alert")).toHaveTextContent("Template name is required");
   });

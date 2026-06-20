@@ -25,6 +25,8 @@ import {
   type ReservationsDeepLinkTarget,
 } from "./trip-detail-tabs";
 
+const DATES_HIGHLIGHT_DURATION_MS = 1500;
+
 const TABS: { id: TripDetailTabValue; label: string }[] = [
   { id: "itin", label: "Itinerary" },
   { id: "map", label: "Map" },
@@ -60,6 +62,7 @@ export function TripDetailClient({
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TripDetailTabValue>(initialActiveTab);
   const [editingTrip, setEditingTrip] = useState(false);
+  const [highlightTripDates, setHighlightTripDates] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const [reservationsAnnouncement, setReservationsAnnouncement] = useState("");
@@ -71,6 +74,12 @@ export function TripDetailClient({
   const tabParam = searchParams.get("tab");
   const previousTabParamRef = useRef(tabParam);
   const pendingCtaAnnouncementRef = useRef(false);
+
+  useEffect(() => {
+    if (!highlightTripDates) return;
+    const timeoutId = setTimeout(() => setHighlightTripDates(false), DATES_HIGHLIGHT_DURATION_MS);
+    return () => clearTimeout(timeoutId);
+  }, [highlightTripDates]);
 
   useEffect(() => {
     function handlePopState(): void {
@@ -221,7 +230,10 @@ export function TripDetailClient({
             onDeletePackingList={handlers.handleDeletePackingList}
             onInsertFromPackingSource={handlers.handleInsertFromPackingSource}
             isDateless={!trip.startDate}
-            onOpenEditDates={() => setEditingTrip(true)}
+            onOpenEditDates={() => {
+              setEditingTrip(true);
+              setHighlightTripDates(true);
+            }}
             onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
             onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
             onAddDay={handlers.handleAddDay}
@@ -236,7 +248,11 @@ export function TripDetailClient({
         key={trip.id}
         trip={trip}
         open={editingTrip}
-        onClose={() => setEditingTrip(false)}
+        onClose={() => {
+          setEditingTrip(false);
+          setHighlightTripDates(false);
+        }}
+        highlightDates={highlightTripDates}
         onSave={handleTripSave}
         saving={handlers.savingTrip}
         dateFormat={dateFormat}

@@ -780,12 +780,12 @@ describe("ReservationRow", () => {
       <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} highlighted />
     );
 
-    expect(screen.getByTestId("reservation-row-res-1")).toHaveClass("reservation-row-highlight-pulse");
+    expect(screen.getByTestId("reservation-row-res-1")).toHaveClass("highlight-pulse-bg");
   });
 
   it("does not apply the background pulse animation class by default", () => {
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    expect(screen.getByTestId("reservation-row-res-1")).not.toHaveClass("reservation-row-highlight-pulse");
+    expect(screen.getByTestId("reservation-row-res-1")).not.toHaveClass("highlight-pulse-bg");
   });
 });
