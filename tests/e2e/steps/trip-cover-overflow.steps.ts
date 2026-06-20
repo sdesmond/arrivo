@@ -3,6 +3,11 @@ import { Given, Then, When } from "../fixtures";
 
 const STUB_PHOTOGRAPHER_NAME = "Stub Photographer 1";
 const STUB_PHOTOGRAPHER_URL = "https://unsplash.com/@stub-photographer-1";
+const COVER_UPLOAD_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0Q0AAAAASUVORK5CYII=",
+  "base64"
+);
+
 async function applyFirstStubCoverPhoto(page: Page): Promise<void> {
   await page.getByRole("menuitem", { name: "Edit Cover" }).click();
   const pickerDialog = page.getByRole("dialog");
@@ -66,11 +71,41 @@ Then("the cover options menu hides remove and info actions", async ({ page }) =>
 });
 
 When("I open the cover picker from the cover options menu", async ({ page }) => {
-  await page.getByRole("menuitem", { name: "Edit Cover" }).click();
+  const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
+  if (!(await editCoverItem.isVisible().catch(() => false))) {
+    await page.getByTitle("Cover options").click();
+  }
+  await expect(editCoverItem).toBeVisible();
+  await editCoverItem.click();
+});
+
+When("I reload the trip detail page", async ({ page }) => {
+  await page.reload();
+});
+
+When("I upload a new cover image from the picker", async ({ page }) => {
+  const pickerDialog = page.getByRole("dialog");
+  await expect(pickerDialog).toBeVisible();
+  await pickerDialog.getByRole("tab", { name: "Upload" }).click();
+  await pickerDialog.locator("#cover-upload-input").setInputFiles({
+    name: "e2e-cover.png",
+    mimeType: "image/png",
+    buffer: COVER_UPLOAD_PNG,
+  });
+  await expect(pickerDialog).not.toBeVisible();
 });
 
 Then("the cover picker defaults to the Custom tab", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Custom", selected: true })).toBeVisible();
+});
+
+Then("the uploaded cover image persists after reloading the page", async ({ page }) => {
+  await expect(page.locator('img[role="presentation"]').first()).toHaveAttribute("src", /\/uploads\//);
+  await page.reload();
+  await expect(page.locator('img[role="presentation"]').first()).toHaveAttribute("src", /\/uploads\//);
+  await page.getByTitle("Cover options").click();
+  await expect(page.getByRole("menuitem", { name: "Remove Cover" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Info" })).not.toBeVisible();
 });
 
 Then("I see no cover image editing controls", async ({ page }) => {

@@ -189,6 +189,7 @@ describe("TripEditSheet", () => {
     expect(patch.endDate).toBe("2026-06-10");
     expect(patch.budgetTotal).toBe(3000);
     expect(patch.budgetPerPerson).toBe(1500);
+    expect(patch).not.toHaveProperty("coverImageUrl");
   });
 
   it("onSave includes modified name after editing", async () => {

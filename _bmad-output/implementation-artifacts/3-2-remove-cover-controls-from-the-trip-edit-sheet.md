@@ -4,7 +4,7 @@ baseline_commit: a8a2c45597ca5d8f078ac637b46eb0c16b69abe8
 
 # Story 3.2: Remove Cover Controls from the Trip Edit Sheet
 
-Status: review
+Status: done
 
 ## Story
 
@@ -54,6 +54,12 @@ so that the edit sheet stays simple and cover editing happens in one place — t
 - [x] **Task 5: E2E — verify no cover controls in edit sheet** (AC: 5)
   - [x] Add scenario to `tests/e2e/features/trip-cover-overflow.feature`: open trip edit sheet, assert no cover image controls present
   - [x] Add step definitions in `tests/e2e/steps/trip-cover-overflow.steps.ts`
+
+### Review Findings
+
+- [x] [Review][Patch] Restore overflow upload persistence coverage [tests/e2e/features/trip-cover-overflow.feature:5]
+- [x] [Review][Patch] Restore overflow remove persistence coverage [tests/e2e/features/trip-cover-overflow.feature:12]
+- [x] [Review][Patch] Assert `TripEditSheet` save patches omit `coverImageUrl` [src/components/packt/trip-edit-sheet.test.tsx]
 
 ## Dev Notes
 
