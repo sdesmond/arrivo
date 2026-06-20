@@ -5,6 +5,7 @@ const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => (
   assertTripAccess: vi.fn(),
   db: {
     delete: vi.fn(),
+    execute: vi.fn(),
     insert: vi.fn(),
     select: vi.fn(),
     transaction: vi.fn(),
@@ -30,8 +31,8 @@ vi.mock("next/cache", () => ({
 import {
   addPackingItem,
   pullTemplatesOntoTrip,
-  removePackingSection,
   reorderPackingItems,
+  removePackingSection,
   saveTripListAsTemplate,
 } from "./packing-actions";
 
@@ -63,31 +64,52 @@ describe("packing actions hardening", () => {
   it.each([["wrong trip"], ["non-label item"]])(
     "rejects addPackingItem for an invalid labelId caused by %s",
     async () => {
-      db.select.mockReturnValueOnce(mockSimpleSelect([]));
+      const tx = {
+        execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+        insert: vi.fn(),
+        select: vi.fn().mockReturnValueOnce(mockSimpleSelect([])),
+        update: vi.fn(),
+      };
+      db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
 
       await expect(addPackingItem("trip-1", { name: "Passport", labelId: "label-1" })).rejects.toThrow(
         "Invalid labelId: referenced row is not a label or belongs to a different trip"
       );
 
-      expect(db.transaction).not.toHaveBeenCalled();
+      expect(db.transaction).toHaveBeenCalledOnce();
       expect(db.insert).not.toHaveBeenCalled();
     }
   );
 
   it("rejects addPackingItem when listId belongs to a different trip", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([])),
+      update: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
 
     await expect(addPackingItem("trip-1", { name: "Passport", listId: "list-1" })).rejects.toThrow(
       "Invalid listId: referenced packing list belongs to a different trip"
     );
 
+    expect(tx.execute).toHaveBeenCalledOnce();
+    expect(db.transaction).toHaveBeenCalledOnce();
     expect(db.insert).not.toHaveBeenCalled();
   });
 
   it("rejects addPackingItem when labelId belongs to a different packing list", async () => {
-    db.select
-      .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
-      .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", listId: "list-2" }]));
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
+        .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", listId: "list-2" }])),
+      update: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
 
     await expect(addPackingItem("trip-1", { name: "Passport", listId: "list-1", labelId: "label-1" })).rejects.toThrow(
       "Invalid labelId: referenced row belongs to a different packing list"
@@ -97,15 +119,17 @@ describe("packing actions hardening", () => {
   });
 
   it("rejects contextual addPackingItem when the target item belongs to a different packing list", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]));
-
     const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(),
-      select: vi.fn(() => ({
-        from: () => ({
-          where: async () => [{ id: "item-1", tripId: "trip-1", listId: "list-2", position: 0 }],
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
+        .mockReturnValueOnce({
+          from: () => ({
+            where: async () => [{ id: "item-1", tripId: "trip-1", listId: "list-2", position: 0 }],
+          }),
         }),
-      })),
       update: vi.fn(),
     };
 
@@ -120,15 +144,23 @@ describe("packing actions hardening", () => {
   });
 
   it("allows addPackingItem when labelId resolves to a label in the same trip", async () => {
-    db.select
-      .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1" }]))
-      .mockReturnValueOnce(mockSimpleSelect([{ maxPos: 1 }]));
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "label-1" }]));
 
     const values = vi.fn().mockResolvedValue(undefined);
-    db.insert.mockReturnValue({ values });
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({ values })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", listId: null }]))
+        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: 1 }])),
+      update: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
 
     await addPackingItem("trip-1", { name: "Passport", labelId: "label-1" });
 
+    expect(tx.execute).toHaveBeenCalledOnce();
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({
         tripId: "trip-1",
@@ -141,41 +173,9 @@ describe("packing actions hardening", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
   });
 
-  it("stores pulled template items on the requested packing list", async () => {
-    db.select
-      .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
-      .mockReturnValueOnce(mockSimpleSelect([]))
-      .mockReturnValueOnce(mockSimpleSelect([{ id: "tmpl-1" }]));
-
-    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      insert: vi.fn(() => ({ values: insertValues })),
-      select: vi
-        .fn()
-        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: null }]))
-        .mockReturnValueOnce(
-          mockOrderedSelect([{ id: "tmpl-item-1", text: "Passport", isLabel: false, position: 0, labelId: null }])
-        ),
-    };
-
-    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await expect(pullTemplatesOntoTrip("trip-1", ["tmpl-1"], "list-1")).resolves.toEqual({ added: 1, skipped: 0 });
-
-    expect(insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tripId: "trip-1",
-        listId: "list-1",
-        name: "Passport",
-      })
-    );
-  });
-
   it("rejects reorderPackingItems when an entry references an invalid labelId", async () => {
     const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       select: vi
         .fn()
         .mockReturnValueOnce({
@@ -201,12 +201,19 @@ describe("packing actions hardening", () => {
   });
 
   it("sanitizes unexpected packing action failures", async () => {
-    db.select
-      .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1" }]))
-      .mockReturnValueOnce(mockSimpleSelect([{ maxPos: 0 }]));
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "label-1" }]));
 
     const values = vi.fn().mockRejectedValue(new Error("database exploded"));
-    db.insert.mockReturnValue({ values });
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({ values })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", listId: null }]))
+        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: 0 }])),
+      update: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
 
     await expect(addPackingItem("trip-1", { name: "Passport", labelId: "label-1" })).rejects.toThrow(
       "An unexpected error occurred. Please try again."
@@ -214,9 +221,8 @@ describe("packing actions hardening", () => {
   });
 
   it("moves section items to Ungrouped before deleting the section when requested", async () => {
-    db.select.mockReturnValueOnce(
-      mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true, name: "Documents" }])
-    );
+    db.select.mockReset();
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true }]));
 
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     const updateWhere = vi.fn().mockResolvedValue(undefined);
@@ -224,6 +230,8 @@ describe("packing actions hardening", () => {
       delete: vi.fn(() => ({
         where: deleteWhere,
       })),
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true }])),
       update: vi.fn(() => ({
         set: vi.fn(() => ({
           where: updateWhere,
@@ -235,6 +243,7 @@ describe("packing actions hardening", () => {
 
     await removePackingSection("label-1", { mode: "move-items-to-ungrouped" });
 
+    expect(tx.execute).toHaveBeenCalledOnce();
     expect(tx.update).toHaveBeenCalledTimes(1);
     expect(updateWhere).toHaveBeenCalledTimes(1);
     expect(tx.delete).toHaveBeenCalledTimes(1);
@@ -244,15 +253,16 @@ describe("packing actions hardening", () => {
   });
 
   it("deletes section items along with the section when requested", async () => {
-    db.select.mockReturnValueOnce(
-      mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true, name: "Documents" }])
-    );
+    db.select.mockReset();
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true }]));
 
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     const tx = {
       delete: vi.fn(() => ({
         where: deleteWhere,
       })),
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ id: "label-1", tripId: "trip-1", isLabel: true }])),
       update: vi.fn(),
     };
 
@@ -260,25 +270,70 @@ describe("packing actions hardening", () => {
 
     await removePackingSection("label-1", { mode: "delete-items" });
 
+    expect(tx.execute).toHaveBeenCalledOnce();
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.delete).toHaveBeenCalledTimes(2);
     expect(deleteWhere).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects removePackingSection when the target row is not a section label", async () => {
-    db.select.mockReturnValueOnce(
-      mockSimpleSelect([{ id: "item-1", tripId: "trip-1", isLabel: false, name: "Passport" }])
-    );
+  it("rejects removePackingSection when locked row is not a section label", async () => {
+    db.select.mockReset();
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "item-1", tripId: "trip-1", isLabel: false }]));
+
+    const tx = {
+      delete: vi.fn(),
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ id: "item-1", tripId: "trip-1", isLabel: false }])),
+      update: vi.fn(),
+    };
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
 
     await expect(removePackingSection("item-1", { mode: "delete-items" })).rejects.toThrow(
       "An unexpected error occurred. Please try again."
     );
+  });
 
-    expect(db.transaction).not.toHaveBeenCalled();
+  it("stores pulled template items on requested packing list", async () => {
+    db.select.mockReset();
+    db.select.mockReturnValue(mockSimpleSelect([{ id: "tmpl-1" }]));
+
+    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
+    const insertValues = vi.fn(() => ({ returning }));
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({
+        values: insertValues,
+      })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
+        .mockReturnValueOnce(mockSimpleSelect([]))
+        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: null }]))
+        .mockReturnValueOnce(
+          mockOrderedSelect([{ id: "tmpl-item-1", text: "Passport", isLabel: false, position: 0, labelId: null }])
+        ),
+    };
+
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(pullTemplatesOntoTrip("trip-1", ["tmpl-1"], "list-1")).resolves.toEqual({ added: 1, skipped: 0 });
+
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: "trip-1",
+        listId: "list-1",
+        name: "Passport",
+      })
+    );
   });
 
   it("returns the cached template result when the same idempotency key is reused within 24 hours", async () => {
     const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(),
       select: vi.fn().mockReturnValueOnce(
         mockSimpleSelect([
@@ -308,6 +363,7 @@ describe("packing actions hardening", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1-item" }]) })
       .mockReturnValueOnce({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
     const firstTransaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: firstInsertValues })),
       select: vi
         .fn()
@@ -324,6 +380,7 @@ describe("packing actions hardening", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-2-item" }]) })
       .mockReturnValueOnce({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
     const secondTransaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: secondInsertValues })),
       select: vi
         .fn()
@@ -357,6 +414,7 @@ describe("packing actions hardening", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-new-item" }]) })
       .mockReturnValueOnce({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
     const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: insertValues })),
       select: vi
         .fn()
@@ -409,6 +467,7 @@ describe("saveTripListAsTemplate behavior", () => {
   it("calls requireUser and assertTripAccess with editor role before proceeding", async () => {
     requireUser.mockResolvedValue({ id: "user-42" });
     const authTx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-42" }]),
       select: vi.fn().mockReturnValue(mockOrderedSelect([])),
       insert: vi.fn(),
     };
@@ -418,12 +477,14 @@ describe("saveTripListAsTemplate behavior", () => {
       "Cannot save an empty packing list as a template"
     );
 
+    expect(authTx.execute).toHaveBeenCalledOnce();
     expect(requireUser).toHaveBeenCalledOnce();
     expect(assertTripAccess).toHaveBeenCalledWith("trip-42", "user-42", "editor");
   });
 
   it("throws 'Cannot save an empty packing list as a template' for a trip with no items", async () => {
     const emptyTx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       select: vi.fn().mockReturnValue(mockOrderedSelect([])),
       insert: vi.fn(),
     };
@@ -442,6 +503,7 @@ describe("saveTripListAsTemplate behavior", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-a" }]) })
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-b" }]) });
     const happyTx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: insertValues })),
       select: vi.fn().mockReturnValue(
         mockOrderedSelect([
@@ -464,6 +526,7 @@ describe("saveTripListAsTemplate behavior", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-1" }]) });
     const doneTx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: insertValues })),
       select: vi
         .fn()
@@ -486,6 +549,7 @@ describe("saveTripListAsTemplate behavior", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-label-1" }]) })
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-item-1" }]) });
     const labelTx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: insertValues })),
       select: vi.fn().mockReturnValue(
         mockOrderedSelect([
@@ -507,6 +571,7 @@ describe("saveTripListAsTemplate behavior", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-1" }]) });
     const readonlyTx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: insertValues })),
       select: vi
         .fn()
@@ -530,6 +595,7 @@ describe("saveTripListAsTemplate behavior", () => {
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-1" }]) })
       .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "item-1" }]) });
     const trimTx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
       insert: vi.fn(() => ({ values: insertValues })),
       select: vi
         .fn()

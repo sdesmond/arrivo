@@ -7,6 +7,7 @@ const { and, db, eq, gt, max, requireUser, revalidatePath } = vi.hoisted(() => (
   and: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
   db: {
     delete: vi.fn(),
+    execute: vi.fn(),
     insert: vi.fn(),
     select: vi.fn(),
     transaction: vi.fn(),
@@ -68,17 +69,21 @@ describe("template item actions", () => {
   });
 
   it("adds a template item at the end and revalidates the editor route", async () => {
-    db.select
-      .mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]))
-      .mockReturnValueOnce(mockSelectWhere([{ maxPos: 2 }]));
+    db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]));
 
     const returning = vi.fn().mockResolvedValue([{ id: "item-3" }]);
     const values = vi.fn(() => ({ returning }));
-    db.insert.mockReturnValue({ values });
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
+      insert: vi.fn(() => ({ values })),
+      select: vi.fn().mockReturnValueOnce(mockSelectWhere([{ maxPos: 2 }])),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx));
 
     await expect(addTemplateItem("template-1", { text: "  Passport  " })).resolves.toEqual({ id: "item-3" });
 
     expect(requireUser).toHaveBeenCalledOnce();
+    expect(tx.execute).toHaveBeenCalledOnce();
     expect(values).toHaveBeenCalledWith({
       templateId: "template-1",
       text: "Passport",
@@ -90,13 +95,16 @@ describe("template item actions", () => {
   });
 
   it("sanitizes unexpected addTemplateItem failures", async () => {
-    db.select
-      .mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]))
-      .mockReturnValueOnce(mockSelectWhere([{ maxPos: 2 }]));
+    db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]));
 
     const returning = vi.fn().mockRejectedValue(new Error("database exploded"));
     const values = vi.fn(() => ({ returning }));
-    db.insert.mockReturnValue({ values });
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
+      insert: vi.fn(() => ({ values })),
+      select: vi.fn().mockReturnValueOnce(mockSelectWhere([{ maxPos: 2 }])),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx));
 
     await expect(addTemplateItem("template-1", { text: "Passport" })).rejects.toThrow(
       "An unexpected error occurred. Please try again."
@@ -137,6 +145,7 @@ describe("template item actions", () => {
 
     const insertReturning = vi.fn().mockResolvedValue([{ id: "item-2" }]);
     const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
       insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: insertReturning })) })),
       select: vi.fn(() => ({
         from: vi.fn(() => ({
@@ -230,7 +239,9 @@ describe("template item actions", () => {
     const updateWhere = vi.fn().mockResolvedValue(undefined);
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
       delete: vi.fn(() => ({ where: deleteWhere })),
+      select: vi.fn().mockReturnValueOnce(mockSelectWhere([{ id: "label-1", isLabel: true }])),
       update: vi.fn(() => ({
         set: vi.fn(() => ({
           where: updateWhere,
@@ -256,7 +267,9 @@ describe("template item actions", () => {
 
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
       delete: vi.fn(() => ({ where: deleteWhere })),
+      select: vi.fn().mockReturnValueOnce(mockSelectWhere([{ id: "label-1", isLabel: true }])),
       update: vi.fn(),
     };
 
@@ -285,6 +298,7 @@ describe("template item actions", () => {
     const where = vi.fn().mockResolvedValue(undefined);
     const set = vi.fn(() => ({ where }));
     const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
       update: vi.fn(() => ({ set })),
     };
 
@@ -295,6 +309,7 @@ describe("template item actions", () => {
       { id: "item-1", labelId: "label-1", position: 1 },
     ]);
 
+    expect(tx.execute).toHaveBeenCalledOnce();
     expect(tx.update).toHaveBeenCalledWith(packingTemplateItems);
     expect(set).toHaveBeenCalledWith({ position: 0, labelId: null });
     expect(set).toHaveBeenCalledWith({ position: 1, labelId: "label-1" });

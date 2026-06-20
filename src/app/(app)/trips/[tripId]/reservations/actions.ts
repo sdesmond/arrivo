@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { reservations, documents, trips } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
+import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { REQUIRES_END_AT } from "@/components/packt/reservation-type-badge";
 import { extendTripDateRange } from "./reservation-date-range";
 
@@ -34,18 +35,9 @@ export async function createReservation(tripId: string, input: CreateReservation
     throw new Error("An end date and time is required for this reservation type.");
   }
 
-  const [trip] = await db
-    .select({ startDate: trips.startDate, endDate: trips.endDate })
-    .from(trips)
-    .where(eq(trips.id, tripId));
-  if (!trip) {
-    throw new Error("Trip not found.");
-  }
-  if (!trip.startDate) {
-    throw new Error("Set trip dates before adding a reservation.");
-  }
-
   await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+
     const [currentTrip] = await transaction
       .select({ startDate: trips.startDate, endDate: trips.endDate })
       .from(trips)
@@ -93,12 +85,15 @@ export async function createReservation(tripId: string, input: CreateReservation
 export async function updateReservation(reservationId: string, patch: UpdateReservationPatch): Promise<void> {
   const user = await requireUser();
 
-  const [existing] = await db.select().from(reservations).where(eq(reservations.id, reservationId));
-  if (!existing) {
+  const [existingReservation] = await db
+    .select({ tripId: reservations.tripId })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId));
+  if (!existingReservation) {
     throw new Error("Reservation not found.");
   }
 
-  await assertTripAccess(existing.tripId, user.id!, "editor");
+  await assertTripAccess(existingReservation.tripId, user.id!, "editor");
 
   if (patch.provider !== undefined && !patch.provider.trim()) {
     throw new Error("Provider is required.");
@@ -112,37 +107,41 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
     throw new Error("Invalid end date and time.");
   }
 
-  const type = existing.type as ReservationType;
-  const nextStartAt = patch.startAt !== undefined ? patch.startAt || undefined : existing.startAt?.toISOString();
-  const nextEndAt = patch.endAt !== undefined ? patch.endAt || undefined : existing.endAt?.toISOString();
-  const existingStartDate = existing.startAt?.toISOString().slice(0, 10);
-  const existingEndDate = existing.endAt?.toISOString().slice(0, 10);
-  const nextStartDate = nextStartAt?.slice(0, 10);
-  const nextEndDate = nextEndAt?.slice(0, 10);
-  const reservationDateChanged =
-    (patch.startAt !== undefined && nextStartDate !== existingStartDate) ||
-    (patch.endAt !== undefined && nextEndDate !== existingEndDate);
-
-  if (REQUIRES_END_AT.includes(type) && !nextEndAt) {
-    throw new Error("An end date and time is required for this reservation type.");
-  }
-
-  if (nextEndAt && !nextStartAt) {
-    throw new Error("A start date and time is required when an end date and time is set.");
-  }
-
-  if (nextStartAt && nextEndAt && new Date(nextEndAt).getTime() < new Date(nextStartAt).getTime()) {
-    throw new Error("The end date and time must be after the start date and time.");
-  }
-
   await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, existingReservation.tripId);
+
+    const [existing] = await transaction.select().from(reservations).where(eq(reservations.id, reservationId));
+    if (!existing) {
+      throw new Error("Reservation not found.");
+    }
+
+    const type = existing.type as ReservationType;
+    const nextStartAt = patch.startAt !== undefined ? patch.startAt || undefined : existing.startAt?.toISOString();
+    const nextEndAt = patch.endAt !== undefined ? patch.endAt || undefined : existing.endAt?.toISOString();
+    const existingStartDate = existing.startAt?.toISOString().slice(0, 10);
+    const existingEndDate = existing.endAt?.toISOString().slice(0, 10);
+    const nextStartDate = nextStartAt?.slice(0, 10);
+    const nextEndDate = nextEndAt?.slice(0, 10);
+    const reservationDateChanged =
+      (patch.startAt !== undefined && nextStartDate !== existingStartDate) ||
+      (patch.endAt !== undefined && nextEndDate !== existingEndDate);
+
+    if (REQUIRES_END_AT.includes(type) && !nextEndAt) {
+      throw new Error("An end date and time is required for this reservation type.");
+    }
+
+    if (nextEndAt && !nextStartAt) {
+      throw new Error("A start date and time is required when an end date and time is set.");
+    }
+
+    if (nextStartAt && nextEndAt && new Date(nextEndAt).getTime() < new Date(nextStartAt).getTime()) {
+      throw new Error("The end date and time must be after the start date and time.");
+    }
+
     const [trip] = await transaction
       .select({ startDate: trips.startDate, endDate: trips.endDate })
       .from(trips)
       .where(eq(trips.id, existing.tripId));
-    if (!trip) {
-      throw new Error("Trip not found.");
-    }
 
     if (reservationDateChanged) {
       await extendTripDateRange(
@@ -191,7 +190,7 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
     await transaction.update(reservations).set(updates).where(eq(reservations.id, reservationId));
   });
 
-  revalidatePath(`/trips/${existing.tripId}`);
+  revalidatePath(`/trips/${existingReservation.tripId}`);
 }
 
 export async function deleteReservation(reservationId: string): Promise<void> {

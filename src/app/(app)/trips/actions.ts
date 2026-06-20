@@ -17,6 +17,7 @@ import type {
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover, stableStringify } from "@/lib/utils";
+import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
@@ -265,6 +266,8 @@ export async function updateTripMetadata(
   let confirmation: TripDateChangeConfirmation | null = null;
 
   await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+
     const [trip] = await transaction.select().from(trips).where(eq(trips.id, tripId));
     if (!trip) {
       throw new Error("Trip not found.");

@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
 import { CoverType } from "@/data/types";
+import { lockUserForUpdate } from "@/lib/server-action-locks";
 import type {
   UpdateUserProfilePatch,
   AddLoyaltyNumberInput,
@@ -75,6 +76,8 @@ export async function addLoyaltyNumber(input: AddLoyaltyNumberInput): Promise<vo
   if (input.memberNumber.length > 50) throw new Error("Member number must be 50 characters or fewer.");
   const userId = session.id!;
   await db.transaction(async (transaction) => {
+    await lockUserForUpdate(transaction, userId);
+
     const [{ nextPos }] = await transaction
       .select({ nextPos: sql<number>`coalesce(max(${userLoyaltyNumbers.position}), -1) + 1` })
       .from(userLoyaltyNumbers)
@@ -102,6 +105,8 @@ export async function addWishlistDestination(input: AddWishlistDestinationInput)
   if (input.name.length > 100) throw new Error("Destination name must be 100 characters or fewer.");
   const userId = session.id!;
   await db.transaction(async (transaction) => {
+    await lockUserForUpdate(transaction, userId);
+
     const [{ nextPos }] = await transaction
       .select({ nextPos: sql<number>`coalesce(max(${userWishlistDestinations.position}), -1) + 1` })
       .from(userWishlistDestinations)
@@ -155,6 +160,8 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
 
   try {
     await db.transaction(async (transaction) => {
+      await lockUserForUpdate(transaction, userId);
+
       const [{ count }] = await transaction
         .select({ count: sql<number>`count(*)::int` })
         .from(userCompanions)

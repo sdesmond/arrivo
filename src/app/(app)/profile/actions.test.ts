@@ -62,6 +62,7 @@ function createTransactionMock(selectResults: unknown[][]) {
   let selectIndex = 0;
 
   const transaction = {
+    execute: vi.fn().mockResolvedValue([{ id: "user-1" }]),
     insert: vi.fn((table: unknown) => ({
       values: vi.fn(async (values: unknown) => {
         recordedInserts.push({ table, values });
@@ -276,6 +277,7 @@ describe("profile action transactions", () => {
 
     await addLoyaltyNumber({ programName: "SkyMiles", memberNumber: "12345" });
 
+    expect(transaction.execute).toHaveBeenCalledOnce();
     expect(recordedInserts).toEqual([
       {
         table: expect.anything(),
@@ -293,6 +295,7 @@ describe("profile action transactions", () => {
 
     await addWishlistDestination({ name: "Kyoto" });
 
+    expect(transaction.execute).toHaveBeenCalledOnce();
     expect(recordedInserts).toEqual([
       {
         table: expect.anything(),
@@ -311,6 +314,7 @@ describe("profile action transactions", () => {
     const result = await addCompanion({ name: "Alice", age: 29 });
 
     expect(result).toEqual({});
+    expect(transaction.execute).toHaveBeenCalledOnce();
     expect(recordedInserts).toEqual([
       {
         table: expect.anything(),
