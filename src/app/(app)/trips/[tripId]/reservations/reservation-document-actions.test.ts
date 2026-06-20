@@ -63,6 +63,7 @@ describe("uploadReservationDocument", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.restoreAllMocks();
     db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
@@ -102,7 +103,23 @@ describe("uploadReservationDocument", () => {
     expect(put).not.toHaveBeenCalled();
   });
 
+  it("rejects unsupported MIME types before Blob or DB work", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+
+    const file = new File(["x"], "doc.docx", { type: "application/msword" });
+    Object.defineProperty(file, "size", { value: 100, configurable: true });
+    const form = new FormData();
+    form.append("file", file);
+
+    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow(
+      "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
+    );
+    expect(put).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it("calls put() with the file and inserts a document row", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
     let insertedValues: Record<string, unknown> | undefined;
     db.insert.mockReturnValue({
@@ -116,7 +133,9 @@ describe("uploadReservationDocument", () => {
 
     await uploadReservationDocument("res-1", form);
 
-    expect(put).toHaveBeenCalled();
+    expect(put).toHaveBeenCalledWith("reservation-documents/res-1/upload-1234.pdf", expect.any(File), {
+      access: "public",
+    });
     expect(insertedValues).toMatchObject({
       tripId: "trip-1",
       reservationId: "res-1",
@@ -180,15 +199,17 @@ describe("uploadReservationDocument", () => {
   });
 
   it("calls saveLocalUpload() when UPLOAD_STUB is 'true'", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     process.env.UPLOAD_STUB = "true";
     db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
 
+    const file = makeFile("doc.pdf", 100);
     const form = new FormData();
-    form.append("file", makeFile("doc.pdf", 100));
+    form.append("file", file);
 
     await uploadReservationDocument("res-1", form);
 
-    expect(saveLocalUpload).toHaveBeenCalled();
+    expect(saveLocalUpload).toHaveBeenCalledWith(file, { storageName: "reservation-documents/res-1/upload-1234.pdf" });
     expect(put).not.toHaveBeenCalled();
     delete process.env.UPLOAD_STUB;
   });

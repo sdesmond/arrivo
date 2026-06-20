@@ -25,12 +25,28 @@ describe("saveLocalUpload", () => {
 
     const file = new File(["cover-image"], "../My Summer Cover?.png", { type: "image/png" });
 
-    const url = await saveLocalUpload(file, tempRootDir);
+    const url = await saveLocalUpload(file, { rootDir: tempRootDir });
 
     expect(url).toBe("/uploads/1717171717171-4fzzzx-My_Summer_Cover_.png");
 
     const written = await readFile(join(tempRootDir, "public", "uploads", "1717171717171-4fzzzx-My_Summer_Cover_.png"));
     expect(written.toString()).toBe("cover-image");
+  });
+
+  it("writes to a caller-supplied storage path instead of reusing the original filename", async () => {
+    const file = new File(["reservation-pdf"], "../Original Name?.pdf", { type: "application/pdf" });
+
+    const url = await saveLocalUpload(file, {
+      rootDir: tempRootDir,
+      storageName: "reservation-documents/res-1/upload-1234.pdf",
+    });
+
+    expect(url).toBe("/uploads/reservation-documents/res-1/upload-1234.pdf");
+
+    const written = await readFile(
+      join(tempRootDir, "public", "uploads", "reservation-documents", "res-1", "upload-1234.pdf")
+    );
+    expect(written.toString()).toBe("reservation-pdf");
   });
 });
 
