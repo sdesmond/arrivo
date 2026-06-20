@@ -3,7 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
+vi.mock("@/app/(app)/trips/[tripId]/reservations/reservation-document-actions", () => ({
   removeReservationDocument: vi.fn().mockResolvedValue(undefined),
   renameReservationDocument: vi.fn().mockResolvedValue(undefined),
   promoteReservationDocToTrip: vi.fn().mockResolvedValue(undefined),
@@ -63,7 +63,7 @@ import {
   removeReservationDocument,
   renameReservationDocument,
   promoteReservationDocToTrip,
-} from "@/app/(app)/trips/[tripId]/reservations/actions";
+} from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { shareDoc } from "@/lib/utils";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({

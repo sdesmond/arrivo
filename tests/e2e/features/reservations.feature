@@ -95,3 +95,16 @@ Feature: Reservations
     When I promote the reservation doc "test-doc.pdf" to trip level
     Then the reservation doc "test-doc.pdf" is no longer visible on the reservation
     And the Documents tab shows "test-doc.pdf"
+
+  @dateless-trip
+  Scenario: Dateless trip shows a prompt to set trip dates instead of the reservations empty state
+    Then I see the "Set trip dates to add reservations" empty state
+    And no reservation type sections are shown
+    When I view the Itinerary tab
+    And I tap the itinerary reservations CTA
+    Then I see the "Set trip dates to add reservations" empty state
+    When I click Set trip dates
+    Then the trip edit sheet is open
+    And I change the trip date range to "2026-08-01" through "2026-08-03"
+    And I save the trip date change
+    Then I see the "No reservations yet" empty state

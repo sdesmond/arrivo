@@ -213,6 +213,8 @@ export function TripDetailTabBody({
           tripId={tripId}
           reservations={reservations}
           tripDocs={docs.filter((document) => document.scope === "trip")}
+          isDateless={isDateless}
+          onOpenEditDates={onOpenEditDates}
         />
       )}
     </>

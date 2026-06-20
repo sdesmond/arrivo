@@ -9,7 +9,7 @@ import {
   removeReservationDocument,
   renameReservationDocument,
   promoteReservationDocToTrip,
-} from "@/app/(app)/trips/[tripId]/reservations/actions";
+} from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { shareDoc, cn } from "@/lib/utils";
 import {
   Dialog,

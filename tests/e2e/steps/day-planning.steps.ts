@@ -602,6 +602,7 @@ When(
     const dateTrigger = dialog
       .getByRole("button")
       .filter({ hasText: /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/ })
+      .or(dialog.getByRole("button", { name: "Pick a date range" }))
       .first();
     await dateTrigger.click();
     await clickDate(page, startDate);
