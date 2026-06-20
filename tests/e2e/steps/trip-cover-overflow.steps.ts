@@ -72,3 +72,11 @@ When("I open the cover picker from the cover options menu", async ({ page }) => 
 Then("the cover picker defaults to the Custom tab", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Custom", selected: true })).toBeVisible();
 });
+
+Then("I see no cover image editing controls", async ({ page }) => {
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Cover image")).not.toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Edit cover image" })).not.toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Remove image" })).not.toBeVisible();
+});

@@ -20,3 +20,8 @@ Feature: Trip cover overflow menu
     Then the cover options menu hides remove and info actions
     When I open the cover picker from the cover options menu
     Then the cover picker defaults to the Custom tab
+
+  Scenario: Edit sheet contains no cover image controls
+    Given I have an existing trip
+    When I open the trip edit sheet
+    Then I see no cover image editing controls
