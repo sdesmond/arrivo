@@ -132,6 +132,10 @@ Users can manage their trip's cover image (edit, remove, view photo attribution)
 Closes a real functional bug and a batch of independently-deferred code-review polish items accumulated across Epics 1–3's reviews. No new product requirements — every change brings already-shipped code into compliance with existing FR8/NFR1 intent, or removes pre-existing DRY/race risk.
 **FRs covered:** none new — closes existing-FR8/NFR1 implementation gaps
 
+### Epic 5: Floating Wall-Clock Reservation & Event Times
+Closes the "Timezone-naive UTC storage" item from `_bmad-output/implementation-artifacts/deferred-work.md`'s Candidate Future Epics: a reservation or event anchor time round-trips through the entering/viewing device's real local offset, so the same stored instant renders as a different wall-clock time to a viewer in a different browser timezone (or to the same viewer after their device's zone changes mid-trip). No schema/migration change — `timestamptz` columns already round-trip a literal-UTC-tagged instant byte-for-byte via `toISOString()`; the fix is confined to the client/component layer that constructs, reads back, formats, and compares these times.
+**FRs covered:** none new — closes the timezone-naive-UTC-storage Candidate Future Epic
+
 ## Epic 1: Record & Manage Reservations
 
 Users can add, view (grouped by type into accordions), edit, delete, and attach documents to Reservations from a new Reservations tab — giving them a single source of truth for trip bookings, independent of any Itinerary changes.
@@ -673,3 +677,51 @@ So that the backlog reflects real outstanding work instead of accumulating low-r
 **And** unit/component tests added or extended for each item above, colocated with its source file per project convention
 
 **And** `_bmad-output/implementation-artifacts/deferred-work.md` is updated: items resolved by Story 4.1/4.2 are removed; items confirmed as accepted-design/no-action are removed; a new "Candidate Future Epics" section is added at the top listing the three app-wide concerns intentionally left open — timezone-naive UTC storage, no server-side upload MIME validation + unsanitized filename-as-blob-key, no row-level locking/TOCTOU across server actions — each with one line on what a dedicated future story would need to decide
+
+## Epic 5: Floating Wall-Clock Reservation & Event Times
+
+Closes the "Timezone-naive UTC storage" Candidate Future Epic: a reservation or event anchor time round-trips through whichever device's real local offset happens to be active at construction-time and again at display-time, so the literal time a user typed renders differently for a viewer (or device) in a different timezone. The decision (recorded in `_bmad-output/sprint-change-proposal-2026-06-19.md`'s successor change, made directly with the user): adopt a **floating wall-clock** — no per-trip or per-anchor timezone field, no schema/migration change. Every anchor's date/time digits are treated as a literal value everywhere they're constructed, read back for editing, formatted for display, and compared against "now" — never round-tripped through any device's real UTC offset.
+
+### Story 5.1: Floating Wall-Clock Times for Reservation & Event Anchors
+
+As a trip planner,
+I want a reservation or event time I enter to display as exactly what I typed, no matter who views it or what timezone their device is in,
+So that "3:00 PM check-in" always reads as 3:00 PM, instead of shifting when a collaborator opens the trip from a different timezone or my own phone's clock changes zones mid-trip.
+
+**Acceptance Criteria:**
+
+**Given** `combineDateAndTimeToIso(date, time)` (`src/lib/utils.ts:89-92`), the shared anchor-construction helper used by both `reservation-row.tsx`'s inline edit and `reservation-edit-drawer.tsx`'s add/edit flow
+**When** called with a `"YYYY-MM-DD"` date and `"HH:mm"` time
+**Then** it returns `` `${date}T${time}:00.000Z` `` literally — the returned digits exactly match the input, tagged `Z` by construction, with no `new Date(...)`/local-offset round trip
+
+**Given** `composeStartEndAt` in `place-row.tsx:17-23`, the equivalent construction helper for manual Itinerary event anchors
+**When** implemented for this story
+**Then** it is fixed identically to `combineDateAndTimeToIso` — both anchor families (Reservations and manual Events) share the same construction bug and the same literal-tag fix, so neither drifts from the other
+
+**Given** `isoToParts` in `reservation-row.tsx:132-138` (splits a stored anchor back into date/time picker defaults when opening inline edit) and `toHHMM` in `src/lib/utils.ts:102-106` (used by `place-row-dialogs.tsx` for the manual-event time dialog)
+**When** either reads an already-literal anchor ISO string
+**Then** both extract date/time components via UTC getters (`getUTCFullYear`/`getUTCMonth`/`getUTCDate`/`getUTCHours`/`getUTCMinutes`), not local getters — so re-opening an anchor for editing always re-populates the literal stored digits, regardless of the editing device's timezone
+
+**Given** the display formatters `formatAnchorDateTime`/`formatAnchorDateTimeRange`/`formatDatePart`/`formatTimePart` (`reservation-type-badge.tsx:40-61`, the last two also backing `formatReservationDateRange`), `fmtTime` (`now-card.tsx:21-22`), and the two inline `toLocaleTimeString` calls in `mobile-active-tab.tsx:160` and `:218`
+**When** formatting an anchor ISO string for display
+**Then** every `toLocaleDateString`/`toLocaleTimeString` call passes `timeZone: "UTC"` in its options — so the rendered weekday/date/time always reflects the literal stored digits, never the viewer's browser timezone
+
+**Given** `isEventPast`/`isEventNow` (`src/lib/utils.ts:9-19`), used by the Now Card, Itinerary day cards, and `place-row.tsx` for "happening now"/"past" styling
+**When** implemented for this story
+**Then** their public signatures are unchanged (still take `(event, now: Date)`), but internally they reinterpret `now` as a floating value first — reading `now`'s real local wall-clock components (`getFullYear`/`getMonth`/`getDate`/`getHours`/`getMinutes`/`getSeconds`) and re-tagging them as literal UTC via `Date.UTC(...)` — then compare that floating-now directly against the (already-literal) `event.startAt`/`endAt`, so "happening now" reflects whether the viewer's own clock face has passed the anchor's literal clock face, not a true-instant comparison across zones
+
+**Given** `src/db/seed.ts`'s `toStartAt` helper (line 13-16), which mirrors `combineDateAndTimeToIso`'s old real-offset construction for dev/demo seed data
+**When** implemented for this story
+**Then** it is updated to the same literal-tag construction, so seeded reservation/event times exhibit identical floating behavior to user-entered ones — no special-cased seed drift
+
+**Given** the Now Card's server-side "today" bucketing for Linked Events (`queries.ts:176-177`, `linkedEvent.startAt.slice(0, 10) === todayISO`)
+**When** this story is implemented
+**Then** it is explicitly left unchanged — this buckets by calendar-date string, the same pre-existing, app-wide day-boundary convention used by `trip.startDate`/`endDate`/`day.date` (date-only, no time-of-day component) — a separate, lower-priority, already-accepted nuance from the time-of-day anchor bug this story fixes, not a regression introduced or fixed here
+
+**Given** `reservations.startAt`/`endAt` and `events.startAt`/`endAt` (`src/db/schema.ts:138-139,163-164`), both `timestamp(..., { withTimezone: true })`
+**When** this story is implemented
+**Then** the schema is **not modified** — a literal-UTC-tagged `Date` round-trips through a `timestamptz` column and `db-mappers.ts`'s `.toISOString()` byte-for-byte, so no migration is needed or made
+
+**And** unit tests: `utils.test.ts` — `combineDateAndTimeToIso` returns the literal-tagged string (replacing the current `new Date(...).toISOString()`-equality assertion, which only coincidentally passed under the test runner's local TZ); `toHHMM` extracts UTC components; `isEventPast`/`isEventNow` produce the same pass/fail result for a fixed wall-clock `now` and anchor regardless of `process.env.TZ` (mirroring the existing `process.env.TZ`-swap pattern already used by `toLocalDateKey`'s tests at `utils.test.ts:268-295`, e.g. `"America/Denver"` vs `"Pacific/Auckland"` vs `"UTC"`); `reservation-row.test.tsx` — `isoToParts` round-trips a literal anchor unchanged under a non-UTC `process.env.TZ`; `reservation-type-badge.test.tsx`/`reservation-type-section.test.tsx`/`now-card.test.tsx`/`mobile-active-tab.test.tsx` — existing loose `toMatch` assertions on formatted output are tightened to exact `toBe` strings now that formatting is TZ-deterministic, and at least one test per formatter is run under a non-UTC `process.env.TZ` to prove the output no longer shifts; `place-row.test.tsx` — `composeStartEndAt` literal construction
+
+**And** `_bmad-output/implementation-artifacts/deferred-work.md` is updated once this story ships: the "Timezone-naive UTC storage" Candidate Future Epics bullet is removed (resolved); the per-story items it was an umbrella for and that this story resolves are removed — Story 1.1's "Local wall-clock times stored as UTC", Story 1.2's "Timezone-naive anchor formatting", Story 1.3's "Timezone-naive anchor edit/display"; Story 1.3's separate "`updateReservation` select-then-update is non-transactional" item is kept (unrelated TOCTOU concern, still points to the remaining row-level-locking Candidate Future Epic); Story 2-3's "UTC midnight timezone edge case in today date filter" item is kept but reworded to drop its "See Candidate Future Epics above" pointer — it's no longer part of an open strategy decision, just a standalone, already-accepted day-boundary nuance per this story's day-bucketing AC above
