@@ -17,7 +17,6 @@ import {
 import { Section, Field } from "@/components/packt/form-section";
 import { TripEditBudget } from "@/components/packt/trip-edit-budget";
 import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
-import { TripEditCover } from "@/components/packt/trip-edit-cover";
 import { TripEditDestination } from "@/components/packt/trip-edit-destination";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
@@ -56,7 +55,6 @@ export function TripEditSheet({
   const [destinationPatch, setDestinationPatch] = useState<
     { name: string | null; country: string | null; countryCode: string | null } | undefined
   >(undefined);
-  const [destinationCenter, setDestinationCenter] = useState<[number, number] | undefined>(undefined);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const isBusy = saving || isDeleting;
   useEffect(() => {
@@ -66,7 +64,6 @@ export function TripEditSheet({
       setDeleteDialogOpen(false);
       setDestinationInput(trip?.destinationName ?? "");
       setDestinationPatch(undefined);
-      setDestinationCenter(undefined);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, trip]);
@@ -128,11 +125,6 @@ export function TripEditSheet({
       throw new Error("Trip draft is unavailable.");
     }
 
-    const coverImageUrl =
-      trip?.coverImageUrl === undefined && currentDraft.coverImageUrl === undefined
-        ? undefined
-        : currentDraft.coverImageUrl || null;
-
     const hadDates = !!trip?.startDate;
     const hasDraftDates = !!currentDraft.startDate;
     const startDate: string | null | undefined = hadDates && !hasDraftDates ? null : currentDraft.startDate || null;
@@ -143,7 +135,6 @@ export function TripEditSheet({
       name: currentDraft.name,
       startDate,
       endDate,
-      coverImageUrl,
       ...(destinationPatch !== undefined
         ? {
             destinationName: destinationPatch.name,
@@ -199,28 +190,12 @@ export function TripEditSheet({
               onSelect={(data) => {
                 setDestinationInput(data.name);
                 setDestinationPatch({ name: data.name, country: data.country, countryCode: data.countryCode });
-                setDestinationCenter(data.center);
               }}
               onClear={() => {
                 setDestinationInput("");
                 setDestinationPatch({ name: null, country: null, countryCode: null });
-                setDestinationCenter(undefined);
               }}
               disabled={isBusy}
-            />
-            <TripEditCover
-              tripId={draft.id}
-              tripName={draft.name}
-              coverImageUrl={draft.coverImageUrl}
-              onCoverImageUrlChange={(url) => set("coverImageUrl", url ?? undefined)}
-              disabled={isBusy}
-              destinationName={
-                destinationPatch !== undefined ? (destinationPatch.name ?? undefined) : draft.destinationName
-              }
-              destinationCountry={
-                destinationPatch !== undefined ? (destinationPatch.country ?? undefined) : draft.destinationCountry
-              }
-              center={destinationCenter}
             />
             <TripEditBudget
               currency={draft.budget?.currency}
