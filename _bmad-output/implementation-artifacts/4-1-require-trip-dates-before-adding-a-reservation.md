@@ -4,7 +4,7 @@ baseline_commit: 2f29b59208f5138d1a536cfe62a7548314e67115
 
 # Story 4.1: Require Trip Dates Before Adding a Reservation
 
-Status: review
+Status: done
 
 ## Story
 
@@ -224,6 +224,14 @@ New reservations scenario should only add steps that are genuinely reservations-
 - [Source: src/app/(app)/trips/actions.ts] - current `updateTripMetadata(...)` dateless -> dated handling
 - [Source: tests/e2e/e2e-seed-data.ts] - `datelessTrip` mother already available
 - [Source: tests/e2e/steps/day-planning.steps.ts] - reusable edit-dates E2E steps
+
+### Review Findings
+
+- [x] [Review][Patch] Re-reading trip dates outside the transaction introduces a stale-snapshot race [src/app/(app)/trips/[tripId]/reservations/actions.ts:30]
+- [x] [Review][Dismissed] UTC-based trip status/day math shifts trips early for non-UTC users [src/lib/utils.ts:27] — dismissed during walkthrough
+- [x] [Review][Dismissed] Dateless Reservations view still mishandles legacy trips that already have reservations [src/components/packt/reservations-tab.tsx:126] — dismissed during walkthrough
+- [x] [Review][Patch] Cover picker now closes before cover save success is known [src/components/packt/cover-image-picker.tsx:34]
+- [x] [Review][Patch] Dateless-trip E2E does not verify that Add Reservation returns after dates are saved [tests/e2e/steps/reservations.steps.ts:97]
 
 ## Dev Agent Record
 
