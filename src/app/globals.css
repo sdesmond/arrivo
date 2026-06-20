@@ -473,10 +473,8 @@ html[data-font-size="large"] {
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .highlight-pulse-bg {
-    animation: highlight-pulse-bg 0.75s ease-in-out 2;
-  }
+.highlight-pulse-bg {
+  animation: highlight-pulse-bg 0.75s ease-in-out 2;
 }
 
 /* ─── Ring pulse for highlighted elements with an opaque fill (e.g. a button-styled control) ───
@@ -497,16 +495,8 @@ html[data-font-size="large"] {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .highlight-pulse-ring {
-    box-shadow: 0 0 0 2px var(--accent-brand);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .highlight-pulse-ring {
-    animation: highlight-pulse-ring 0.75s ease-out 2;
-  }
+.highlight-pulse-ring {
+  animation: highlight-pulse-ring 0.75s ease-out 2;
 }
 
 /* ─── Checklist completion ceremony ─── */
