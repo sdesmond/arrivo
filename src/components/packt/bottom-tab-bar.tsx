@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Search, Map, User } from "lucide-react";
+import { Briefcase, Search, Map, Clock, User } from "lucide-react";
 
 const TABS = [
   { id: "trips", label: "Trips", icon: Briefcase, href: "/trips" },
+  { id: "history", label: "History", icon: Clock, href: "/travel-history" },
   { id: "search", label: "Search", icon: Search, href: "/search" },
   { id: "map", label: "Map", icon: Map, href: "/map" },
   { id: "profile", label: "Profile", icon: User, href: "/profile" },

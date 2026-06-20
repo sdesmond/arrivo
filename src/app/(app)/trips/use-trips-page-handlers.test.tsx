@@ -87,8 +87,6 @@ describe("useTripsPageHandlers", () => {
     expect(result.current.activeEntry?.trip.id).toBe("trip-active");
     expect(result.current.upcomingTrips).toHaveLength(1);
     expect(result.current.upcomingTrips[0].id).toBe("trip-upcoming");
-    expect(result.current.pastTrips).toHaveLength(1);
-    expect(result.current.pastTrips[0].id).toBe("trip-past");
   });
 
   it("defaults to Unscheduled mobile tab when no active entry and unscheduled exist", () => {

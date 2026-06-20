@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of travel-history (2026-06-20)
+
+- **`handleConfirmDeleteTrip` silently no-ops with no user feedback when both `deletingTrip` and the explicit `tripId` argument are absent** — pre-existing pattern in `use-trips-page-handlers.ts`, duplicated as-is into the new `use-travel-history-page-handlers.ts` since the new hook deliberately mirrors the established Trips-page edit/delete logic. Not introduced by this change.
+- **Stale `tripDateConfirmation`/`pendingTripPatch` can survive if a different trip is deleted while a date-conflict confirmation is pending for the trip being edited** — same pre-existing coupling in `use-trips-page-handlers.ts`, duplicated unchanged into the new hook.
+- **View-mode persistence (`localStorage` + cookie) shares one `try/catch`** — if `localStorage.setItem` throws (private browsing, quota), the cookie write is skipped too even though it might still succeed. Pre-existing pattern in `trips-desktop-layout.tsx`, duplicated unchanged into `travel-history-list.tsx`.
+- **Cards/List toggle buttons have no `aria-pressed`/`role="tab"` wiring** — pre-existing gap in `trips-desktop-layout.tsx`'s `seg-item` buttons, duplicated unchanged into `travel-history-list.tsx`.
+
 ## Deferred from: code review of reservation-title-service-number (2026-06-20)
 
 - **No coordination across concurrent `updateReservation` calls from sibling inline fields** — `reservation-row.tsx` fires an independent `updateReservation` on each field's blur/Enter with no lock/debounce shared across fields (provider, service number, notes, etc.), so rapidly editing two adjacent fields can race. Pre-existing pattern across the whole component, surfaced incidentally by adding the service-number title field; not introduced by this change. Left deferred deliberately — see "No row-level locking / TOCTOU across server actions" above; a local fix here would be inconsistent with that app-wide decision.

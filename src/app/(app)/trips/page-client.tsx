@@ -35,7 +35,6 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialVie
       <TripsDesktopLayout
         activeEntry={handlers.activeEntry}
         upcomingTrips={handlers.upcomingTrips}
-        pastTrips={handlers.pastTrips}
         unscheduledEntries={handlers.unscheduledEntries}
         dateFormat={dateFormat}
         initialViewMode={initialViewMode}
@@ -46,15 +45,12 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialVie
       <TripsMobileLayout
         activeEntry={handlers.activeEntry}
         upcomingTrips={handlers.upcomingTrips}
-        pastTrips={handlers.pastTrips}
         unscheduledEntries={handlers.unscheduledEntries}
         now={now}
         dateFormat={dateFormat}
         mobileTab={handlers.mobileTab}
         onTabChange={handlers.setMobileTab}
         onNewTrip={() => handlers.setNewTripOpen(true)}
-        onEditTrip={(trip) => handlers.setEditingTrip(trip.id)}
-        onDeleteTrip={(trip) => handlers.setDeletingTrip(trip)}
       />
       <TripEditSheet
         key={handlers.editingTrip ?? "none"}

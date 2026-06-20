@@ -61,10 +61,6 @@ const upcomingTrips: Trip[] = [
   { id: "trip-upcoming-1", name: "Paris Trip", status: "upcoming", startDate: "2026-06-01", endDate: "2026-06-10" },
 ];
 
-const pastTrips: Trip[] = [
-  { id: "trip-past-1", name: "Lisbon Escape", status: "past", startDate: "2025-09-01", endDate: "2025-09-07" },
-];
-
 const unscheduledEntries: TripListEntry[] = [
   { trip: { id: "trip-unsched-1", name: "Dream Trip", status: "upcoming" }, todayEvents: [] },
 ];
@@ -79,15 +75,12 @@ describe("TripsMobileLayout", () => {
       <TripsMobileLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={unscheduledEntries}
         now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
         mobileTab="Unscheduled"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -99,15 +92,12 @@ describe("TripsMobileLayout", () => {
       <TripsMobileLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={[]}
         now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
         mobileTab="Active"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -119,15 +109,12 @@ describe("TripsMobileLayout", () => {
       <TripsMobileLayout
         activeEntry={null}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={unscheduledEntries}
         now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
         mobileTab="Unscheduled"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -139,15 +126,12 @@ describe("TripsMobileLayout", () => {
       <TripsMobileLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={[]}
         now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
         mobileTab="Active"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -159,39 +143,16 @@ describe("TripsMobileLayout", () => {
       <TripsMobileLayout
         activeEntry={null}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={[]}
         now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
         mobileTab="Upcoming"
         onTabChange={vi.fn()}
         onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
     expect(screen.getByText("Paris Trip")).toBeInTheDocument();
-  });
-
-  it("renders Past tab content when past tab", () => {
-    render(
-      <TripsMobileLayout
-        activeEntry={null}
-        upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
-        unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
-        dateFormat="MM/DD/YYYY"
-        mobileTab="Past"
-        onTabChange={vi.fn()}
-        onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
-      />,
-      { wrapper: Wrapper }
-    );
-    expect(screen.getByText("Lisbon Escape")).toBeInTheDocument();
   });
 
   it("calls onTabChange when a tab is clicked", () => {
@@ -200,20 +161,17 @@ describe("TripsMobileLayout", () => {
       <TripsMobileLayout
         activeEntry={null}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
-        unscheduledEntries={[]}
+        unscheduledEntries={unscheduledEntries}
         now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
         mobileTab="Upcoming"
         onTabChange={onTabChange}
         onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
-    fireEvent.click(screen.getByText("Past"));
-    expect(onTabChange).toHaveBeenCalledWith("Past");
+    fireEvent.click(screen.getByText("Unscheduled"));
+    expect(onTabChange).toHaveBeenCalledWith("Unscheduled");
   });
 
   it("resets mobileTab to Upcoming when Unscheduled entries are removed", async () => {
@@ -222,15 +180,12 @@ describe("TripsMobileLayout", () => {
       <TripsMobileLayout
         activeEntry={null}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={unscheduledEntries}
         now={new Date(NOW_ISO)}
         dateFormat="MM/DD/YYYY"
         mobileTab="Unscheduled"
         onTabChange={onTabChange}
         onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
       />,
       { wrapper: Wrapper }
     );
@@ -239,44 +194,17 @@ describe("TripsMobileLayout", () => {
         <TripsMobileLayout
           activeEntry={null}
           upcomingTrips={upcomingTrips}
-          pastTrips={pastTrips}
           unscheduledEntries={[]}
           now={new Date(NOW_ISO)}
           dateFormat="MM/DD/YYYY"
           mobileTab="Unscheduled"
           onTabChange={onTabChange}
           onNewTrip={vi.fn()}
-          onEditTrip={vi.fn()}
-          onDeleteTrip={vi.fn()}
         />
       );
     });
     await waitFor(() => {
       expect(onTabChange).toHaveBeenCalledWith("Upcoming");
     });
-  });
-
-  it("passes delete actions through to MobilePastTab", () => {
-    const onDeleteTrip = vi.fn();
-
-    render(
-      <TripsMobileLayout
-        activeEntry={null}
-        upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
-        unscheduledEntries={[]}
-        now={new Date(NOW_ISO)}
-        dateFormat="MM/DD/YYYY"
-        mobileTab="Past"
-        onTabChange={vi.fn()}
-        onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={onDeleteTrip}
-      />,
-      { wrapper: Wrapper }
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /delete trip/i }));
-    expect(onDeleteTrip).toHaveBeenCalledWith(pastTrips[0]);
   });
 });

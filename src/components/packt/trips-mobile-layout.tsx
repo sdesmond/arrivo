@@ -3,47 +3,35 @@
 import { useEffect } from "react";
 import { Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  MobileActiveTab,
-  MobileUpcomingTab,
-  MobilePastTab,
-  MobileUnscheduledTab,
-} from "@/components/packt/trips-mobile-tabs";
+import { MobileActiveTab, MobileUpcomingTab, MobileUnscheduledTab } from "@/components/packt/trips-mobile-tabs";
 import { type Trip, type TripListEntry } from "@/data/types";
 import { type MobileTab } from "@/app/(app)/trips/use-trips-page-handlers";
 
 interface TripsMobileLayoutProps {
   activeEntry: TripListEntry | null;
   upcomingTrips: Trip[];
-  pastTrips: Trip[];
   unscheduledEntries: TripListEntry[];
   now: Date;
   dateFormat: string;
   mobileTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
   onNewTrip: () => void;
-  onEditTrip?: (trip: Trip) => void;
-  onDeleteTrip?: (trip: Trip) => void;
 }
 
 export function TripsMobileLayout({
   activeEntry,
   upcomingTrips,
-  pastTrips,
   unscheduledEntries,
   now,
   dateFormat,
   mobileTab,
   onTabChange,
   onNewTrip,
-  onEditTrip,
-  onDeleteTrip,
 }: TripsMobileLayoutProps) {
   const tabs: MobileTab[] = [
     "Active" as const,
     ...(unscheduledEntries.length > 0 ? (["Unscheduled"] as const) : []),
     "Upcoming" as const,
-    "Past" as const,
   ].filter((tab) => tab !== "Active" || activeEntry !== null);
 
   const unscheduledVisible = unscheduledEntries.length > 0;
@@ -135,14 +123,6 @@ export function TripsMobileLayout({
           <MobileActiveTab trip={activeEntry?.trip ?? null} todayEvents={activeEntry?.todayEvents ?? []} now={now} />
         )}
         {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} now={now} dateFormat={dateFormat} />}
-        {mobileTab === "Past" && (
-          <MobilePastTab
-            trips={pastTrips}
-            dateFormat={dateFormat}
-            onEditTrip={onEditTrip}
-            onDeleteTrip={onDeleteTrip}
-          />
-        )}
       </div>
     </div>
   );
