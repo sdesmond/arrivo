@@ -23,6 +23,20 @@ function eventHref(tripId: string, fallbackHref: string, event: TripEvent): stri
   return fallbackHref;
 }
 
+function getFloatingNow(now: Date): Date {
+  return new Date(
+    Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds()
+    )
+  );
+}
+
 export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps) {
   if (!trip) {
     return (
@@ -36,6 +50,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
   }
 
   const status = getTripStatus(trip.startDate, trip.endDate, now);
+  const floatingNow = getFloatingNow(now);
   const activeDayNum = status === "active" && trip.startDate ? getActiveDayNumber(trip.startDate, now) : null;
   const statusLabel = status === "active" ? "ACTIVE" : status === "upcoming" ? "UPCOMING" : "PAST";
   const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
@@ -43,12 +58,12 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
   const currentEvent =
     [...todayEvents].reverse().find((event) => {
       if (!event.startAt) return false;
-      return new Date(event.startAt) <= now;
+      return new Date(event.startAt) <= floatingNow;
     }) ?? null;
   const nextEvent =
     todayEvents.find((event) => {
       if (!event.startAt) return false;
-      return new Date(event.startAt) > now;
+      return new Date(event.startAt) > floatingNow;
     }) ?? null;
   const displayEvent = currentEvent ?? nextEvent;
   const eventLabel = currentEvent ? "Now" : "Next Event";
@@ -160,6 +175,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
               ? new Date(displayEvent.startAt).toLocaleTimeString("en-US", {
                   hour: "numeric",
                   minute: "2-digit",
+                  timeZone: "UTC",
                 })
               : "—"}
             <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
@@ -218,6 +234,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
                   ? new Date(event.startAt).toLocaleTimeString("en-US", {
                       hour: "numeric",
                       minute: "2-digit",
+                      timeZone: "UTC",
                     })
                   : ""}
               </span>

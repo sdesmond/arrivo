@@ -247,8 +247,8 @@ describe("ReservationEditDrawer", () => {
       expect(createReservation).toHaveBeenCalledWith("trip-1", {
         type: ReservationType.Lodging,
         provider: "Grand Hotel",
-        startAt: new Date("2026-08-01T15:00:00").toISOString(),
-        endAt: new Date("2026-08-05T11:00:00").toISOString(),
+        startAt: "2026-08-01T15:00:00.000Z",
+        endAt: "2026-08-05T11:00:00.000Z",
         startAddress: undefined,
         endAddress: undefined,
         cost: undefined,

@@ -183,6 +183,40 @@ describe("NowCard", () => {
     expect(screen.getByText("Museum Visit")).toBeInTheDocument();
   });
 
+  it("renders the literal stored event time unshifted under a non-UTC viewer timezone", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      const { container } = render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, {
+        wrapper: Wrapper,
+      });
+      // ev-1 "Museum Visit" startAt is the literal-tagged "2026-05-13T10:00:00Z"
+      expect(container.textContent).toContain("10:00 AM");
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  it("uses floating wall-clock comparisons for the summary card under a non-UTC viewer timezone", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      render(
+        <NowCard
+          trip={activeTrip}
+          todayEvents={[{ id: "ev-5", name: "Brunch", startAt: "2026-05-13T11:30:00Z", position: 0 }]}
+          dateFormat="MM/DD/YYYY"
+        />,
+        { wrapper: Wrapper }
+      );
+
+      expect(screen.getByText("Next Event")).toBeInTheDocument();
+      expect(screen.queryByText("Now")).not.toBeInTheDocument();
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("renders next event when no current event exists", () => {
     const futureEvents: TripEvent[] = [
       { id: "ev-3", name: "Future Event", startAt: "2026-05-13T14:00:00Z", position: 0 },

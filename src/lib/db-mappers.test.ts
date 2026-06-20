@@ -210,6 +210,14 @@ describe("dbEventToType", () => {
     expect(result.endAt).toBe(end.toISOString());
   });
 
+  it("round-trips a literal-tagged floating anchor byte-for-byte through a Date object", () => {
+    // Mirrors what a timestamptz column round-trip does: a literal-UTC-tagged ISO string,
+    // written as a Date and read back, must report the exact same digits via toISOString().
+    const literal = "2026-05-13T15:00:00.000Z";
+    const result = dbEventToType({ ...BASE_EVENT, startAt: new Date(literal) });
+    expect(result.startAt).toBe(literal);
+  });
+
   it("converts cost numeric string to number", () => {
     const result = dbEventToType({ ...BASE_EVENT, cost: "149.99" });
     expect(result.cost).toBe(149.99);

@@ -329,6 +329,24 @@ describe("PlaceRow", () => {
     expect(screen.queryByTestId("time-dialog")).not.toBeInTheDocument();
   });
 
+  it("picker save literal-tags startAt/endAt instead of converting through the runtime's local offset", async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn();
+    render(<PlaceRow place={basePlace} dayDate="2026-05-13" onUpdate={onUpdate} onDelete={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
+    await user.click(timeBtn);
+    // "time-dialog" mock's picker-save button always saves "10:00"/"11:00"
+    await user.click(screen.getByRole("button", { name: "picker-save" }));
+    expect(onUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startAt: "2026-05-13T10:00:00.000Z",
+        endAt: "2026-05-13T11:00:00.000Z",
+      })
+    );
+  });
+
   it("picker save with no dayDate sets startAt/endAt to undefined", async () => {
     const user = userEvent.setup();
     const onUpdate = vi.fn();

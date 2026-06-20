@@ -31,6 +31,24 @@ function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): Tr
   };
 }
 
+function toFloatingIso(date: Date): string {
+  return new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+      date.getMilliseconds()
+    )
+  ).toISOString();
+}
+
+function toLocalDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
   const dayToggle = page.getByRole("button", { name: /stops?$/ }).nth(dayIndex - 1);
   const expanded = await dayToggle.getAttribute("aria-expanded");
@@ -169,21 +187,23 @@ Given("I start from a three-day trip dated September 1, 2026 through September 3
 
 Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ scenario }, window: string) => {
   const now = new Date();
-  const startAt = window === "now" ? now.toISOString() : new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+  const startAt = window === "now" ? toFloatingIso(now) : toFloatingIso(new Date(now.getTime() + 60 * 60 * 1000));
+  const tripStartDate = toLocalDateString(now);
+  const tripEndDate = toLocalDateString(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000));
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
       overrides: {
         trip: {
-          startDate: now.toISOString().slice(0, 10),
-          endDate: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          startDate: tripStartDate,
+          endDate: tripEndDate,
         },
         reservations: [
           {
             type: "lodging",
             provider: "Torel Avantgarde",
             startAt,
-            endAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+            endAt: toFloatingIso(new Date(now.getTime() + 24 * 60 * 60 * 1000)),
           },
         ],
       },

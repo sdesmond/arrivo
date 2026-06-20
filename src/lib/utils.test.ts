@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   cn,
   getTripStatus,
@@ -74,6 +74,16 @@ describe("getTripStatus", () => {
 });
 
 describe("isEventPast", () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "UTC";
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
   it("past when endAt is before now", () => {
     expect(isEventPast({ endAt: "2026-05-13T10:00:00Z" }, NOW_UTC)).toBe(true);
   });
@@ -85,9 +95,28 @@ describe("isEventPast", () => {
   it("not past when endAt is missing", () => {
     expect(isEventPast({}, NOW_UTC)).toBe(false);
   });
+
+  it("compares the viewer's local wall clock, not now's real UTC offset", () => {
+    process.env.TZ = "America/Denver";
+    // Constructed from local components, so this represents 14:30 on the viewer's own clock face
+    // regardless of what real UTC offset America/Denver happens to be.
+    const now = new Date(2026, 4, 13, 14, 30, 0);
+    expect(isEventPast({ endAt: "2026-05-13T10:00:00Z" }, now)).toBe(true);
+    expect(isEventPast({ endAt: "2026-05-13T16:00:00Z" }, now)).toBe(false);
+  });
 });
 
 describe("isEventNow", () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "UTC";
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
   it("active when now is between startAt and endAt", () => {
     expect(isEventNow({ startAt: "2026-05-13T10:00:00Z", endAt: "2026-05-13T14:00:00Z" }, NOW_UTC)).toBe(true);
   });
@@ -110,6 +139,13 @@ describe("isEventNow", () => {
 
   it("not active when both fields are missing", () => {
     expect(isEventNow({}, NOW_UTC)).toBe(false);
+  });
+
+  it("compares the viewer's local wall clock, not now's real UTC offset", () => {
+    process.env.TZ = "America/Denver";
+    const now = new Date(2026, 4, 13, 14, 30, 0);
+    expect(isEventNow({ startAt: "2026-05-13T10:00:00Z", endAt: "2026-05-13T16:00:00Z" }, now)).toBe(true);
+    expect(isEventNow({ startAt: "2026-05-13T15:00:00Z", endAt: "2026-05-13T16:00:00Z" }, now)).toBe(false);
   });
 });
 
@@ -224,9 +260,8 @@ describe("formatDate", () => {
 });
 
 describe("combineDateAndTimeToIso", () => {
-  it("combines a date and time into an ISO instant", () => {
-    const result = combineDateAndTimeToIso("2026-05-19", "09:05");
-    expect(result).toBe(new Date("2026-05-19T09:05:00").toISOString());
+  it("literal-tags the input digits as UTC, independent of the runtime's local offset", () => {
+    expect(combineDateAndTimeToIso("2026-05-19", "09:05")).toBe("2026-05-19T09:05:00.000Z");
   });
 
   it("returns undefined when date is missing", () => {
@@ -243,17 +278,12 @@ describe("combineDateAndTimeToIso", () => {
 });
 
 describe("toHHMM", () => {
-  it("formats an ISO datetime to HH:mm format", () => {
-    const date = new Date(2026, 4, 19, 9, 5); // May 19, 09:05 local
-    expect(toHHMM(date.toISOString())).toMatch(/^\d{2}:\d{2}$/);
+  it("formats an ISO datetime to HH:mm using the literal UTC digits", () => {
+    expect(toHHMM("2026-05-19T09:05:00.000Z")).toBe("09:05");
   });
 
   it("zero-pads single-digit hours and minutes", () => {
-    const date = new Date(2026, 0, 1, 3, 7); // 03:07 local
-    const result = toHHMM(date.toISOString());
-    const [hh, mm] = result.split(":");
-    expect(hh).toHaveLength(2);
-    expect(mm).toHaveLength(2);
+    expect(toHHMM("2026-01-01T03:07:00.000Z")).toBe("03:07");
   });
 
   it("returns empty string for an invalid date string", () => {

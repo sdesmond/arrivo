@@ -54,10 +54,18 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
 }
 
 describe("formatAnchorDateTime", () => {
-  it("formats an ISO datetime as 'Weekday, Mon D · h:mm AM/PM'", () => {
-    expect(formatAnchorDateTime("2026-06-16T15:00:00.000Z")).toMatch(
-      /^[A-Za-z]{3}, [A-Za-z]{3} \d{1,2} · \d{1,2}:\d{2} (AM|PM)$/
-    );
+  it("formats an ISO datetime as 'Weekday, Mon D · h:mm AM/PM' using the literal UTC digits", () => {
+    expect(formatAnchorDateTime("2026-06-16T15:00:00.000Z")).toBe("Tue, Jun 16 · 3:00 PM");
+  });
+
+  it("renders the literal stored digits unshifted under a non-UTC viewer timezone", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      expect(formatAnchorDateTime("2026-06-16T15:00:00.000Z")).toBe("Tue, Jun 16 · 3:00 PM");
+    } finally {
+      process.env.TZ = originalTz;
+    }
   });
 });
 
@@ -99,6 +107,20 @@ describe("getNextUpcoming", () => {
 
   it("returns undefined when there are no reservations", () => {
     expect(getNextUpcoming([], NOW)).toBeUndefined();
+  });
+
+  it("uses floating wall-clock comparisons under a non-UTC viewer timezone", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      const localMorningNow = new Date("2026-06-15T12:00:00.000Z");
+      const literalLateMorning = makeReservation({ id: "late-morning", startAt: "2026-06-15T11:30:00.000Z" });
+      const literalAfternoon = makeReservation({ id: "afternoon", startAt: "2026-06-15T14:00:00.000Z" });
+
+      expect(getNextUpcoming([literalAfternoon, literalLateMorning], localMorningNow)?.id).toBe("late-morning");
+    } finally {
+      process.env.TZ = originalTz;
+    }
   });
 });
 

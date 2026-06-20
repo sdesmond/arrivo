@@ -17,6 +17,20 @@ export interface ReservationTypeSectionProps {
 
 export { formatAnchorDateTime };
 
+function getFloatingNow(now: Date): Date {
+  return new Date(
+    Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds()
+    )
+  );
+}
+
 export function sortReservationsByStartAt(reservations: Reservation[]): Reservation[] {
   const dated = reservations.filter((reservation) => reservation.startAt);
   const undated = reservations.filter((reservation) => !reservation.startAt);
@@ -29,7 +43,8 @@ export function getNextUpcoming(reservations: Reservation[], now: Date): Reserva
   const dated = reservations.filter((reservation) => reservation.startAt);
   if (dated.length === 0) return reservations[0];
 
-  const upcoming = dated.filter((reservation) => new Date(reservation.startAt!).getTime() >= now.getTime());
+  const floatingNow = getFloatingNow(now);
+  const upcoming = dated.filter((reservation) => new Date(reservation.startAt!).getTime() >= floatingNow.getTime());
   if (upcoming.length > 0) {
     return upcoming.reduce((soonest, candidate) =>
       new Date(candidate.startAt!).getTime() < new Date(soonest.startAt!).getTime() ? candidate : soonest

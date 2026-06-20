@@ -17,8 +17,8 @@ import { RESERVATION_TYPE_META, formatAnchorDateTime, formatAnchorDateTimeRange 
 function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHHMM: string) {
   if (!dayDate) return { startAt: undefined, endAt: undefined };
   return {
-    startAt: new Date(`${dayDate}T${startHHMM}:00`).toISOString(),
-    endAt: new Date(`${dayDate}T${endHHMM}:00`).toISOString(),
+    startAt: `${dayDate}T${startHHMM}:00.000Z`,
+    endAt: `${dayDate}T${endHHMM}:00.000Z`,
   };
 }
 
