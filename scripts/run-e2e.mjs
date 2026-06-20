@@ -65,18 +65,20 @@ function normalizePath(value) {
   return value.replace(/\\/g, "/").toLowerCase();
 }
 
-export function isManagedPacktServer(listener, rootDir, port) {
+export function isManagedPacktServer(listener, rootDir) {
   if (!listener) return false;
 
   const normalizedCommandLine = normalizePath(listener.commandLine ?? "");
   const normalizedRootDir = normalizePath(rootDir);
-  const portToken = `${port}`;
 
+  // Next dev forks a `start-server.js` child to actually bind the port; that child's
+  // command line never carries the port (it's passed via env/IPC, not argv), so the port
+  // can't be part of this check. The port match is already guaranteed by the caller, which
+  // only looks up listeners bound to the target port in the first place.
   return (
     listener.name?.toLowerCase() === "node.exe" &&
     normalizedCommandLine.includes(normalizedRootDir) &&
-    normalizedCommandLine.includes("next") &&
-    normalizedCommandLine.includes(portToken)
+    normalizedCommandLine.includes("next")
   );
 }
 
@@ -210,7 +212,7 @@ function prepareServerPort({ serverMode, port, rootDir }) {
   }
 
   if (serverMode === SERVER_MODE_REUSE) {
-    if (!isManagedPacktServer(listeningProcess, rootDir, port)) {
+    if (!isManagedPacktServer(listeningProcess, rootDir)) {
       fail(
         `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to reuse a non-Packt process.`
       );
@@ -219,7 +221,7 @@ function prepareServerPort({ serverMode, port, rootDir }) {
     return;
   }
 
-  if (!isManagedPacktServer(listeningProcess, rootDir, port)) {
+  if (!isManagedPacktServer(listeningProcess, rootDir)) {
     fail(
       `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to terminate a non-Packt process.`
     );

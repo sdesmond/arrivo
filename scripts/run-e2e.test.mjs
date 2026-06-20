@@ -34,8 +34,23 @@ describe("run-e2e helpers", async () => {
           commandLine:
             '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\spenc\\dev\\packt\\node_modules\\next\\dist\\bin\\next dev -p 3001',
         },
-        rootDir,
-        3001
+        rootDir
+      )
+    ).toBe(true);
+  });
+
+  it("recognizes Next's start-server.js child even though its command line omits the port", () => {
+    const rootDir = "C:/Users/spenc/dev/packt";
+
+    expect(
+      isManagedPacktServer(
+        {
+          pid: 4321,
+          name: "node.exe",
+          commandLine:
+            '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\spenc\\dev\\packt\\node_modules\\next\\dist\\server\\lib\\start-server.js',
+        },
+        rootDir
       )
     ).toBe(true);
   });
@@ -50,8 +65,7 @@ describe("run-e2e helpers", async () => {
           name: "python.exe",
           commandLine: '"C:\\Python\\python.exe" -m http.server 3001',
         },
-        rootDir,
-        3001
+        rootDir
       )
     ).toBe(false);
   });
