@@ -604,13 +604,14 @@ describe("ReservationRow", () => {
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
   });
 
-  it("does not render a service number chip for a reservation type with no label (lodging)", () => {
+  it("does not render a service number field for a reservation type with no label (lodging)", () => {
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    expect(screen.queryByTitle("Flight number")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Flight number" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add .* number/ })).not.toBeInTheDocument();
   });
 
-  it("renders a button to add a flight number when absent for a flight reservation", () => {
+  it("renders a placeholder in the title to add a flight number when absent for a flight reservation", () => {
     render(
       <ReservationRow
         reservation={{ ...populatedFlightReservation, serviceNumber: undefined }}
@@ -622,31 +623,53 @@ describe("ReservationRow", () => {
     expect(screen.getByRole("button", { name: "Add flight number" })).toBeInTheDocument();
   });
 
-  it("renders a flight-number chip with the value when present", () => {
+  it("renders the flight number in the title alongside the provider when present", () => {
     render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
 
-    expect(screen.getByRole("button", { name: "AA123" })).toBeInTheDocument();
+    const provider = screen.getByRole("button", { name: "Acme Air" });
+    const serviceNumber = screen.getByRole("button", { name: "AA123" });
+    expect(provider).toBeInTheDocument();
+    expect(serviceNumber).toBeInTheDocument();
+    expect(serviceNumber).toHaveStyle({ fontWeight: 600 });
   });
 
-  it("updates the flight number after saving through the dialog", async () => {
+  it("updates the flight number after an inline edit", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
 
     await user.click(screen.getByRole("button", { name: "AA123" }));
-    expect(screen.getByTestId("dialog-title")).toHaveTextContent("Flight number");
-    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+    const input = screen.getByRole("textbox", { name: "Flight number" });
+    await user.clear(input);
+    await user.type(input, "DL456");
+    await user.keyboard("{Enter}");
 
-    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: "Updated value" });
-    expect(screen.getByRole("button", { name: "Updated value" })).toBeInTheDocument();
+    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: "DL456" });
+    expect(await screen.findByRole("button", { name: "DL456" })).toBeInTheDocument();
   });
 
-  it("shows a toast when saving the flight number dialog fails", async () => {
+  it("clears the flight number after an inline edit to an empty value", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "AA123" }));
+    const input = screen.getByRole("textbox", { name: "Flight number" });
+    await user.clear(input);
+    await user.keyboard("{Enter}");
+
+    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: undefined });
+    expect(await screen.findByRole("button", { name: "Add flight number" })).toBeInTheDocument();
+  });
+
+  it("shows a toast when saving the flight number inline edit fails", async () => {
     vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
 
     await user.click(screen.getByRole("button", { name: "AA123" }));
-    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+    const input = screen.getByRole("textbox", { name: "Flight number" });
+    await user.clear(input);
+    await user.type(input, "DL456");
+    await user.keyboard("{Enter}");
 
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { Trash2, Wallet, MapPin, DollarSign, FileText, ChevronDown, Paperclip, Hash } from "lucide-react";
+import { Trash2, Wallet, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { IconSize } from "@/lib/size-tokens";
 import {
@@ -39,6 +39,17 @@ export interface ReservationRowProps {
 
 const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68, fontSize: 13 };
 const FIELD_VALUE_STYLE: React.CSSProperties = { color: "var(--fg-2)", fontSize: 13 };
+const TITLE_DISPLAY_STYLE: React.CSSProperties = {
+  fontSize: "calc(var(--fs-card-title) * var(--font-scale))",
+  fontWeight: 600,
+  color: "var(--fg)",
+};
+const TITLE_INPUT_STYLE: React.CSSProperties = {
+  fontSize: "calc(var(--fs-card-title) * var(--font-scale))",
+  fontWeight: 600,
+  flex: "none",
+  width: 140,
+};
 
 function buildSavedLocationValue(
   address: string | undefined,
@@ -92,7 +103,6 @@ export function ReservationRow({
   const [showEndAddressDialog, setShowEndAddressDialog] = useState(false);
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showConfirmationCodeDialog, setShowConfirmationCodeDialog] = useState(false);
-  const [showServiceNumberDialog, setShowServiceNumberDialog] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [editingDates, setEditingDates] = useState(false);
   const [startDateDraft, setStartDateDraft] = useState<string | undefined>(undefined);
@@ -225,22 +235,31 @@ export function ReservationRow({
       }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
+        <div className="flex flex-1 items-baseline gap-2 flex-wrap">
           <ReservationInlineTextField
             value={provider}
             ariaLabel="Provider"
             placeholder=""
-            displayStyle={{
-              fontSize: "calc(var(--fs-card-title) * var(--font-scale))",
-              fontWeight: 600,
-              color: "var(--fg)",
-            }}
+            displayStyle={TITLE_DISPLAY_STYLE}
             inputStyle={{ fontSize: "calc(var(--fs-card-title) * var(--font-scale))", fontWeight: 600 }}
             onSave={async (next) => {
               await updateReservation(reservation.id, { provider: next });
               setProvider(next.trim());
             }}
           />
+          {serviceNumberLabel && (
+            <ReservationInlineTextField
+              value={serviceNumber ?? ""}
+              ariaLabel={serviceNumberLabel}
+              placeholder={`Add ${serviceNumberLabel.toLowerCase()}`}
+              displayStyle={TITLE_DISPLAY_STYLE}
+              inputStyle={TITLE_INPUT_STYLE}
+              onSave={async (next) => {
+                await updateReservation(reservation.id, { serviceNumber: next || undefined });
+                setServiceNumber(next || undefined);
+              }}
+            />
+          )}
         </div>
         <button
           type="button"
@@ -394,24 +413,6 @@ export function ReservationRow({
           <Wallet size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
           {confirmationCode || "Add confirmation code"}
         </button>
-        {serviceNumberLabel && (
-          <button
-            type="button"
-            onClick={() => setShowServiceNumberDialog(true)}
-            title={serviceNumberLabel}
-            className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-            style={{
-              fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-              color: serviceNumber ? "var(--accent-ink)" : "var(--fg-4)",
-              background: serviceNumber ? "var(--accent-soft)" : "none",
-              border: "1px solid transparent",
-              fontFamily: serviceNumber ? "var(--font-mono-family, ui-monospace)" : undefined,
-            }}
-          >
-            <Hash size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
-            {serviceNumber || `Add ${serviceNumberLabel.toLowerCase()}`}
-          </button>
-        )}
         {hasDocs ? (
           <button
             type="button"
@@ -555,21 +556,6 @@ export function ReservationRow({
         }}
         inputStyle={{ fontFamily: "var(--font-mono-family, ui-monospace)" }}
       />
-      {serviceNumberLabel && (
-        <ReservationFieldDialog
-          title={serviceNumberLabel}
-          value={serviceNumber}
-          placeholder={`Enter ${serviceNumberLabel.toLowerCase()}`}
-          open={showServiceNumberDialog}
-          onOpenChange={setShowServiceNumberDialog}
-          onSave={(next) => {
-            void updateReservation(reservation.id, { serviceNumber: next ?? "" })
-              .then(() => setServiceNumber(next))
-              .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
-          }}
-          inputStyle={{ fontFamily: "var(--font-mono-family, ui-monospace)" }}
-        />
-      )}
       <DeleteReservationAlertDialog
         provider={provider}
         open={confirmOpen}
