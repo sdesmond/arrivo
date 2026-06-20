@@ -33,6 +33,8 @@ export interface ReservationRowProps {
   isLast: boolean;
   tripDocs?: Document[];
   highlighted?: boolean;
+  position?: number;
+  total?: number;
 }
 
 const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68, fontSize: 13 };
@@ -54,7 +56,15 @@ function buildSavedLocationValue(
     : undefined;
 }
 
-export function ReservationRow({ reservation, type, isLast, tripDocs, highlighted = false }: ReservationRowProps) {
+export function ReservationRow({
+  reservation,
+  type,
+  isLast,
+  tripDocs,
+  highlighted = false,
+  position = 1,
+  total = 1,
+}: ReservationRowProps) {
   const [provider, setProvider] = useState(reservation.provider);
   const [startAt, setStartAt] = useState<string | undefined>(reservation.startAt);
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
@@ -109,7 +119,9 @@ export function ReservationRow({ reservation, type, isLast, tripDocs, highlighte
   const reservationDateRange = formatReservationDateRange(startAt, endAt);
   const deleteLabel = reservationDateRange
     ? `Delete ${provider} reservation for ${reservationDateRange}`
-    : `Delete ${provider}`;
+    : total > 1
+      ? `Delete ${provider} reservation (${position} of ${total})`
+      : `Delete ${provider}`;
 
   useEffect(() => {
     if (editingDates) {

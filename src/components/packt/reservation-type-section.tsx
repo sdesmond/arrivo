@@ -148,6 +148,8 @@ export function ReservationTypeSection({
               isLast={index === all.length - 1}
               tripDocs={tripDocs}
               highlighted={reservation.id === highlightedReservationId}
+              position={index + 1}
+              total={all.length}
             />
           ))}
       </div>

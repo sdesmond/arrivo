@@ -227,9 +227,12 @@ const withDocReservation: Reservation = {
   ],
 };
 
-function getDeleteLabel(reservation: Reservation): string {
+function getDeleteLabel(reservation: Reservation, position = 1, total = 1): string {
   const dateRange = formatReservationDateRange(reservation.startAt, reservation.endAt);
-  return dateRange ? `Delete ${reservation.provider} reservation for ${dateRange}` : `Delete ${reservation.provider}`;
+  if (dateRange) return `Delete ${reservation.provider} reservation for ${dateRange}`;
+  return total > 1
+    ? `Delete ${reservation.provider} reservation (${position} of ${total})`
+    : `Delete ${reservation.provider}`;
 }
 
 describe("ReservationRow", () => {
@@ -667,6 +670,34 @@ describe("ReservationRow", () => {
     expect(
       screen.getByRole("button", { name: `Delete Grand Hotel reservation for ${secondRange}` })
     ).toBeInTheDocument();
+  });
+
+  it("disambiguates delete button labels for dateless reservations sharing a provider", () => {
+    const firstDateless = { ...populatedReservation, id: "res-5", startAt: undefined, endAt: undefined };
+    const secondDateless = { ...populatedReservation, id: "res-6", startAt: undefined, endAt: undefined };
+
+    render(
+      <div>
+        <ReservationRow
+          reservation={firstDateless}
+          type={ReservationType.Lodging}
+          isLast={false}
+          position={1}
+          total={2}
+        />
+        <ReservationRow reservation={secondDateless} type={ReservationType.Lodging} isLast position={2} total={2} />
+      </div>
+    );
+
+    expect(screen.getByRole("button", { name: "Delete Grand Hotel reservation (1 of 2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Grand Hotel reservation (2 of 2)" })).toBeInTheDocument();
+  });
+
+  it("keeps the plain delete label for a single dateless reservation", () => {
+    const dateless = { ...populatedReservation, startAt: undefined, endAt: undefined };
+    render(<ReservationRow reservation={dateless} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByRole("button", { name: "Delete Grand Hotel" })).toBeInTheDocument();
   });
 
   it("opens the delete confirmation dialog when the delete button is clicked", async () => {
