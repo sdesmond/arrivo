@@ -157,6 +157,18 @@ describe("TripEditSheet", () => {
     expect(screen.getByTestId("date-range-end")).toHaveValue("2026-06-10");
   });
 
+  it("applies the highlight pulse ring to the dates field when highlightDates is true", () => {
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} highlightDates />);
+    const datesField = screen.getByTestId("trip-edit-dates-field");
+    expect(datesField).toHaveClass("highlight-pulse-ring");
+  });
+
+  it("does not highlight the dates field by default", () => {
+    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    const datesField = screen.getByTestId("trip-edit-dates-field");
+    expect(datesField).not.toHaveClass("highlight-pulse-ring");
+  });
+
   it("renders budget total and per-person inputs with pre-filled values", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByDisplayValue("3000")).toBeInTheDocument();

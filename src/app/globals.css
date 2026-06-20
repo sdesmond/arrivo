@@ -461,8 +461,8 @@ html[data-font-size="large"] {
   animation: pulse-ring 1.6s ease-out infinite;
 }
 
-/* ─── Background pulse for deep-linked reservation rows ─── */
-@keyframes reservation-row-highlight-pulse {
+/* ─── Background pulse for deep-linked/highlighted elements ─── */
+@keyframes highlight-pulse-bg {
   0%,
   100% {
     background-color: transparent;
@@ -474,8 +474,38 @@ html[data-font-size="large"] {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .reservation-row-highlight-pulse {
-    animation: reservation-row-highlight-pulse 0.5s ease-in-out 2;
+  .highlight-pulse-bg {
+    animation: highlight-pulse-bg 0.75s ease-in-out 2;
+  }
+}
+
+/* ─── Ring pulse for highlighted elements with an opaque fill (e.g. a button-styled control) ───
+   A single box-shadow ring carries both the "border" and the "glow": it starts as a crisp 2px
+   ring and grows outward while fading, so the border fades in lockstep with the glow instead of
+   sitting on top of it as a separate static outline. */
+@keyframes highlight-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 2px var(--accent-brand);
+  }
+
+  60% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .highlight-pulse-ring {
+    box-shadow: 0 0 0 2px var(--accent-brand);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .highlight-pulse-ring {
+    animation: highlight-pulse-ring 0.75s ease-out 2;
   }
 }
 

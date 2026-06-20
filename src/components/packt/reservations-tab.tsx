@@ -11,7 +11,7 @@ import { ReservationTypeSection, getNextUpcoming } from "@/components/packt/rese
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 
-const HIGHLIGHT_DURATION_MS = 1000;
+const HIGHLIGHT_DURATION_MS = 1500;
 
 export interface ReservationsTabProps {
   tripId: string;

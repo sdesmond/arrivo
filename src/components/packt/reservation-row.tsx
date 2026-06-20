@@ -197,7 +197,7 @@ export function ReservationRow({ reservation, type, isLast, tripDocs, highlighte
       data-reservation-id={reservation.id}
       data-testid={`reservation-row-${reservation.id}`}
       tabIndex={-1}
-      className={cn("px-4 py-8", highlighted && "reservation-row-highlight-pulse")}
+      className={cn("px-4 py-8", highlighted && "highlight-pulse-bg")}
       style={{
         borderBottom: isLast ? "none" : "1px solid var(--line-strong)",
         ...(highlighted ? { outline: "2px solid var(--accent-brand)", outlineOffset: 2 } : {}),

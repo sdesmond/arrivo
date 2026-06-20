@@ -21,6 +21,7 @@ import { TripEditDestination } from "@/components/packt/trip-edit-destination";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
 import { TripDateChangeConfirmationDialog } from "@/components/packt/trip-date-change-confirmation-dialog";
+import { cn } from "@/lib/utils";
 
 interface TripEditSheetProps {
   trip: Trip | null;
@@ -34,6 +35,7 @@ interface TripEditSheetProps {
   onCancelDateChange?: () => void;
   onDelete?: () => void | Promise<void>;
   isDeleting?: boolean;
+  highlightDates?: boolean;
 }
 
 export function TripEditSheet({
@@ -48,6 +50,7 @@ export function TripEditSheet({
   onCancelDateChange,
   onDelete,
   isDeleting = false,
+  highlightDates = false,
 }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -174,15 +177,20 @@ export function TripEditSheet({
             </Section>
 
             <Section title="Dates">
-              <DateRangePicker
-                start={draft.startDate || undefined}
-                end={draft.endDate || undefined}
-                disabled={isBusy}
-                onChange={(start, end) => {
-                  set("startDate", start);
-                  set("endDate", end);
-                }}
-              />
+              <div
+                data-testid="trip-edit-dates-field"
+                className={cn("rounded-md", highlightDates && "highlight-pulse-ring")}
+              >
+                <DateRangePicker
+                  start={draft.startDate || undefined}
+                  end={draft.endDate || undefined}
+                  disabled={isBusy}
+                  onChange={(start, end) => {
+                    set("startDate", start);
+                    set("endDate", end);
+                  }}
+                />
+              </div>
             </Section>
             <TripEditDestination
               value={destinationInput}
