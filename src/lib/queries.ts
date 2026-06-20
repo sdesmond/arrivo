@@ -269,7 +269,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
           .select()
           .from(documents)
           .where(inArray(documents.reservationId, reservationIds))
-          .orderBy(asc(documents.addedAt))
+          .orderBy(sql`${documents.addedAt} desc nulls last`, asc(documents.id))
       : [];
   const docsByReservationId = new Map<string, (typeof documents.$inferSelect)[]>();
   for (const docRow of reservationDocRows) {

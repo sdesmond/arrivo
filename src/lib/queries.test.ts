@@ -310,6 +310,7 @@ describe("getTripDetail", () => {
     const result = await getTripDetail("trip-1", "user-1");
 
     expect(reservationDocOrderBy).toHaveBeenCalledTimes(1);
+    expect(reservationDocOrderBy.mock.calls[0]).toHaveLength(2);
     expect(result?.reservations[0]?.documents).toEqual([
       expect.objectContaining({ id: "doc-older" }),
       expect.objectContaining({ id: "doc-newer" }),
