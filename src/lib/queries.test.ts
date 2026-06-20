@@ -8,7 +8,13 @@ const { mockAssertTripAccess, mockDbSelect, schemaTokens } = vi.hoisted(() => ({
     trips: { id: "trips.id", name: "trips.name", startDate: "trips.startDate", endDate: "trips.endDate" },
     days: { tripId: "days.tripId" },
     events: { tripId: "events.tripId", startAt: "events.startAt", position: "events.position" },
-    documents: { tripId: "documents.tripId", eventId: "documents.eventId" },
+    documents: {
+      tripId: "documents.tripId",
+      eventId: "documents.eventId",
+      reservationId: "documents.reservationId",
+      addedAt: "documents.addedAt",
+      id: "documents.id",
+    },
     collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId" },
     reservations: { tripId: "reservations.tripId" },
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
@@ -71,7 +77,7 @@ vi.mock("@/lib/db-mappers", () => ({
   dbTemplateItemToType: vi.fn(),
 }));
 
-import { listTripsForUser } from "./queries";
+import { getTripDetail, listTripsForUser } from "./queries";
 
 describe("listTripsForUser", () => {
   beforeEach(() => {
@@ -215,5 +221,99 @@ describe("listTripsForUser", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].todayEvents.map((event) => event.name)).toEqual(["Check-in — Hotel Avenida Palace", "Dinner"]);
+  });
+});
+
+describe("getTripDetail", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("orders reservation documents by addedAt before mapping them onto reservations", async () => {
+    const reservationDocOrderBy = vi.fn().mockResolvedValue([
+      {
+        id: "doc-older",
+        reservationId: "res-1",
+        addedAt: "2026-08-01T08:00:00.000Z",
+        name: "older.pdf",
+      },
+      {
+        id: "doc-newer",
+        reservationId: "res-1",
+        addedAt: "2026-08-02T08:00:00.000Z",
+        name: "newer.pdf",
+      },
+    ]);
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            { id: "res-1", tripId: "trip-1", type: "flight", provider: "Acme", startAt: null, endAt: null },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: reservationDocOrderBy,
+          }),
+        }),
+      });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(reservationDocOrderBy).toHaveBeenCalledTimes(1);
+    expect(reservationDocOrderBy.mock.calls[0]).toHaveLength(2);
+    expect(result?.reservations[0]?.documents).toEqual([
+      expect.objectContaining({ id: "doc-older" }),
+      expect.objectContaining({ id: "doc-newer" }),
+    ]);
   });
 });

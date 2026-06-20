@@ -1,23 +1,14 @@
 # Deferred Work
 
+## Deferred from: code review of 4-2-reservations-polish-and-hardening-batch (2026-06-20)
+
+- **`createReservation`'s new startAt/endAt parse checks treat `null` as a valid date** — `new Date(null)` is epoch (not `NaN`), so a `null` `startAt`/`endAt` silently degrades to "no date" instead of being rejected. Pre-existing characteristic mirrored intentionally from `updateReservation`'s pattern per this story's AC1, which required matching it exactly. Not exploitable for data corruption. [src/app/(app)/trips/[tripId]/reservations/actions.ts:25,29]
+
 ## Candidate Future Epics
 
 - **Timezone-naive UTC storage** — reservations/events store and render local wall-clock times as literal UTC (`Z` suffix) with no timezone field; round-tripping through a non-UTC viewer shifts displayed times. Needs a timezone strategy decision (store a TZ offset/IANA zone per trip or per anchor, or accept destination-bound display) before any fix is implementation-level.
 - **No server-side upload validation** — document/cover uploads accept any file content/type and use the unsanitized client filename as the public blob key. Needs a MIME allowlist + key-generation scheme decision (e.g. server-generated key + extension check) applied app-wide, not per-feature.
 - **No row-level locking / TOCTOU across server actions** — trip/day/reservation mutations read-then-write within a transaction but without `SELECT ... FOR UPDATE` or optimistic-lock versioning, so concurrent edits can race on a stale snapshot. Needs an isolation-level/locking approach decision applied consistently across all server actions, not just reservations.
-
-## Closed by Epic 4 (pending — remove these once 4.1/4.2 ship)
-
-- **Dateless-trip + reservation interaction creates orphaned/duplicate day rows** — `extendTripDateRange` (`reservations/actions.ts:51-72`) treats a dateless trip's existing `date: null` `days` rows as unrelated to the reservation's new date range, inserting brand-new dated days alongside them rather than filling them in. Closed by Story 4.1 — requiring trip dates before a Reservation can be added prevents this state from occurring at all.
-- **`createReservation` never validates `startAt`/`endAt` are well-formed ISO datetime strings** (`reservations/actions.ts:157-171`), unlike `updateReservation` which validates parseability. Closed by Story 4.2.
-- **`REQUIRES_END_AT` duplicated** in `reservations/actions.ts` and `reservation-edit-drawer.tsx`. Closed by Story 4.2.
-- **Error text not linked via `aria-describedby`** — `ReservationAnchorFieldset` sets an `errorId` on the error `<p>` but does not wire it to the date/time inputs. Closed by Story 4.2.
-- **Disclosure button lacks `aria-controls`** — the accordion header `<button aria-expanded>` in `reservation-type-section.tsx` has no `aria-controls` linking it to the region it toggles. Closed by Story 4.2.
-- **Reservation documents have no deterministic ordering** — the `inArray` docs query in `getTripDetail` (`queries.ts:249-252`) has no `orderBy`. Closed by Story 4.2.
-- **`PLACEHOLDER_STYLE` duplicated** in `reservation-row.tsx` and `reservation-inline-text-field.tsx`. Closed by Story 4.2.
-- **Stale `openSections` entry after last-of-type delete** — `reservations-tab.tsx` keeps the deleted type in its `openSections` Set. Closed by Story 4.2.
-- **Duplicate provider names yield duplicate "Delete {provider}" aria-labels** — two reservations with the same provider produce identical delete-button accessible names. Closed by Story 4.2.
-- **No in-flight/double-submit guard on inline edits** — Enter-then-blur or a rapid double-click can invoke `updateReservation` twice. Closed by Story 4.2.
 
 ## Deferred from: code review of 3-1-cover-overflow-menu-edit-remove-info (2026-06-19)
 
@@ -41,9 +32,7 @@
 
 - **Local wall-clock times stored as UTC** — `toIsoDateTime` concatenates the date/time picker values with a literal `Z` (`reservation-edit-drawer.tsx:72`). See Candidate Future Epics above.
 - **Dev-date-picker overlay overlaps the drawer footer Save button** — the dev-only floating mock-date toggle (fixed bottom-right, `z-index: 9999`) intercepts pointer clicks on the right-direction drawer's Save button in dev/E2E; the E2E step uses focus+Enter to work around it (`reservations.steps.ts:29`). Deferred because the overlay only renders when `NODE_ENV === "development"` and is absent in production. Consider repositioning the dev overlay or the drawer footer if it bites again.
-- **No index on `reservations.trip_id`** — `getTripDetail` queries reservations by `tripId` but the table defines no index (unlike `events`). Deferred because the story spec explicitly specified no index; add later if per-trip scan cost matters.
 - **Weak E2E assertions** — the "drawer is open" step asserts substring text visibility rather than drawer role/state. Deferred as test-robustness polish.
-- **AC4 focus-on-error lacks direct test coverage** — the drawer's focus-to-invalid-end-anchor behavior works (DOM order puts the DatePicker button first), but the drawer unit test mocks `ReservationAnchorFieldset`, so the focus move is not directly asserted. Deferred as a test-coverage gap.
 
 ## Deferred from: code review of story-1.2 (2026-06-15)
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ReservationInlineTextField } from "./reservation-inline-text-field";
+import { PLACEHOLDER_STYLE, ReservationInlineTextField } from "./reservation-inline-text-field";
 
 const toastError = vi.fn();
 vi.mock("sonner", () => ({
@@ -23,6 +23,10 @@ describe("ReservationInlineTextField", () => {
     const button = screen.getByRole("button", { name: "Add notes" });
     expect(button).toBeInTheDocument();
     expect(button).toHaveStyle({ fontStyle: "italic" });
+  });
+
+  it("exports the shared placeholder style", () => {
+    expect(PLACEHOLDER_STYLE).toMatchObject({ color: "var(--fg-3)", fontSize: 13, fontStyle: "italic" });
   });
 
   it("enters edit mode on click, showing an input with the current value", async () => {
@@ -219,5 +223,34 @@ describe("ReservationInlineTextField", () => {
 
     expect(toastError).toHaveBeenCalledWith("Provider is required.");
     expect(screen.getByRole("textbox", { name: "Provider" })).toHaveValue("   ");
+  });
+
+  it("ignores a blur save while an Enter-triggered save is already in flight", async () => {
+    let resolveSave: (() => void) | undefined;
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ReservationInlineTextField value="Acme Air" placeholder="Add provider" ariaLabel="Provider" onSave={onSave} />
+        <button type="button">Elsewhere</button>
+      </div>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Acme Air" }));
+    const input = screen.getByRole("textbox", { name: "Provider" });
+    await user.clear(input);
+    await user.type(input, "New Air");
+    await user.keyboard("{Enter}");
+    fireEvent.blur(input, { relatedTarget: screen.getByRole("button", { name: "Elsewhere" }) });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    resolveSave?.();
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Provider" })).not.toBeInTheDocument());
   });
 });

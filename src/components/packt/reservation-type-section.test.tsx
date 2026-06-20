@@ -118,6 +118,8 @@ describe("ReservationTypeSection", () => {
     const header = screen.getByRole("button", { name: "Flight, 1 reservation, collapsed" });
     expect(header).toBeInTheDocument();
     expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(header).toHaveAttribute("aria-controls", "reservation-section-flight");
+    expect(document.getElementById("reservation-section-flight")).toBeTruthy();
     expect(screen.getByText("1")).toHaveAttribute("aria-hidden", "true");
   });
 

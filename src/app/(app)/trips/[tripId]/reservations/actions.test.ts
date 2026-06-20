@@ -325,6 +325,46 @@ describe("createReservation", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it("rejects an unparseable startAt before opening a transaction", async () => {
+    await expect(
+      createReservation("trip-1", {
+        type: ReservationType.Flight,
+        provider: "Acme",
+        startAt: "not-a-date",
+      })
+    ).rejects.toThrow("Invalid start time.");
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty startAt before opening a transaction", async () => {
+    await expect(
+      createReservation("trip-1", {
+        type: ReservationType.Flight,
+        provider: "Acme",
+        startAt: "",
+      })
+    ).rejects.toThrow("Invalid start time.");
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unparseable endAt before opening a transaction", async () => {
+    await expect(
+      createReservation("trip-1", {
+        type: ReservationType.Flight,
+        provider: "Acme",
+        startAt: "2026-08-01T10:00:00.000Z",
+        endAt: "garbage",
+      })
+    ).rejects.toThrow("Invalid end time.");
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it("trims the provider before inserting", async () => {
     await createReservation("trip-1", {
       type: ReservationType.Other,

@@ -31,6 +31,12 @@ export const SERVICE_NUMBER_LABELS: Partial<Record<ReservationType, string>> = {
   cruise: "Voyage number",
 };
 
+export const REQUIRES_END_AT: ReservationType[] = [
+  ReservationType.Lodging,
+  ReservationType.RentalCar,
+  ReservationType.Cruise,
+];
+
 export function formatAnchorDateTime(iso: string): string {
   const date = new Date(iso);
   const datePart = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });

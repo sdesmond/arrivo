@@ -16,6 +16,7 @@ export interface DatePickerProps {
   clearable?: boolean;
   onOpenChange?: (open: boolean) => void;
   "aria-label"?: string;
+  "aria-describedby"?: string;
   "aria-invalid"?: boolean;
 }
 
@@ -27,6 +28,7 @@ export function DatePicker({
   clearable = true,
   onOpenChange,
   "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
@@ -43,6 +45,7 @@ export function DatePicker({
         <PopoverTrigger
           disabled={disabled}
           aria-label={ariaLabel}
+          aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid}
           className={cn(buttonVariants({ variant: "outline" }), "flex-1 justify-start font-normal")}
           style={{ color: value ? "var(--fg)" : "var(--fg-3)" }}
