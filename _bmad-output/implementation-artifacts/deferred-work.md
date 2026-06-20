@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of reservation-title-service-number (2026-06-20)
+
+- **No coordination across concurrent `updateReservation` calls from sibling inline fields** — `reservation-row.tsx` fires an independent `updateReservation` on each field's blur/Enter with no lock/debounce shared across fields (provider, service number, notes, etc.), so rapidly editing two adjacent fields can race. Pre-existing pattern across the whole component, surfaced incidentally by adding the service-number title field; not introduced by this change.
+- **`ReservationInlineTextField`'s internal `draft` state never resyncs to an externally-changed `value` prop while mid-edit** — `useState(value)` only seeds on mount, so a revalidation/refetch during an open edit could be silently overwritten by a stale draft on save. Pre-existing in the shared component, affects every field that uses it (provider, notes, dates, now also service number).
+- **Reservation field local state seeded from raw DB values without trimming** — `provider`, `serviceNumber`, `confirmationCode`, `notes` are all initialized via `useState(reservation.X)` with no trim, so legacy whitespace-only data would render as a non-empty value instead of falling back to the placeholder. Pre-existing across the component; not introduced by this change.
+
 ## Deferred from: code review of 4-2-reservations-polish-and-hardening-batch (2026-06-20)
 
 - **`createReservation`'s new startAt/endAt parse checks treat `null` as a valid date** — `new Date(null)` is epoch (not `NaN`), so a `null` `startAt`/`endAt` silently degrades to "no date" instead of being rejected. Pre-existing characteristic mirrored intentionally from `updateReservation`'s pattern per this story's AC1, which required matching it exactly. Not exploitable for data corruption. [src/app/(app)/trips/[tripId]/reservations/actions.ts:25,29]
