@@ -76,7 +76,7 @@ export function ReservationRow({
   position = 1,
   total = 1,
 }: ReservationRowProps) {
-  const [provider, setProvider] = useState(reservation.provider);
+  const [provider, setProvider] = useState(reservation.provider.trim());
   const [startAt, setStartAt] = useState<string | undefined>(reservation.startAt);
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
   const [startLocation, setStartLocation] = useState<SavedLocationValue | undefined>(
@@ -96,9 +96,13 @@ export function ReservationRow({
     )
   );
   const [cost, setCost] = useState<number | undefined>(reservation.cost);
-  const [confirmationCode, setConfirmationCode] = useState<string | undefined>(reservation.confirmationCode);
-  const [serviceNumber, setServiceNumber] = useState<string | undefined>(reservation.serviceNumber);
-  const [notes, setNotes] = useState<string | undefined>(reservation.notes);
+  const [confirmationCode, setConfirmationCode] = useState<string | undefined>(
+    reservation.confirmationCode?.trim() || undefined
+  );
+  const [serviceNumber, setServiceNumber] = useState<string | undefined>(
+    reservation.serviceNumber?.trim() || undefined
+  );
+  const [notes, setNotes] = useState<string | undefined>(reservation.notes?.trim() || undefined);
   const [showStartAddressDialog, setShowStartAddressDialog] = useState(false);
   const [showEndAddressDialog, setShowEndAddressDialog] = useState(false);
   const [showCostDialog, setShowCostDialog] = useState(false);
