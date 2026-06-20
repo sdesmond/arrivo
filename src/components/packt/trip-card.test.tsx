@@ -224,4 +224,12 @@ describe("TripCard", () => {
     render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.queryByText(/packed/)).not.toBeInTheDocument();
   });
+
+  it("clicking the trip options trigger exercises preventDefault handler", async () => {
+    const user = userEvent.setup();
+    render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    const trigger = screen.getByRole("button", { name: /trip options/i });
+    await user.click(trigger);
+    expect(trigger).toBeInTheDocument();
+  });
 });

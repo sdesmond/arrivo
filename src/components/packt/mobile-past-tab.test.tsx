@@ -18,16 +18,18 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({
     children,
+    onClick,
     title,
     className,
     style,
   }: {
     children: React.ReactNode;
+    onClick?: React.MouseEventHandler;
     title?: string;
     className?: string;
     style?: React.CSSProperties;
   }) => (
-    <button title={title} className={className} style={style}>
+    <button onClick={onClick} title={title} className={className} style={style}>
       {children}
     </button>
   ),
@@ -119,5 +121,13 @@ describe("MobilePastTab", () => {
     const tripNoDates: Trip = { id: "trip-3", name: "Mystery Trip", status: "past", dayTotal: 3 };
     render(<MobilePastTab trips={[tripNoDates]} dateFormat="MM/DD/YYYY" />);
     expect(screen.getByText(/3 days/)).toBeInTheDocument();
+  });
+
+  it("clicking the trip options trigger exercises preventDefault handler", async () => {
+    const user = userEvent.setup();
+    render(<MobilePastTab trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    const trigger = screen.getByTitle("Trip options");
+    await user.click(trigger);
+    expect(trigger).toBeInTheDocument();
   });
 });

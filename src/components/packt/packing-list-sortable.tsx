@@ -234,7 +234,7 @@ export function PackingListSortable({
   }
 
   function handleDragEnd({ active, over }: DragEndEvent): void {
-    const fallbackOverId = over ? String(over.id) : localItems !== null ? lastOverIdRef.current : null;
+    const fallbackOverId = over ? String(over.id) : lastOverIdRef.current;
     clearExpandTimeout();
     lastOverIdRef.current = null;
     setActiveId(null);
