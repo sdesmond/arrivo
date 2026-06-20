@@ -28,12 +28,12 @@ import {
 const DATES_HIGHLIGHT_DURATION_MS = 1500;
 
 const TABS: { id: TripDetailTabValue; label: string }[] = [
+  { id: "res", label: "Reservations" },
   { id: "itin", label: "Itinerary" },
   { id: "map", label: "Map" },
   { id: "docs", label: "Documents" },
   { id: "pack", label: "Packing" },
   { id: "notes", label: "Notes" },
-  { id: "res", label: "Reservations" },
 ];
 
 interface TripDetailClientProps {
