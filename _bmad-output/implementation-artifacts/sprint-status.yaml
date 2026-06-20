@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-14
-last_updated: 2026-06-19 (story 3.2 review fixes applied)
+last_updated: 2026-06-19 (story 3.2 code review — patches applied)
 project: Packt
 project_key: NOKEY
 tracking_system: file-system

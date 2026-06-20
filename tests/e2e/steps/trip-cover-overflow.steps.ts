@@ -72,10 +72,17 @@ Then("the cover options menu hides remove and info actions", async ({ page }) =>
 
 When("I open the cover picker from the cover options menu", async ({ page }) => {
   const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
-  if (!(await editCoverItem.isVisible().catch(() => false))) {
-    await page.getByTitle("Cover options").click();
+  let visible = false;
+  try {
+    await expect(editCoverItem).toBeVisible({ timeout: 2000 });
+    visible = true;
+  } catch {
+    /* menu likely closed — will open below */
   }
-  await expect(editCoverItem).toBeVisible();
+  if (!visible) {
+    await page.getByTitle("Cover options").click();
+    await expect(editCoverItem).toBeVisible({ timeout: 5000 });
+  }
   await editCoverItem.click();
 });
 
@@ -92,7 +99,7 @@ When("I upload a new cover image from the picker", async ({ page }) => {
     mimeType: "image/png",
     buffer: COVER_UPLOAD_PNG,
   });
-  await expect(pickerDialog).not.toBeVisible();
+  await expect(pickerDialog).not.toBeVisible({ timeout: 10000 });
 });
 
 Then("the cover picker defaults to the Custom tab", async ({ page }) => {
@@ -100,7 +107,6 @@ Then("the cover picker defaults to the Custom tab", async ({ page }) => {
 });
 
 Then("the uploaded cover image persists after reloading the page", async ({ page }) => {
-  await expect(page.locator('img[role="presentation"]').first()).toHaveAttribute("src", /\/uploads\//);
   await page.reload();
   await expect(page.locator('img[role="presentation"]').first()).toHaveAttribute("src", /\/uploads\//);
   await page.getByTitle("Cover options").click();

@@ -192,6 +192,16 @@ describe("TripEditSheet", () => {
     expect(patch).not.toHaveProperty("coverImageUrl");
   });
 
+  it("Save button omits coverImageUrl when trip has a cover", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const tripWithCover: Trip = { ...baseTrip, coverImageUrl: "https://example.com/cover.jpg" };
+    render(<TripEditSheet trip={tripWithCover} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    const patch: UpdateTripPatch = onSave.mock.calls[0][0];
+    expect(patch).not.toHaveProperty("coverImageUrl");
+  });
+
   it("onSave includes modified name after editing", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();

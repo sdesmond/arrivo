@@ -60,6 +60,10 @@ so that the edit sheet stays simple and cover editing happens in one place — t
 - [x] [Review][Patch] Restore overflow upload persistence coverage [tests/e2e/features/trip-cover-overflow.feature:5]
 - [x] [Review][Patch] Restore overflow remove persistence coverage [tests/e2e/features/trip-cover-overflow.feature:12]
 - [x] [Review][Patch] Assert `TripEditSheet` save patches omit `coverImageUrl` [src/components/packt/trip-edit-sheet.test.tsx]
+- [x] [Review][Patch] Double `page.reload()` in persistence assertion — pre-reload assert makes reload pointless [tests/e2e/steps/trip-cover-overflow.steps.ts:102-109]
+- [x] [Review][Patch] Upload step has no wait for async completion — no wait/locator assertion after file input [tests/e2e/steps/trip-cover-overflow.steps.ts:86-95]
+- [x] [Review][Patch] Silent error swallowing in step guard — `.catch(() => false)` on `isVisible()` masks transitional false-negatives [tests/e2e/steps/trip-cover-overflow.steps.ts:73-79]
+- [x] [Review][Patch] No test that trips WITH a cover survive edit-sheet save — only `baseTrip` (no cover) tested for `not.toHaveProperty("coverImageUrl")` [src/components/packt/trip-edit-sheet.test.tsx]
 
 ## Dev Notes
 
@@ -232,3 +236,4 @@ Step definitions in `tests/e2e/steps/trip-cover-overflow.steps.ts` — add `Give
 ### Change Log
 
 - 2026-06-19: Removed cover image controls from the trip edit sheet; deleted `TripEditCover` and its orphaned pre-3.1 E2E spec; added E2E coverage confirming the edit sheet has no cover controls.
+- 2026-06-19: Code review patches: removed pre-reload assertion in persistence check, added upload timeout, fixed flaky menu guard, added cover-present test case.
