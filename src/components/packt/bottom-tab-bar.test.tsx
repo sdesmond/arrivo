@@ -41,11 +41,17 @@ describe("BottomTabBar", () => {
     expect(tripsLink).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders all 4 tabs", () => {
+  it("renders all 5 tabs", () => {
     render(<BottomTabBar />);
     expect(screen.getByText("Trips")).toBeInTheDocument();
+    expect(screen.getByText("History")).toBeInTheDocument();
     expect(screen.getByText("Search")).toBeInTheDocument();
     expect(screen.getByText("Map")).toBeInTheDocument();
     expect(screen.getByText("Profile")).toBeInTheDocument();
+  });
+
+  it("links the History tab to /travel-history", () => {
+    render(<BottomTabBar />);
+    expect(screen.getByRole("link", { name: /history/i })).toHaveAttribute("href", "/travel-history");
   });
 });
