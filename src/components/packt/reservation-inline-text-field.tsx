@@ -28,7 +28,7 @@ const EDIT_INPUT_STYLE: React.CSSProperties = {
   padding: 0,
 };
 
-const PLACEHOLDER_STYLE: React.CSSProperties = { color: "var(--fg-3)", fontSize: 13, fontStyle: "italic" };
+export const PLACEHOLDER_STYLE: React.CSSProperties = { color: "var(--fg-3)", fontSize: 13, fontStyle: "italic" };
 
 export function ReservationInlineTextField({
   value,
@@ -47,6 +47,7 @@ export function ReservationInlineTextField({
   const cancelRef = useRef(false);
   const displayRef = useRef<HTMLButtonElement | null>(null);
   const wasEditingRef = useRef(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (wasEditingRef.current && !editing) {
@@ -56,16 +57,22 @@ export function ReservationInlineTextField({
   }, [editing]);
 
   async function save() {
+    if (savingRef.current) return;
+
     const trimmed = draft.trim();
     if (trimmed === value) {
       setEditing(false);
       return;
     }
+
+    savingRef.current = true;
     try {
       await onSave(trimmed);
       setEditing(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save reservation.");
+    } finally {
+      savingRef.current = false;
     }
   }
 

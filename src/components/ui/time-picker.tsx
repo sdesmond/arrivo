@@ -8,6 +8,7 @@ export interface TimePickerProps {
   onChange: (value: string | undefined) => void;
   disabled?: boolean;
   "aria-label"?: string;
+  "aria-describedby"?: string;
   "aria-invalid"?: boolean;
 }
 
@@ -16,6 +17,7 @@ export function TimePicker({
   onChange,
   disabled,
   "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
 }: TimePickerProps) {
   return (
@@ -24,6 +26,7 @@ export function TimePicker({
       value={value ?? ""}
       disabled={disabled}
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
       className="w-auto appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
       onChange={(event) => onChange(event.target.value || undefined)}

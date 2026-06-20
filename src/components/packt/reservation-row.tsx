@@ -9,7 +9,7 @@ import {
   SERVICE_NUMBER_LABELS,
   formatReservationDateRange,
 } from "@/components/packt/reservation-type-badge";
-import { ReservationInlineTextField } from "@/components/packt/reservation-inline-text-field";
+import { PLACEHOLDER_STYLE, ReservationInlineTextField } from "@/components/packt/reservation-inline-text-field";
 import { DeleteReservationAlertDialog } from "@/components/packt/delete-reservation-alert-dialog";
 import { ReservationDocsBlock } from "@/components/packt/reservation-docs-block";
 import { AddReservationDocDialog } from "@/components/packt/add-reservation-doc-dialog";
@@ -37,7 +37,6 @@ export interface ReservationRowProps {
 
 const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68, fontSize: 13 };
 const FIELD_VALUE_STYLE: React.CSSProperties = { color: "var(--fg-2)", fontSize: 13 };
-const PLACEHOLDER_STYLE: React.CSSProperties = { color: "var(--fg-3)", fontSize: 13, fontStyle: "italic" };
 
 function buildSavedLocationValue(
   address: string | undefined,
@@ -101,11 +100,16 @@ export function ReservationRow({ reservation, type, isLast, tripDocs, highlighte
   const docs = reservation.documents ?? [];
   const hasDocs = docs.length > 0;
   const deletingRef = useRef(false);
+  const savingDatesRef = useRef(false);
   const isCalendarOpenRef = useRef(false);
   const dateEditRef = useRef<HTMLDivElement>(null);
   const startLocationLabel = getLocationDisplayLabel(startLocation?.name, startLocation?.address);
   const endLocationLabel = getLocationDisplayLabel(endLocation?.name, endLocation?.address);
   const serviceNumberLabel = SERVICE_NUMBER_LABELS[type];
+  const reservationDateRange = formatReservationDateRange(startAt, endAt);
+  const deleteLabel = reservationDateRange
+    ? `Delete ${provider} reservation for ${reservationDateRange}`
+    : `Delete ${provider}`;
 
   useEffect(() => {
     if (editingDates) {
@@ -159,6 +163,9 @@ export function ReservationRow({ reservation, type, isLast, tripDocs, highlighte
     if (newStartAt !== undefined && newStartAt !== (startAt ?? "")) patch.startAt = newStartAt;
     if (newEndAt !== undefined && newEndAt !== (endAt ?? "")) patch.endAt = newEndAt;
     if (Object.keys(patch).length > 0) {
+      if (savingDatesRef.current) return;
+
+      savingDatesRef.current = true;
       try {
         await updateReservation(reservation.id, patch);
         if (newStartAt !== undefined) setStartAt(newStartAt || undefined);
@@ -166,6 +173,8 @@ export function ReservationRow({ reservation, type, isLast, tripDocs, highlighte
       } catch (error) {
         setDateError(error instanceof Error ? error.message : "Failed to save dates.");
         return;
+      } finally {
+        savingDatesRef.current = false;
       }
     }
 
@@ -223,8 +232,8 @@ export function ReservationRow({ reservation, type, isLast, tripDocs, highlighte
         </div>
         <button
           type="button"
-          title={`Delete ${provider}`}
-          aria-label={`Delete ${provider}`}
+          title={deleteLabel}
+          aria-label={deleteLabel}
           onClick={() => setConfirmOpen(true)}
           className="inline-flex items-center justify-center size-8 shrink-0 rounded"
           style={{ border: "none", background: "transparent", color: "var(--fg-3)", cursor: "pointer" }}

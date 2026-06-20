@@ -37,6 +37,8 @@ describe("ReservationAnchorFieldset", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Check-out is required for this reservation type.");
     expect(screen.getByLabelText("Check-out date")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Check-out time")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Check-out date")).toHaveAttribute("aria-describedby", "check-out-error");
+    expect(screen.getByLabelText("Check-out time")).toHaveAttribute("aria-describedby", "check-out-error");
   });
 
   it("calls onDateChange and onTimeChange when values change", () => {
@@ -54,5 +56,14 @@ describe("ReservationAnchorFieldset", () => {
     );
     expect(screen.getByLabelText("Departure date")).toBeInTheDocument();
     expect(screen.getByLabelText("Departure time")).toHaveValue("10:00");
+  });
+
+  it("does not set aria-describedby when there is no error", () => {
+    render(
+      <ReservationAnchorFieldset legend="Departure" required={false} onDateChange={vi.fn()} onTimeChange={vi.fn()} />
+    );
+
+    expect(screen.getByLabelText("Departure date")).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByLabelText("Departure time")).not.toHaveAttribute("aria-describedby");
   });
 });

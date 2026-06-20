@@ -42,8 +42,20 @@ export function ReservationAnchorFieldset({
         {required ? <span style={{ color: "var(--accent-brand)" }}> *</span> : " (Optional)"}
       </legend>
       <div className="flex items-center gap-2">
-        <DatePicker value={date} onChange={onDateChange} aria-label={`${legend} date`} aria-invalid={invalid} />
-        <TimePicker value={time} onChange={onTimeChange} aria-label={`${legend} time`} aria-invalid={invalid} />
+        <DatePicker
+          value={date}
+          onChange={onDateChange}
+          aria-label={`${legend} date`}
+          aria-invalid={invalid}
+          aria-describedby={error ? errorId : undefined}
+        />
+        <TimePicker
+          value={time}
+          onChange={onTimeChange}
+          aria-label={`${legend} time`}
+          aria-invalid={invalid}
+          aria-describedby={error ? errorId : undefined}
+        />
       </div>
       {error && errorId && (
         <p

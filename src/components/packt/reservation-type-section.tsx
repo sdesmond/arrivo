@@ -70,6 +70,7 @@ export function ReservationTypeSection({
   const { label, icon: Icon } = RESERVATION_TYPE_META[type];
   const count = reservations.length;
   const accessibleName = `${label}, ${count} reservation${count === 1 ? "" : "s"}, ${open ? "expanded" : "collapsed"}`;
+  const regionId = `reservation-section-${type}`;
 
   return (
     <div
@@ -88,6 +89,7 @@ export function ReservationTypeSection({
         }}
         onClick={onToggle}
         aria-expanded={open}
+        aria-controls={regionId}
         aria-label={accessibleName}
       >
         <span
@@ -127,26 +129,28 @@ export function ReservationTypeSection({
         </span>
       </button>
 
-      {!open && (
-        <div
-          className="px-4 py-2"
-          style={{ fontSize: "calc(var(--fs-card-sub) * var(--font-scale))", color: "var(--fg-2)" }}
-        >
-          {renderPreview(reservations, now)}
-        </div>
-      )}
+      <div id={regionId}>
+        {!open && (
+          <div
+            className="px-4 py-2"
+            style={{ fontSize: "calc(var(--fs-card-sub) * var(--font-scale))", color: "var(--fg-2)" }}
+          >
+            {renderPreview(reservations, now)}
+          </div>
+        )}
 
-      {open &&
-        sortReservationsByStartAt(reservations).map((reservation, index, all) => (
-          <ReservationRow
-            key={reservation.id}
-            reservation={reservation}
-            type={type}
-            isLast={index === all.length - 1}
-            tripDocs={tripDocs}
-            highlighted={reservation.id === highlightedReservationId}
-          />
-        ))}
+        {open &&
+          sortReservationsByStartAt(reservations).map((reservation, index, all) => (
+            <ReservationRow
+              key={reservation.id}
+              reservation={reservation}
+              type={type}
+              isLast={index === all.length - 1}
+              tripDocs={tripDocs}
+              highlighted={reservation.id === highlightedReservationId}
+            />
+          ))}
+      </div>
     </div>
   );
 }

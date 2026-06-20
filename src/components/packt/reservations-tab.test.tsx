@@ -272,6 +272,43 @@ describe("ReservationsTab", () => {
     expect(screen.getByRole("button", { name: /^Flight, 1 reservation/ })).toBeInTheDocument();
   });
 
+  it("re-adds a deleted type in the collapsed state after its stale open-section entry is cleaned up", async () => {
+    const user = userEvent.setup();
+    const lodgingReservation = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
+
+    const { rerender } = render(
+      <ReservationsTab
+        tripId="trip-1"
+        isDateless={false}
+        onOpenEditDates={mockOnOpenEditDates}
+        reservations={[lodgingReservation]}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    await user.click(screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ }));
+    expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, expanded/ })).toBeInTheDocument();
+
+    rerender(
+      <Wrapper>
+        <ReservationsTab tripId="trip-1" isDateless={false} onOpenEditDates={mockOnOpenEditDates} reservations={[]} />
+      </Wrapper>
+    );
+
+    rerender(
+      <Wrapper>
+        <ReservationsTab
+          tripId="trip-1"
+          isDateless={false}
+          onOpenEditDates={mockOnOpenEditDates}
+          reservations={[makeReservation({ id: "res-lodging-2", type: ReservationType.Lodging })]}
+        />
+      </Wrapper>
+    );
+
+    expect(screen.getByRole("button", { name: /^Lodging, 1 reservation, collapsed/ })).toBeInTheDocument();
+  });
+
   it("shows the empty state when the last reservation is deleted (rerender)", () => {
     const lodgingRes = makeReservation({ id: "res-lodging", type: ReservationType.Lodging });
 

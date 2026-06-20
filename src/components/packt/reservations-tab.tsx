@@ -95,6 +95,16 @@ export function ReservationsTab({ tripId, reservations, tripDocs, isDateless, on
     return () => clearTimeout(timeoutId);
   }, [highlightedReservationId]);
 
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const availableTypes = new Set(reservations.map((reservation) => reservation.type));
+    setOpenSections((current) => {
+      const next = new Set([...current].filter((type) => availableTypes.has(type)));
+      return next.size === current.size ? current : next;
+    });
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [reservations]);
+
   function handleSelectType(type: ReservationType): void {
     setSelectedType(type);
     setDrawerOpen(true);

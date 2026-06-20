@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { ReservationType } from "@/data/types";
 import {
   ANCHOR_LABELS,
+  REQUIRES_END_AT,
   RESERVATION_TYPE_META,
   SERVICE_NUMBER_LABELS,
   ReservationTypeBadge,
@@ -62,6 +63,22 @@ describe("SERVICE_NUMBER_LABELS", () => {
     "has no label for %s",
     (type) => {
       expect(SERVICE_NUMBER_LABELS[type]).toBeUndefined();
+    }
+  );
+});
+
+describe("REQUIRES_END_AT", () => {
+  it.each([ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise])(
+    "marks %s as requiring an end anchor",
+    (type) => {
+      expect(REQUIRES_END_AT).toContain(type);
+    }
+  );
+
+  it.each([ReservationType.Flight, ReservationType.Train, ReservationType.Bus, ReservationType.Ferry])(
+    "does not mark %s as requiring an end anchor",
+    (type) => {
+      expect(REQUIRES_END_AT).not.toContain(type);
     }
   );
 });

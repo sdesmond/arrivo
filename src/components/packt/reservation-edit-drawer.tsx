@@ -10,7 +10,12 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Section, Field } from "@/components/packt/form-section";
 import { LocationLookupInput } from "@/components/packt/location-lookup-input";
 import { ReservationAnchorFieldset } from "@/components/packt/reservation-anchor-fieldset";
-import { ANCHOR_LABELS, RESERVATION_TYPE_META, SERVICE_NUMBER_LABELS } from "@/components/packt/reservation-type-badge";
+import {
+  ANCHOR_LABELS,
+  REQUIRES_END_AT,
+  RESERVATION_TYPE_META,
+  SERVICE_NUMBER_LABELS,
+} from "@/components/packt/reservation-type-badge";
 import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type CreateReservationInput, type SavedLocationValue } from "@/data/types";
 import { combineDateAndTimeToIso } from "@/lib/utils";
@@ -22,8 +27,6 @@ export interface ReservationEditDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const REQUIRES_END_AT: ReservationType[] = [ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise];
 
 function combineAnchor(date: string | undefined, time: string | undefined): { iso?: string; error?: string } {
   const hasDate = !!date;

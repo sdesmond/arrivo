@@ -1,11 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationRow } from "./reservation-row";
 import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 import { formatReservationDateRange } from "./reservation-type-badge";
+import { PLACEHOLDER_STYLE } from "./reservation-inline-text-field";
 import type { CostDialogProps } from "@/components/packt/cost-dialog";
 
 vi.mock("sonner", () => ({
@@ -226,6 +227,11 @@ const withDocReservation: Reservation = {
   ],
 };
 
+function getDeleteLabel(reservation: Reservation): string {
+  const dateRange = formatReservationDateRange(reservation.startAt, reservation.endAt);
+  return dateRange ? `Delete ${reservation.provider} reservation for ${dateRange}` : `Delete ${reservation.provider}`;
+}
+
 describe("ReservationRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -261,6 +267,16 @@ describe("ReservationRow", () => {
     expect(screen.getByRole("button", { name: "Add cost" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add confirmation code" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add notes" })).toBeInTheDocument();
+  });
+
+  it("uses the shared placeholder style for the date placeholder button", () => {
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    expect(screen.getByRole("button", { name: "Add dates" })).toHaveStyle({
+      color: PLACEHOLDER_STYLE.color!,
+      fontSize: "13px",
+      fontStyle: PLACEHOLDER_STYLE.fontStyle!,
+    });
   });
 
   describe("editing dates inline", () => {
@@ -627,11 +643,37 @@ describe("ReservationRow", () => {
     expect(await screen.findByRole("button", { name: "Updated notes" })).toBeInTheDocument();
   });
 
+  it("disambiguates delete button labels when providers share a name", () => {
+    const secondReservation = {
+      ...populatedReservation,
+      id: "res-4",
+      startAt: "2026-08-06T15:00:00.000Z",
+      endAt: "2026-08-07T11:00:00.000Z",
+    };
+
+    render(
+      <div>
+        <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />
+        <ReservationRow reservation={secondReservation} type={ReservationType.Lodging} isLast />
+      </div>
+    );
+
+    const firstRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    const secondRange = formatReservationDateRange(secondReservation.startAt, secondReservation.endAt);
+
+    expect(
+      screen.getByRole("button", { name: `Delete Grand Hotel reservation for ${firstRange}` })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Delete Grand Hotel reservation for ${secondRange}` })
+    ).toBeInTheDocument();
+  });
+
   it("opens the delete confirmation dialog when the delete button is clicked", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete Grand Hotel" }));
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
 
     expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
   });
@@ -640,7 +682,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete Grand Hotel" }));
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
     expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "dismiss-dialog" }));
@@ -654,10 +696,46 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete Grand Hotel" }));
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(deleteReservation).toHaveBeenCalledWith("res-1");
+  });
+
+  it("ignores a second inline date-save blur while the first save is still in flight", async () => {
+    let resolveUpdate: (() => void) | undefined;
+    vi.mocked(updateReservation).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUpdate = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />
+        <button type="button">Outside</button>
+      </div>
+    );
+
+    const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    await user.click(screen.getByRole("button", { name: expectedRange }));
+    const timeInput = screen.getByLabelText("Check-in time");
+    await user.clear(timeInput);
+    await user.type(timeInput, "10:00");
+
+    const outsideButton = screen.getByRole("button", { name: "Outside" });
+    fireEvent.blur(timeInput, { relatedTarget: outsideButton });
+    fireEvent.blur(timeInput, { relatedTarget: outsideButton });
+
+    expect(updateReservation).toHaveBeenCalledTimes(1);
+
+    resolveUpdate?.();
+    const nextRange = formatReservationDateRange(
+      new Date("2026-08-01T10:00:00").toISOString(),
+      populatedReservation.endAt
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: nextRange })).toBeInTheDocument());
   });
 
   it("closes the dialog after a successful delete", async () => {
@@ -665,7 +743,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete Grand Hotel" }));
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     await vi.waitFor(() => {
@@ -678,7 +756,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete Grand Hotel" }));
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));

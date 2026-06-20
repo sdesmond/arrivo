@@ -7,9 +7,8 @@ import { db } from "@/db";
 import { reservations, documents, trips } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
+import { REQUIRES_END_AT } from "@/components/packt/reservation-type-badge";
 import { extendTripDateRange } from "./reservation-date-range";
-
-const REQUIRES_END_AT: ReservationType[] = [ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise];
 
 export async function createReservation(tripId: string, input: CreateReservationInput): Promise<void> {
   const user = await requireUser();
@@ -21,6 +20,14 @@ export async function createReservation(tripId: string, input: CreateReservation
 
   if (!input.provider.trim()) {
     throw new Error("Provider is required.");
+  }
+
+  if (input.startAt !== undefined && Number.isNaN(new Date(input.startAt).getTime())) {
+    throw new Error("Invalid start time.");
+  }
+
+  if (input.endAt !== undefined && Number.isNaN(new Date(input.endAt).getTime())) {
+    throw new Error("Invalid end time.");
   }
 
   if (REQUIRES_END_AT.includes(input.type) && !input.endAt) {
