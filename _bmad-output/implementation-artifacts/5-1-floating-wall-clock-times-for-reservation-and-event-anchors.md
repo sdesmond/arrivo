@@ -80,6 +80,12 @@ so that "3:00 PM check-in" always reads as 3:00 PM, instead of shifting when a c
 
 - [x] Task 6: Update `deferred-work.md` (AC: 9)
 
+### Review Findings
+
+- [x] [Review][Decision] Decide how to handle pre-existing anchors written with old timezone conversion — resolved: ship as new-data-only cutover; no backfill/compatibility path in this story.
+- [x] [Review][Patch] Now/Next summary cards still compare true UTC instants instead of floating wall-clock times [src/components/packt/now-card.tsx:50, src/components/packt/mobile-active-tab.tsx:46]
+- [x] [Review][Patch] Collapsed reservation previews still choose “Next” with true UTC comparisons [src/components/packt/reservation-type-section.tsx:27]
+
 ## Dev Notes
 
 ### Scope boundary

@@ -22,6 +22,20 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 }
 
+function getFloatingNow(now: Date): Date {
+  return new Date(
+    Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds()
+    )
+  );
+}
+
 interface NowCardProps {
   trip: Trip;
   todayEvents: TripEvent[];
@@ -33,6 +47,7 @@ interface NowCardProps {
 
 export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedEventTap, dateFormat }: NowCardProps) {
   const now = useNow();
+  const floatingNow = getFloatingNow(now);
   const router = useRouter();
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
@@ -47,11 +62,11 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
     return (
       reversed.find((event) => {
         if (!event.startAt) return false;
-        return new Date(event.startAt) <= now && !event.linkedReservationId;
+        return new Date(event.startAt) <= floatingNow && !event.linkedReservationId;
       }) ??
       reversed.find((event) => {
         if (!event.startAt) return false;
-        return new Date(event.startAt) <= now;
+        return new Date(event.startAt) <= floatingNow;
       }) ??
       null
     );
@@ -60,7 +75,7 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
   const nextEvent =
     todayEvents.find((event) => {
       if (!event.startAt) return false;
-      return new Date(event.startAt) > now;
+      return new Date(event.startAt) > floatingNow;
     }) ?? null;
 
   const undatedLinkedEvent = todayEvents.find((event) => !event.startAt && event.linkedReservationId) ?? null;

@@ -258,4 +258,26 @@ describe("MobileActiveTab", () => {
 
     expect(screen.getByText("11:30 AM")).toBeInTheDocument();
   });
+
+  it("uses floating wall-clock comparisons for the summary card under a non-UTC viewer timezone", () => {
+    process.env.TZ = "America/Denver";
+    render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[
+          {
+            id: "event-next",
+            name: "Brunch",
+            startAt: "2026-05-13T11:30:00Z",
+            endAt: "2026-05-13T12:30:00Z",
+            position: 0,
+          },
+        ]}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getByText("Next Event")).toBeInTheDocument();
+    expect(screen.queryByText("Now")).not.toBeInTheDocument();
+  });
 });

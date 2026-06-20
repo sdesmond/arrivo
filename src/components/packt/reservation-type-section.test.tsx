@@ -108,6 +108,20 @@ describe("getNextUpcoming", () => {
   it("returns undefined when there are no reservations", () => {
     expect(getNextUpcoming([], NOW)).toBeUndefined();
   });
+
+  it("uses floating wall-clock comparisons under a non-UTC viewer timezone", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      const localMorningNow = new Date("2026-06-15T12:00:00.000Z");
+      const literalLateMorning = makeReservation({ id: "late-morning", startAt: "2026-06-15T11:30:00.000Z" });
+      const literalAfternoon = makeReservation({ id: "afternoon", startAt: "2026-06-15T14:00:00.000Z" });
+
+      expect(getNextUpcoming([literalAfternoon, literalLateMorning], localMorningNow)?.id).toBe("late-morning");
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
 });
 
 describe("ReservationTypeSection", () => {
