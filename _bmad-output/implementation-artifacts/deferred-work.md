@@ -1,5 +1,13 @@
 # Deferred Work
 
+## Deferred from: code review of reservation-title-service-number (2026-06-20)
+
+- **No coordination across concurrent `updateReservation` calls from sibling inline fields** — `reservation-row.tsx` fires an independent `updateReservation` on each field's blur/Enter with no lock/debounce shared across fields (provider, service number, notes, etc.), so rapidly editing two adjacent fields can race. Pre-existing pattern across the whole component, surfaced incidentally by adding the service-number title field; not introduced by this change. Left deferred deliberately — see "No row-level locking / TOCTOU across server actions" above; a local fix here would be inconsistent with that app-wide decision.
+
+Fixed directly instead of deferring (small, mechanical, low-risk):
+- `ReservationInlineTextField` now resyncs `draft` from `value` whenever `value` changes while not editing (render-time derived-state pattern, not an effect, per `react-hooks/set-state-in-effect`). [reservation-inline-text-field.tsx]
+- `reservation-row.tsx` now trims `provider`/`confirmationCode`/`serviceNumber`/`notes` when seeding local state from the reservation, so legacy whitespace-only values fall back to their placeholders.
+
 ## Deferred from: code review of 4-2-reservations-polish-and-hardening-batch (2026-06-20)
 
 - **`createReservation`'s new startAt/endAt parse checks treat `null` as a valid date** — `new Date(null)` is epoch (not `NaN`), so a `null` `startAt`/`endAt` silently degrades to "no date" instead of being rejected. Pre-existing characteristic mirrored intentionally from `updateReservation`'s pattern per this story's AC1, which required matching it exactly. Not exploitable for data corruption. [src/app/(app)/trips/[tripId]/reservations/actions.ts:25,29]

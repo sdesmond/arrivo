@@ -44,10 +44,16 @@ export function ReservationInlineTextField({
 }: ReservationInlineTextFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const [syncedValue, setSyncedValue] = useState(value);
   const cancelRef = useRef(false);
   const displayRef = useRef<HTMLButtonElement | null>(null);
   const wasEditingRef = useRef(false);
   const savingRef = useRef(false);
+
+  if (!editing && value !== syncedValue) {
+    setSyncedValue(value);
+    setDraft(value);
+  }
 
   useEffect(() => {
     if (wasEditingRef.current && !editing) {
