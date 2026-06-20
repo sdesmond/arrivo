@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -127,7 +127,18 @@ describe("upload mode", () => {
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const largeFile = new File([new ArrayBuffer(26 * 1024 * 1024)], "big.pdf", { type: "application/pdf" });
     await user.upload(fileInput, largeFile);
-    expect(toast.error).toHaveBeenCalledWith("File is too large. Max 25 MB.");
+    expect(toast.error).toHaveBeenCalledWith("File is too large. Max 25.0 MB.");
+  });
+
+  it("unsupported file type shows toast error and keeps Attach disabled", async () => {
+    const { toast } = await import("sonner");
+    render(<AddReservationDocDialog open reservationId="res-1" onOpenChange={vi.fn()} />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const unsupportedFile = new File(["content"], "notes.docx", { type: "application/msword" });
+    fireEvent.change(fileInput, { target: { files: [unsupportedFile] } });
+
+    expect(toast.error).toHaveBeenCalledWith("Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC.");
+    expect(screen.getByRole("button", { name: /attach/i })).toBeDisabled();
   });
 
   it("clicking Attach with a file calls uploadReservationDocument and closes", async () => {
@@ -155,7 +166,7 @@ describe("upload mode", () => {
     await user.upload(fileInput, validFile);
     await user.click(screen.getByRole("button", { name: /attach/i }));
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Upload failed. Please try again.");
+      expect(toast.error).toHaveBeenCalledWith("Network error");
     });
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });

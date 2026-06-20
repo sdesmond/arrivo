@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import type { Document } from "@/data/types";
 import { DocKindBadge } from "./doc-kind-badge";
 import { attachTripDocToEvent, uploadDocumentToEvent } from "@/app/(app)/trips/[tripId]/actions";
-import { MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_CHOOSER_LABEL } from "@/lib/upload-policy";
 
 type DialogMode = "pick" | "upload";
 
@@ -58,8 +58,10 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("File is too large. Max 25 MB.");
+    try {
+      assertValidDocumentUpload(file);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -74,8 +76,8 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
       try {
         await uploadDocumentToEvent(eventId, formData);
         handleClose(false);
-      } catch {
-        toast.error("Upload failed. Please try again.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
       }
     });
   }
@@ -142,7 +144,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+                accept={DOCUMENT_UPLOAD_ACCEPT}
                 style={{
                   position: "absolute",
                   width: 1,
@@ -173,7 +175,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
                   textAlign: "center",
                 }}
               >
-                {pendingFile ? pendingFile.name : "Choose file (PDF, JPG, PNG, WEBP, HEIC)"}
+                {pendingFile ? pendingFile.name : DOCUMENT_UPLOAD_CHOOSER_LABEL}
               </div>
               {(tripDocs?.length ?? 0) > 0 && (
                 <button

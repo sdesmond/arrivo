@@ -3,8 +3,9 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { LoaderIcon } from "lucide-react";
-import { cn, MAX_COVER_IMAGE_UPLOAD_BYTES } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { uploadCoverImage } from "@/app/(app)/trips/[tripId]/actions";
+import { assertValidCoverUpload, COVER_UPLOAD_ACCEPT, COVER_UPLOAD_HINT } from "@/lib/upload-policy";
 
 export interface CoverImagePickerUploadProps {
   tripId: string;
@@ -24,14 +25,10 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
   }
 
   async function handleFile(file: File) {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file.");
-      resetInputValue();
-      return;
-    }
-
-    if (file.size > MAX_COVER_IMAGE_UPLOAD_BYTES) {
-      toast.error("Cover image exceeds 12 MB limit.");
+    try {
+      assertValidCoverUpload(file);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed. Try again.");
       resetInputValue();
       return;
     }
@@ -43,8 +40,8 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
       const url = await uploadCoverImage(tripId, formData);
       onImageSelected(url);
       onClose();
-    } catch {
-      toast.error("Upload failed. Try again.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed. Try again.");
       resetInputValue();
       setUploading(false);
     }
@@ -99,7 +96,7 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={COVER_UPLOAD_ACCEPT}
         id="cover-upload-input"
         onChange={onFileSelected}
         className="sr-only"
@@ -133,7 +130,7 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
           textTransform: "uppercase",
         }}
       >
-        JPG, PNG, WEBP, HEIC, GIF, AVIF · max 12 MB
+        {COVER_UPLOAD_HINT}
       </p>
     </div>
   );

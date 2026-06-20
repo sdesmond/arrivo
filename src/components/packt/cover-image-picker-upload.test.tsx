@@ -31,7 +31,10 @@ describe("CoverImagePickerUpload", () => {
     const input = screen.getByLabelText(/drop file here or browse/i);
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute("type", "file");
-    expect(input).toHaveAttribute("accept", "image/*");
+    expect(input).toHaveAttribute(
+      "accept",
+      "image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif,image/avif"
+    );
     expect(screen.getByRole("button", { name: /drop file here or browse/i })).toHaveAttribute("tabindex", "0");
   });
 
@@ -59,14 +62,14 @@ describe("CoverImagePickerUpload", () => {
   });
 
   it("upload failure shows toast.error and keeps picker open", async () => {
-    vi.mocked(uploadCoverImage).mockRejectedValue(new Error("Upload failed"));
+    vi.mocked(uploadCoverImage).mockRejectedValue(new Error("Blob store unavailable"));
     render(<CoverImagePickerUpload {...defaultProps} />);
 
     const input = screen.getByLabelText(/drop file here or browse/i);
     const file = new File(["img"], "photo.jpg", { type: "image/jpeg" });
     fireEvent.change(input, { target: { files: [file] } });
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Upload failed. Try again."));
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Blob store unavailable"));
     expect(defaultProps.onClose).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/drop file here or browse/i)).toBeInTheDocument();
   });
@@ -78,7 +81,11 @@ describe("CoverImagePickerUpload", () => {
     const file = new File(["pdf"], "notes.pdf", { type: "application/pdf" });
     fireEvent.change(input, { target: { files: [file] } });
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Please choose an image file."));
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        "Unsupported cover image type. Choose JPG, PNG, WEBP, HEIC, GIF, or AVIF."
+      )
+    );
     expect(uploadCoverImage).not.toHaveBeenCalled();
   });
 

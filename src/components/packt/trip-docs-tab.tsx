@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
 import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
-import { cn, MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
@@ -32,8 +33,10 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("File is too large. Max 25 MB.");
+    try {
+      assertValidDocumentUpload(file);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
@@ -42,8 +45,8 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
     startTransition(async () => {
       try {
         await uploadDocument(tripId, formData);
-      } catch {
-        toast.error("Upload failed. Please try again.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
       }
     });
     if (inputRef.current) inputRef.current.value = "";
@@ -55,7 +58,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
         id="doc-upload"
         ref={inputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+        accept={DOCUMENT_UPLOAD_ACCEPT}
         style={{
           position: "absolute",
           width: 1,
@@ -98,7 +101,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
                 marginTop: 8,
               }}
             >
-              PDF, JPG, PNG, WEBP, HEIC · max 25 MB
+              {DOCUMENT_UPLOAD_HINT}
             </div>
           </EmptyContent>
         </Empty>
@@ -126,7 +129,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
               marginBottom: 8,
             }}
           >
-            PDF, JPG, PNG, WEBP, HEIC · max 25 MB
+            {DOCUMENT_UPLOAD_HINT}
           </div>
           <div style={{ position: "relative", marginBottom: 12 }}>
             <label
