@@ -32,6 +32,7 @@ export function CoverImagePicker({
   function handleSelect(selected: string | CoverImageSelection) {
     const image = typeof selected === "string" ? { url: selected } : selected;
     onImageSelected(image);
+    onClose();
   }
 
   const graphicCover = currentCoverImageUrl ? parseGraphicCover(currentCoverImageUrl) : null;
