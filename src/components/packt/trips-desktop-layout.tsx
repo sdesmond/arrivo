@@ -16,7 +16,6 @@ import { TripCover } from "@/components/packt/trip-cover";
 import { NewTripCard } from "@/components/packt/new-trip-card";
 import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
-import { PastTripsList } from "@/components/packt/trips-past-list";
 import { UnscheduledSection } from "@/components/packt/unscheduled-section";
 import { formatDate, getDisplayedTripDays } from "@/lib/utils";
 import { type Trip, type TripListEntry } from "@/data/types";
@@ -29,7 +28,6 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 interface TripsDesktopLayoutProps {
   activeEntry: TripListEntry | null;
   upcomingTrips: Trip[];
-  pastTrips: Trip[];
   unscheduledEntries: TripListEntry[];
   dateFormat: string;
   initialViewMode?: ViewMode;
@@ -41,7 +39,6 @@ interface TripsDesktopLayoutProps {
 export function TripsDesktopLayout({
   activeEntry,
   upcomingTrips,
-  pastTrips,
   unscheduledEntries,
   dateFormat,
   initialViewMode = "cards",
@@ -200,18 +197,6 @@ export function TripsDesktopLayout({
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Past trips */}
-          <div>
-            <SectionHead title="Past" />
-            <PastTripsList
-              trips={pastTrips}
-              dateFormat={dateFormat}
-              onEditTrip={(trip) => onEditTrip(trip.id)}
-              onDeleteTrip={onDeleteTrip}
-              viewMode={viewMode}
-            />
           </div>
         </div>
       </div>

@@ -15,7 +15,7 @@ import {
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { createTrip, deleteTrip, updateTripMetadata } from "./actions";
 
-export type MobileTab = "Unscheduled" | "Active" | "Upcoming" | "Past";
+export type MobileTab = "Unscheduled" | "Active" | "Upcoming";
 
 export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date) {
   const router = useRouter();
@@ -45,13 +45,9 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
   const upcomingEntries = datedEntries.filter(
     (entry) => getTripStatus(entry.trip.startDate, entry.trip.endDate, now) === "upcoming"
   );
-  const pastEntries = datedEntries.filter(
-    (entry) => getTripStatus(entry.trip.startDate, entry.trip.endDate, now) === "past"
-  );
 
   const activeEntry = activeEntries[0] ?? null;
   const upcomingTrips = upcomingEntries.map((entry) => entry.trip);
-  const pastTrips = pastEntries.map((entry) => entry.trip);
 
   const defaultTab: MobileTab =
     activeEntry !== null ? "Active" : unscheduledEntries.length > 0 ? "Unscheduled" : "Upcoming";
@@ -179,7 +175,6 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     unscheduledEntries,
     activeEntry,
     upcomingTrips,
-    pastTrips,
     editingTrip,
     editingEntry,
     deletingTrip,

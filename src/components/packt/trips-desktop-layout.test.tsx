@@ -63,10 +63,6 @@ const upcomingTrips: Trip[] = [
   { id: "trip-upcoming-2", name: "Rome Tour", status: "upcoming", startDate: "2026-07-01", endDate: "2026-07-08" },
 ];
 
-const pastTrips: Trip[] = [
-  { id: "trip-past-1", name: "Lisbon Escape", status: "past", startDate: "2025-09-01", endDate: "2025-09-07" },
-];
-
 const unscheduledEntries: TripListEntry[] = [
   { trip: { id: "trip-unsched-1", name: "Dream Trip", status: "upcoming" }, todayEvents: [] },
   { trip: { id: "trip-unsched-2", name: "Bucket List", status: "upcoming" }, todayEvents: [] },
@@ -82,7 +78,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={unscheduledEntries}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -99,7 +94,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={[]}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -116,7 +110,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={[]}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -129,29 +122,11 @@ describe("TripsDesktopLayout", () => {
     expect(screen.getAllByText("Rome Tour").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders Past section with PastTripsList", () => {
-    render(
-      <TripsDesktopLayout
-        activeEntry={activeEntry}
-        upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
-        unscheduledEntries={[]}
-        dateFormat="MM/DD/YYYY"
-        onNewTrip={vi.fn()}
-        onEditTrip={vi.fn()}
-        onDeleteTrip={vi.fn()}
-      />,
-      { wrapper: Wrapper }
-    );
-    expect(screen.getAllByText("Lisbon Escape").length).toBeGreaterThanOrEqual(1);
-  });
-
   it("renders UnscheduledSection when unscheduledEntries non-empty", () => {
     render(
       <TripsDesktopLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={unscheduledEntries}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -169,7 +144,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={activeEntry}
         upcomingTrips={upcomingTrips}
-        pastTrips={pastTrips}
         unscheduledEntries={[]}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -187,26 +161,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={null}
         upcomingTrips={upcomingTrips}
-        pastTrips={[]}
-        unscheduledEntries={[]}
-        dateFormat="MM/DD/YYYY"
-        onNewTrip={vi.fn()}
-        onEditTrip={onEditTrip}
-        onDeleteTrip={vi.fn()}
-      />,
-      { wrapper: Wrapper }
-    );
-    fireEvent.click(screen.getAllByRole("button", { name: /edit trip/i })[0]);
-    expect(onEditTrip).toHaveBeenCalled();
-  });
-
-  it("calls onEditTrip from PastTripsList", () => {
-    const onEditTrip = vi.fn();
-    render(
-      <TripsDesktopLayout
-        activeEntry={null}
-        upcomingTrips={[]}
-        pastTrips={pastTrips}
         unscheduledEntries={[]}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -226,7 +180,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={activeEntry}
         upcomingTrips={[]}
-        pastTrips={[]}
         unscheduledEntries={[]}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -245,7 +198,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={null}
         upcomingTrips={[]}
-        pastTrips={[]}
         unscheduledEntries={unscheduledEntries}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -265,7 +217,6 @@ describe("TripsDesktopLayout", () => {
       <TripsDesktopLayout
         activeEntry={null}
         upcomingTrips={upcomingTrips}
-        pastTrips={[]}
         unscheduledEntries={[]}
         dateFormat="MM/DD/YYYY"
         onNewTrip={vi.fn()}
@@ -285,7 +236,6 @@ describe("TripsDesktopLayout", () => {
         <TripsDesktopLayout
           activeEntry={null}
           upcomingTrips={upcomingTrips}
-          pastTrips={pastTrips}
           unscheduledEntries={[]}
           dateFormat="MM/DD/YYYY"
           onNewTrip={vi.fn()}
@@ -344,7 +294,6 @@ describe("TripsDesktopLayout", () => {
         <TripsDesktopLayout
           activeEntry={null}
           upcomingTrips={upcomingTrips}
-          pastTrips={[]}
           unscheduledEntries={[]}
           dateFormat="MM/DD/YYYY"
           initialViewMode="list"
@@ -364,7 +313,6 @@ describe("TripsDesktopLayout", () => {
         <TripsDesktopLayout
           activeEntry={null}
           upcomingTrips={upcomingTrips}
-          pastTrips={[]}
           unscheduledEntries={[]}
           dateFormat="MM/DD/YYYY"
           initialViewMode="list"
@@ -391,7 +339,6 @@ describe("TripsDesktopLayout", () => {
         <TripsDesktopLayout
           activeEntry={null}
           upcomingTrips={[{ id: "trip-upcoming-3", name: "Flex Trip", status: "upcoming", dayTotal: 3 }]}
-          pastTrips={[]}
           unscheduledEntries={[]}
           dateFormat="MM/DD/YYYY"
           initialViewMode="list"
