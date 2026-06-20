@@ -5,6 +5,7 @@ const { assertTripAccess, db, daysTable, documentsTable, requireUser, reservatio
   vi.hoisted(() => ({
     assertTripAccess: vi.fn(),
     db: {
+      execute: vi.fn(),
       insert: vi.fn(),
       select: vi.fn(),
       update: vi.fn(),
@@ -97,14 +98,7 @@ describe("createReservation", () => {
 
   function mockSelectResults(...results: unknown[][]): void {
     db.select.mockReset();
-    const secondResultLooksLikeTripRow =
-      results.length > 1 &&
-      typeof results[1]?.[0] === "object" &&
-      results[1]?.[0] !== null &&
-      ("startDate" in (results[1][0] as Record<string, unknown>) ||
-        "endDate" in (results[1][0] as Record<string, unknown>));
-    const queuedResults = results.length > 0 && !secondResultLooksLikeTripRow ? [results[0], ...results] : results;
-    for (const result of queuedResults) {
+    for (const result of results) {
       db.select.mockReturnValueOnce(createSelectMock(result));
     }
   }
@@ -121,6 +115,7 @@ describe("createReservation", () => {
     db.transaction.mockImplementation(async (callback: (transaction: typeof db) => Promise<void>) => {
       await callback(db);
     });
+    db.execute.mockResolvedValue([{ id: "trip-1" }]);
 
     db.select.mockReturnValue(createSelectMock([{ startDate: "2026-08-01", endDate: "2026-08-05" }]));
     db.insert.mockImplementation((table: unknown) => ({
@@ -194,7 +189,7 @@ describe("createReservation", () => {
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
   });
 
-  it("rejects creating a reservation on a dateless trip before opening a transaction", async () => {
+  it("rejects creating a reservation on a dateless trip after acquiring the trip lock", async () => {
     mockSelectResults([{ startDate: null, endDate: null }]);
 
     await expect(
@@ -205,7 +200,7 @@ describe("createReservation", () => {
       })
     ).rejects.toThrow("Set trip dates before adding a reservation.");
 
-    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.transaction).toHaveBeenCalledOnce();
     expect(db.insert).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -220,14 +215,41 @@ describe("createReservation", () => {
     });
 
     expect(insertedReservationValues).toMatchObject({ provider: "Acme Air" });
+    expect(db.execute).toHaveBeenCalledOnce();
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
-  it("uses the transaction's current trip dates for extension decisions", async () => {
-    mockSelectResults(
-      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
-      [{ startDate: "2030-06-09", endDate: "2030-06-15" }]
+  it("locks trip before reading trip dates during reservation creation", async () => {
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn((table: unknown) => ({
+        values: async (values: Record<string, unknown>) => {
+          if (table === reservationsTable) {
+            insertedReservationValues = values;
+          }
+        },
+      })),
+      select: vi.fn().mockReturnValueOnce(createSelectMock([{ startDate: "2026-08-01", endDate: "2026-08-05" }])),
+      update: vi.fn(),
+    };
+    db.transaction.mockImplementationOnce(async (callback: (tx: typeof transaction) => Promise<void>) => {
+      await callback(transaction);
+    });
+
+    await createReservation("trip-1", {
+      type: ReservationType.Other,
+      provider: "Locked Air",
+      startAt: "2026-08-01T10:00:00.000Z",
+    });
+
+    expect(transaction.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.select.mock.invocationCallOrder[0]
     );
+    expect(insertedReservationValues).toMatchObject({ provider: "Locked Air" });
+  });
+
+  it("uses the transaction's current trip dates for extension decisions", async () => {
+    mockSelectResults([{ startDate: "2030-06-09", endDate: "2030-06-15" }]);
 
     await createReservation("trip-1", {
       type: ReservationType.Flight,
@@ -545,7 +567,6 @@ describe("createReservation", () => {
   it("does not insert the reservation when date-range extension fails", async () => {
     db.select
       .mockReturnValueOnce(createSelectMock([{ startDate: "2030-06-10", endDate: "2030-06-15" }]))
-      .mockReturnValueOnce(createSelectMock([{ startDate: "2030-06-10", endDate: "2030-06-15" }]))
       .mockImplementationOnce(() => {
         throw new Error("extension failed");
       });
@@ -610,8 +631,9 @@ describe("updateReservation", () => {
     db.transaction.mockImplementation(async (callback: (transaction: typeof db) => Promise<void>) => {
       await callback(db);
     });
+    db.execute.mockResolvedValue([{ id: "trip-1" }]);
 
-    mockSelectResults([baseRow], [{ startDate: "2026-08-01", endDate: "2026-08-05" }]);
+    mockSelectResults([{ tripId: "trip-1" }], [baseRow], [{ startDate: "2026-08-01", endDate: "2026-08-05" }]);
     db.insert.mockImplementation((table: unknown) => ({
       values: async (values: Record<string, unknown>) => {
         if (table === daysTable) {
@@ -648,6 +670,36 @@ describe("updateReservation", () => {
     await updateReservation("res-1", { provider: "New Name" });
 
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(db.execute).toHaveBeenCalledOnce();
+  });
+
+  it("locks before reading current reservation state inside updateReservation", async () => {
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSelectMock([baseRow]))
+        .mockReturnValueOnce(createSelectMock([{ startDate: "2026-08-01", endDate: "2026-08-05" }])),
+      update: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => {
+          updatedReservationValues = values;
+          return { where: async () => undefined };
+        }),
+      })),
+    };
+    db.select.mockReset();
+    db.select.mockReturnValueOnce(createSelectMock([{ tripId: "trip-1" }]));
+    db.transaction.mockImplementationOnce(async (callback: (tx: typeof transaction) => Promise<void>) => {
+      await callback(transaction);
+    });
+
+    await updateReservation("res-1", { serviceNumber: "TP 202" });
+
+    expect(transaction.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.select.mock.invocationCallOrder[0]
+    );
+    expect(updatedReservationValues).toMatchObject({ serviceNumber: "TP 202" });
+    expect(updatedReservationValues).not.toHaveProperty("provider");
   });
 
   it("updates the provider independently and trims it", async () => {
@@ -665,7 +717,7 @@ describe("updateReservation", () => {
   });
 
   it("updates startAt independently, converting to a Date", async () => {
-    mockSelectResults([baseRow], [{ startDate: "2026-08-01", endDate: "2026-09-05" }]);
+    mockSelectResults([{ tripId: "trip-1" }], [baseRow], [{ startDate: "2026-08-01", endDate: "2026-09-05" }]);
 
     await updateReservation("res-1", { startAt: "2026-09-01T12:00:00.000Z" });
 
@@ -674,7 +726,7 @@ describe("updateReservation", () => {
   });
 
   it("updates endAt independently, converting to a Date", async () => {
-    mockSelectResults([baseRow], [{ startDate: "2026-08-01", endDate: "2026-09-05" }]);
+    mockSelectResults([{ tripId: "trip-1" }], [baseRow], [{ startDate: "2026-08-01", endDate: "2026-09-05" }]);
 
     await updateReservation("res-1", { endAt: "2026-09-02T12:00:00.000Z" });
 
@@ -713,6 +765,7 @@ describe("updateReservation", () => {
 
   it("clears confirmationCode, serviceNumber, and notes when set to an empty string", async () => {
     mockSelectResults(
+      [{ tripId: "trip-1" }],
       [{ ...baseRow, confirmationCode: "ABC123", serviceNumber: "TP 202", notes: "Old notes" }],
       [{ startDate: "2026-08-01", endDate: "2026-08-05" }]
     );
@@ -760,6 +813,7 @@ describe("updateReservation", () => {
 
   it("clears startAddress and endAddress when set to an empty string", async () => {
     mockSelectResults(
+      [{ tripId: "trip-1" }],
       [
         {
           ...baseRow,
@@ -792,6 +846,7 @@ describe("updateReservation", () => {
 
   it("leaves existing structured location data untouched when only the address text is patched", async () => {
     mockSelectResults(
+      [{ tripId: "trip-1" }],
       [
         {
           ...baseRow,
@@ -819,7 +874,11 @@ describe("updateReservation", () => {
   });
 
   it("clears cost when set to null", async () => {
-    mockSelectResults([{ ...baseRow, cost: "199.00" }], [{ startDate: "2026-08-01", endDate: "2026-08-05" }]);
+    mockSelectResults(
+      [{ tripId: "trip-1" }],
+      [{ ...baseRow, cost: "199.00" }],
+      [{ startDate: "2026-08-01", endDate: "2026-08-05" }]
+    );
 
     await updateReservation("res-1", { cost: null });
 
@@ -829,14 +888,17 @@ describe("updateReservation", () => {
   it.each([ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise])(
     "rejects clearing endAt for %s reservations",
     async (type) => {
-      mockSelectResults([
-        {
-          ...baseRow,
-          type,
-          startAt: new Date("2026-08-01T10:00:00.000Z"),
-          endAt: new Date("2026-08-05T11:00:00.000Z"),
-        },
-      ]);
+      mockSelectResults(
+        [{ tripId: "trip-1" }],
+        [
+          {
+            ...baseRow,
+            type,
+            startAt: new Date("2026-08-01T10:00:00.000Z"),
+            endAt: new Date("2026-08-05T11:00:00.000Z"),
+          },
+        ]
+      );
 
       await expect(updateReservation("res-1", { endAt: "" })).rejects.toThrow(
         "An end date and time is required for this reservation type."
@@ -847,7 +909,7 @@ describe("updateReservation", () => {
   );
 
   it("rejects setting endAt when the resulting startAt is unset", async () => {
-    mockSelectResults([{ ...baseRow, startAt: null, endAt: null }]);
+    mockSelectResults([{ tripId: "trip-1" }], [{ ...baseRow, startAt: null, endAt: null }]);
 
     await expect(updateReservation("res-1", { endAt: "2026-09-02T12:00:00.000Z" })).rejects.toThrow(
       "A start date and time is required when an end date and time is set."
@@ -857,14 +919,17 @@ describe("updateReservation", () => {
   });
 
   it("rejects clearing startAt when the resulting endAt is still set", async () => {
-    mockSelectResults([
-      {
-        ...baseRow,
-        startAt: new Date("2026-08-01T10:00:00.000Z"),
-        endAt: new Date("2026-08-05T11:00:00.000Z"),
-        type: ReservationType.Other,
-      },
-    ]);
+    mockSelectResults(
+      [{ tripId: "trip-1" }],
+      [
+        {
+          ...baseRow,
+          startAt: new Date("2026-08-01T10:00:00.000Z"),
+          endAt: new Date("2026-08-05T11:00:00.000Z"),
+          type: ReservationType.Other,
+        },
+      ]
+    );
 
     await expect(updateReservation("res-1", { startAt: "" })).rejects.toThrow(
       "A start date and time is required when an end date and time is set."
@@ -882,7 +947,10 @@ describe("updateReservation", () => {
   });
 
   it("validates endAt against the existing startAt when only endAt is patched", async () => {
-    mockSelectResults([{ ...baseRow, startAt: new Date("2026-09-05T10:00:00.000Z"), endAt: null }]);
+    mockSelectResults(
+      [{ tripId: "trip-1" }],
+      [{ ...baseRow, startAt: new Date("2026-09-05T10:00:00.000Z"), endAt: null }]
+    );
 
     await expect(updateReservation("res-1", { endAt: "2026-09-01T10:00:00.000Z" })).rejects.toThrow(
       "The end date and time must be after the start date and time."
@@ -905,6 +973,7 @@ describe("updateReservation", () => {
 
   it("extends trip date range when an updated startAt falls before the current range", async () => {
     mockSelectResults(
+      [{ tripId: "trip-1" }],
       [{ ...baseRow, startAt: new Date("2030-06-12T10:00:00.000Z") }],
       [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
       [{ count: 6 }],
@@ -934,6 +1003,7 @@ describe("updateReservation", () => {
 
   it("does not extend when the update changes only provider text", async () => {
     mockSelectResults(
+      [{ tripId: "trip-1" }],
       [{ ...baseRow, startAt: new Date("2030-06-12T10:00:00.000Z") }],
       [{ startDate: "2030-06-10", endDate: "2030-06-15" }]
     );
@@ -949,6 +1019,7 @@ describe("updateReservation", () => {
 
   it("does not extend when only the reservation time changes on the same calendar date", async () => {
     mockSelectResults(
+      [{ tripId: "trip-1" }],
       [{ ...baseRow, startAt: new Date("2030-06-12T10:00:00.000Z") }],
       [{ startDate: "2030-06-10", endDate: "2030-06-15" }]
     );
@@ -964,6 +1035,7 @@ describe("updateReservation", () => {
 
   it("extends when an added endAt falls after the current trip range", async () => {
     mockSelectResults(
+      [{ tripId: "trip-1" }],
       [{ ...baseRow, type: ReservationType.Other, startAt: new Date("2030-06-12T10:00:00.000Z"), endAt: null }],
       [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
       [{ count: 6 }],

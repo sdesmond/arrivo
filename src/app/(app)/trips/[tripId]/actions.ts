@@ -19,6 +19,7 @@ import { eq, and, max, gte, sql, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { del } from "@vercel/blob";
 import { deriveGraphicCover } from "@/lib/utils";
+import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
 import {
   uploadDocument as uploadTripDocumentAction,
   uploadDocumentToEvent as uploadEventDocumentAction,
@@ -36,6 +37,8 @@ import type {
 const MAX_TRIP_DAYS = 45;
 const CONCURRENT_MODIFICATION_ERROR = "CONCURRENT_MODIFICATION";
 
+type PositionExecutor = Pick<DbTransaction, "select" | "update" | "insert">;
+
 function buildDayItemKey(type: "event" | "note" | "checklist", id: string): string {
   return `${type}:${id}`;
 }
@@ -52,38 +55,49 @@ async function getDayTripId(dayId: string): Promise<string> {
   return day.tripId;
 }
 
+async function assertDayExistsInTrip(transaction: PositionExecutor, tripId: string, dayId: string): Promise<void> {
+  const [day] = await transaction
+    .select({ id: days.id })
+    .from(days)
+    .where(and(eq(days.id, dayId), eq(days.tripId, tripId)));
+
+  if (!day) {
+    throw new Error("Day not found");
+  }
+}
+
 async function getEventTripId(eventId: string): Promise<string> {
   const [event] = await db.select({ tripId: events.tripId }).from(events).where(eq(events.id, eventId));
   if (!event) throw new Error("Event not found");
   return event.tripId;
 }
 
-async function getAppendPosition(dayId: string): Promise<number> {
-  const [{ maxEvt }] = await db
+async function getAppendPosition(executor: PositionExecutor, dayId: string): Promise<number> {
+  const [{ maxEvt }] = await executor
     .select({ maxEvt: max(events.position) })
     .from(events)
     .where(eq(events.dayId, dayId));
-  const [{ maxNote }] = await db
+  const [{ maxNote }] = await executor
     .select({ maxNote: max(itineraryNotes.position) })
     .from(itineraryNotes)
     .where(eq(itineraryNotes.dayId, dayId));
-  const [{ maxCl }] = await db
+  const [{ maxCl }] = await executor
     .select({ maxCl: max(itineraryChecklists.position) })
     .from(itineraryChecklists)
     .where(eq(itineraryChecklists.dayId, dayId));
   return Math.max(maxEvt ?? -1, maxNote ?? -1, maxCl ?? -1) + 1;
 }
 
-async function shiftItemsAtOrAbove(dayId: string, fromPosition: number): Promise<void> {
-  await db
+async function shiftItemsAtOrAbove(executor: PositionExecutor, dayId: string, fromPosition: number): Promise<void> {
+  await executor
     .update(events)
     .set({ position: sql`${events.position} + 1` })
     .where(and(eq(events.dayId, dayId), gte(events.position, fromPosition)));
-  await db
+  await executor
     .update(itineraryNotes)
     .set({ position: sql`${itineraryNotes.position} + 1` })
     .where(and(eq(itineraryNotes.dayId, dayId), gte(itineraryNotes.position, fromPosition)));
-  await db
+  await executor
     .update(itineraryChecklists)
     .set({ position: sql`${itineraryChecklists.position} + 1` })
     .where(and(eq(itineraryChecklists.dayId, dayId), gte(itineraryChecklists.position, fromPosition)));
@@ -129,30 +143,34 @@ export async function createEvent(dayId: string, input: CreateEventInput): Promi
     note: input.note,
   };
 
-  if (input.afterEventId) {
-    const [refEvent] = await db
-      .select({ position: events.position })
-      .from(events)
-      .where(and(eq(events.id, input.afterEventId), eq(events.dayId, dayId)));
+  await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+    await assertDayExistsInTrip(transaction, tripId, dayId);
 
-    if (refEvent) {
-      const insertPos = refEvent.position + 1;
-      await shiftItemsAtOrAbove(dayId, insertPos);
-      await db.insert(events).values({ ...values, position: insertPos });
-      revalidatePath(`/trips/${tripId}`);
+    if (input.afterEventId) {
+      const [refEvent] = await transaction
+        .select({ position: events.position })
+        .from(events)
+        .where(and(eq(events.id, input.afterEventId), eq(events.dayId, dayId)));
+
+      if (refEvent) {
+        const insertPos = refEvent.position + 1;
+        await shiftItemsAtOrAbove(transaction, dayId, insertPos);
+        await transaction.insert(events).values({ ...values, position: insertPos });
+        return;
+      }
+    }
+
+    if (input.insertAtPosition !== undefined) {
+      await shiftItemsAtOrAbove(transaction, dayId, input.insertAtPosition);
+      await transaction.insert(events).values({ ...values, position: input.insertAtPosition });
       return;
     }
-  }
 
-  if (input.insertAtPosition !== undefined) {
-    await shiftItemsAtOrAbove(dayId, input.insertAtPosition);
-    await db.insert(events).values({ ...values, position: input.insertAtPosition });
-    revalidatePath(`/trips/${tripId}`);
-    return;
-  }
+    const appendPos = await getAppendPosition(transaction, dayId);
+    await transaction.insert(events).values({ ...values, position: appendPos });
+  });
 
-  const appendPos = await getAppendPosition(dayId);
-  await db.insert(events).values({ ...values, position: appendPos });
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -228,6 +246,8 @@ export async function reorderDayItems(input: ReorderDayItemsInput): Promise<void
   const tripId = await getDayTripId(input.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, tripId);
+
     const [currentEvents, currentNotes, currentChecklists] = await Promise.all([
       tx.select({ id: events.id }).from(events).where(eq(events.dayId, input.dayId)),
       tx.select({ id: itineraryNotes.id }).from(itineraryNotes).where(eq(itineraryNotes.dayId, input.dayId)),
@@ -287,6 +307,8 @@ export async function addDay(tripId: string): Promise<void> {
   await assertTripAccess(tripId, user.id!, "editor");
 
   await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+
     const [trip] = await transaction.select({ startDate: trips.startDate }).from(trips).where(eq(trips.id, tripId));
     if (!trip) {
       throw new Error("Trip not found.");
@@ -333,6 +355,8 @@ export async function removeLastDay(tripId: string, confirmedDestructiveRemoval 
   let eventDocuments: { url: string | null }[] = [];
   let result: RemoveLastDayResult = { status: "removed" };
   await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+
     const scheduledDays = await transaction
       .select()
       .from(days)
@@ -416,17 +440,23 @@ export async function setTripCoverWithAttribution(
 export async function removeTripCover(tripId: string): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
-  const [trip] = await db.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId)).limit(1);
-  if (!trip) throw new Error("Trip not found");
 
-  await db
-    .update(trips)
-    .set({
-      coverImageUrl: deriveGraphicCover(trip.name),
-      coverPhotographer: null,
-      coverPhotographerUrl: null,
-    })
-    .where(eq(trips.id, tripId));
+  await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+
+    const [trip] = await transaction.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId)).limit(1);
+    if (!trip) throw new Error("Trip not found");
+
+    await transaction
+      .update(trips)
+      .set({
+        coverImageUrl: deriveGraphicCover(trip.name),
+        coverPhotographer: null,
+        coverPhotographerUrl: null,
+      })
+      .where(eq(trips.id, tripId));
+  });
+
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -456,13 +486,20 @@ export async function createNote(dayId: string, content: string, insertAtPositio
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
 
-  if (insertAtPosition !== undefined) {
-    await shiftItemsAtOrAbove(dayId, insertAtPosition);
-    await db.insert(itineraryNotes).values({ dayId, content, position: insertAtPosition });
-  } else {
-    const appendPos = await getAppendPosition(dayId);
-    await db.insert(itineraryNotes).values({ dayId, content, position: appendPos });
-  }
+  await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+    await assertDayExistsInTrip(transaction, tripId, dayId);
+
+    if (insertAtPosition !== undefined) {
+      await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
+      await transaction.insert(itineraryNotes).values({ dayId, content, position: insertAtPosition });
+      return;
+    }
+
+    const appendPos = await getAppendPosition(transaction, dayId);
+    await transaction.insert(itineraryNotes).values({ dayId, content, position: appendPos });
+  });
+
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -490,8 +527,14 @@ export async function createChecklist(dayId: string, insertAtPosition: number): 
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await shiftItemsAtOrAbove(dayId, insertAtPosition);
-  await db.insert(itineraryChecklists).values({ dayId, position: insertAtPosition });
+
+  await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+    await assertDayExistsInTrip(transaction, tripId, dayId);
+    await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
+    await transaction.insert(itineraryChecklists).values({ dayId, position: insertAtPosition });
+  });
+
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -503,14 +546,23 @@ export async function createChecklistWithItem(
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await shiftItemsAtOrAbove(dayId, insertAtPosition);
-  const [newChecklist] = await db
-    .insert(itineraryChecklists)
-    .values({ dayId, position: insertAtPosition })
-    .returning({ id: itineraryChecklists.id });
-  await db.insert(checklistItems).values({ checklistId: newChecklist.id, content: firstItemContent });
+
+  const checklistId = await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+    await assertDayExistsInTrip(transaction, tripId, dayId);
+    await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
+
+    const [newChecklist] = await transaction
+      .insert(itineraryChecklists)
+      .values({ dayId, position: insertAtPosition })
+      .returning({ id: itineraryChecklists.id });
+    await transaction.insert(checklistItems).values({ checklistId: newChecklist.id, content: firstItemContent });
+
+    return newChecklist.id;
+  });
+
   revalidatePath(`/trips/${tripId}`);
-  return newChecklist.id;
+  return checklistId;
 }
 
 export async function updateChecklistTitle(checklistId: string, title: string | undefined): Promise<void> {
@@ -675,9 +727,11 @@ export async function addChecklistFromPackingSource(
     itemTexts = items.map((item) => item.text);
   }
 
-  await shiftItemsAtOrAbove(dayId, position);
-
   const checklistId = await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, tripId);
+    await assertDayExistsInTrip(tx, tripId, dayId);
+    await shiftItemsAtOrAbove(tx, dayId, position);
+
     const [newChecklist] = await tx
       .insert(itineraryChecklists)
       .values({ dayId, position, title: sourceName })

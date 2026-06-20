@@ -7,6 +7,7 @@ const {
   mockDbSelect,
   mockDbTransaction,
   mockDbUpdate,
+  mockDbExecute,
   mockRequireUser,
   mockRevalidatePath,
   mockBlobDel,
@@ -20,6 +21,7 @@ const {
   const mockDbInsert = vi.fn();
   const mockDbTransaction = vi.fn();
   const mockDbUpdate = vi.fn();
+  const mockDbExecute = vi.fn();
   const mockRequireUser = vi.fn();
   const mockRevalidatePath = vi.fn();
   const mockBlobDel = vi.fn();
@@ -42,6 +44,7 @@ const {
     mockDbInsert,
     mockDbTransaction,
     mockDbUpdate,
+    mockDbExecute,
     mockRequireUser,
     mockRevalidatePath,
     mockBlobDel,
@@ -59,6 +62,7 @@ vi.mock("@/lib/auth-helpers", () => ({
 
 vi.mock("@/db", () => ({
   db: {
+    execute: mockDbExecute,
     insert: mockDbInsert,
     select: mockDbSelect,
     transaction: mockDbTransaction,
@@ -104,6 +108,7 @@ vi.mock("drizzle-orm", () => ({
 import {
   addChecklistFromPackingSource,
   addDay,
+  createEvent,
   removeLastDay,
   removeTripCover,
   reorderDayItems,
@@ -126,6 +131,7 @@ function createReorderTransactionMock({
   const updates: Array<{ position: number; table: unknown }> = [];
 
   const transaction = {
+    execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
     select: vi.fn(() => ({
       from: vi.fn((table: unknown) => ({
         where: vi.fn(async () => {
@@ -147,6 +153,82 @@ function createReorderTransactionMock({
 
   return { transaction, updates };
 }
+
+function createSimpleSelect(rows: unknown[]) {
+  return {
+    from: vi.fn(() => ({
+      where: vi.fn(async () => rows),
+    })),
+  };
+}
+
+describe("createEvent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{ tripId: "trip-1" }]),
+      })),
+    });
+  });
+
+  it("locks trip before reading append positions for new events", async () => {
+    const insertedValues: Array<Record<string, unknown>> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          insertedValues.push(values);
+        }),
+      })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSimpleSelect([{ id: "day-1" }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxEvt: 2 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxNote: 1 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxCl: 0 }])),
+      update: vi.fn(),
+    };
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createEvent("day-1", { name: "Museum" });
+
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(transaction.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.select.mock.invocationCallOrder[0]
+    );
+    expect(insertedValues).toEqual([
+      expect.objectContaining({
+        dayId: "day-1",
+        tripId: "trip-1",
+        name: "Museum",
+        position: 3,
+      }),
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("fails when the day disappears before locked insert work begins", async () => {
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(),
+      select: vi.fn().mockReturnValueOnce(createSimpleSelect([])),
+      update: vi.fn(),
+    };
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(createEvent("day-1", { name: "Museum" })).rejects.toThrow("Day not found");
+
+    expect(transaction.insert).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
 
 describe("reorderDayItems", () => {
   beforeEach(() => {
@@ -185,6 +267,7 @@ describe("reorderDayItems", () => {
       ],
     });
 
+    expect(transaction.execute).toHaveBeenCalledOnce();
     expect(updates).toEqual([
       { position: 0, table: itineraryNotes },
       { position: 1, table: events },
@@ -449,11 +532,13 @@ describe("setTripCoverWithAttribution", () => {
 describe("removeTripCover", () => {
   const mockWhere = vi.fn();
   const mockSet = vi.fn();
+  let transactionExecute: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockAssertTripAccess.mockResolvedValue(undefined);
+    transactionExecute = vi.fn().mockResolvedValue([{ id: "trip-1" }]);
     mockDbSelect.mockReturnValue({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -466,12 +551,16 @@ describe("removeTripCover", () => {
     mockDbUpdate.mockReturnValue({
       set: mockSet,
     });
+    mockDbTransaction.mockImplementation(async (callback: (tx: unknown) => Promise<void>) =>
+      callback({ execute: transactionExecute, select: mockDbSelect, update: mockDbUpdate })
+    );
   });
 
   it("replaces the cover with a derived graphic and clears attribution", async () => {
     await removeTripCover("trip-1");
 
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(transactionExecute).toHaveBeenCalledOnce();
     expect(mockDeriveGraphicCover).toHaveBeenCalledWith("Summer Trip");
     expect(mockSet).toHaveBeenCalledWith({
       coverImageUrl: "graphic:Summer Trip",
@@ -508,6 +597,7 @@ function buildAddDayTransaction({
   const tripUpdates: Array<{ endDate: string }> = [];
 
   const transaction = {
+    execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
     select: vi.fn(() => ({
       from: vi.fn((table: unknown) => ({
         where: vi.fn(() => {
@@ -556,6 +646,7 @@ describe("addDay", () => {
 
     await addDay("trip-1");
 
+    expect(transaction.execute).toHaveBeenCalledOnce();
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toMatchObject({ tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" });
     expect(tripUpdates).toHaveLength(0);
@@ -609,6 +700,7 @@ function buildRemoveLastDayTransaction({
   ];
 
   const transaction = {
+    execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => {
@@ -669,6 +761,7 @@ describe("removeLastDay", () => {
 
     const result = await removeLastDay("trip-1");
 
+    expect(transaction.execute).toHaveBeenCalledOnce();
     expect(result.status).toBe("removed");
     expect(deletes).toHaveLength(1);
     expect(tripUpdates).toHaveLength(0);

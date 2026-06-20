@@ -1,11 +1,9 @@
 import { asc, eq, sql } from "drizzle-orm";
-import { db } from "@/db";
 import { days, trips } from "@/db/schema";
+import type { DbTransaction } from "@/lib/server-action-locks";
 
 export const MAX_TRIP_DAYS = 45;
 const DAY_NUMBER_SHIFT_OFFSET = 1000;
-
-export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export function nextCalendarDate(date: string): string {
   const nextDate = new Date(`${date}T00:00:00.000Z`);

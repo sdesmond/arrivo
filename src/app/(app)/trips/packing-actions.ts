@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { idempotencyKeys, packingItems, packingTemplateItems, packingTemplates, tripPackingLists } from "@/db/schema";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { withErrorHandling } from "@/lib/error-utils";
+import { lockTripForUpdate } from "@/lib/server-action-locks";
 import type {
   AddPackingItemInput,
   PullTemplatesResult,
@@ -98,11 +99,12 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
   const name = normalizePackingItemName(input.name);
   const labelId = input.isLabel ? null : (input.labelId ?? null);
   const listId = input.listId ?? null;
-  await validatePackingListId(tripId, listId);
 
   if (input.afterItemId) {
     const afterItemId = input.afterItemId;
     await db.transaction(async (tx) => {
+      await lockTripForUpdate(tx, tripId);
+      await validatePackingListId(tripId, listId, tx);
       await validateLabelId(tripId, listId, labelId, tx);
 
       const [targetItem] = await tx
@@ -133,6 +135,8 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
   } else if (input.beforeItemId) {
     const beforeItemId = input.beforeItemId;
     await db.transaction(async (tx) => {
+      await lockTripForUpdate(tx, tripId);
+      await validatePackingListId(tripId, listId, tx);
       await validateLabelId(tripId, listId, labelId, tx);
 
       const [targetItem] = await tx
@@ -161,21 +165,25 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
       });
     });
   } else {
-    await validateLabelId(tripId, listId, labelId);
+    await db.transaction(async (tx) => {
+      await lockTripForUpdate(tx, tripId);
+      await validatePackingListId(tripId, listId, tx);
+      await validateLabelId(tripId, listId, labelId, tx);
 
-    const [{ maxPos }] = await db
-      .select({ maxPos: max(packingItems.position) })
-      .from(packingItems)
-      .where(buildPackingListItemScope(tripId, listId));
+      const [{ maxPos }] = await tx
+        .select({ maxPos: max(packingItems.position) })
+        .from(packingItems)
+        .where(buildPackingListItemScope(tripId, listId));
 
-    await db.insert(packingItems).values({
-      tripId,
-      listId,
-      name,
-      done: false,
-      isLabel: input.isLabel ?? false,
-      position: (maxPos ?? -1) + 1,
-      labelId,
+      await tx.insert(packingItems).values({
+        tripId,
+        listId,
+        name,
+        done: false,
+        isLabel: input.isLabel ?? false,
+        position: (maxPos ?? -1) + 1,
+        labelId,
+      });
     });
   }
 
@@ -198,12 +206,23 @@ async function updatePackingItemImpl(itemId: string, input: UpdatePackingItemInp
 
 async function togglePackingItemImpl(itemId: string): Promise<void> {
   const user = await requireUser();
-  const [item] = await db.select().from(packingItems).where(eq(packingItems.id, itemId));
+  const [item] = await db.select({ tripId: packingItems.tripId }).from(packingItems).where(eq(packingItems.id, itemId));
   if (!item) {
     return;
   }
   await assertTripAccess(item.tripId, user.id!, "editor");
-  await db.update(packingItems).set({ done: !item.done }).where(eq(packingItems.id, itemId));
+
+  await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, item.tripId);
+
+    const [lockedItem] = await tx.select().from(packingItems).where(eq(packingItems.id, itemId));
+    if (!lockedItem) {
+      return;
+    }
+
+    await tx.update(packingItems).set({ done: !lockedItem.done }).where(eq(packingItems.id, itemId));
+  });
+
   revalidatePath(`/trips/${item.tripId}`);
   revalidatePath("/trips");
 }
@@ -222,35 +241,50 @@ async function removePackingItemImpl(itemId: string): Promise<void> {
 
 async function removePackingSectionImpl(sectionId: string, input: RemovePackingSectionInput): Promise<void> {
   const user = await requireUser();
-  const [section] = await db.select().from(packingItems).where(eq(packingItems.id, sectionId));
+  const [section] = await db
+    .select({ tripId: packingItems.tripId })
+    .from(packingItems)
+    .where(eq(packingItems.id, sectionId));
   if (!section) {
     return;
   }
-  if (!section.isLabel) {
-    throw new Error("Packing section not found");
-  }
 
   await assertTripAccess(section.tripId, user.id!, "editor");
+  let revalidateTripId = section.tripId;
 
   await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, section.tripId);
+
+    const [lockedSection] = await tx
+      .select({ id: packingItems.id, tripId: packingItems.tripId, isLabel: packingItems.isLabel })
+      .from(packingItems)
+      .where(eq(packingItems.id, sectionId));
+    if (!lockedSection) {
+      return;
+    }
+    if (!lockedSection.isLabel) {
+      throw new Error("Packing section not found");
+    }
+    revalidateTripId = lockedSection.tripId;
+
     if (input.mode === RemovePackingSectionMode.DeleteItems) {
       await tx
         .delete(packingItems)
-        .where(and(eq(packingItems.tripId, section.tripId), eq(packingItems.labelId, section.id)));
+        .where(and(eq(packingItems.tripId, lockedSection.tripId), eq(packingItems.labelId, lockedSection.id)));
     } else if (input.mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
       await tx
         .update(packingItems)
         .set({ labelId: null })
-        .where(and(eq(packingItems.tripId, section.tripId), eq(packingItems.labelId, section.id)));
+        .where(and(eq(packingItems.tripId, lockedSection.tripId), eq(packingItems.labelId, lockedSection.id)));
     } else {
       const exhaustiveMode: never = input.mode;
       throw new Error(`Unsupported section removal mode: ${String(exhaustiveMode)}`);
     }
 
-    await tx.delete(packingItems).where(eq(packingItems.id, section.id));
+    await tx.delete(packingItems).where(eq(packingItems.id, lockedSection.id));
   });
 
-  revalidatePath(`/trips/${section.tripId}`);
+  revalidatePath(`/trips/${revalidateTripId}`);
   revalidatePath("/trips");
 }
 
@@ -265,6 +299,8 @@ async function reorderPackingItemsImpl(
   }
 
   await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, tripId);
+
     for (const entry of ordered) {
       const [currentItem] = await tx
         .select({ listId: packingItems.listId })
@@ -293,22 +329,9 @@ async function pullTemplatesOntoTripImpl(
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
   const normalizedListId = listId ?? null;
-  await validatePackingListId(tripId, normalizedListId);
   const uniqueIds = [...new Set(templateIds)];
   if (uniqueIds.length === 0) {
     return { added: 0, skipped: 0 };
-  }
-
-  const existingRows = await db
-    .select({ name: packingItems.name, id: packingItems.id, isLabel: packingItems.isLabel })
-    .from(packingItems)
-    .where(buildPackingListItemScope(tripId, normalizedListId));
-  const existingNames = new Set(existingRows.map((row) => row.name.toLowerCase().trim()));
-  const existingLabelNameToId = new Map<string, string>();
-  for (const row of existingRows) {
-    if (row.isLabel) {
-      existingLabelNameToId.set(row.name.toLowerCase().trim(), row.id);
-    }
   }
 
   const ownedTemplates = await db
@@ -321,6 +344,21 @@ async function pullTemplatesOntoTripImpl(
   let skipped = 0;
 
   await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, tripId);
+    await validatePackingListId(tripId, normalizedListId, tx);
+
+    const existingRows = await tx
+      .select({ name: packingItems.name, id: packingItems.id, isLabel: packingItems.isLabel })
+      .from(packingItems)
+      .where(buildPackingListItemScope(tripId, normalizedListId));
+    const existingNames = new Set(existingRows.map((row) => row.name.toLowerCase().trim()));
+    const existingLabelNameToId = new Map<string, string>();
+    for (const row of existingRows) {
+      if (row.isLabel) {
+        existingLabelNameToId.set(row.name.toLowerCase().trim(), row.id);
+      }
+    }
+
     const [maxPosRow] = await tx
       .select({ maxPos: max(packingItems.position) })
       .from(packingItems)
@@ -407,6 +445,8 @@ async function saveTripListAsTemplateImpl(
   let result: SaveTripAsTemplateResult = { templateId: "" };
 
   await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, tripId);
+
     if (idempotencyKey) {
       const [existing] = await tx
         .select({ result: idempotencyKeys.result, createdAt: idempotencyKeys.createdAt })
@@ -567,15 +607,21 @@ export async function createPackingList(tripId: string, name: string): Promise<s
   const trimmedName = name.trim();
   if (!trimmedName) throw new Error("List name is required");
 
-  const [{ maxPos }] = await db
-    .select({ maxPos: max(tripPackingLists.position) })
-    .from(tripPackingLists)
-    .where(eq(tripPackingLists.tripId, tripId));
+  const row = await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, tripId);
 
-  const [row] = await db
-    .insert(tripPackingLists)
-    .values({ tripId, name: trimmedName, position: (maxPos ?? -1) + 1 })
-    .returning({ id: tripPackingLists.id });
+    const [{ maxPos }] = await tx
+      .select({ maxPos: max(tripPackingLists.position) })
+      .from(tripPackingLists)
+      .where(eq(tripPackingLists.tripId, tripId));
+
+    const [insertedRow] = await tx
+      .insert(tripPackingLists)
+      .values({ tripId, name: trimmedName, position: (maxPos ?? -1) + 1 })
+      .returning({ id: tripPackingLists.id });
+
+    return insertedRow;
+  });
 
   if (!row) throw new Error("Failed to create packing list");
 
@@ -612,6 +658,7 @@ export async function deletePackingList(listId: string): Promise<void> {
   await assertTripAccess(list.tripId, user.id!, "editor");
 
   await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, list.tripId);
     await tx.delete(packingItems).where(eq(packingItems.listId, listId));
     await tx.delete(tripPackingLists).where(eq(tripPackingLists.id, listId));
   });

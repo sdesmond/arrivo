@@ -248,7 +248,18 @@ async function keyboardMovePackingItemDownOnePosition(page: Page, name: string):
       }
     }).toPass({ timeout: 10_000 });
 
+    // Enter drops the item, firing the reorder server action. Wait for that POST
+    // to resolve — the transaction commits and revalidatePath runs before the
+    // response returns — so a later reload cannot out-race persistence. A move
+    // that registers as a no-op fires no POST, so tolerate a timeout and fall
+    // through to the position check / retry.
+    const reorderResponse = page
+      .waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/trips/"), {
+        timeout: 5_000,
+      })
+      .catch(() => null);
     await dragHandle.press("Enter");
+    await reorderResponse;
 
     try {
       await waitForPackingItemPosition(page, name, 1, 3_000);

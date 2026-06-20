@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { packingTemplateItems, packingTemplates } from "@/db/schema";
 import { requireUser } from "@/lib/auth-helpers";
 import { withErrorHandling } from "@/lib/error-utils";
+import { lockPackingTemplateForUpdate } from "@/lib/server-action-locks";
 import {
   RemovePackingSectionMode,
   type AddTemplateItemInput,
@@ -68,6 +69,8 @@ async function addTemplateItemImpl(templateId: string, input: AddTemplateItemInp
   if (input.afterItemId) {
     const afterItemId = input.afterItemId;
     newItem = await db.transaction(async (tx) => {
+      await lockPackingTemplateForUpdate(tx, templateId);
+
       const [targetItem] = await tx
         .select()
         .from(packingTemplateItems)
@@ -100,6 +103,8 @@ async function addTemplateItemImpl(templateId: string, input: AddTemplateItemInp
   } else if (input.beforeItemId) {
     const beforeItemId = input.beforeItemId;
     newItem = await db.transaction(async (tx) => {
+      await lockPackingTemplateForUpdate(tx, templateId);
+
       const [targetItem] = await tx
         .select()
         .from(packingTemplateItems)
@@ -133,21 +138,25 @@ async function addTemplateItemImpl(templateId: string, input: AddTemplateItemInp
       return inserted;
     });
   } else {
-    const [{ maxPos }] = await db
-      .select({ maxPos: max(packingTemplateItems.position) })
-      .from(packingTemplateItems)
-      .where(eq(packingTemplateItems.templateId, templateId));
+    const [inserted] = await db.transaction(async (tx) => {
+      await lockPackingTemplateForUpdate(tx, templateId);
 
-    const [inserted] = await db
-      .insert(packingTemplateItems)
-      .values({
-        templateId,
-        text,
-        isLabel: input.isLabel ?? false,
-        position: (maxPos ?? -1) + 1,
-        labelId,
-      })
-      .returning({ id: packingTemplateItems.id });
+      const [{ maxPos }] = await tx
+        .select({ maxPos: max(packingTemplateItems.position) })
+        .from(packingTemplateItems)
+        .where(eq(packingTemplateItems.templateId, templateId));
+
+      return tx
+        .insert(packingTemplateItems)
+        .values({
+          templateId,
+          text,
+          isLabel: input.isLabel ?? false,
+          position: (maxPos ?? -1) + 1,
+          labelId,
+        })
+        .returning({ id: packingTemplateItems.id });
+    });
 
     newItem = inserted;
   }
@@ -197,6 +206,20 @@ async function removeTemplateSectionImpl(itemId: string, input: RemovePackingSec
   }
 
   await db.transaction(async (tx) => {
+    await lockPackingTemplateForUpdate(tx, templateId);
+
+    const [lockedSection] = await tx
+      .select({
+        id: packingTemplateItems.id,
+        isLabel: packingTemplateItems.isLabel,
+      })
+      .from(packingTemplateItems)
+      .where(and(eq(packingTemplateItems.id, itemId), eq(packingTemplateItems.templateId, templateId)));
+
+    if (!lockedSection || lockedSection.isLabel !== true) {
+      throw new Error("Section not found.");
+    }
+
     if (input.mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
       await tx
         .update(packingTemplateItems)
@@ -205,12 +228,14 @@ async function removeTemplateSectionImpl(itemId: string, input: RemovePackingSec
     } else {
       await tx
         .delete(packingTemplateItems)
-        .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.labelId, itemId)));
+        .where(
+          and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.labelId, lockedSection.id))
+        );
     }
 
     await tx
       .delete(packingTemplateItems)
-      .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.id, itemId)));
+      .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.id, lockedSection.id)));
   });
 
   revalidatePath(`/packing/${templateId}`);
@@ -228,6 +253,8 @@ async function reorderTemplateItemsImpl(
   }
 
   await db.transaction(async (tx) => {
+    await lockPackingTemplateForUpdate(tx, templateId);
+
     for (const item of ordered) {
       await tx
         .update(packingTemplateItems)
