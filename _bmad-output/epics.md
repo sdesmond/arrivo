@@ -128,6 +128,10 @@ Users see their Reservations automatically reflected on the Itinerary and Now Ca
 Users can manage their trip's cover image (edit, remove, view photo attribution) via a new "⋯" overflow menu on the cover, with cover controls removed from the edit sheet. Fully independent of Epics 1 & 2 — can be built/shipped in any order relative to them.
 **FRs covered:** FR12, FR13
 
+### Epic 4: Reservations Backlog Cleanup
+Closes a real functional bug and a batch of independently-deferred code-review polish items accumulated across Epics 1–3's reviews. No new product requirements — every change brings already-shipped code into compliance with existing FR8/NFR1 intent, or removes pre-existing DRY/race risk.
+**FRs covered:** none new — closes existing-FR8/NFR1 implementation gaps
+
 ## Epic 1: Record & Manage Reservations
 
 Users can add, view (grouped by type into accordions), edit, delete, and attach documents to Reservations from a new Reservations tab — giving them a single source of truth for trip bookings, independent of any Itinerary changes.
@@ -579,3 +583,93 @@ So that the edit sheet stays simple and cover editing happens in one place — t
 **And** a search for other references to `TripEditCover`/`trip-edit-cover` across `src/` confirms no remaining imports after deletion
 
 **And** E2E: `tests/e2e/features/trip-cover-overflow.feature` (from Story 3.1) gains a scenario opening the trip edit sheet and verifying no cover image controls are present, alongside the existing overflow-menu scenarios
+
+## Epic 4: Reservations Backlog Cleanup
+
+Closes a real functional bug and a batch of independently-deferred code-review polish items accumulated across Epics 1–3's reviews (tracked in `_bmad-output/implementation-artifacts/deferred-work.md`). No new product requirements — every change brings already-shipped code into compliance with existing FR8 (date-range extension) and NFR1 (accessibility floor) intent, or removes pre-existing DRY/race risk.
+
+### Story 4.1: Require Trip Dates Before Adding a Reservation
+
+As a trip planner,
+I want to be prompted to set my trip's dates before I can add a Reservation to a dateless trip,
+So that my booking dates always land on real, correctly-ordered itinerary days instead of risking orphaned or misaligned placeholder days.
+
+**Acceptance Criteria:**
+
+**Given** a dateless trip (`trip.startDate` unset)
+**When** `createReservation` is called (`src/app/(app)/trips/[tripId]/reservations/actions.ts`)
+**Then** it throws `"Set trip dates before adding a reservation."` before opening its transaction, and no `reservations` or `days` row is written
+
+**Given** a dated trip
+**When** `createReservation` is called
+**Then** behavior is unchanged from today — no regression for the only state Reservations are designed to operate in
+
+**Given** the Reservations tab (`reservations-tab.tsx`) on a dateless trip
+**When** it renders
+**Then** — because a dateless trip can never have an existing Reservation, it is always in the zero-reservations branch — it shows a "Set trip dates to add reservations" prompt (same `Empty` composition pattern as the existing empty state, different copy/icon) instead of the normal "No reservations yet" / "Add Reservation" state
+
+**Given** that prompt
+**When** I tap its button
+**Then** it calls `onOpenEditDates` (a new prop, wired from `trip-detail-tab-body.tsx` to the same `() => setEditingTrip(true)` callback already passed to the Itinerary's existing "Set trip dates" affordance), opening `TripEditSheet`
+
+**Given** `TripEditSheet`'s date range field
+**When** I set and save trip dates from that entry point
+**Then** it uses the existing, unmodified `updateTripMetadata` dateless→dated handling (`src/app/(app)/trips/actions.ts:329-392`) — no new date-setting logic is written — and the Reservations tab now shows the normal empty state, allowing a Reservation to be added
+
+**Given** the Itinerary CTA (`ItineraryCta`/`onActivateReservationsCta`)
+**When** tapped on a dateless trip
+**Then** it is intentionally left unchanged — it still navigates to the Reservations tab unconditionally; the tab itself is the single point that decides what to show, so no per-entry-point special-casing is added
+
+**And** `extendTripDateRange` is **not modified** — once Reservations only ever exist on dated trips, every date it places already lands in its existing, already-correct shift/append branches; the originally-proposed null-date-day-filling logic is dropped entirely, and `addDay`/`updateTripMetadata` also remain unchanged
+
+**And** unit tests: `reservations/actions.test.ts` — `createReservation` rejects on a dateless trip, unaffected on a dated trip; `reservations-tab.test.tsx` — `isDateless=true` + zero reservations renders the prompt and invokes `onOpenEditDates`, `isDateless=false` + zero reservations renders today's unchanged empty state, existing populated-accordion tests updated for the new required props
+
+**And** E2E: one new scenario — on a dateless trip, the Reservations tab shows the set-dates prompt instead of "Add Reservation"; setting dates via the prompt's button (through the real `TripEditSheet`/`updateTripMetadata` flow) then allows adding a reservation normally. This crosses the server/client boundary so belongs in E2E, not as a duplicate unit test
+
+### Story 4.2: Reservations Polish & Hardening Batch
+
+As a developer maintaining the Reservations feature,
+I want the small, independently-deferred code-review findings from Stories 1.1–2.4 resolved,
+So that the backlog reflects real outstanding work instead of accumulating low-risk items indefinitely.
+
+**Acceptance Criteria:**
+
+**Given** `createReservation` (`reservations/actions.ts`)
+**When** `startAt`/`endAt` are malformed (non-parseable as a date)
+**Then** it rejects with the same validation `updateReservation` already has, before opening the transaction
+
+**Given** the reservation-documents query in `getTripDetail` (`src/lib/queries.ts`)
+**When** a Reservation has multiple attached Documents
+**Then** they return in a stable, deterministic order (`orderBy(documents.addedAt)`, matching the trip-docs query)
+
+**Given** `REQUIRES_END_AT` (currently duplicated in `reservations/actions.ts` and `reservation-edit-drawer.tsx`)
+**When** this story is implemented
+**Then** it is exported once from `reservation-type-badge.tsx` (the existing centralized reservation-type-metadata module) and imported by both call sites, with no behavior change
+
+**Given** `ReservationAnchorFieldset`'s date/time inputs
+**When** a validation error is shown
+**Then** both `DatePicker` and `TimePicker` carry `aria-describedby` pointing at the rendered error message's `id`
+
+**Given** a Reservation Type accordion header (`reservation-type-section.tsx`)
+**When** expanded
+**Then** the header button's `aria-controls` references the `id` of the rendered row region
+
+**Given** `PLACEHOLDER_STYLE` (currently duplicated in `reservation-row.tsx` and `reservation-inline-text-field.tsx`)
+**When** this story is implemented
+**Then** it is exported once from `reservation-inline-text-field.tsx` and imported by `reservation-row.tsx`, with no visual change
+
+**Given** `openSections` state in `reservations-tab.tsx`
+**When** a Reservation Type's last reservation is deleted (its section disappears) and a new Reservation of that type is later added
+**Then** that type's section renders collapsed by default, not stale-expanded
+
+**Given** two Reservations sharing the same `provider` value
+**When** their delete buttons are rendered
+**Then** each has a distinct accessible name (disambiguated by the reservation's formatted date/time via the existing `formatReservationDateRange` helper)
+
+**Given** `ReservationInlineTextField`'s `save()` and `reservation-row.tsx`'s `handleDoneEditingDates()`
+**When** a save is already in flight
+**Then** a re-entrant call (rapid Enter+blur, double-blur) is a no-op, mirroring the existing `deletingRef` guard pattern already used for delete
+
+**And** unit/component tests added or extended for each item above, colocated with its source file per project convention
+
+**And** `_bmad-output/implementation-artifacts/deferred-work.md` is updated: items resolved by Story 4.1/4.2 are removed; items confirmed as accepted-design/no-action are removed; a new "Candidate Future Epics" section is added at the top listing the three app-wide concerns intentionally left open — timezone-naive UTC storage, no server-side upload MIME validation + unsanitized filename-as-blob-key, no row-level locking/TOCTOU across server actions — each with one line on what a dedicated future story would need to decide
