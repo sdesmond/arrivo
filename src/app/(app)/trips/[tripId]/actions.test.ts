@@ -252,6 +252,7 @@ describe("addChecklistFromPackingSource", () => {
 describe("uploadCoverImage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockAssertTripAccess.mockResolvedValue(undefined);
@@ -275,7 +276,9 @@ describe("uploadCoverImage", () => {
     const formData = new FormData();
     formData.append("file", new File(["pdf"], "notes.pdf", { type: "application/pdf" }));
 
-    await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow("Cover image must be an image");
+    await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow(
+      "Unsupported cover image type. Choose JPG, PNG, WEBP, HEIC, GIF, or AVIF."
+    );
 
     expect(mockBlobPut).not.toHaveBeenCalled();
     expect(mockDbUpdate).not.toHaveBeenCalled();
@@ -294,6 +297,7 @@ describe("uploadCoverImage", () => {
   });
 
   it("cleans up an uploaded blob when the trip update fails", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     const formData = new FormData();
     formData.append("file", new File(["img"], "cover.png", { type: "image/png" }));
     mockBlobPut.mockResolvedValue({ url: "https://blob.vercel.dev/cover.png" });
@@ -307,12 +311,15 @@ describe("uploadCoverImage", () => {
 
     await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow("db failed");
 
-    expect(mockBlobPut).toHaveBeenCalledWith("cover.png", expect.any(File), { access: "public" });
+    expect(mockBlobPut).toHaveBeenCalledWith("trip-covers/trip-1/upload-1234.png", expect.any(File), {
+      access: "public",
+    });
     expect(mockBlobDel).toHaveBeenCalledWith("https://blob.vercel.dev/cover.png");
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
   it("updates the trip cover and revalidates on success", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     const formData = new FormData();
     formData.append("file", new File(["img"], "cover.png", { type: "image/png" }));
     mockBlobPut.mockResolvedValue({ url: "https://blob.vercel.dev/cover.png" });
@@ -325,6 +332,7 @@ describe("uploadCoverImage", () => {
   });
 
   it("returns a local upload url in stub mode", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     vi.stubEnv("UPLOAD_STUB", "true");
     const formData = new FormData();
     const file = new File(["img"], "cover.png", { type: "image/png" });
@@ -333,11 +341,12 @@ describe("uploadCoverImage", () => {
 
     await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("/uploads/local-cover.png");
 
-    expect(mockSaveLocalUpload).toHaveBeenCalledWith(file);
+    expect(mockSaveLocalUpload).toHaveBeenCalledWith(file, { storageName: "trip-covers/trip-1/upload-1234.png" });
     expect(mockBlobPut).not.toHaveBeenCalled();
   });
 
   it("cleans up the previous blob when replacing a cover image", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     const formData = new FormData();
     formData.append("file", new File(["img"], "new-cover.png", { type: "image/png" }));
     mockBlobPut.mockResolvedValue({ url: "https://blob.vercel.dev/new-cover.png" });
@@ -355,6 +364,7 @@ describe("uploadCoverImage", () => {
   });
 
   it("does not delete the previous cover when it is a local stub upload", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     vi.stubEnv("UPLOAD_STUB", "true");
     const formData = new FormData();
     formData.append("file", new File(["img"], "new-cover.png", { type: "image/png" }));
@@ -374,6 +384,7 @@ describe("uploadCoverImage", () => {
   });
 
   it("does not delete the previous cover when it is an external url", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     const formData = new FormData();
     formData.append("file", new File(["img"], "new-cover.png", { type: "image/png" }));
     mockBlobPut.mockResolvedValue({ url: "https://blob.vercel.dev/new-cover.png" });

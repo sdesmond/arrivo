@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { TripDocsTab } from "./trip-docs-tab";
 import type { Document } from "@/data/types";
 import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
-import { MAX_UPLOAD_BYTES } from "@/lib/utils";
+import { DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({
@@ -131,14 +131,14 @@ describe("TripDocsTab", () => {
 
   it("shows file type and size hint text when there is no error", () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
-    expect(screen.getByText("PDF, JPG, PNG, WEBP, HEIC · max 25 MB")).toBeInTheDocument();
+    expect(screen.getByText(DOCUMENT_UPLOAD_HINT)).toBeInTheDocument();
   });
 
   it("does not call uploadDocument when the selected file exceeds the size limit", async () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
     const input = document.getElementById("doc-upload") as HTMLInputElement;
     const oversized = new File(["x".repeat(100)], "huge.pdf", { type: "application/pdf" });
-    Object.defineProperty(oversized, "size", { value: MAX_UPLOAD_BYTES + 1 });
+    Object.defineProperty(oversized, "size", { value: 25 * 1024 * 1024 + 1 });
     Object.defineProperty(input, "files", { value: [oversized], writable: false });
     fireEvent.change(input);
     await waitFor(() => {
@@ -150,11 +150,27 @@ describe("TripDocsTab", () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
     const input = document.getElementById("doc-upload") as HTMLInputElement;
     const oversized = new File(["x".repeat(100)], "huge.pdf", { type: "application/pdf" });
-    Object.defineProperty(oversized, "size", { value: MAX_UPLOAD_BYTES + 1 });
+    Object.defineProperty(oversized, "size", { value: 25 * 1024 * 1024 + 1 });
     Object.defineProperty(input, "files", { value: [oversized], writable: false });
     fireEvent.change(input);
     await waitFor(() => {
-      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("File is too large. Max 25 MB.");
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("File is too large. Max 25.0 MB.");
+    });
+  });
+
+  it("rejects unsupported file types before calling uploadDocument", async () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const input = document.getElementById("doc-upload") as HTMLInputElement;
+    const unsupported = new File(["word content"], "notes.docx", { type: "application/msword" });
+    Object.defineProperty(input, "files", { value: [unsupported], writable: false });
+
+    fireEvent.change(input);
+
+    await waitFor(() => {
+      expect(vi.mocked(uploadDocument)).not.toHaveBeenCalled();
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+        "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
+      );
     });
   });
 
@@ -162,11 +178,11 @@ describe("TripDocsTab", () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
     const input = document.getElementById("doc-upload") as HTMLInputElement;
     const oversized = new File(["x".repeat(100)], "huge.pdf", { type: "application/pdf" });
-    Object.defineProperty(oversized, "size", { value: MAX_UPLOAD_BYTES + 1 });
+    Object.defineProperty(oversized, "size", { value: 25 * 1024 * 1024 + 1 });
     Object.defineProperty(input, "files", { value: [oversized], writable: false });
     fireEvent.change(input);
     await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled());
-    expect(screen.getByText("PDF, JPG, PNG, WEBP, HEIC · max 25 MB")).toBeInTheDocument();
+    expect(screen.getByText(DOCUMENT_UPLOAD_HINT)).toBeInTheDocument();
   });
 
   it("calls toast.error when uploadDocument rejects", async () => {
@@ -177,7 +193,7 @@ describe("TripDocsTab", () => {
     Object.defineProperty(input, "files", { value: [file], writable: false });
     fireEvent.change(input);
     await waitFor(() => {
-      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Upload failed. Please try again.");
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("server error");
     });
   });
 });

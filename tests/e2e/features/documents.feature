@@ -22,6 +22,11 @@ Feature: Document Upload
     When I upload a file named "boarding-pass.pdf" with MIME type "application/pdf"
     Then the document "boarding-pass.pdf" appears in the Documents list
 
+  Scenario: Reject an unsupported document upload type
+    When I upload a file named "notes.docx" with MIME type "application/msword"
+    Then I see the upload error "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
+    And the document "notes.docx" is no longer visible
+
   Scenario: Rename a document from the Documents tab
     When I upload a file named "rename-me.pdf" with MIME type "application/pdf"
     Then the document "rename-me.pdf" appears in the Documents list

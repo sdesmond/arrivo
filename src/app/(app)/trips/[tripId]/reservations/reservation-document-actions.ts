@@ -6,8 +6,9 @@ import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { reservations, documents } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { MAX_UPLOAD_BYTES, inferDocKind, formatFileSize } from "@/lib/utils";
+import { inferDocKind, formatFileSize } from "@/lib/utils";
 import { saveLocalUpload } from "@/lib/local-upload";
+import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
 
 async function getReservationTripId(reservationId: string): Promise<string> {
   const [reservation] = await db
@@ -26,11 +27,14 @@ export async function uploadReservationDocument(reservationId: string, formData:
 
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided.");
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error(`File is too large. Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+  assertValidDocumentUpload(file);
 
   const kind = inferDocKind(file.type);
   const isStub = process.env.UPLOAD_STUB === "true";
-  const url = isStub ? await saveLocalUpload(file) : (await put(file.name, file, { access: "public" })).url;
+  const storageName = createUploadStorageName("reservation-document", reservationId, file.type);
+  const url = isStub
+    ? await saveLocalUpload(file, { storageName })
+    : (await put(storageName, file, { access: "public" })).url;
 
   try {
     await db.insert(documents).values({

@@ -17,15 +17,13 @@ import {
 } from "@/db/schema";
 import { eq, and, max, gte, sql, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { del, put } from "@vercel/blob";
-import { saveLocalUpload, isBlobUploadUrl } from "@/lib/local-upload";
+import { del } from "@vercel/blob";
+import { deriveGraphicCover } from "@/lib/utils";
 import {
-  deriveGraphicCover,
-  inferDocKind,
-  formatFileSize,
-  MAX_COVER_IMAGE_UPLOAD_BYTES,
-  MAX_UPLOAD_BYTES,
-} from "@/lib/utils";
+  uploadDocument as uploadTripDocumentAction,
+  uploadDocumentToEvent as uploadEventDocumentAction,
+} from "./document-upload-actions";
+import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
 import type {
   CreateEventInput,
   UpdateEventPatch,
@@ -396,31 +394,6 @@ export async function removeLastDay(tripId: string, confirmedDestructiveRemoval 
   return result;
 }
 
-export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const file = formData.get("file");
-  if (!(file instanceof File)) throw new Error("No file provided");
-
-  const name = file.name;
-  const kind = inferDocKind(file.type);
-  const size = formatFileSize(file.size);
-
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File exceeds 25 MB limit");
-
-  let url: string;
-  if (process.env.UPLOAD_STUB === "true") {
-    url = await saveLocalUpload(file);
-  } else {
-    const result = await put(name, file, { access: "public" });
-    url = result.url;
-  }
-
-  await db.insert(documents).values({ tripId, name, kind, size, url });
-  revalidatePath(`/trips/${tripId}`);
-}
-
 export async function setTripCoverWithAttribution(
   tripId: string,
   coverImageUrl: string,
@@ -457,55 +430,8 @@ export async function removeTripCover(tripId: string): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const file = formData.get("file");
-  if (!(file instanceof File)) throw new Error("No file provided");
-  if (!file.type.startsWith("image/")) throw new Error("Cover image must be an image");
-  if (file.size > MAX_COVER_IMAGE_UPLOAD_BYTES) throw new Error("Cover image exceeds 12 MB limit");
-
-  let url: string;
-  let uploadedBlobUrl: string | null = null;
-  try {
-    const existing = await db
-      .select({ coverImageUrl: trips.coverImageUrl })
-      .from(trips)
-      .where(eq(trips.id, tripId))
-      .limit(1);
-    const previousUrl = existing[0]?.coverImageUrl;
-
-    if (process.env.UPLOAD_STUB === "true") {
-      url = await saveLocalUpload(file);
-    } else {
-      const result = await put(file.name, file, { access: "public" });
-      url = result.url;
-      uploadedBlobUrl = result.url;
-    }
-
-    await db
-      .update(trips)
-      .set({ coverImageUrl: url, coverPhotographer: null, coverPhotographerUrl: null })
-      .where(eq(trips.id, tripId));
-
-    if (previousUrl && isBlobUploadUrl(previousUrl)) {
-      await del(previousUrl).catch((cleanupError) =>
-        console.warn(`Blob cleanup failed for previous cover image ${previousUrl}`, cleanupError)
-      );
-    }
-  } catch (error) {
-    if (uploadedBlobUrl) {
-      await del(uploadedBlobUrl).catch((cleanupError) =>
-        console.warn(`Blob cleanup failed for cover image ${uploadedBlobUrl}`, cleanupError)
-      );
-    }
-
-    throw error;
-  }
-
-  revalidatePath(`/trips/${tripId}`);
-  return url;
+export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
+  return uploadTripDocumentAction(tripId, formData);
 }
 
 export async function addDocument(input: AddDocumentInput): Promise<void> {
@@ -770,27 +696,9 @@ export async function addChecklistFromPackingSource(
 }
 
 export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {
-  const user = await requireUser();
-  const tripId = await getEventTripId(eventId);
-  await assertTripAccess(tripId, user.id!, "editor");
+  return uploadEventDocumentAction(eventId, formData);
+}
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) throw new Error("No file provided");
-
-  const name = file.name;
-  const kind = inferDocKind(file.type);
-  const size = formatFileSize(file.size);
-
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File exceeds 25 MB limit");
-
-  let url: string;
-  if (process.env.UPLOAD_STUB === "true") {
-    url = await saveLocalUpload(file);
-  } else {
-    const result = await put(name, file, { access: "public" });
-    url = result.url;
-  }
-
-  await db.insert(documents).values({ tripId, eventId, name, kind, size, url });
-  revalidatePath(`/trips/${tripId}`);
+export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {
+  return uploadCoverImageAction(tripId, formData);
 }
