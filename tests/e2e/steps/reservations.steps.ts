@@ -98,6 +98,10 @@ Then("I see the {string} empty state", async ({ page }, title: string) => {
   await expect(page.getByText(title)).toBeVisible({ timeout: 10_000 });
 });
 
+Then("the Add Reservation button is visible", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Add Reservation" })).toBeVisible({ timeout: 10_000 });
+});
+
 Then("no reservation type sections are shown", async ({ page }) => {
   await expect(page.getByRole("button", { name: /reservation,/ })).toHaveCount(0);
 });

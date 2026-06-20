@@ -108,3 +108,4 @@ Feature: Reservations
     And I change the trip date range to "2026-08-01" through "2026-08-03"
     And I save the trip date change
     Then I see the "No reservations yet" empty state
+    And the Add Reservation button is visible

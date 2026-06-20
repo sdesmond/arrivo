@@ -64,7 +64,7 @@ describe("CoverImagePicker", () => {
     expect(screen.getByTestId("cover-search-tab")).toHaveAttribute("data-center", "2.347,48.859");
   });
 
-  it("routes search photo selection through onImageSelected and onClose", async () => {
+  it("routes search photo selection through onImageSelected without closing immediately", async () => {
     const user = userEvent.setup();
     const onImageSelected = vi.fn();
     const onClose = vi.fn();
@@ -78,7 +78,7 @@ describe("CoverImagePicker", () => {
       photographer: "Search Photographer",
       photographerUrl: "https://unsplash.com/@search-photographer",
     });
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("normalizes map string selections into image objects", async () => {
@@ -91,7 +91,7 @@ describe("CoverImagePicker", () => {
     await user.click(screen.getByRole("button", { name: "select-map-image" }));
 
     expect(onImageSelected).toHaveBeenCalledWith({ url: "/api/mapbox/static?lng=1&lat=2" });
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("renders Upload tab drop zone and URL tab input on tab switch", async () => {

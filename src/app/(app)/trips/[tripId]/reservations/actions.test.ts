@@ -97,7 +97,14 @@ describe("createReservation", () => {
 
   function mockSelectResults(...results: unknown[][]): void {
     db.select.mockReset();
-    for (const result of results) {
+    const secondResultLooksLikeTripRow =
+      results.length > 1 &&
+      typeof results[1]?.[0] === "object" &&
+      results[1]?.[0] !== null &&
+      ("startDate" in (results[1][0] as Record<string, unknown>) ||
+        "endDate" in (results[1][0] as Record<string, unknown>));
+    const queuedResults = results.length > 0 && !secondResultLooksLikeTripRow ? [results[0], ...results] : results;
+    for (const result of queuedResults) {
       db.select.mockReturnValueOnce(createSelectMock(result));
     }
   }
@@ -214,6 +221,23 @@ describe("createReservation", () => {
 
     expect(insertedReservationValues).toMatchObject({ provider: "Acme Air" });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("uses the transaction's current trip dates for extension decisions", async () => {
+    mockSelectResults(
+      [{ startDate: "2030-06-10", endDate: "2030-06-15" }],
+      [{ startDate: "2030-06-09", endDate: "2030-06-15" }]
+    );
+
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Fresh Snapshot Air",
+      startAt: "2030-06-09T10:00:00.000Z",
+    });
+
+    expect(insertedDayValues).toEqual([]);
+    expect(updatedTripValues).toEqual([]);
+    expect(insertedReservationValues).toMatchObject({ provider: "Fresh Snapshot Air" });
   });
 
   it("inserts a reservation with all provided fields and converts dates", async () => {
@@ -480,6 +504,7 @@ describe("createReservation", () => {
 
   it("does not insert the reservation when date-range extension fails", async () => {
     db.select
+      .mockReturnValueOnce(createSelectMock([{ startDate: "2030-06-10", endDate: "2030-06-15" }]))
       .mockReturnValueOnce(createSelectMock([{ startDate: "2030-06-10", endDate: "2030-06-15" }]))
       .mockImplementationOnce(() => {
         throw new Error("extension failed");

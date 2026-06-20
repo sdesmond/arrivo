@@ -39,11 +39,22 @@ export async function createReservation(tripId: string, input: CreateReservation
   }
 
   await db.transaction(async (transaction) => {
+    const [currentTrip] = await transaction
+      .select({ startDate: trips.startDate, endDate: trips.endDate })
+      .from(trips)
+      .where(eq(trips.id, tripId));
+    if (!currentTrip) {
+      throw new Error("Trip not found.");
+    }
+    if (!currentTrip.startDate) {
+      throw new Error("Set trip dates before adding a reservation.");
+    }
+
     await extendTripDateRange(
       transaction,
       tripId,
-      trip.startDate ?? undefined,
-      trip.endDate ?? undefined,
+      currentTrip.startDate,
+      currentTrip.endDate ?? undefined,
       input.startAt,
       input.endAt
     );
