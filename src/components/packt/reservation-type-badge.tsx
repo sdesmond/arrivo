@@ -39,25 +39,43 @@ export const REQUIRES_END_AT: ReservationType[] = [
 
 export function formatAnchorDateTime(iso: string): string {
   const date = new Date(iso);
-  const datePart = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  const timePart = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const datePart = date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  const timePart = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
   return `${datePart} · ${timePart}`;
 }
 
 export function formatAnchorDateTimeRange(startIso: string, endIso: string): string {
   const startDate = new Date(startIso);
-  const datePart = startDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  const startTimePart = startDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  const endTimePart = new Date(endIso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const datePart = startDate.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  const startTimePart = startDate.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+  const endTimePart = new Date(endIso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
   return `${datePart} · ${startTimePart} – ${endTimePart}`;
 }
 
 function formatDatePart(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
 }
 
 function formatTimePart(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 }
 
 export function formatReservationDateRange(startAt: string | undefined, endAt: string | undefined): string {
@@ -65,9 +83,7 @@ export function formatReservationDateRange(startAt: string | undefined, endAt: s
   if (!startAt && endAt) return `${formatDatePart(endAt)}, ${formatTimePart(endAt)}`;
   if (!startAt) return "";
 
-  const startDate = new Date(startAt);
-  const endDate = new Date(endAt!);
-  const sameDay = startDate.toDateString() === endDate.toDateString();
+  const sameDay = startAt.slice(0, 10) === (endAt ?? "").slice(0, 10);
 
   if (sameDay) {
     return `${formatDatePart(startAt)}, ${formatTimePart(startAt)} – ${formatTimePart(endAt!)}`;

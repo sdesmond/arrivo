@@ -12,7 +12,7 @@ const DEMO_PASSWORD = "demo1234";
 
 function toStartAt(dateStr: string | undefined, timeStr: string | undefined): string | null {
   if (!dateStr || !timeStr) return null;
-  return new Date(`${dateStr}T${timeStr}:00`).toISOString();
+  return `${dateStr}T${timeStr}:00.000Z`;
 }
 
 const TRIP_DAYS: Record<string, DayItinerary[]> = {

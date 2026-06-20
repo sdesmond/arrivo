@@ -160,6 +160,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
               ? new Date(displayEvent.startAt).toLocaleTimeString("en-US", {
                   hour: "numeric",
                   minute: "2-digit",
+                  timeZone: "UTC",
                 })
               : "—"}
             <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
@@ -218,6 +219,7 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
                   ? new Date(event.startAt).toLocaleTimeString("en-US", {
                       hour: "numeric",
                       minute: "2-digit",
+                      timeZone: "UTC",
                     })
                   : ""}
               </span>

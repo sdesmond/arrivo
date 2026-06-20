@@ -19,7 +19,7 @@ import { cn, getTripStatus, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 }
 
 interface NowCardProps {

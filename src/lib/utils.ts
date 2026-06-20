@@ -6,16 +6,31 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function asFloatingUtc(date: Date): Date {
+  return new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+      date.getMilliseconds()
+    )
+  );
+}
+
 export function isEventPast(event: { endAt?: string }, now: Date): boolean {
   if (!event.endAt) return false;
-  return new Date(event.endAt) < now;
+  return new Date(event.endAt) < asFloatingUtc(now);
 }
 
 export function isEventNow(event: { startAt?: string; endAt?: string }, now: Date): boolean {
   if (!event.startAt || !event.endAt) return false;
   const start = new Date(event.startAt);
   const end = new Date(event.endAt);
-  return start <= now && now <= end;
+  const floatingNow = asFloatingUtc(now);
+  return start <= floatingNow && floatingNow <= end;
 }
 
 export function getTripStatus(
@@ -88,7 +103,7 @@ export function pluralize(count: number, singular: string, plural?: string): str
 
 export function combineDateAndTimeToIso(date: string | undefined, time: string | undefined): string | undefined {
   if (!date || !time) return undefined;
-  return new Date(`${date}T${time}:00`).toISOString();
+  return `${date}T${time}:00.000Z`;
 }
 
 export function toLocalDateKey(iso: string): string {
@@ -102,7 +117,7 @@ export function toLocalDateKey(iso: string): string {
 export function toHHMM(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return "";
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
