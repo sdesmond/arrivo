@@ -1,67 +1,61 @@
 # Deferred Work
 
+## Candidate Future Epics
+
+- **Timezone-naive UTC storage** — reservations/events store and render local wall-clock times as literal UTC (`Z` suffix) with no timezone field; round-tripping through a non-UTC viewer shifts displayed times. Needs a timezone strategy decision (store a TZ offset/IANA zone per trip or per anchor, or accept destination-bound display) before any fix is implementation-level.
+- **No server-side upload validation** — document/cover uploads accept any file content/type and use the unsanitized client filename as the public blob key. Needs a MIME allowlist + key-generation scheme decision (e.g. server-generated key + extension check) applied app-wide, not per-feature.
+- **No row-level locking / TOCTOU across server actions** — trip/day/reservation mutations read-then-write within a transaction but without `SELECT ... FOR UPDATE` or optimistic-lock versioning, so concurrent edits can race on a stale snapshot. Needs an isolation-level/locking approach decision applied consistently across all server actions, not just reservations.
+
+## Closed by Epic 4 (pending — remove these once 4.1/4.2 ship)
+
+- **Dateless-trip + reservation interaction creates orphaned/duplicate day rows** — `extendTripDateRange` (`reservations/actions.ts:51-72`) treats a dateless trip's existing `date: null` `days` rows as unrelated to the reservation's new date range, inserting brand-new dated days alongside them rather than filling them in. Closed by Story 4.1 — requiring trip dates before a Reservation can be added prevents this state from occurring at all.
+- **`createReservation` never validates `startAt`/`endAt` are well-formed ISO datetime strings** (`reservations/actions.ts:157-171`), unlike `updateReservation` which validates parseability. Closed by Story 4.2.
+- **`REQUIRES_END_AT` duplicated** in `reservations/actions.ts` and `reservation-edit-drawer.tsx`. Closed by Story 4.2.
+- **Error text not linked via `aria-describedby`** — `ReservationAnchorFieldset` sets an `errorId` on the error `<p>` but does not wire it to the date/time inputs. Closed by Story 4.2.
+- **Disclosure button lacks `aria-controls`** — the accordion header `<button aria-expanded>` in `reservation-type-section.tsx` has no `aria-controls` linking it to the region it toggles. Closed by Story 4.2.
+- **Reservation documents have no deterministic ordering** — the `inArray` docs query in `getTripDetail` (`queries.ts:249-252`) has no `orderBy`. Closed by Story 4.2.
+- **`PLACEHOLDER_STYLE` duplicated** in `reservation-row.tsx` and `reservation-inline-text-field.tsx`. Closed by Story 4.2.
+- **Stale `openSections` entry after last-of-type delete** — `reservations-tab.tsx` keeps the deleted type in its `openSections` Set. Closed by Story 4.2.
+- **Duplicate provider names yield duplicate "Delete {provider}" aria-labels** — two reservations with the same provider produce identical delete-button accessible names. Closed by Story 4.2.
+- **No in-flight/double-submit guard on inline edits** — Enter-then-blur or a rapid double-click can invoke `updateReservation` twice. Closed by Story 4.2.
+
 ## Deferred from: code review of 3-1-cover-overflow-menu-edit-remove-info (2026-06-19)
 
-- **`user.id!` non-null assertion** — existing pattern in codebase, not introduced by this change.
-- **`uploadCoverImage` discards previous attribution** — pre-existing behavior, not introduced by this change.
-- **TOCTOU race in `removeTripCover`** — pre-existing race condition across all server actions, not specific to this change.
+- **TOCTOU race in `removeTripCover`** — pre-existing race condition across all server actions, not specific to this change. See Candidate Future Epics above.
+
+## Deferred from: code review of 2-3-now-card-surfaces-linked-events (2026-06-19)
+
+- **UTC midnight timezone edge case in today date filter** [queries.ts:176-177] — deferred, matches existing codebase pattern. See Candidate Future Epics above.
 
 ## Deferred from: code review of 2-2-reservations-extend-the-itinerarys-date-range (2026-06-19)
 
-- **Dateless-trip + reservation interaction creates orphaned/duplicate day rows** — `extendTripDateRange` (`reservations/actions.ts:51-72`) treats a dateless trip's existing `date: null` `days` rows as unrelated to the reservation's new date range, inserting brand-new dated days alongside them rather than filling them in, while `existingDayCount` counts both toward `MAX_TRIP_DAYS`. Confirmed reachable: the New Trip dialog permits an empty date range, and `addDay`/`updateTripMetadata` both produce/maintain null-date day rows. Intended fix (per product direction): adding a dated Reservation to a dateless trip should fill in the existing null-date days in `dayNumber` order before inserting any new ones, effectively giving the trip dates the same way a dated trip would extend. Deferred — scope spans the existing dateless-trip handling (`addDay`, `updateTripMetadata`) beyond this story; track as its own follow-up story.
-- **No row-level locking around the trip-dates read + days/trip writes** — `extendTripDateRange` (`reservations/actions.ts:173-220`) reads `trip.startDate`/`endDate` and the existing `days` rows, then writes, all inside one transaction but with no `SELECT ... FOR UPDATE`. Concurrent `createReservation`/`updateReservation` calls for the same trip could both pass the `MAX_TRIP_DAYS` check off the same stale snapshot under default isolation. Deferred — matches the identical, pre-existing gap in `addDay`/`removeLastDay` (`trips/[tripId]/actions.ts`); fixing it is an isolation-level/locking decision beyond this story's scope.
-- **`createReservation` never validates `startAt`/`endAt` are well-formed ISO datetime strings before `extendTripDateRange` slices and string-compares them** (`reservations/actions.ts:157-171`), unlike `updateReservation` which validates parseability. Deferred — the missing validation predates this diff; real UI input always goes through `combineDateAndTime`'s `toISOString()` (UTC-normalized), so it's unreachable through normal use. Worth hardening if this action is ever called with unsanitized input.
-
-## Deferred from: code review of 2-1-linked-events-appear-on-the-itinerary (2026-06-18)
-
-- **Linked Events outside the trip's day range are silently dropped** — `queries.ts:368` assigns a linked event to a day via `linkedEvent.startAt.startsWith(day.date)`; a reservation anchor falling before day 1 or after the last day simply has no matching day and is dropped with no fallback or warning. Deferred — this is the exact day-matching strategy the story's own Dev Notes specify and accept as "simpler and more reliable" than day-number arithmetic; revisit only if out-of-range reservations turn out to be a real product scenario.
-- **Unrelated `AGENTS.md` change bundled into this story's diff** — removes the "This is NOT the Next.js you know" warning block (`AGENTS.md:8-11`), which has nothing to do with linked events. Deferred — harmless doc cleanup that rode in on this branch from an earlier commit, not introduced by this story's logic.
+- **No row-level locking around the trip-dates read + days/trip writes** — `extendTripDateRange` (`reservations/actions.ts:173-220`) reads `trip.startDate`/`endDate` and the existing `days` rows, then writes, all inside one transaction but with no `SELECT ... FOR UPDATE`. See Candidate Future Epics above.
 
 ## Deferred from: code review of 1-5-attach-documents-to-a-reservation (2026-06-16)
 
-- **No server-side file-type validation on upload** — `uploadReservationDocument` only checks `file instanceof File` and `file.size`; any content/type is accepted and stored `access: "public"`. Deferred because it is a pre-existing, app-wide pattern — the trip-doc upload path (`trips/[tripId]/actions.ts:397-404`) is identical. Revisit globally as a security hardening pass (allowlist by MIME/extension) rather than in this story.
-- **Unsanitized client `file.name` used as the public blob key** — `put(file.name, file, ...)` lets the client filename become the blob pathname, risking collisions/overwrites and key injection. Deferred because the trip-doc path (`trips/[tripId]/actions.ts:410`) does the same; sanitize or generate keys app-wide if it bites.
-- **Reservation documents have no deterministic ordering** — the `inArray` docs query in `getTripDetail` (`queries.ts:249-252`) has no `orderBy`, so the inline doc list order can flicker across reloads. Deferred as minor with no AC; add `.orderBy(documents.addedAt)` if order becomes user-visible or causes E2E flake.
+- **No server-side file-type validation on upload** — `uploadReservationDocument` only checks `file instanceof File` and `file.size`; any content/type is accepted and stored `access: "public"`. See Candidate Future Epics above.
+- **Unsanitized client `file.name` used as the public blob key** — `put(file.name, file, ...)` lets the client filename become the blob pathname, risking collisions/overwrites and key injection. See Candidate Future Epics above.
 - **Minor upload input edge cases** — a zero-byte `File` passes the upload guard and creates an empty document; `del()` could receive an empty array if every attached doc's `url` is null (the length guard is on the pre-filter array). Deferred as low-likelihood robustness polish.
 
 ## Deferred from: code review of 1-1-add-a-reservation (2026-06-14)
 
-- **Local wall-clock times stored as UTC** — `toIsoDateTime` concatenates the date/time picker values with a literal `Z` (`reservation-edit-drawer.tsx:72`). This shifts times by the user's UTC offset on round-trip. Deferred because it is a pre-existing, app-wide convention — events store and render times the same way (`"2026-05-13T10:00:00Z"` + `toLocaleString`). Revisit globally if timezone-correct storage is pursued, not as part of this story.
+- **Local wall-clock times stored as UTC** — `toIsoDateTime` concatenates the date/time picker values with a literal `Z` (`reservation-edit-drawer.tsx:72`). See Candidate Future Epics above.
 - **Dev-date-picker overlay overlaps the drawer footer Save button** — the dev-only floating mock-date toggle (fixed bottom-right, `z-index: 9999`) intercepts pointer clicks on the right-direction drawer's Save button in dev/E2E; the E2E step uses focus+Enter to work around it (`reservations.steps.ts:29`). Deferred because the overlay only renders when `NODE_ENV === "development"` and is absent in production. Consider repositioning the dev overlay or the drawer footer if it bites again.
 - **No index on `reservations.trip_id`** — `getTripDetail` queries reservations by `tripId` but the table defines no index (unlike `events`). Deferred because the story spec explicitly specified no index; add later if per-trip scan cost matters.
-- **`REQUIRES_END_AT` duplicated** — the required-end-anchor list is copy-pasted in `actions.ts` and `reservation-edit-drawer.tsx`, so the two can drift. Deferred as a minor DRY refactor; hoist to a shared module if a new required-end type is added.
-- **Error text not linked via `aria-describedby`** — `ReservationAnchorFieldset` sets an `errorId` on the error `<p>` but does not wire it to the date/time inputs via `aria-describedby`. Deferred because the error already carries `role="status"`/`aria-live="polite"` (so it is announced) and `aria-invalid` is forwarded to both pickers.
 - **Weak E2E assertions** — the "drawer is open" step asserts substring text visibility rather than drawer role/state. Deferred as test-robustness polish.
 - **AC4 focus-on-error lacks direct test coverage** — the drawer's focus-to-invalid-end-anchor behavior works (DOM order puts the DatePicker button first), but the drawer unit test mocks `ReservationAnchorFieldset`, so the focus move is not directly asserted. Deferred as a test-coverage gap.
 
 ## Deferred from: code review of story-1.2 (2026-06-15)
 
-- **Timezone-naive anchor formatting** — `formatAnchorDateTime` in `reservation-type-section.tsx` uses `toLocaleDateString`/`toLocaleTimeString` with no `timeZone` option, so a reservation time stored as UTC renders shifted to the viewer's local timezone. Deferred because the helper is spec-mandated verbatim in the story Dev Notes and matches the existing app-wide date-formatting convention; revisit as a product/i18n decision (travel times are inherently destination-bound).
+- **Timezone-naive anchor formatting** — `formatAnchorDateTime` in `reservation-type-section.tsx` uses `toLocaleDateString`/`toLocaleTimeString` with no `timeZone` option, so a reservation time stored as UTC renders shifted to the viewer's local timezone. See Candidate Future Epics above.
 - **Orphan end-anchor when `startAt` absent but `endAt` set** — `reservation-type-section.tsx` renders start and end anchor lines independently, so a reservation with only `endAt` shows a lone "Arrival/Check-out/Return" line with no start. Deferred as a low-severity data-shape edge not introduced by this change; the Story 1.1 drawer generally couples the two anchors.
 - **E2E `toHaveCount(0)` can pass vacuously** — `Then("no reservation type sections are shown")` asserts zero matching buttons, which is satisfied before the tab content mounts. Deferred as a test-robustness nit; it is gated by the prior visible-empty-state step. Strengthen by asserting the empty-state title is visible within the same step.
-- **Disclosure button lacks `aria-controls`** — the accordion header `<button aria-expanded>` in `reservation-type-section.tsx` has no `aria-controls` linking it to the region it toggles. Deferred because it follows the existing `day-card`/`day-card-header` accordion pattern; address as a project-wide accordion a11y enhancement.
 
 ## Deferred from: code review of 1-3-edit-a-reservation (2026-06-15)
 
-- **Timezone-naive anchor edit/display** — `reservation-anchor-edit-field.tsx` reads/writes the anchor in UTC (`value.slice(0,10)`/`slice(11,16)` + a forced `Z` in `save()`), while `formatAnchorDateTime` renders in the viewer's local timezone. The hour shown can differ from the hour being edited in a non-UTC runtime, and the E2E `Then` step asserts only the minutes portion to stay TZ-agnostic. Deferred — same root cause as the already-tracked app-wide UTC convention (see the 1-1 and 1-2 entries above); revisit as a global timezone-correctness decision.
-- **`updateReservation` select-then-update is non-transactional** — the existence/`assertTripAccess` check and the `db.update` are separate awaited calls with no optimistic-lock/version guard, so two concurrent edits race (last-write-wins, TOCTOU). Deferred — consistent with the existing `updateEvent` pattern; revisit if optimistic concurrency is pursued app-wide.
-- **No in-flight/double-submit guard on inline edits** — Enter-then-blur (`reservation-inline-text-field.tsx`) or a rapid double-click on the anchor Save button (`reservation-anchor-edit-field.tsx`) can invoke `updateReservation` twice. Writes are idempotent (identical patch) so harm is low. Deferred; add a `saving` flag if duplicate writes/toasts become a problem.
-- **`PLACEHOLDER_STYLE` duplicated** — the muted-italic placeholder style is defined in both `reservation-row.tsx` and `reservation-inline-text-field.tsx`, contradicting the story's "define once, thread down" Dev Note (the two values are identical, so output is unaffected). Deferred as a minor DRY refactor; thread a `placeholderStyle` prop into the inline field if the styles ever need to diverge.
+- **Timezone-naive anchor edit/display** — `reservation-anchor-edit-field.tsx` reads/writes the anchor in UTC (`value.slice(0,10)`/`slice(11,16)` + a forced `Z` in `save()`), while `formatAnchorDateTime` renders in the viewer's local timezone. See Candidate Future Epics above.
+- **`updateReservation` select-then-update is non-transactional** — the existence/`assertTripAccess` check and the `db.update` are separate awaited calls with no optimistic-lock/version guard, so two concurrent edits race (last-write-wins, TOCTOU). See Candidate Future Epics above.
 
 ## Deferred from: code review of 1-4-delete-a-reservation (2026-06-16)
 
-- **Stale `openSections` entry after last-of-type delete** — `reservations-tab.tsx` keeps the deleted type in its `openSections` Set, so if a reservation of that same type is later re-added, its section renders pre-expanded from the stale entry. Deferred — pre-existing, the file was not modified by Story 1.4; reconcile `openSections` against the current `sections` if unexpected default-expanded sections become a problem.
-- **Duplicate provider names yield duplicate "Delete {provider}" aria-labels** — two reservations with the same provider (e.g. a multi-stay same-chain hotel) produce identical delete-button accessible names, which is ambiguous for screen readers and would break a `getByRole(name: "Delete {provider}")` selector in Playwright strict mode. Deferred — extends the pre-existing provider-as-button-label pattern established in Story 1.3; needs a broader labeling decision (add a date/index/id disambiguator across all row affordances).
 - **E2E confirm-click may be intercepted by the dev-only mock-date overlay** — the `When("I confirm the deletion")` step uses a plain `.click()`; the fixed bottom-right mock-date toggle (`z-index: 9999`) can intercept clicks, and the established pattern in the same file uses focus+Enter for exactly this reason. Deferred — unverifiable in this environment because E2E can't run without Postgres; the dialog footer is likely center-screen so interception is improbable, but confirm when the E2E suite can run.
-
-## Deferred from: code review of 2-3-now-card-surfaces-linked-events (2026-06-19)
-
-- **aria-label says "opens Reservations" but onClick may be no-op** [now-card.tsx:72,215] — deferred, placeholder per AC6, Story 2.4 replaces with real navigation
-- **UTC midnight timezone edge case in today date filter** [queries.ts:176-177] — deferred, matches existing codebase pattern
-
-## Deferred from: code review of 2-4-itinerary-cta-and-tap-to-edit-redirect (2026-06-19)
-
-- **Self-race in highlight deferred-resolve** — `reservations-tab.tsx` — Deferred matching can re-process stale highlight if user navigates away/back; pre-existing design tradeoff
-- **`searchParams.toString()` stability dependency** — `reservations-tab.tsx` — Fragile if Next.js changes `useSearchParams` return behavior; Next.js implementation-dependent
-- **`handleTabChange` vs `router.push` navigation race** — `page-client.tsx` — Two navigation mechanisms could theoretically race; impractical to fix
-- **highlight state vs DOM rendering race** — `reservations-tab.tsx` — React 18+ batching handles it; fragile to concurrent features changes

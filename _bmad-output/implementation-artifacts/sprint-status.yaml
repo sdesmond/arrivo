@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-14
-last_updated: 2026-06-19 (story 3.2 code review — patches applied)
+last_updated: 2026-06-19 (story 4.1 created)
 project: Packt
 project_key: NOKEY
 tracking_system: file-system
@@ -61,3 +61,8 @@ development_status:
   3-1-cover-overflow-menu-edit-remove-info: done
   3-2-remove-cover-controls-from-the-trip-edit-sheet: done
   epic-3-retrospective: optional
+
+  epic-4: in-progress
+  4-1-require-trip-dates-before-adding-a-reservation: ready-for-dev
+  4-2-reservations-polish-and-hardening-batch: backlog
+  epic-4-retrospective: optional
