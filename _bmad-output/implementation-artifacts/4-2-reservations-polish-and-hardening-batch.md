@@ -4,7 +4,7 @@ baseline_commit: 2d763d5
 
 # Story 4.2: Reservations Polish & Hardening Batch
 
-Status: review
+Status: done
 
 ## Story
 
@@ -193,6 +193,10 @@ Every AC in this story is unit-testable at the component or action level — no 
 
 ### Review Findings
 
+- [x] [Review][Patch] AC8 disambiguation breaks down for two dateless reservations sharing a provider — `formatReservationDateRange` returns `""` when both `startAt`/`endAt` are unset, so `deleteLabel` fell back to the ambiguous `Delete {provider}` for both rows. Resolved (Spencer's call): disambiguate by ordinal position within the type section when there's no date range, e.g. `Delete Grand Hotel reservation (2 of 3)`. Fixed via `position`/`total` props threaded from `reservation-type-section.tsx` into `ReservationRow`. [src/components/packt/reservation-row.tsx, src/components/packt/reservation-type-section.tsx]
+- [x] [Review][Patch] Reservation-docs `orderBy` doesn't match the trip-docs pattern it was supposed to mirror — sibling `tripDocs` query uses `sql\`${documents.addedAt} desc nulls last\`, asc(documents.id)` for deterministic ordering with nullable `addedAt`; the new reservations docs query used bare `asc(documents.addedAt)` with no nulls handling and no `id` tie-break. Fixed to match the sibling query exactly. [src/lib/queries.ts:272]
+- [x] [Review][Defer] `createReservation`'s new startAt/endAt parse checks treat `null` as a valid date (`new Date(null)` is epoch, not `NaN`), silently degrading to "no date" instead of rejecting — pre-existing characteristic mirrored intentionally from `updateReservation`'s pattern per AC1's instruction to match it exactly. Not exploitable for data corruption (degrades to absent date). [src/app/(app)/trips/[tripId]/reservations/actions.ts:25,29] — deferred, pre-existing
+
 ### Completion Notes List
 
 - Added pre-transaction ISO parsing in `createReservation`, stable reservation-doc ordering, and shared `REQUIRES_END_AT` / `PLACEHOLDER_STYLE` exports to remove duplication.
@@ -205,6 +209,7 @@ Every AC in this story is unit-testable at the component or action level — no 
 |------|--------|
 | 2026-06-20 | Created Story 4.2: Reservations Polish & Hardening Batch — 9 independently-deferred code-review items from Epics 1-3 |
 | 2026-06-20 | Implemented Story 4.2 and validated with lint, TypeScript, coverage, production build, and Playwright E2E |
+| 2026-06-20 | Code review: fixed dateless-duplicate-provider delete-label collision (ordinal disambiguation) and reservation-docs orderBy mismatch vs trip-docs pattern; deferred a pre-existing null-bypass in startAt/endAt validation; closed as done |
 
 ### File List
 

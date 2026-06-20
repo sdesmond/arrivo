@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: code review of 4-2-reservations-polish-and-hardening-batch (2026-06-20)
+
+- **`createReservation`'s new startAt/endAt parse checks treat `null` as a valid date** — `new Date(null)` is epoch (not `NaN`), so a `null` `startAt`/`endAt` silently degrades to "no date" instead of being rejected. Pre-existing characteristic mirrored intentionally from `updateReservation`'s pattern per this story's AC1, which required matching it exactly. Not exploitable for data corruption. [src/app/(app)/trips/[tripId]/reservations/actions.ts:25,29]
+
 ## Candidate Future Epics
 
 - **Timezone-naive UTC storage** — reservations/events store and render local wall-clock times as literal UTC (`Z` suffix) with no timezone field; round-tripping through a non-UTC viewer shifts displayed times. Needs a timezone strategy decision (store a TZ offset/IANA zone per trip or per anchor, or accept destination-bound display) before any fix is implementation-level.
