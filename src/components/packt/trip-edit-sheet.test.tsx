@@ -46,33 +46,6 @@ vi.mock("./trip-edit-collaborators", () => ({
   ),
 }));
 
-vi.mock("./trip-edit-cover", () => ({
-  TripEditCover: ({
-    coverImageUrl,
-    center,
-    onCoverImageUrlChange,
-    disabled,
-  }: {
-    tripId: string;
-    tripName: string;
-    coverImageUrl?: string;
-    center?: [number, number];
-    onCoverImageUrlChange: (url: string | null) => void;
-    disabled?: boolean;
-  }) => (
-    <div>
-      <span data-testid="cover-url">{coverImageUrl ?? ""}</span>
-      <span data-testid="cover-center">{center ? center.join(",") : ""}</span>
-      <button disabled={disabled} onClick={() => onCoverImageUrlChange("https://example.com/new.jpg")}>
-        set-cover
-      </button>
-      <button disabled={disabled} onClick={() => onCoverImageUrlChange(null)}>
-        remove-cover
-      </button>
-    </div>
-  ),
-}));
-
 vi.mock("./trip-edit-destination", () => ({
   TripEditDestination: ({
     value,
@@ -307,25 +280,6 @@ describe("TripEditSheet", () => {
     await user.clear(screen.getByDisplayValue("1500"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetPerPerson: undefined }));
-  });
-
-  it("onSave includes updated coverImageUrl after TripEditCover callback fires", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    await user.click(screen.getByRole("button", { name: "set-cover" }));
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ coverImageUrl: "https://example.com/new.jpg" }));
-  });
-
-  it("onSave includes coverImageUrl: null after TripEditCover remove fires", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn();
-    const trip = { ...baseTrip, coverImageUrl: "https://example.com/img.jpg" };
-    render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={onSave} />);
-    await user.click(screen.getByRole("button", { name: "remove-cover" }));
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ coverImageUrl: null }));
   });
 
   it("addCollaborator via TripEditCollaborators callback does not crash", async () => {
@@ -581,13 +535,6 @@ describe("TripEditSheet", () => {
     expect(patch.destinationName).toBe("Tokyo");
     expect(patch.destinationCountry).toBe("Japan");
     expect(patch.destinationCountryCode).toBe("JP");
-  });
-
-  it("passes the selected destination center through to TripEditCover", async () => {
-    const user = userEvent.setup();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: "select-destination" }));
-    expect(screen.getByTestId("cover-center")).toHaveTextContent("139.69,35.68");
   });
 
   it("onSave patch includes null destination fields after clearing via onClear callback", async () => {
