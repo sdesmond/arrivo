@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("next/link", () => ({
@@ -39,6 +39,16 @@ const activeTrip: Trip = {
 const events: TripEvent[] = [{ id: "event-1", name: "Museum Visit", startAt: "2026-05-13T10:00:00Z", position: 0 }];
 
 describe("MobileActiveTab", () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "UTC";
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
   it("renders the active trip name", () => {
     render(<MobileActiveTab trip={activeTrip} todayEvents={events} now={NOW} />);
     expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1);
@@ -226,5 +236,26 @@ describe("MobileActiveTab", () => {
       "href",
       "/trips/trip-1?tab=res&highlight=res-2"
     );
+  });
+
+  it("renders the literal stored event time unshifted under a non-UTC viewer timezone", () => {
+    process.env.TZ = "America/Denver";
+    render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[
+          {
+            id: "event-now",
+            name: "Lunch Reservation",
+            startAt: "2026-05-13T11:30:00Z",
+            endAt: "2026-05-13T12:30:00Z",
+            position: 0,
+          },
+        ]}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getByText("11:30 AM")).toBeInTheDocument();
   });
 });

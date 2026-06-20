@@ -54,10 +54,18 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
 }
 
 describe("formatAnchorDateTime", () => {
-  it("formats an ISO datetime as 'Weekday, Mon D · h:mm AM/PM'", () => {
-    expect(formatAnchorDateTime("2026-06-16T15:00:00.000Z")).toMatch(
-      /^[A-Za-z]{3}, [A-Za-z]{3} \d{1,2} · \d{1,2}:\d{2} (AM|PM)$/
-    );
+  it("formats an ISO datetime as 'Weekday, Mon D · h:mm AM/PM' using the literal UTC digits", () => {
+    expect(formatAnchorDateTime("2026-06-16T15:00:00.000Z")).toBe("Tue, Jun 16 · 3:00 PM");
+  });
+
+  it("renders the literal stored digits unshifted under a non-UTC viewer timezone", () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      expect(formatAnchorDateTime("2026-06-16T15:00:00.000Z")).toBe("Tue, Jun 16 · 3:00 PM");
+    } finally {
+      process.env.TZ = originalTz;
+    }
   });
 });
 

@@ -295,8 +295,8 @@ describe("ReservationRow", () => {
       await user.tab();
 
       expect(updateReservation).toHaveBeenCalledWith("res-2", {
-        startAt: new Date("2026-08-01T10:00:00").toISOString(),
-        endAt: new Date("2026-08-02T12:00:00").toISOString(),
+        startAt: "2026-08-01T10:00:00.000Z",
+        endAt: "2026-08-02T12:00:00.000Z",
       });
       expect(screen.queryByLabelText("Start date")).not.toBeInTheDocument();
     });
@@ -313,7 +313,7 @@ describe("ReservationRow", () => {
       await user.tab();
 
       expect(updateReservation).toHaveBeenCalledWith("res-2", {
-        startAt: new Date("2026-08-01T10:00:00").toISOString(),
+        startAt: "2026-08-01T10:00:00.000Z",
       });
       expect(screen.getByText("Enter both a date and a time.")).toBeInTheDocument();
       expect(screen.getByLabelText("Start date")).toBeInTheDocument();
@@ -390,6 +390,25 @@ describe("ReservationRow", () => {
     expect(screen.getByLabelText("Check-out time")).toBeInTheDocument();
   });
 
+  it("populates the date/time drafts with the literal stored digits under a non-UTC viewer timezone", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+      const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+      await user.click(screen.getByRole("button", { name: expectedRange }));
+
+      expect(screen.getByLabelText("Check-in date")).toHaveValue("2026-08-01");
+      expect(screen.getByLabelText("Check-in time")).toHaveValue("15:00");
+      expect(screen.getByLabelText("Check-out date")).toHaveValue("2026-08-05");
+      expect(screen.getByLabelText("Check-out time")).toHaveValue("11:00");
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("clicking away collapses back to the combined date range display", async () => {
     const user = userEvent.setup();
     render(
@@ -424,7 +443,7 @@ describe("ReservationRow", () => {
     await user.type(timeInput, "10:00");
     await user.click(screen.getByRole("button", { name: "Outside" }));
 
-    const expectedIso = new Date("2026-08-01T10:00:00").toISOString();
+    const expectedIso = "2026-08-01T10:00:00.000Z";
     expect(updateReservation).toHaveBeenCalledWith("res-1", { startAt: expectedIso });
 
     const newRange = formatReservationDateRange(expectedIso, populatedReservation.endAt);
@@ -762,10 +781,7 @@ describe("ReservationRow", () => {
     expect(updateReservation).toHaveBeenCalledTimes(1);
 
     resolveUpdate?.();
-    const nextRange = formatReservationDateRange(
-      new Date("2026-08-01T10:00:00").toISOString(),
-      populatedReservation.endAt
-    );
+    const nextRange = formatReservationDateRange("2026-08-01T10:00:00.000Z", populatedReservation.endAt);
     await waitFor(() => expect(screen.getByRole("button", { name: nextRange })).toBeInTheDocument());
   });
 
