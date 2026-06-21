@@ -29,8 +29,8 @@ function normalizeStorageName(storageName: string): string {
 export async function saveLocalUpload(file: File, options: SaveLocalUploadOptions = {}): Promise<string> {
   const rootDir = options.rootDir ?? process.cwd();
   const storageName = normalizeStorageName(options.storageName ?? createFallbackStorageName(file));
-  const uploadsDir = join(rootDir, "public", "uploads");
-  const targetPath = join(uploadsDir, storageName);
+  const uploadsDir = join(/* turbopackIgnore: true */ rootDir, "public", "uploads");
+  const targetPath = join(/* turbopackIgnore: true */ uploadsDir, /* turbopackIgnore: true */ storageName);
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, Buffer.from(await file.arrayBuffer()));
   return `/uploads/${storageName
