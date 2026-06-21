@@ -565,6 +565,7 @@ export interface NewTripDraft {
 }
 
 export interface CreateTripInput {
+  id?: string;
   name: string;
   startDate?: string; // ISO date "YYYY-MM-DD"
   endDate?: string;
@@ -622,6 +623,7 @@ export type UpdateTripMetadataResult =
   | { status: "confirmation-required"; confirmation: TripDateChangeConfirmation };
 
 export interface CreateEventInput {
+  id?: string;
   name: string;
   startAt?: string; // ISO datetime
   endAt?: string;
@@ -669,6 +671,7 @@ export interface RemoveLastDayResult {
 }
 
 export interface AddCollaboratorInput {
+  id?: string;
   email: string;
   name: string;
   initials: string;
@@ -678,6 +681,7 @@ export interface AddCollaboratorInput {
 }
 
 export interface AddDocumentInput {
+  id?: string;
   tripId?: string;
   eventId?: string;
   reservationId?: string;
@@ -689,6 +693,7 @@ export interface AddDocumentInput {
 }
 
 export interface CreateReservationInput {
+  id?: string;
   type: ReservationType;
   provider: string;
   startAt?: string; // ISO datetime
@@ -726,6 +731,7 @@ export interface UpdateReservationPatch {
 }
 
 export interface AddPackingItemInput {
+  id?: string;
   name: string;
   isLabel?: boolean;
   afterItemId?: string;
