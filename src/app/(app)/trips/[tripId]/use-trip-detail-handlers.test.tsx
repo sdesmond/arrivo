@@ -150,7 +150,13 @@ describe("useTripDetailHandlers", () => {
       result.current.handleAddPackingItem("Passport", true);
     });
 
-    await waitFor(() => expect(addPackingItem).toHaveBeenCalledWith("trip-1", { name: "Passport", isLabel: true }));
+    await waitFor(() =>
+      expect(addPackingItem).toHaveBeenCalledWith("trip-1", {
+        id: expect.any(String),
+        name: "Passport",
+        isLabel: true,
+      })
+    );
   });
 
   it("handleAddPackingItem resolves the returned promise on success", async () => {
@@ -346,6 +352,7 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() =>
       expect(addPackingItem).toHaveBeenCalledWith("trip-1", {
+        id: expect.any(String),
         name: "Visa",
         isLabel: false,
         afterItemId: "label-1",
@@ -364,6 +371,7 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() =>
       expect(addPackingItem).toHaveBeenCalledWith("trip-1", {
+        id: expect.any(String),
         name: "Travel adapter",
         isLabel: false,
         afterItemId: undefined,

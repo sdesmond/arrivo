@@ -85,6 +85,7 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     startCreation(async () => {
       try {
         const { tripId } = await createTrip({
+          id: crypto.randomUUID(),
           name: draft.title,
           startDate: draft.startDate,
           endDate: draft.endDate,

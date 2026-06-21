@@ -150,7 +150,7 @@ describe("upload mode", () => {
     await user.upload(fileInput, validFile);
     await user.click(screen.getByRole("button", { name: /attach/i }));
     await waitFor(() => {
-      expect(uploadReservationDocument).toHaveBeenCalledWith("res-1", expect.any(FormData));
+      expect(uploadReservationDocument).toHaveBeenCalledWith("res-1", expect.any(FormData), expect.any(String));
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });

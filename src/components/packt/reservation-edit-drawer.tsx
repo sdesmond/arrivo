@@ -149,6 +149,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
     setSaving(true);
 
     const input: CreateReservationInput = {
+      id: crypto.randomUUID(),
       type,
       provider: provider.trim(),
       startAt: start.iso,

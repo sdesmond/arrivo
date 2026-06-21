@@ -74,7 +74,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
     formData.append("file", pendingFile);
     startTransition(async () => {
       try {
-        await uploadDocumentToEvent(eventId, formData);
+        await uploadDocumentToEvent(eventId, formData, crypto.randomUUID());
         handleClose(false);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");

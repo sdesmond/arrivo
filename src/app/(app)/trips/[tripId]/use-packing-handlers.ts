@@ -64,7 +64,15 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     return new Promise((resolve, reject) => {
       React.startTransition(async () => {
         try {
-          await addPackingItem(trip.id, { name, isLabel, afterItemId, beforeItemId, labelId, listId });
+          await addPackingItem(trip.id, {
+            id: crypto.randomUUID(),
+            name,
+            isLabel,
+            afterItemId,
+            beforeItemId,
+            labelId,
+            listId,
+          });
           resolve();
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to add packing entry. Please try again.";
@@ -172,7 +180,7 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
 
   async function handleCreatePackingList(name: string): Promise<string | undefined> {
     try {
-      return await createPackingList(trip.id, name);
+      return await createPackingList(trip.id, name, crypto.randomUUID());
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create packing list. Please try again.");
       return undefined;
@@ -204,7 +212,14 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
     try {
-      const checklistId = await addChecklistFromPackingSource(trip.id, day.id, position, sourceType, sourceId);
+      const checklistId = await addChecklistFromPackingSource(
+        trip.id,
+        day.id,
+        position,
+        sourceType,
+        sourceId,
+        crypto.randomUUID()
+      );
       setNewlyCreatedChecklistId(checklistId);
       setTimeout(() => setNewlyCreatedChecklistId(null), 1000);
     } catch (error) {

@@ -219,7 +219,7 @@ describe("upload mode", () => {
     await user.upload(fileInput, validFile);
     await user.click(screen.getByRole("button", { name: /attach/i }));
     await waitFor(() => {
-      expect(uploadDocumentToEvent).toHaveBeenCalledWith("ev-1", expect.any(FormData));
+      expect(uploadDocumentToEvent).toHaveBeenCalledWith("ev-1", expect.any(FormData), expect.any(String));
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });

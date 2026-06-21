@@ -79,7 +79,7 @@ describe("TripDocsTab", () => {
     Object.defineProperty(input, "files", { value: [file], writable: false });
     fireEvent.change(input);
     await waitFor(() => {
-      expect(vi.mocked(uploadDocument)).toHaveBeenCalledWith("trip-1", expect.any(FormData));
+      expect(vi.mocked(uploadDocument)).toHaveBeenCalledWith("trip-1", expect.any(FormData), expect.any(String));
     });
   });
 

@@ -245,6 +245,7 @@ describe("ReservationEditDrawer", () => {
 
     await vi.waitFor(() =>
       expect(createReservation).toHaveBeenCalledWith("trip-1", {
+        id: expect.any(String),
         type: ReservationType.Lodging,
         provider: "Grand Hotel",
         startAt: "2026-08-01T15:00:00.000Z",

@@ -62,6 +62,7 @@ describe("useTripsPageHandlers", () => {
     });
 
     expect(createTrip).toHaveBeenCalledWith({
+      id: expect.any(String),
       name: "Fresh Trip",
       startDate: "2026-08-01",
       endDate: "2026-08-03",

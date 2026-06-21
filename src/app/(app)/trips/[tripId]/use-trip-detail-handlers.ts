@@ -132,7 +132,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
-      createEvent(day.id!, { name, afterEventId, insertAtPosition });
+      createEvent(day.id!, { id: crypto.randomUUID(), name, afterEventId, insertAtPosition });
     });
   }
 
@@ -140,7 +140,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
-      createNote(day.id!, content, insertAtPosition);
+      createNote(day.id!, content, insertAtPosition, crypto.randomUUID());
     });
   }
 
@@ -161,7 +161,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     if (!day?.id) return;
     if (firstItemContent) {
       React.startTransition(async () => {
-        const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent);
+        const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent, crypto.randomUUID());
         packingHandlers.setNewlyCreatedChecklistId(id);
         setTimeout(() => packingHandlers.setNewlyCreatedChecklistId(null), 1000);
       });
@@ -169,7 +169,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     }
 
     React.startTransition(() => {
-      createChecklist(day.id!, insertAtPosition);
+      createChecklist(day.id!, insertAtPosition, crypto.randomUUID());
     });
   }
 
@@ -187,7 +187,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
 
   function handleAddChecklistItem(checklistId: string, content: string): void {
     React.startTransition(() => {
-      createChecklistItem(checklistId, content);
+      createChecklistItem(checklistId, content, crypto.randomUUID());
     });
   }
 
@@ -240,7 +240,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleAddDay(): void {
     startAddDayTransition(async () => {
       try {
-        await addDay(trip.id);
+        await addDay(trip.id, crypto.randomUUID());
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to add day. Please try again.");
       }

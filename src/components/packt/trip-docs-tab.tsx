@@ -44,7 +44,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
     formData.append("file", file);
     startTransition(async () => {
       try {
-        await uploadDocument(tripId, formData);
+        await uploadDocument(tripId, formData, crypto.randomUUID());
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
       }

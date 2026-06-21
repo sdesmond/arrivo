@@ -83,7 +83,7 @@ export function AddReservationDocDialog({
     formData.append("file", pendingFile);
     startTransition(async () => {
       try {
-        await uploadReservationDocument(reservationId, formData);
+        await uploadReservationDocument(reservationId, formData, crypto.randomUUID());
         handleClose(false);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
