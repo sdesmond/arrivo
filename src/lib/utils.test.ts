@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  assertClientId,
   cn,
   getTripStatus,
   isEventPast,
@@ -602,5 +603,28 @@ describe("getLocationDisplayLabel", () => {
 
   it("returns an empty string when neither value is available", () => {
     expect(getLocationDisplayLabel(undefined, undefined)).toBe("");
+  });
+});
+
+describe("assertClientId", () => {
+  it("returns an empty object when id is undefined", () => {
+    expect(assertClientId(undefined)).toEqual({});
+  });
+
+  it("returns { id } when a valid UUID is provided", () => {
+    const result = assertClientId("550e8400-e29b-41d4-a716-446655440000");
+    expect(result).toEqual({ id: "550e8400-e29b-41d4-a716-446655440000" });
+  });
+
+  it("throws for a non-UUID string", () => {
+    expect(() => assertClientId("not-a-uuid")).toThrow("Invalid client-supplied id");
+  });
+
+  it("throws for an empty string", () => {
+    expect(() => assertClientId("")).toThrow("Invalid client-supplied id");
+  });
+
+  it("throws for a malformed UUID", () => {
+    expect(() => assertClientId("zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz")).toThrow("Invalid client-supplied id");
   });
 });

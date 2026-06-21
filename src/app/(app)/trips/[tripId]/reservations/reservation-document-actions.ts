@@ -6,7 +6,7 @@ import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { reservations, documents } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { inferDocKind, formatFileSize } from "@/lib/utils";
+import { assertClientId, inferDocKind, formatFileSize } from "@/lib/utils";
 import { saveLocalUpload } from "@/lib/local-upload";
 import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
 
@@ -38,7 +38,7 @@ export async function uploadReservationDocument(reservationId: string, formData:
 
   try {
     await db.insert(documents).values({
-      ...(id ? { id } : {}),
+      ...assertClientId(id),
       tripId: reservation.tripId,
       reservationId,
       name: file.name,

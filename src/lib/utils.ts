@@ -2,6 +2,14 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { getNow } from "@/lib/mock-date";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function assertClientId(id: string | undefined) {
+  if (id === undefined) return {};
+  if (!UUID_RE.test(id)) throw new Error(`Invalid client-supplied id: must be a UUID`);
+  return { id };
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

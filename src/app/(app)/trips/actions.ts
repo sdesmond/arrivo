@@ -1,5 +1,6 @@
 "use server";
 
+import { assertClientId } from "@/lib/utils";
 import { requireUser } from "@/lib/auth-helpers";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
@@ -173,7 +174,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     const [trip] = await tx
       .insert(trips)
       .values({
-        ...(input.id ? { id: input.id } : {}),
+        ...assertClientId(input.id),
         ownerId: userId,
         name: input.name,
         startDate: input.startDate ?? null,

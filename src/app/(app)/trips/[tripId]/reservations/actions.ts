@@ -6,6 +6,7 @@ import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { reservations, documents, trips } from "@/db/schema";
 import { revalidatePath } from "next/cache";
+import { assertClientId } from "@/lib/utils";
 import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { REQUIRES_END_AT } from "@/components/packt/reservation-type-badge";
@@ -59,7 +60,7 @@ export async function createReservation(tripId: string, input: CreateReservation
     );
 
     await transaction.insert(reservations).values({
-      ...(input.id ? { id: input.id } : {}),
+      ...assertClientId(input.id),
       tripId,
       type: input.type,
       provider: input.provider.trim(),

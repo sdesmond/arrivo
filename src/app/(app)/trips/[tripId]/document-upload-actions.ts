@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { documents, events } from "@/db/schema";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
 import { saveLocalUpload } from "@/lib/local-upload";
-import { formatFileSize, inferDocKind } from "@/lib/utils";
+import { assertClientId, formatFileSize, inferDocKind } from "@/lib/utils";
 import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
 
 async function getEventTripId(eventId: string): Promise<string> {
@@ -38,7 +38,7 @@ export async function uploadDocument(tripId: string, formData: FormData, id?: st
     url = result.url;
   }
 
-  await db.insert(documents).values({ ...(id ? { id } : {}), tripId, name, kind, size, url });
+  await db.insert(documents).values({ ...assertClientId(id), tripId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -65,6 +65,6 @@ export async function uploadDocumentToEvent(eventId: string, formData: FormData,
     url = result.url;
   }
 
-  await db.insert(documents).values({ ...(id ? { id } : {}), tripId, eventId, name, kind, size, url });
+  await db.insert(documents).values({ ...assertClientId(id), tripId, eventId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
 }

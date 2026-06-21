@@ -4,7 +4,7 @@ baseline_commit: e0328d1e3ce5fba5c9a7aeefdac75caa07ec6f85
 
 # Story 1.1: Switch to Client-Generated Entity IDs
 
-Status: review
+Status: done
 
 ## Story
 
@@ -161,6 +161,22 @@ claude-sonnet-4-6
 - `src/components/packt/reservation-edit-drawer.test.tsx`
 - `src/components/packt/trip-docs-tab.tsx`
 - `src/components/packt/trip-docs-tab.test.tsx`
+
+### Review Findings
+
+- [x] [Review][Decision] Out-of-scope modifications — 3 files changed outside the story's modification list: `src/lib/local-upload.ts` (turbopackIgnore comments), `playwright.config.ts` (fixture loading restructure), `package.json`/`package-lock.json` (tsx bump). Confirmed intentional by author.
+
+- [x] [Review][Patch] UUID validation missing — no server action validates the client-supplied `id` is a valid UUID format. Non-UUID strings cause PostgreSQL 500 errors. — [fixed] added `assertClientId()` to `src/lib/utils.ts` and replaced all spread patterns across 6 action files.
+
+- [x] [Review][Patch] `createChecklistWithItem` test assertion fragile — asserts `not.toHaveProperty("id")` on seed item insert — [dismissed] assertion correctly checks the values object passed to `values()`; concern was about hypothetical DB migration, not code contract.
+
+- [x] [Review][Defer] `crypto.randomUUID()` in `startTransition` may fail in insecure HTTP context — pre-existing concern not introduced by this change.
+
+- [x] [Review][Defer] `handleAddDay`'s `crypto.randomUUID()` inside transition callback may regenerate if React re-executes the transition — generic React concern.
+
+- [x] [Review][Defer] `addDocument` validation path wastes generated UUID on error — harmless, caller regenerates on retry.
+
+- [x] [Review][Defer] Unrelated tsx/esbuild dependency bump in `package.json` — housekeeping, pre-existing.
 
 ## Change Log
 

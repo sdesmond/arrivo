@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { idempotencyKeys, packingItems, packingTemplateItems, packingTemplates, tripPackingLists } from "@/db/schema";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
+import { assertClientId } from "@/lib/utils";
 import { withErrorHandling } from "@/lib/error-utils";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import type {
@@ -123,7 +124,7 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
         .set({ position: sql`${packingItems.position} + 1` })
         .where(and(buildPackingListItemScope(tripId, listId), gt(packingItems.position, targetItem.position)));
       await tx.insert(packingItems).values({
-        ...(input.id ? { id: input.id } : {}),
+        ...assertClientId(input.id),
         tripId,
         listId,
         name,
@@ -156,7 +157,7 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
         .set({ position: sql`${packingItems.position} + 1` })
         .where(and(buildPackingListItemScope(tripId, listId), gt(packingItems.position, targetItem.position - 1)));
       await tx.insert(packingItems).values({
-        ...(input.id ? { id: input.id } : {}),
+        ...assertClientId(input.id),
         tripId,
         listId,
         name,
@@ -178,7 +179,7 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
         .where(buildPackingListItemScope(tripId, listId));
 
       await tx.insert(packingItems).values({
-        ...(input.id ? { id: input.id } : {}),
+        ...assertClientId(input.id),
         tripId,
         listId,
         name,
@@ -620,7 +621,7 @@ export async function createPackingList(tripId: string, name: string, id?: strin
 
     const [insertedRow] = await tx
       .insert(tripPackingLists)
-      .values({ ...(id ? { id } : {}), tripId, name: trimmedName, position: (maxPos ?? -1) + 1 })
+      .values({ ...assertClientId(id), tripId, name: trimmedName, position: (maxPos ?? -1) + 1 })
       .returning({ id: tripPackingLists.id });
 
     return insertedRow;

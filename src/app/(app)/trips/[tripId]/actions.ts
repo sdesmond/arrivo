@@ -1,5 +1,6 @@
 "use server";
 
+import { assertClientId } from "@/lib/utils";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import {
@@ -129,7 +130,7 @@ export async function createEvent(dayId: string, input: CreateEventInput): Promi
   await assertTripAccess(tripId, user.id!, "editor");
 
   const values = {
-    ...(input.id ? { id: input.id } : {}),
+    ...assertClientId(input.id),
     dayId,
     tripId,
     name: input.name,
@@ -329,7 +330,7 @@ export async function addDay(tripId: string, id?: string): Promise<void> {
     if (trip?.startDate && lastDay.date) {
       const appendedDate = nextCalendarDate(lastDay.date);
       await transaction.insert(days).values({
-        ...(id ? { id } : {}),
+        ...assertClientId(id),
         tripId,
         dayNumber: appendedDayNumber,
         date: appendedDate,
@@ -338,7 +339,7 @@ export async function addDay(tripId: string, id?: string): Promise<void> {
       await transaction.update(trips).set({ endDate: appendedDate, updatedAt: new Date() }).where(eq(trips.id, tripId));
     } else {
       await transaction.insert(days).values({
-        ...(id ? { id } : {}),
+        ...assertClientId(id),
         tripId,
         dayNumber: appendedDayNumber,
         date: null,
@@ -473,7 +474,7 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
   if (!tripId) throw new Error("tripId or eventId required");
   await assertTripAccess(tripId, user.id!, "editor");
   await db.insert(documents).values({
-    ...(input.id ? { id: input.id } : {}),
+    ...assertClientId(input.id),
     tripId: input.tripId,
     eventId: input.eventId,
     name: input.name,
