@@ -59,6 +59,7 @@ export async function createReservation(tripId: string, input: CreateReservation
     );
 
     await transaction.insert(reservations).values({
+      ...(input.id ? { id: input.id } : {}),
       tripId,
       type: input.type,
       provider: input.provider.trim(),

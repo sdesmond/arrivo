@@ -584,6 +584,29 @@ describe("createReservation", () => {
     expect(updatedTripValues).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const clientId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+
+    await createReservation("trip-1", {
+      id: clientId,
+      type: ReservationType.Flight,
+      provider: "Acme Air",
+      startAt: "2026-08-01T10:00:00.000Z",
+    });
+
+    expect(insertedReservationValues).toEqual(expect.objectContaining({ id: clientId }));
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    await createReservation("trip-1", {
+      type: ReservationType.Flight,
+      provider: "Acme Air",
+      startAt: "2026-08-01T10:00:00.000Z",
+    });
+
+    expect(insertedReservationValues).not.toHaveProperty("id");
+  });
 });
 
 describe("updateReservation", () => {

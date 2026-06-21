@@ -123,6 +123,7 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
         .set({ position: sql`${packingItems.position} + 1` })
         .where(and(buildPackingListItemScope(tripId, listId), gt(packingItems.position, targetItem.position)));
       await tx.insert(packingItems).values({
+        ...(input.id ? { id: input.id } : {}),
         tripId,
         listId,
         name,
@@ -155,6 +156,7 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
         .set({ position: sql`${packingItems.position} + 1` })
         .where(and(buildPackingListItemScope(tripId, listId), gt(packingItems.position, targetItem.position - 1)));
       await tx.insert(packingItems).values({
+        ...(input.id ? { id: input.id } : {}),
         tripId,
         listId,
         name,
@@ -176,6 +178,7 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
         .where(buildPackingListItemScope(tripId, listId));
 
       await tx.insert(packingItems).values({
+        ...(input.id ? { id: input.id } : {}),
         tripId,
         listId,
         name,
@@ -600,7 +603,7 @@ export async function saveTripListAsTemplate(
   return saveTripListAsTemplateWithErrorHandling(tripId, name, idempotencyKey);
 }
 
-export async function createPackingList(tripId: string, name: string): Promise<string> {
+export async function createPackingList(tripId: string, name: string, id?: string): Promise<string> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
 
@@ -617,7 +620,7 @@ export async function createPackingList(tripId: string, name: string): Promise<s
 
     const [insertedRow] = await tx
       .insert(tripPackingLists)
-      .values({ tripId, name: trimmedName, position: (maxPos ?? -1) + 1 })
+      .values({ ...(id ? { id } : {}), tripId, name: trimmedName, position: (maxPos ?? -1) + 1 })
       .returning({ id: tripPackingLists.id });
 
     return insertedRow;

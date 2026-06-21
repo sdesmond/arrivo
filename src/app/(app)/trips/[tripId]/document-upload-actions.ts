@@ -16,7 +16,7 @@ async function getEventTripId(eventId: string): Promise<string> {
   return event.tripId;
 }
 
-export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
+export async function uploadDocument(tripId: string, formData: FormData, id?: string): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
 
@@ -38,11 +38,11 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
     url = result.url;
   }
 
-  await db.insert(documents).values({ tripId, name, kind, size, url });
+  await db.insert(documents).values({ ...(id ? { id } : {}), tripId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {
+export async function uploadDocumentToEvent(eventId: string, formData: FormData, id?: string): Promise<void> {
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -65,6 +65,6 @@ export async function uploadDocumentToEvent(eventId: string, formData: FormData)
     url = result.url;
   }
 
-  await db.insert(documents).values({ tripId, eventId, name, kind, size, url });
+  await db.insert(documents).values({ ...(id ? { id } : {}), tripId, eventId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
 }

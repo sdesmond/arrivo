@@ -224,6 +224,41 @@ describe("uploadReservationDocument", () => {
 
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+    let insertedValues: Record<string, unknown> | undefined;
+    db.insert.mockReturnValue({
+      values: async (vals: Record<string, unknown>) => {
+        insertedValues = vals;
+      },
+    });
+    const clientId = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+
+    const form = new FormData();
+    form.append("file", makeFile("doc.pdf", 100));
+
+    await uploadReservationDocument("res-1", form, clientId);
+
+    expect(insertedValues).toEqual(expect.objectContaining({ id: clientId }));
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
+    let insertedValues: Record<string, unknown> | undefined;
+    db.insert.mockReturnValue({
+      values: async (vals: Record<string, unknown>) => {
+        insertedValues = vals;
+      },
+    });
+
+    const form = new FormData();
+    form.append("file", makeFile("doc.pdf", 100));
+
+    await uploadReservationDocument("res-1", form);
+
+    expect(insertedValues).not.toHaveProperty("id");
+  });
 });
 
 describe("removeReservationDocument", () => {

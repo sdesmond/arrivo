@@ -19,7 +19,7 @@ async function getReservationTripId(reservationId: string): Promise<string> {
   return reservation.tripId;
 }
 
-export async function uploadReservationDocument(reservationId: string, formData: FormData): Promise<void> {
+export async function uploadReservationDocument(reservationId: string, formData: FormData, id?: string): Promise<void> {
   const user = await requireUser();
   const [reservation] = await db.select().from(reservations).where(eq(reservations.id, reservationId));
   if (!reservation) throw new Error("Reservation not found.");
@@ -38,6 +38,7 @@ export async function uploadReservationDocument(reservationId: string, formData:
 
   try {
     await db.insert(documents).values({
+      ...(id ? { id } : {}),
       tripId: reservation.tripId,
       reservationId,
       name: file.name,

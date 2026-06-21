@@ -97,6 +97,7 @@ vi.mock("./packing-actions", async (importOriginal) => {
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import {
+  addCollaborator,
   addPackingItem,
   createTrip,
   pullTemplatesOntoTrip,
@@ -585,6 +586,25 @@ describe("createTrip", () => {
     return operations;
   }
 
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const operations = setupCreateTripDb(null);
+    const clientId = "11111111-1111-1111-1111-111111111111";
+
+    await createTrip({ id: clientId, name: "Client ID Trip" });
+
+    const tripInsert = operations.inserts.find((entry) => entry.table === trips);
+    expect(tripInsert?.values).toEqual(expect.objectContaining({ id: clientId }));
+  });
+
+  it("omits the id key from the trip insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const operations = setupCreateTripDb(null);
+
+    await createTrip({ name: "No Client ID Trip" });
+
+    const tripInsert = operations.inserts.find((entry) => entry.table === trips);
+    expect(tripInsert?.values).not.toHaveProperty("id");
+  });
+
   it("stores destination fields and applies the first Unsplash cover when the default is photo", async () => {
     vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
     const operations = setupCreateTripDb(null);
@@ -790,6 +810,49 @@ describe("createTrip", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].date).toBe("2026-08-01");
     expect(rows[1].date).toBe("2026-08-02");
+  });
+});
+
+describe("addCollaborator", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  function setupInsertMock() {
+    const inserted: Array<Record<string, unknown>> = [];
+    db.insert.mockImplementation((table: unknown) => ({
+      values: (values: Record<string, unknown>) => {
+        if (table === collaborators) inserted.push(values);
+        return { onConflictDoNothing: async () => undefined };
+      },
+    }));
+    return inserted;
+  }
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const inserted = setupInsertMock();
+    const clientId = "22222222-2222-2222-2222-222222222222";
+
+    await addCollaborator("trip-1", {
+      id: clientId,
+      email: "friend@example.com",
+      name: "Friend",
+      initials: "FR",
+      role: "editor",
+    });
+
+    expect(inserted).toEqual([expect.objectContaining({ id: clientId })]);
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const inserted = setupInsertMock();
+
+    await addCollaborator("trip-1", { email: "friend@example.com", name: "Friend", initials: "FR", role: "editor" });
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).not.toHaveProperty("id");
   });
 });
 

@@ -30,6 +30,7 @@ vi.mock("next/cache", () => ({
 
 import {
   addPackingItem,
+  createPackingList,
   pullTemplatesOntoTrip,
   reorderPackingItems,
   removePackingSection,
@@ -171,6 +172,41 @@ describe("packing actions hardening", () => {
     );
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const values = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({ values })),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ maxPos: -1 }])),
+      update: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+    const clientId = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+
+    await addPackingItem("trip-1", { id: clientId, name: "Passport" });
+
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({ id: clientId }));
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          insertedValues = values;
+        }),
+      })),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ maxPos: -1 }])),
+      update: vi.fn(),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await addPackingItem("trip-1", { name: "Passport" });
+
+    expect(insertedValues).not.toHaveProperty("id");
   });
 
   it("rejects reorderPackingItems when an entry references an invalid labelId", async () => {
@@ -608,5 +644,48 @@ describe("saveTripListAsTemplate behavior", () => {
     await saveTripListAsTemplate("trip-1", "  Beach  ");
 
     expect(insertValues).toHaveBeenNthCalledWith(1, expect.objectContaining({ name: "Beach" }));
+  });
+});
+
+describe("createPackingList", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  function buildCreatePackingListTransaction() {
+    let insertedValues: Record<string, unknown> | undefined;
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ maxPos: -1 }])),
+      insert: vi.fn(() => ({
+        values: vi.fn((values: Record<string, unknown>) => {
+          insertedValues = values;
+          return { returning: vi.fn(async () => [{ id: "list-1" }]) };
+        }),
+      })),
+    };
+    return { tx, getInsertedValues: () => insertedValues };
+  }
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const { tx, getInsertedValues } = buildCreatePackingListTransaction();
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+    const clientId = "00000000-0000-0000-0000-000000000001";
+
+    const listId = await createPackingList("trip-1", "Beach", clientId);
+
+    expect(listId).toBe("list-1");
+    expect(getInsertedValues()).toEqual(expect.objectContaining({ id: clientId }));
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const { tx, getInsertedValues } = buildCreatePackingListTransaction();
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await createPackingList("trip-1", "Beach");
+
+    expect(getInsertedValues()).not.toHaveProperty("id");
   });
 });

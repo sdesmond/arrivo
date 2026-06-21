@@ -113,6 +113,37 @@ describe("uploadDocument", () => {
     expect(put).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    db.insert.mockReturnValue({
+      values: vi.fn(async (values: Record<string, unknown>) => {
+        insertedValues = values;
+      }),
+    });
+    const clientId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    const formData = new FormData();
+    formData.append("file", makeFile("Boarding Pass.pdf", "application/pdf"));
+
+    await uploadDocument("trip-1", formData, clientId);
+
+    expect(insertedValues).toEqual(expect.objectContaining({ id: clientId }));
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    db.insert.mockReturnValue({
+      values: vi.fn(async (values: Record<string, unknown>) => {
+        insertedValues = values;
+      }),
+    });
+    const formData = new FormData();
+    formData.append("file", makeFile("Boarding Pass.pdf", "application/pdf"));
+
+    await uploadDocument("trip-1", formData);
+
+    expect(insertedValues).not.toHaveProperty("id");
+  });
 });
 
 describe("uploadDocumentToEvent", () => {
@@ -170,5 +201,36 @@ describe("uploadDocumentToEvent", () => {
       url: "https://blob.example.com/event-doc.png",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    db.insert.mockReturnValue({
+      values: vi.fn(async (values: Record<string, unknown>) => {
+        insertedValues = values;
+      }),
+    });
+    const clientId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+    const formData = new FormData();
+    formData.append("file", makeFile("Agenda.png", "image/png"));
+
+    await uploadDocumentToEvent("event-1", formData, clientId);
+
+    expect(insertedValues).toEqual(expect.objectContaining({ id: clientId }));
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    db.insert.mockReturnValue({
+      values: vi.fn(async (values: Record<string, unknown>) => {
+        insertedValues = values;
+      }),
+    });
+    const formData = new FormData();
+    formData.append("file", makeFile("Agenda.png", "image/png"));
+
+    await uploadDocumentToEvent("event-1", formData);
+
+    expect(insertedValues).not.toHaveProperty("id");
   });
 });

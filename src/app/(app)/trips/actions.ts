@@ -173,6 +173,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     const [trip] = await tx
       .insert(trips)
       .values({
+        ...(input.id ? { id: input.id } : {}),
         ownerId: userId,
         name: input.name,
         startDate: input.startDate ?? null,
@@ -546,6 +547,7 @@ export async function addCollaborator(tripId: string, input: AddCollaboratorInpu
   await db
     .insert(collaborators)
     .values({
+      ...(input.id ? { id: input.id } : {}),
       tripId,
       email: input.email,
       name: input.name,

@@ -35,6 +35,10 @@ const {
     events: {},
     itineraryChecklists: {},
     itineraryNotes: {},
+    packingItems: {},
+    packingTemplateItems: {},
+    packingTemplates: {},
+    tripPackingLists: {},
     trips: {},
   };
 
@@ -108,14 +112,28 @@ vi.mock("drizzle-orm", () => ({
 import {
   addChecklistFromPackingSource,
   addDay,
+  addDocument,
+  createChecklist,
+  createChecklistItem,
+  createChecklistWithItem,
   createEvent,
+  createNote,
   removeLastDay,
   removeTripCover,
   reorderDayItems,
   setTripCoverWithAttribution,
   uploadCoverImage,
 } from "./actions";
-import { days, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import {
+  days,
+  documents,
+  events,
+  itineraryChecklists,
+  itineraryNotes,
+  packingItems,
+  tripPackingLists,
+  trips,
+} from "@/db/schema";
 
 interface ReorderTransactionFixture {
   currentChecklists?: Array<{ id: string }>;
@@ -228,6 +246,60 @@ describe("createEvent", () => {
     expect(transaction.insert).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const insertedValues: Array<Record<string, unknown>> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          insertedValues.push(values);
+        }),
+      })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSimpleSelect([{ id: "day-1" }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxEvt: -1 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxNote: -1 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxCl: -1 }])),
+      update: vi.fn(),
+    };
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    const clientId = "33333333-3333-3333-3333-333333333333";
+
+    await createEvent("day-1", { id: clientId, name: "Museum" });
+
+    expect(insertedValues).toEqual([expect.objectContaining({ id: clientId })]);
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const insertedValues: Array<Record<string, unknown>> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          insertedValues.push(values);
+        }),
+      })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSimpleSelect([{ id: "day-1" }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxEvt: -1 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxNote: -1 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxCl: -1 }])),
+      update: vi.fn(),
+    };
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createEvent("day-1", { name: "Museum" });
+
+    expect(insertedValues).toHaveLength(1);
+    expect(insertedValues[0]).not.toHaveProperty("id");
+  });
 });
 
 describe("reorderDayItems", () => {
@@ -329,6 +401,316 @@ describe("addChecklistFromPackingSource", () => {
     expect(mockDbTransaction).not.toHaveBeenCalled();
     expect(mockDbInsert).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    mockDbSelect.mockImplementation(() => ({
+      from: vi.fn((table: unknown) => ({
+        where: vi.fn(() => {
+          if (table === days) return Promise.resolve([{ tripId: "trip-1" }]);
+          if (table === tripPackingLists) return Promise.resolve([{ name: "Beach List", tripId: "trip-1" }]);
+          if (table === packingItems) return { orderBy: vi.fn(async () => [{ name: "Sunscreen" }]) };
+          throw new Error("Unexpected table read.");
+        }),
+      })),
+    }));
+
+    const checklistInserts: Array<Record<string, unknown>> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(async () => [{ id: "day-1" }]),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => undefined),
+        })),
+      })),
+      insert: vi.fn((table: unknown) => ({
+        values: vi.fn((values: Record<string, unknown> | unknown[]) => {
+          if (table === itineraryChecklists) {
+            checklistInserts.push(values as Record<string, unknown>);
+            return { returning: vi.fn(async () => [{ id: "checklist-1" }]) };
+          }
+          return Promise.resolve();
+        }),
+      })),
+    };
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<string>) =>
+      callback(transaction)
+    );
+    const clientId = "55555555-5555-5555-5555-555555555555";
+
+    const checklistId = await addChecklistFromPackingSource("trip-1", "day-1", 0, "packing-list", "list-1", clientId);
+
+    expect(checklistId).toBe("checklist-1");
+    expect(checklistInserts).toEqual([expect.objectContaining({ id: clientId })]);
+  });
+});
+
+describe("addDocument", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbInsert.mockImplementation(() => ({
+      values: vi.fn(async () => undefined),
+    }));
+  });
+
+  function captureInsertedValues() {
+    const inserted: Array<Record<string, unknown>> = [];
+    mockDbInsert.mockImplementation((table: unknown) => ({
+      values: vi.fn(async (values: Record<string, unknown>) => {
+        if (table === documents) inserted.push(values);
+      }),
+    }));
+    return inserted;
+  }
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const inserted = captureInsertedValues();
+    const clientId = "66666666-6666-6666-6666-666666666666";
+
+    await addDocument({ id: clientId, tripId: "trip-1", name: "Visa.pdf", kind: "other", url: "https://example/x" });
+
+    expect(inserted).toEqual([expect.objectContaining({ id: clientId })]);
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const inserted = captureInsertedValues();
+
+    await addDocument({ tripId: "trip-1", name: "Visa.pdf", kind: "other", url: "https://example/x" });
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).not.toHaveProperty("id");
+  });
+});
+
+describe("createNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{ tripId: "trip-1" }]),
+      })),
+    });
+  });
+
+  function buildCreateNoteTransaction() {
+    const inserts: Array<Record<string, unknown>> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSimpleSelect([{ id: "day-1" }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxEvt: -1 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxNote: -1 }]))
+        .mockReturnValueOnce(createSimpleSelect([{ maxCl: -1 }])),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          inserts.push(values);
+        }),
+      })),
+      update: vi.fn(),
+    };
+    return { transaction, inserts };
+  }
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const { transaction, inserts } = buildCreateNoteTransaction();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    const clientId = "77777777-7777-7777-7777-777777777777";
+
+    await createNote("day-1", "Pack sunscreen", undefined, clientId);
+
+    expect(inserts).toEqual([expect.objectContaining({ id: clientId, content: "Pack sunscreen" })]);
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const { transaction, inserts } = buildCreateNoteTransaction();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createNote("day-1", "Pack sunscreen");
+
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).not.toHaveProperty("id");
+  });
+});
+
+describe("createChecklist", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{ tripId: "trip-1" }]),
+      })),
+    });
+  });
+
+  function buildCreateChecklistTransaction() {
+    const inserts: Array<Record<string, unknown>> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(async () => [{ id: "day-1" }]),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => undefined),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          inserts.push(values);
+        }),
+      })),
+    };
+    return { transaction, inserts };
+  }
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const { transaction, inserts } = buildCreateChecklistTransaction();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    const clientId = "88888888-8888-8888-8888-888888888888";
+
+    await createChecklist("day-1", 0, clientId);
+
+    expect(inserts).toEqual([expect.objectContaining({ id: clientId })]);
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const { transaction, inserts } = buildCreateChecklistTransaction();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createChecklist("day-1", 0);
+
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).not.toHaveProperty("id");
+  });
+});
+
+describe("createChecklistWithItem", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{ tripId: "trip-1" }]),
+      })),
+    });
+  });
+
+  function buildCreateChecklistWithItemTransaction() {
+    const checklistInserts: Array<Record<string, unknown>> = [];
+    const checklistItemInserts: Array<Record<string, unknown>> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(async () => [{ id: "day-1" }]),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => undefined),
+        })),
+      })),
+      insert: vi.fn((table: unknown) => ({
+        values: vi.fn((values: Record<string, unknown>) => {
+          if (table === itineraryChecklists) {
+            checklistInserts.push(values);
+            return { returning: vi.fn(async () => [{ id: "checklist-1" }]) };
+          }
+          checklistItemInserts.push(values);
+          return Promise.resolve();
+        }),
+      })),
+    };
+    return { transaction, checklistInserts, checklistItemInserts };
+  }
+
+  it("persists the client-supplied id on the checklist row, leaving the seed item's id on the DB default", async () => {
+    const { transaction, checklistInserts, checklistItemInserts } = buildCreateChecklistWithItemTransaction();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<string>) =>
+      callback(transaction)
+    );
+    const clientId = "99999999-9999-9999-9999-999999999999";
+
+    const checklistId = await createChecklistWithItem("day-1", 0, "Passport", clientId);
+
+    expect(checklistId).toBe("checklist-1");
+    expect(checklistInserts).toEqual([expect.objectContaining({ id: clientId })]);
+    expect(checklistItemInserts).toEqual([expect.objectContaining({ checklistId: "checklist-1" })]);
+    expect(checklistItemInserts[0]).not.toHaveProperty("id");
+  });
+
+  it("omits the id key from the checklist insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const { transaction, checklistInserts } = buildCreateChecklistWithItemTransaction();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<string>) =>
+      callback(transaction)
+    );
+
+    await createChecklistWithItem("day-1", 0, "Passport");
+
+    expect(checklistInserts).toHaveLength(1);
+    expect(checklistInserts[0]).not.toHaveProperty("id");
+  });
+});
+
+describe("createChecklistItem", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect
+      .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
+      .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+  });
+
+  function captureInsertedValues() {
+    const inserted: Array<Record<string, unknown>> = [];
+    mockDbInsert.mockImplementation(() => ({
+      values: vi.fn(async (values: Record<string, unknown>) => {
+        inserted.push(values);
+      }),
+    }));
+    return inserted;
+  }
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const inserted = captureInsertedValues();
+    const clientId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+
+    await createChecklistItem("checklist-1", "Toothbrush", clientId);
+
+    expect(inserted).toEqual([expect.objectContaining({ id: clientId, content: "Toothbrush" })]);
+  });
+
+  it("omits the id key from the insert when no client id is supplied, leaving the DB default in effect", async () => {
+    const inserted = captureInsertedValues();
+
+    await createChecklistItem("checklist-1", "Toothbrush");
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).not.toHaveProperty("id");
   });
 });
 
@@ -649,8 +1031,25 @@ describe("addDay", () => {
     expect(transaction.execute).toHaveBeenCalledOnce();
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toMatchObject({ tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" });
+    expect(inserts[0]).not.toHaveProperty("id");
     expect(tripUpdates).toHaveLength(0);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("persists the client-supplied id unchanged instead of relying on the DB default", async () => {
+    const { transaction, inserts } = buildAddDayTransaction({
+      tripStartDate: null,
+      existingDays: [{ id: "day-1", dayNumber: 1, date: null }],
+    });
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    const clientId = "44444444-4444-4444-4444-444444444444";
+
+    await addDay("trip-1", clientId);
+
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({ id: clientId, tripId: "trip-1", dayNumber: 2 });
   });
 
   it("appends a dated day and updates trip endDate when the trip is scheduled", async () => {

@@ -129,6 +129,7 @@ export async function createEvent(dayId: string, input: CreateEventInput): Promi
   await assertTripAccess(tripId, user.id!, "editor");
 
   const values = {
+    ...(input.id ? { id: input.id } : {}),
     dayId,
     tripId,
     name: input.name,
@@ -302,7 +303,7 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch): Promise<v
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function addDay(tripId: string): Promise<void> {
+export async function addDay(tripId: string, id?: string): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
 
@@ -328,6 +329,7 @@ export async function addDay(tripId: string): Promise<void> {
     if (trip?.startDate && lastDay.date) {
       const appendedDate = nextCalendarDate(lastDay.date);
       await transaction.insert(days).values({
+        ...(id ? { id } : {}),
         tripId,
         dayNumber: appendedDayNumber,
         date: appendedDate,
@@ -336,6 +338,7 @@ export async function addDay(tripId: string): Promise<void> {
       await transaction.update(trips).set({ endDate: appendedDate, updatedAt: new Date() }).where(eq(trips.id, tripId));
     } else {
       await transaction.insert(days).values({
+        ...(id ? { id } : {}),
         tripId,
         dayNumber: appendedDayNumber,
         date: null,
@@ -460,8 +463,8 @@ export async function removeTripCover(tripId: string): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
-  return uploadTripDocumentAction(tripId, formData);
+export async function uploadDocument(tripId: string, formData: FormData, id?: string): Promise<void> {
+  return uploadTripDocumentAction(tripId, formData, id);
 }
 
 export async function addDocument(input: AddDocumentInput): Promise<void> {
@@ -470,6 +473,7 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
   if (!tripId) throw new Error("tripId or eventId required");
   await assertTripAccess(tripId, user.id!, "editor");
   await db.insert(documents).values({
+    ...(input.id ? { id: input.id } : {}),
     tripId: input.tripId,
     eventId: input.eventId,
     name: input.name,
@@ -481,7 +485,12 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createNote(dayId: string, content: string, insertAtPosition?: number): Promise<void> {
+export async function createNote(
+  dayId: string,
+  content: string,
+  insertAtPosition?: number,
+  id?: string
+): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -492,12 +501,14 @@ export async function createNote(dayId: string, content: string, insertAtPositio
 
     if (insertAtPosition !== undefined) {
       await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
-      await transaction.insert(itineraryNotes).values({ dayId, content, position: insertAtPosition });
+      await transaction
+        .insert(itineraryNotes)
+        .values({ ...(id ? { id } : {}), dayId, content, position: insertAtPosition });
       return;
     }
 
     const appendPos = await getAppendPosition(transaction, dayId);
-    await transaction.insert(itineraryNotes).values({ dayId, content, position: appendPos });
+    await transaction.insert(itineraryNotes).values({ ...(id ? { id } : {}), dayId, content, position: appendPos });
   });
 
   revalidatePath(`/trips/${tripId}`);
@@ -523,7 +534,7 @@ export async function deleteNote(noteId: string): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createChecklist(dayId: string, insertAtPosition: number): Promise<void> {
+export async function createChecklist(dayId: string, insertAtPosition: number, id?: string): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -532,7 +543,7 @@ export async function createChecklist(dayId: string, insertAtPosition: number): 
     await lockTripForUpdate(transaction, tripId);
     await assertDayExistsInTrip(transaction, tripId, dayId);
     await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
-    await transaction.insert(itineraryChecklists).values({ dayId, position: insertAtPosition });
+    await transaction.insert(itineraryChecklists).values({ ...(id ? { id } : {}), dayId, position: insertAtPosition });
   });
 
   revalidatePath(`/trips/${tripId}`);
@@ -541,7 +552,8 @@ export async function createChecklist(dayId: string, insertAtPosition: number): 
 export async function createChecklistWithItem(
   dayId: string,
   insertAtPosition: number,
-  firstItemContent: string
+  firstItemContent: string,
+  id?: string
 ): Promise<string> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
@@ -554,7 +566,7 @@ export async function createChecklistWithItem(
 
     const [newChecklist] = await transaction
       .insert(itineraryChecklists)
-      .values({ dayId, position: insertAtPosition })
+      .values({ ...(id ? { id } : {}), dayId, position: insertAtPosition })
       .returning({ id: itineraryChecklists.id });
     await transaction.insert(checklistItems).values({ checklistId: newChecklist.id, content: firstItemContent });
 
@@ -586,12 +598,12 @@ export async function deleteChecklist(checklistId: string): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createChecklistItem(checklistId: string, content: string): Promise<void> {
+export async function createChecklistItem(checklistId: string, content: string, id?: string): Promise<void> {
   const user = await requireUser();
   const dayId = await getChecklistDayId(checklistId);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.insert(checklistItems).values({ checklistId, content });
+  await db.insert(checklistItems).values({ ...(id ? { id } : {}), checklistId, content });
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -685,7 +697,8 @@ export async function addChecklistFromPackingSource(
   dayId: string,
   position: number,
   sourceType: "packing-list" | "template",
-  sourceId: string
+  sourceId: string,
+  id?: string
 ): Promise<string> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
@@ -734,7 +747,7 @@ export async function addChecklistFromPackingSource(
 
     const [newChecklist] = await tx
       .insert(itineraryChecklists)
-      .values({ dayId, position, title: sourceName })
+      .values({ ...(id ? { id } : {}), dayId, position, title: sourceName })
       .returning({ id: itineraryChecklists.id });
     if (!newChecklist) throw new Error("Failed to create checklist");
 
@@ -749,8 +762,8 @@ export async function addChecklistFromPackingSource(
   return checklistId;
 }
 
-export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {
-  return uploadEventDocumentAction(eventId, formData);
+export async function uploadDocumentToEvent(eventId: string, formData: FormData, id?: string): Promise<void> {
+  return uploadEventDocumentAction(eventId, formData, id);
 }
 
 export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {
