@@ -9,8 +9,7 @@ const reuseExistingServer = process.env.E2E_REUSE_SERVER === "true";
 
 const testDir = defineBddConfig({
   features: "tests/e2e/features/**/*.feature",
-  steps: "tests/e2e/steps/**/*.ts",
-  importTestFrom: { file: "tests/e2e/fixtures.ts", varName: "test" },
+  steps: ["tests/e2e/steps/**/*.ts", "tests/e2e/fixtures.ts"],
 });
 
 export default defineConfig({
