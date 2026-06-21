@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { render, renderHook, act, screen } from "@testing-library/react";
 import { toast } from "sonner";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
+import { TripsPageClient } from "./page-client";
 import { deleteTrip, updateTripMetadata } from "./actions";
 import { TripDateConflictResolution, type TripListEntry } from "@/data/types";
 
@@ -13,6 +14,76 @@ vi.mock("./actions", () => ({
   createTrip: vi.fn(),
   deleteTrip: vi.fn(),
   updateTripMetadata: vi.fn(),
+}));
+
+const { mockUseOfflineDb, mockUseOnlineStatus, mockMirrorTripListEntries, mockReadTripListFromMirror } = vi.hoisted(
+  () => ({
+    mockUseOfflineDb: vi.fn(() => null as { userId: string } | null),
+    mockUseOnlineStatus: vi.fn(() => true),
+    mockMirrorTripListEntries: vi.fn(),
+    mockReadTripListFromMirror: vi.fn(),
+  })
+);
+
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineDb: mockUseOfflineDb,
+  mirrorTripListEntries: mockMirrorTripListEntries,
+  readTripListFromMirror: mockReadTripListFromMirror,
+}));
+
+vi.mock("@/lib/offline/use-online-status", () => ({
+  useOnlineStatus: mockUseOnlineStatus,
+}));
+
+vi.mock("dexie-react-hooks", async () => {
+  const { useEffect, useState } = await import("react");
+  return {
+    useLiveQuery: (querier: () => unknown, deps: unknown[] = []) => {
+      const [value, setValue] = useState<unknown>(undefined);
+      useEffect(() => {
+        let cancelled = false;
+        Promise.resolve(querier()).then((result) => {
+          if (!cancelled) setValue(result);
+        });
+        return () => {
+          cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, deps);
+      return value;
+    },
+  };
+});
+
+vi.mock("@/components/packt/trips-desktop-layout", () => ({
+  TripsDesktopLayout: ({
+    upcomingTrips,
+    unscheduledEntries,
+  }: {
+    upcomingTrips: { name: string }[];
+    unscheduledEntries: { trip: { name: string } }[];
+  }) => (
+    <div data-testid="desktop-layout">
+      <span>upcoming:{upcomingTrips.map((trip) => trip.name).join(",")}</span>
+      <span>unscheduled:{unscheduledEntries.map((entry) => entry.trip.name).join(",")}</span>
+    </div>
+  ),
+}));
+
+vi.mock("@/components/packt/trips-mobile-layout", () => ({
+  TripsMobileLayout: () => null,
+}));
+
+vi.mock("@/components/packt/trip-edit-sheet", () => ({
+  TripEditSheet: () => null,
+}));
+
+vi.mock("@/components/packt/new-trip-dialog", () => ({
+  NewTripDialog: () => null,
+}));
+
+vi.mock("@/components/packt/delete-trip-alert-dialog", () => ({
+  DeleteTripAlertDialog: () => null,
 }));
 
 const NOW = new Date("2026-05-13T12:00:00.000Z");
@@ -203,5 +274,103 @@ describe("useTripsPageHandlers", () => {
 
     expect(toast.error).toHaveBeenCalledWith("Delete failed");
     expect(result.current.deletingTrip?.id).toBe("trip-past");
+  });
+});
+
+describe("TripsPageClient offline mirroring", () => {
+  beforeEach(() => {
+    mockUseOfflineDb.mockReturnValue(null);
+    mockUseOnlineStatus.mockReturnValue(true);
+    mockReadTripListFromMirror.mockReset();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("mirrors trip list entries to the offline db when online and a database is available", () => {
+    const fakeDb = { userId: "user-1" };
+    mockUseOfflineDb.mockReturnValue(fakeDb);
+    mockUseOnlineStatus.mockReturnValue(true);
+
+    render(
+      <TripsPageClient
+        initialEntries={datedEntries}
+        nowISO="2026-05-13T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(mockMirrorTripListEntries).toHaveBeenCalledWith(fakeDb, datedEntries);
+  });
+
+  it("does not mirror when offline", () => {
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+    mockUseOnlineStatus.mockReturnValue(false);
+
+    render(
+      <TripsPageClient
+        initialEntries={datedEntries}
+        nowISO="2026-05-13T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(mockMirrorTripListEntries).not.toHaveBeenCalled();
+  });
+
+  it("does not mirror when no offline db is available yet", () => {
+    mockUseOfflineDb.mockReturnValue(null);
+    mockUseOnlineStatus.mockReturnValue(true);
+
+    render(
+      <TripsPageClient
+        initialEntries={datedEntries}
+        nowISO="2026-05-13T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(mockMirrorTripListEntries).not.toHaveBeenCalled();
+  });
+
+  it("renders entries from the offline mirror once it resolves while offline", async () => {
+    const fakeDb = { userId: "user-1" };
+    mockUseOfflineDb.mockReturnValue(fakeDb);
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockReadTripListFromMirror.mockResolvedValue([unscheduledEntry]);
+
+    render(
+      <TripsPageClient
+        initialEntries={datedEntries}
+        nowISO="2026-05-13T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(await screen.findByText("unscheduled:Unsorted")).toBeInTheDocument();
+    expect(mockReadTripListFromMirror).toHaveBeenCalledWith(fakeDb, new Date("2026-05-13T12:00:00.000Z"));
+  });
+
+  it("keeps showing server entries while offline before the mirror read resolves", () => {
+    const fakeDb = { userId: "user-1" };
+    mockUseOfflineDb.mockReturnValue(fakeDb);
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockReadTripListFromMirror.mockReturnValue(new Promise(() => {}));
+
+    render(
+      <TripsPageClient
+        initialEntries={datedEntries}
+        nowISO="2026-05-13T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(screen.getByText("upcoming:Paris")).toBeInTheDocument();
   });
 });

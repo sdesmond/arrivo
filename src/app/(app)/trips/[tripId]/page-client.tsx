@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLiveQuery } from "dexie-react-hooks";
 import { TripConfetti } from "@/components/packt/trip-confetti";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
@@ -17,6 +18,8 @@ import type {
   PackingTemplate,
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
+import { useOfflineDb, mirrorTripDetail, readTripDetailFromMirror } from "@/lib/offline/db";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import {
   buildReservationsDeepLinkHref,
@@ -69,7 +72,22 @@ export function TripDetailClient({
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = detail;
+  const database = useOfflineDb();
+  const isOnline = useOnlineStatus();
+
+  useEffect(() => {
+    if (!database || !isOnline) return;
+    void mirrorTripDetail(database, detail);
+  }, [database, isOnline, detail]);
+
+  const offlineDetail = useLiveQuery(
+    () => (isOnline || !database ? undefined : readTripDetailFromMirror(database, detail.trip.id, new Date(nowISO))),
+    [isOnline, database, detail.trip.id, nowISO]
+  );
+
+  const effectiveDetail = !isOnline && offlineDetail ? offlineDetail : detail;
+
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = effectiveDetail;
 
   const tabParam = searchParams.get("tab");
   const previousTabParamRef = useRef(tabParam);
@@ -154,7 +172,12 @@ export function TripDetailClient({
         <span key={announcementId}>{reservationsAnnouncement}</span>
       </div>
 
-      <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
+      <TripDetailHero
+        detail={effectiveDetail}
+        nowISO={nowISO}
+        dateFormat={dateFormat}
+        onEdit={() => setEditingTrip(true)}
+      />
 
       {/* Tab bar */}
       <div
