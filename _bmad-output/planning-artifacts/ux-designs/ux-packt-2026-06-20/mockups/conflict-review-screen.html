@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Key Screen — Conflict Review Screen (Packt)</title>
+<style>
+  /*
+    Governing spine sections:
+    - DESIGN.md → Components → "Conflict review screen" (dialog sizing, row anatomy,
+      Local/Online tag treatment, disabled-close-button + tooltip-hint pattern)
+    - DESIGN.md → Colors (amber warning tokens, accent-brand, fg/surface/line tokens)
+    - EXPERIENCE.md → Component Patterns → "Conflict review screen" row
+    - EXPERIENCE.md → State Patterns → "rows remaining" / "all rows resolved" rows
+    - EXPERIENCE.md → Key Flows → Journey 2 ("conflict on reconnect", protagonist Theo)
+    - .decision-log.md → "Surface — conflict review screen", "Surface — document
+      conflicts narrowed, no separate screen"
+
+    Real fonts (Manrope / DM Sans / JetBrains Mono via next/font) are not loadable
+    here (no network per key-screen renderer rules) — system stacks approximate them.
+    Tokens below are copied verbatim from src/app/globals.css (light theme).
+  */
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f6f4;
+    --surface-2: #efefec;
+    --line: rgba(20, 20, 18, 0.08);
+    --line-strong: rgba(20, 20, 18, 0.14);
+    --fg: #131311;
+    --fg-2: #4a4a45;
+    --fg-3: #7a7a72;
+    --fg-4: #a0a098;
+    --accent-brand: #0e8b80;
+    --accent-soft: #d6efec;
+    --accent-ink: #0a4a44;
+    --warning-bg: #fffbeb;
+    --warning-fg: #b45309;
+    --font-heading: "Segoe UI Semibold", "Manrope", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Segoe UI", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "Consolas", "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    background: var(--surface);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .backdrop-page {
+    position: relative;
+    width: 1100px;
+    height: 720px;
+    background: var(--bg);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06);
+    overflow: hidden;
+  }
+  .page-chrome {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--fg);
+    filter: blur(0.5px);
+    opacity: .55;
+  }
+  .page-body { padding: 28px; filter: blur(.5px); opacity: .45; }
+  .page-body .ghost-line { height: 14px; background: var(--line-strong); border-radius: 6px; margin-bottom: 10px; }
+  .page-body .ghost-line.w60 { width: 60%; }
+  .page-body .ghost-line.w80 { width: 80%; }
+  .page-body .ghost-line.w40 { width: 40%; }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.10);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dialog {
+    width: 640px;
+    max-height: 600px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18), 0 0 0 1px var(--line);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .dialog-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .dialog-title {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--fg);
+    margin: 0 0 4px;
+  }
+  .dialog-desc {
+    font-size: 13px;
+    color: var(--fg-3);
+    margin: 0;
+  }
+
+  .dialog-rows {
+    padding: 8px 24px 4px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: none; }
+
+  .row-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .row-title { font-size: 14px; color: var(--fg); font-weight: 500; }
+  .row-sub { font-size: 12px; color: var(--fg-3); }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    border: 1px solid var(--line-strong);
+    color: var(--fg-2);
+    background: transparent;
+    width: fit-content;
+  }
+
+  .row-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 2px; }
+  .btn {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid var(--line-strong);
+    background: #fff;
+    color: var(--fg);
+    cursor: default;
+  }
+  .btn.accept { background: var(--accent-brand); color: #fff; border-color: var(--accent-brand); }
+  .btn.decline { color: var(--fg-2); }
+
+  .conflict-group {
+    border: 1px solid var(--warning-fg);
+    border-radius: 10px;
+    background: var(--warning-bg);
+    padding: 4px 14px;
+    margin: 10px 0;
+  }
+  .conflict-group .row { border-bottom: 1px dashed rgba(180,83,9,.25); }
+  .conflict-group .row:last-child { border-bottom: none; }
+  .conflict-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--warning-fg);
+    padding-top: 12px;
+  }
+
+  .dialog-footer {
+    padding: 14px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .footer-hint {
+    font-size: 12px;
+    color: var(--fg-3);
+    margin-right: auto;
+  }
+  .btn.close-disabled {
+    background: var(--surface-2);
+    color: var(--fg-4);
+    border-color: var(--line);
+    cursor: not-allowed;
+  }
+
+  .caption {
+    position: absolute;
+    bottom: -34px;
+    left: 0;
+    font-size: 12px;
+    color: var(--fg-3);
+    font-family: var(--font-mono);
+  }
+</style>
+</head>
+<body>
+  <div class="backdrop-page" style="position: relative;">
+    <div class="page-chrome">Lisbon — May 18–24, 2026</div>
+    <div class="page-body">
+      <div class="ghost-line w40"></div>
+      <div class="ghost-line w80"></div>
+      <div class="ghost-line w60"></div>
+      <div class="ghost-line w80"></div>
+    </div>
+
+    <div class="overlay">
+      <div class="dialog">
+        <div class="dialog-header">
+          <p class="dialog-title">Trip changed while offline</p>
+          <p class="dialog-desc">3 changes need your review before Lisbon finishes syncing.</p>
+        </div>
+
+        <div class="dialog-rows">
+          <!-- Plain incoming addition -->
+          <div class="row">
+            <div class="row-main">
+              <span class="tag">Online</span>
+              <span class="row-title">A Baiuca · fado house — note added</span>
+              <span class="row-sub">"Confirmed for 2, table held until 21:00."</span>
+            </div>
+            <div class="row-actions">
+              <button class="btn accept">Accept</button>
+              <button class="btn decline">Decline</button>
+            </div>
+          </div>
+
+          <!-- Document deletion conflict exception row -->
+          <div class="row">
+            <div class="row-main">
+              <span class="tag">Local</span>
+              <span class="row-title">Document removed while offline</span>
+              <span class="row-sub">Bairro Alto Hotel — Confirmation.pdf</span>
+            </div>
+            <div class="row-actions">
+              <button class="btn accept">Accept removal</button>
+              <button class="btn decline">Keep document</button>
+            </div>
+          </div>
+
+          <!-- True same-item conflict: mutually exclusive pair -->
+          <div class="conflict-label">Same change, two versions — pick one</div>
+          <div class="conflict-group">
+            <div class="row">
+              <div class="row-main">
+                <span class="tag">Local</span>
+                <span class="row-title">Cervejaria Ramiro moved to 19:30</span>
+                <span class="row-sub">Changed on this device while offline</span>
+              </div>
+              <div class="row-actions">
+                <button class="btn accept">Use this</button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <span class="tag">Online</span>
+                <span class="row-title">Cervejaria Ramiro moved to 21:00</span>
+                <span class="row-sub">Changed on another device</span>
+              </div>
+              <div class="row-actions">
+                <button class="btn accept">Use this</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <span class="footer-hint">Resolve all changes to continue</span>
+          <button class="btn close-disabled">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Conflict review screen — rows remaining, Close disabled with tooltip hint (state: "rows remaining")</div>
+  </div>
+</body>
+</html>
