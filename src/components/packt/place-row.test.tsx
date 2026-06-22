@@ -319,7 +319,7 @@ describe("PlaceRow", () => {
       wrapper: Wrapper,
     });
 
-    expect(screen.getByLabelText("Pending sync")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sync pending")).toBeInTheDocument();
   });
 
   it("renders location address when set", () => {

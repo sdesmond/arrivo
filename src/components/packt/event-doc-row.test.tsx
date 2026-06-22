@@ -122,7 +122,7 @@ describe("EventDocRow", () => {
 
     render(<EventDocRow doc={makeDoc()} />);
 
-    expect(screen.getByLabelText("Pending sync")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sync pending")).toBeInTheDocument();
   });
 
   it("renders view button with correct title and aria-label", () => {

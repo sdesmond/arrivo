@@ -55,7 +55,7 @@ describe("PackingRow", () => {
 
     render(<PackingRow item={itemRow} onRemove={vi.fn()} />);
 
-    expect(screen.getByLabelText("Pending sync")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sync pending")).toBeInTheDocument();
   });
 
   it("renders a checkbox for non-label items", () => {
