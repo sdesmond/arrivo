@@ -70,8 +70,6 @@ export function TripDetailClient({
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const [reservationsAnnouncement, setReservationsAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
-  const handlers = useTripDetailHandlers(detail);
-
   const database = useOfflineDb();
   const isOnline = useOnlineStatus();
   const now = useMemo(() => new Date(nowISO), [nowISO]);
@@ -116,6 +114,7 @@ export function TripDetailClient({
   );
 
   const effectiveDetail = !isOnline && offlineDetail ? offlineDetail : detail;
+  const handlers = useTripDetailHandlers(effectiveDetail);
 
   const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = effectiveDetail;
 

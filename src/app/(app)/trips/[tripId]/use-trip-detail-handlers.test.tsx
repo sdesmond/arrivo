@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { reorderDayItems } from "./actions";
+import { createEvent, reorderDayItems, updateEvent } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -10,6 +10,7 @@ import {
   removePackingItem,
   reorderPackingItems,
   saveTripListAsTemplate,
+  togglePackingItem,
   updatePackingItem,
 } from "../actions";
 import { removePackingSection } from "../packing-actions";
@@ -20,12 +21,37 @@ const { mockPush, mockRefresh } = vi.hoisted(() => ({
   mockRefresh: vi.fn(),
 }));
 
+const {
+  mockUseOnlineStatus,
+  mockUseOfflineDb,
+  mockWriteEventLocally,
+  mockUpdateEventLocally,
+  mockWritePackingItemLocally,
+} = vi.hoisted(() => ({
+  mockUseOnlineStatus: vi.fn(() => true),
+  mockUseOfflineDb: vi.fn<() => { userId: string } | null>(() => null),
+  mockWriteEventLocally: vi.fn(),
+  mockUpdateEventLocally: vi.fn(),
+  mockWritePackingItemLocally: vi.fn(),
+}));
+
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
+}));
+
+vi.mock("@/lib/offline/use-online-status", () => ({
+  useOnlineStatus: mockUseOnlineStatus,
+}));
+
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineDb: mockUseOfflineDb,
+  writeEventLocally: mockWriteEventLocally,
+  updateEventLocally: mockUpdateEventLocally,
+  writePackingItemLocally: mockWritePackingItemLocally,
 }));
 
 vi.mock("../actions", () => ({
@@ -35,6 +61,7 @@ vi.mock("../actions", () => ({
   removePackingItem: vi.fn(),
   reorderPackingItems: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
+  togglePackingItem: vi.fn(),
   updatePackingItem: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
@@ -92,6 +119,8 @@ const detail: TripDetailPayload = {
 describe("useTripDetailHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseOnlineStatus.mockReturnValue(true);
+    mockUseOfflineDb.mockReturnValue(null);
   });
 
   it("delegates successful day reorders without surfacing an error", async () => {
@@ -159,6 +188,64 @@ describe("useTripDetailHandlers", () => {
     );
   });
 
+  it("creates events locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleAddEvent(1, "Museum", "event-0", 1);
+    });
+
+    await waitFor(() =>
+      expect(mockWriteEventLocally).toHaveBeenCalledWith(
+        { userId: "user-1" },
+        "trip-1",
+        "day-1",
+        expect.objectContaining({
+          id: expect.any(String),
+          name: "Museum",
+          afterEventId: "event-0",
+          insertAtPosition: 1,
+        })
+      )
+    );
+    expect(vi.mocked(createEvent)).not.toHaveBeenCalled();
+  });
+
+  it("updates events locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    const updatedEvent = {
+      id: "event-1",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Late museum",
+      note: "Bring tickets",
+      position: 0,
+    };
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleEventUpdate(updatedEvent);
+    });
+
+    await waitFor(() =>
+      expect(mockUpdateEventLocally).toHaveBeenCalledWith(
+        { userId: "user-1" },
+        "event-1",
+        expect.objectContaining({
+          name: "Late museum",
+          note: "Bring tickets",
+        })
+      )
+    );
+    expect(vi.mocked(updateEvent)).not.toHaveBeenCalled();
+  });
+
   it("handleAddPackingItem resolves the returned promise on success", async () => {
     vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
 
@@ -170,6 +257,30 @@ describe("useTripDetailHandlers", () => {
     });
 
     await expect(addPromise).resolves.toBeUndefined();
+  });
+
+  it("adds packing items locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+    mockWritePackingItemLocally.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await expect(result.current.handleAddPackingItem("Passport", false, "label-1")).resolves.toBeUndefined();
+
+    expect(mockWritePackingItemLocally).toHaveBeenCalledWith(
+      { userId: "user-1" },
+      expect.objectContaining({
+        operation: "create",
+        tripId: "trip-1",
+        input: expect.objectContaining({
+          id: expect.any(String),
+          name: "Passport",
+          afterItemId: "label-1",
+        }),
+      })
+    );
+    expect(vi.mocked(addPackingItem)).not.toHaveBeenCalled();
   });
 
   it("handleAddPackingItem rejects the returned promise and shows a toast on failure", async () => {
@@ -317,6 +428,30 @@ describe("useTripDetailHandlers", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it("updates packing items locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+    mockWritePackingItemLocally.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleUpdatePackingItem("pack-1", "Passport (renewed)");
+    });
+
+    await waitFor(() =>
+      expect(mockWritePackingItemLocally).toHaveBeenCalledWith(
+        { userId: "user-1" },
+        expect.objectContaining({
+          operation: "update",
+          itemId: "pack-1",
+          patch: { name: "Passport (renewed)" },
+        })
+      )
+    );
+    expect(vi.mocked(updatePackingItem)).not.toHaveBeenCalled();
+  });
+
   it("handleUpdatePackingItem calls updatePackingItem server action with id and name", async () => {
     vi.mocked(updatePackingItem).mockResolvedValueOnce(undefined);
 
@@ -339,6 +474,25 @@ describe("useTripDetailHandlers", () => {
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Update failed"));
+  });
+
+  it("toggles packing items locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+    mockWritePackingItemLocally.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await expect(result.current.handleTogglePackingItem("pack-1")).resolves.toBeUndefined();
+
+    expect(mockWritePackingItemLocally).toHaveBeenCalledWith(
+      { userId: "user-1" },
+      expect.objectContaining({
+        operation: "toggle",
+        itemId: "pack-1",
+      })
+    );
+    expect(vi.mocked(togglePackingItem)).not.toHaveBeenCalled();
   });
 
   it("handleAddPackingItem passes afterItemId to the server action when provided", async () => {

@@ -31,6 +31,21 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
+const { mockUseOnlineStatus, mockUseOfflineDb, mockWriteDocumentLocally } = vi.hoisted(() => ({
+  mockUseOnlineStatus: vi.fn(() => true),
+  mockUseOfflineDb: vi.fn<() => { userId: string } | null>(() => null),
+  mockWriteDocumentLocally: vi.fn(),
+}));
+
+vi.mock("@/lib/offline/use-online-status", () => ({
+  useOnlineStatus: mockUseOnlineStatus,
+}));
+
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineDb: mockUseOfflineDb,
+  writeDocumentLocally: mockWriteDocumentLocally,
+}));
+
 import { AddDocDialog } from "./add-doc-dialog";
 import { attachTripDocToEvent, uploadDocumentToEvent } from "@/app/(app)/trips/[tripId]/actions";
 
@@ -45,6 +60,8 @@ const makeDoc = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUseOnlineStatus.mockReturnValue(true);
+  mockUseOfflineDb.mockReturnValue(null);
 });
 
 describe("pick mode", () => {
@@ -222,6 +239,33 @@ describe("upload mode", () => {
       expect(uploadDocumentToEvent).toHaveBeenCalledWith("ev-1", expect.any(FormData), expect.any(String));
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
+  });
+
+  it("writes event document locally instead of calling uploadDocumentToEvent while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<AddDocDialog open eventId="ev-1" onOpenChange={onOpenChange} />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const validFile = new File(["content"], "boarding.pdf", { type: "application/pdf" });
+
+    await user.upload(fileInput, validFile);
+    await user.click(screen.getByRole("button", { name: /attach/i }));
+
+    await waitFor(() => {
+      expect(mockWriteDocumentLocally).toHaveBeenCalledWith(
+        { userId: "user-1" },
+        expect.objectContaining({
+          id: expect.any(String),
+          eventId: "ev-1",
+          file: validFile,
+        })
+      );
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+    expect(uploadDocumentToEvent).not.toHaveBeenCalled();
   });
 
   it("backdrop close calls onOpenChange(false)", async () => {

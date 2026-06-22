@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import type { Document } from "@/data/types";
 import { DocKindBadge } from "./doc-kind-badge";
 import { attachTripDocToEvent, uploadDocumentToEvent } from "@/app/(app)/trips/[tripId]/actions";
+import { useOfflineDb, writeDocumentLocally } from "@/lib/offline/db";
+import { writeOfflineAware } from "@/lib/offline/offline-write";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_CHOOSER_LABEL } from "@/lib/upload-policy";
 
 type DialogMode = "pick" | "upload";
@@ -23,6 +26,8 @@ export interface AddDocDialogProps {
 export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs }: AddDocDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
+  const database = useOfflineDb();
+  const isOnline = useOnlineStatus();
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isUploading, startTransition] = useTransition();
 
@@ -74,7 +79,13 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
     formData.append("file", pendingFile);
     startTransition(async () => {
       try {
-        await uploadDocumentToEvent(eventId, formData, crypto.randomUUID());
+        const id = crypto.randomUUID();
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => writeDocumentLocally(db, { id, eventId, file: pendingFile }),
+          () => uploadDocumentToEvent(eventId, formData, id)
+        );
         handleClose(false);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");

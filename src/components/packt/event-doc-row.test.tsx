@@ -3,6 +3,10 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
+const { mockUseOfflineEntitySyncStatus } = vi.hoisted(() => ({
+  mockUseOfflineEntitySyncStatus: vi.fn(() => "synced"),
+}));
+
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   removeDocument: vi.fn().mockResolvedValue(undefined),
   renameDocument: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +62,10 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineEntitySyncStatus: mockUseOfflineEntitySyncStatus,
+}));
+
 import { EventDocRow } from "./event-doc-row";
 import { removeDocument, renameDocument, promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
 import { shareDoc } from "@/lib/utils";
@@ -74,6 +82,7 @@ const makeDoc = (overrides: Partial<Document> = {}): Document => ({
 describe("EventDocRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseOfflineEntitySyncStatus.mockReturnValue("synced");
   });
 
   // ── Rendering ─────────────────────────────────────────────────────────────
@@ -106,6 +115,14 @@ describe("EventDocRow", () => {
   it("renders a 'Cached offline' indicator when doc.offline is true", () => {
     render(<EventDocRow doc={makeDoc({ offline: true })} />);
     expect(screen.getByRole("img", { name: "Cached offline" })).toBeInTheDocument();
+  });
+
+  it("renders pending sync badge when local sync status is pending", () => {
+    mockUseOfflineEntitySyncStatus.mockReturnValue("pending");
+
+    render(<EventDocRow doc={makeDoc()} />);
+
+    expect(screen.getByLabelText("Sync pending")).toBeInTheDocument();
   });
 
   it("renders view button with correct title and aria-label", () => {

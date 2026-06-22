@@ -4,8 +4,10 @@ import { useRef, useState, useTransition } from "react";
 import { ArrowUpToLine, Download, Eye, Share2, Trash2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
+import { PendingSyncBadge } from "./pending-sync-badge";
 import type { Document } from "@/data/types";
 import { removeDocument, renameDocument, promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
+import { useOfflineEntitySyncStatus } from "@/lib/offline/db";
 import { shareDoc, cn } from "@/lib/utils";
 import {
   Dialog,
@@ -38,6 +40,7 @@ const compactBtn: React.CSSProperties = {
 };
 
 export function EventDocRow({ doc }: EventDocRowProps) {
+  const syncStatus = useOfflineEntitySyncStatus("document", doc.id);
   const [isPending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,30 +158,33 @@ export function EventDocRow({ doc }: EventDocRowProps) {
           }}
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setEditName(displayName);
-            setIsEditing(true);
-          }}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            textAlign: "left",
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontSize: "calc(12px * var(--font-scale))",
-            color: "var(--fg)",
-            cursor: "text",
-            fontFamily: "var(--font-body, ui-sans-serif)",
-          }}
-        >
-          {displayName}
-        </button>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setEditName(displayName);
+              setIsEditing(true);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              textAlign: "left",
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: "calc(12px * var(--font-scale))",
+              color: "var(--fg)",
+              cursor: "text",
+              fontFamily: "var(--font-body, ui-sans-serif)",
+            }}
+          >
+            {displayName}
+          </button>
+          <PendingSyncBadge syncStatus={syncStatus} />
+        </div>
       )}
 
       <button

@@ -17,6 +17,21 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   markAllDocsOffline: vi.fn().mockResolvedValue(undefined),
 }));
 
+const { mockUseOnlineStatus, mockUseOfflineDb, mockWriteDocumentLocally } = vi.hoisted(() => ({
+  mockUseOnlineStatus: vi.fn(() => true),
+  mockUseOfflineDb: vi.fn<() => { userId: string } | null>(() => null),
+  mockWriteDocumentLocally: vi.fn(),
+}));
+
+vi.mock("@/lib/offline/use-online-status", () => ({
+  useOnlineStatus: mockUseOnlineStatus,
+}));
+
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineDb: mockUseOfflineDb,
+  writeDocumentLocally: mockWriteDocumentLocally,
+}));
+
 vi.mock("./doc-row", () => ({
   DocRow: ({ doc }: { doc: Document }) => <div data-testid="doc-row">{doc.name}</div>,
 }));
@@ -32,6 +47,8 @@ const makeDoc = (id: string, name?: string): Document => ({
 describe("TripDocsTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseOnlineStatus.mockReturnValue(true);
+    mockUseOfflineDb.mockReturnValue(null);
   });
 
   it("renders empty state message when docs array is empty", () => {
@@ -81,6 +98,30 @@ describe("TripDocsTab", () => {
     await waitFor(() => {
       expect(vi.mocked(uploadDocument)).toHaveBeenCalledWith("trip-1", expect.any(FormData), expect.any(String));
     });
+  });
+
+  it("writes trip document locally instead of calling uploadDocument while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const input = document.getElementById("doc-upload") as HTMLInputElement;
+    const file = new File(["pdf content"], "test.pdf", { type: "application/pdf" });
+    Object.defineProperty(input, "files", { value: [file], writable: false });
+
+    fireEvent.change(input);
+
+    await waitFor(() => {
+      expect(mockWriteDocumentLocally).toHaveBeenCalledWith(
+        { userId: "user-1" },
+        expect.objectContaining({
+          id: expect.any(String),
+          tripId: "trip-1",
+          file,
+        })
+      );
+    });
+    expect(vi.mocked(uploadDocument)).not.toHaveBeenCalled();
   });
 
   it("renders a visually hidden label 'Search documents' associated with the search input", () => {

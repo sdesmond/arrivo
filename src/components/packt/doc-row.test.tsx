@@ -3,6 +3,10 @@ import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
+const { mockUseOfflineEntitySyncStatus } = vi.hoisted(() => ({
+  mockUseOfflineEntitySyncStatus: vi.fn(() => "synced"),
+}));
+
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   removeDocument: vi.fn().mockResolvedValue(undefined),
   uploadDocument: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +62,10 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineEntitySyncStatus: mockUseOfflineEntitySyncStatus,
+}));
+
 import { DocRow } from "./doc-row";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
 import { shareDoc } from "@/lib/utils";
@@ -74,6 +82,7 @@ const makeDoc = (overrides: Partial<Document> = {}): Document => ({
 describe("DocRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseOfflineEntitySyncStatus.mockReturnValue("synced");
   });
 
   it("renders the document name", () => {
@@ -275,6 +284,14 @@ describe("DocRow", () => {
     render(<DocRow doc={makeDoc({ offline: true })} />);
     const indicator = screen.getByRole("img", { name: "Cached offline" });
     expect(indicator).toBeInTheDocument();
+  });
+
+  it("renders pending sync badge when local sync status is pending", () => {
+    mockUseOfflineEntitySyncStatus.mockReturnValue("pending");
+
+    render(<DocRow doc={makeDoc()} />);
+
+    expect(screen.getByLabelText("Sync pending")).toBeInTheDocument();
   });
 
   it("renders a view button with correct title and aria-label", () => {

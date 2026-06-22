@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { OFFLINE_DB_SCHEMA_V1 } from "./schema";
+import { OFFLINE_DB_SCHEMA_V1, OFFLINE_DB_SCHEMA_V2 } from "./schema";
 
 describe("OFFLINE_DB_SCHEMA_V1", () => {
   it("defines all six tables", () => {
@@ -35,5 +35,19 @@ describe("OFFLINE_DB_SCHEMA_V1", () => {
 
   it("indexes outbox by entityId", () => {
     expect(OFFLINE_DB_SCHEMA_V1.outbox).toBe("id, entityId");
+  });
+});
+
+describe("OFFLINE_DB_SCHEMA_V2", () => {
+  it("adds syncStatus index to events", () => {
+    expect(OFFLINE_DB_SCHEMA_V2.events).toBe("id, tripId, dayId, position, [tripId+dayId], syncStatus");
+  });
+
+  it("adds syncStatus index to documents", () => {
+    expect(OFFLINE_DB_SCHEMA_V2.documents).toBe("id, tripId, eventId, reservationId, syncStatus");
+  });
+
+  it("adds syncStatus index to packingItems", () => {
+    expect(OFFLINE_DB_SCHEMA_V2.packingItems).toBe("id, tripId, listId, syncStatus");
   });
 });

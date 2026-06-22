@@ -1,6 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const { mockUseOfflineEntitySyncStatus } = vi.hoisted(() => ({
+  mockUseOfflineEntitySyncStatus: vi.fn(() => "synced"),
+}));
 
 vi.mock("lucide-react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("lucide-react")>();
@@ -115,6 +119,10 @@ vi.mock("./place-row-dialogs", () => ({
   ),
 }));
 
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineEntitySyncStatus: mockUseOfflineEntitySyncStatus,
+}));
+
 import { PlaceRow } from "./place-row";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { TripEvent } from "@/data/types";
@@ -150,6 +158,10 @@ const linkedPlace: TripEvent = {
 };
 
 describe("PlaceRow", () => {
+  beforeEach(() => {
+    mockUseOfflineEntitySyncStatus.mockReturnValue("synced");
+  });
+
   it("renders the event name", () => {
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
@@ -298,6 +310,16 @@ describe("PlaceRow", () => {
     };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.getByTitle("Show attached documents")).toBeInTheDocument();
+  });
+
+  it("renders pending sync badge when local sync status is pending", () => {
+    mockUseOfflineEntitySyncStatus.mockReturnValue("pending");
+
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByLabelText("Sync pending")).toBeInTheDocument();
   });
 
   it("renders location address when set", () => {

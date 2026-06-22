@@ -1,4 +1,5 @@
-## Deferred from: code review of story 1-2-local-data-mirror-and-offline-reads (2026-06-21)
+# Deferred Work
 
-- No Dexie version upgrade path — Only `OFFLINE_DB_SCHEMA_V1` exists. Future schema migration will fail with version-conflict errors.
-- TripEvent fields omitted from offline round-trip — `displacedDate`, `locationLat`, `locationLng`, `linkedReservationId`, `reservationType` exist on TripEvent type but not in OfflineEvent. Verify against Drizzle schema.
+## Deferred from: code review of 1-3-offline-writes-with-pending-sync-identity.md (2026-06-22)
+
+- `documentToOfflineRow` maps `updatedAt` from `addedAt` [src/lib/offline/db.ts:documentToOfflineRow] — `Document` type lacks `updatedAt`; the converter falls back to `addedAt`. Epic 2's server replay may need a real `updatedAt` field.

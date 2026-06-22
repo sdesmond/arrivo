@@ -53,8 +53,15 @@ Given("I already selected the first stub cover photo", async ({ page }) => {
 });
 
 When("I open the cover options menu", async ({ page }) => {
-  await page.getByTitle("Cover options").click();
-  await expect(page.getByRole("menuitem", { name: "Edit Cover" })).toBeVisible();
+  // After a cover mutation the hero re-renders (transition settle + router.refresh) and the
+  // disabled={isPending} trigger flips back to enabled mid-render; a lone click can land in that
+  // window and no-op, leaving the menu closed. Retry until it actually opens — same resilience
+  // pattern the post-reload menu open below relies on.
+  const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
+  await expect(async () => {
+    await page.getByTitle("Cover options").click();
+    await expect(editCoverItem).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
 });
 
 When("I choose the first stub cover photo", async ({ page }) => {
