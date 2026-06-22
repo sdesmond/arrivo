@@ -9,6 +9,7 @@ import type { Document } from "@/data/types";
 import { DocKindBadge } from "./doc-kind-badge";
 import { attachTripDocToEvent, uploadDocumentToEvent } from "@/app/(app)/trips/[tripId]/actions";
 import { useOfflineDb, writeDocumentLocally } from "@/lib/offline/db";
+import { writeOfflineAware } from "@/lib/offline/offline-write";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_CHOOSER_LABEL } from "@/lib/upload-policy";
 
@@ -79,11 +80,12 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
     startTransition(async () => {
       try {
         const id = crypto.randomUUID();
-        if (!isOnline && database) {
-          await writeDocumentLocally(database, { id, eventId, file: pendingFile });
-        } else {
-          await uploadDocumentToEvent(eventId, formData, id);
-        }
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => writeDocumentLocally(db, { id, eventId, file: pendingFile }),
+          () => uploadDocumentToEvent(eventId, formData, id)
+        );
         handleClose(false);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");

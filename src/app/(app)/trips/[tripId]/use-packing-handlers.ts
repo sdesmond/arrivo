@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
 import { useOfflineDb, writePackingItemLocally } from "@/lib/offline/db";
+import { writeOfflineAware } from "@/lib/offline/offline-write";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import {
   addPackingItem,
@@ -78,15 +79,12 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
             listId,
           };
 
-          if (!isOnline && database) {
-            await writePackingItemLocally(database, {
-              operation: "create",
-              tripId: trip.id,
-              input,
-            });
-          } else {
-            await addPackingItem(trip.id, input);
-          }
+          await writeOfflineAware(
+            isOnline,
+            database,
+            (db) => writePackingItemLocally(db, { operation: "create", tripId: trip.id, input }),
+            () => addPackingItem(trip.id, input)
+          );
           resolve();
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to add packing entry. Please try again.";
@@ -100,16 +98,12 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   function handleUpdatePackingItem(id: string, name: string): void {
     React.startTransition(async () => {
       try {
-        if (!isOnline && database) {
-          await writePackingItemLocally(database, {
-            operation: "update",
-            itemId: id,
-            patch: { name },
-          });
-          return;
-        }
-
-        await updatePackingItem(id, { name });
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => writePackingItemLocally(db, { operation: "update", itemId: id, patch: { name } }),
+          () => updatePackingItem(id, { name })
+        );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to update packing item. Please try again.");
       }
@@ -151,14 +145,12 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     return new Promise((resolve, reject) => {
       React.startTransition(async () => {
         try {
-          if (!isOnline && database) {
-            await writePackingItemLocally(database, {
-              operation: "toggle",
-              itemId: id,
-            });
-          } else {
-            await togglePackingItem(id);
-          }
+          await writeOfflineAware(
+            isOnline,
+            database,
+            (db) => writePackingItemLocally(db, { operation: "toggle", itemId: id }),
+            () => togglePackingItem(id)
+          );
           resolve();
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to update packing item. Please try again.";

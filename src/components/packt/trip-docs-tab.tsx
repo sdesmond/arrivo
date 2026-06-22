@@ -7,6 +7,7 @@ import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
 import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
 import { useOfflineDb, writeDocumentLocally } from "@/lib/offline/db";
+import { writeOfflineAware } from "@/lib/offline/offline-write";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { cn } from "@/lib/utils";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
@@ -49,11 +50,12 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
     startTransition(async () => {
       try {
         const id = crypto.randomUUID();
-        if (!isOnline && database) {
-          await writeDocumentLocally(database, { id, tripId, file });
-        } else {
-          await uploadDocument(tripId, formData, id);
-        }
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => writeDocumentLocally(db, { id, tripId, file }),
+          () => uploadDocument(tripId, formData, id)
+        );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
       }

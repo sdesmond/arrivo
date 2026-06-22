@@ -14,6 +14,7 @@ import type {
   UpdateTripPatch,
 } from "@/data/types";
 import { updateEventLocally, useOfflineDb, writeEventLocally } from "@/lib/offline/db";
+import { writeOfflineAware } from "@/lib/offline/offline-write";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { deleteTrip, updateTripMetadata } from "../actions";
 import {
@@ -99,12 +100,12 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
         note: updated.note,
       };
 
-      if (!isOnline && database) {
-        void updateEventLocally(database, updated.id, patch);
-        return;
-      }
-
-      void updateEvent(updated.id, patch);
+      void writeOfflineAware(
+        isOnline,
+        database,
+        (db) => updateEventLocally(db, updated.id, patch),
+        () => updateEvent(updated.id, patch)
+      );
     });
   }
 
@@ -145,12 +146,12 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     React.startTransition(() => {
       const input = { id: crypto.randomUUID(), name, afterEventId, insertAtPosition };
 
-      if (!isOnline && database) {
-        void writeEventLocally(database, trip.id, day.id!, input);
-        return;
-      }
-
-      void createEvent(day.id!, input);
+      void writeOfflineAware(
+        isOnline,
+        database,
+        (db) => writeEventLocally(db, trip.id, day.id!, input),
+        () => createEvent(day.id!, input)
+      );
     });
   }
 
