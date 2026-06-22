@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { DocKind, ReservationType, type TripDetailPayload, type TripListEntry } from "@/data/types";
-import type { OfflineDay, OfflineDocument, OfflineEvent, OfflinePackingItem, OfflineTrip } from "./schema";
+import type {
+  OfflineDay,
+  OfflineDocument,
+  OfflineEvent,
+  OfflineOutboxEntry,
+  OfflinePackingItem,
+  OfflineTrip,
+} from "./schema";
 
 class MockTable<RowType extends { id: string }> {
   rows = new Map<string, RowType>();
@@ -21,6 +28,8 @@ class MockTable<RowType extends { id: string }> {
   });
 
   get = vi.fn(async (id: string) => this.rows.get(id));
+
+  toArray = vi.fn(async () => [...this.rows.values()]);
 
   where = vi.fn(<Key extends keyof RowType>(field: Key) => ({
     equals: (value: RowType[Key]) => {
@@ -54,6 +63,7 @@ class MockDexie {
   events = new MockTable<OfflineEvent>();
   documents = new MockTable<OfflineDocument>();
   packingItems = new MockTable<OfflinePackingItem>();
+  outbox = new MockTable<OfflineOutboxEntry>();
 
   constructor(name: string) {
     this.name = name;
@@ -74,6 +84,33 @@ vi.mock("dexie", () => ({
   Dexie: MockDexie,
 }));
 
+vi.mock("dexie-react-hooks", async () => {
+  const React = await import("react");
+
+  return {
+    useLiveQuery: (query: () => unknown | Promise<unknown>, deps: React.DependencyList = []) => {
+      const [value, setValue] = React.useState<unknown>(undefined);
+      const dependencyKey = JSON.stringify(deps);
+
+      React.useEffect(() => {
+        let cancelled = false;
+
+        Promise.resolve(query()).then((nextValue) => {
+          if (!cancelled) {
+            setValue(nextValue);
+          }
+        });
+
+        return () => {
+          cancelled = true;
+        };
+      }, [dependencyKey, query]);
+
+      return value;
+    },
+  };
+});
+
 const {
   getOfflineDb,
   clearOfflineDb,
@@ -81,7 +118,12 @@ const {
   mirrorTripListEntries,
   readTripDetailFromMirror,
   readTripListFromMirror,
+  useOfflineEntitySyncStatus,
+  updateEventLocally,
   useOfflineDb,
+  writeDocumentLocally,
+  writeEventLocally,
+  writePackingItemLocally,
 } = await import("./db");
 
 beforeEach(() => {
@@ -480,6 +522,7 @@ describe("readTripDetailFromMirror", () => {
       confirmationNumber: null,
       createdAt: "2026-06-01T00:00:00.000Z",
       updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
     });
     await database.documents.put({
       id: "doc-fallback",
@@ -493,6 +536,8 @@ describe("readTripDetailFromMirror", () => {
       offline: false,
       url: "https://example.com/boarding-pass.pdf",
       addedAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
     });
     await database.packingItems.put({
       id: "packing-fallback",
@@ -502,6 +547,8 @@ describe("readTripDetailFromMirror", () => {
       done: false,
       isLabel: false,
       position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
     });
 
     const result = await readTripDetailFromMirror(database, "trip-fallback", new Date("2026-07-02T12:00:00.000Z"));
@@ -512,6 +559,72 @@ describe("readTripDetailFromMirror", () => {
     expect(result?.collaborators).toEqual([]);
     expect(result?.packingLists).toEqual([]);
     expect(result?.reservations).toEqual([]);
+  });
+
+  it("falls back to normalized rows with unscheduled events and trip-scoped docs", async () => {
+    const database = await getOfflineDb("user-read-detail-fallback-unscheduled");
+    await database.trips.put({
+      id: "trip-fallback",
+      ownerId: "user-read-detail-fallback-unscheduled",
+      name: "Fallback Trip",
+      startDate: undefined,
+      endDate: undefined,
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: null,
+    });
+    await database.events.put({
+      id: "event-unscheduled",
+      tripId: "trip-fallback",
+      dayId: null,
+      name: "Airport transfer",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+    await database.documents.put({
+      id: "doc-trip",
+      tripId: "trip-fallback",
+      eventId: null,
+      reservationId: null,
+      name: "Trip overview",
+      kind: DocKind.Doc,
+      scope: "trip",
+      size: null,
+      offline: false,
+      url: "https://example.com/overview",
+      addedAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    const result = await readTripDetailFromMirror(database, "trip-fallback", new Date("2026-07-02T12:00:00.000Z"));
+
+    expect(result?.unscheduledEvents).toEqual([
+      expect.objectContaining({
+        id: "event-unscheduled",
+        docs: [],
+      }),
+    ]);
+    expect(result?.docs).toEqual([
+      expect.objectContaining({
+        id: "doc-trip",
+        scope: "trip",
+      }),
+    ]);
   });
 });
 
@@ -575,5 +688,1070 @@ describe("readTripListFromMirror", () => {
         todayEvents: [],
       },
     ]);
+  });
+});
+
+describe("useOfflineEntitySyncStatus", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns synced when no database session is available", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => null }));
+
+    const { result } = renderHook(() => useOfflineEntitySyncStatus("event", "missing"));
+
+    await waitFor(() => expect(result.current).toBe("synced"));
+  });
+
+  it("reads event sync status from the local mirror", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ user: { id: "sync-status-user" } }) }));
+    const database = await getOfflineDb("sync-status-user");
+    await database.events.put({
+      id: "event-sync",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Museum",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "pending",
+    });
+
+    const { result } = renderHook(() => useOfflineEntitySyncStatus("event", "event-sync"));
+
+    await waitFor(() => expect(result.current).toBe("pending"));
+  });
+
+  it("reads document and packing-item sync status from the local mirror", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ user: { id: "sync-status-user-2" } }) }));
+    const database = await getOfflineDb("sync-status-user-2");
+    await database.documents.put({
+      id: "doc-sync",
+      tripId: "trip-1",
+      eventId: null,
+      reservationId: null,
+      name: "Boarding pass",
+      kind: "pdf",
+      scope: "trip",
+      size: null,
+      offline: true,
+      url: null,
+      addedAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "pending",
+    });
+    await database.packingItems.put({
+      id: "packing-sync",
+      tripId: "trip-1",
+      listId: null,
+      name: "Passport",
+      done: false,
+      isLabel: false,
+      position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "pending",
+    });
+
+    const { result: documentResult } = renderHook(() => useOfflineEntitySyncStatus("document", "doc-sync"));
+    const { result: packingResult } = renderHook(() => useOfflineEntitySyncStatus("packingItem", "packing-sync"));
+
+    await waitFor(() => expect(documentResult.current).toBe("pending"));
+    await waitFor(() => expect(packingResult.current).toBe("pending"));
+  });
+});
+
+describe("offline local write paths", () => {
+  it("writeEventLocally writes pending event row and matching outbox entry", async () => {
+    const database = await getOfflineDb("user-local-event");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-event",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+
+    await writeEventLocally(database, "trip-1", "day-1", {
+      id: "event-local",
+      name: "Offline museum",
+      afterEventId: "event-1",
+      insertAtPosition: 1,
+    });
+
+    const eventRow = await database.events.get("event-local");
+    const outboxRows = await database.outbox.toArray();
+
+    expect(eventRow).toEqual(
+      expect.objectContaining({
+        id: "event-local",
+        tripId: "trip-1",
+        dayId: "day-1",
+        name: "Offline museum",
+        syncStatus: "pending",
+      })
+    );
+    expect(outboxRows).toHaveLength(1);
+    expect(outboxRows[0]).toEqual(
+      expect.objectContaining({
+        entityType: "event",
+        entityId: "event-local",
+        operation: "create",
+        attempts: 0,
+      })
+    );
+  });
+
+  it("writeEventLocally shifts existing event positions when inserting at a position", async () => {
+    const database = await getOfflineDb("user-local-event-insert");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-event-insert",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.events.put({
+      id: "event-a",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Breakfast",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+    await database.events.put({
+      id: "event-b",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Lunch",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 1,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writeEventLocally(database, "trip-1", "day-1", {
+      id: "event-middle",
+      name: "Offline museum",
+      insertAtPosition: 1,
+    });
+
+    expect((await database.events.get("event-b"))?.position).toBe(2);
+    expect((await database.events.get("event-middle"))?.position).toBe(1);
+  });
+
+  it("writeEventLocally inserts after a target event and shifts following rows", async () => {
+    const database = await getOfflineDb("user-local-event-after");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-event-after",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.events.put({
+      id: "event-a",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Breakfast",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+    await database.events.put({
+      id: "event-b",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Lunch",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 1,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writeEventLocally(database, "trip-1", "day-1", {
+      id: "event-after",
+      name: "Offline coffee",
+      afterEventId: "event-a",
+    });
+
+    expect((await database.events.get("event-after"))?.position).toBe(1);
+    expect((await database.events.get("event-b"))?.position).toBe(2);
+  });
+
+  it("writeEventLocally appends when afterEventId does not match a row", async () => {
+    const database = await getOfflineDb("user-local-event-after-missing");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-event-after-missing",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.events.put({
+      id: "event-a",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Breakfast",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writeEventLocally(database, "trip-1", "day-1", {
+      id: "event-tail",
+      name: "Offline dinner",
+      afterEventId: "missing-event",
+    });
+
+    expect((await database.events.get("event-tail"))?.position).toBe(0);
+  });
+
+  it("writeEventLocally still writes rows when trip mirror row is missing", async () => {
+    const database = await getOfflineDb("user-local-event-no-trip");
+
+    await writeEventLocally(database, "trip-missing", "day-1", {
+      id: "event-orphan",
+      name: "Offline museum",
+    });
+
+    expect(await database.events.get("event-orphan")).toEqual(
+      expect.objectContaining({
+        tripId: "trip-missing",
+        syncStatus: "pending",
+      })
+    );
+    expect(await database.outbox.toArray()).toHaveLength(1);
+    expect(await database.trips.get("trip-missing")).toBeUndefined();
+  });
+
+  it("updateEventLocally marks existing event pending and enqueues update", async () => {
+    const database = await getOfflineDb("user-local-event-update");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-event-update",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.events.put({
+      id: "event-1",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Museum",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await updateEventLocally(database, "event-1", {
+      name: "Museum late entry",
+      note: "Bring tickets",
+    });
+
+    const eventRow = await database.events.get("event-1");
+    const outboxRows = await database.outbox.toArray();
+
+    expect(eventRow).toEqual(
+      expect.objectContaining({
+        name: "Museum late entry",
+        note: "Bring tickets",
+        syncStatus: "pending",
+      })
+    );
+    expect(outboxRows[0]).toEqual(
+      expect.objectContaining({
+        entityType: "event",
+        entityId: "event-1",
+        operation: "update",
+      })
+    );
+  });
+
+  it("updateEventLocally clears optional event fields when patch explicitly passes undefined", async () => {
+    const database = await getOfflineDb("user-local-event-clear");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-event-clear",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.events.put({
+      id: "event-1",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Museum",
+      note: "Existing note",
+      startAt: "2026-07-01T09:00:00.000Z",
+      endAt: "2026-07-01T10:00:00.000Z",
+      locationName: "Tokyo",
+      locationAddress: "Tower",
+      position: 0,
+      cost: 25,
+      confirmationNumber: "ABC123",
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await updateEventLocally(database, "event-1", {
+      note: undefined,
+      startAt: undefined,
+      endAt: undefined,
+      locationName: undefined,
+      locationAddress: undefined,
+      cost: undefined,
+      confirmationNumber: undefined,
+    });
+
+    expect(await database.events.get("event-1")).toEqual(
+      expect.objectContaining({
+        note: null,
+        startAt: null,
+        endAt: null,
+        locationName: null,
+        locationAddress: null,
+        cost: null,
+        confirmationNumber: null,
+      })
+    );
+  });
+
+  it("updateEventLocally no-ops when the target row is missing", async () => {
+    const database = await getOfflineDb("user-local-event-missing");
+
+    await updateEventLocally(database, "missing-event", {
+      name: "Ignored",
+    });
+
+    expect(await database.events.get("missing-event")).toBeUndefined();
+    expect(await database.outbox.toArray()).toEqual([]);
+  });
+
+  it("updateEventLocally updates event rows without requiring a trip snapshot row", async () => {
+    const database = await getOfflineDb("user-local-event-update-no-trip");
+    await database.events.put({
+      id: "event-1",
+      tripId: "trip-missing",
+      dayId: "day-1",
+      name: "Museum",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await updateEventLocally(database, "event-1", {
+      name: "Offline museum",
+    });
+
+    expect(await database.events.get("event-1")).toEqual(
+      expect.objectContaining({
+        name: "Offline museum",
+        syncStatus: "pending",
+      })
+    );
+    expect(await database.outbox.toArray()).toHaveLength(1);
+    expect(await database.trips.get("trip-missing")).toBeUndefined();
+  });
+
+  it("writeDocumentLocally writes pending document row and matching outbox entry", async () => {
+    const database = await getOfflineDb("user-local-doc");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-doc",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+
+    const file = new File(["content"], "boarding.pdf", { type: "application/pdf" });
+
+    await writeDocumentLocally(database, {
+      id: "doc-local",
+      tripId: "trip-1",
+      file,
+    });
+
+    const documentRow = await database.documents.get("doc-local");
+    const outboxRows = await database.outbox.toArray();
+
+    expect(documentRow).toEqual(
+      expect.objectContaining({
+        id: "doc-local",
+        name: "boarding.pdf",
+        syncStatus: "pending",
+        offline: true,
+      })
+    );
+    expect(outboxRows[0]).toEqual(
+      expect.objectContaining({
+        entityType: "document",
+        entityId: "doc-local",
+        operation: "create",
+      })
+    );
+  });
+
+  it("writeDocumentLocally resolves tripId from the event row when only eventId is provided", async () => {
+    const database = await getOfflineDb("user-local-doc-event");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-doc-event",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.events.put({
+      id: "event-1",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Museum",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writeDocumentLocally(database, {
+      id: "doc-event-local",
+      eventId: "event-1",
+      file: new File(["content"], "ticket.pdf", { type: "application/pdf" }),
+    });
+
+    expect(await database.documents.get("doc-event-local")).toEqual(
+      expect.objectContaining({
+        tripId: "trip-1",
+        eventId: "event-1",
+        scope: "event",
+      })
+    );
+  });
+
+  it("writeDocumentLocally no-ops when neither tripId nor event lookup resolves", async () => {
+    const database = await getOfflineDb("user-local-doc-missing");
+
+    await writeDocumentLocally(database, {
+      id: "doc-missing",
+      eventId: "missing-event",
+      file: new File(["content"], "ticket.pdf", { type: "application/pdf" }),
+    });
+
+    expect(await database.documents.get("doc-missing")).toBeUndefined();
+    expect(await database.outbox.toArray()).toEqual([]);
+  });
+
+  it("writeDocumentLocally uses reservation scope when reservationId is provided", async () => {
+    const database = await getOfflineDb("user-local-doc-reservation");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-doc-reservation",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+
+    await writeDocumentLocally(database, {
+      id: "doc-reservation",
+      tripId: "trip-1",
+      reservationId: "reservation-1",
+      file: new File(["content"], "confirmation.pdf", { type: "application/pdf" }),
+    });
+
+    expect(await database.documents.get("doc-reservation")).toEqual(
+      expect.objectContaining({
+        tripId: "trip-1",
+        reservationId: "reservation-1",
+        scope: "reservation",
+      })
+    );
+  });
+
+  it("writeDocumentLocally still writes rows when trip mirror row is missing", async () => {
+    const database = await getOfflineDb("user-local-doc-no-trip");
+
+    await writeDocumentLocally(database, {
+      id: "doc-orphan",
+      tripId: "trip-missing",
+      file: new File(["content"], "ticket.pdf", { type: "application/pdf" }),
+    });
+
+    expect(await database.documents.get("doc-orphan")).toEqual(
+      expect.objectContaining({
+        tripId: "trip-missing",
+        scope: "trip",
+        syncStatus: "pending",
+      })
+    );
+    expect(await database.outbox.toArray()).toHaveLength(1);
+    expect(await database.trips.get("trip-missing")).toBeUndefined();
+  });
+
+  it("writePackingItemLocally writes pending packing row and outbox entry", async () => {
+    const database = await getOfflineDb("user-local-pack");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-pack",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+
+    await writePackingItemLocally(database, {
+      operation: "create",
+      tripId: "trip-1",
+      input: {
+        id: "packing-local",
+        name: "Passport",
+      },
+    });
+
+    const packingRow = await database.packingItems.get("packing-local");
+    const outboxRows = await database.outbox.toArray();
+
+    expect(packingRow).toEqual(
+      expect.objectContaining({
+        id: "packing-local",
+        name: "Passport",
+        syncStatus: "pending",
+      })
+    );
+    expect(outboxRows[0]).toEqual(
+      expect.objectContaining({
+        entityType: "packingItem",
+        entityId: "packing-local",
+        operation: "create",
+      })
+    );
+  });
+
+  it("writePackingItemLocally updates and toggles existing rows", async () => {
+    const database = await getOfflineDb("user-local-pack-update");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-pack-update",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.packingItems.put({
+      id: "packing-1",
+      tripId: "trip-1",
+      listId: null,
+      name: "Passport",
+      done: false,
+      isLabel: false,
+      position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writePackingItemLocally(database, {
+      operation: "update",
+      itemId: "packing-1",
+      patch: { name: "Passport holder" },
+    });
+    await writePackingItemLocally(database, {
+      operation: "toggle",
+      itemId: "packing-1",
+    });
+
+    expect(await database.packingItems.get("packing-1")).toEqual(
+      expect.objectContaining({
+        name: "Passport holder",
+        done: true,
+        syncStatus: "pending",
+      })
+    );
+    expect(await database.outbox.toArray()).toHaveLength(2);
+  });
+
+  it("writePackingItemLocally inserts before a target row and shifts following items", async () => {
+    const database = await getOfflineDb("user-local-pack-before");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-pack-before",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.packingItems.put({
+      id: "packing-a",
+      tripId: "trip-1",
+      listId: null,
+      name: "Passport",
+      done: false,
+      isLabel: false,
+      position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+    await database.packingItems.put({
+      id: "packing-b",
+      tripId: "trip-1",
+      listId: null,
+      name: "Adapter",
+      done: false,
+      isLabel: false,
+      position: 1,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writePackingItemLocally(database, {
+      operation: "create",
+      tripId: "trip-1",
+      input: {
+        id: "packing-middle",
+        name: "Tickets",
+        beforeItemId: "packing-b",
+      },
+    });
+
+    expect((await database.packingItems.get("packing-middle"))?.position).toBe(1);
+    expect((await database.packingItems.get("packing-b"))?.position).toBe(2);
+  });
+
+  it("writePackingItemLocally inserts after a target row and shifts following items", async () => {
+    const database = await getOfflineDb("user-local-pack-after");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-pack-after",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.packingItems.put({
+      id: "packing-a",
+      tripId: "trip-1",
+      listId: null,
+      name: "Passport",
+      done: false,
+      isLabel: false,
+      position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+    await database.packingItems.put({
+      id: "packing-b",
+      tripId: "trip-1",
+      listId: null,
+      name: "Adapter",
+      done: false,
+      isLabel: false,
+      position: 1,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writePackingItemLocally(database, {
+      operation: "create",
+      tripId: "trip-1",
+      input: {
+        id: "packing-after",
+        name: "Tickets",
+        afterItemId: "packing-a",
+      },
+    });
+
+    expect((await database.packingItems.get("packing-after"))?.position).toBe(1);
+    expect((await database.packingItems.get("packing-b"))?.position).toBe(2);
+  });
+
+  it("writePackingItemLocally ignores blank create and update names", async () => {
+    const database = await getOfflineDb("user-local-pack-blank");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-local-pack-blank",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.packingItems.put({
+      id: "packing-1",
+      tripId: "trip-1",
+      listId: null,
+      name: "Passport",
+      done: false,
+      isLabel: false,
+      position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writePackingItemLocally(database, {
+      operation: "create",
+      tripId: "trip-1",
+      input: {
+        id: "packing-blank",
+        name: "   ",
+      },
+    });
+    await writePackingItemLocally(database, {
+      operation: "update",
+      itemId: "packing-1",
+      patch: {
+        name: "   ",
+      },
+    });
+
+    expect(await database.packingItems.get("packing-blank")).toBeUndefined();
+    expect((await database.packingItems.get("packing-1"))?.name).toBe("Passport");
+  });
+
+  it("writePackingItemLocally no-ops when update target row is missing", async () => {
+    const database = await getOfflineDb("user-local-pack-missing");
+
+    await writePackingItemLocally(database, {
+      operation: "toggle",
+      itemId: "missing-item",
+    });
+
+    expect(await database.packingItems.get("missing-item")).toBeUndefined();
+    expect(await database.outbox.toArray()).toEqual([]);
+  });
+
+  it("writePackingItemLocally still writes created rows when trip mirror row is missing", async () => {
+    const database = await getOfflineDb("user-local-pack-no-trip");
+
+    await writePackingItemLocally(database, {
+      operation: "create",
+      tripId: "trip-missing",
+      input: {
+        id: "packing-orphan",
+        name: "Passport",
+      },
+    });
+
+    expect(await database.packingItems.get("packing-orphan")).toEqual(
+      expect.objectContaining({
+        tripId: "trip-missing",
+        syncStatus: "pending",
+      })
+    );
+    expect(await database.outbox.toArray()).toHaveLength(1);
+    expect(await database.trips.get("trip-missing")).toBeUndefined();
+  });
+
+  it("writePackingItemLocally updates rows without requiring a trip snapshot row", async () => {
+    const database = await getOfflineDb("user-local-pack-update-no-trip");
+    await database.packingItems.put({
+      id: "packing-1",
+      tripId: "trip-missing",
+      listId: null,
+      name: "Passport",
+      done: false,
+      isLabel: false,
+      position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await writePackingItemLocally(database, {
+      operation: "update",
+      itemId: "packing-1",
+      patch: { name: "Passport holder" },
+    });
+
+    expect(await database.packingItems.get("packing-1")).toEqual(
+      expect.objectContaining({
+        name: "Passport holder",
+        syncStatus: "pending",
+      })
+    );
+    expect(await database.outbox.toArray()).toHaveLength(1);
+    expect(await database.trips.get("trip-missing")).toBeUndefined();
+  });
+
+  it("mirrorTripDetail preserves pending local document and packing rows", async () => {
+    const database = await getOfflineDb("user-pending-merge-doc-pack");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-pending-merge-doc-pack",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.documents.put({
+      id: "doc-trip-1",
+      tripId: "trip-1",
+      eventId: null,
+      reservationId: null,
+      name: "Offline itinerary",
+      kind: "pdf",
+      scope: "trip",
+      size: null,
+      offline: true,
+      url: null,
+      addedAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "pending",
+    });
+    await database.packingItems.put({
+      id: "packing-1",
+      tripId: "trip-1",
+      listId: null,
+      name: "Offline passport",
+      done: true,
+      isLabel: false,
+      position: 0,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "pending",
+    });
+
+    await mirrorTripDetail(database, buildTripDetail());
+
+    expect(await database.documents.get("doc-trip-1")).toEqual(
+      expect.objectContaining({
+        name: "Offline itinerary",
+        syncStatus: "pending",
+      })
+    );
+    expect(await database.packingItems.get("packing-1")).toEqual(
+      expect.objectContaining({
+        name: "Offline passport",
+        done: true,
+        syncStatus: "pending",
+      })
+    );
+  });
+
+  it("mirrorTripDetail preserves pending local entity rows over fresh server data", async () => {
+    const database = await getOfflineDb("user-pending-merge");
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-pending-merge",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await database.events.put({
+      id: "event-1",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Offline renamed museum",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+      syncStatus: "pending",
+    });
+
+    const detail = buildTripDetail();
+    detail.days[0].events[0].name = "Server museum";
+    await mirrorTripDetail(database, detail);
+
+    expect(await database.events.get("event-1")).toEqual(
+      expect.objectContaining({
+        name: "Offline renamed museum",
+        syncStatus: "pending",
+      })
+    );
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0].events[0]?.name).toBe(
+      "Offline renamed museum"
+    );
   });
 });

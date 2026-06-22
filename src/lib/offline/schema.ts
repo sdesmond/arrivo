@@ -1,5 +1,27 @@
 import type { TripDetailPayload, TripListEntry } from "@/data/types";
 
+export const OfflineSyncStatus = {
+  Pending: "pending",
+  Synced: "synced",
+} as const;
+export type OfflineSyncStatus = (typeof OfflineSyncStatus)[keyof typeof OfflineSyncStatus];
+
+export const OfflineEntityType = {
+  Trip: "trip",
+  Day: "day",
+  Event: "event",
+  Document: "document",
+  PackingItem: "packingItem",
+} as const;
+export type OfflineEntityType = (typeof OfflineEntityType)[keyof typeof OfflineEntityType];
+
+export const OfflineOperation = {
+  Create: "create",
+  Update: "update",
+  Delete: "delete",
+} as const;
+export type OfflineOperation = (typeof OfflineOperation)[keyof typeof OfflineOperation];
+
 export interface OfflineTrip {
   id: string;
   ownerId: string;
@@ -40,6 +62,7 @@ export interface OfflineEvent {
   confirmationNumber: string | null;
   createdAt: string;
   updatedAt: string;
+  syncStatus: OfflineSyncStatus;
 }
 
 export interface OfflineDocument {
@@ -54,6 +77,8 @@ export interface OfflineDocument {
   offline: boolean;
   url: string | null;
   addedAt: string;
+  updatedAt: string;
+  syncStatus: OfflineSyncStatus;
 }
 
 export interface OfflinePackingItem {
@@ -64,13 +89,15 @@ export interface OfflinePackingItem {
   done: boolean;
   isLabel: boolean;
   position: number;
+  updatedAt: string;
+  syncStatus: OfflineSyncStatus;
 }
 
 export interface OfflineOutboxEntry {
   id: string;
-  entityType: string;
+  entityType: OfflineEntityType;
   entityId: string;
-  operation: string;
+  operation: OfflineOperation;
   payload: unknown;
   createdAt: string;
   attempts: number;
@@ -82,5 +109,14 @@ export const OFFLINE_DB_SCHEMA_V1 = {
   events: "id, tripId, dayId, position, [tripId+dayId]",
   documents: "id, tripId, eventId, reservationId",
   packingItems: "id, tripId, listId",
+  outbox: "id, entityId",
+} as const;
+
+export const OFFLINE_DB_SCHEMA_V2 = {
+  trips: "id, ownerId",
+  days: "id, tripId, dayNumber, [tripId+dayNumber]",
+  events: "id, tripId, dayId, position, [tripId+dayId], syncStatus",
+  documents: "id, tripId, eventId, reservationId, syncStatus",
+  packingItems: "id, tripId, listId, syncStatus",
   outbox: "id, entityId",
 } as const;

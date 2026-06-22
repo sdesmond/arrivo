@@ -3,6 +3,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingRow, SortablePackingRow } from "./packing-list-row";
 
+const { mockUseOfflineEntitySyncStatus } = vi.hoisted(() => ({
+  mockUseOfflineEntitySyncStatus: vi.fn(() => "synced"),
+}));
+
 const useSortableMock = vi.hoisted(() =>
   vi.fn(() => ({
     attributes: { "aria-roledescription": "sortable" },
@@ -22,11 +26,20 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }));
 
+vi.mock("@/lib/offline/db", () => ({
+  useOfflineEntitySyncStatus: mockUseOfflineEntitySyncStatus,
+}));
+
 const itemRow = { id: "item-1", name: "Passport", done: false, position: 0 };
 const labelRow = { id: "label-1", name: "Documents", done: false, position: 1, isLabel: true };
 const dragHandle = <span title="Reorder Passport">grip</span>;
 
 describe("PackingRow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseOfflineEntitySyncStatus.mockReturnValue("synced");
+  });
+
   it("renders the item name", () => {
     render(<PackingRow item={itemRow} onRemove={vi.fn()} />);
     expect(screen.getByText("Passport")).toBeInTheDocument();
@@ -35,6 +48,14 @@ describe("PackingRow", () => {
   it("renders drag handle when provided", () => {
     render(<PackingRow item={itemRow} dragHandle={dragHandle} onRemove={vi.fn()} />);
     expect(screen.getByTitle("Reorder Passport")).toBeInTheDocument();
+  });
+
+  it("renders pending sync badge when local sync status is pending", () => {
+    mockUseOfflineEntitySyncStatus.mockReturnValue("pending");
+
+    render(<PackingRow item={itemRow} onRemove={vi.fn()} />);
+
+    expect(screen.getByLabelText("Pending sync")).toBeInTheDocument();
   });
 
   it("renders a checkbox for non-label items", () => {
@@ -312,6 +333,7 @@ describe("PackingRow", () => {
 describe("SortablePackingRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseOfflineEntitySyncStatus.mockReturnValue("synced");
   });
 
   it("passes animateLayoutChanges that returns false to useSortable", () => {

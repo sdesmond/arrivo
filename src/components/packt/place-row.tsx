@@ -4,9 +4,11 @@ import { useState } from "react";
 import { ChevronRight, MapPin, Trash2 } from "lucide-react";
 import { IconSize } from "@/lib/size-tokens";
 import { type TripEvent, type Document } from "@/data/types";
+import { useOfflineEntitySyncStatus } from "@/lib/offline/db";
 import { isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
+import { PendingSyncBadge } from "./pending-sync-badge";
 import { PlaceRowNameField } from "./place-row-name-field";
 import { PlaceRowActionBar } from "./place-row-action-bar";
 import { PlaceRowDialogs } from "./place-row-dialogs";
@@ -51,6 +53,7 @@ export function PlaceRow({
   onCancelDraft,
   tripDocs,
 }: PlaceRowProps) {
+  const syncStatus = useOfflineEntitySyncStatus("event", place.id);
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -219,6 +222,9 @@ export function PlaceRow({
                   setIsEditingName(true);
                 }}
               />
+              <div className="mt-1">
+                <PendingSyncBadge syncStatus={syncStatus} />
+              </div>
 
               {/* Note area */}
               <div className="mt-1.5">

@@ -4,8 +4,10 @@ import { useRef, useState, useTransition } from "react";
 import { Trash2, Download, Eye, Share2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
+import { PendingSyncBadge } from "./pending-sync-badge";
 import type { Document } from "@/data/types";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { useOfflineEntitySyncStatus } from "@/lib/offline/db";
 import { shareDoc } from "@/lib/utils";
 import {
   Dialog,
@@ -23,6 +25,7 @@ export interface DocRowProps {
 }
 
 export function DocRow({ doc }: DocRowProps) {
+  const syncStatus = useOfflineEntitySyncStatus("document", doc.id);
   const [isPending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,21 +132,24 @@ export function DocRow({ doc }: DocRowProps) {
           }}
         />
       ) : (
-        <span
-          className="flex-1 truncate"
-          onClick={() => {
-            setEditName(displayName);
-            setIsEditing(true);
-          }}
-          style={{
-            fontFamily: "var(--font-body, ui-sans-serif)",
-            fontSize: "calc(14px * var(--font-scale))",
-            color: "var(--fg)",
-            cursor: "text",
-          }}
-        >
-          {displayName}
-        </span>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span
+            className="flex-1 truncate"
+            onClick={() => {
+              setEditName(displayName);
+              setIsEditing(true);
+            }}
+            style={{
+              fontFamily: "var(--font-body, ui-sans-serif)",
+              fontSize: "calc(14px * var(--font-scale))",
+              color: "var(--fg)",
+              cursor: "text",
+            }}
+          >
+            {displayName}
+          </span>
+          <PendingSyncBadge syncStatus={syncStatus} />
+        </div>
       )}
       <button
         ref={viewButtonRef}

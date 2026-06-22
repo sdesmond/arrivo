@@ -13,6 +13,8 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
+import { updateEventLocally, useOfflineDb, writeEventLocally } from "@/lib/offline/db";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { deleteTrip, updateTripMetadata } from "../actions";
 import {
   createChecklist,
@@ -73,6 +75,8 @@ export interface TripDetailHandlers extends PackingHandlers {
 export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHandlers {
   const { trip, days } = detail;
   const router = useRouter();
+  const database = useOfflineDb();
+  const isOnline = useOnlineStatus();
   const [addingDay, startAddDayTransition] = React.useTransition();
   const [removingDay, startRemoveDayTransition] = React.useTransition();
   const [savingTrip, startSaveTripTransition] = React.useTransition();
@@ -82,7 +86,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
-      updateEvent(updated.id, {
+      const patch = {
         name: updated.name,
         startAt: updated.startAt,
         endAt: updated.endAt,
@@ -93,7 +97,14 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
         cost: updated.cost,
         confirmationNumber: updated.confirmationNumber,
         note: updated.note,
-      });
+      };
+
+      if (!isOnline && database) {
+        void updateEventLocally(database, updated.id, patch);
+        return;
+      }
+
+      void updateEvent(updated.id, patch);
     });
   }
 
@@ -132,7 +143,14 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
     React.startTransition(() => {
-      createEvent(day.id!, { id: crypto.randomUUID(), name, afterEventId, insertAtPosition });
+      const input = { id: crypto.randomUUID(), name, afterEventId, insertAtPosition };
+
+      if (!isOnline && database) {
+        void writeEventLocally(database, trip.id, day.id!, input);
+        return;
+      }
+
+      void createEvent(day.id!, input);
     });
   }
 

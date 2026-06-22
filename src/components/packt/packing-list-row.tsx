@@ -6,6 +6,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { PackingItem } from "@/data/types";
 import { Button } from "@/components/ui/button";
+import { PendingSyncBadge } from "./pending-sync-badge";
+import { useOfflineEntitySyncStatus } from "@/lib/offline/db";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +47,7 @@ export function PackingRow({
   onToggle,
   onEdit,
 }: PackingRowProps): ReactElement {
+  const syncStatus = useOfflineEntitySyncStatus("packingItem", item.id);
   const [isEditing, setIsEditing] = useState(false);
   const originalNameRef = useRef(item.name);
 
@@ -166,28 +169,31 @@ export function PackingRow({
           </div>
         ) : (
           <>
-            {isLabel ? (
-              <h3
-                className={cn("w-fit max-w-full truncate text-sm font-semibold", isComplete ? "line-through" : "")}
-                data-packing-name
-                style={{ color: isComplete ? "var(--fg-3)" : "var(--fg)", cursor: onEdit ? "pointer" : "default" }}
-                onClick={startEdit}
-              >
-                {item.name}
-              </h3>
-            ) : (
-              <p
-                className={cn("truncate text-sm font-medium", item.done ? "line-through" : "")}
-                data-packing-name
-                style={{
-                  color: item.done ? "var(--fg-3)" : "var(--fg)",
-                  cursor: onEdit ? "pointer" : "default",
-                }}
-                onClick={startEdit}
-              >
-                {item.name}
-              </p>
-            )}
+            <div className="flex min-w-0 items-center gap-2">
+              {isLabel ? (
+                <h3
+                  className={cn("w-fit max-w-full truncate text-sm font-semibold", isComplete ? "line-through" : "")}
+                  data-packing-name
+                  style={{ color: isComplete ? "var(--fg-3)" : "var(--fg)", cursor: onEdit ? "pointer" : "default" }}
+                  onClick={startEdit}
+                >
+                  {item.name}
+                </h3>
+              ) : (
+                <p
+                  className={cn("truncate text-sm font-medium", item.done ? "line-through" : "")}
+                  data-packing-name
+                  style={{
+                    color: item.done ? "var(--fg-3)" : "var(--fg)",
+                    cursor: onEdit ? "pointer" : "default",
+                  }}
+                  onClick={startEdit}
+                >
+                  {item.name}
+                </p>
+              )}
+              <PendingSyncBadge syncStatus={syncStatus} />
+            </div>
             {isLabel && itemCount !== undefined ? (
               <p style={{ color: "var(--fg-3)", fontSize: "calc(12px * var(--font-scale))" }}>
                 {packedCount !== undefined
