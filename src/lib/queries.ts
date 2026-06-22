@@ -101,7 +101,11 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
 
   if (rows.length === 0) return [];
 
-  const todayISO = now.toISOString().slice(0, 10);
+  // Events/reservations are stored as floating wall-clock times (see asFloatingUtc/getFloatingNow);
+  // "today" must therefore be the local wall-clock date of `now`, not its UTC date. Using the UTC
+  // date here makes the day roll over early for servers behind UTC, dropping today's Linked Events
+  // and leaking tomorrow's into the Now Card.
+  const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const tripIds = rows.map(({ trip }) => trip.id);
 
   const [allTodayEvents, dayCountAggs, packingAggs, allDocs, allCollabs, allReservations] = await Promise.all([

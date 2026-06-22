@@ -217,7 +217,9 @@ describe("listTripsForUser", () => {
         }),
       });
 
-    const result = await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
+    // Construct `now` from local components so the floating-today filter is deterministic across
+    // machine timezones (the Linked Event date is matched against now's local wall-clock date).
+    const result = await listTripsForUser("user-1", new Date(2026, 4, 13, 12, 0, 0));
 
     expect(result).toHaveLength(1);
     expect(result[0].todayEvents.map((event) => event.name)).toEqual(["Check-in — Hotel Avenida Palace", "Dinner"]);
