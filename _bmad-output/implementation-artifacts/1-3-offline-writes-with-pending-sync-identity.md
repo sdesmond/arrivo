@@ -316,6 +316,35 @@ Codex GPT-5
 - `src/components/packt/place-row.test.tsx`
 - `tests/e2e/feature-map.mjs`
 
+### Review Findings
+
+#### Group A — Core Offline Infrastructure (schema, outbox, db)
+
+**patch:**
+
+- [x] [Review][Patch] Document blob URLs never revoked — memory leak + stale after page refresh [src/lib/offline/db.ts:writeDocumentLocally]
+  `URL.createObjectURL` called per local document write but never `revokeObjectURL`. Blob URLs are session-scoped — stale after page refresh. Also found by multiple reviewers.
+
+- [x] [Review][Patch] Orphaned outbox entries on trip removal [src/lib/offline/db.ts:mirrorTripListEntries]
+  `mirrorTripListEntries` deletes trip rows (days/events/docs/packingItems) for removed trips but never cleans pending `outbox` entries referencing those entities. Orphaned outbox entries inflate `usePendingCount` and would attempt API calls against non-existent entities.
+
+- [x] [Review][Patch] Position shifts for synced rows during local insert lost on next mirrorTripDetail [src/lib/offline/db.ts:writeEventLocally]
+  Local event insert shifts positions of existing synced rows but does not mark them `pending` or create outbox entries. On next `mirrorTripDetail`, server positions overwrite the shifts — the local insert survives but its neighbor positions revert.
+
+- [x] [Review][Patch] `readTripDetailFromMirror` does not sort unscheduled events by position [src/lib/offline/db.ts:readTripDetailFromMirror]
+  The normalized-row fallback path builds `unscheduledEvents` from a simple `filter`/`push` without sorting by position. Order drifts from insertion order rather than position order.
+
+- [x] [Review][Patch] `insertAtPosition` accepts arbitrary integers — negative positions unguarded [src/lib/offline/db.ts:writeEventLocally]
+  No validation clamping negative `insertAtPosition` to 0. Produces events with negative position values, violating sort invariants.
+
+**defer:**
+
+- [x] [Review][Defer] `documentToOfflineRow` maps `updatedAt` from `addedAt` [src/lib/offline/db.ts:documentToOfflineRow] — deferred, pre-existing
+  `Document` type lacks `updatedAt`; the converter falls back to `addedAt`. Correct for now but Epic 2's server replay may need a real `updatedAt`. No AC violated.
+
+**dismissed:** 7 (test mock code, minor dead code, non-issue V1 migration concern)
+
 ### Change Log
 
 - 2026-06-21: Implemented offline pending-write mirroring, outbox helpers, and pending-sync badge integration; expanded tests and passed lint, TSC, coverage, build, and full affected E2E validation.
+- 2026-06-22: Code review Group A — 5 patch, 1 defer, 7 dismissed.
