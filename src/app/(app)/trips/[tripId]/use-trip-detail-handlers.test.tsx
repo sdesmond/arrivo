@@ -292,6 +292,19 @@ describe("useTripDetailHandlers", () => {
     expect(vi.mocked(deleteEvent)).not.toHaveBeenCalled();
   });
 
+  it("shows a toast and refreshes the route when deleting an event fails", async () => {
+    vi.mocked(deleteEvent).mockRejectedValueOnce(new Error("Network error"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleEventDelete("event-1");
+    });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to delete event. Refreshing the itinerary."));
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
   it("updates days locally instead of calling the server action while offline", async () => {
     mockUseOnlineStatus.mockReturnValue(false);
     mockUseOfflineDb.mockReturnValue({ userId: "user-1" });

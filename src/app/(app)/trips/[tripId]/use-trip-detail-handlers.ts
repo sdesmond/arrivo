@@ -10,7 +10,6 @@ import type {
   TripEvent,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
-  UpdateDayPatch,
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
@@ -24,6 +23,7 @@ import {
 } from "@/lib/offline/db";
 import { writeOfflineAware } from "@/lib/offline/offline-write";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
+import { pickDayPatch } from "@/lib/utils";
 import { deleteTrip, updateTripMetadata } from "../actions";
 import {
   createChecklist,
@@ -119,12 +119,17 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
 
   function handleEventDelete(id: string): void {
     React.startTransition(async () => {
-      await writeOfflineAware(
-        isOnline,
-        database,
-        (db) => deleteEventLocally(db, id),
-        () => deleteEvent(id)
-      );
+      try {
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => deleteEventLocally(db, id),
+          () => deleteEvent(id)
+        );
+      } catch {
+        toast.error("Failed to delete event. Refreshing the itinerary.");
+        router.refresh();
+      }
     });
   }
 
@@ -158,14 +163,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
 
-    const patch: UpdateDayPatch = {
-      ...(Object.prototype.hasOwnProperty.call(updates, "label") ? { label: updates.label } : {}),
-      ...(Object.prototype.hasOwnProperty.call(updates, "subtitle") ? { subtitle: updates.subtitle } : {}),
-      ...(Object.prototype.hasOwnProperty.call(updates, "weather") ? { weather: updates.weather } : {}),
-      ...(Object.prototype.hasOwnProperty.call(updates, "travelSummary")
-        ? { travelSummary: updates.travelSummary }
-        : {}),
-    };
+    const patch = pickDayPatch(updates);
 
     React.startTransition(async () => {
       try {
