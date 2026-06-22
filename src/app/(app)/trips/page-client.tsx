@@ -34,14 +34,38 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialVie
   const database = useOfflineDb();
   const isOnline = useOnlineStatus();
   const mirrorInFlight = useRef(false);
+  const pendingMirrorRef = useRef(false);
+  const databaseRef = useRef(database);
+  const isOnlineRef = useRef(isOnline);
+  const latestEntriesRef = useRef(initialEntries);
+
+  useEffect(() => {
+    databaseRef.current = database;
+    isOnlineRef.current = isOnline;
+    latestEntriesRef.current = initialEntries;
+  }, [database, isOnline, initialEntries]);
 
   useEffect(() => {
     if (!database || !isOnline) return;
+    pendingMirrorRef.current = true;
     if (mirrorInFlight.current) return;
-    mirrorInFlight.current = true;
-    void mirrorTripListEntries(database, initialEntries).finally(() => {
-      mirrorInFlight.current = false;
-    });
+
+    async function flushMirrorQueue(): Promise<void> {
+      mirrorInFlight.current = true;
+      try {
+        while (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          pendingMirrorRef.current = false;
+          await mirrorTripListEntries(databaseRef.current, latestEntriesRef.current);
+        }
+      } finally {
+        mirrorInFlight.current = false;
+        if (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          void flushMirrorQueue();
+        }
+      }
+    }
+
+    void flushMirrorQueue();
   }, [database, isOnline, initialEntries]);
 
   const offlineEntries = useLiveQuery(

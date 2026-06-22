@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import { render, renderHook, act, screen } from "@testing-library/react";
+import { render, renderHook, act, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import { TripsPageClient } from "./page-client";
@@ -92,6 +92,14 @@ vi.mock("@/components/packt/delete-trip-alert-dialog", () => ({
 }));
 
 const NOW = new Date("2026-05-13T12:00:00.000Z");
+
+function createDeferredPromise(): { promise: Promise<void>; resolve: () => void } {
+  let resolvePromise: () => void = () => {};
+  const promise = new Promise<void>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return { promise, resolve: resolvePromise };
+}
 
 const datedEntries: TripListEntry[] = [
   {
@@ -377,5 +385,46 @@ describe("TripsPageClient offline mirroring", () => {
     );
 
     expect(screen.getByText("upcoming:Paris")).toBeInTheDocument();
+  });
+
+  it("replays latest entries after an in-flight mirror write resolves", async () => {
+    const fakeDb = { userId: "user-1" };
+    const deferredMirror = createDeferredPromise();
+    const updatedEntries: TripListEntry[] = [
+      {
+        ...datedEntries[0],
+        trip: {
+          ...datedEntries[0].trip,
+          name: "Paris Updated",
+        },
+      },
+      ...datedEntries.slice(1),
+    ];
+    mockUseOfflineDb.mockReturnValue(fakeDb);
+    mockUseOnlineStatus.mockReturnValue(true);
+    mockMirrorTripListEntries.mockImplementationOnce(() => deferredMirror.promise).mockResolvedValue(undefined);
+
+    const { rerender } = render(
+      <TripsPageClient
+        initialEntries={datedEntries}
+        nowISO="2026-05-13T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    rerender(
+      <TripsPageClient
+        initialEntries={updatedEntries}
+        nowISO="2026-05-13T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    deferredMirror.resolve();
+
+    await waitFor(() => expect(mockMirrorTripListEntries).toHaveBeenCalledTimes(2));
+    expect(mockMirrorTripListEntries).toHaveBeenLastCalledWith(fakeDb, updatedEntries);
   });
 });

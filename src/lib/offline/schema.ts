@@ -1,3 +1,5 @@
+import type { TripDetailPayload, TripListEntry } from "@/data/types";
+
 export interface OfflineTrip {
   id: string;
   ownerId: string;
@@ -10,6 +12,8 @@ export interface OfflineTrip {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  listEntrySnapshot: TripListEntry | null;
+  detailSnapshot: TripDetailPayload | null;
 }
 
 export interface OfflineDay {

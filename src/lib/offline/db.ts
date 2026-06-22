@@ -93,6 +93,22 @@ function tripToOfflineRow(trip: Trip, userId: string): OfflineTrip {
     notes: trip.notes ?? null,
     createdAt: trip.createdAt ?? new Date().toISOString(),
     updatedAt: trip.updatedAt ?? new Date().toISOString(),
+    listEntrySnapshot: null,
+    detailSnapshot: null,
+  };
+}
+
+function withListEntrySnapshot(tripRow: OfflineTrip, listEntrySnapshot: TripListEntry | null): OfflineTrip {
+  return {
+    ...tripRow,
+    listEntrySnapshot,
+  };
+}
+
+function withDetailSnapshot(tripRow: OfflineTrip, detailSnapshot: TripDetailPayload | null): OfflineTrip {
+  return {
+    ...tripRow,
+    detailSnapshot,
   };
 }
 
@@ -109,6 +125,71 @@ function offlineTripToType(row: OfflineTrip, now: Date): Trip {
     notes: row.notes ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function cloneTripWithCurrentStatus(trip: Trip, now: Date): Trip {
+  return {
+    ...trip,
+    status: getTripStatus(trip.startDate ?? null, trip.endDate ?? null, now),
+  };
+}
+
+function cloneTripListEntrySnapshot(entry: TripListEntry, now: Date): TripListEntry {
+  return {
+    ...entry,
+    trip: cloneTripWithCurrentStatus(entry.trip, now),
+    todayEvents: entry.todayEvents.map((event) => ({ ...event })),
+  };
+}
+
+function cloneTripDetailSnapshot(detail: TripDetailPayload, now: Date): TripDetailPayload {
+  return {
+    ...detail,
+    trip: cloneTripWithCurrentStatus(detail.trip, now),
+    days: detail.days.map((day) => ({
+      ...day,
+      events: day.events.map((event) => ({ ...event, docs: event.docs?.map((doc) => ({ ...doc })) ?? [] })),
+      notes: day.notes?.map((note) => ({ ...note })),
+      checklists: day.checklists?.map((checklist) => ({
+        ...checklist,
+        items: checklist.items.map((item) => ({ ...item })),
+      })),
+    })),
+    unscheduledEvents: detail.unscheduledEvents.map((event) => ({
+      ...event,
+      docs: event.docs?.map((doc) => ({ ...doc })) ?? [],
+    })),
+    docs: detail.docs.map((doc) => ({ ...doc })),
+    collaborators: detail.collaborators.map((collaborator) => ({ ...collaborator })),
+    packingItems: detail.packingItems.map((item) => ({ ...item })),
+    packingLists: detail.packingLists.map((list) => ({ ...list })),
+    reservations: detail.reservations.map((reservation) => ({
+      ...reservation,
+      documents: reservation.documents?.map((doc) => ({ ...doc })),
+    })),
+  };
+}
+
+function syncTripIntoListSnapshot(snapshot: TripListEntry | null, trip: Trip): TripListEntry | null {
+  if (!snapshot) return null;
+  return {
+    ...snapshot,
+    trip: {
+      ...snapshot.trip,
+      ...trip,
+    },
+  };
+}
+
+function syncTripIntoDetailSnapshot(snapshot: TripDetailPayload | null, trip: Trip): TripDetailPayload | null {
+  if (!snapshot) return null;
+  return {
+    ...snapshot,
+    trip: {
+      ...snapshot.trip,
+      ...trip,
+    },
   };
 }
 
@@ -275,11 +356,21 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
     database.documents,
     database.packingItems,
     async () => {
+      const existingTripRow = await database.trips.get(tripId);
       await database.days.where("tripId").equals(tripId).delete();
       await database.events.where("tripId").equals(tripId).delete();
       await database.documents.where("tripId").equals(tripId).delete();
       await database.packingItems.where("tripId").equals(tripId).delete();
-      await database.trips.put(tripToOfflineRow(detail.trip, database.userId));
+      const tripRow = tripToOfflineRow(detail.trip, database.userId);
+      await database.trips.put(
+        withDetailSnapshot(
+          withListEntrySnapshot(
+            tripRow,
+            syncTripIntoListSnapshot(existingTripRow?.listEntrySnapshot ?? null, detail.trip)
+          ),
+          detail
+        )
+      );
       await database.days.bulkPut(dayRows);
       await database.events.bulkPut(allEvents.map((event) => eventToOfflineRow(event, tripId)));
       await database.documents.bulkPut([...eventDocRows, ...tripScopedDocRows]);
@@ -289,8 +380,37 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
 }
 
 export async function mirrorTripListEntries(database: OfflineDb, entries: TripListEntry[]): Promise<void> {
-  const rows = entries.map((entry) => tripToOfflineRow(entry.trip, database.userId));
-  await database.trips.bulkPut(rows);
+  const existingRows = await database.trips.where("ownerId").equals(database.userId).toArray();
+  const existingRowsById = new Map(existingRows.map((row) => [row.id, row]));
+  const incomingTripIds = new Set(entries.map((entry) => entry.trip.id));
+  const removedTripIds = existingRows.filter((row) => !incomingTripIds.has(row.id)).map((row) => row.id);
+  const rows = entries.map((entry) => {
+    const existingRow = existingRowsById.get(entry.trip.id);
+    const tripRow = tripToOfflineRow(entry.trip, database.userId);
+    return withDetailSnapshot(
+      withListEntrySnapshot(tripRow, entry),
+      syncTripIntoDetailSnapshot(existingRow?.detailSnapshot ?? null, entry.trip)
+    );
+  });
+
+  await database.transaction(
+    "rw",
+    database.trips,
+    database.days,
+    database.events,
+    database.documents,
+    database.packingItems,
+    async () => {
+      for (const removedTripId of removedTripIds) {
+        await database.trips.delete(removedTripId);
+        await database.days.where("tripId").equals(removedTripId).delete();
+        await database.events.where("tripId").equals(removedTripId).delete();
+        await database.documents.where("tripId").equals(removedTripId).delete();
+        await database.packingItems.where("tripId").equals(removedTripId).delete();
+      }
+      await database.trips.bulkPut(rows);
+    }
+  );
 }
 
 export async function readTripDetailFromMirror(
@@ -300,6 +420,9 @@ export async function readTripDetailFromMirror(
 ): Promise<TripDetailPayload | null> {
   const tripRow = await database.trips.get(tripId);
   if (!tripRow) return null;
+  if (tripRow.detailSnapshot) {
+    return cloneTripDetailSnapshot(tripRow.detailSnapshot, now);
+  }
 
   const [dayRows, eventRows, docRows, packingItemRows] = await Promise.all([
     database.days.where("tripId").equals(tripId).sortBy("dayNumber"),
@@ -350,7 +473,11 @@ export async function readTripListFromMirror(database: OfflineDb, now: Date): Pr
   const tripRows = await database.trips.where("ownerId").equals(database.userId).toArray();
 
   return tripRows
-    .map((tripRow) => ({ trip: offlineTripToType(tripRow, now), todayEvents: [] })) // TODO: populate from events table
+    .map((tripRow) =>
+      tripRow.listEntrySnapshot
+        ? cloneTripListEntrySnapshot(tripRow.listEntrySnapshot, now)
+        : { trip: offlineTripToType(tripRow, now), todayEvents: [] }
+    )
     .sort((first, second) => {
       const firstDate = first.trip.startDate ? new Date(first.trip.startDate).getTime() : 0;
       const secondDate = second.trip.startDate ? new Date(second.trip.startDate).getTime() : 0;

@@ -76,14 +76,38 @@ export function TripDetailClient({
   const isOnline = useOnlineStatus();
   const now = useMemo(() => new Date(nowISO), [nowISO]);
   const mirrorInFlight = useRef(false);
+  const pendingMirrorRef = useRef(false);
+  const databaseRef = useRef(database);
+  const isOnlineRef = useRef(isOnline);
+  const latestDetailRef = useRef(detail);
+
+  useEffect(() => {
+    databaseRef.current = database;
+    isOnlineRef.current = isOnline;
+    latestDetailRef.current = detail;
+  }, [database, isOnline, detail]);
 
   useEffect(() => {
     if (!database || !isOnline) return;
+    pendingMirrorRef.current = true;
     if (mirrorInFlight.current) return;
-    mirrorInFlight.current = true;
-    void mirrorTripDetail(database, detail).finally(() => {
-      mirrorInFlight.current = false;
-    });
+
+    async function flushMirrorQueue(): Promise<void> {
+      mirrorInFlight.current = true;
+      try {
+        while (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          pendingMirrorRef.current = false;
+          await mirrorTripDetail(databaseRef.current, latestDetailRef.current);
+        }
+      } finally {
+        mirrorInFlight.current = false;
+        if (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          void flushMirrorQueue();
+        }
+      }
+    }
+
+    void flushMirrorQueue();
   }, [database, isOnline, detail]);
 
   const offlineDetail = useLiveQuery(

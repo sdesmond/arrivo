@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
@@ -64,6 +64,14 @@ vi.mock("dexie-react-hooks", async () => {
     },
   };
 });
+
+function createDeferredPromise(): { promise: Promise<void>; resolve: () => void } {
+  let resolvePromise: () => void = () => {};
+  const promise = new Promise<void>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return { promise, resolve: resolvePromise };
+}
 
 interface TripCoverProps {
   metaTag: string;
@@ -554,5 +562,31 @@ describe("TripDetailClient offline mirroring", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(screen.getByText(/0 place/)).toBeInTheDocument();
+  });
+
+  it("replays latest detail after an in-flight mirror write resolves", async () => {
+    const fakeDb = { userId: "user-1" };
+    const deferredMirror = createDeferredPromise();
+    const updatedDetail: TripDetailPayload = {
+      ...baseDetail,
+      trip: {
+        ...baseDetail.trip,
+        name: "Tokyo Updated",
+      },
+    };
+    mockUseOfflineDb.mockReturnValue(fakeDb);
+    mockUseOnlineStatus.mockReturnValue(true);
+    mockMirrorTripDetail.mockImplementationOnce(() => deferredMirror.promise).mockResolvedValue(undefined);
+
+    const { rerender } = render(
+      <TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />
+    );
+
+    rerender(<TripDetailClient detail={updatedDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    deferredMirror.resolve();
+
+    await waitFor(() => expect(mockMirrorTripDetail).toHaveBeenCalledTimes(2));
+    expect(mockMirrorTripDetail).toHaveBeenLastCalledWith(fakeDb, updatedDetail);
   });
 });
