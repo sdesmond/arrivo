@@ -738,6 +738,34 @@ async function clearOutboxEntriesForEntity(database: OfflineDb, entityId: string
   return entries;
 }
 
+async function replaceOutboxEntriesForUpdate(
+  database: OfflineDb,
+  entityType: OfflineEntitySyncTable,
+  entityId: string,
+  payload: unknown
+): Promise<void> {
+  const { enqueueOutbox } = await import("./outbox");
+  const existingEntries = await getOutboxEntriesForEntity(database, entityId);
+  const createEntry = existingEntries.find((entry) => entry.operation === OfflineOperation.Create);
+
+  for (const entry of existingEntries) {
+    if (entry.id !== createEntry?.id) {
+      await database.outbox.delete(entry.id);
+    }
+  }
+
+  if (createEntry) {
+    await database.outbox.put({
+      ...createEntry,
+      entityType,
+      payload,
+    });
+    return;
+  }
+
+  await enqueueOutbox(database, entityType, entityId, OfflineOperation.Update, payload);
+}
+
 async function enqueueDeleteUnlessUnsynced(
   database: OfflineDb,
   entityType: OfflineEntitySyncTable,
@@ -1247,7 +1275,6 @@ export async function reorderEventsLocally(
   dayId: string,
   reorderedEvents: Array<{ id: string; position: number }>
 ): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.events, database.outbox, async () => {
@@ -1267,8 +1294,7 @@ export async function reorderEventsLocally(
       };
 
       await database.events.put(nextRow);
-      await clearOutboxEntriesForEntity(database, nextRow.id);
-      await enqueueOutbox(database, "event", nextRow.id, OfflineOperation.Update, eventPayloadFromRow(nextRow));
+      await replaceOutboxEntriesForUpdate(database, "event", nextRow.id, eventPayloadFromRow(nextRow));
       nextRows.push(nextRow);
     }
 

@@ -2181,6 +2181,36 @@ describe("offline write parity helpers", () => {
     expect(await database.outbox.toArray()).toEqual([]);
   });
 
+  it("reorderEventsLocally preserves pending create entries for offline-created events", async () => {
+    const database = await getOfflineDb("user-offline-reorder-created");
+    await seedMirroredTrip(database, "user-offline-reorder-created");
+
+    await writeEventLocally(database, "trip-1", "day-1", {
+      id: "10000000-0000-4000-8000-000000000099",
+      name: "Offline museum",
+    });
+
+    await reorderEventsLocally(database, "day-1", [{ id: "10000000-0000-4000-8000-000000000099", position: 0 }]);
+
+    expect(await database.events.get("10000000-0000-4000-8000-000000000099")).toEqual(
+      expect.objectContaining({ position: 0, syncStatus: "pending" })
+    );
+
+    expect(
+      (await database.outbox.toArray()).filter((entry) => entry.entityId === "10000000-0000-4000-8000-000000000099")
+    ).toEqual([
+      expect.objectContaining({
+        entityType: "event",
+        entityId: "10000000-0000-4000-8000-000000000099",
+        operation: "create",
+        payload: expect.objectContaining({
+          id: "10000000-0000-4000-8000-000000000099",
+          position: 0,
+        }),
+      }),
+    ]);
+  });
+
   it("deleteEventLocally removes synced events, clears related docs, and queues a delete", async () => {
     const database = await getOfflineDb("user-offline-delete-event-synced");
     await seedMirroredTrip(database, "user-offline-delete-event-synced");

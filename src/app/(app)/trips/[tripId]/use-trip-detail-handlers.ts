@@ -173,7 +173,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
           (db) => updateDayLocally(db, day.id!, patch),
           () => updateDay(day.id!, patch)
         );
-      } catch (error) {
+      } catch {
         toast.error("Failed to update day. Refreshing the itinerary.");
         router.refresh();
       }
