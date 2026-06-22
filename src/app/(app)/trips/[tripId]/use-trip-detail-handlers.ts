@@ -167,13 +167,18 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
         : {}),
     };
 
-    React.startTransition(() => {
-      void writeOfflineAware(
-        isOnline,
-        database,
-        (db) => updateDayLocally(db, day.id!, patch),
-        () => updateDay(day.id!, patch)
-      );
+    React.startTransition(async () => {
+      try {
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => updateDayLocally(db, day.id!, patch),
+          () => updateDay(day.id!, patch)
+        );
+      } catch (error) {
+        toast.error("Failed to update day. Refreshing the itinerary.");
+        router.refresh();
+      }
     });
   }
 

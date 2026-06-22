@@ -275,6 +275,35 @@ GPT-5 Codex
 - `_bmad-output/implementation-artifacts/1-4-full-offline-write-parity.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
+### Review Findings
+
+### Review Findings
+
+Decision-needed (2):
+
+- [ ] [Review][Decision] AC 5 — Missing UI audit: no component changes in diff — The spec requires auditing all interactive components for `navigator.onLine`, `useOnlineStatus()` gating, and disabled-if-offline patterns on write actions and re-enabling every offline-writeable control. The diff contains zero changes to any UI component for this audit. The completion notes claim it was done but the diff shows no edits. Needs confirmation: was this audit performed in a separate branch/commit, or was it not done?
+- [ ] [Review][Decision] Param shapes deviate from spec — `updateDayLocally` and `deleteEventLocally` accept `(database, id, patch)` and `(database, id)` respectively, diverging from spec's `(database, entity)` signature. The outbox payload shape also differs from spec. This changes the contract for Epic 2's sync engine. Needs decision: align implementation with spec, or keep current approach and update spec?
+
+Patch (8):
+
+- [x] [Review][Patch] Unhandled promise rejection in handleDayUpdate — fixed: changed to `async` `startTransition` with try/catch + toast. [use-trip-detail-handlers.ts]
+- [x] [Review][Patch] handleDayUpdate lacks error handling — fixed: added try/catch with toast.error + router.refresh. [use-trip-detail-handlers.ts]
+- [x] [Review][Patch] mirrorTripDetail deletes offline-created days — fixed: collects pending day rows before delete and re-inserts offline-only days in merge. [db.ts:847-917]
+- [x] [Review][Patch] reorderEventsLocally enqueues duplicate outbox entries — fixed: clears existing entries before enqueuing. [db.ts:1210-1252]
+- [x] [Review][Patch] deleteEventLocally outbox handling — dismissed: implementation using outbox create-check is more correct than spec's `syncStatus` approach (handles partial-sync edge case). Clearing then re-enqueuing inside a transaction is safe.
+- [x] [Review][Patch] deleteDocumentLocally skips snapshot update for event-scoped documents — dismissed: documents always have `tripId` populated (both `writeDocumentLocally` and `documentToOfflineRow` set it). Defensive guard never triggers.
+- [x] [Review][Patch] applyPendingDayUpdateToSnapshot spread order nullifies patch values — fixed: spread order reversed so patch always wins over overriding row. [db.ts:703-710]
+- [x] [Review][Patch] updateDayLocally omits syncStatus/updatedAt — fixed: added `syncStatus: "pending"` and `updatedAt` to day row. [db.ts:1692-1724]
+
+Defer (4):
+
+- [x] [Review][Defer] assertClientId return contract change — changed to access `.id` on return value. Needs confirmation old pattern is fully migrated. [db.ts] — deferred, pre-existing
+- [x] [Review][Defer] handleDayItemsReorder silently drops non-event items — filters to only `type === "event"`, other DayItemType values silently discarded. [use-trip-detail-handlers.ts] — deferred, pre-existing
+- [x] [Review][Defer] mirrorTripDetail N+1 query inside transaction — `getOutboxEntriesForEntity` called in loop for each dayRow, multiplying IndexedDB round-trips. [db.ts:870-883] — deferred, performance optimization
+- [x] [Review][Defer] clearOutboxEntriesForEntity uses individual deletes instead of bulkDelete — N write ops instead of one batched call. [db.ts:626-635] — deferred, performance optimization
+
+Dismissed (1): reorderEventsLocally drops tripId from signature — implementation derives from data, which is better than spec.
+
 ## Change Log
 
 - 2026-06-22: Implemented offline reorder, delete, and day-update parity for itinerary, packing, and document flows; added unit coverage and completed validator pass.

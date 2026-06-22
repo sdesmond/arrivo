@@ -691,20 +691,20 @@ function applyPendingDayUpdateToSnapshot(
 
     return {
       ...day,
+      ...(overridingRow
+        ? {
+            date: overridingRow.date ?? undefined,
+            dayNumber: overridingRow.dayNumber,
+            label: overridingRow.label ?? undefined,
+            subtitle: overridingRow.subtitle ?? undefined,
+            tripId: overridingRow.tripId,
+          }
+        : {}),
       ...(Object.prototype.hasOwnProperty.call(patch, "label") ? { label: patch.label ?? day.label } : {}),
       ...(Object.prototype.hasOwnProperty.call(patch, "subtitle") ? { subtitle: patch.subtitle ?? undefined } : {}),
       ...(Object.prototype.hasOwnProperty.call(patch, "weather") ? { weather: patch.weather ?? undefined } : {}),
       ...(Object.prototype.hasOwnProperty.call(patch, "travelSummary")
         ? { travelSummary: patch.travelSummary ?? undefined }
-        : {}),
-      ...(overridingRow
-        ? {
-            date: overridingRow.date ?? undefined,
-            dayNumber: overridingRow.dayNumber,
-            label: overridingRow.label,
-            subtitle: overridingRow.subtitle ?? undefined,
-            tripId: overridingRow.tripId,
-          }
         : {}),
     };
   });
@@ -850,8 +850,15 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
       const deletedEventIds = new Set<string>();
       const deletedDocIds = new Set<string>();
       const deletedPackingItemIds = new Set<string>();
-      const pendingDayUpdates = new Map<string, OfflineDayUpdatePayload>();
       const pendingDayRows = new Map<string, OfflineDay>();
+      const pendingDayUpdates = new Map<string, OfflineDayUpdatePayload>();
+
+      const localDays = (await database.days.where("tripId").equals(tripId).toArray()).filter(
+        (row) => row.syncStatus === OfflineSyncStatus.Pending
+      );
+      for (const day of localDays) {
+        pendingDayRows.set(day.id, day);
+      }
 
       for (const dayRow of dayRows) {
         const dayEntries = (await getOutboxEntriesForEntity(database, dayRow.id))
@@ -902,7 +909,12 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
       await database.documents.where("tripId").equals(tripId).delete();
       await database.packingItems.where("tripId").equals(tripId).delete();
 
-      const mergedDayRows = dayRows.map((row) => pendingDayRows.get(row.id) ?? row);
+      const mergedDayRows = [
+        ...dayRows.map((row) => pendingDayRows.get(row.id) ?? row),
+        ...Array.from(pendingDayRows.entries())
+          .filter(([, row]) => !dayRows.some((day) => day.id === row.id))
+          .map(([, row]) => row),
+      ];
       const mergedEventRows = renumberEventPositions(
         mergeRowsById(
           eventRows.filter((row) => !deletedEventIds.has(row.id)),
@@ -1235,6 +1247,7 @@ export async function reorderEventsLocally(
       };
 
       await database.events.put(nextRow);
+      await clearOutboxEntriesForEntity(database, nextRow.id);
       await enqueueOutbox(database, "event", nextRow.id, OfflineOperation.Update, eventPayloadFromRow(nextRow));
       nextRows.push(nextRow);
     }
@@ -1301,6 +1314,7 @@ export async function updateDayLocally(database: OfflineDb, dayId: string, patch
     if (!currentRow) return;
 
     const tripRow = await database.trips.get(currentRow.tripId);
+    const nowIso = getNowIso();
     const nextRow: OfflineDay = {
       ...currentRow,
       label: Object.prototype.hasOwnProperty.call(patch, "label")
@@ -1309,6 +1323,8 @@ export async function updateDayLocally(database: OfflineDb, dayId: string, patch
       subtitle: Object.prototype.hasOwnProperty.call(patch, "subtitle")
         ? (patch.subtitle ?? null)
         : currentRow.subtitle,
+      syncStatus: OfflineSyncStatus.Pending,
+      updatedAt: nowIso,
     };
 
     await database.days.put(nextRow);
