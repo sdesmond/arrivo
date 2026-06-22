@@ -45,6 +45,8 @@ export interface OfflineDay {
   date: string | null;
   label: string;
   subtitle: string | null;
+  updatedAt: string;
+  syncStatus: OfflineSyncStatus;
 }
 
 export interface OfflineEvent {
@@ -116,7 +118,7 @@ export const OFFLINE_DB_SCHEMA_V1 = {
 
 export const OFFLINE_DB_SCHEMA_V2 = {
   trips: "id, ownerId",
-  days: "id, tripId, dayNumber, [tripId+dayNumber]",
+  days: "id, tripId, dayNumber, [tripId+dayNumber], syncStatus",
   events: "id, tripId, dayId, position, [tripId+dayId], syncStatus",
   documents: "id, tripId, eventId, reservationId, syncStatus",
   packingItems: "id, tripId, listId, syncStatus",
