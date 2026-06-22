@@ -48,15 +48,30 @@ Packt is a travel itinerary planning app built with Next.js (App Router), TypeSc
 
 ## Test Commands
 
-| Command                  | What it runs                                                    |
-| ------------------------ | --------------------------------------------------------------- |
-| `npm test`               | Vitest unit tests (watch mode)                                  |
-| `npm run test:coverage`  | Vitest with Istanbul coverage report                            |
-| `npm run test:e2e`       | Playwright BDD E2E tests (headless)                             |
-| `npm run test:e2e:ui`    | Playwright E2E with interactive UI                              |
-| `npm run db:migrate:e2e` | Push schema to the E2E database (run once after schema changes) |
+| Command                     | What it runs                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| `npm test`                  | Vitest unit tests (watch mode)                                                      |
+| `npm run test:coverage`     | Vitest with Istanbul coverage report                                                |
+| `npm run test:e2e`          | Full Playwright BDD E2E suite (headless) — use for the pre-merge gate               |
+| `npm run test:e2e:affected` | Only the E2E features the current change set touches (auto, full on shared changes) |
+| `npm run test:e2e:ui`       | Playwright E2E with interactive UI                                                  |
+| `npm run db:migrate:e2e`    | Push schema to the E2E database (run once after schema changes)                     |
 
 Coverage thresholds: 95% lines/functions, 90% branches (enforced in CI).
+
+### E2E Segmentation
+
+E2E scenarios are segmented by a `@feat:<stem>` Gherkin tag on each `tests/e2e/features/<stem>.feature`.
+`tests/e2e/feature-map.mjs` maps source globs to those tags; `scripts/affected-e2e.mjs` reads the
+git change set and runs only the matching features (falling back to the full suite when a shared file
+in `SHARED_GLOBS` changes or a change maps to no feature). When you add a feature file, tag it
+`@feat:<stem>` and register the source it exercises in `feature-map.mjs` — otherwise edits to that
+source fall back to the full suite.
+
+`scripts/feature-map.test.mjs` enforces this contract (it runs in the coverage worker): adding a
+`tests/e2e/features/*.feature` without its `@feat:` tag, leaving a dead path in the map, or adding a
+`src/components/packt/*` component that no glob covers all turn the build red until you register it in
+`feature-map.mjs` (under a feature, or in `SHARED_GLOBS` if it's cross-cutting).
 
 ### E2E Database Setup
 
@@ -115,11 +130,11 @@ These agents enforce project standards. Use them as described below — don't sk
 
 ### Post-implementation agents
 
-| Agent                   | When to invoke                                                                                                                                                                                                                                              |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packt-build-validator` | After completing the final code for a change; rerun only if code changes after the last validator pass or if there is reason to doubt the result. It runs ESLint, TypeScript checking, Vitest coverage, the production build, and Playwright E2E validation |
-| `desktop-reviewer`      | After visual changes when browser validation is needed; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                       |
-| `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                      |
+| Agent                   | When to invoke                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packt-build-validator` | After completing the final code for a change. It runs ESLint, TypeScript checking, Vitest coverage, the production build, and (affected) Playwright E2E. It **self-skips via a fingerprint marker**: re-invoking on an unchanged tree is a no-op, so you never need to guard against double-runs — just invoke it and it decides whether real work is needed |
+| `desktop-reviewer`      | After visual changes when browser validation is needed; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                                                                                                                        |
+| `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                                                                                                                       |
 
 **Pre-implementation gate — NON-NEGOTIABLE:**
 Before presenting a **story file or implementation-ready plan file** to the user, you MUST run the packt-plan-reviewer. This gate applies only to fully fleshed-out artifacts that will be handed directly to a developer — not to PRDs, UX specs, architecture docs, brainstorming outputs, or other intermediate planning artifacts.
@@ -145,8 +160,8 @@ Before starting any new development task, you MUST ask the user whether they wan
    - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create the matching colocated `*.test.ts` / `*.test.tsx` alongside it in the same change
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend the `.feature` file and matching step definitions in `tests/e2e/` in the same change
    - If you cannot name the exact tests you are adding or updating, pause and resolve that before editing production code
-3. Run `packt-build-validator` after the change is fully implemented and tested: lint, TypeScript, coverage, build, and Playwright E2E should confirm work that is already complete
-4. If the validator flags issues, fix them and run `packt-build-validator` again. If it already passed on the final code for the change, do not rerun it just to make the commit
+3. Run `packt-build-validator` **once** after the change is fully implemented and tested: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (dev-story, quick-dev, story-automator, etc.) must **not** invoke it themselves
+4. If the validator flags issues, fix them and run `packt-build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. For the final pre-merge/PR check, run the full E2E suite (`npm run test:e2e`) rather than the affected subset
 
 ## Key Conventions
 
