@@ -6,6 +6,7 @@
 - handleDayItemsReorder silently drops non-event items — filters to only `type === "event"`, other DayItemType values silently discarded. [use-trip-detail-handlers.ts]
 - mirrorTripDetail N+1 query inside transaction — `getOutboxEntriesForEntity` called in loop for each dayRow, multiplying IndexedDB round-trips. [db.ts:870-883]
 - clearOutboxEntriesForEntity uses individual deletes instead of bulkDelete — N write ops instead of one batched call. [db.ts:626-635]
+- mirrorTripDetail fragmented pending-overlay mechanism — each entity type (events, documents, packing items, days) re-implements its own ad hoc pending/outbox overlay logic when reconstructing the detail snapshot, rather than sharing one mechanism. Architectural; risks destabilizing working merge logic if folded into a quick fix. [db.ts]
 
 
 
