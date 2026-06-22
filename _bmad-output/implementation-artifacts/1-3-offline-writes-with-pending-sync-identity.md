@@ -4,7 +4,7 @@ baseline_commit: fd84662e3bf07260171640da40397b7b4712297b
 
 # Story 1.3: Offline Writes with Pending-Sync Identity
 
-Status: review
+Status: done
 
 ## Story
 
@@ -348,6 +348,16 @@ Codex GPT-5
 - [x] [Review][Defer] Delete/handleDayUpdate/handleRemovePackingItem have no offline path — deferred to Story 1.4
 
 **dismissed:** 3 (stale closure concern, transient race not exploitable, unnecessary `!` harmless)
+
+#### Groups D + E — Document components + remaining (packing-list-row, place-row, feature-map)
+
+Clean review — no production code issues.
+
+**patch:**
+
+- [x] [Review][Patch] Stale aria-label in doc-row/event-doc-row/packing-list-row/place-row tests — already fixed inline
+
+**dismissed:** 0
 
 ### Change Log
 
