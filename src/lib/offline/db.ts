@@ -311,7 +311,11 @@ function syncTripIntoDetailSnapshot(snapshot: TripDetailPayload | null, trip: Tr
   };
 }
 
-function dayToOfflineRow(day: DayItinerary & { id: string }, tripId: string): OfflineDay {
+function dayToOfflineRow(
+  day: DayItinerary & { id: string },
+  tripId: string,
+  syncStatus: OfflineSyncStatusValue = OfflineSyncStatus.Synced
+): OfflineDay {
   return {
     id: day.id,
     tripId,
@@ -319,6 +323,8 @@ function dayToOfflineRow(day: DayItinerary & { id: string }, tripId: string): Of
     date: day.date ?? null,
     label: day.label,
     subtitle: day.subtitle ?? null,
+    updatedAt: getNowIso(),
+    syncStatus,
   };
 }
 
@@ -700,6 +706,7 @@ function applyPendingDayUpdateToSnapshot(
             tripId: overridingRow.tripId,
           }
         : {}),
+      ...(Object.prototype.hasOwnProperty.call(patch, "date") ? { date: patch.date ?? undefined } : {}),
       ...(Object.prototype.hasOwnProperty.call(patch, "label") ? { label: patch.label ?? day.label } : {}),
       ...(Object.prototype.hasOwnProperty.call(patch, "subtitle") ? { subtitle: patch.subtitle ?? undefined } : {}),
       ...(Object.prototype.hasOwnProperty.call(patch, "weather") ? { weather: patch.weather ?? undefined } : {}),
@@ -729,6 +736,19 @@ async function clearOutboxEntriesForEntity(database: OfflineDb, entityId: string
   }
 
   return entries;
+}
+
+async function enqueueDeleteUnlessUnsynced(
+  database: OfflineDb,
+  entityType: OfflineEntitySyncTable,
+  entityId: string,
+  payload: unknown
+): Promise<void> {
+  const { enqueueOutbox } = await import("./outbox");
+  const existingEntries = await clearOutboxEntriesForEntity(database, entityId);
+  if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
+    await enqueueOutbox(database, entityType, entityId, OfflineOperation.Delete, payload);
+  }
 }
 
 export async function getOfflineDb(userId: string): Promise<OfflineDb> {
@@ -1271,26 +1291,20 @@ export async function reorderEventsLocally(
 }
 
 export async function deleteEventLocally(database: OfflineDb, eventId: string): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
-
   await database.transaction("rw", database.trips, database.events, database.documents, database.outbox, async () => {
     const currentRow = await database.events.get(eventId);
     if (!currentRow) return;
 
     const tripRow = await database.trips.get(currentRow.tripId);
-    const existingEntries = await clearOutboxEntriesForEntity(database, eventId);
     const eventDocRows = await database.documents.where("eventId").equals(eventId).toArray();
 
     for (const docRow of eventDocRows) {
       revokeTrackedBlobUrl(docRow.url);
-      await clearOutboxEntriesForEntity(database, docRow.id);
+      await enqueueDeleteUnlessUnsynced(database, "document", docRow.id, documentPayloadFromRow(docRow, docRow.id));
       await database.documents.delete(docRow.id);
     }
 
-    if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
-      await enqueueOutbox(database, "event", currentRow.id, OfflineOperation.Delete, eventPayloadFromRow(currentRow));
-    }
-
+    await enqueueDeleteUnlessUnsynced(database, "event", currentRow.id, eventPayloadFromRow(currentRow));
     await database.events.delete(eventId);
 
     if (tripRow) {
@@ -1317,6 +1331,7 @@ export async function updateDayLocally(database: OfflineDb, dayId: string, patch
     const nowIso = getNowIso();
     const nextRow: OfflineDay = {
       ...currentRow,
+      date: Object.prototype.hasOwnProperty.call(patch, "date") ? (patch.date ?? null) : currentRow.date,
       label: Object.prototype.hasOwnProperty.call(patch, "label")
         ? (patch.label ?? currentRow.label)
         : currentRow.label,
@@ -1392,25 +1407,19 @@ export async function writeDocumentLocally(database: OfflineDb, input: WriteDocu
 }
 
 export async function deleteDocumentLocally(database: OfflineDb, documentId: string): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
-
   await database.transaction("rw", database.trips, database.documents, database.outbox, async () => {
     const currentRow = await database.documents.get(documentId);
     if (!currentRow) return;
 
     const tripRow = currentRow.tripId ? await database.trips.get(currentRow.tripId) : undefined;
-    const existingEntries = await clearOutboxEntriesForEntity(database, documentId);
     revokeTrackedBlobUrl(currentRow.url);
 
-    if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
-      await enqueueOutbox(
-        database,
-        "document",
-        currentRow.id,
-        OfflineOperation.Delete,
-        documentPayloadFromRow(currentRow, currentRow.id)
-      );
-    }
+    await enqueueDeleteUnlessUnsynced(
+      database,
+      "document",
+      currentRow.id,
+      documentPayloadFromRow(currentRow, currentRow.id)
+    );
 
     await database.documents.delete(documentId);
 
@@ -1544,24 +1553,13 @@ export async function writePackingItemLocally(database: OfflineDb, input: WriteP
 }
 
 export async function deletePackingItemLocally(database: OfflineDb, itemId: string): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
-
   await database.transaction("rw", database.trips, database.packingItems, database.outbox, async () => {
     const currentRow = await database.packingItems.get(itemId);
     if (!currentRow) return;
 
     const tripRow = await database.trips.get(currentRow.tripId);
-    const existingEntries = await clearOutboxEntriesForEntity(database, itemId);
 
-    if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
-      await enqueueOutbox(
-        database,
-        "packingItem",
-        currentRow.id,
-        OfflineOperation.Delete,
-        packingItemPayloadFromRow(currentRow)
-      );
-    }
+    await enqueueDeleteUnlessUnsynced(database, "packingItem", currentRow.id, packingItemPayloadFromRow(currentRow));
 
     await database.packingItems.delete(itemId);
 

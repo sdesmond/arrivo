@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { DocKind, ReservationType, type TripDetailPayload, type TripListEntry } from "@/data/types";
+import { OfflineSyncStatus } from "./schema";
 import type {
   OfflineDay,
   OfflineDocument,
@@ -554,6 +555,8 @@ describe("readTripDetailFromMirror", () => {
       date: "2026-07-01",
       label: "Day 1",
       subtitle: null,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: OfflineSyncStatus.Synced,
     });
     await database.events.put({
       id: "event-fallback",
@@ -2196,6 +2199,17 @@ describe("offline write parity helpers", () => {
     ).toBeUndefined();
   });
 
+  it("deleteEventLocally queues a delete for synced child documents so they aren't orphaned server-side", async () => {
+    const database = await getOfflineDb("user-offline-delete-event-doc-outbox");
+    await seedMirroredTrip(database, "user-offline-delete-event-doc-outbox");
+
+    await deleteEventLocally(database, "event-1");
+
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "doc-event-1")).toEqual([
+      expect.objectContaining({ entityId: "doc-event-1", entityType: "document", operation: "delete" }),
+    ]);
+  });
+
   it("deleteEventLocally drops offline-created events and related document writes without enqueuing a delete", async () => {
     const database = await getOfflineDb("user-offline-delete-event-created");
     await seedMirroredTrip(database, "user-offline-delete-event-created");
@@ -2320,6 +2334,25 @@ describe("offline write parity helpers", () => {
     );
   });
 
+  it("updateDayLocally updates the date field on the local row and snapshot", async () => {
+    const database = await getOfflineDb("user-offline-day-update-date");
+    await seedMirroredTrip(database, "user-offline-day-update-date");
+
+    await updateDayLocally(database, "day-1", { date: "2026-07-05" });
+
+    expect(await database.days.get("day-1")).toEqual(expect.objectContaining({ date: "2026-07-05" }));
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "day-1")).toEqual([
+      expect.objectContaining({
+        entityType: "day",
+        operation: "update",
+        payload: { dayId: "day-1", patch: { date: "2026-07-05" } },
+      }),
+    ]);
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0]).toEqual(
+      expect.objectContaining({ date: "2026-07-05" })
+    );
+  });
+
   it("updateDayLocally no-ops when the mirrored day row is missing", async () => {
     const database = await getOfflineDb("user-offline-day-update-missing");
 
@@ -2338,6 +2371,8 @@ describe("offline write parity helpers", () => {
       date: "2026-07-01",
       label: "Day 1",
       subtitle: null,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: OfflineSyncStatus.Synced,
     });
 
     await updateDayLocally(database, "day-1", { subtitle: "Offline subtitle" });
