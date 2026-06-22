@@ -6,6 +6,7 @@ import Dexie, { type Table } from "dexie";
 import { assertClientId, formatFileSize, getTripStatus, inferDocKind } from "@/lib/utils";
 import { getNow } from "@/lib/mock-date";
 import {
+  OfflineEntityType,
   OFFLINE_DB_SCHEMA_V1,
   OFFLINE_DB_SCHEMA_V2,
   OfflineOperation,
@@ -28,6 +29,7 @@ import type {
   TripDetailPayload,
   TripEvent,
   TripListEntry,
+  UpdateDayPatch,
   UpdateEventPatch,
   UpdatePackingItemInput,
 } from "@/data/types";
@@ -40,6 +42,11 @@ interface WriteDocumentLocallyInput {
   eventId?: string;
   reservationId?: string;
   file: File;
+}
+
+interface OfflineDayUpdatePayload {
+  dayId: string;
+  patch: UpdateDayPatch;
 }
 
 type WritePackingItemLocallyInput =
@@ -89,6 +96,13 @@ function revokeAllTrackedBlobUrls(): void {
     URL.revokeObjectURL(url);
   }
   trackedBlobUrls.clear();
+}
+
+function revokeTrackedBlobUrl(url: string | null): void {
+  if (url && trackedBlobUrls.has(url) && typeof URL.revokeObjectURL === "function") {
+    URL.revokeObjectURL(url);
+    trackedBlobUrls.delete(url);
+  }
 }
 
 function getNowIso(): string {
@@ -578,11 +592,35 @@ function upsertPackingItemInSnapshot(detail: TripDetailPayload, row: OfflinePack
 
 function applyPendingRowsToDetail(
   detail: TripDetailPayload,
+  pendingDayUpdates: Map<string, OfflineDayUpdatePayload>,
+  pendingDayRows: Map<string, OfflineDay>,
+  deletedEventIds: Set<string>,
+  deletedDocIds: Set<string>,
+  deletedPackingItemIds: Set<string>,
   pendingEventRows: OfflineEvent[],
   pendingDocRows: OfflineDocument[],
   pendingPackingItemRows: OfflinePackingItem[]
 ): TripDetailPayload {
   const nextDetail = cloneTripDetailSnapshot(detail, getNow());
+
+  for (const eventId of deletedEventIds) {
+    const removedEvent = removeEventFromSnapshot(nextDetail, eventId);
+    for (const doc of removedEvent?.docs ?? []) {
+      removeDocumentFromSnapshot(nextDetail, doc.id);
+    }
+  }
+
+  for (const documentId of deletedDocIds) {
+    removeDocumentFromSnapshot(nextDetail, documentId);
+  }
+
+  for (const packingItemId of deletedPackingItemIds) {
+    removePackingItemFromSnapshot(nextDetail, packingItemId);
+  }
+
+  for (const [dayId, pendingDayUpdate] of pendingDayUpdates) {
+    applyPendingDayUpdateToSnapshot(nextDetail, dayId, pendingDayUpdate.patch, pendingDayRows.get(dayId));
+  }
 
   for (const eventRow of pendingEventRows.sort(byPosition)) {
     const eventDocRows = pendingDocRows
@@ -613,6 +651,84 @@ function updateTripSnapshot(
   const nextDetailSnapshot = cloneTripDetailSnapshot(tripRow.detailSnapshot, getNow());
   updateSnapshot(nextDetailSnapshot);
   return nextDetailSnapshot;
+}
+
+function removeDocumentFromSnapshot(detail: TripDetailPayload, documentId: string): void {
+  detail.docs = detail.docs.filter((doc) => doc.id !== documentId);
+
+  for (const day of detail.days) {
+    day.events = day.events.map((event) => ({
+      ...event,
+      docs: cloneDocs(event.docs).filter((doc) => doc.id !== documentId),
+    }));
+  }
+
+  detail.unscheduledEvents = detail.unscheduledEvents.map((event) => ({
+    ...event,
+    docs: cloneDocs(event.docs).filter((doc) => doc.id !== documentId),
+  }));
+
+  detail.reservations = detail.reservations.map((reservation) => ({
+    ...reservation,
+    documents: cloneDocs(reservation.documents).filter((doc) => doc.id !== documentId),
+  }));
+}
+
+function removePackingItemFromSnapshot(detail: TripDetailPayload, packingItemId: string): void {
+  detail.packingItems = detail.packingItems.filter((item) => item.id !== packingItemId);
+}
+
+function applyPendingDayUpdateToSnapshot(
+  detail: TripDetailPayload,
+  dayId: string,
+  patch: UpdateDayPatch,
+  overridingRow?: OfflineDay
+): void {
+  detail.days = detail.days.map((day) => {
+    if (day.id !== dayId) {
+      return day;
+    }
+
+    return {
+      ...day,
+      ...(Object.prototype.hasOwnProperty.call(patch, "label") ? { label: patch.label ?? day.label } : {}),
+      ...(Object.prototype.hasOwnProperty.call(patch, "subtitle") ? { subtitle: patch.subtitle ?? undefined } : {}),
+      ...(Object.prototype.hasOwnProperty.call(patch, "weather") ? { weather: patch.weather ?? undefined } : {}),
+      ...(Object.prototype.hasOwnProperty.call(patch, "travelSummary")
+        ? { travelSummary: patch.travelSummary ?? undefined }
+        : {}),
+      ...(overridingRow
+        ? {
+            date: overridingRow.date ?? undefined,
+            dayNumber: overridingRow.dayNumber,
+            label: overridingRow.label,
+            subtitle: overridingRow.subtitle ?? undefined,
+            tripId: overridingRow.tripId,
+          }
+        : {}),
+    };
+  });
+}
+
+function hasOutboxOperation(
+  entries: OfflineOutboxEntry[],
+  operation: (typeof OfflineOperation)[keyof typeof OfflineOperation]
+): boolean {
+  return entries.some((entry) => entry.operation === operation);
+}
+
+async function getOutboxEntriesForEntity(database: OfflineDb, entityId: string): Promise<OfflineOutboxEntry[]> {
+  return database.outbox.where("entityId").equals(entityId).toArray();
+}
+
+async function clearOutboxEntriesForEntity(database: OfflineDb, entityId: string): Promise<OfflineOutboxEntry[]> {
+  const entries = await getOutboxEntriesForEntity(database, entityId);
+
+  for (const entry of entries) {
+    await database.outbox.delete(entry.id);
+  }
+
+  return entries;
 }
 
 export async function getOfflineDb(userId: string): Promise<OfflineDb> {
@@ -719,11 +835,7 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
 
   await database.transaction(
     "rw",
-    database.trips,
-    database.days,
-    database.events,
-    database.documents,
-    database.packingItems,
+    [database.trips, database.days, database.events, database.documents, database.packingItems, database.outbox],
     async () => {
       const existingTripRow = await database.trips.get(tripId);
       const pendingEventRows = (await database.events.where("tripId").equals(tripId).toArray()).filter(
@@ -735,22 +847,99 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
       const pendingPackingItemRows = (await database.packingItems.where("tripId").equals(tripId).toArray()).filter(
         (row) => row.syncStatus === OfflineSyncStatus.Pending
       );
+      const deletedEventIds = new Set<string>();
+      const deletedDocIds = new Set<string>();
+      const deletedPackingItemIds = new Set<string>();
+      const pendingDayUpdates = new Map<string, OfflineDayUpdatePayload>();
+      const pendingDayRows = new Map<string, OfflineDay>();
+
+      for (const dayRow of dayRows) {
+        const dayEntries = (await getOutboxEntriesForEntity(database, dayRow.id))
+          .filter((entry) => entry.entityType === OfflineEntityType.Day && entry.operation === OfflineOperation.Update)
+          .sort((first, second) => first.createdAt.localeCompare(second.createdAt));
+        const latestDayEntry = dayEntries.at(-1);
+        if (!latestDayEntry) {
+          continue;
+        }
+
+        const localDayRow = await database.days.get(dayRow.id);
+        if (localDayRow) {
+          pendingDayRows.set(dayRow.id, localDayRow);
+        }
+
+        pendingDayUpdates.set(dayRow.id, latestDayEntry.payload as OfflineDayUpdatePayload);
+      }
+
+      for (const eventRow of eventRows) {
+        const entries = (await getOutboxEntriesForEntity(database, eventRow.id)).filter(
+          (entry) => entry.entityType === OfflineEntityType.Event
+        );
+        if (hasOutboxOperation(entries, OfflineOperation.Delete)) {
+          deletedEventIds.add(eventRow.id);
+        }
+      }
+
+      for (const docRow of [...eventDocRows, ...tripScopedDocRows]) {
+        const entries = (await getOutboxEntriesForEntity(database, docRow.id)).filter(
+          (entry) => entry.entityType === OfflineEntityType.Document
+        );
+        if (hasOutboxOperation(entries, OfflineOperation.Delete)) {
+          deletedDocIds.add(docRow.id);
+        }
+      }
+
+      for (const packingItemRow of packingItemRows) {
+        const entries = (await getOutboxEntriesForEntity(database, packingItemRow.id)).filter(
+          (entry) => entry.entityType === OfflineEntityType.PackingItem
+        );
+        if (hasOutboxOperation(entries, OfflineOperation.Delete)) {
+          deletedPackingItemIds.add(packingItemRow.id);
+        }
+      }
 
       await database.days.where("tripId").equals(tripId).delete();
       await database.events.where("tripId").equals(tripId).delete();
       await database.documents.where("tripId").equals(tripId).delete();
       await database.packingItems.where("tripId").equals(tripId).delete();
 
-      const mergedEventRows = renumberEventPositions(mergeRowsById(eventRows, pendingEventRows).sort(byPosition));
-      const mergedDocRows = mergeRowsById([...eventDocRows, ...tripScopedDocRows], pendingDocRows).sort(
-        (first, second) => byIsoString(first.addedAt, second.addedAt)
+      const mergedDayRows = dayRows.map((row) => pendingDayRows.get(row.id) ?? row);
+      const mergedEventRows = renumberEventPositions(
+        mergeRowsById(
+          eventRows.filter((row) => !deletedEventIds.has(row.id)),
+          pendingEventRows
+        ).sort(byPosition)
       );
+      const mergedDocRows = mergeRowsById(
+        [...eventDocRows, ...tripScopedDocRows].filter(
+          (row) => !deletedDocIds.has(row.id) && !deletedEventIds.has(row.eventId ?? "")
+        ),
+        pendingDocRows
+      ).sort((first, second) => byIsoString(first.addedAt, second.addedAt));
       const mergedPackingItemRows = renumberPackingItemPositions(
-        mergeRowsById(packingItemRows, pendingPackingItemRows).sort(byPosition)
+        mergeRowsById(
+          packingItemRows.filter((row) => !deletedPackingItemIds.has(row.id)),
+          pendingPackingItemRows
+        ).sort(byPosition)
       );
       const mergedDetailSnapshot =
-        pendingEventRows.length > 0 || pendingDocRows.length > 0 || pendingPackingItemRows.length > 0
-          ? applyPendingRowsToDetail(detail, pendingEventRows, pendingDocRows, pendingPackingItemRows)
+        pendingDayUpdates.size > 0 ||
+        deletedEventIds.size > 0 ||
+        deletedDocIds.size > 0 ||
+        deletedPackingItemIds.size > 0 ||
+        pendingEventRows.length > 0 ||
+        pendingDocRows.length > 0 ||
+        pendingPackingItemRows.length > 0
+          ? applyPendingRowsToDetail(
+              detail,
+              pendingDayUpdates,
+              pendingDayRows,
+              deletedEventIds,
+              deletedDocIds,
+              deletedPackingItemIds,
+              pendingEventRows,
+              pendingDocRows,
+              pendingPackingItemRows
+            )
           : detail;
       const tripRow = tripToOfflineRow(detail.trip, database.userId);
 
@@ -763,7 +952,7 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
           mergedDetailSnapshot
         )
       );
-      await database.days.bulkPut(dayRows);
+      await database.days.bulkPut(mergedDayRows);
       await database.events.bulkPut(mergedEventRows);
       await database.documents.bulkPut(mergedDocRows);
       await database.packingItems.bulkPut(mergedPackingItemRows);
@@ -1021,6 +1210,123 @@ export async function updateEventLocally(database: OfflineDb, eventId: string, p
   });
 }
 
+export async function reorderEventsLocally(
+  database: OfflineDb,
+  dayId: string,
+  reorderedEvents: Array<{ id: string; position: number }>
+): Promise<void> {
+  const { enqueueOutbox } = await import("./outbox");
+  const nowIso = getNowIso();
+
+  await database.transaction("rw", database.trips, database.events, database.outbox, async () => {
+    const nextRows: OfflineEvent[] = [];
+
+    for (const reorderedEvent of reorderedEvents) {
+      const currentRow = await database.events.get(reorderedEvent.id);
+      if (!currentRow || currentRow.dayId !== dayId) {
+        continue;
+      }
+
+      const nextRow: OfflineEvent = {
+        ...currentRow,
+        position: reorderedEvent.position,
+        updatedAt: nowIso,
+        syncStatus: OfflineSyncStatus.Pending,
+      };
+
+      await database.events.put(nextRow);
+      await enqueueOutbox(database, "event", nextRow.id, OfflineOperation.Update, eventPayloadFromRow(nextRow));
+      nextRows.push(nextRow);
+    }
+
+    const tripId = nextRows[0]?.tripId;
+    if (!tripId) {
+      return;
+    }
+
+    const tripRow = await database.trips.get(tripId);
+    if (tripRow) {
+      const nextDetailSnapshot = updateTripSnapshot(tripRow, (detailSnapshot) => {
+        for (const nextRow of nextRows) {
+          upsertEventInSnapshot(detailSnapshot, nextRow);
+        }
+      });
+
+      await database.trips.put(withDetailSnapshot(tripRow, nextDetailSnapshot));
+    }
+  });
+}
+
+export async function deleteEventLocally(database: OfflineDb, eventId: string): Promise<void> {
+  const { enqueueOutbox } = await import("./outbox");
+
+  await database.transaction("rw", database.trips, database.events, database.documents, database.outbox, async () => {
+    const currentRow = await database.events.get(eventId);
+    if (!currentRow) return;
+
+    const tripRow = await database.trips.get(currentRow.tripId);
+    const existingEntries = await clearOutboxEntriesForEntity(database, eventId);
+    const eventDocRows = await database.documents.where("eventId").equals(eventId).toArray();
+
+    for (const docRow of eventDocRows) {
+      revokeTrackedBlobUrl(docRow.url);
+      await clearOutboxEntriesForEntity(database, docRow.id);
+      await database.documents.delete(docRow.id);
+    }
+
+    if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
+      await enqueueOutbox(database, "event", currentRow.id, OfflineOperation.Delete, eventPayloadFromRow(currentRow));
+    }
+
+    await database.events.delete(eventId);
+
+    if (tripRow) {
+      const nextDetailSnapshot = updateTripSnapshot(tripRow, (detailSnapshot) => {
+        const removedEvent = removeEventFromSnapshot(detailSnapshot, eventId);
+        for (const doc of removedEvent?.docs ?? []) {
+          removeDocumentFromSnapshot(detailSnapshot, doc.id);
+        }
+      });
+
+      await database.trips.put(withDetailSnapshot(tripRow, nextDetailSnapshot));
+    }
+  });
+}
+
+export async function updateDayLocally(database: OfflineDb, dayId: string, patch: UpdateDayPatch): Promise<void> {
+  const { enqueueOutbox } = await import("./outbox");
+
+  await database.transaction("rw", database.trips, database.days, database.outbox, async () => {
+    const currentRow = await database.days.get(dayId);
+    if (!currentRow) return;
+
+    const tripRow = await database.trips.get(currentRow.tripId);
+    const nextRow: OfflineDay = {
+      ...currentRow,
+      label: Object.prototype.hasOwnProperty.call(patch, "label")
+        ? (patch.label ?? currentRow.label)
+        : currentRow.label,
+      subtitle: Object.prototype.hasOwnProperty.call(patch, "subtitle")
+        ? (patch.subtitle ?? null)
+        : currentRow.subtitle,
+    };
+
+    await database.days.put(nextRow);
+    await enqueueOutbox(database, "day", currentRow.id, OfflineOperation.Update, {
+      dayId: currentRow.id,
+      patch,
+    } satisfies OfflineDayUpdatePayload);
+
+    if (tripRow) {
+      const nextDetailSnapshot = updateTripSnapshot(tripRow, (detailSnapshot) => {
+        applyPendingDayUpdateToSnapshot(detailSnapshot, currentRow.id, patch, nextRow);
+      });
+
+      await database.trips.put(withDetailSnapshot(tripRow, nextDetailSnapshot));
+    }
+  });
+}
+
 export async function writeDocumentLocally(database: OfflineDb, input: WriteDocumentLocallyInput): Promise<void> {
   assertClientId(input.id);
   const { enqueueOutbox } = await import("./outbox");
@@ -1069,13 +1375,49 @@ export async function writeDocumentLocally(database: OfflineDb, input: WriteDocu
   });
 }
 
+export async function deleteDocumentLocally(database: OfflineDb, documentId: string): Promise<void> {
+  const { enqueueOutbox } = await import("./outbox");
+
+  await database.transaction("rw", database.trips, database.documents, database.outbox, async () => {
+    const currentRow = await database.documents.get(documentId);
+    if (!currentRow) return;
+
+    const tripRow = currentRow.tripId ? await database.trips.get(currentRow.tripId) : undefined;
+    const existingEntries = await clearOutboxEntriesForEntity(database, documentId);
+    revokeTrackedBlobUrl(currentRow.url);
+
+    if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
+      await enqueueOutbox(
+        database,
+        "document",
+        currentRow.id,
+        OfflineOperation.Delete,
+        documentPayloadFromRow(currentRow, currentRow.id)
+      );
+    }
+
+    await database.documents.delete(documentId);
+
+    if (tripRow) {
+      const nextDetailSnapshot = updateTripSnapshot(tripRow, (detailSnapshot) => {
+        removeDocumentFromSnapshot(detailSnapshot, documentId);
+      });
+
+      await database.trips.put(withDetailSnapshot(tripRow, nextDetailSnapshot));
+    }
+  });
+}
+
 export async function writePackingItemLocally(database: OfflineDb, input: WritePackingItemLocallyInput): Promise<void> {
   const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.packingItems, database.outbox, async () => {
     if (input.operation === "create") {
-      assertClientId(input.input.id);
+      const validatedId = assertClientId(input.input.id).id;
+      if (!validatedId) {
+        throw new Error("Packing item id required");
+      }
       const tripRow = await database.trips.get(input.tripId);
       const allTripRows = await database.packingItems.where("tripId").equals(input.tripId).toArray();
       const listId = input.input.listId ?? null;
@@ -1113,7 +1455,7 @@ export async function writePackingItemLocally(database: OfflineDb, input: WriteP
       }
 
       const row: OfflinePackingItem = {
-        id: input.input.id,
+        id: validatedId,
         tripId: input.tripId,
         listId,
         name: trimmedName,
@@ -1178,6 +1520,38 @@ export async function writePackingItemLocally(database: OfflineDb, input: WriteP
     if (tripRow) {
       const nextDetailSnapshot = updateTripSnapshot(tripRow, (detailSnapshot) => {
         upsertPackingItemInSnapshot(detailSnapshot, nextRow);
+      });
+
+      await database.trips.put(withDetailSnapshot(tripRow, nextDetailSnapshot));
+    }
+  });
+}
+
+export async function deletePackingItemLocally(database: OfflineDb, itemId: string): Promise<void> {
+  const { enqueueOutbox } = await import("./outbox");
+
+  await database.transaction("rw", database.trips, database.packingItems, database.outbox, async () => {
+    const currentRow = await database.packingItems.get(itemId);
+    if (!currentRow) return;
+
+    const tripRow = await database.trips.get(currentRow.tripId);
+    const existingEntries = await clearOutboxEntriesForEntity(database, itemId);
+
+    if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
+      await enqueueOutbox(
+        database,
+        "packingItem",
+        currentRow.id,
+        OfflineOperation.Delete,
+        packingItemPayloadFromRow(currentRow)
+      );
+    }
+
+    await database.packingItems.delete(itemId);
+
+    if (tripRow) {
+      const nextDetailSnapshot = updateTripSnapshot(tripRow, (detailSnapshot) => {
+        removePackingItemFromSnapshot(detailSnapshot, itemId);
       });
 
       await database.trips.put(withDetailSnapshot(tripRow, nextDetailSnapshot));

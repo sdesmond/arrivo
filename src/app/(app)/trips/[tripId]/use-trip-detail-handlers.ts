@@ -10,10 +10,18 @@ import type {
   TripEvent,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
+  UpdateDayPatch,
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { updateEventLocally, useOfflineDb, writeEventLocally } from "@/lib/offline/db";
+import {
+  deleteEventLocally,
+  reorderEventsLocally,
+  updateDayLocally,
+  updateEventLocally,
+  useOfflineDb,
+  writeEventLocally,
+} from "@/lib/offline/db";
 import { writeOfflineAware } from "@/lib/offline/offline-write";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { deleteTrip, updateTripMetadata } from "../actions";
@@ -110,17 +118,31 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   }
 
   function handleEventDelete(id: string): void {
-    React.startTransition(() => {
-      deleteEvent(id);
+    React.startTransition(async () => {
+      await writeOfflineAware(
+        isOnline,
+        database,
+        (db) => deleteEventLocally(db, id),
+        () => deleteEvent(id)
+      );
     });
   }
 
   function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
+    const reorderedEvents = orderedItems
+      .map((item, position) => (item.type === "event" ? { id: item.id, position } : null))
+      .filter((item): item is { id: string; position: number } => item !== null);
+
     React.startTransition(async () => {
       try {
-        await reorderDayItems({ dayId: day.id!, orderedItems });
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => reorderEventsLocally(db, day.id!, reorderedEvents),
+          () => reorderDayItems({ dayId: day.id!, orderedItems })
+        );
       } catch (error) {
         if (error instanceof Error && error.message === "CONCURRENT_MODIFICATION") {
           toast.error("This day changed elsewhere. Refreshing the itinerary.");
@@ -135,8 +157,23 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): void {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
+
+    const patch: UpdateDayPatch = {
+      ...(Object.prototype.hasOwnProperty.call(updates, "label") ? { label: updates.label } : {}),
+      ...(Object.prototype.hasOwnProperty.call(updates, "subtitle") ? { subtitle: updates.subtitle } : {}),
+      ...(Object.prototype.hasOwnProperty.call(updates, "weather") ? { weather: updates.weather } : {}),
+      ...(Object.prototype.hasOwnProperty.call(updates, "travelSummary")
+        ? { travelSummary: updates.travelSummary }
+        : {}),
+    };
+
     React.startTransition(() => {
-      updateDay(day.id!, updates);
+      void writeOfflineAware(
+        isOnline,
+        database,
+        (db) => updateDayLocally(db, day.id!, patch),
+        () => updateDay(day.id!, patch)
+      );
     });
   }
 

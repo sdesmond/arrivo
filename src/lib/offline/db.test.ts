@@ -112,12 +112,17 @@ vi.mock("dexie-react-hooks", async () => {
 });
 
 const {
+  deleteDocumentLocally,
+  deleteEventLocally,
+  deletePackingItemLocally,
   getOfflineDb,
   clearOfflineDb,
   mirrorTripDetail,
+  reorderEventsLocally,
   mirrorTripListEntries,
   readTripDetailFromMirror,
   readTripListFromMirror,
+  updateDayLocally,
   useOfflineEntitySyncStatus,
   updateEventLocally,
   useOfflineDb,
@@ -359,6 +364,49 @@ describe("mirrorTripListEntries", () => {
 
     expect(await database.trips.get("trip-a")).toBeUndefined();
     expect((await database.trips.get("trip-b"))?.name).toBe("Rome");
+  });
+
+  it("clears orphaned outbox entries when a removed trip had mirrored entity rows", async () => {
+    const database = await getOfflineDb("user-mirror-list-delete-outbox");
+    await mirrorTripListEntries(database, [
+      { trip: { id: "trip-a", status: "upcoming", name: "Paris", startDate: "2026-08-01" }, todayEvents: [] },
+      { trip: { id: "trip-b", status: "upcoming", name: "Rome", startDate: "2026-09-01" }, todayEvents: [] },
+    ]);
+    await database.events.put({
+      id: "event-a",
+      tripId: "trip-a",
+      dayId: null,
+      name: "Museum",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      locationLat: null,
+      locationLng: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "pending",
+    });
+    await database.outbox.put({
+      id: "outbox-event-a",
+      entityType: "event",
+      entityId: "event-a",
+      operation: "update",
+      payload: {},
+      createdAt: "2026-06-01T00:00:00.000Z",
+      attempts: 0,
+    });
+
+    await mirrorTripListEntries(database, [
+      { trip: { id: "trip-b", status: "upcoming", name: "Rome", startDate: "2026-09-01" }, todayEvents: [] },
+    ]);
+
+    expect(await database.trips.get("trip-a")).toBeUndefined();
+    expect(await database.outbox.get("outbox-event-a")).toBeUndefined();
   });
 
   it("updates an existing mirrored detail snapshot with latest trip metadata", async () => {
@@ -1426,6 +1474,20 @@ describe("offline local write paths", () => {
     expect(await database.outbox.toArray()).toEqual([]);
   });
 
+  it("writeDocumentLocally throws when no trip context is supplied", async () => {
+    const database = await getOfflineDb("user-local-doc-no-trip-context");
+
+    await expect(
+      writeDocumentLocally(database, {
+        id: "20000000-0000-4000-8000-000000000097",
+        file: new File(["content"], "ticket.pdf", { type: "application/pdf" }),
+      })
+    ).rejects.toThrow("Trip not found");
+
+    expect(await database.documents.get("20000000-0000-4000-8000-000000000097")).toBeUndefined();
+    expect(await database.outbox.toArray()).toEqual([]);
+  });
+
   it("writeDocumentLocally uses reservation scope when reservationId is provided", async () => {
     const database = await getOfflineDb("user-local-doc-reservation");
     await database.trips.put({
@@ -2038,5 +2100,319 @@ describe("offline local write paths", () => {
     expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0].events[0]?.name).toBe(
       "Offline renamed museum"
     );
+  });
+});
+
+describe("offline write parity helpers", () => {
+  async function seedMirroredTrip(database: Awaited<ReturnType<typeof getOfflineDb>>, userId: string): Promise<void> {
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: userId,
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: buildTripDetail(),
+    });
+    await mirrorTripDetail(database, buildTripDetail());
+  }
+
+  it("reorderEventsLocally marks affected events pending, enqueues updates, and refreshes the snapshot", async () => {
+    const database = await getOfflineDb("user-offline-reorder");
+    await seedMirroredTrip(database, "user-offline-reorder");
+    await database.events.put({
+      id: "event-3",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Dinner",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      locationLat: null,
+      locationLng: null,
+      position: 1,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await reorderEventsLocally(database, "day-1", [
+      { id: "event-3", position: 0 },
+      { id: "event-1", position: 1 },
+    ]);
+
+    expect(await database.events.get("event-3")).toEqual(
+      expect.objectContaining({ position: 0, syncStatus: "pending" })
+    );
+    expect(await database.events.get("event-1")).toEqual(
+      expect.objectContaining({ position: 1, syncStatus: "pending" })
+    );
+    expect(
+      (await database.outbox.toArray()).filter((entry) => entry.entityType === "event" && entry.operation === "update")
+    ).toHaveLength(2);
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0].events.map((event) => event.id)).toEqual([
+      "event-3",
+      "event-1",
+    ]);
+  });
+
+  it("reorderEventsLocally no-ops when the reordered ids are not mirrored in the requested day", async () => {
+    const database = await getOfflineDb("user-offline-reorder-missing");
+    await seedMirroredTrip(database, "user-offline-reorder-missing");
+
+    await reorderEventsLocally(database, "day-2", [{ id: "event-1", position: 0 }]);
+
+    expect(await database.events.get("event-1")).toEqual(
+      expect.objectContaining({ position: 0, syncStatus: "synced" })
+    );
+    expect(await database.outbox.toArray()).toEqual([]);
+  });
+
+  it("deleteEventLocally removes synced events, clears related docs, and queues a delete", async () => {
+    const database = await getOfflineDb("user-offline-delete-event-synced");
+    await seedMirroredTrip(database, "user-offline-delete-event-synced");
+    await updateEventLocally(database, "event-1", { name: "Museum update" });
+
+    await deleteEventLocally(database, "event-1");
+
+    expect(await database.events.get("event-1")).toBeUndefined();
+    expect(await database.documents.get("doc-event-1")).toBeUndefined();
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "event-1")).toEqual([
+      expect.objectContaining({ entityId: "event-1", operation: "delete" }),
+    ]);
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0].events).toEqual([]);
+    expect(
+      (await database.trips.get("trip-1"))?.detailSnapshot?.docs.find((doc) => doc.id === "doc-event-1")
+    ).toBeUndefined();
+  });
+
+  it("deleteEventLocally drops offline-created events and related document writes without enqueuing a delete", async () => {
+    const database = await getOfflineDb("user-offline-delete-event-created");
+    await seedMirroredTrip(database, "user-offline-delete-event-created");
+
+    await writeEventLocally(database, "trip-1", "day-1", {
+      id: "10000000-0000-4000-8000-000000000099",
+      name: "Offline only",
+    });
+    await writeDocumentLocally(database, {
+      id: "20000000-0000-4000-8000-000000000099",
+      eventId: "10000000-0000-4000-8000-000000000099",
+      file: new File(["content"], "offline-only.pdf", { type: "application/pdf" }),
+    });
+
+    await deleteEventLocally(database, "10000000-0000-4000-8000-000000000099");
+
+    expect(await database.events.get("10000000-0000-4000-8000-000000000099")).toBeUndefined();
+    expect(await database.documents.get("20000000-0000-4000-8000-000000000099")).toBeUndefined();
+    expect(
+      (await database.outbox.toArray()).some((entry) => entry.entityId === "10000000-0000-4000-8000-000000000099")
+    ).toBe(false);
+  });
+
+  it("deleteDocumentLocally removes synced docs and queues a delete", async () => {
+    const database = await getOfflineDb("user-offline-delete-doc");
+    await seedMirroredTrip(database, "user-offline-delete-doc");
+
+    await deleteDocumentLocally(database, "doc-trip-1");
+
+    expect(await database.documents.get("doc-trip-1")).toBeUndefined();
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "doc-trip-1")).toEqual([
+      expect.objectContaining({ entityId: "doc-trip-1", operation: "delete" }),
+    ]);
+    expect(
+      (await database.trips.get("trip-1"))?.detailSnapshot?.docs.find((doc) => doc.id === "doc-trip-1")
+    ).toBeUndefined();
+  });
+
+  it("deleteDocumentLocally drops offline-created docs without enqueuing a delete", async () => {
+    const database = await getOfflineDb("user-offline-delete-doc-created");
+    await seedMirroredTrip(database, "user-offline-delete-doc-created");
+
+    await writeDocumentLocally(database, {
+      id: "20000000-0000-4000-8000-000000000098",
+      tripId: "trip-1",
+      file: new File(["content"], "offline-doc.pdf", { type: "application/pdf" }),
+    });
+
+    await deleteDocumentLocally(database, "20000000-0000-4000-8000-000000000098");
+
+    expect(await database.documents.get("20000000-0000-4000-8000-000000000098")).toBeUndefined();
+    expect(
+      (await database.outbox.toArray()).some((entry) => entry.entityId === "20000000-0000-4000-8000-000000000098")
+    ).toBe(false);
+  });
+
+  it("deleteDocumentLocally no-ops when the target row is missing", async () => {
+    const database = await getOfflineDb("user-offline-delete-doc-missing");
+
+    await deleteDocumentLocally(database, "missing-doc");
+
+    expect(await database.documents.get("missing-doc")).toBeUndefined();
+    expect(await database.outbox.toArray()).toEqual([]);
+  });
+
+  it("deletePackingItemLocally removes synced items and queues a delete", async () => {
+    const database = await getOfflineDb("user-offline-delete-pack");
+    await seedMirroredTrip(database, "user-offline-delete-pack");
+
+    await deletePackingItemLocally(database, "packing-1");
+
+    expect(await database.packingItems.get("packing-1")).toBeUndefined();
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "packing-1")).toEqual([
+      expect.objectContaining({ entityId: "packing-1", operation: "delete" }),
+    ]);
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.packingItems).toEqual([]);
+  });
+
+  it("deletePackingItemLocally drops offline-created items without enqueuing a delete", async () => {
+    const database = await getOfflineDb("user-offline-delete-pack-created");
+    await seedMirroredTrip(database, "user-offline-delete-pack-created");
+
+    await writePackingItemLocally(database, {
+      operation: "create",
+      tripId: "trip-1",
+      input: {
+        id: "30000000-0000-4000-8000-000000000099",
+        name: "Offline charger",
+      },
+    });
+
+    await deletePackingItemLocally(database, "30000000-0000-4000-8000-000000000099");
+
+    expect(await database.packingItems.get("30000000-0000-4000-8000-000000000099")).toBeUndefined();
+    expect(
+      (await database.outbox.toArray()).some((entry) => entry.entityId === "30000000-0000-4000-8000-000000000099")
+    ).toBe(false);
+  });
+
+  it("updateDayLocally updates local rows, snapshots, and queues a day outbox entry", async () => {
+    const database = await getOfflineDb("user-offline-day-update");
+    await seedMirroredTrip(database, "user-offline-day-update");
+
+    await updateDayLocally(database, "day-1", {
+      label: "Arrival day",
+      subtitle: "Tokyo station",
+      weather: "Sunny",
+    });
+
+    expect(await database.days.get("day-1")).toEqual(
+      expect.objectContaining({ label: "Arrival day", subtitle: "Tokyo station" })
+    );
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "day-1")).toEqual([
+      expect.objectContaining({
+        entityType: "day",
+        operation: "update",
+        payload: { dayId: "day-1", patch: { label: "Arrival day", subtitle: "Tokyo station", weather: "Sunny" } },
+      }),
+    ]);
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0]).toEqual(
+      expect.objectContaining({ label: "Arrival day", subtitle: "Tokyo station", weather: "Sunny" })
+    );
+  });
+
+  it("updateDayLocally no-ops when the mirrored day row is missing", async () => {
+    const database = await getOfflineDb("user-offline-day-update-missing");
+
+    await updateDayLocally(database, "missing-day", { label: "Unused" });
+
+    expect(await database.days.get("missing-day")).toBeUndefined();
+    expect(await database.outbox.toArray()).toEqual([]);
+  });
+
+  it("updateDayLocally updates mirrored day rows without requiring a trip snapshot row", async () => {
+    const database = await getOfflineDb("user-offline-day-update-no-trip");
+    await database.days.put({
+      id: "day-1",
+      tripId: "trip-missing",
+      dayNumber: 1,
+      date: "2026-07-01",
+      label: "Day 1",
+      subtitle: null,
+    });
+
+    await updateDayLocally(database, "day-1", { subtitle: "Offline subtitle" });
+
+    expect(await database.days.get("day-1")).toEqual(expect.objectContaining({ subtitle: "Offline subtitle" }));
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "day-1")).toHaveLength(1);
+    expect(await database.trips.get("trip-missing")).toBeUndefined();
+  });
+
+  it("mirrorTripDetail preserves pending day updates and pending deletes over fresh server data", async () => {
+    const database = await getOfflineDb("user-offline-merge-preserve");
+    await seedMirroredTrip(database, "user-offline-merge-preserve");
+
+    await updateDayLocally(database, "day-1", { label: "Offline day", weather: "Cloudy" });
+    await deleteDocumentLocally(database, "doc-trip-1");
+    await deletePackingItemLocally(database, "packing-1");
+    await deleteEventLocally(database, "event-1");
+
+    const refreshedDetail = buildTripDetail();
+    refreshedDetail.days[0].label = "Server day";
+    await mirrorTripDetail(database, refreshedDetail);
+
+    expect(await database.documents.get("doc-trip-1")).toBeUndefined();
+    expect(await database.packingItems.get("packing-1")).toBeUndefined();
+    expect(await database.events.get("event-1")).toBeUndefined();
+    expect((await database.days.get("day-1"))?.label).toBe("Offline day");
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0]).toEqual(
+      expect.objectContaining({ label: "Offline day", weather: "Cloudy" })
+    );
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0].events).toEqual([]);
+  });
+
+  it("writePackingItemLocally throws when a create request omits the caller-supplied id", async () => {
+    const database = await getOfflineDb("user-local-pack-missing-id");
+    await seedMirroredTrip(database, "user-local-pack-missing-id");
+
+    await expect(
+      writePackingItemLocally(database, {
+        operation: "create",
+        tripId: "trip-1",
+        input: {
+          name: "Missing id",
+        },
+      })
+    ).rejects.toThrow("Packing item id required");
+  });
+
+  it("reorderEventsLocally updates mirrored rows without requiring a trip snapshot row", async () => {
+    const database = await getOfflineDb("user-offline-reorder-no-trip");
+    await database.events.put({
+      id: "event-1",
+      tripId: "trip-missing",
+      dayId: "day-1",
+      name: "Museum",
+      note: null,
+      startAt: null,
+      endAt: null,
+      locationName: null,
+      locationAddress: null,
+      locationLat: null,
+      locationLng: null,
+      position: 0,
+      cost: null,
+      confirmationNumber: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      syncStatus: "synced",
+    });
+
+    await reorderEventsLocally(database, "day-1", [{ id: "event-1", position: 2 }]);
+
+    expect(await database.events.get("event-1")).toEqual(
+      expect.objectContaining({ position: 2, syncStatus: "pending" })
+    );
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "event-1")).toHaveLength(1);
+    expect(await database.trips.get("trip-missing")).toBeUndefined();
   });
 });

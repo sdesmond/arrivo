@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
-import { useOfflineDb, writePackingItemLocally } from "@/lib/offline/db";
+import { deletePackingItemLocally, useOfflineDb, writePackingItemLocally } from "@/lib/offline/db";
 import { writeOfflineAware } from "@/lib/offline/offline-write";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import {
@@ -114,7 +114,12 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     return new Promise((resolve, reject) => {
       React.startTransition(async () => {
         try {
-          await removePackingItem(id);
+          await writeOfflineAware(
+            isOnline,
+            database,
+            (db) => deletePackingItemLocally(db, id),
+            () => removePackingItem(id)
+          );
           resolve();
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to remove packing entry. Please try again.";
