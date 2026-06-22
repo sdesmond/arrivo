@@ -132,8 +132,13 @@ Then("the cover picker defaults to the Custom tab", async ({ page }) => {
 Then("the uploaded cover image persists after reloading the page", async ({ page }) => {
   await page.reload();
   await expect(page.locator('img[role="presentation"]').first()).toHaveAttribute("src", /\/uploads\//);
-  await page.getByTitle("Cover options").click();
-  await expect(page.getByRole("menuitem", { name: "Remove Cover" })).toBeVisible();
+  // Retry opening the menu: right after a reload the trigger renders before React attaches its
+  // click handler, so a single click can no-op and the menu never opens (hydration race).
+  const removeCover = page.getByRole("menuitem", { name: "Remove Cover" });
+  await expect(async () => {
+    await page.getByTitle("Cover options").click();
+    await expect(removeCover).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByRole("menuitem", { name: "Info" })).not.toBeVisible();
 });
 
