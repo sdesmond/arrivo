@@ -1113,7 +1113,7 @@ export async function writePackingItemLocally(database: OfflineDb, input: WriteP
       }
 
       const row: OfflinePackingItem = {
-        id: input.input.id ?? crypto.randomUUID(),
+        id: input.input.id,
         tripId: input.tripId,
         listId,
         name: trimmedName,
@@ -1124,10 +1124,7 @@ export async function writePackingItemLocally(database: OfflineDb, input: WriteP
         syncStatus: OfflineSyncStatus.Pending,
       };
 
-      await database.packingItems.put({
-        ...row,
-        listId,
-      });
+      await database.packingItems.put(row);
       await enqueueOutbox(database, "packingItem", row.id, OfflineOperation.Create, {
         ...packingItemPayloadFromRow(row),
         labelId,
