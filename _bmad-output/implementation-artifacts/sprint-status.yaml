@@ -44,7 +44,7 @@ story_location: "{project-root}/_bmad-output/implementation-artifacts"
 development_status:
   epic-1: in-progress
   1-1-switch-to-client-generated-entity-ids: done
-  1-2-local-data-mirror-and-offline-reads: review
+  1-2-local-data-mirror-and-offline-reads: done
   1-3-offline-writes-with-pending-sync-identity: backlog
   1-4-full-offline-write-parity: backlog
   1-5-connectivity-indicator-base-states: backlog

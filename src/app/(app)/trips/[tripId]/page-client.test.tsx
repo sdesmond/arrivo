@@ -47,9 +47,14 @@ vi.mock("dexie-react-hooks", async () => {
       const [value, setValue] = useState<unknown>(undefined);
       useEffect(() => {
         let cancelled = false;
-        Promise.resolve(querier()).then((result) => {
-          if (!cancelled) setValue(result);
-        });
+        const result = querier();
+        if (result && typeof (result as Promise<unknown>).then === "function") {
+          Promise.resolve(result).then((resolvedResult) => {
+            if (!cancelled) setValue(resolvedResult);
+          });
+        } else {
+          setValue(result);
+        }
         return () => {
           cancelled = true;
         };
@@ -536,7 +541,7 @@ describe("TripDetailClient offline mirroring", () => {
 
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
-    expect(await screen.findByText("1 place")).toBeInTheDocument();
+    expect(await screen.findByText(/1 place/)).toBeInTheDocument();
     expect(mockReadTripDetailFromMirror).toHaveBeenCalledWith(fakeDb, "trip-1", new Date("2026-05-24T12:00:00.000Z"));
   });
 
@@ -548,6 +553,6 @@ describe("TripDetailClient offline mirroring", () => {
 
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
-    expect(screen.getByText("0 place")).toBeInTheDocument();
+    expect(screen.getByText(/0 place/)).toBeInTheDocument();
   });
 });

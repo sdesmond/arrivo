@@ -45,6 +45,7 @@ export interface OfflineDocument {
   reservationId: string | null;
   name: string;
   kind: string;
+  scope: string;
   size: string | null;
   offline: boolean;
   url: string | null;

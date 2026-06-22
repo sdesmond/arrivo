@@ -42,9 +42,14 @@ vi.mock("dexie-react-hooks", async () => {
       const [value, setValue] = useState<unknown>(undefined);
       useEffect(() => {
         let cancelled = false;
-        Promise.resolve(querier()).then((result) => {
-          if (!cancelled) setValue(result);
-        });
+        const result = querier();
+        if (result && typeof (result as Promise<unknown>).then === "function") {
+          Promise.resolve(result).then((resolvedResult) => {
+            if (!cancelled) setValue(resolvedResult);
+          });
+        } else {
+          setValue(result);
+        }
         return () => {
           cancelled = true;
         };

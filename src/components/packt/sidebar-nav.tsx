@@ -130,9 +130,7 @@ export function SidebarNav({ user }: SidebarNavProps) {
         </Link>
         <button
           type="button"
-          onClick={() => {
-            void handleSignOut();
-          }}
+          onClick={() => void handleSignOut()}
           className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
           title="Sign out"
         >

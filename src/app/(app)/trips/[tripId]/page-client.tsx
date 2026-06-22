@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -74,14 +74,20 @@ export function TripDetailClient({
 
   const database = useOfflineDb();
   const isOnline = useOnlineStatus();
+  const now = useMemo(() => new Date(nowISO), [nowISO]);
+  const mirrorInFlight = useRef(false);
 
   useEffect(() => {
     if (!database || !isOnline) return;
-    void mirrorTripDetail(database, detail);
+    if (mirrorInFlight.current) return;
+    mirrorInFlight.current = true;
+    void mirrorTripDetail(database, detail).finally(() => {
+      mirrorInFlight.current = false;
+    });
   }, [database, isOnline, detail]);
 
   const offlineDetail = useLiveQuery(
-    () => (isOnline || !database ? undefined : readTripDetailFromMirror(database, detail.trip.id, new Date(nowISO))),
+    () => (isOnline || !database ? undefined : readTripDetailFromMirror(database, detail.trip.id, now)),
     [isOnline, database, detail.trip.id, nowISO]
   );
 

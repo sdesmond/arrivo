@@ -49,10 +49,8 @@ export async function getOfflineDb(userId: string): Promise<OfflineDb> {
 }
 
 export async function clearOfflineDb(userId: string): Promise<void> {
-  const existing = instances.get(userId);
   instances.delete(userId);
-  const instance = existing ?? new OfflineDb(userId);
-  await instance.delete();
+  await Dexie.delete(`packt-offline-${userId}`);
 }
 
 export function useOfflineDb(): OfflineDb | null {
@@ -188,6 +186,7 @@ function documentToOfflineRow(doc: Document, context: DocumentContext): OfflineD
     reservationId: context.reservationId,
     name: doc.name,
     kind: doc.kind,
+    scope: doc.scope,
     size: doc.size ?? null,
     offline: doc.offline,
     url: doc.url ?? null,
@@ -195,13 +194,15 @@ function documentToOfflineRow(doc: Document, context: DocumentContext): OfflineD
   };
 }
 
+const VALID_DOC_KINDS = new Set(["pdf", "image", "doc"]);
+
 function offlineDocumentToType(row: OfflineDocument): Document {
   return {
     id: row.id,
     name: row.name,
-    kind: row.kind as Document["kind"],
+    kind: (VALID_DOC_KINDS.has(row.kind) ? row.kind : "doc") as Document["kind"],
     size: row.size ?? undefined,
-    scope: row.reservationId ? "reservation" : row.eventId ? "event" : "trip",
+    scope: row.scope as Document["scope"],
     offline: row.offline,
     url: row.url ?? undefined,
     addedAt: row.addedAt,
@@ -274,6 +275,10 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
     database.documents,
     database.packingItems,
     async () => {
+      await database.days.where("tripId").equals(tripId).delete();
+      await database.events.where("tripId").equals(tripId).delete();
+      await database.documents.where("tripId").equals(tripId).delete();
+      await database.packingItems.where("tripId").equals(tripId).delete();
       await database.trips.put(tripToOfflineRow(detail.trip, database.userId));
       await database.days.bulkPut(dayRows);
       await database.events.bulkPut(allEvents.map((event) => eventToOfflineRow(event, tripId)));
@@ -313,8 +318,7 @@ export async function readTripDetailFromMirror(
 
   const eventsByDayId = new Map<string, TripEvent[]>();
   const unscheduledEvents: TripEvent[] = [];
-  const sortedEventRows = [...eventRows].sort((first, second) => first.position - second.position);
-  for (const eventRow of sortedEventRows) {
+  for (const eventRow of eventRows) {
     const event: TripEvent = { ...offlineEventToType(eventRow), docs: docsByEventId.get(eventRow.id) ?? [] };
     if (eventRow.dayId) {
       const list = eventsByDayId.get(eventRow.dayId) ?? [];
@@ -327,18 +331,18 @@ export async function readTripDetailFromMirror(
 
   const days: DayItinerary[] = dayRows.map((dayRow) => ({
     ...offlineDayToType(dayRow),
-    events: eventsByDayId.get(dayRow.id) ?? [],
+    events: (eventsByDayId.get(dayRow.id) ?? []).sort((first, second) => first.position - second.position),
   }));
 
   return {
     trip: offlineTripToType(tripRow, now),
     days,
     unscheduledEvents,
-    docs: docRows.map(offlineDocumentToType),
-    collaborators: [],
+    docs: docRows.filter((docRow) => !docRow.eventId).map(offlineDocumentToType),
+    collaborators: [], // TODO: populate from collaborators table when mirrored
     packingItems: packingItemRows.map(offlinePackingItemToType),
-    packingLists: [],
-    reservations: [],
+    packingLists: [], // TODO: populate from packingLists table when mirrored
+    reservations: [], // TODO: populate from reservations table when mirrored
   };
 }
 
@@ -346,6 +350,10 @@ export async function readTripListFromMirror(database: OfflineDb, now: Date): Pr
   const tripRows = await database.trips.where("ownerId").equals(database.userId).toArray();
 
   return tripRows
-    .map((tripRow) => ({ trip: offlineTripToType(tripRow, now), todayEvents: [] }))
-    .sort((first, second) => (first.trip.startDate ?? "").localeCompare(second.trip.startDate ?? ""));
+    .map((tripRow) => ({ trip: offlineTripToType(tripRow, now), todayEvents: [] })) // TODO: populate from events table
+    .sort((first, second) => {
+      const firstDate = first.trip.startDate ? new Date(first.trip.startDate).getTime() : 0;
+      const secondDate = second.trip.startDate ? new Date(second.trip.startDate).getTime() : 0;
+      return firstDate - secondDate;
+    });
 }

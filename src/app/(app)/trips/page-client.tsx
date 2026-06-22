@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
 import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
@@ -30,13 +30,18 @@ interface TripsPageClientProps {
 }
 
 export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialViewMode }: TripsPageClientProps) {
-  const now = new Date(nowISO);
+  const now = useMemo(() => new Date(nowISO), [nowISO]);
   const database = useOfflineDb();
   const isOnline = useOnlineStatus();
+  const mirrorInFlight = useRef(false);
 
   useEffect(() => {
     if (!database || !isOnline) return;
-    void mirrorTripListEntries(database, initialEntries);
+    if (mirrorInFlight.current) return;
+    mirrorInFlight.current = true;
+    void mirrorTripListEntries(database, initialEntries).finally(() => {
+      mirrorInFlight.current = false;
+    });
   }, [database, isOnline, initialEntries]);
 
   const offlineEntries = useLiveQuery(

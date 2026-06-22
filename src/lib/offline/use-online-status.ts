@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 export function useOnlineStatus(): boolean {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
