@@ -1,3 +1,4 @@
+@feat:trip-delete
 Feature: Trip deletion
   Background:
     Given I am signed in

@@ -1,4 +1,4 @@
-@templates
+@feat:templates
 Feature: Packing templates
   Background:
     Given I am signed in

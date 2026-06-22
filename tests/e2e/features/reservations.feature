@@ -1,3 +1,4 @@
+@feat:reservations
 Feature: Reservations
 
   Background:

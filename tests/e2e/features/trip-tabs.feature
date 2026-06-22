@@ -1,3 +1,4 @@
+@feat:trip-tabs
 Feature: Trip detail tab deep links
   Background:
     Given I am signed in

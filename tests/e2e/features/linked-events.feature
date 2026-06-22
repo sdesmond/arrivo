@@ -1,3 +1,4 @@
+@feat:linked-events
 Feature: Linked Events
 
   Scenario: Lodging reservation shows Check-in and Check-out on the Itinerary

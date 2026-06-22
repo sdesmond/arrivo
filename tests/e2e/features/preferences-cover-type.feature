@@ -1,3 +1,4 @@
+@feat:preferences-cover-type
 Feature: Cover type preference
 
   Scenario: Setting Map as default cover type persists after reload

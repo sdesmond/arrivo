@@ -1,3 +1,4 @@
+@feat:profile
 Feature: User profile page
 
   Scenario: Navigate to profile from sidebar

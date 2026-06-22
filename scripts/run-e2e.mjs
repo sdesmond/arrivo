@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DETECT_PORT_SCRIPT = join(SCRIPT_DIR, "detect-port.mjs");
+const AFFECTED_SCRIPT = join(SCRIPT_DIR, "affected-e2e.mjs");
 
 const DEFAULT_PORT = 3001;
 const SERVER_MODE_KILL = "kill";
@@ -33,11 +34,29 @@ export function buildRunE2EPlan(argv) {
     ui: false,
     port: DEFAULT_PORT,
     serverMode: SERVER_MODE_KILL,
+    affected: false,
+    full: false,
+    grep: undefined,
   };
 
   for (const arg of argv) {
     if (arg === "--ui") {
       plan.ui = true;
+      continue;
+    }
+
+    if (arg === "--affected") {
+      plan.affected = true;
+      continue;
+    }
+
+    if (arg === "--full") {
+      plan.full = true;
+      continue;
+    }
+
+    if (arg.startsWith("--grep=")) {
+      plan.grep = arg.slice("--grep=".length);
       continue;
     }
 
@@ -232,14 +251,32 @@ function prepareServerPort({ serverMode, port, rootDir }) {
   waitForPortToClear(port);
 }
 
-function buildPlaywrightArgs(ui) {
-  return ["playwright", "test", ...(ui ? ["--ui"] : [])];
+export function buildPlaywrightArgs(ui, grep) {
+  return ["playwright", "test", ...(ui ? ["--ui"] : []), ...(grep ? ["--grep", grep] : [])];
+}
+
+// Explicit `--grep` wins; otherwise `--affected` (unless overridden by `--full`) asks
+// affected-e2e.mjs which feature tags the change set touches. "FULL" means run everything.
+function resolveGrep(plan) {
+  if (plan.grep) return plan.grep;
+  if (!plan.affected || plan.full) return undefined;
+
+  const { stdout } = runCommand(process.execPath, [AFFECTED_SCRIPT], { captureOutput: true });
+  const filter = stdout.trim();
+  if (!filter || filter === "FULL") {
+    log("Affected detection selected the full suite.");
+    return undefined;
+  }
+
+  log(`Affected detection selected: ${filter}`);
+  return filter;
 }
 
 export async function main(argv = process.argv.slice(2)) {
   const __filename = fileURLToPath(import.meta.url);
   const rootDir = join(dirname(__filename), "..");
   const plan = buildRunE2EPlan(argv);
+  const grep = resolveGrep(plan);
 
   prepareServerPort({
     serverMode: plan.serverMode,
@@ -255,7 +292,7 @@ export async function main(argv = process.argv.slice(2)) {
   runPackageCommand("npm", ["run", "db:reset:e2e"], { cwd: rootDir, env });
   runPackageCommand("npm", ["run", "db:migrate:e2e"], { cwd: rootDir, env });
   runPackageCommand("npx", ["bddgen"], { cwd: rootDir, env });
-  runPackageCommand("npx", buildPlaywrightArgs(plan.ui), { cwd: rootDir, env });
+  runPackageCommand("npx", buildPlaywrightArgs(plan.ui, grep), { cwd: rootDir, env });
 }
 
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
