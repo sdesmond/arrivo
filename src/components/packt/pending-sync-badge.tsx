@@ -16,7 +16,7 @@ export function PendingSyncBadge({ syncStatus, className }: PendingSyncBadgeProp
 
   return (
     <span
-      aria-label="Pending sync"
+      aria-label="Sync pending"
       className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium", className)}
       style={{
         background: "var(--accent-soft)",

@@ -6,7 +6,7 @@ describe("PendingSyncBadge", () => {
   it("renders pending state with persistent aria-label", () => {
     render(<PendingSyncBadge syncStatus="pending" />);
 
-    expect(screen.getByLabelText("Pending sync")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sync pending")).toBeInTheDocument();
     expect(screen.getByText("Sync pending")).toBeInTheDocument();
   });
 

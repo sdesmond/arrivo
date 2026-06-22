@@ -76,6 +76,20 @@ export class OfflineDb extends Dexie {
 }
 
 const instances = new Map<string, OfflineDb>();
+const trackedBlobUrls = new Set<string>();
+
+export function trackBlobUrl(url: string | null): void {
+  if (url && typeof URL.revokeObjectURL === "function") {
+    trackedBlobUrls.add(url);
+  }
+}
+
+function revokeAllTrackedBlobUrls(): void {
+  for (const url of trackedBlobUrls) {
+    URL.revokeObjectURL(url);
+  }
+  trackedBlobUrls.clear();
+}
 
 function getNowIso(): string {
   return getNow().toISOString();
@@ -113,6 +127,28 @@ function mergeRowsById<RowType extends { id: string }>(baseRows: RowType[], over
 
 function cloneDocs(docs: Document[] | undefined): Document[] {
   return docs?.map((doc) => ({ ...doc })) ?? [];
+}
+
+function renumberEventPositions(events: OfflineEvent[]): OfflineEvent[] {
+  const dayGroups = new Map<string | "null", OfflineEvent[]>();
+
+  for (const event of events) {
+    const key = event.dayId ?? "null";
+    const group = dayGroups.get(key) ?? [];
+    group.push(event);
+    dayGroups.set(key, group);
+  }
+
+  const result: OfflineEvent[] = [];
+
+  for (const [, group] of dayGroups) {
+    group.sort(byPosition);
+    group.forEach((event, index) => {
+      result.push({ ...event, position: index });
+    });
+  }
+
+  return result;
 }
 
 async function getSessionUserId(): Promise<string | null> {
@@ -561,6 +597,7 @@ export async function getOfflineDb(userId: string): Promise<OfflineDb> {
 }
 
 export async function clearOfflineDb(userId: string): Promise<void> {
+  revokeAllTrackedBlobUrls();
   instances.delete(userId);
   await Dexie.delete(`packt-offline-${userId}`);
 }
@@ -676,7 +713,7 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
       await database.documents.where("tripId").equals(tripId).delete();
       await database.packingItems.where("tripId").equals(tripId).delete();
 
-      const mergedEventRows = mergeRowsById(eventRows, pendingEventRows).sort(byPosition);
+      const mergedEventRows = renumberEventPositions(mergeRowsById(eventRows, pendingEventRows).sort(byPosition));
       const mergedDocRows = mergeRowsById([...eventDocRows, ...tripScopedDocRows], pendingDocRows).sort(
         (first, second) => byIsoString(first.addedAt, second.addedAt)
       );
@@ -720,18 +757,35 @@ export async function mirrorTripListEntries(database: OfflineDb, entries: TripLi
 
   await database.transaction(
     "rw",
-    database.trips,
-    database.days,
-    database.events,
-    database.documents,
-    database.packingItems,
+    [database.trips, database.days, database.events, database.documents, database.packingItems, database.outbox],
     async () => {
       for (const removedTripId of removedTripIds) {
+        const deletedEventIds = (await database.events.where("tripId").equals(removedTripId).toArray()).map(
+          (row) => row.id
+        );
+        const deletedDocIds = (await database.documents.where("tripId").equals(removedTripId).toArray()).map(
+          (row) => row.id
+        );
+        const deletedPackingItemIds = (await database.packingItems.where("tripId").equals(removedTripId).toArray()).map(
+          (row) => row.id
+        );
+        const deletedEntityIds = [...deletedEventIds, ...deletedDocIds, ...deletedPackingItemIds];
+
         await database.trips.delete(removedTripId);
         await database.days.where("tripId").equals(removedTripId).delete();
         await database.events.where("tripId").equals(removedTripId).delete();
         await database.documents.where("tripId").equals(removedTripId).delete();
         await database.packingItems.where("tripId").equals(removedTripId).delete();
+
+        if (deletedEntityIds.length > 0) {
+          const pendingOutbox = await database.outbox.toArray();
+          const orphanedIds = pendingOutbox
+            .filter((entry) => deletedEntityIds.includes(entry.entityId))
+            .map((entry) => entry.id);
+          for (const orphanedId of orphanedIds) {
+            await database.outbox.delete(orphanedId);
+          }
+        }
       }
 
       await database.trips.bulkPut(rows);
@@ -778,6 +832,8 @@ export async function readTripDetailFromMirror(
       unscheduledEvents.push(event);
     }
   }
+
+  unscheduledEvents.sort(byPosition);
 
   const days: DayItinerary[] = dayRows.map((dayRow) => ({
     ...offlineDayToType(dayRow),
@@ -842,7 +898,7 @@ export async function writeEventLocally(
         nextPosition = dayEventRows.at(-1)?.position ?? -1;
       }
     } else if (input.insertAtPosition !== undefined) {
-      nextPosition = input.insertAtPosition;
+      nextPosition = Math.max(0, input.insertAtPosition);
       const shiftedRows = dayEventRows
         .filter((row) => row.position >= input.insertAtPosition!)
         .map((row) => ({ ...row, position: row.position + 1 }));
@@ -938,6 +994,7 @@ export async function writeDocumentLocally(database: OfflineDb, input: WriteDocu
     const tripRow = await database.trips.get(tripId);
     const objectUrl =
       typeof URL !== "undefined" && typeof URL.createObjectURL === "function" ? URL.createObjectURL(input.file) : null;
+    trackBlobUrl(objectUrl);
     const row: OfflineDocument = {
       id: input.id,
       tripId,
