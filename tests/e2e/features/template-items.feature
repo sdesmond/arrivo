@@ -1,4 +1,4 @@
-@template-items
+@feat:template-items
 Feature: Template item and label management
   Background:
     Given I am signed in as the template editor user

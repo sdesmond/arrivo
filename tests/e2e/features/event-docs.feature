@@ -1,4 +1,4 @@
-@event-docs
+@event-docs @feat:event-docs
 Feature: Event Document Integration
 
   Background:

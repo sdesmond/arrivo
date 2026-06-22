@@ -1,3 +1,4 @@
+@feat:preferences-date-format
 Feature: Date format preference
 
   Scenario: Setting Day/Month format applies to trip cards

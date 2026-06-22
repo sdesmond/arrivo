@@ -1,3 +1,4 @@
+@feat:day-planning
 Feature: Day Planning
   Background:
     Given I am signed in
