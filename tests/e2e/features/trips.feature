@@ -1,3 +1,4 @@
+@feat:trips
 Feature: Trip Management
   Background:
     Given I am signed in

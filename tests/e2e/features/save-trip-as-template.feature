@@ -1,4 +1,4 @@
-@save-trip-as-template
+@feat:save-trip-as-template
 Feature: Save trip packing list as a template
 
   Background:

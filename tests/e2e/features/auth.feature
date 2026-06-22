@@ -1,3 +1,4 @@
+@feat:auth
 Feature: Authentication
   Scenario: User signs in with valid credentials
     Given I am on the sign-in page

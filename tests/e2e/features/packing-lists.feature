@@ -1,4 +1,4 @@
-@packing-lists
+@feat:packing-lists
 Feature: Multiple packing lists per trip
 
   Background:

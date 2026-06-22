@@ -1,4 +1,4 @@
-@packing-tab
+@feat:packing-tab
 Feature: Packing tab
 
   Background:

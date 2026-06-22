@@ -1,3 +1,4 @@
+@feat:create-trip
 Feature: Create Trip
 
   Background:
