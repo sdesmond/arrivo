@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import Dexie, { type Table } from "dexie";
-import { formatFileSize, getTripStatus, inferDocKind } from "@/lib/utils";
+import { assertClientId, formatFileSize, getTripStatus, inferDocKind } from "@/lib/utils";
 import { getNow } from "@/lib/mock-date";
 import {
   OFFLINE_DB_SCHEMA_V1,
@@ -145,6 +145,28 @@ function renumberEventPositions(events: OfflineEvent[]): OfflineEvent[] {
     group.sort(byPosition);
     group.forEach((event, index) => {
       result.push({ ...event, position: index });
+    });
+  }
+
+  return result;
+}
+
+function renumberPackingItemPositions(items: OfflinePackingItem[]): OfflinePackingItem[] {
+  const listGroups = new Map<string | "null", OfflinePackingItem[]>();
+
+  for (const item of items) {
+    const key = item.listId ?? "null";
+    const group = listGroups.get(key) ?? [];
+    group.push(item);
+    listGroups.set(key, group);
+  }
+
+  const result: OfflinePackingItem[] = [];
+
+  for (const [, group] of listGroups) {
+    group.sort(byPosition);
+    group.forEach((item, index) => {
+      result.push({ ...item, position: index });
     });
   }
 
@@ -314,6 +336,8 @@ function eventToOfflineRow(
     endAt: event.endAt ?? null,
     locationName: event.locationName ?? null,
     locationAddress: event.locationAddress ?? null,
+    locationLat: event.locationLat ?? null,
+    locationLng: event.locationLng ?? null,
     position: event.position,
     cost: event.cost ?? null,
     confirmationNumber: event.confirmationNumber ?? null,
@@ -334,6 +358,8 @@ function offlineEventToType(row: OfflineEvent): Omit<TripEvent, "docs"> {
     endAt: row.endAt ?? undefined,
     locationName: row.locationName ?? undefined,
     locationAddress: row.locationAddress ?? undefined,
+    locationLat: row.locationLat ?? undefined,
+    locationLng: row.locationLng ?? undefined,
     position: row.position,
     cost: row.cost ?? undefined,
     confirmationNumber: row.confirmationNumber ?? undefined,
@@ -428,6 +454,8 @@ function eventPayloadFromRow(row: OfflineEvent): Omit<OfflineEvent, "syncStatus"
     endAt: row.endAt,
     locationName: row.locationName,
     locationAddress: row.locationAddress,
+    locationLat: row.locationLat,
+    locationLng: row.locationLng,
     position: row.position,
     cost: row.cost,
     confirmationNumber: row.confirmationNumber,
@@ -717,7 +745,9 @@ export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPa
       const mergedDocRows = mergeRowsById([...eventDocRows, ...tripScopedDocRows], pendingDocRows).sort(
         (first, second) => byIsoString(first.addedAt, second.addedAt)
       );
-      const mergedPackingItemRows = mergeRowsById(packingItemRows, pendingPackingItemRows).sort(byPosition);
+      const mergedPackingItemRows = renumberPackingItemPositions(
+        mergeRowsById(packingItemRows, pendingPackingItemRows).sort(byPosition)
+      );
       const mergedDetailSnapshot =
         pendingEventRows.length > 0 || pendingDocRows.length > 0 || pendingPackingItemRows.length > 0
           ? applyPendingRowsToDetail(detail, pendingEventRows, pendingDocRows, pendingPackingItemRows)
@@ -874,6 +904,7 @@ export async function writeEventLocally(
   dayId: string,
   input: CreateEventInput & { id: string }
 ): Promise<void> {
+  assertClientId(input.id);
   const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
@@ -895,7 +926,7 @@ export async function writeEventLocally(
           await database.events.bulkPut(shiftedRows);
         }
       } else {
-        nextPosition = dayEventRows.at(-1)?.position ?? -1;
+        nextPosition = (dayEventRows.at(-1)?.position ?? -1) + 1;
       }
     } else if (input.insertAtPosition !== undefined) {
       nextPosition = Math.max(0, input.insertAtPosition);
@@ -919,6 +950,8 @@ export async function writeEventLocally(
       endAt: input.endAt ?? null,
       locationName: input.locationName ?? null,
       locationAddress: input.locationAddress ?? null,
+      locationLat: input.locationLat ?? null,
+      locationLng: input.locationLng ?? null,
       position: nextPosition,
       cost: input.cost ?? null,
       confirmationNumber: input.confirmationNumber ?? null,
@@ -961,6 +994,12 @@ export async function updateEventLocally(database: OfflineDb, eventId: string, p
       locationAddress: Object.prototype.hasOwnProperty.call(patch, "locationAddress")
         ? (patch.locationAddress ?? null)
         : currentRow.locationAddress,
+      locationLat: Object.prototype.hasOwnProperty.call(patch, "locationLat")
+        ? (patch.locationLat ?? null)
+        : currentRow.locationLat,
+      locationLng: Object.prototype.hasOwnProperty.call(patch, "locationLng")
+        ? (patch.locationLng ?? null)
+        : currentRow.locationLng,
       cost: Object.prototype.hasOwnProperty.call(patch, "cost") ? (patch.cost ?? null) : currentRow.cost,
       confirmationNumber: Object.prototype.hasOwnProperty.call(patch, "confirmationNumber")
         ? (patch.confirmationNumber ?? null)
@@ -983,13 +1022,19 @@ export async function updateEventLocally(database: OfflineDb, eventId: string, p
 }
 
 export async function writeDocumentLocally(database: OfflineDb, input: WriteDocumentLocallyInput): Promise<void> {
+  assertClientId(input.id);
   const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.events, database.documents, database.outbox, async () => {
     const eventRow = input.eventId ? await database.events.get(input.eventId) : undefined;
+    if (input.eventId && !eventRow) {
+      throw new Error("Event not found");
+    }
     const tripId = input.tripId ?? eventRow?.tripId ?? null;
-    if (!tripId) return;
+    if (!tripId) {
+      throw new Error("Trip not found");
+    }
 
     const tripRow = await database.trips.get(tripId);
     const objectUrl =
@@ -1030,6 +1075,7 @@ export async function writePackingItemLocally(database: OfflineDb, input: WriteP
 
   await database.transaction("rw", database.trips, database.packingItems, database.outbox, async () => {
     if (input.operation === "create") {
+      assertClientId(input.input.id);
       const tripRow = await database.trips.get(input.tripId);
       const allTripRows = await database.packingItems.where("tripId").equals(input.tripId).toArray();
       const listId = input.input.listId ?? null;
@@ -1042,25 +1088,27 @@ export async function writePackingItemLocally(database: OfflineDb, input: WriteP
 
       if (input.input.afterItemId) {
         const targetRow = scopedRows.find((row) => row.id === input.input.afterItemId);
-        if (targetRow) {
-          nextPosition = targetRow.position + 1;
-          const shiftedRows = scopedRows
-            .filter((row) => row.position > targetRow.position)
-            .map((row) => ({ ...row, position: row.position + 1 }));
-          if (shiftedRows.length > 0) {
-            await database.packingItems.bulkPut(shiftedRows);
-          }
+        if (!targetRow) {
+          throw new Error("Target item not found");
+        }
+        nextPosition = targetRow.position + 1;
+        const shiftedRows = scopedRows
+          .filter((row) => row.position > targetRow.position)
+          .map((row) => ({ ...row, position: row.position + 1 }));
+        if (shiftedRows.length > 0) {
+          await database.packingItems.bulkPut(shiftedRows);
         }
       } else if (input.input.beforeItemId) {
         const targetRow = scopedRows.find((row) => row.id === input.input.beforeItemId);
-        if (targetRow) {
-          nextPosition = targetRow.position;
-          const shiftedRows = scopedRows
-            .filter((row) => row.position >= targetRow.position)
-            .map((row) => ({ ...row, position: row.position + 1 }));
-          if (shiftedRows.length > 0) {
-            await database.packingItems.bulkPut(shiftedRows);
-          }
+        if (!targetRow) {
+          throw new Error("Target item not found");
+        }
+        nextPosition = targetRow.position;
+        const shiftedRows = scopedRows
+          .filter((row) => row.position >= targetRow.position)
+          .map((row) => ({ ...row, position: row.position + 1 }));
+        if (shiftedRows.length > 0) {
+          await database.packingItems.bulkPut(shiftedRows);
         }
       }
 

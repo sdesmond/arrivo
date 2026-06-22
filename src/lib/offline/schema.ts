@@ -57,6 +57,8 @@ export interface OfflineEvent {
   endAt: string | null;
   locationName: string | null;
   locationAddress: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
   position: number;
   cost: number | null;
   confirmationNumber: string | null;
