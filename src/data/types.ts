@@ -659,11 +659,20 @@ export interface ReorderDayItemsInput {
 }
 
 export interface UpdateDayPatch {
+  date?: string;
   label?: string;
   subtitle?: string;
   weather?: string;
   travelSummary?: string;
 }
+
+export const DAY_PATCH_FIELDS = [
+  "date",
+  "label",
+  "subtitle",
+  "weather",
+  "travelSummary",
+] as const satisfies readonly (keyof UpdateDayPatch)[];
 
 export interface RemoveLastDayResult {
   status: "removed" | "confirmation-required";

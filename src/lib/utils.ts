@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { getNow } from "@/lib/mock-date";
+import { DAY_PATCH_FIELDS, type DayItinerary, type UpdateDayPatch } from "@/data/types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -12,6 +13,16 @@ export function assertClientId(id: string | undefined) {
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+export function pickDayPatch(updates: Partial<DayItinerary>): UpdateDayPatch {
+  const patch: UpdateDayPatch = {};
+  for (const field of DAY_PATCH_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(updates, field)) {
+      patch[field] = updates[field];
+    }
+  }
+  return patch;
 }
 
 function asFloatingUtc(date: Date): Date {

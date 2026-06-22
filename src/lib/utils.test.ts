@@ -25,6 +25,7 @@ import {
   getLocationDisplayLabel,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
+  pickDayPatch,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -626,5 +627,24 @@ describe("assertClientId", () => {
 
   it("throws for a malformed UUID", () => {
     expect(() => assertClientId("zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz")).toThrow("Invalid client-supplied id");
+  });
+});
+
+describe("pickDayPatch", () => {
+  it("picks only the fields present on the updates object", () => {
+    expect(pickDayPatch({ label: "Arrival day" })).toEqual({ label: "Arrival day" });
+  });
+
+  it("includes date when present, matching AC4's date-change example", () => {
+    expect(pickDayPatch({ date: "2026-07-05" })).toEqual({ date: "2026-07-05" });
+  });
+
+  it("omits fields that are absent from updates, even when other DayItinerary fields are set", () => {
+    expect(pickDayPatch({ dayNumber: 2, events: [] })).toEqual({});
+  });
+
+  it("preserves an explicit undefined value for a present field", () => {
+    expect(pickDayPatch({ subtitle: undefined })).toEqual({ subtitle: undefined });
+    expect(Object.prototype.hasOwnProperty.call(pickDayPatch({ subtitle: undefined }), "subtitle")).toBe(true);
   });
 });
