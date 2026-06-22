@@ -1,3 +1,4 @@
+@feat:travel-history
 Feature: Travel History
   Background:
     Given I am signed in

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Briefcase, Search, Clock, LogOut, LayoutTemplate } from "lucide-react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
+import { clearOfflineDb } from "@/lib/offline/db";
 import { NavItem } from "./nav-item";
 import type { UserProfile } from "@/data/types";
 
@@ -32,6 +33,13 @@ export function SidebarNav({ user }: SidebarNavProps) {
   const pathname = usePathname();
   const initials = user ? getInitials(user) : "?";
   const avatarTint = getAvatarTint(initials);
+
+  async function handleSignOut(): Promise<void> {
+    if (user) {
+      await clearOfflineDb(user.id);
+    }
+    await signOutAction();
+  }
 
   return (
     <aside
@@ -120,15 +128,14 @@ export function SidebarNav({ user }: SidebarNavProps) {
             </div>
           </div>
         </Link>
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
-            title="Sign out"
-          >
-            <LogOut size={14} strokeWidth={1.5} />
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={() => void handleSignOut()}
+          className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
+          title="Sign out"
+        >
+          <LogOut size={14} strokeWidth={1.5} />
+        </button>
       </div>
     </aside>
   );

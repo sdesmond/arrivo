@@ -1,3 +1,4 @@
+@feat:new-trip
 Feature: New Trip Dialog
 
   Background:

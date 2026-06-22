@@ -1,3 +1,4 @@
+@feat:pull-templates
 Feature: Pull templates onto a trip packing list
   Background:
     Given I am signed in as the template pull user

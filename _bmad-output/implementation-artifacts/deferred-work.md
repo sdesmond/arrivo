@@ -1,6 +1,4 @@
-## Deferred from: code review of 1-1-switch-to-client-generated-entity-ids (2026-06-21)
+## Deferred from: code review of story 1-2-local-data-mirror-and-offline-reads (2026-06-21)
 
-- `crypto.randomUUID()` in `startTransition` may fail in insecure HTTP context — pre-existing concern not introduced by this change.
-- `handleAddDay`'s `crypto.randomUUID()` inside transition callback may regenerate if React re-executes the transition — generic React concern.
-- `addDocument` validation path wastes generated UUID on error — harmless, caller regenerates on retry.
-- Unrelated tsx/esbuild dependency bump in `package.json` — housekeeping, pre-existing.
+- No Dexie version upgrade path — Only `OFFLINE_DB_SCHEMA_V1` exists. Future schema migration will fail with version-conflict errors.
+- TripEvent fields omitted from offline round-trip — `displacedDate`, `locationLat`, `locationLng`, `linkedReservationId`, `reservationType` exist on TripEvent type but not in OfflineEvent. Verify against Drizzle schema.

@@ -96,6 +96,7 @@ vi.mock("@/lib/utils", () => ({
   deriveGraphicCover: mockDeriveGraphicCover,
   formatFileSize: vi.fn(),
   inferDocKind: vi.fn(),
+  assertClientId: (id: string | undefined) => (id === undefined ? {} : { id }),
 }));
 
 vi.mock("drizzle-orm", () => ({

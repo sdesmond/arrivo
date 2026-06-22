@@ -1,11 +1,15 @@
 "use client";
 
+import { useEffect, useMemo, useRef } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
 import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
 import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { NewTripDialog } from "@/components/packt/new-trip-dialog";
 import { type TripListEntry } from "@/data/types";
+import { useOfflineDb, mirrorTripListEntries, readTripListFromMirror } from "@/lib/offline/db";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import {
   AlertDialog,
@@ -26,8 +30,52 @@ interface TripsPageClientProps {
 }
 
 export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialViewMode }: TripsPageClientProps) {
-  const now = new Date(nowISO);
-  const handlers = useTripsPageHandlers(initialEntries, now);
+  const now = useMemo(() => new Date(nowISO), [nowISO]);
+  const database = useOfflineDb();
+  const isOnline = useOnlineStatus();
+  const mirrorInFlight = useRef(false);
+  const pendingMirrorRef = useRef(false);
+  const databaseRef = useRef(database);
+  const isOnlineRef = useRef(isOnline);
+  const latestEntriesRef = useRef(initialEntries);
+
+  useEffect(() => {
+    databaseRef.current = database;
+    isOnlineRef.current = isOnline;
+    latestEntriesRef.current = initialEntries;
+  }, [database, isOnline, initialEntries]);
+
+  useEffect(() => {
+    if (!database || !isOnline) return;
+    pendingMirrorRef.current = true;
+    if (mirrorInFlight.current) return;
+
+    async function flushMirrorQueue(): Promise<void> {
+      mirrorInFlight.current = true;
+      try {
+        while (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          pendingMirrorRef.current = false;
+          await mirrorTripListEntries(databaseRef.current, latestEntriesRef.current);
+        }
+      } finally {
+        mirrorInFlight.current = false;
+        if (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          void flushMirrorQueue();
+        }
+      }
+    }
+
+    void flushMirrorQueue();
+  }, [database, isOnline, initialEntries]);
+
+  const offlineEntries = useLiveQuery(
+    () => (isOnline || !database ? undefined : readTripListFromMirror(database, now)),
+    [isOnline, database, nowISO]
+  );
+
+  const effectiveEntries = !isOnline && offlineEntries ? offlineEntries : initialEntries;
+
+  const handlers = useTripsPageHandlers(effectiveEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
 
   return (

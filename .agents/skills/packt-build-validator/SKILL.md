@@ -12,6 +12,26 @@ Use this skill to perform a non-blocking, multi-threaded validation of the codeb
 Run every command from the repository root for the current checkout.
 Prefer setting the tool `workdir` to the project root instead of hard-coding a `cd` path in the command itself.
 
+## Step 0 — Precondition: skip if nothing changed since the last PASS
+
+This skill is idempotent. Before launching any workers, check whether the working tree is already
+validated so repeat invocations (e.g. once when a sub-task feels done, again before commit) do no
+redundant work.
+
+1. Determine the E2E scope for this run:
+   `SCOPE=$(node scripts/affected-e2e.mjs --format=scope)`
+   (`full`, or a comma-separated list of `@feat:` tags for the changed features.)
+2. Ask the fingerprint marker whether this exact tree already passed at that scope:
+   `node scripts/validator-fingerprint.mjs check --scope="$SCOPE"`
+3. If the JSON response has `"skip": true`, print exactly:
+   `Already validated (no source changes since last PASS) — skipping.`
+   and **STOP**. Do not launch the five workers.
+4. Otherwise continue to the Parallel Execution Plan below.
+
+The marker lives at `node_modules/.cache/packt-build-validator/last-pass.json` (git-ignored). It is
+keyed on a hash of `HEAD` + all uncommitted/untracked source, so any edit since the last pass forces
+a real run; an unchanged tree is a no-op.
+
 ## Parallel Execution Plan
 
 You must split the validation workflow into five distinct tasks. Execute them **in parallel** using background workers or sub-agents to avoid blocking the main session. Run all five tasks completely even if one or more encounter immediate errors.
@@ -29,7 +49,10 @@ You must split the validation workflow into five distinct tasks. Execute them **
    - Capture overall test status along with precise percentages for lines, functions, and branches.
 
 4. **Worker 4 (Playwright E2E):**
-   - Command: `npm run test:e2e 2>&1`
+   - Command: `npm run test:e2e:affected 2>&1`
+   - Runs only the E2E features the change set touches (per `tests/e2e/feature-map.mjs`); falls back
+     to the full suite automatically when a shared file changed or a change is unmapped.
+   - For a deliberate full pre-merge/PR gate, run `npm run test:e2e 2>&1` instead (full suite).
    - Capture overall scenario status, failing scenario names, and any setup or browser errors.
 
 5. **Worker 5 (Next.js Build Profile):**
@@ -60,6 +83,13 @@ For any section flagged as `FAIL`, iterate over the sub-agent outputs and provid
 
 _Constraint:_ Do not attempt to automatically refactor files or fix the failures yourself. Only evaluate, organize, and report.
 
+On **any** `FAIL`, clear the pass marker so the next invocation re-validates even if no further edits
+land: `node scripts/validator-fingerprint.mjs clear`.
+
 ### Formatting Success
 
-If all checks return `PASS`, output a confirmation message and append a brief summary of the Next.js production engine's bundle sizes, route generations, and E2E scenario totals.
+If all checks return `PASS`, record the pass marker so an immediate re-invocation on the unchanged
+tree short-circuits at Step 0:
+`node scripts/validator-fingerprint.mjs record --scope="$SCOPE"` (the same `SCOPE` from Step 0).
+
+Then output a confirmation message and append a brief summary of the Next.js production engine's bundle sizes, route generations, and E2E scenario totals.

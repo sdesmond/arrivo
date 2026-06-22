@@ -1,6 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { UserProfile } from "@/data/types";
+
+const { mockSignOutAction, mockClearOfflineDb } = vi.hoisted(() => ({
+  mockSignOutAction: vi.fn(),
+  mockClearOfflineDb: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/trips",
@@ -29,7 +35,11 @@ vi.mock("next-themes", () => ({
 }));
 
 vi.mock("@/app/(auth)/actions", () => ({
-  signOutAction: vi.fn(),
+  signOutAction: mockSignOutAction,
+}));
+
+vi.mock("@/lib/offline/db", () => ({
+  clearOfflineDb: mockClearOfflineDb,
 }));
 
 import { SidebarNav } from "./sidebar-nav";
@@ -51,6 +61,11 @@ const baseUser: UserProfile = {
 };
 
 describe("SidebarNav", () => {
+  beforeEach(() => {
+    mockSignOutAction.mockReset();
+    mockClearOfflineDb.mockReset();
+  });
+
   it("renders Trips nav item", () => {
     render(<SidebarNav user={baseUser} />);
     expect(screen.getAllByText("Trips").length).toBeGreaterThanOrEqual(1);
@@ -120,5 +135,26 @@ describe("SidebarNav", () => {
     const profileLink = screen.getByRole("link", { name: /view profile/i });
     const signOutButton = screen.getByTitle("Sign out");
     expect(profileLink).not.toContainElement(signOutButton);
+  });
+
+  it("clears the offline mirror for the current user before signing out", async () => {
+    const user = userEvent.setup();
+    render(<SidebarNav user={baseUser} />);
+
+    await user.click(screen.getByTitle("Sign out"));
+
+    expect(mockClearOfflineDb).toHaveBeenCalledWith("user-1");
+    expect(mockSignOutAction).toHaveBeenCalled();
+    expect(mockClearOfflineDb.mock.invocationCallOrder[0]).toBeLessThan(mockSignOutAction.mock.invocationCallOrder[0]);
+  });
+
+  it("signs out without clearing an offline mirror when there is no current user", async () => {
+    const user = userEvent.setup();
+    render(<SidebarNav user={null} />);
+
+    await user.click(screen.getByTitle("Sign out"));
+
+    expect(mockClearOfflineDb).not.toHaveBeenCalled();
+    expect(mockSignOutAction).toHaveBeenCalled();
   });
 });

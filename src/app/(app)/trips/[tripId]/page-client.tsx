@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLiveQuery } from "dexie-react-hooks";
 import { TripConfetti } from "@/components/packt/trip-confetti";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
@@ -17,6 +18,8 @@ import type {
   PackingTemplate,
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
+import { useOfflineDb, mirrorTripDetail, readTripDetailFromMirror } from "@/lib/offline/db";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import {
   buildReservationsDeepLinkHref,
@@ -69,7 +72,52 @@ export function TripDetailClient({
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = detail;
+  const database = useOfflineDb();
+  const isOnline = useOnlineStatus();
+  const now = useMemo(() => new Date(nowISO), [nowISO]);
+  const mirrorInFlight = useRef(false);
+  const pendingMirrorRef = useRef(false);
+  const databaseRef = useRef(database);
+  const isOnlineRef = useRef(isOnline);
+  const latestDetailRef = useRef(detail);
+
+  useEffect(() => {
+    databaseRef.current = database;
+    isOnlineRef.current = isOnline;
+    latestDetailRef.current = detail;
+  }, [database, isOnline, detail]);
+
+  useEffect(() => {
+    if (!database || !isOnline) return;
+    pendingMirrorRef.current = true;
+    if (mirrorInFlight.current) return;
+
+    async function flushMirrorQueue(): Promise<void> {
+      mirrorInFlight.current = true;
+      try {
+        while (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          pendingMirrorRef.current = false;
+          await mirrorTripDetail(databaseRef.current, latestDetailRef.current);
+        }
+      } finally {
+        mirrorInFlight.current = false;
+        if (pendingMirrorRef.current && databaseRef.current && isOnlineRef.current) {
+          void flushMirrorQueue();
+        }
+      }
+    }
+
+    void flushMirrorQueue();
+  }, [database, isOnline, detail]);
+
+  const offlineDetail = useLiveQuery(
+    () => (isOnline || !database ? undefined : readTripDetailFromMirror(database, detail.trip.id, now)),
+    [isOnline, database, detail.trip.id, nowISO]
+  );
+
+  const effectiveDetail = !isOnline && offlineDetail ? offlineDetail : detail;
+
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = effectiveDetail;
 
   const tabParam = searchParams.get("tab");
   const previousTabParamRef = useRef(tabParam);
@@ -154,7 +202,12 @@ export function TripDetailClient({
         <span key={announcementId}>{reservationsAnnouncement}</span>
       </div>
 
-      <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
+      <TripDetailHero
+        detail={effectiveDetail}
+        nowISO={nowISO}
+        dateFormat={dateFormat}
+        onEdit={() => setEditingTrip(true)}
+      />
 
       {/* Tab bar */}
       <div
