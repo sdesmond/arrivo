@@ -84,6 +84,8 @@ So that I understand why and trust my work is still being saved.
 
 - [x] [Review][Patch] Clear stale offline-message state when connectivity returns online [src/components/packt/connectivity-indicator.tsx:23]
 - [x] [Review][Patch] Avoid initial false-online render when app first mounts offline [src/lib/offline/use-online-status.ts:8]
+- [x] [Review][Patch] No focus trap or Escape key on offline message popover [src/components/packt/connectivity-indicator.tsx:59-63] — replaced with sonner toast
+- [x] [Review][Patch] Test description references internal story nomenclature [src/components/providers/offline-provider.test.tsx:37]
 
 ## Dev Notes
 

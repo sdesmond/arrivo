@@ -29,7 +29,7 @@ describe("OfflineProvider", () => {
     expect(result.current.offline).toBe(true);
   });
 
-  it("defaults conflict, pendingCount, and pinFailure for this story", () => {
+  it("defaults conflict, pendingCount, and pinFailure", () => {
     vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(true);
     const { result } = renderUseOffline();
     expect(result.current.conflict).toBe(false);

@@ -6,6 +6,10 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn() }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { info: vi.fn() },
+}));
+
 import { Topbar } from "./trips-topbar";
 import { OfflineProvider } from "@/components/providers/offline-provider";
 
@@ -54,14 +58,16 @@ describe("Topbar", () => {
     expect(indicator).toHaveAttribute("title", "Offline");
   });
 
-  it("shows a dismissible offline message when the indicator is clicked", async () => {
+  it("shows a toast when the indicator is clicked", async () => {
     vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
     const user = userEvent.setup();
     renderTopbar();
 
+    const { toast } = await import("sonner");
     await user.click(screen.getByLabelText("Offline"));
-    expect(
-      screen.getByText("You're offline. Any changes you make will be synced when you're back online.")
-    ).toBeInTheDocument();
+    expect(toast.info).toHaveBeenCalledWith(
+      "You're offline. Any changes you make will be synced when you're back online.",
+      { position: "top-center" }
+    );
   });
 });
