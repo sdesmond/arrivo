@@ -1,4 +1,3 @@
-import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OfflineOutboxEntry, OfflineTrip } from "./schema";
 
@@ -45,35 +44,8 @@ vi.mock("dexie", () => ({
   Dexie: MockDexie,
 }));
 
-vi.mock("dexie-react-hooks", async () => {
-  const React = await import("react");
-
-  return {
-    useLiveQuery: (query: () => unknown | Promise<unknown>, deps: React.DependencyList = []) => {
-      const [value, setValue] = React.useState<unknown>(undefined);
-      const dependencyKey = JSON.stringify(deps);
-
-      React.useEffect(() => {
-        let cancelled = false;
-
-        Promise.resolve(query()).then((nextValue) => {
-          if (!cancelled) {
-            setValue(nextValue);
-          }
-        });
-
-        return () => {
-          cancelled = true;
-        };
-      }, [dependencyKey, query]);
-
-      return value;
-    },
-  };
-});
-
 const { clearOfflineDb, getOfflineDb } = await import("./db");
-const { clearOutboxEntry, enqueueOutbox, getPendingOutboxEntries, usePendingCount } = await import("./outbox");
+const { clearOutboxEntry, enqueueOutbox, getPendingOutboxEntries } = await import("./outbox");
 
 describe("outbox helpers", () => {
   beforeEach(async () => {
@@ -151,42 +123,5 @@ describe("outbox helpers", () => {
     await clearOutboxEntry(database, "outbox-1");
 
     await expect(database.outbox.get("outbox-1")).resolves.toBeUndefined();
-  });
-
-  it("usePendingCount returns zero when the session has no user", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => null }));
-
-    const { result } = renderHook(() => usePendingCount());
-
-    await waitFor(() => expect(result.current).toBe(0));
-  });
-
-  it("usePendingCount reflects current outbox row count", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ user: { id: "outbox-test-user" } }) }));
-    const database = await getOfflineDb("outbox-test-user");
-    await database.outbox.bulkPut([
-      {
-        id: "outbox-1",
-        entityType: "event",
-        entityId: "event-1",
-        operation: "create",
-        payload: { id: "event-1" },
-        createdAt: "2026-06-21T12:00:00.000Z",
-        attempts: 0,
-      },
-      {
-        id: "outbox-2",
-        entityType: "document",
-        entityId: "doc-1",
-        operation: "create",
-        payload: { id: "doc-1" },
-        createdAt: "2026-06-21T12:01:00.000Z",
-        attempts: 0,
-      },
-    ]);
-
-    const { result } = renderHook(() => usePendingCount());
-
-    await waitFor(() => expect(result.current).toBe(2));
   });
 });

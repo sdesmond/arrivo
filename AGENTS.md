@@ -150,6 +150,8 @@ Pass the original request as context so scope and test checks have what they nee
 **Testing-first gate — NON-NEGOTIABLE:**
 For every coding change, tests are first-class deliverables, not cleanup work after implementation. A change is incomplete until the required unit/component tests and any required E2E coverage have been identified and authored in the same change. Coverage thresholds and validator failures are enforcement backstops, not the reason tests get written. If you cannot name the tests you will add or update before coding, stop and resolve that first.
 
+This gate is also enforced mechanically: a `Stop` hook (`.claude/hooks/require-tests.sh`, wired in `.claude/settings.json`) blocks ending a turn whenever a file under `src/lib/**` or `src/components/packt/**` was modified without its colocated `*.test.ts`/`*.test.tsx` also being modified in the same change (exceptions: `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, `src/lib/server-now.ts` — excluded from coverage). If this hook blocks you, add/update the named test file rather than treating the block as something to work around — it is catching exactly the "code first, test later" pattern this gate exists to prevent. This applies to every agent/skill working in this repo (BMad skills included), not just ad hoc edits.
+
 **Branch-confirmation gate — NON-NEGOTIABLE:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 

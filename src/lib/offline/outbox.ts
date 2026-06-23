@@ -1,8 +1,4 @@
-"use client";
-
-import { useLiveQuery } from "dexie-react-hooks";
 import type { OfflineDb } from "./db";
-import { useOfflineDb } from "./db";
 import type { OfflineEntityType, OfflineOperation, OfflineOutboxEntry } from "./schema";
 
 export async function enqueueOutbox(
@@ -34,16 +30,4 @@ export async function clearOutboxEntry(database: OfflineDb, outboxId: string): P
 export async function getPendingOutboxEntries(database: OfflineDb): Promise<OfflineOutboxEntry[]> {
   const entries = await database.outbox.toArray();
   return [...entries].sort((first, second) => first.createdAt.localeCompare(second.createdAt));
-}
-
-export function usePendingCount(): number {
-  const database = useOfflineDb();
-
-  const pendingCount = useLiveQuery(async () => {
-    if (!database) return 0;
-    const entries = await database.outbox.toArray();
-    return entries.length;
-  }, [database]);
-
-  return pendingCount ?? 0;
 }

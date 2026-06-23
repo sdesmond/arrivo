@@ -48,6 +48,40 @@ describe("saveLocalUpload", () => {
     );
     expect(written.toString()).toBe("reservation-pdf");
   });
+
+  it("rejects an empty storage name", async () => {
+    const file = new File(["cover-image"], "cover.png", { type: "image/png" });
+
+    await expect(
+      saveLocalUpload(file, {
+        rootDir: tempRootDir,
+        storageName: "",
+      })
+    ).rejects.toThrow("Invalid upload storage name");
+  });
+
+  it("rejects storage names with path traversal segments", async () => {
+    const file = new File(["cover-image"], "cover.png", { type: "image/png" });
+
+    await expect(
+      saveLocalUpload(file, {
+        rootDir: tempRootDir,
+        storageName: "trip-1/../cover.png",
+      })
+    ).rejects.toThrow("Invalid upload storage name");
+  });
+
+  it("falls back to process.cwd() when rootDir is omitted", async () => {
+    vi.spyOn(process, "cwd").mockReturnValue(tempRootDir);
+    const file = new File(["cover-image"], "cover.png", { type: "image/png" });
+
+    const url = await saveLocalUpload(file);
+
+    expect(url).toMatch(/^\/uploads\//);
+    const writtenName = url.replace("/uploads/", "");
+    const written = await readFile(join(tempRootDir, "public", "uploads", writtenName));
+    expect(written.toString()).toBe("cover-image");
+  });
 });
 
 describe("upload url helpers", () => {
