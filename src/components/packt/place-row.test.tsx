@@ -182,6 +182,20 @@ describe("PlaceRow", () => {
     expect(screen.getByTitle("Delete event")).toBeInTheDocument();
   });
 
+  it("applies the highlight pulse ring class when isHighlighted is true", () => {
+    render(<PlaceRow place={basePlace} id="event-ev-1" isHighlighted onUpdate={vi.fn()} onDelete={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    expect(document.getElementById("event-ev-1")?.firstElementChild).toHaveClass("highlight-pulse-ring");
+  });
+
+  it("does not apply the highlight pulse ring class by default", () => {
+    render(<PlaceRow place={basePlace} id="event-ev-1" onUpdate={vi.fn()} onDelete={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    expect(document.getElementById("event-ev-1")?.firstElementChild).not.toHaveClass("highlight-pulse-ring");
+  });
+
   it("calls onDelete with the event id when delete button is clicked", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();

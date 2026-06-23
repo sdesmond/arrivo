@@ -55,7 +55,7 @@ export function TripDetailClient({
   isNew,
   templates = [],
 }: TripDetailClientProps): ReactElement {
-  useFocusScroll();
+  const highlightedEventId = useFocusScroll();
 
   const pathname = usePathname();
   const router = useRouter();
@@ -198,6 +198,7 @@ export function TripDetailClient({
             templates={templates}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}
+            highlightedEventId={highlightedEventId}
             isNew={isNew}
             newlyCreatedChecklistId={handlers.newlyCreatedChecklistId ?? undefined}
             onUpdateEvent={handlers.handleEventUpdate}

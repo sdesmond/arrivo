@@ -24,6 +24,7 @@ interface MockPlaceRowProps {
 
 interface MockSortablePlaceRowProps {
   place: { id: string; name: string };
+  isHighlighted?: boolean;
 }
 
 const sortableContextCapture = vi.hoisted<SortableContextCapture>(() => ({ lastItems: [] }));
@@ -73,8 +74,10 @@ vi.mock("./place-row", () => ({
 }));
 
 vi.mock("./day-card-sortables", () => ({
-  SortablePlaceRow: ({ place }: MockSortablePlaceRowProps) => (
-    <div data-testid={`sortable-place-row-${place.id}`}>sortable-place-row-{place.id}</div>
+  SortablePlaceRow: ({ place, isHighlighted }: MockSortablePlaceRowProps) => (
+    <div data-testid={`sortable-place-row-${place.id}`} data-highlighted={String(!!isHighlighted)}>
+      sortable-place-row-{place.id}
+    </div>
   ),
   SortableNoteItem: ({ note }: { note: { id: string } }) => <div data-testid={`sortable-note-${note.id}`} />,
   SortableChecklistItem: ({ checklist }: { checklist: { id: string } }) => (
@@ -209,6 +212,34 @@ describe("DayCardDnd", () => {
 
     expect(screen.getByRole("button", { name: "direct-place-row-linked-event-1" })).toBeInTheDocument();
     expect(screen.queryByTestId("sortable-place-row-linked-event-1")).not.toBeInTheDocument();
+  });
+
+  it("marks only the SortablePlaceRow matching highlightedEventId as highlighted", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        highlightedEventId="manual-event-1"
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("sortable-place-row-manual-event-1")).toHaveAttribute("data-highlighted", "true");
   });
 
   it("computes a safe insertAtPosition for gaps near a Linked Event row instead of using its sort-only position", () => {
