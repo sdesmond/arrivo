@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
+import { OfflineProvider } from "@/components/providers/offline-provider";
 import { DevDatePicker } from "@/components/packt/dev-date-picker";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -49,9 +50,11 @@ export default async function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <MockDateProvider initialISO={mockISO}>
             <TooltipProvider>
-              {children}
-              <DevDatePicker />
-              <Toaster richColors position="bottom-center" />
+              <OfflineProvider>
+                {children}
+                <DevDatePicker />
+                <Toaster richColors position="bottom-center" />
+              </OfflineProvider>
             </TooltipProvider>
           </MockDateProvider>
         </ThemeProvider>
