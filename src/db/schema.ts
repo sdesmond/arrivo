@@ -188,7 +188,6 @@ export const documents = pgTable("documents", {
   name: text("name").notNull(),
   kind: text("kind").notNull(),
   size: text("size"),
-  offline: boolean("offline").default(false),
   url: text("url"),
   previewLines: jsonb("preview_lines"),
   addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`),

@@ -22,7 +22,6 @@ export const LISBON_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "118 KB",
             scope: "event",
-            offline: true,
             previewLines: [
               { text: "TAP AIR PORTUGAL", level: "h" },
               { text: "Boarding pass · TP 202", level: "m" },
@@ -51,7 +50,6 @@ export const LISBON_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "144 KB",
             scope: "event",
-            offline: true,
             previewLines: [
               { text: "BAIRRO ALTO HOTEL", level: "h" },
               { text: "Reservation BAH-20260518", level: "m" },
@@ -204,7 +202,6 @@ export const LISBON_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "118 KB",
             scope: "event",
-            offline: false,
             previewLines: [
               { text: "TAP AIR PORTUGAL", level: "h" },
               { text: "Boarding pass · TP 203", level: "m" },

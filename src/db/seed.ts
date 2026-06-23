@@ -113,7 +113,6 @@ async function main() {
               name: doc.name,
               kind: doc.kind,
               size: doc.size,
-              offline: doc.offline,
               url: doc.url,
               previewLines: doc.previewLines ?? null,
             })
