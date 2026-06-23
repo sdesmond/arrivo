@@ -11,8 +11,8 @@ vi.mock("./reservation-doc-row", () => ({
 }));
 
 const docs: Document[] = [
-  { id: "d1", name: "Confirmation.pdf", kind: "pdf", scope: "reservation", offline: false },
-  { id: "d2", name: "Receipt.pdf", kind: "pdf", scope: "reservation", offline: true },
+  { id: "d1", name: "Confirmation.pdf", kind: "pdf", scope: "reservation" },
+  { id: "d2", name: "Receipt.pdf", kind: "pdf", scope: "reservation" },
 ];
 
 describe("ReservationDocsBlock", () => {

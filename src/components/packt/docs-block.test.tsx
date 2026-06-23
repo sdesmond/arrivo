@@ -11,8 +11,8 @@ vi.mock("./event-doc-row", () => ({
 }));
 
 const docs: Document[] = [
-  { id: "d1", name: "Itinerary.pdf", kind: "pdf", scope: "event", offline: false },
-  { id: "d2", name: "Hotels.pdf", kind: "pdf", scope: "event", offline: true },
+  { id: "d1", name: "Itinerary.pdf", kind: "pdf", scope: "event" },
+  { id: "d2", name: "Hotels.pdf", kind: "pdf", scope: "event" },
 ];
 
 describe("DocsBlock", () => {

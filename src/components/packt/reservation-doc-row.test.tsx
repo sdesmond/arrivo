@@ -71,7 +71,6 @@ const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   name: "Confirmation.pdf",
   kind: "pdf",
   scope: "reservation",
-  offline: false,
   ...overrides,
 });
 
@@ -83,16 +82,6 @@ describe("ReservationDocRow", () => {
   it("renders the document name", () => {
     render(<ReservationDocRow doc={makeDoc()} />);
     expect(screen.getByText("Confirmation.pdf")).toBeInTheDocument();
-  });
-
-  it("renders a 'Not cached offline' indicator when doc.offline is false", () => {
-    render(<ReservationDocRow doc={makeDoc({ offline: false })} />);
-    expect(screen.getByRole("img", { name: "Not cached offline" })).toBeInTheDocument();
-  });
-
-  it("renders a 'Cached offline' indicator when doc.offline is true", () => {
-    render(<ReservationDocRow doc={makeDoc({ offline: true })} />);
-    expect(screen.getByRole("img", { name: "Cached offline" })).toBeInTheDocument();
   });
 
   it("renders view, share, promote, and delete buttons", () => {

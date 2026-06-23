@@ -85,7 +85,7 @@ import type { TripEvent } from "@/data/types";
 const place: TripEvent = {
   id: "ev-1",
   name: "Museum",
-  docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf", scope: "event", offline: false }],
+  docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf", scope: "event" }],
   position: 0,
 };
 

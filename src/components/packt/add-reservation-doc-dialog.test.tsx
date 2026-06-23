@@ -42,7 +42,7 @@ const makeDoc = (overrides: Record<string, unknown> = {}) => ({
   name: "Itinerary.pdf",
   kind: "pdf" as const,
   scope: "trip" as const,
-  offline: false,
+
   ...overrides,
 });
 

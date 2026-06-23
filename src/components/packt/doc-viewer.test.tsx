@@ -68,7 +68,7 @@ const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   name: "Boarding Pass.pdf",
   kind: "pdf",
   scope: "trip",
-  offline: false,
+
   url: "https://example.com/default.pdf",
   ...overrides,
 });

@@ -48,7 +48,7 @@ vi.mock("./trip-detail-hero", () => ({
     if (!trip.startDate || !trip.endDate) {
       return (
         <div>
-          <span>UNSCHEDULED TRIP · OFFLINE</span>
+          <span>UNSCHEDULED TRIP</span>
           <span>
             {days.length} {days.length === 1 ? "day" : "days"}
           </span>
@@ -204,7 +204,7 @@ describe("TripDetailClient", () => {
   it("shows an unscheduled hero label when the trip has no dates", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
-    expect(screen.getByText("UNSCHEDULED TRIP · OFFLINE")).toBeInTheDocument();
+    expect(screen.getByText("UNSCHEDULED TRIP")).toBeInTheDocument();
   });
 
   it("counts unscheduled events in the hero summary", () => {
@@ -246,8 +246,8 @@ describe("TripDetailClient", () => {
         detail={{
           ...baseDetail,
           docs: [
-            { id: "doc-1", name: "Trip doc", scope: "trip", kind: "pdf", offline: false },
-            { id: "doc-2", name: "Event doc", scope: "event", kind: "pdf", offline: false },
+            { id: "doc-1", name: "Trip doc", scope: "trip", kind: "pdf" },
+            { id: "doc-2", name: "Event doc", scope: "event", kind: "pdf" },
           ],
         }}
         nowISO="2026-05-24T12:00:00.000Z"

@@ -67,7 +67,6 @@ const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   name: "Boarding Pass.pdf",
   kind: "pdf",
   scope: "event",
-  offline: false,
   ...overrides,
 });
 
@@ -96,16 +95,6 @@ describe("EventDocRow", () => {
   it("renders DOC badge for doc kind", () => {
     render(<EventDocRow doc={makeDoc({ kind: "doc", name: "contract.docx" })} />);
     expect(screen.getByText("DOC")).toBeInTheDocument();
-  });
-
-  it("renders a 'Not cached offline' indicator when doc.offline is false", () => {
-    render(<EventDocRow doc={makeDoc({ offline: false })} />);
-    expect(screen.getByRole("img", { name: "Not cached offline" })).toBeInTheDocument();
-  });
-
-  it("renders a 'Cached offline' indicator when doc.offline is true", () => {
-    render(<EventDocRow doc={makeDoc({ offline: true })} />);
-    expect(screen.getByRole("img", { name: "Cached offline" })).toBeInTheDocument();
   });
 
   it("renders view button with correct title and aria-label", () => {
