@@ -21,6 +21,7 @@ export interface DayCardBodyProps {
   onDeleteNote?: (noteId: string) => void;
   onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   newlyCreatedChecklistId?: string;
+  highlightedEventId?: string | null;
   onOpenPackingListPicker?: (insertAtPosition: number) => void;
   onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
   onDeleteChecklist?: (checklistId: string) => void;
@@ -49,6 +50,7 @@ export function DayCardBody({
   onDeleteNote,
   onAddChecklist,
   newlyCreatedChecklistId,
+  highlightedEventId,
   onOpenPackingListPicker,
   onUpdateChecklistTitle,
   onDeleteChecklist,
@@ -155,6 +157,7 @@ export function DayCardBody({
         renderEntries={renderEntries}
         tripDocs={tripDocs}
         newlyCreatedChecklistId={newlyCreatedChecklistId}
+        highlightedEventId={highlightedEventId}
         draftInsertAtPosition={draft?.insertAtPosition}
         makeGapProps={makeGapProps}
         commitDraft={commitDraft}

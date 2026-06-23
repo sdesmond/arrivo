@@ -33,6 +33,7 @@ interface MockPlaceRowProps {
   onCreate?: (name: string) => void;
   onCancelDraft?: () => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
+  isHighlighted?: boolean;
 }
 interface MockChildrenProps {
   children: ReactNode;
@@ -113,7 +114,7 @@ vi.mock("./checklist-item", () => ({
 }));
 
 vi.mock("./place-row", () => ({
-  PlaceRow: ({ place, isDraft, onCreate, onCancelDraft, onLinkedEventTap }: MockPlaceRowProps) => {
+  PlaceRow: ({ place, isDraft, onCreate, onCancelDraft, onLinkedEventTap, isHighlighted }: MockPlaceRowProps) => {
     if (isDraft) {
       return (
         <input
@@ -149,7 +150,11 @@ vi.mock("./place-row", () => ({
         </button>
       );
     }
-    return <div data-testid={`place-row-${place.id}`}>{place.name}</div>;
+    return (
+      <div data-testid={`place-row-${place.id}`} data-highlighted={String(!!isHighlighted)}>
+        {place.name}
+      </div>
+    );
   },
 }));
 
@@ -293,6 +298,21 @@ describe("DayCard", () => {
     );
     expect(screen.getByRole("button", { name: /Mon, Jun 1/i })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Museum Visit")).toBeInTheDocument();
+  });
+
+  it("forwards highlightedEventId to the matching event row only", () => {
+    render(
+      <DayCard
+        day={baseDay}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        highlightedEventId="ev-s1"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByTestId("place-row-ev-s1")).toHaveAttribute("data-highlighted", "true");
+    expect(screen.getByTestId("place-row-ev-u1")).toHaveAttribute("data-highlighted", "false");
   });
 
   it("clicking toggle button collapses the card", async () => {

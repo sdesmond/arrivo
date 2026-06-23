@@ -6,6 +6,7 @@ import { DayCardBody } from "./day-card-body";
 interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
   onLinkedEventTap?: (linkedReservationId: string) => void;
+  highlightedEventId?: string | null;
 }
 
 interface MockDayCardBottomAddProps {
@@ -15,8 +16,8 @@ interface MockDayCardBottomAddProps {
 }
 
 vi.mock("./day-card-dnd", () => ({
-  DayCardDnd: ({ timelineItems, onLinkedEventTap }: MockDayCardDndProps) => (
-    <div>
+  DayCardDnd: ({ timelineItems, onLinkedEventTap, highlightedEventId }: MockDayCardDndProps) => (
+    <div data-highlighted-event-id={highlightedEventId ?? ""}>
       {timelineItems.map((item) => (
         <span key={item.data.id}>{item.data.id}</span>
       ))}
@@ -71,6 +72,23 @@ describe("DayCardBody", () => {
     expect(screen.getByText("note-1")).toBeInTheDocument();
     expect(screen.getByText("checklist-1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add a place to day 1" })).toBeInTheDocument();
+  });
+
+  it("forwards highlightedEventId to the extracted renderer", () => {
+    render(
+      <DayCardBody
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        highlightedEventId="event-1"
+      />
+    );
+
+    expect(screen.getByText("event-1").closest("[data-highlighted-event-id]")).toHaveAttribute(
+      "data-highlighted-event-id",
+      "event-1"
+    );
   });
 
   it("Backpack button click calls onOpenPackingListPicker with correct position", async () => {

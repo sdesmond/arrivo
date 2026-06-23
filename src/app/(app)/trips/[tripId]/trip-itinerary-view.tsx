@@ -30,6 +30,7 @@ export interface TripItineraryViewProps {
   onLinkedEventTap: (linkedReservationId: string) => void;
   dateFormat?: string;
   initialExpandedDayNumber?: number;
+  highlightedEventId?: string | null;
   isNew?: boolean;
   tripDocs?: Document[];
   packingLists: TripPackingList[];
@@ -84,6 +85,7 @@ export function TripItineraryView({
   onLinkedEventTap,
   dateFormat,
   initialExpandedDayNumber,
+  highlightedEventId,
   isNew,
   tripDocs,
   packingLists,
@@ -180,6 +182,7 @@ export function TripItineraryView({
               day={day}
               dateFormat={dateFormat}
               initialOpen={initialExpandedDayNumber === day.dayNumber}
+              highlightedEventId={highlightedEventId}
               tripDocs={tripDocs}
               onUpdateEvent={onUpdateEvent}
               onDeleteEvent={onDeleteEvent}

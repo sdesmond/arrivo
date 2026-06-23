@@ -540,6 +540,7 @@ export interface WorldPin {
 export interface TripListEntry {
   trip: Trip; // status computed at read time via getTripStatus(), not stored
   todayEvents: TripEvent[];
+  summaryEvents: TripEvent[];
 }
 
 export interface TripDetailPayload {

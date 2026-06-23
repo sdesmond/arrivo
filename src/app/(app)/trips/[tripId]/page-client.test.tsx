@@ -5,16 +5,18 @@ import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
 import type { TripDetailPayload } from "@/data/types";
 
-const { tripConfettiMock, mockPathname, mockSearchParams, mockRouterPush, mockRouterReplace } = vi.hoisted(() => ({
-  tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
-    void tripId;
-    return null;
-  }),
-  mockPathname: vi.fn(() => "/trips/trip-1"),
-  mockSearchParams: vi.fn(() => new URLSearchParams()),
-  mockRouterPush: vi.fn(),
-  mockRouterReplace: vi.fn(),
-}));
+const { tripConfettiMock, mockPathname, mockSearchParams, mockRouterPush, mockRouterReplace, mockUseFocusScroll } =
+  vi.hoisted(() => ({
+    tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
+      void tripId;
+      return null;
+    }),
+    mockPathname: vi.fn(() => "/trips/trip-1"),
+    mockSearchParams: vi.fn(() => new URLSearchParams()),
+    mockRouterPush: vi.fn(),
+    mockRouterReplace: vi.fn(),
+    mockUseFocusScroll: vi.fn<() => string | null>(() => null),
+  }));
 
 interface TripCoverProps {
   metaTag: string;
@@ -80,16 +82,18 @@ vi.mock("./trip-detail-hero", () => ({
 vi.mock("./trip-detail-tab-body", () => ({
   TripDetailTabBody: ({
     activeTab,
+    highlightedEventId,
     onActivateReservationsCta,
     onLinkedEventTap,
     onOpenEditDates,
   }: {
     activeTab: string;
+    highlightedEventId?: string | null;
     onActivateReservationsCta: () => void;
     onLinkedEventTap: (reservationId: string) => void;
     onOpenEditDates: () => void;
   }) => (
-    <div data-testid="trip-detail-tab-body">
+    <div data-testid="trip-detail-tab-body" data-highlighted-event-id={highlightedEventId ?? ""}>
       {activeTab}
       <button onClick={onActivateReservationsCta}>Activate CTA</button>
       <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
@@ -113,7 +117,7 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
 }));
 
 vi.mock("@/lib/use-focus-scroll", () => ({
-  useFocusScroll: vi.fn(),
+  useFocusScroll: mockUseFocusScroll,
 }));
 
 vi.mock("./use-trip-detail-handlers", () => ({
@@ -169,6 +173,7 @@ describe("TripDetailClient", () => {
   beforeEach(() => {
     mockPathname.mockReturnValue("/trips/trip-1");
     mockSearchParams.mockReturnValue(new URLSearchParams());
+    mockUseFocusScroll.mockReturnValue(null);
     window.history.replaceState(null, "", "/trips/trip-1");
   });
 
@@ -272,6 +277,14 @@ describe("TripDetailClient", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(screen.getByText("0 days")).toBeInTheDocument();
+  });
+
+  it("forwards the highlighted event id from useFocusScroll to the tab body", () => {
+    mockUseFocusScroll.mockReturnValue("event-1");
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveAttribute("data-highlighted-event-id", "event-1");
   });
 
   it("renders the tab from the initial deep-link state", () => {

@@ -6,11 +6,22 @@ import { TripCover } from "@/components/packt/trip-cover";
 import { buildReservationsDeepLinkHref } from "@/app/(app)/trips/[tripId]/trip-detail-tabs";
 import { type Trip, type TripEvent } from "@/data/types";
 import { getActiveDayNumber, getTodayDisplay, getTripStatus, isEventNow, isEventPast, pluralize } from "@/lib/utils";
+import { getActiveTripSummarySelection } from "./active-trip-summary-events";
+import { formatCurrentSummaryEventTime, formatSummaryEventTime } from "./active-trip-summary-time";
 
 interface MobileActiveTabProps {
   trip: Trip | null;
   todayEvents: TripEvent[];
+  summaryEvents?: TripEvent[];
   now: Date;
+}
+
+interface MobileSummaryEventRowProps {
+  tripId: string;
+  event: TripEvent;
+  eventLabel: string;
+  floatingNow: Date;
+  useEndTime?: boolean;
 }
 
 function eventHref(tripId: string, fallbackHref: string, event: TripEvent): string {
@@ -23,21 +34,76 @@ function eventHref(tripId: string, fallbackHref: string, event: TripEvent): stri
   return fallbackHref;
 }
 
-function getFloatingNow(now: Date): Date {
-  return new Date(
-    Date.UTC(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      now.getHours(),
-      now.getMinutes(),
-      now.getSeconds(),
-      now.getMilliseconds()
-    )
+function MobileSummaryEventRow({
+  tripId,
+  event,
+  eventLabel,
+  floatingNow,
+  useEndTime = false,
+}: MobileSummaryEventRowProps) {
+  return (
+    <Link
+      href={eventHref(tripId, `/trips/${tripId}?focus=${event.id}`, event)}
+      className="group rounded-[14px]"
+      style={{
+        background: "var(--accent-soft)",
+        border: "1px solid var(--line)",
+        padding: "14px 16px",
+        display: "block",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--font-mono-family, ui-monospace)",
+          fontSize: "calc(10.5px * var(--font-scale))",
+          fontWeight: 500,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: "var(--accent-brand)",
+        }}
+      >
+        {eventLabel}
+      </div>
+      <div className="mt-1 flex items-center justify-between">
+        <span
+          style={{
+            fontFamily: "var(--font-heading-family, ui-sans-serif)",
+            fontSize: "calc(18px * var(--font-scale))",
+            fontWeight: 700,
+            color: "var(--fg)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {event.name}
+        </span>
+        <ChevronRight
+          size={16}
+          strokeWidth={1.5}
+          style={{ color: "var(--fg-3)" }}
+          className="transition-transform group-hover:translate-x-0.5"
+        />
+      </div>
+      <div
+        style={{
+          fontFamily: "var(--font-body, ui-sans-serif)",
+          fontSize: "calc(13px * var(--font-scale))",
+          color: "var(--fg-3)",
+          marginTop: 4,
+        }}
+      >
+        {useEndTime
+          ? formatCurrentSummaryEventTime(event.endAt)
+          : event.startAt
+            ? formatSummaryEventTime(event.startAt, floatingNow)
+            : "—"}
+        <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
+        <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>— km
+      </div>
+    </Link>
   );
 }
 
-export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps) {
+export function MobileActiveTab({ trip, todayEvents, summaryEvents = todayEvents, now }: MobileActiveTabProps) {
   if (!trip) {
     return (
       <div
@@ -50,23 +116,19 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
   }
 
   const status = getTripStatus(trip.startDate, trip.endDate, now);
-  const floatingNow = getFloatingNow(now);
   const activeDayNum = status === "active" && trip.startDate ? getActiveDayNumber(trip.startDate, now) : null;
   const statusLabel = status === "active" ? "ACTIVE" : status === "upcoming" ? "UPCOMING" : "PAST";
   const { date: todayDate, month: todayMonth } = getTodayDisplay(now);
 
-  const currentEvent =
-    [...todayEvents].reverse().find((event) => {
-      if (!event.startAt) return false;
-      return new Date(event.startAt) <= floatingNow;
-    }) ?? null;
-  const nextEvent =
-    todayEvents.find((event) => {
-      if (!event.startAt) return false;
-      return new Date(event.startAt) > floatingNow;
-    }) ?? null;
-  const displayEvent = currentEvent ?? nextEvent;
-  const eventLabel = currentEvent ? "Now" : "Next Event";
+  const { currentEvent, nextEvent, floatingNow } = getActiveTripSummarySelection({
+    summaryEvents,
+    todayEvents,
+    now,
+  });
+  const summaryRows = [
+    currentEvent ? { event: currentEvent, label: "Now" } : null,
+    nextEvent ? { event: nextEvent, label: "Next Event" } : null,
+  ].filter((row): row is { event: TripEvent; label: string } => row !== null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -121,68 +183,17 @@ export function MobileActiveTab({ trip, todayEvents, now }: MobileActiveTabProps
         </div>
       </Link>
 
-      {status === "active" && displayEvent ? (
-        <Link
-          href={eventHref(trip.id, `/trips/${trip.id}?focus=${displayEvent.id}`, displayEvent)}
-          className="group rounded-[14px]"
-          style={{
-            background: "var(--accent-soft)",
-            border: "1px solid var(--line)",
-            padding: "14px 16px",
-            display: "block",
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--font-mono-family, ui-monospace)",
-              fontSize: "calc(10.5px * var(--font-scale))",
-              fontWeight: 500,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "var(--accent-brand)",
-            }}
-          >
-            {eventLabel}
-          </div>
-          <div className="mt-1 flex items-center justify-between">
-            <span
-              style={{
-                fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                fontSize: "calc(18px * var(--font-scale))",
-                fontWeight: 700,
-                color: "var(--fg)",
-                letterSpacing: "-0.01em",
-              }}
-            >
-              {displayEvent.name}
-            </span>
-            <ChevronRight
-              size={16}
-              strokeWidth={1.5}
-              style={{ color: "var(--fg-3)" }}
-              className="transition-transform group-hover:translate-x-0.5"
-            />
-          </div>
-          <div
-            style={{
-              fontFamily: "var(--font-body, ui-sans-serif)",
-              fontSize: "calc(13px * var(--font-scale))",
-              color: "var(--fg-3)",
-              marginTop: 4,
-            }}
-          >
-            {displayEvent.startAt
-              ? new Date(displayEvent.startAt).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                  timeZone: "UTC",
-                })
-              : "—"}
-            <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
-            <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>— km
-          </div>
-        </Link>
-      ) : null}
+      {status === "active" &&
+        summaryRows.map((row) => (
+          <MobileSummaryEventRow
+            key={`${row.label}-${row.event.id}`}
+            tripId={trip.id}
+            event={row.event}
+            eventLabel={row.label}
+            floatingNow={floatingNow}
+            useEndTime={row.label === "Now"}
+          />
+        ))}
 
       {status === "active" ? (
         <div

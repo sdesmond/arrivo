@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 
 const mockGet = vi.fn();
 
@@ -34,5 +34,54 @@ describe("useFocusScroll", () => {
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
     document.body.removeChild(element);
+  });
+
+  it("returns null when no focus param is set", () => {
+    mockGet.mockReturnValue(null);
+    const { result } = renderHook(() => useFocusScroll());
+    expect(result.current).toBeNull();
+  });
+
+  it("does not highlight immediately, so the pulse waits for the scroll to settle", () => {
+    vi.useFakeTimers();
+    mockGet.mockReturnValue("ev-123");
+
+    const { result } = renderHook(() => useFocusScroll());
+    expect(result.current).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it("returns the focused event id once the scroll-settle delay elapses", () => {
+    vi.useFakeTimers();
+    mockGet.mockReturnValue("ev-123");
+
+    const { result } = renderHook(() => useFocusScroll());
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(result.current).toBe("ev-123");
+    vi.useRealTimers();
+  });
+
+  it("clears the highlighted event id after the pulse duration elapses", () => {
+    vi.useFakeTimers();
+    mockGet.mockReturnValue("ev-123");
+
+    const { result } = renderHook(() => useFocusScroll());
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(result.current).toBe("ev-123");
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(result.current).toBeNull();
+    vi.useRealTimers();
   });
 });

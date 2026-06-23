@@ -23,6 +23,7 @@ interface DayCardProps {
   onDeleteNote?: (noteId: string) => void;
   onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   newlyCreatedChecklistId?: string;
+  highlightedEventId?: string | null;
   onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
   onDeleteChecklist?: (checklistId: string) => void;
   onAddChecklistItem?: (checklistId: string, content: string) => void;
@@ -50,6 +51,7 @@ export function DayCard({
   onDeleteNote,
   onAddChecklist,
   newlyCreatedChecklistId,
+  highlightedEventId,
   onUpdateChecklistTitle,
   onDeleteChecklist,
   onAddChecklistItem,
@@ -110,6 +112,7 @@ export function DayCard({
           day={day}
           tripDocs={tripDocs}
           newlyCreatedChecklistId={newlyCreatedChecklistId}
+          highlightedEventId={highlightedEventId}
           onReorderDayItems={onReorderDayItems}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}

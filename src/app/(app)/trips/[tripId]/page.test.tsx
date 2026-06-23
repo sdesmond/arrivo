@@ -106,6 +106,43 @@ describe("TripDetailPage", () => {
     );
   });
 
+  it("expands the day containing a focused event", async () => {
+    const detailWithDays: TripDetailPayload = {
+      ...baseDetail,
+      days: [
+        {
+          id: "day-1",
+          dayNumber: 1,
+          date: "2026-06-05",
+          label: "Day 1",
+          events: [{ id: "event-1", name: "Breakfast", position: 0 }],
+        },
+        {
+          id: "day-2",
+          dayNumber: 2,
+          date: "2026-06-06",
+          label: "Day 2",
+          events: [{ id: "event-2", name: "Temple Tour", position: 0 }],
+        },
+      ],
+    };
+    mockGetTripDetail.mockResolvedValue(detailWithDays);
+
+    const page = await TripDetailPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ focus: "event-2" }),
+    });
+
+    render(page);
+
+    expect(tripDetailClientSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: detailWithDays,
+        initialExpandedDayNumber: 2,
+      })
+    );
+  });
+
   it("falls back to the itinerary tab when the tab query is invalid", async () => {
     const page = await TripDetailPage({
       params: Promise.resolve({ tripId: "trip-1" }),

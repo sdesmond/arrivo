@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronRight, MapPin, Trash2 } from "lucide-react";
 import { IconSize } from "@/lib/size-tokens";
 import { type TripEvent, type Document } from "@/data/types";
-import { isEventNow } from "@/lib/utils";
+import { cn, isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
 import { PlaceRowNameField } from "./place-row-name-field";
@@ -35,6 +35,7 @@ export interface PlaceRowProps {
   onCreate?: (name: string) => void;
   onCancelDraft?: () => void;
   tripDocs?: Document[];
+  isHighlighted?: boolean;
 }
 
 export function PlaceRow({
@@ -50,6 +51,7 @@ export function PlaceRow({
   onCreate,
   onCancelDraft,
   tripDocs,
+  isHighlighted,
 }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -124,7 +126,7 @@ export function PlaceRow({
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className="flex items-start gap-3 rounded-[8px] px-3 py-2.5"
+        className={cn("flex items-start gap-3 rounded-[8px] px-3 py-2.5", isHighlighted && "highlight-pulse-ring")}
         style={{
           background: isNow && !isLinkedEvent ? "var(--accent-soft)" : undefined,
           border: isNow && !isLinkedEvent ? "1px solid var(--accent-brand)" : "1px solid transparent",

@@ -43,6 +43,7 @@ export interface DayCardDndProps {
   renderEntries: RenderEntry[];
   tripDocs?: Document[];
   newlyCreatedChecklistId?: string;
+  highlightedEventId?: string | null;
   draftInsertAtPosition?: number;
   makeGapProps: (gapKey: string, insertAtPosition: number) => GapZoneProps;
   commitDraft: (content: string) => void;
@@ -71,6 +72,7 @@ export function DayCardDnd({
   renderEntries,
   tripDocs,
   newlyCreatedChecklistId,
+  highlightedEventId,
   draftInsertAtPosition,
   makeGapProps,
   commitDraft,
@@ -215,6 +217,7 @@ export function DayCardDnd({
                     onUpdate={onUpdateEvent}
                     onDelete={onDeleteEvent}
                     tripDocs={tripDocs}
+                    isHighlighted={entry.item.data.id === highlightedEventId}
                   />
                 )
               ) : (

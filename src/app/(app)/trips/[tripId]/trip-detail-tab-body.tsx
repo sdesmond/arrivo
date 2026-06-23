@@ -31,6 +31,7 @@ export interface TripDetailTabBodyProps {
   templates: PackingTemplate[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
+  highlightedEventId?: string | null;
   isNew?: boolean;
   newlyCreatedChecklistId?: string;
   onUpdateEvent: (event: TripEvent) => void;
@@ -100,6 +101,7 @@ export function TripDetailTabBody({
   templates,
   dateFormat,
   initialExpandedDayNumber,
+  highlightedEventId,
   isNew,
   newlyCreatedChecklistId,
   onUpdateEvent,
@@ -146,6 +148,7 @@ export function TripDetailTabBody({
           unscheduledEvents={unscheduledEvents}
           dateFormat={dateFormat}
           initialExpandedDayNumber={initialExpandedDayNumber}
+          highlightedEventId={highlightedEventId}
           isNew={isNew}
           tripDocs={docs.filter((document) => document.scope === "trip")}
           packingLists={packingLists}

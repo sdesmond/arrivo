@@ -20,14 +20,17 @@ const entries: TripListEntry[] = [
   {
     trip: { id: "trip-active", name: "Tokyo", status: "active", startDate: "2026-05-10", endDate: "2026-05-20" },
     todayEvents: [],
+    summaryEvents: [],
   },
   {
     trip: { id: "trip-past-older", name: "Lisbon", status: "past", startDate: "2025-09-01", endDate: "2025-09-07" },
     todayEvents: [],
+    summaryEvents: [],
   },
   {
     trip: { id: "trip-past-newer", name: "Berlin", status: "past", startDate: "2026-01-01", endDate: "2026-01-10" },
     todayEvents: [],
+    summaryEvents: [],
   },
 ];
 
