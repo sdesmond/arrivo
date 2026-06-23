@@ -1,28 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+function subscribe(onStoreChange: () => void) {
+  window.addEventListener("online", onStoreChange);
+  window.addEventListener("offline", onStoreChange);
+
+  return () => {
+    window.removeEventListener("online", onStoreChange);
+    window.removeEventListener("offline", onStoreChange);
+  };
+}
+
+function getSnapshot() {
+  return navigator.onLine;
+}
+
+function getServerSnapshot() {
+  return true;
+}
 
 export function useOnlineStatus(): boolean {
-  // Initial value must match the server's render (no navigator) to avoid a hydration
-  // mismatch; the effect below corrects it to the real value immediately after mount.
-  const [isOnline, setIsOnline] = useState(true);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsOnline(navigator.onLine);
-    function handleOnline(): void {
-      setIsOnline(true);
-    }
-    function handleOffline(): void {
-      setIsOnline(false);
-    }
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  return isOnline;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

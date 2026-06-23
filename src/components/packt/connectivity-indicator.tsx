@@ -20,9 +20,14 @@ export function ConnectivityIndicator({
   style,
 }: ConnectivityIndicatorProps) {
   const { offline } = useOffline();
-  const [isMessageVisible, setIsMessageVisible] = useState(false);
 
   if (!offline) return null;
+
+  return <OfflineConnectivityIndicator variant={variant} iconSize={iconSize} className={className} style={style} />;
+}
+
+function OfflineConnectivityIndicator({ variant, iconSize, className, style }: ConnectivityIndicatorProps) {
+  const [isMessageVisible, setIsMessageVisible] = useState(false);
 
   return (
     <div className="relative">

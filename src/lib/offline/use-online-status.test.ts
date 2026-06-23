@@ -32,15 +32,19 @@ describe("useOnlineStatus", () => {
   });
 
   it("updates to false when an offline event fires", () => {
-    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(true);
+    let isOnline = true;
+    vi.spyOn(window.navigator, "onLine", "get").mockImplementation(() => isOnline);
     const { result } = renderHook(() => useOnlineStatus());
+    isOnline = false;
     act(() => window.dispatchEvent(new Event("offline")));
     expect(result.current).toBe(false);
   });
 
   it("updates to true when an online event fires", () => {
-    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    let isOnline = false;
+    vi.spyOn(window.navigator, "onLine", "get").mockImplementation(() => isOnline);
     const { result } = renderHook(() => useOnlineStatus());
+    isOnline = true;
     act(() => window.dispatchEvent(new Event("online")));
     expect(result.current).toBe(true);
   });
