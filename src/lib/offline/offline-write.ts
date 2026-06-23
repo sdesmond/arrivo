@@ -1,4 +1,4 @@
-import type { OfflineDb } from "./db";
+import { getOfflineDbForSession, type OfflineDb } from "./db";
 
 export async function writeOfflineAware<T>(
   isOnline: boolean,
@@ -6,8 +6,12 @@ export async function writeOfflineAware<T>(
   offlineWrite: (database: OfflineDb) => Promise<T>,
   onlineWrite: () => Promise<T>
 ): Promise<T> {
-  if (!isOnline && database) {
-    return offlineWrite(database);
+  if (!isOnline) {
+    const offlineDatabase = database ?? (await getOfflineDbForSession());
+    if (!offlineDatabase) {
+      throw new Error("OFFLINE_DB_UNAVAILABLE");
+    }
+    return offlineWrite(offlineDatabase);
   }
   return onlineWrite();
 }

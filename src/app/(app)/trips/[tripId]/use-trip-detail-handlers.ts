@@ -136,25 +136,25 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
-    const reorderedEvents = orderedItems
-      .map((item, position) => (item.type === "event" ? { id: item.id, position } : null))
-      .filter((item): item is { id: string; position: number } => item !== null);
 
     React.startTransition(async () => {
       try {
         await writeOfflineAware(
           isOnline,
           database,
-          (db) => reorderEventsLocally(db, day.id!, reorderedEvents),
+          (db) => reorderEventsLocally(db, day.id!, orderedItems),
           () => reorderDayItems({ dayId: day.id!, orderedItems })
         );
       } catch (error) {
-        if (error instanceof Error && error.message === "CONCURRENT_MODIFICATION") {
+        if (error instanceof Error && error.message === "OFFLINE_DB_UNAVAILABLE") {
+          toast.error("Offline storage is still loading. Try again in a moment.");
+        } else if (error instanceof Error && error.message === "CONCURRENT_MODIFICATION") {
           toast.error("This day changed elsewhere. Refreshing the itinerary.");
+          router.refresh();
         } else {
           toast.error("Failed to reorder items. Refreshing the itinerary.");
+          router.refresh();
         }
-        router.refresh();
       }
     });
   }

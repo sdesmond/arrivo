@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import Dexie, { type Table } from "dexie";
 import { assertClientId, formatFileSize, getTripStatus, inferDocKind } from "@/lib/utils";
 import { getNow } from "@/lib/mock-date";
+import { enqueueOutbox } from "./outbox";
 import {
   OfflineEntityType,
   OFFLINE_DB_SCHEMA_V1,
@@ -22,6 +23,7 @@ import {
 import type {
   AddPackingItemInput,
   CreateEventInput,
+  DayItemType,
   DayItinerary,
   Document,
   PackingItem,
@@ -83,6 +85,7 @@ export class OfflineDb extends Dexie {
 }
 
 const instances = new Map<string, OfflineDb>();
+const OFFLINE_USER_ID_STORAGE_KEY = "packt-offline-user-id";
 const trackedBlobUrls = new Set<string>();
 
 export function trackBlobUrl(url: string | null): void {
@@ -188,10 +191,36 @@ function renumberPackingItemPositions(items: OfflinePackingItem[]): OfflinePacki
 }
 
 async function getSessionUserId(): Promise<string | null> {
-  return fetch("/api/auth/session")
-    .then((response) => response.json())
-    .then((session: { user?: { id?: string } } | null) => session?.user?.id ?? null)
-    .catch(() => null);
+  try {
+    const session = (await fetch("/api/auth/session").then((response) => response.json())) as {
+      user?: { id?: string };
+    } | null;
+    const userId = session?.user?.id ?? null;
+    cacheOfflineUserId(userId);
+    return userId;
+  } catch {
+    return readCachedOfflineUserId();
+  }
+}
+
+function cacheOfflineUserId(userId: string | null): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (userId) {
+    window.localStorage.setItem(OFFLINE_USER_ID_STORAGE_KEY, userId);
+  } else {
+    window.localStorage.removeItem(OFFLINE_USER_ID_STORAGE_KEY);
+  }
+}
+
+function readCachedOfflineUserId(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(OFFLINE_USER_ID_STORAGE_KEY);
 }
 
 function tripToOfflineRow(trip: Trip, userId: string): OfflineTrip {
@@ -659,6 +688,36 @@ function updateTripSnapshot(
   return nextDetailSnapshot;
 }
 
+function applyDayItemReorderToSnapshot(
+  detail: TripDetailPayload,
+  dayId: string,
+  orderedItems: Array<{ type: DayItemType; id: string }>
+): void {
+  const nextPositionsById = new Map(orderedItems.map((orderedItem, position) => [orderedItem.id, position]));
+
+  detail.days = detail.days.map((day) => {
+    if (day.id !== dayId) {
+      return day;
+    }
+
+    return {
+      ...day,
+      events: day.events.map((event) => ({
+        ...event,
+        position: nextPositionsById.get(event.id) ?? event.position,
+      })),
+      notes: day.notes?.map((note) => ({
+        ...note,
+        position: nextPositionsById.get(note.id) ?? note.position,
+      })),
+      checklists: day.checklists?.map((checklist) => ({
+        ...checklist,
+        position: nextPositionsById.get(checklist.id) ?? checklist.position,
+      })),
+    };
+  });
+}
+
 function removeDocumentFromSnapshot(detail: TripDetailPayload, documentId: string): void {
   detail.docs = detail.docs.filter((doc) => doc.id !== documentId);
 
@@ -744,7 +803,6 @@ async function replaceOutboxEntriesForUpdate(
   entityId: string,
   payload: unknown
 ): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
   const existingEntries = await getOutboxEntriesForEntity(database, entityId);
   const createEntry = existingEntries.find((entry) => entry.operation === OfflineOperation.Create);
 
@@ -772,7 +830,6 @@ async function enqueueDeleteUnlessUnsynced(
   entityId: string,
   payload: unknown
 ): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
   const existingEntries = await clearOutboxEntriesForEntity(database, entityId);
   if (!hasOutboxOperation(existingEntries, OfflineOperation.Create)) {
     await enqueueOutbox(database, entityType, entityId, OfflineOperation.Delete, payload);
@@ -788,6 +845,11 @@ export async function getOfflineDb(userId: string): Promise<OfflineDb> {
   return instance;
 }
 
+export async function getOfflineDbForSession(): Promise<OfflineDb | null> {
+  const userId = await getSessionUserId();
+  return userId ? getOfflineDb(userId) : null;
+}
+
 export async function clearOfflineDb(userId: string): Promise<void> {
   revokeAllTrackedBlobUrls();
   instances.delete(userId);
@@ -800,8 +862,7 @@ export function useOfflineDb(): OfflineDb | null {
   useEffect(() => {
     let cancelled = false;
 
-    getSessionUserId()
-      .then((userId) => (userId ? getOfflineDb(userId) : null))
+    getOfflineDbForSession()
       .then((instance) => {
         if (!cancelled) {
           setDatabase(instance);
@@ -844,6 +905,18 @@ export function useOfflineEntitySyncStatus(
   }, [database, entityId, entityType]);
 
   return syncStatus ?? OfflineSyncStatus.Synced;
+}
+
+export function usePendingCount(): number {
+  const database = useOfflineDb();
+
+  const pendingCount = useLiveQuery(async () => {
+    if (!database) return 0;
+    const entries = await database.outbox.toArray();
+    return entries.length;
+  }, [database]);
+
+  return pendingCount ?? 0;
 }
 
 export async function mirrorTripDetail(database: OfflineDb, detail: TripDetailPayload): Promise<void> {
@@ -1154,7 +1227,6 @@ export async function writeEventLocally(
   input: CreateEventInput & { id: string }
 ): Promise<void> {
   assertClientId(input.id);
-  const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.events, database.outbox, async () => {
@@ -1223,7 +1295,6 @@ export async function writeEventLocally(
 }
 
 export async function updateEventLocally(database: OfflineDb, eventId: string, patch: UpdateEventPatch): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.events, database.outbox, async () => {
@@ -1273,22 +1344,26 @@ export async function updateEventLocally(database: OfflineDb, eventId: string, p
 export async function reorderEventsLocally(
   database: OfflineDb,
   dayId: string,
-  reorderedEvents: Array<{ id: string; position: number }>
+  orderedItems: Array<{ type: DayItemType; id: string }>
 ): Promise<void> {
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.events, database.outbox, async () => {
     const nextRows: OfflineEvent[] = [];
 
-    for (const reorderedEvent of reorderedEvents) {
-      const currentRow = await database.events.get(reorderedEvent.id);
+    for (const [position, orderedItem] of orderedItems.entries()) {
+      if (orderedItem.type !== "event") {
+        continue;
+      }
+
+      const currentRow = await database.events.get(orderedItem.id);
       if (!currentRow || currentRow.dayId !== dayId) {
         continue;
       }
 
       const nextRow: OfflineEvent = {
         ...currentRow,
-        position: reorderedEvent.position,
+        position,
         updatedAt: nowIso,
         syncStatus: OfflineSyncStatus.Pending,
       };
@@ -1306,6 +1381,7 @@ export async function reorderEventsLocally(
     const tripRow = await database.trips.get(tripId);
     if (tripRow) {
       const nextDetailSnapshot = updateTripSnapshot(tripRow, (detailSnapshot) => {
+        applyDayItemReorderToSnapshot(detailSnapshot, dayId, orderedItems);
         for (const nextRow of nextRows) {
           upsertEventInSnapshot(detailSnapshot, nextRow);
         }
@@ -1347,8 +1423,6 @@ export async function deleteEventLocally(database: OfflineDb, eventId: string): 
 }
 
 export async function updateDayLocally(database: OfflineDb, dayId: string, patch: UpdateDayPatch): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
-
   await database.transaction("rw", database.trips, database.days, database.outbox, async () => {
     const currentRow = await database.days.get(dayId);
     if (!currentRow) return;
@@ -1386,7 +1460,6 @@ export async function updateDayLocally(database: OfflineDb, dayId: string, patch
 
 export async function writeDocumentLocally(database: OfflineDb, input: WriteDocumentLocallyInput): Promise<void> {
   assertClientId(input.id);
-  const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.events, database.documents, database.outbox, async () => {
@@ -1460,7 +1533,6 @@ export async function deleteDocumentLocally(database: OfflineDb, documentId: str
 }
 
 export async function writePackingItemLocally(database: OfflineDb, input: WritePackingItemLocallyInput): Promise<void> {
-  const { enqueueOutbox } = await import("./outbox");
   const nowIso = getNowIso();
 
   await database.transaction("rw", database.trips, database.packingItems, database.outbox, async () => {
