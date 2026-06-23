@@ -39,6 +39,10 @@ describe("OFFLINE_DB_SCHEMA_V1", () => {
 });
 
 describe("OFFLINE_DB_SCHEMA_V2", () => {
+  it("adds syncStatus index to days", () => {
+    expect(OFFLINE_DB_SCHEMA_V2.days).toBe("id, tripId, dayNumber, [tripId+dayNumber], syncStatus");
+  });
+
   it("adds syncStatus index to events", () => {
     expect(OFFLINE_DB_SCHEMA_V2.events).toBe("id, tripId, dayId, position, [tripId+dayId], syncStatus");
   });

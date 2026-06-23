@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { createEvent, reorderDayItems, updateEvent } from "./actions";
+import { createEvent, deleteEvent, reorderDayItems, updateDay, updateEvent } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -24,12 +24,18 @@ const { mockPush, mockRefresh } = vi.hoisted(() => ({
 const {
   mockUseOnlineStatus,
   mockUseOfflineDb,
+  mockDeleteEventLocally,
+  mockReorderEventsLocally,
+  mockUpdateDayLocally,
   mockWriteEventLocally,
   mockUpdateEventLocally,
   mockWritePackingItemLocally,
 } = vi.hoisted(() => ({
   mockUseOnlineStatus: vi.fn(() => true),
   mockUseOfflineDb: vi.fn<() => { userId: string } | null>(() => null),
+  mockDeleteEventLocally: vi.fn(),
+  mockReorderEventsLocally: vi.fn(),
+  mockUpdateDayLocally: vi.fn(),
   mockWriteEventLocally: vi.fn(),
   mockUpdateEventLocally: vi.fn(),
   mockWritePackingItemLocally: vi.fn(),
@@ -48,6 +54,9 @@ vi.mock("@/lib/offline/use-online-status", () => ({
 }));
 
 vi.mock("@/lib/offline/db", () => ({
+  deleteEventLocally: mockDeleteEventLocally,
+  reorderEventsLocally: mockReorderEventsLocally,
+  updateDayLocally: mockUpdateDayLocally,
   useOfflineDb: mockUseOfflineDb,
   writeEventLocally: mockWriteEventLocally,
   updateEventLocally: mockUpdateEventLocally,
@@ -157,6 +166,29 @@ describe("useTripDetailHandlers", () => {
     expect(mockRefresh).toHaveBeenCalledOnce();
   });
 
+  it("reorders events locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleDayItemsReorder(1, [
+        { type: "note", id: "note-1" },
+        { type: "event", id: "event-2" },
+        { type: "event", id: "event-1" },
+      ]);
+    });
+
+    await waitFor(() =>
+      expect(mockReorderEventsLocally).toHaveBeenCalledWith({ userId: "user-1" }, "day-1", [
+        { id: "event-2", position: 1 },
+        { id: "event-1", position: 2 },
+      ])
+    );
+    expect(vi.mocked(reorderDayItems)).not.toHaveBeenCalled();
+  });
+
   it("deletes the trip and returns to the trips list", async () => {
     vi.mocked(deleteTrip).mockResolvedValueOnce(undefined);
 
@@ -244,6 +276,52 @@ describe("useTripDetailHandlers", () => {
       )
     );
     expect(vi.mocked(updateEvent)).not.toHaveBeenCalled();
+  });
+
+  it("deletes events locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleEventDelete("event-1");
+    });
+
+    await waitFor(() => expect(mockDeleteEventLocally).toHaveBeenCalledWith({ userId: "user-1" }, "event-1"));
+    expect(vi.mocked(deleteEvent)).not.toHaveBeenCalled();
+  });
+
+  it("shows a toast and refreshes the route when deleting an event fails", async () => {
+    vi.mocked(deleteEvent).mockRejectedValueOnce(new Error("Network error"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleEventDelete("event-1");
+    });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to delete event. Refreshing the itinerary."));
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("updates days locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleDayUpdate(1, { label: "Arrival day", subtitle: "Tokyo" });
+    });
+
+    await waitFor(() =>
+      expect(mockUpdateDayLocally).toHaveBeenCalledWith({ userId: "user-1" }, "day-1", {
+        label: "Arrival day",
+        subtitle: "Tokyo",
+      })
+    );
+    expect(vi.mocked(updateDay)).not.toHaveBeenCalled();
   });
 
   it("handleAddPackingItem resolves the returned promise on success", async () => {

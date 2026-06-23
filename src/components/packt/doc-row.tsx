@@ -7,7 +7,9 @@ import { DocKindBadge } from "./doc-kind-badge";
 import { PendingSyncBadge } from "./pending-sync-badge";
 import type { Document } from "@/data/types";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
-import { useOfflineEntitySyncStatus } from "@/lib/offline/db";
+import { deleteDocumentLocally, useOfflineDb, useOfflineEntitySyncStatus } from "@/lib/offline/db";
+import { writeOfflineAware } from "@/lib/offline/offline-write";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { shareDoc } from "@/lib/utils";
 import {
   Dialog,
@@ -25,6 +27,8 @@ export interface DocRowProps {
 }
 
 export function DocRow({ doc }: DocRowProps) {
+  const database = useOfflineDb();
+  const isOnline = useOnlineStatus();
   const syncStatus = useOfflineEntitySyncStatus("document", doc.id);
   const [isPending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -67,7 +71,12 @@ export function DocRow({ doc }: DocRowProps) {
     setError(null);
     startTransition(async () => {
       try {
-        await removeDocument(doc.id);
+        await writeOfflineAware(
+          isOnline,
+          database,
+          (db) => deleteDocumentLocally(db, doc.id),
+          () => removeDocument(doc.id)
+        );
       } catch {
         inFlightRef.current = false;
         setError("Couldn't delete. Try again.");

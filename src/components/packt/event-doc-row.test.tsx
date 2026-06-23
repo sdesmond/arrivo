@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
 const { mockUseOfflineEntitySyncStatus } = vi.hoisted(() => ({
   mockUseOfflineEntitySyncStatus: vi.fn(() => "synced"),
+}));
+
+const { mockDeleteDocumentLocally, mockUseOfflineDb, mockUseOnlineStatus } = vi.hoisted(() => ({
+  mockDeleteDocumentLocally: vi.fn(),
+  mockUseOfflineDb: vi.fn<() => { userId: string } | null>(() => null),
+  mockUseOnlineStatus: vi.fn(() => true),
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
@@ -63,7 +69,13 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 vi.mock("@/lib/offline/db", () => ({
+  deleteDocumentLocally: mockDeleteDocumentLocally,
+  useOfflineDb: mockUseOfflineDb,
   useOfflineEntitySyncStatus: mockUseOfflineEntitySyncStatus,
+}));
+
+vi.mock("@/lib/offline/use-online-status", () => ({
+  useOnlineStatus: mockUseOnlineStatus,
 }));
 
 import { EventDocRow } from "./event-doc-row";
@@ -83,6 +95,8 @@ describe("EventDocRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseOfflineEntitySyncStatus.mockReturnValue("synced");
+    mockUseOnlineStatus.mockReturnValue(true);
+    mockUseOfflineDb.mockReturnValue(null);
   });
 
   // ── Rendering ─────────────────────────────────────────────────────────────
@@ -214,6 +228,18 @@ describe("EventDocRow", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
+  it("ignores the trailing blur fired after Escape cancels rename", async () => {
+    render(<EventDocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    await userEvent.click(screen.getByText("Boarding Pass.pdf"));
+    const input = screen.getByRole("textbox");
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.blur(input);
+
+    expect(renameDocument).not.toHaveBeenCalled();
+    expect(screen.getByText("Boarding Pass.pdf")).toBeInTheDocument();
+  });
+
   it("does not call renameDocument when input is cleared to empty", async () => {
     const user = userEvent.setup();
     render(<EventDocRow doc={makeDoc({ id: "doc-1" })} />);
@@ -331,6 +357,19 @@ describe("EventDocRow", () => {
     await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(removeDocument).toHaveBeenCalledWith("doc-42");
+  });
+
+  it("deletes the document locally instead of calling the server action while offline", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue({ userId: "user-1" });
+
+    const user = userEvent.setup();
+    render(<EventDocRow doc={makeDoc({ id: "doc-42" })} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(mockDeleteDocumentLocally).toHaveBeenCalledWith({ userId: "user-1" }, "doc-42");
+    expect(removeDocument).not.toHaveBeenCalled();
   });
 
   it("does not call removeDocument when Cancel is clicked", async () => {
