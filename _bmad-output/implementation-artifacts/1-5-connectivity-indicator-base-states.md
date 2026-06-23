@@ -4,7 +4,7 @@ baseline_commit: c71a67c3b3c6e1313dbf42ee271e4edb5e666891
 
 # Story 1.5: Connectivity Indicator (Base States)
 
-Status: review
+Status: done
 
 ## Story
 
@@ -79,6 +79,11 @@ So that I understand why and trust my work is still being saved.
 - [x] Update trips-mobile-layout.test.tsx (AC: 4, 5)
   - [x] Assert static "Synced offline" text absent
   - [x] Assert WifiOff renders when offline
+
+### Review Findings
+
+- [x] [Review][Patch] Clear stale offline-message state when connectivity returns online [src/components/packt/connectivity-indicator.tsx:23]
+- [x] [Review][Patch] Avoid initial false-online render when app first mounts offline [src/lib/offline/use-online-status.ts:8]
 
 ## Dev Notes
 
