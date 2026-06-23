@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createElement } from "react";
 import { renderHook, act } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
 import { useOnlineStatus } from "./use-online-status";
+
+function StatusProbe() {
+  const isOnline = useOnlineStatus();
+  return createElement("span", null, isOnline ? "online" : "offline");
+}
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -35,6 +43,28 @@ describe("useOnlineStatus", () => {
     const { result } = renderHook(() => useOnlineStatus());
     act(() => window.dispatchEvent(new Event("online")));
     expect(result.current).toBe(true);
+  });
+
+  it("hydrates without a server/client mismatch when navigator.onLine is false on mount", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const serverHtml = renderToString(createElement(StatusProbe));
+    expect(serverHtml).toBe("<span>online</span>");
+
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    const container = document.createElement("div");
+    container.innerHTML = serverHtml;
+    document.body.appendChild(container);
+
+    act(() => {
+      hydrateRoot(container, createElement(StatusProbe));
+    });
+
+    const hydrationMismatchCalled = consoleErrorSpy.mock.calls.some((call) => String(call[0]).includes("Hydration"));
+    expect(hydrationMismatchCalled).toBe(false);
+    expect(container.textContent).toBe("offline");
+
+    document.body.removeChild(container);
+    consoleErrorSpy.mockRestore();
   });
 
   it("removes the online/offline listeners on unmount", () => {

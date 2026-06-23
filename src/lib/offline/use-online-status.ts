@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 export function useOnlineStatus(): boolean {
-  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  // Initial value must match the server's render (no navigator) to avoid a hydration
+  // mismatch; the effect below corrects it to the real value immediately after mount.
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
