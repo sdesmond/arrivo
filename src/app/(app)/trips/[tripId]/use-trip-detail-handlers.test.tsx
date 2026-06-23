@@ -24,6 +24,7 @@ const { mockPush, mockRefresh } = vi.hoisted(() => ({
 const {
   mockUseOnlineStatus,
   mockUseOfflineDb,
+  mockGetOfflineDbForSession,
   mockDeleteEventLocally,
   mockReorderEventsLocally,
   mockUpdateDayLocally,
@@ -33,6 +34,7 @@ const {
 } = vi.hoisted(() => ({
   mockUseOnlineStatus: vi.fn(() => true),
   mockUseOfflineDb: vi.fn<() => { userId: string } | null>(() => null),
+  mockGetOfflineDbForSession: vi.fn(),
   mockDeleteEventLocally: vi.fn(),
   mockReorderEventsLocally: vi.fn(),
   mockUpdateDayLocally: vi.fn(),
@@ -54,6 +56,7 @@ vi.mock("@/lib/offline/use-online-status", () => ({
 }));
 
 vi.mock("@/lib/offline/db", () => ({
+  getOfflineDbForSession: mockGetOfflineDbForSession,
   deleteEventLocally: mockDeleteEventLocally,
   reorderEventsLocally: mockReorderEventsLocally,
   updateDayLocally: mockUpdateDayLocally,
@@ -182,10 +185,29 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() =>
       expect(mockReorderEventsLocally).toHaveBeenCalledWith({ userId: "user-1" }, "day-1", [
-        { id: "event-2", position: 1 },
-        { id: "event-1", position: 2 },
+        { type: "note", id: "note-1" },
+        { type: "event", id: "event-2" },
+        { type: "event", id: "event-1" },
       ])
     );
+    expect(vi.mocked(reorderDayItems)).not.toHaveBeenCalled();
+  });
+
+  it("shows a retry toast without refreshing when offline storage is not ready yet", async () => {
+    mockUseOnlineStatus.mockReturnValue(false);
+    mockUseOfflineDb.mockReturnValue(null);
+    mockGetOfflineDbForSession.mockResolvedValueOnce(null);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    act(() => {
+      result.current.handleDayItemsReorder(1, [{ type: "event", id: "event-1" }]);
+    });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Offline storage is still loading. Try again in a moment.")
+    );
+    expect(mockRefresh).not.toHaveBeenCalled();
     expect(vi.mocked(reorderDayItems)).not.toHaveBeenCalled();
   });
 

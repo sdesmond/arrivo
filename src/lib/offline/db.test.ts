@@ -127,6 +127,7 @@ const {
   useOfflineEntitySyncStatus,
   updateEventLocally,
   useOfflineDb,
+  usePendingCount,
   writeDocumentLocally,
   writeEventLocally,
   writePackingItemLocally,
@@ -140,6 +141,7 @@ beforeEach(() => {
 describe("useOfflineDb", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    window.localStorage.clear();
   });
 
   it("resolves to the offline db for the session user once the session fetch completes", async () => {
@@ -152,6 +154,7 @@ describe("useOfflineDb", () => {
     await waitFor(() => expect(result.current).not.toBeNull());
     expect(result.current?.userId).toBe("user-hook-test");
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/session");
+    expect(window.localStorage.getItem("packt-offline-user-id")).toBe("user-hook-test");
   });
 
   it("stays null when the session has no user", async () => {
@@ -176,6 +179,61 @@ describe("useOfflineDb", () => {
     });
 
     expect(result.current).toBeNull();
+  });
+
+  it("falls back to the cached offline user id when the session fetch rejects", async () => {
+    window.localStorage.setItem("packt-offline-user-id", "cached-user");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network error")));
+
+    const { result } = renderHook(() => useOfflineDb());
+    expect(result.current).toBeNull();
+
+    await waitFor(() => expect(result.current).not.toBeNull());
+    expect(result.current?.userId).toBe("cached-user");
+  });
+});
+
+describe("usePendingCount", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+  });
+
+  it("returns zero when the session has no user", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => null }));
+
+    const { result } = renderHook(() => usePendingCount());
+
+    await waitFor(() => expect(result.current).toBe(0));
+  });
+
+  it("reflects current outbox row count", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ user: { id: "outbox-test-user" } }) }));
+    const database = await getOfflineDb("outbox-test-user");
+    await database.outbox.bulkPut([
+      {
+        id: "outbox-1",
+        entityType: "event",
+        entityId: "event-1",
+        operation: "create",
+        payload: { id: "event-1" },
+        createdAt: "2026-06-21T12:00:00.000Z",
+        attempts: 0,
+      },
+      {
+        id: "outbox-2",
+        entityType: "document",
+        entityId: "doc-1",
+        operation: "create",
+        payload: { id: "doc-1" },
+        createdAt: "2026-06-21T12:01:00.000Z",
+        attempts: 0,
+      },
+    ]);
+
+    const { result } = renderHook(() => usePendingCount());
+
+    await waitFor(() => expect(result.current).toBe(2));
   });
 });
 
@@ -2150,8 +2208,8 @@ describe("offline write parity helpers", () => {
     });
 
     await reorderEventsLocally(database, "day-1", [
-      { id: "event-3", position: 0 },
-      { id: "event-1", position: 1 },
+      { type: "event", id: "event-3" },
+      { type: "event", id: "event-1" },
     ]);
 
     expect(await database.events.get("event-3")).toEqual(
@@ -2173,12 +2231,133 @@ describe("offline write parity helpers", () => {
     const database = await getOfflineDb("user-offline-reorder-missing");
     await seedMirroredTrip(database, "user-offline-reorder-missing");
 
-    await reorderEventsLocally(database, "day-2", [{ id: "event-1", position: 0 }]);
+    await reorderEventsLocally(database, "day-2", [{ type: "event", id: "event-1" }]);
 
     expect(await database.events.get("event-1")).toEqual(
       expect.objectContaining({ position: 0, syncStatus: "synced" })
     );
     expect(await database.outbox.toArray()).toEqual([]);
+  });
+
+  it("reorderEventsLocally ignores event ids that belong to another day", async () => {
+    const database = await getOfflineDb("user-offline-reorder-cross-day");
+    const detail = buildTripDetail();
+    detail.days.push({
+      id: "day-2",
+      tripId: "trip-1",
+      dayNumber: 2,
+      date: "2026-07-02",
+      label: "Day 2",
+      events: [{ id: "event-4", tripId: "trip-1", dayId: "day-2", name: "Shrine", position: 0, docs: [] }],
+    });
+
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-offline-reorder-cross-day",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: detail,
+    });
+    await mirrorTripDetail(database, detail);
+
+    await reorderEventsLocally(database, "day-1", [
+      { type: "event", id: "event-4" },
+      { type: "event", id: "event-1" },
+    ]);
+
+    expect(await database.events.get("event-4")).toEqual(
+      expect.objectContaining({ dayId: "day-2", position: 0, syncStatus: "synced" })
+    );
+    expect(await database.events.get("event-1")).toEqual(
+      expect.objectContaining({ dayId: "day-1", position: 1, syncStatus: "pending" })
+    );
+    expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "event-4")).toEqual([]);
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0].events).toEqual([
+      expect.objectContaining({ id: "event-1", position: 1 }),
+    ]);
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[1].events).toEqual([
+      expect.objectContaining({ id: "event-4", position: 0 }),
+    ]);
+  });
+
+  it("reorderEventsLocally updates mixed timeline positions in the mirrored snapshot", async () => {
+    const database = await getOfflineDb("user-offline-reorder-mixed");
+    const detail = buildTripDetail();
+    detail.days.push({
+      id: "day-2",
+      tripId: "trip-1",
+      dayNumber: 2,
+      date: "2026-07-02",
+      label: "Day 2",
+      events: [{ id: "event-4", tripId: "trip-1", dayId: "day-2", name: "Shrine", position: 0, docs: [] }],
+    });
+    detail.days[0].events.push({
+      id: "event-3",
+      tripId: "trip-1",
+      dayId: "day-1",
+      name: "Dinner",
+      position: 3,
+      docs: [],
+    });
+    detail.days[0].notes = [{ id: "note-1", content: "Book museum in advance", position: 1 }];
+    detail.days[0].checklists = [
+      {
+        id: "checklist-1",
+        tripDayId: "day-1",
+        position: 2,
+        title: "Before arrival",
+        items: [{ id: "checklist-item-1", checklistId: "checklist-1", content: "Buy tickets", isChecked: false }],
+      },
+    ];
+
+    await database.trips.put({
+      id: "trip-1",
+      ownerId: "user-offline-reorder-mixed",
+      name: "Tokyo",
+      startDate: "2026-07-01",
+      endDate: "2026-07-03",
+      destinationName: null,
+      destinationCountry: null,
+      coverImageUrl: null,
+      notes: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      listEntrySnapshot: null,
+      detailSnapshot: detail,
+    });
+    await mirrorTripDetail(database, detail);
+
+    await reorderEventsLocally(database, "day-1", [
+      { type: "note", id: "note-1" },
+      { type: "event", id: "event-3" },
+      { type: "event", id: "event-1" },
+      { type: "checklist", id: "checklist-1" },
+    ]);
+
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[0]).toEqual(
+      expect.objectContaining({
+        events: [
+          expect.objectContaining({ id: "event-3", position: 1 }),
+          expect.objectContaining({ id: "event-1", position: 2 }),
+        ],
+        notes: [expect.objectContaining({ id: "note-1", position: 0 })],
+        checklists: [expect.objectContaining({ id: "checklist-1", position: 3 })],
+      })
+    );
+    expect((await database.trips.get("trip-1"))?.detailSnapshot?.days[1]).toEqual(
+      expect.objectContaining({
+        id: "day-2",
+        events: [expect.objectContaining({ id: "event-4", position: 0 })],
+      })
+    );
   });
 
   it("reorderEventsLocally preserves pending create entries for offline-created events", async () => {
@@ -2190,7 +2369,7 @@ describe("offline write parity helpers", () => {
       name: "Offline museum",
     });
 
-    await reorderEventsLocally(database, "day-1", [{ id: "10000000-0000-4000-8000-000000000099", position: 0 }]);
+    await reorderEventsLocally(database, "day-1", [{ type: "event", id: "10000000-0000-4000-8000-000000000099" }]);
 
     expect(await database.events.get("10000000-0000-4000-8000-000000000099")).toEqual(
       expect.objectContaining({ position: 0, syncStatus: "pending" })
@@ -2472,10 +2651,10 @@ describe("offline write parity helpers", () => {
       syncStatus: "synced",
     });
 
-    await reorderEventsLocally(database, "day-1", [{ id: "event-1", position: 2 }]);
+    await reorderEventsLocally(database, "day-1", [{ type: "event", id: "event-1" }]);
 
     expect(await database.events.get("event-1")).toEqual(
-      expect.objectContaining({ position: 2, syncStatus: "pending" })
+      expect.objectContaining({ position: 0, syncStatus: "pending" })
     );
     expect((await database.outbox.toArray()).filter((entry) => entry.entityId === "event-1")).toHaveLength(1);
     expect(await database.trips.get("trip-missing")).toBeUndefined();
