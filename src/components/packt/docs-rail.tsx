@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Download, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RailPanel } from "./rail-panel";
 import { pluralize } from "@/lib/utils";
@@ -8,7 +8,6 @@ import { pluralize } from "@/lib/utils";
 export interface DocRailItem {
   name: string;
   subtitle?: string;
-  cached: boolean;
 }
 
 interface DocsRailProps {
@@ -16,9 +15,8 @@ interface DocsRailProps {
 }
 
 export function DocsRail({ docs }: DocsRailProps) {
-  const offlineCount = docs.filter((doc) => doc.cached).length;
   return (
-    <RailPanel header="Documents" meta={`${offlineCount} / ${docs.length} OFFLINE`}>
+    <RailPanel header="Documents">
       <div className="flex flex-col gap-0.5">
         {docs.slice(0, 5).map((doc, idx) => (
           <div
@@ -45,15 +43,6 @@ export function DocsRail({ docs }: DocsRailProps) {
                 <div style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--fg-4)" }}>{doc.subtitle}</div>
               )}
             </div>
-            {doc.cached ? (
-              <span style={{ color: "var(--accent-brand)", flexShrink: 0 }}>
-                <Check size={15} strokeWidth={2} />
-              </span>
-            ) : (
-              <button style={{ color: "var(--fg-3)", flexShrink: 0 }} title="Save offline">
-                <Download size={15} strokeWidth={1.5} />
-              </button>
-            )}
           </div>
         ))}
       </div>

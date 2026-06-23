@@ -15,7 +15,7 @@ import {
   packingTemplates,
   packingTemplateItems,
 } from "@/db/schema";
-import { eq, and, max, gte, sql, isNull, asc, inArray } from "drizzle-orm";
+import { eq, and, max, gte, sql, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { del } from "@vercel/blob";
 import { deriveGraphicCover } from "@/lib/utils";
@@ -475,7 +475,6 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
     name: input.name,
     kind: input.kind,
     size: input.size,
-    offline: input.offline,
     url: input.url,
   });
   revalidatePath(`/trips/${tripId}`);
@@ -648,16 +647,6 @@ export async function renameDocument(docId: string, newName: string): Promise<vo
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function markAllDocsOffline(tripId: string): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db
-    .update(documents)
-    .set({ offline: true })
-    .where(and(eq(documents.tripId, tripId), isNull(documents.eventId)));
   revalidatePath(`/trips/${tripId}`);
 }
 

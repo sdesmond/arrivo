@@ -58,29 +58,6 @@ export function TripsMobileLayout({
             >
               Trips
             </h1>
-            <div
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "calc(10.5px * var(--font-scale))",
-                color: "var(--fg-3)",
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-                marginTop: 4,
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: "var(--accent-brand)",
-                  marginRight: 6,
-                  verticalAlign: "middle",
-                }}
-              />
-              Synced offline
-            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon-sm" title="Search trips" style={{ minHeight: 44, minWidth: 44 }}>

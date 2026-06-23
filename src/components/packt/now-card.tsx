@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle, ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -341,19 +341,6 @@ export function NowCard({
 
         {/* Chips row */}
         <div className="flex items-center gap-2 mt-4">
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full"
-            style={{
-              fontSize: "calc(12px * var(--font-scale))",
-              fontWeight: 500,
-              color: "var(--accent-brand)",
-              padding: "4px 9px",
-              background: "var(--accent-soft)",
-            }}
-          >
-            <CheckCircle size={13} strokeWidth={1.5} />
-            Offline
-          </span>
           <Badge variant="muted">9 places</Badge>
           <Badge variant="muted">12 docs</Badge>
           <span className="flex-1" />

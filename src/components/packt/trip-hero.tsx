@@ -39,7 +39,7 @@ export function TripHero({
         <TripCover
           name={name}
           country={`${countryCode} · DAY ${dayN} OF ${dayTotal}`}
-          metaTag="ACTIVE TRIP · OFFLINE"
+          metaTag="ACTIVE TRIP"
           showCity={false}
           style={{ minHeight: 260 }}
           coverImageUrl={coverImageUrl}
