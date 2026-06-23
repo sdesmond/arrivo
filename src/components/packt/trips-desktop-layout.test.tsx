@@ -49,6 +49,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { TripsDesktopLayout } from "./trips-desktop-layout";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
+import { OfflineProvider } from "@/components/providers/offline-provider";
 import type { Trip, TripListEntry } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
@@ -69,7 +70,11 @@ const unscheduledEntries: TripListEntry[] = [
 ];
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
+  return (
+    <MockDateProvider initialISO={NOW_ISO}>
+      <OfflineProvider>{children}</OfflineProvider>
+    </MockDateProvider>
+  );
 }
 
 describe("TripsDesktopLayout", () => {

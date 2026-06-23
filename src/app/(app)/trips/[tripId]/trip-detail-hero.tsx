@@ -1,22 +1,8 @@
 "use client";
 
 import { useState, useTransition, type ReactElement } from "react";
-import Link from "next/link";
-import {
-  ChevronLeft,
-  Share2,
-  Download,
-  Calendar,
-  MapPin,
-  FileText,
-  Users,
-  Pencil,
-  MoreHorizontal,
-  Trash2,
-  Info,
-} from "lucide-react";
+import { Calendar, MapPin, FileText, Users, Pencil, MoreHorizontal, Trash2, Info } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TripCover } from "@/components/packt/trip-cover";
+import { TripDetailCrumb } from "@/components/packt/trip-detail-crumb";
 import { CoverAttributionDialog } from "@/components/packt/cover-attribution-dialog";
 import { CoverImagePicker } from "@/components/packt/cover-image-picker";
 import { removeTripCover, setTripCoverWithAttribution } from "@/app/(app)/trips/[tripId]/actions";
@@ -101,39 +88,7 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
 
   return (
     <>
-      {/* Crumb bar */}
-      <div
-        className="flex items-center gap-2 px-4 lg:px-6 py-2.5 shrink-0"
-        style={{ borderBottom: "1px solid var(--line)" }}
-      >
-        <Link
-          href="/trips"
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 font-medium h-7 transition-colors hover:bg-surface"
-          style={{ fontSize: "0.8rem", color: "var(--fg)" }}
-        >
-          <ChevronLeft size={14} strokeWidth={1.5} />
-          Trips
-        </Link>
-        <span style={{ color: "var(--fg-4)", fontSize: "calc(13px * var(--font-scale))" }}>/</span>
-        <span style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
-          {trip.name}
-        </span>
-        <span className="flex-1" />
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Pencil size={13} strokeWidth={1.5} />
-            Edit
-          </Button>
-          <Button variant="outline" size="sm">
-            <Share2 size={13} strokeWidth={1.5} />
-            Share
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download size={13} strokeWidth={1.5} />
-            Offline
-          </Button>
-        </div>
-      </div>
+      <TripDetailCrumb tripName={trip.name} onEdit={onEdit} />
 
       {/* Hero */}
       <div className="relative shrink-0" style={{ minHeight: 260 }}>

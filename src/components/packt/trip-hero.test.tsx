@@ -27,6 +27,12 @@ describe("TripHero", () => {
     expect(screen.getByText(/10 days/i)).toBeInTheDocument();
   });
 
+  it("renders the metaTag without the OFFLINE suffix", () => {
+    render(<TripHero {...props} />);
+    expect(screen.getByText("ACTIVE TRIP")).toBeInTheDocument();
+    expect(screen.queryByText(/OFFLINE/)).not.toBeInTheDocument();
+  });
+
   it("renders places count", () => {
     render(<TripHero {...props} />);
     expect(screen.getByText(/9 places/i)).toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 vi.mock("next/link", () => ({
@@ -48,7 +48,12 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { TripsMobileLayout } from "./trips-mobile-layout";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
+import { OfflineProvider } from "@/components/providers/offline-provider";
 import type { Trip, TripListEntry } from "@/data/types";
+
+afterEach(() => {
+  vi.spyOn(window.navigator, "onLine", "get").mockRestore();
+});
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
@@ -66,7 +71,11 @@ const unscheduledEntries: TripListEntry[] = [
 ];
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
+  return (
+    <MockDateProvider initialISO={NOW_ISO}>
+      <OfflineProvider>{children}</OfflineProvider>
+    </MockDateProvider>
+  );
 }
 
 describe("TripsMobileLayout", () => {
@@ -206,5 +215,42 @@ describe("TripsMobileLayout", () => {
     await waitFor(() => {
       expect(onTabChange).toHaveBeenCalledWith("Upcoming");
     });
+  });
+
+  it("does not render the static 'Synced offline' stub", () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(true);
+    render(
+      <TripsMobileLayout
+        activeEntry={activeEntry}
+        upcomingTrips={upcomingTrips}
+        unscheduledEntries={unscheduledEntries}
+        now={new Date(NOW_ISO)}
+        dateFormat="MM/DD/YYYY"
+        mobileTab="Active"
+        onTabChange={vi.fn()}
+        onNewTrip={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.queryByText("Synced offline")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Offline")).not.toBeInTheDocument();
+  });
+
+  it("shows the WifiOff connectivity indicator when offline", () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    render(
+      <TripsMobileLayout
+        activeEntry={activeEntry}
+        upcomingTrips={upcomingTrips}
+        unscheduledEntries={unscheduledEntries}
+        now={new Date(NOW_ISO)}
+        dateFormat="MM/DD/YYYY"
+        mobileTab="Active"
+        onTabChange={vi.fn()}
+        onNewTrip={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByLabelText("Offline")).toBeInTheDocument();
   });
 });

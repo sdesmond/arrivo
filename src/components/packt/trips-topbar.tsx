@@ -1,9 +1,10 @@
 "use client";
 
-import { Search, Bell, Plus } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/packt/theme-toggle";
+import { ConnectivityIndicator } from "@/components/packt/connectivity-indicator";
 
 interface TopbarProps {
   onNewTrip: () => void;
@@ -42,9 +43,7 @@ export function Topbar({ onNewTrip }: TopbarProps) {
 
       <ThemeToggle />
 
-      <Button variant="outline" size="icon-sm" title="Notifications">
-        <Bell size={14} strokeWidth={1.5} />
-      </Button>
+      <ConnectivityIndicator />
       <Button size="sm" onClick={onNewTrip}>
         <Plus size={14} strokeWidth={1.5} />
         New trip

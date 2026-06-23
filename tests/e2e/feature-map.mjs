@@ -177,6 +177,7 @@ export const SHARED_GLOBS = [
   "src/components/packt/form-section.tsx",
   "src/components/packt/section-heading.tsx",
   "src/components/packt/pending-sync-badge.tsx",
+  "src/components/packt/connectivity-indicator.tsx",
   // Shared E2E harness — any change can move every scenario
   "tests/e2e/fixtures.ts",
   "tests/e2e/scenario-fixture*",

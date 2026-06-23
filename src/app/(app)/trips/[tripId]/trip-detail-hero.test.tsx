@@ -94,6 +94,18 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
+vi.mock("@/components/providers/offline-provider", () => ({
+  useOffline: () => ({
+    online: true,
+    offline: false,
+    conflict: false,
+    pendingCount: 0,
+    retrySync: vi.fn(),
+    openConflictReview: vi.fn(),
+    pinFailure: null,
+  }),
+}));
+
 function buildDetail(overrides: Partial<TripDetailPayload> = {}): TripDetailPayload {
   return {
     trip: {
