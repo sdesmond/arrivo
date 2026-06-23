@@ -57,8 +57,8 @@ describe("MobileUpcomingTab", () => {
             startDate: "2026-08-01",
             endDate: "2026-08-07",
             docs: [
-              { id: "doc-1", name: "Ticket.pdf", kind: "pdf", scope: "trip", offline: false },
-              { id: "doc-2", name: "Hotel.pdf", kind: "pdf", scope: "trip", offline: false },
+              { id: "doc-1", name: "Ticket.pdf", kind: "pdf", scope: "trip" },
+              { id: "doc-2", name: "Hotel.pdf", kind: "pdf", scope: "trip" },
             ],
           },
         ]}

@@ -306,7 +306,6 @@ describe("PlaceRow", () => {
           name: "Plan.pdf",
           kind: "pdf" as const,
           scope: "event" as const,
-          offline: false,
         },
       ],
     };
@@ -455,7 +454,6 @@ describe("PlaceRow", () => {
           name: "Plan.pdf",
           kind: "pdf" as const,
           scope: "event" as const,
-          offline: false,
         },
       ],
     };
@@ -477,7 +475,6 @@ describe("PlaceRow", () => {
           name: "Plan.pdf",
           kind: "pdf" as const,
           scope: "event" as const,
-          offline: false,
         },
       ],
     };
@@ -870,7 +867,7 @@ describe("PlaceRow", () => {
     const onDelete = vi.fn();
     const place = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const, offline: false }],
+      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const }],
     };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={onDelete} />, { wrapper: Wrapper });
     await user.click(screen.getByTitle("Delete event"));
@@ -892,7 +889,7 @@ describe("PlaceRow", () => {
     const onDelete = vi.fn();
     const place = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const, offline: false }],
+      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const }],
     };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={onDelete} />, { wrapper: Wrapper });
     await user.click(screen.getByTitle("Delete event"));
@@ -906,7 +903,7 @@ describe("PlaceRow", () => {
     const onDelete = vi.fn();
     const place = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const, offline: false }],
+      docs: [{ id: "d1", name: "Pass.pdf", kind: "pdf" as const, scope: "event" as const }],
     };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={onDelete} />, { wrapper: Wrapper });
     await user.click(screen.getByTitle("Delete event"));

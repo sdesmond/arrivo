@@ -64,9 +64,9 @@ const baseTrip: Trip = {
     { name: "Bob Jones", email: "bob@example.com", initials: "BJ", role: "viewer" },
   ],
   docs: [
-    { id: "doc-1", name: "Itinerary.pdf", kind: "pdf", scope: "trip", offline: false },
-    { id: "doc-2", name: "Hotels.pdf", kind: "pdf", scope: "trip", offline: false },
-    { id: "doc-3", name: "Flights.pdf", kind: "pdf", scope: "trip", offline: false },
+    { id: "doc-1", name: "Itinerary.pdf", kind: "pdf", scope: "trip" },
+    { id: "doc-2", name: "Hotels.pdf", kind: "pdf", scope: "trip" },
+    { id: "doc-3", name: "Flights.pdf", kind: "pdf", scope: "trip" },
   ],
 };
 

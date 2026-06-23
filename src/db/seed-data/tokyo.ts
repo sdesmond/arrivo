@@ -23,7 +23,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "124 KB",
             scope: "event",
-            offline: true,
             previewLines: [
               { text: "JAPAN AIRLINES", level: "h" },
               { text: "Boarding pass · JL 0007", level: "m" },
@@ -42,7 +41,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "88 KB",
             scope: "event",
-            offline: true,
           },
         ],
       },
@@ -61,7 +59,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "156 KB",
             scope: "event",
-            offline: true,
           },
         ],
       },
@@ -218,7 +215,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "184 KB",
             scope: "event",
-            offline: true,
             previewLines: [
               { text: "TEAMLAB PLANETS TOKYO", level: "h" },
               { text: "Order TLP-9F2K-7741", level: "m" },
@@ -252,7 +248,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "612 KB",
             scope: "event",
-            offline: true,
             previewLines: [
               { text: "HAMARIKYU GARDENS", level: "h" },
               { text: "Visitor map", level: "m" },
@@ -289,7 +284,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
             kind: "pdf",
             size: "92 KB",
             scope: "event",
-            offline: true,
             previewLines: [
               { text: "SUSHI SAITO", level: "h" },
               { text: "Reservation confirmation", level: "m" },
@@ -311,7 +305,6 @@ export const TOKYO_DAYS: DayItinerary[] = [
             kind: "image",
             size: "1.4 MB",
             scope: "event",
-            offline: true,
             previewLines: [
               { text: "OMAKASE · APRIL", level: "h" },
               { text: "Photographed menu card", level: "sm" },

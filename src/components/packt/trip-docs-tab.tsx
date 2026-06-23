@@ -5,10 +5,10 @@ import { FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
-import { uploadDocument, markAllDocsOffline } from "@/app/(app)/trips/[tripId]/actions";
+import { uploadDocument } from "@/app/(app)/trips/[tripId]/actions";
 import { cn } from "@/lib/utils";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 export interface TripDocsTabProps {
@@ -19,16 +19,9 @@ export interface TripDocsTabProps {
 export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
-  const [isSavingOffline, startSaveOfflineTransition] = useTransition();
   const [query, setQuery] = useState("");
 
   const visible = query.trim() ? docs.filter((doc) => doc.name.toLowerCase().includes(query.toLowerCase())) : docs;
-
-  function handleSaveOffline() {
-    startSaveOfflineTransition(async () => {
-      await markAllDocsOffline(tripId);
-    });
-  }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -108,9 +101,6 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
       ) : (
         <>
           <div className="flex items-center mb-3">
-            <Button variant="outline" size="sm" onClick={handleSaveOffline} disabled={isSavingOffline}>
-              Save offline
-            </Button>
             <label
               htmlFor="doc-upload"
               title="Add document"

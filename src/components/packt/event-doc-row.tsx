@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { ArrowUpToLine, Download, Eye, Share2, Trash2 } from "lucide-react";
+import { ArrowUpToLine, Eye, Share2, Trash2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
@@ -16,7 +16,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export interface EventDocRowProps {
   doc: Document;
@@ -114,26 +113,6 @@ export function EventDocRow({ doc }: EventDocRowProps) {
       style={{ background: "var(--surface)" }}
     >
       <DocKindBadge kind={doc.kind} />
-
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span
-              role="img"
-              aria-label={doc.offline ? "Cached offline" : "Not cached offline"}
-              style={{
-                display: "inline-flex",
-                color: doc.offline ? "var(--accent-brand)" : "var(--fg-4)",
-                flexShrink: 0,
-                cursor: "default",
-              }}
-            >
-              <Download size={11} strokeWidth={1.5} />
-            </span>
-          }
-        />
-        <TooltipContent>{doc.offline ? "Cached offline" : "Not cached offline"}</TooltipContent>
-      </Tooltip>
 
       {isEditing ? (
         <input

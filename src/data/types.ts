@@ -184,7 +184,6 @@ export interface Document {
   kind: DocKind;
   size?: string;
   scope: "trip" | "event" | "reservation";
-  offline: boolean;
   url?: string;
   previewLines?: DocPreviewLine[];
   addedAt?: string;
@@ -685,7 +684,6 @@ export interface AddDocumentInput {
   name: string;
   kind: string;
   size?: string;
-  offline?: boolean;
   url?: string;
 }
 

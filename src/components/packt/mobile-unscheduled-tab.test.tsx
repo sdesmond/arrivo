@@ -56,7 +56,7 @@ describe("MobileUnscheduledTab", () => {
             status: "upcoming",
             startDate: "2026-08-01",
             endDate: "2026-08-03",
-            docs: [{ id: "doc-1", name: "Boarding Pass", kind: "pdf", size: "1 MB", scope: "trip", offline: false }],
+            docs: [{ id: "doc-1", name: "Boarding Pass", kind: "pdf", size: "1 MB", scope: "trip" }],
           },
         ]}
         dateFormat="MM/DD/YYYY"

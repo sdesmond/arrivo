@@ -120,7 +120,6 @@ export function dbDocToType(row: typeof documents.$inferSelect): Document {
     name: row.name,
     kind: row.kind as Document["kind"],
     size: row.size ?? undefined,
-    offline: row.offline ?? false,
     url: row.url ?? undefined,
     scope: row.reservationId ? "reservation" : row.eventId ? "event" : "trip",
     previewLines: (row.previewLines as DocPreviewLine[] | null) ?? undefined,

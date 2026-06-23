@@ -361,7 +361,6 @@ const BASE_DOC: DocRow = {
   name: "Boarding Pass",
   kind: "pdf",
   size: null,
-  offline: null,
   url: null,
   previewLines: null,
   addedAt: null,
@@ -404,10 +403,6 @@ describe("dbDocToType", () => {
     expect(result.size).toBeUndefined();
     expect(result.url).toBeUndefined();
     expect(result.previewLines).toBeUndefined();
-  });
-
-  it("null offline defaults to false", () => {
-    expect(dbDocToType(BASE_DOC).offline).toBe(false);
   });
 
   it("maps size and url when present", () => {

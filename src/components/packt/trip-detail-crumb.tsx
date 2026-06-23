@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Share2, Download, MoreHorizontal, ChevronLeft } from "lucide-react";
+import { Share2, MoreHorizontal, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface TripDetailCrumbProps {
@@ -28,10 +28,6 @@ export function TripDetailCrumb({ tripName }: TripDetailCrumbProps) {
         <Button variant="outline" size="sm">
           <Share2 size={13} strokeWidth={1.5} />
           Share
-        </Button>
-        <Button variant="outline" size="sm">
-          <Download size={13} strokeWidth={1.5} />
-          Offline
         </Button>
         <Button variant="outline" size="icon-sm">
           <MoreHorizontal size={13} strokeWidth={1.5} />

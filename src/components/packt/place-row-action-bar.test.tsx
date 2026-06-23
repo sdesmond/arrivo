@@ -44,7 +44,7 @@ describe("PlaceRowActionBar", () => {
   it("shows doc count button when hasDocs", () => {
     const place: TripEvent = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
     expect(screen.getByRole("button", { name: /doc/i })).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("PlaceRowActionBar", () => {
   it("does not show Attach pill when hasDocs", () => {
     const place: TripEvent = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
     expect(screen.queryByTitle("Attach document")).not.toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("PlaceRowActionBar", () => {
     const onToggleDocs = vi.fn();
     const place: TripEvent = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} onToggleDocs={onToggleDocs} />);
     await user.click(screen.getByRole("button", { name: /doc/i }));
@@ -106,7 +106,7 @@ describe("PlaceRowActionBar", () => {
   it("docs toggle has aria-expanded=false when showDocs is false", () => {
     const place: TripEvent = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} showDocs={false} />);
     expect(screen.getByRole("button", { name: /doc/i })).toHaveAttribute("aria-expanded", "false");
@@ -115,7 +115,7 @@ describe("PlaceRowActionBar", () => {
   it("docs toggle has aria-expanded=true when showDocs is true", () => {
     const place: TripEvent = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} showDocs={true} />);
     expect(screen.getByRole("button", { name: /doc/i })).toHaveAttribute("aria-expanded", "true");
@@ -124,7 +124,7 @@ describe("PlaceRowActionBar", () => {
   it("docs toggle has title 'Show attached documents'", () => {
     const place: TripEvent = {
       ...basePlace,
-      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event", offline: false }],
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
     expect(screen.getByRole("button", { name: /doc/i })).toHaveAttribute("title", "Show attached documents");

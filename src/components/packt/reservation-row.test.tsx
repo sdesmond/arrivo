@@ -221,7 +221,7 @@ const withDocReservation: Reservation = {
       kind: "pdf",
       size: "1 KB",
       scope: "reservation",
-      offline: false,
+
       addedAt: "2026-08-01T00:00:00.000Z",
     },
   ],
