@@ -177,12 +177,12 @@ _Packt's core stack (Postgres/Drizzle, Auth.js v5, Server Actions, App Router, p
 ### Decision Impact Analysis
 
 **Implementation Sequence:**
-1. `StorageProvider` interface + both implementations (unblocks document storage abstraction independent of sync)
-2. Client-generated UUID switch across existing create actions (online-only change first, validates the approach before offline complexity is added)
-3. Dexie schema + `OfflineProvider` scaffolding (per-user-keyed DB, `useLiveQuery` wiring)
-4. Shared-core-function extraction for existing Server Actions + `/api/sync` Route Handler
-5. Sync engine (outbox replay, conflict detection, tiered resolution)
-6. Serwist app-shell integration
+1. Serwist app-shell integration (prerequisite for any offline-capable page load — install `@serwist/next`, scaffold `next.config.js` + `sw.ts`)
+2. `StorageProvider` interface + both implementations (unblocks document storage abstraction independent of sync)
+3. Client-generated UUID switch across existing create actions (online-only change first, validates the approach before offline complexity is added)
+4. Dexie schema + `OfflineProvider` scaffolding (per-user-keyed DB, `useLiveQuery` wiring)
+5. Shared-core-function extraction for existing Server Actions + `/api/sync` Route Handler
+6. Sync engine (outbox replay, conflict detection, tiered resolution)
 7. UI wiring (TripCover, connectivity indicator, DocRow states, Conflict Review screen)
 8. Smart Pin + auto-eviction background jobs
 9. Offline E2E test infrastructure, built alongside each layer above rather than after

@@ -201,6 +201,27 @@ So that I understand why and trust my work is still being saved.
 **And** the `WifiOff` icon carries a persistent `aria-label` (e.g. "Offline") in addition to its hover tooltip
 **And** `trip-hero.tsx`'s hardcoded `metaTag="ACTIVE TRIP · OFFLINE"` has its `· OFFLINE` suffix removed, leaving only day-count content — `trip-card.tsx`'s `coverMetaTag` is confirmed to need no equivalent change
 
+### Story 1.6: App-Shell Service Worker Precaching
+
+_This story fills an untracked dependency from architecture.md (line 122) — Serwist scaffolding was called for before any feature-specific sync logic but was never created as a story. Not new scope; restoring the intended implementation order._
+
+As a traveler going offline,
+I want the Packt app shell to load from cache when there's no network,
+So that I see the app interface — not a browser error — when I refresh while offline.
+
+**Acceptance Criteria:**
+
+**Given** the app has no existing service worker or precaching infrastructure
+**When** `@serwist/next` is installed and configured
+**Then** `next.config.js` wraps the existing config with `withSerwist({ swSrc: "src/sw.ts", swDest: "public/sw.js" })`
+**And** `src/sw.ts` is created with Serwist's `defaultCache` preset precaching all static assets (JS, CSS, HTML for the app shell route group)
+**And** the build emits `public/sw.js` in the existing build output without requiring a separate build step
+**And** a hard refresh while offline (no cached HTML prior) serves the cached app shell HTML instead of Chrome's native offline error page — verified via Playwright's `context.setOffline()` in the E2E suite
+**And** the service worker registers on app load with no console errors and does not interfere with hot reload in dev
+**And** `@serwist/next` version is pinned in `package.json` (targeting latest 9.x)
+
+This story covers app-shell precaching only — it does not implement Dexie schema changes (Story 1.2), runtime caching strategies for API data, or any data-layer offline logic.
+
 ## Epic 2: Automatic Sync & Conflict Resolution
 
 Offline writes sync to the server automatically on reconnect with no user action required. Documents queued offline upload with visible progress. When the server has diverged, users get an interrupt notification and resolve every changed item on a dedicated conflict review screen before anything overwrites — no sync path ever silently discards data.
