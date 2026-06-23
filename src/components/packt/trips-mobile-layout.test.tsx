@@ -55,6 +55,7 @@ const NOW_ISO = "2026-05-13T12:00:00.000Z";
 const activeEntry: TripListEntry = {
   trip: { id: "trip-active", name: "Active Japan", status: "active", startDate: "2026-05-10", endDate: "2026-05-20" },
   todayEvents: [],
+  summaryEvents: [],
 };
 
 const upcomingTrips: Trip[] = [
@@ -62,7 +63,7 @@ const upcomingTrips: Trip[] = [
 ];
 
 const unscheduledEntries: TripListEntry[] = [
-  { trip: { id: "trip-unsched-1", name: "Dream Trip", status: "upcoming" }, todayEvents: [] },
+  { trip: { id: "trip-unsched-1", name: "Dream Trip", status: "upcoming" }, todayEvents: [], summaryEvents: [] },
 ];
 
 function Wrapper({ children }: { children: React.ReactNode }) {

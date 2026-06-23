@@ -67,7 +67,12 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/document-upload-actions.ts",
   ]),
   entry("event-docs", ["src/components/packt/event-doc-row.tsx"]),
-  entry("linked-events", ["src/components/packt/linked-event-badge.tsx", "src/components/packt/now-card.tsx"]),
+  entry("linked-events", [
+    "src/components/packt/active-trip-summary-events.ts",
+    "src/components/packt/active-trip-summary-time.ts",
+    "src/components/packt/linked-event-badge.tsx",
+    "src/components/packt/now-card.tsx",
+  ]),
   entry("packing-tab", [
     "src/components/packt/packing-*",
     "src/components/packt/droppable-packing-section.tsx",
@@ -118,6 +123,8 @@ export const FEATURE_MAP = [
   ]),
   entry("trip-delete", ["src/components/packt/delete-trip-alert-dialog.tsx"]),
   entry("trip-tabs", [
+    "src/components/packt/active-trip-summary-events.ts",
+    "src/components/packt/active-trip-summary-time.ts",
     "src/components/packt/mobile-active-tab.tsx",
     "src/components/packt/mobile-unscheduled-tab.tsx",
     "src/components/packt/mobile-upcoming-tab.tsx",

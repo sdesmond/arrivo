@@ -33,6 +33,7 @@ export function TripsActiveEntryPanel({
     <NowCard
       trip={activeEntry.trip}
       todayEvents={activeEntry.todayEvents}
+      summaryEvents={activeEntry.summaryEvents}
       onEditTrip={(trip) => onEditTrip(trip.id)}
       onDeleteTrip={onDeleteTrip}
       onLinkedEventTap={handleLinkedEventTap}

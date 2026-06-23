@@ -120,7 +120,12 @@ export function TripsMobileLayout({
           <MobileUnscheduledTab trips={unscheduledEntries.map((entry) => entry.trip)} dateFormat={dateFormat} />
         )}
         {mobileTab === "Active" && (
-          <MobileActiveTab trip={activeEntry?.trip ?? null} todayEvents={activeEntry?.todayEvents ?? []} now={now} />
+          <MobileActiveTab
+            trip={activeEntry?.trip ?? null}
+            todayEvents={activeEntry?.todayEvents ?? []}
+            summaryEvents={activeEntry?.summaryEvents ?? []}
+            now={now}
+          />
         )}
         {mobileTab === "Upcoming" && <MobileUpcomingTab trips={upcomingTrips} now={now} dateFormat={dateFormat} />}
       </div>

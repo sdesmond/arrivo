@@ -112,6 +112,13 @@ describe("listTripsForUser", () => {
       .mockReturnValueOnce({
         from: () => ({
           where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
             groupBy: async () => [{ tripId: "trip-1", dayTotal: 3 }],
           }),
         }),
@@ -149,9 +156,10 @@ describe("listTripsForUser", () => {
         dayTotal: 3,
       })
     );
+    expect(result[0].summaryEvents).toEqual([]);
   });
 
-  it("merges Linked Events derived from reservations into todayEvents, sorted by startAt", async () => {
+  it("keeps todayEvents current-day only while summaryEvents include future active-trip events", async () => {
     mockDbSelect
       .mockReturnValueOnce({
         from: () => ({
@@ -174,6 +182,29 @@ describe("listTripsForUser", () => {
           where: () => ({
             orderBy: async () => [
               { id: "ev-1", tripId: "trip-1", name: "Dinner", startAt: "2026-05-13T19:00:00.000Z", position: 0 },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [
+              { id: "ev-1", tripId: "trip-1", name: "Dinner", startAt: "2026-05-13T19:00:00.000Z", position: 0 },
+              {
+                id: "ev-2",
+                tripId: "trip-1",
+                name: "Sintra Day Trip",
+                startAt: "2026-05-14T09:00:00.000Z",
+                position: 0,
+              },
+              {
+                id: "ev-outside",
+                tripId: "trip-1",
+                name: "Too Late",
+                startAt: "2026-05-21T09:00:00.000Z",
+                position: 0,
+              },
             ],
           }),
         }),
@@ -221,6 +252,12 @@ describe("listTripsForUser", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].todayEvents.map((event) => event.name)).toEqual(["Check-in — Hotel Avenida Palace", "Dinner"]);
+    expect(result[0].summaryEvents.map((event) => event.name)).toEqual([
+      "Check-in — Hotel Avenida Palace",
+      "Dinner",
+      "Sintra Day Trip",
+      "Check-out — Hotel Avenida Palace",
+    ]);
   });
 });
 

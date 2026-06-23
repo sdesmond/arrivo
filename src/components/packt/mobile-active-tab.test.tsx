@@ -71,8 +71,25 @@ describe("MobileActiveTab", () => {
     expect(screen.getByText("Next Event")).toBeInTheDocument();
   });
 
+  it("shows weekday and time for a next event on a future day while keeping today rows separate", () => {
+    const { container } = render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[{ id: "event-untimed", name: "Free Explore", position: 0 }]}
+        summaryEvents={[{ id: "event-future-day", name: "Temple Tour", startAt: "2026-05-14T14:00:00Z", position: 0 }]}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getByText("Next Event")).toBeInTheDocument();
+    expect(screen.getByText("Temple Tour")).toBeInTheDocument();
+    expect(container.textContent).toContain("Thursday · 2:00 PM");
+    expect(screen.getByRole("link", { name: /Free Explore/i })).toBeInTheDocument();
+    expect(screen.getByText("stop")).toBeInTheDocument();
+  });
+
   it("shows the current event as Now when an active event is in progress", () => {
-    render(
+    const { container } = render(
       <MobileActiveTab
         trip={activeTrip}
         todayEvents={[
@@ -96,10 +113,45 @@ describe("MobileActiveTab", () => {
     );
 
     expect(screen.getByText("Now")).toBeInTheDocument();
+    expect(screen.getByText("Next Event")).toBeInTheDocument();
+    expect(container.textContent).toContain("Ends at 12:30 PM");
     expect(screen.getAllByRole("link", { name: /Lunch Reservation/i })[0]).toHaveAttribute(
       "href",
       "/trips/trip-1?focus=event-now"
     );
+    expect(screen.getAllByRole("link", { name: /Evening Walk/i })[0]).toHaveAttribute(
+      "href",
+      "/trips/trip-1?focus=event-next"
+    );
+  });
+
+  it("renders Now above Next Event when both summary rows exist", () => {
+    render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[
+          {
+            id: "event-now",
+            name: "Lunch Reservation",
+            startAt: "2026-05-13T11:30:00Z",
+            endAt: "2026-05-13T12:30:00Z",
+            position: 0,
+          },
+          {
+            id: "event-next",
+            name: "Evening Walk",
+            startAt: "2026-05-13T18:00:00Z",
+            endAt: "2026-05-13T19:00:00Z",
+            position: 1,
+          },
+        ]}
+        now={NOW}
+      />
+    );
+
+    const nowLabel = screen.getByText("Now");
+    const nextLabel = screen.getByText("Next Event");
+    expect(nowLabel.compareDocumentPosition(nextLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("does not render a summary event card when the active trip has no timed events", () => {
@@ -180,6 +232,41 @@ describe("MobileActiveTab", () => {
       />
     );
 
+    expect(screen.getAllByRole("link", { name: /Check-in/i })[0]).toHaveAttribute(
+      "href",
+      "/trips/trip-1?tab=res&highlight=res-1"
+    );
+  });
+
+  it("keeps manual current and linked next summary rows on their own deep links", () => {
+    render(
+      <MobileActiveTab
+        trip={activeTrip}
+        todayEvents={[
+          {
+            id: "event-now",
+            name: "Lunch Reservation",
+            startAt: "2026-05-13T11:30:00Z",
+            endAt: "2026-05-13T12:30:00Z",
+            position: 0,
+          },
+          {
+            id: "linked-next",
+            name: "Check-in — Hotel Avenida Palace",
+            startAt: "2026-05-13T14:00:00Z",
+            position: 1,
+            linkedReservationId: "res-1",
+            reservationType: "lodging",
+          },
+        ]}
+        now={NOW}
+      />
+    );
+
+    expect(screen.getAllByRole("link", { name: /Lunch Reservation/i })[0]).toHaveAttribute(
+      "href",
+      "/trips/trip-1?focus=event-now"
+    );
     expect(screen.getAllByRole("link", { name: /Check-in/i })[0]).toHaveAttribute(
       "href",
       "/trips/trip-1?tab=res&highlight=res-1"

@@ -6,6 +6,7 @@ import { TripItineraryView, type TripItineraryViewProps } from "./trip-itinerary
 
 interface MockDayCardProps {
   day: DayItinerary;
+  initialOpen?: boolean;
   onRemove?: () => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
 }
@@ -15,8 +16,8 @@ interface MockPlaceRowProps {
 }
 
 vi.mock("@/components/packt/day-card", () => ({
-  DayCard: ({ day, onRemove, onLinkedEventTap }: MockDayCardProps) => (
-    <section data-testid={`day-card-${day.dayNumber}`}>
+  DayCard: ({ day, initialOpen, onRemove, onLinkedEventTap }: MockDayCardProps) => (
+    <section data-testid={`day-card-${day.dayNumber}`} data-initial-open={String(!!initialOpen)}>
       <span>{day.label}</span>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
       {onLinkedEventTap && (
@@ -185,6 +186,14 @@ describe("TripItineraryView", () => {
 
     expect(firstWrapper).not.toHaveClass("animate-in");
     expect(secondWrapper).not.toHaveClass("animate-in");
+  });
+
+  it("passes initialOpen only to the focused day number", () => {
+    const props = buildProps([dayOne, dayTwo], { initialExpandedDayNumber: 2 });
+    render(<TripItineraryView {...props} />);
+
+    expect(screen.getByTestId("day-card-1")).toHaveAttribute("data-initial-open", "false");
+    expect(screen.getByTestId("day-card-2")).toHaveAttribute("data-initial-open", "true");
   });
 
   it("renders a day card for a dateless one-day trip instead of empty state (AC4)", () => {

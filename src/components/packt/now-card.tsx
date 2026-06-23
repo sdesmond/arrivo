@@ -17,37 +17,199 @@ import { RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-
 import { type Trip, type TripEvent } from "@/data/types";
 import { cn, getTripStatus, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
-
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
-}
-
-function getFloatingNow(now: Date): Date {
-  return new Date(
-    Date.UTC(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      now.getHours(),
-      now.getMinutes(),
-      now.getSeconds(),
-      now.getMilliseconds()
-    )
-  );
-}
+import { getActiveTripSummarySelection } from "./active-trip-summary-events";
+import { formatCurrentSummaryEventTime, formatSummaryEventTime } from "./active-trip-summary-time";
 
 interface NowCardProps {
   trip: Trip;
   todayEvents: TripEvent[];
+  summaryEvents?: TripEvent[];
   onEditTrip?: (trip: Trip) => void;
   onDeleteTrip?: (trip: Trip) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   dateFormat: string;
 }
 
-export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedEventTap, dateFormat }: NowCardProps) {
+interface NowCardEventRowProps {
+  tripId: string;
+  event: TripEvent;
+  eventLabel: string;
+  floatingNow: Date;
+  useEndTime?: boolean;
+  rowClassName?: string;
+  onLinkedEventTap?: (linkedReservationId: string) => void;
+}
+
+function NowCardEventRow({
+  tripId,
+  event,
+  eventLabel,
+  floatingNow,
+  useEndTime = false,
+  rowClassName,
+  onLinkedEventTap,
+}: NowCardEventRowProps) {
+  const isLinkedEvent = !!event.linkedReservationId && !!event.reservationType;
+  const LinkedIcon = event.reservationType ? RESERVATION_TYPE_META[event.reservationType]?.icon : undefined;
+  const linkedSeparatorIndex = event.name.indexOf(" — ");
+  const linkedAnchorLabel = linkedSeparatorIndex !== -1 ? event.name.slice(0, linkedSeparatorIndex) : "";
+  const linkedProviderLabel = linkedSeparatorIndex !== -1 ? event.name.slice(linkedSeparatorIndex + 3) : "";
+  const linkedAriaLabel = isLinkedEvent
+    ? event.startAt
+      ? linkedSeparatorIndex !== -1
+        ? `${linkedAnchorLabel}: ${formatAnchorDateTime(event.startAt)} — ${linkedProviderLabel}, Linked, opens Reservations`
+        : `${event.name}: ${formatAnchorDateTime(event.startAt)}, Linked, opens Reservations`
+      : `${event.name}, time not set, Linked, opens Reservations`
+    : undefined;
+  const eventTimeLabel = useEndTime
+    ? formatCurrentSummaryEventTime(event.endAt)
+    : event.startAt
+      ? formatSummaryEventTime(event.startAt, floatingNow)
+      : "—";
+
+  if (isLinkedEvent) {
+    return (
+      <button
+        type="button"
+        onClick={(clickEvent) => {
+          clickEvent.stopPropagation();
+          if (event.linkedReservationId) onLinkedEventTap?.(event.linkedReservationId);
+        }}
+        aria-label={linkedAriaLabel}
+        className={cn("block w-full rounded-[8px] group text-left", rowClassName)}
+        style={{
+          background: "var(--accent-soft)",
+          border: "1px solid var(--line)",
+          padding: "14px 16px",
+          cursor: "pointer",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            fontFamily: "var(--font-mono-family, ui-monospace)",
+            fontSize: "calc(10.5px * var(--font-scale))",
+            fontWeight: 500,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--accent-brand)",
+          }}
+        >
+          {eventLabel}
+        </div>
+
+        <div aria-hidden="true" className="flex items-center justify-between mt-1">
+          <span className="flex items-center gap-2 min-w-0">
+            {LinkedIcon && (
+              <LinkedIcon size={18} strokeWidth={1.5} aria-hidden="true" style={{ color: "var(--fg-3)" }} />
+            )}
+            <span
+              style={{
+                fontFamily: "var(--font-heading-family, ui-sans-serif)",
+                fontSize: "calc(20px * var(--font-scale))",
+                fontWeight: 700,
+                color: "var(--fg)",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {event.name}
+            </span>
+            <LinkedEventBadge />
+          </span>
+          <ChevronRight
+            aria-hidden="true"
+            size={18}
+            strokeWidth={1.5}
+            style={{ color: "var(--fg-3)" }}
+            className="group-hover:translate-x-0.5 transition-transform"
+          />
+        </div>
+
+        <div
+          aria-hidden="true"
+          style={{
+            fontFamily: "var(--font-body, ui-sans-serif)",
+            fontSize: "calc(13px * var(--font-scale))",
+            color: "var(--fg-3)",
+            marginTop: 4,
+          }}
+        >
+          {eventTimeLabel}
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={`/trips/${tripId}?focus=${event.id}`}
+      className={cn("block rounded-[8px] group", rowClassName)}
+      onClick={(clickEvent) => clickEvent.stopPropagation()}
+      style={{
+        background: "var(--accent-soft)",
+        border: "1px solid var(--line)",
+        padding: "14px 16px",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--font-mono-family, ui-monospace)",
+          fontSize: "calc(10.5px * var(--font-scale))",
+          fontWeight: 500,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: "var(--accent-brand)",
+        }}
+      >
+        {eventLabel}
+      </div>
+
+      <div className="flex items-center justify-between mt-1">
+        <span
+          style={{
+            fontFamily: "var(--font-heading-family, ui-sans-serif)",
+            fontSize: "calc(20px * var(--font-scale))",
+            fontWeight: 700,
+            color: "var(--fg)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {event.name}
+        </span>
+        <ChevronRight
+          size={18}
+          strokeWidth={1.5}
+          style={{ color: "var(--fg-3)" }}
+          className="group-hover:translate-x-0.5 transition-transform"
+        />
+      </div>
+
+      <div
+        style={{
+          fontFamily: "var(--font-body, ui-sans-serif)",
+          fontSize: "calc(13px * var(--font-scale))",
+          color: "var(--fg-3)",
+          marginTop: 4,
+        }}
+      >
+        {eventTimeLabel}
+        <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
+        <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>— km
+      </div>
+    </Link>
+  );
+}
+
+export function NowCard({
+  trip,
+  todayEvents,
+  summaryEvents = todayEvents,
+  onEditTrip,
+  onDeleteTrip,
+  onLinkedEventTap,
+  dateFormat,
+}: NowCardProps) {
   const now = useNow();
-  const floatingNow = getFloatingNow(now);
   const router = useRouter();
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
@@ -57,49 +219,17 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
       ? `${formatDate(trip.startDate, dateFormat)} – ${formatDate(trip.endDate, dateFormat)}`
       : "No dates";
 
-  const currentEvent = (() => {
-    const reversed = [...todayEvents].reverse();
-    return (
-      reversed.find((event) => {
-        if (!event.startAt) return false;
-        return new Date(event.startAt) <= floatingNow && !event.linkedReservationId;
-      }) ??
-      reversed.find((event) => {
-        if (!event.startAt) return false;
-        return new Date(event.startAt) <= floatingNow;
-      }) ??
-      null
-    );
-  })();
-
-  const nextEvent =
-    todayEvents.find((event) => {
-      if (!event.startAt) return false;
-      return new Date(event.startAt) > floatingNow;
-    }) ?? null;
-
-  const undatedLinkedEvent = todayEvents.find((event) => !event.startAt && event.linkedReservationId) ?? null;
-
-  const isUndatedFallback = !currentEvent && !nextEvent && !!undatedLinkedEvent;
-  const displayEvent = currentEvent ?? nextEvent ?? undatedLinkedEvent;
-  const eventLabel = currentEvent ? "Now" : isUndatedFallback ? "Linked Event" : "Next Event";
-
-  const isLinkedEvent = !!displayEvent?.linkedReservationId && !!displayEvent?.reservationType;
-  const LinkedIcon = displayEvent?.reservationType
-    ? RESERVATION_TYPE_META[displayEvent.reservationType]?.icon
-    : undefined;
-  const linkedSeparatorIndex = displayEvent ? displayEvent.name.indexOf(" — ") : -1;
-  const linkedAnchorLabel =
-    displayEvent && linkedSeparatorIndex !== -1 ? displayEvent.name.slice(0, linkedSeparatorIndex) : "";
-  const linkedProviderLabel =
-    displayEvent && linkedSeparatorIndex !== -1 ? displayEvent.name.slice(linkedSeparatorIndex + 3) : "";
-  const linkedAriaLabel = isLinkedEvent
-    ? displayEvent?.startAt
-      ? linkedSeparatorIndex !== -1
-        ? `${linkedAnchorLabel}: ${formatAnchorDateTime(displayEvent.startAt)} — ${linkedProviderLabel}, Linked, opens Reservations`
-        : `${displayEvent.name}: ${formatAnchorDateTime(displayEvent.startAt)}, Linked, opens Reservations`
-      : `${displayEvent?.name ?? "Linked event"}, time not set, Linked, opens Reservations`
-    : undefined;
+  const { currentEvent, nextEvent, undatedLinkedEvent, floatingNow } = getActiveTripSummarySelection({
+    summaryEvents,
+    todayEvents,
+    now,
+    preferManualCurrent: true,
+  });
+  const summaryRows = [
+    currentEvent ? { event: currentEvent, label: "Now" } : null,
+    nextEvent ? { event: nextEvent, label: "Next Event" } : null,
+    !currentEvent && !nextEvent && undatedLinkedEvent ? { event: undatedLinkedEvent, label: "Linked Event" } : null,
+  ].filter((row): row is { event: TripEvent; label: string } => row !== null);
 
   return (
     <div
@@ -236,135 +366,18 @@ export function NowCard({ trip, todayEvents, onEditTrip, onDeleteTrip, onLinkedE
           )}
         </div>
 
-        {/* Current or next event */}
-        {displayEvent && isLinkedEvent && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              if (displayEvent.linkedReservationId) onLinkedEventTap?.(displayEvent.linkedReservationId);
-            }}
-            aria-label={linkedAriaLabel}
-            className="block w-full mt-4 rounded-[8px] group text-left"
-            style={{
-              background: "var(--accent-soft)",
-              border: "1px solid var(--line)",
-              padding: "14px 16px",
-              cursor: "pointer",
-            }}
-          >
-            <div
-              aria-hidden="true"
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "calc(10.5px * var(--font-scale))",
-                fontWeight: 500,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: "var(--accent-brand)",
-              }}
-            >
-              {eventLabel}
-            </div>
-
-            <div aria-hidden="true" className="flex items-center justify-between mt-1">
-              <span className="flex items-center gap-2 min-w-0">
-                {LinkedIcon && (
-                  <LinkedIcon size={18} strokeWidth={1.5} aria-hidden="true" style={{ color: "var(--fg-3)" }} />
-                )}
-                <span
-                  style={{
-                    fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                    fontSize: "calc(20px * var(--font-scale))",
-                    fontWeight: 700,
-                    color: "var(--fg)",
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  {displayEvent.name}
-                </span>
-                <LinkedEventBadge />
-              </span>
-              <ChevronRight
-                aria-hidden="true"
-                size={18}
-                strokeWidth={1.5}
-                style={{ color: "var(--fg-3)" }}
-                className="group-hover:translate-x-0.5 transition-transform"
-              />
-            </div>
-
-            <div
-              aria-hidden="true"
-              style={{
-                fontFamily: "var(--font-body, ui-sans-serif)",
-                fontSize: "calc(13px * var(--font-scale))",
-                color: "var(--fg-3)",
-                marginTop: 4,
-              }}
-            >
-              {displayEvent.startAt ? fmtTime(displayEvent.startAt) : "—"}
-            </div>
-          </button>
-        )}
-        {displayEvent && !isLinkedEvent && (
-          <Link
-            href={`/trips/${trip.id}?focus=${displayEvent.id}`}
-            className="block mt-4 rounded-[8px] group"
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              background: "var(--accent-soft)",
-              border: "1px solid var(--line)",
-              padding: "14px 16px",
-            }}
-          >
-            <div
-              style={{
-                fontFamily: "var(--font-mono-family, ui-monospace)",
-                fontSize: "calc(10.5px * var(--font-scale))",
-                fontWeight: 500,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: "var(--accent-brand)",
-              }}
-            >
-              {eventLabel}
-            </div>
-
-            <div className="flex items-center justify-between mt-1">
-              <span
-                style={{
-                  fontFamily: "var(--font-heading-family, ui-sans-serif)",
-                  fontSize: "calc(20px * var(--font-scale))",
-                  fontWeight: 700,
-                  color: "var(--fg)",
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                {displayEvent.name}
-              </span>
-              <ChevronRight
-                size={18}
-                strokeWidth={1.5}
-                style={{ color: "var(--fg-3)" }}
-                className="group-hover:translate-x-0.5 transition-transform"
-              />
-            </div>
-
-            <div
-              style={{
-                fontFamily: "var(--font-body, ui-sans-serif)",
-                fontSize: "calc(13px * var(--font-scale))",
-                color: "var(--fg-3)",
-                marginTop: 4,
-              }}
-            >
-              {displayEvent.startAt ? fmtTime(displayEvent.startAt) : "—"}
-              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
-              <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>— km
-            </div>
-          </Link>
-        )}
+        {summaryRows.map((row, index) => (
+          <NowCardEventRow
+            key={`${row.label}-${row.event.id}`}
+            tripId={trip.id}
+            event={row.event}
+            eventLabel={row.label}
+            floatingNow={floatingNow}
+            useEndTime={row.label === "Now"}
+            rowClassName={index === 0 ? "mt-4" : "mt-3"}
+            onLinkedEventTap={onLinkedEventTap}
+          />
+        ))}
       </div>
     </div>
   );

@@ -58,6 +58,17 @@ const activeEntry: TripListEntry = {
       reservationType: "lodging",
     },
   ],
+  summaryEvents: [
+    {
+      id: "linked-1",
+      tripId: "trip-1",
+      name: "Check-in — Hotel Avenida Palace",
+      startAt: "2026-05-13T11:00:00Z",
+      position: 0,
+      linkedReservationId: "res-1",
+      reservationType: "lodging",
+    },
+  ],
 };
 
 function Wrapper({ children }: { children: React.ReactNode }) {

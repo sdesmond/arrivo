@@ -38,7 +38,7 @@ import {
   dbTemplateItemToType,
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
-import { toLocalDateKey } from "@/lib/utils";
+import { getTripStatus, toLocalDateKey } from "@/lib/utils";
 import type { PackingTemplate, PackingTemplateItem, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
@@ -46,6 +46,13 @@ const VALID_COVER_TYPES = Object.values(CoverType) as string[];
 function parseCoverType(val: string | null): UserProfile["defaultCoverType"] {
   if (!val) return undefined;
   return VALID_COVER_TYPES.includes(val) ? (val as UserProfile["defaultCoverType"]) : undefined;
+}
+
+function isSummaryEventInWindow(event: { startAt?: string }, todayISO: string, tripEndDate?: string): boolean {
+  if (!event.startAt) return false;
+  const eventDate = event.startAt.slice(0, 10);
+  if (eventDate < todayISO) return false;
+  return !tripEndDate || eventDate <= tripEndDate;
 }
 
 export async function getUserById(id: string): Promise<UserProfile | null> {
@@ -104,36 +111,42 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
   const todayISO = now.toISOString().slice(0, 10);
   const tripIds = rows.map(({ trip }) => trip.id);
 
-  const [allTodayEvents, dayCountAggs, packingAggs, allDocs, allCollabs, allReservations] = await Promise.all([
-    db
-      .select()
-      .from(events)
-      .where(and(inArray(events.tripId, tripIds), sql`${events.startAt}::date = ${todayISO}::date`))
-      .orderBy(events.position),
-    db
-      .select({
-        tripId: days.tripId,
-        dayTotal: count(),
-      })
-      .from(days)
-      .where(inArray(days.tripId, tripIds))
-      .groupBy(days.tripId),
-    db
-      .select({
-        tripId: packingItems.tripId,
-        total: count(),
-        checked: sql<number>`count(*) filter (where ${packingItems.done})::int`,
-      })
-      .from(packingItems)
-      .where(and(inArray(packingItems.tripId, tripIds), eq(packingItems.isLabel, false)))
-      .groupBy(packingItems.tripId),
-    db
-      .select()
-      .from(documents)
-      .where(and(inArray(documents.tripId, tripIds), isNull(documents.eventId))),
-    db.select().from(collaborators).where(inArray(collaborators.tripId, tripIds)),
-    db.select().from(reservations).where(inArray(reservations.tripId, tripIds)),
-  ]);
+  const [allTodayEvents, allSummaryEvents, dayCountAggs, packingAggs, allDocs, allCollabs, allReservations] =
+    await Promise.all([
+      db
+        .select()
+        .from(events)
+        .where(and(inArray(events.tripId, tripIds), sql`${events.startAt}::date = ${todayISO}::date`))
+        .orderBy(events.position),
+      db
+        .select()
+        .from(events)
+        .where(and(inArray(events.tripId, tripIds), sql`${events.startAt}::date >= ${todayISO}::date`))
+        .orderBy(events.position),
+      db
+        .select({
+          tripId: days.tripId,
+          dayTotal: count(),
+        })
+        .from(days)
+        .where(inArray(days.tripId, tripIds))
+        .groupBy(days.tripId),
+      db
+        .select({
+          tripId: packingItems.tripId,
+          total: count(),
+          checked: sql<number>`count(*) filter (where ${packingItems.done})::int`,
+        })
+        .from(packingItems)
+        .where(and(inArray(packingItems.tripId, tripIds), eq(packingItems.isLabel, false)))
+        .groupBy(packingItems.tripId),
+      db
+        .select()
+        .from(documents)
+        .where(and(inArray(documents.tripId, tripIds), isNull(documents.eventId))),
+      db.select().from(collaborators).where(inArray(collaborators.tripId, tripIds)),
+      db.select().from(reservations).where(inArray(reservations.tripId, tripIds)),
+    ]);
 
   type EventRow = (typeof allTodayEvents)[number];
   type DocRow = (typeof allDocs)[number];
@@ -142,6 +155,10 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
   type ReservationRow = (typeof allReservations)[number];
 
   const eventsByTrip = allTodayEvents.reduce<Record<string, EventRow[]>>((acc, eventRow) => {
+    (acc[eventRow.tripId] ??= []).push(eventRow);
+    return acc;
+  }, {});
+  const summaryEventsByTrip = allSummaryEvents.reduce<Record<string, EventRow[]>>((acc, eventRow) => {
     (acc[eventRow.tripId] ??= []).push(eventRow);
     return acc;
   }, {});
@@ -179,6 +196,15 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     const todayEvents = [...todayLinkedEvents, ...(eventsByTrip[trip.id] ?? []).map(dbEventToType)]
       .filter((event) => event.startAt)
       .sort((first, second) => new Date(first.startAt!).getTime() - new Date(second.startAt!).getTime());
+    const isActiveTrip = getTripStatus(tripEntry.startDate, tripEntry.endDate, now) === "active";
+    const summaryLinkedEvents = isActiveTrip
+      ? linkedEventsForTrip.filter((linkedEvent) => isSummaryEventInWindow(linkedEvent, todayISO, tripEntry.endDate))
+      : [];
+    const summaryEvents = isActiveTrip
+      ? [...summaryLinkedEvents, ...(summaryEventsByTrip[trip.id] ?? []).map(dbEventToType)]
+          .filter((event) => isSummaryEventInWindow(event, todayISO, tripEntry.endDate))
+          .sort((first, second) => new Date(first.startAt!).getTime() - new Date(second.startAt!).getTime())
+      : [];
 
     return {
       trip: {
@@ -191,6 +217,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
           .map(dbCollabToType),
       },
       todayEvents,
+      summaryEvents,
     };
   });
 }

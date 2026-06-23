@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -110,6 +110,16 @@ const upcomingTrip: Trip = {
 };
 
 describe("NowCard", () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "UTC";
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
   it("renders trip name for active trip", () => {
     render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getAllByText("Tokyo Adventure").length).toBeGreaterThanOrEqual(1);
@@ -179,8 +189,16 @@ describe("NowCard", () => {
   });
 
   it("renders current event when todayEvents has a past event", () => {
-    render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    render(
+      <NowCard
+        trip={activeTrip}
+        todayEvents={[{ id: "ev-1", name: "Museum Visit", startAt: "2026-05-13T10:00:00Z", position: 0 }]}
+        dateFormat="MM/DD/YYYY"
+      />,
+      { wrapper: Wrapper }
+    );
     expect(screen.getByText("Museum Visit")).toBeInTheDocument();
+    expect(screen.queryByText("Next Event")).not.toBeInTheDocument();
   });
 
   it("renders the literal stored event time unshifted under a non-UTC viewer timezone", () => {
@@ -224,6 +242,53 @@ describe("NowCard", () => {
     render(<NowCard trip={activeTrip} todayEvents={futureEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByText("Next Event")).toBeInTheDocument();
     expect(screen.getByText("Future Event")).toBeInTheDocument();
+  });
+
+  it("renders weekday and time for a next event on a future day", () => {
+    const { container } = render(
+      <NowCard
+        trip={activeTrip}
+        todayEvents={todayEvents}
+        summaryEvents={[
+          { id: "ev-current", name: "Museum Visit", startAt: "2026-05-13T10:00:00Z", position: 0 },
+          { id: "ev-future-day", name: "Temple Tour", startAt: "2026-05-14T14:00:00Z", position: 1 },
+        ]}
+        dateFormat="MM/DD/YYYY"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByText("Now")).toBeInTheDocument();
+    expect(screen.getByText("Next Event")).toBeInTheDocument();
+    expect(screen.getByText("Temple Tour")).toBeInTheDocument();
+    expect(container.textContent).toContain("Thursday · 2:00 PM");
+  });
+
+  it("renders Now above Next Event when both current and next rows exist", () => {
+    const { container } = render(
+      <NowCard
+        trip={activeTrip}
+        todayEvents={[
+          {
+            id: "ev-current",
+            name: "Museum Visit",
+            startAt: "2026-05-13T10:00:00Z",
+            endAt: "2026-05-13T12:30:00Z",
+            position: 0,
+          },
+          { id: "ev-next", name: "Dinner", startAt: "2026-05-13T19:00:00Z", position: 1 },
+        ]}
+        dateFormat="MM/DD/YYYY"
+      />,
+      { wrapper: Wrapper }
+    );
+
+    const nowLabel = screen.getByText("Now");
+    const nextLabel = screen.getByText("Next Event");
+
+    expect(nowLabel.compareDocumentPosition(nextLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Museum Visit")).toBeInTheDocument();
+    expect(screen.getByText("Dinner")).toBeInTheDocument();
+    expect(container.textContent).toContain("Ends at 12:30 PM");
   });
 
   it("does not render event section when no events exist", () => {
@@ -297,7 +362,10 @@ describe("NowCard", () => {
       wrapper: Wrapper,
     });
     expect(screen.getByText("Breakfast")).toBeInTheDocument();
-    expect(screen.queryByText("Check-in — Hotel Avenida Palace")).not.toBeInTheDocument();
+    expect(screen.getByText("Check-in — Hotel Avenida Palace")).toBeInTheDocument();
+    const nowLabel = screen.getByText("Now");
+    const nextLabel = screen.getByText("Next Event");
+    expect(nowLabel.compareDocumentPosition(nextLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("manual event row is not a button", () => {
@@ -340,6 +408,9 @@ describe("NowCard", () => {
     const expectedLabel = "Check-in — Hotel Avenida Palace, time not set, Linked, opens Reservations";
     const button = screen.getByRole("button", { name: expectedLabel });
     expect(button).toBeInTheDocument();
+    expect(screen.getByText("Linked Event")).toBeInTheDocument();
+    expect(screen.queryByText("Now")).not.toBeInTheDocument();
+    expect(screen.queryByText("Next Event")).not.toBeInTheDocument();
   });
 
   it("calls onLinkedEventTap with the linked reservation id when the Linked Event row is tapped", async () => {
