@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Key Screen — Spending View</title>
+<style>
+/*
+  Governing spine sections:
+  - EXPERIENCE.md: Information Architecture (Spending view row), Component Patterns
+    (Spending view header, Headline figures, Category breakdown donut, Budget adherence donut,
+    Destination breakdown donut), State Patterns (neutral/populated state),
+    Flow 3 (Spencer reviews his spending history across trips).
+  - DESIGN.md: components (chart-card, headline-figure, donut-chart, category-donut-palette,
+    budget-adherence-donut).
+  Shows the populated state, filter set to "This Year", 12 trips in range.
+  Spend-over-time was considered and cut (no distinct value beyond the figures/donuts) — 3 charts, not 4.
+  Category palette hues below are illustrative placeholders only — DESIGN.md defers exact values
+  to implementation with a contrast-verification requirement; do not treat these as final.
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #e9e9e6;
+  display: flex;
+  justify-content: center;
+  padding: 32px;
+}
+.device-frame {
+  width: 820px;
+  background: #ffffff; /* --bg */
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.04); /* --shadow-3 */
+  overflow: hidden;
+}
+.page-header {
+  padding: 20px 24px 0;
+}
+.title {
+  font-family: Georgia, "Times New Roman", serif; /* --font-heading-family */
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #131311; /* --fg */
+  margin-bottom: 14px;
+}
+.view-toggle {
+  display: inline-flex;
+  background: #efefec; /* --surface-2 */
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 16px;
+}
+.view-toggle .item {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  color: #7a7a72; /* --fg-3 */
+}
+.view-toggle .item.active {
+  background: #ffffff;
+  color: #131311; /* --fg */
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 6px;
+}
+.filter-dropdown {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(20,20,18,0.08); /* --line */
+  border-radius: 8px;
+  font-size: 13px;
+  color: #131311; /* --fg */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+}
+.filter-helper {
+  font-size: 12px;
+  color: #a0a098; /* --fg-4 */
+}
+.body {
+  padding: 16px 24px 28px;
+}
+.headline-row {
+  display: flex;
+  gap: 32px;
+  padding: 18px 4px 22px;
+  border-bottom: 1px solid rgba(20,20,18,0.08); /* --line */
+  margin-bottom: 20px;
+}
+.headline-figure .label {
+  font-size: 12px;
+  color: #7a7a72; /* --fg-3 */
+  margin-bottom: 4px;
+}
+.headline-figure .figure {
+  font-size: 26px;
+  font-weight: 600;
+  color: #131311; /* --fg */
+}
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.chart-card {
+  background: #f6f6f4; /* --surface */
+  border: 1px solid rgba(20,20,18,0.08); /* --line */
+  border-radius: 10px;
+  padding: 16px;
+}
+.chart-card .chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #131311; /* --fg */
+  margin-bottom: 4px;
+}
+.chart-card .chart-caption {
+  font-size: 11px;
+  color: #a0a098; /* --fg-4 */
+  margin-bottom: 12px;
+}
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.donut {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.donut::after {
+  content: "";
+  position: absolute;
+  inset: 22px;
+  background: #f6f6f4; /* --surface, donut hole */
+  border-radius: 50%;
+}
+.donut-center {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+.donut-center .figure {
+  font-size: 16px;
+  font-weight: 700;
+  color: #131311; /* --fg */
+  display: block;
+}
+.donut-center .label {
+  font-size: 10px;
+  color: #7a7a72; /* --fg-3 */
+}
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #4a4a45; /* --fg-2 */
+}
+.legend .row { display: flex; align-items: center; gap: 6px; }
+.swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.caption {
+  margin-top: 18px;
+  font-size: 12px;
+  color: #a0a098; /* --fg-4 */
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div>
+<div class="device-frame">
+  <div class="page-header">
+    <div class="title">History</div>
+    <div class="view-toggle">
+      <div class="item">Trips</div>
+      <div class="item active">Spending</div>
+    </div>
+    <div class="filter-row">
+      <div class="filter-dropdown">
+        This Year
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a7a72" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="filter-helper">Includes any trip overlapping this period.</div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="headline-row">
+      <div class="headline-figure"><div class="label">Total Spend</div><div class="figure">$12,450</div></div>
+      <div class="headline-figure"><div class="label">Average Trip Spend</div><div class="figure">$1,038</div></div>
+      <div class="headline-figure"><div class="label">Average Daily Spend</div><div class="figure">$187</div></div>
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-title">Spend by Category</div>
+        <div class="donut-wrap">
+          <div class="donut" style="background: conic-gradient(#0e8b80 0% 32%, #4a90c9 32% 55%, #d97e3b 55% 72%, #8b6bb8 72% 85%, #c45a7a 85% 94%, #a0a098 94% 100%);">
+            <div class="donut-center"><span class="figure">$12,450</span><span class="label">total spend</span></div>
+          </div>
+          <div class="legend">
+            <div class="row"><span class="swatch" style="background:#0e8b80;"></span>Lodging $3,984</div>
+            <div class="row"><span class="swatch" style="background:#4a90c9;"></span>Flights $2,864</div>
+            <div class="row"><span class="swatch" style="background:#d97e3b;"></span>Food $2,116</div>
+            <div class="row"><span class="swatch" style="background:#8b6bb8;"></span>Transport $1,619</div>
+            <div class="row"><span class="swatch" style="background:#c45a7a;"></span>Activity $1,120</div>
+            <div class="row"><span class="swatch" style="background:#a0a098;"></span>Misc $747</div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Budget Adherence</div>
+        <div class="chart-caption">"On budget" means within 2% of the budget total.</div>
+        <div class="donut-wrap">
+          <div class="donut" style="background: conic-gradient(#0e8b80 0% 67%, #b6790a 67% 83%, #e5484d 83% 100%);">
+            <div class="donut-center"><span class="figure">12 Trips</span></div>
+          </div>
+          <div class="legend">
+            <div class="row"><span class="swatch" style="background:#0e8b80;"></span>Under budget — 8 trips</div>
+            <div class="row"><span class="swatch" style="background:#b6790a;"></span>On budget — 2 trips</div>
+            <div class="row"><span class="swatch" style="background:#e5484d;"></span>Over budget — 2 trips</div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Spend by Destination</div>
+        <div class="donut-wrap">
+          <div class="donut" style="background: conic-gradient(#0e8b80 0% 38%, #4a90c9 38% 64%, #d97e3b 64% 84%, #a0a098 84% 100%);">
+            <div class="donut-center"><span class="figure">$12,450</span><span class="label">total spend</span></div>
+          </div>
+          <div class="legend">
+            <div class="row"><span class="swatch" style="background:#0e8b80;"></span>Japan $4,731</div>
+            <div class="row"><span class="swatch" style="background:#4a90c9;"></span>Italy $3,237</div>
+            <div class="row"><span class="swatch" style="background:#d97e3b;"></span>USA $2,490</div>
+            <div class="row"><span class="swatch" style="background:#a0a098;"></span>Unknown $1,992</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="caption">Spending view — populated state, filter "This Year", 12 trips in range. No spend-over-time chart (cut — no distinct value over the figures/donuts already shown). Category and destination donut hues are illustrative placeholders; exact 11-step palette and contrast verification happen at implementation.</div>
+</div>
+</body>
+</html>
