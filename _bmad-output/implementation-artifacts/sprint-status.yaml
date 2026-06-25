@@ -45,7 +45,7 @@ development_status:
   epic-1: in-progress
   1-1-set-trip-budget-currency: in-progress
   1-2-unified-cost-entry-on-events-reservations: done
-  1-3-currency-conversion-at-entry-time: backlog
+  1-3-currency-conversion-at-entry-time: review
   1-4-track-actual-spend-category-breakdown: backlog
   1-5-add-misc-expenses: backlog
   1-6-recalculate-conversions: backlog
