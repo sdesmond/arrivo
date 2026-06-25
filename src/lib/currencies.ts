@@ -197,3 +197,13 @@ export function normalizeCurrencyCode(code?: string): string | undefined {
   const normalizedCode = code?.trim().toUpperCase();
   return normalizedCode ? normalizedCode : undefined;
 }
+
+export function getCurrencySymbol(code: string): string {
+  try {
+    const parts = new Intl.NumberFormat("en-US", { style: "currency", currency: code }).formatToParts(0);
+    const currencyPart = parts.find((part) => part.type === "currency");
+    return currencyPart?.value ?? code;
+  } catch {
+    return code;
+  }
+}

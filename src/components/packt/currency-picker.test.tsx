@@ -16,6 +16,10 @@ function getCurrencyOption(code: string) {
   return screen.getByRole("option", { name: `${option.name} ${option.code}` });
 }
 
+function getSearchInput() {
+  return screen.getByRole("textbox", { name: "Search currencies" });
+}
+
 describe("CurrencyPicker", () => {
   it("renders the full server-provided currency list", async () => {
     const user = userEvent.setup();
@@ -24,6 +28,18 @@ describe("CurrencyPicker", () => {
     await user.click(screen.getByRole("button", { name: /Currency:/i }));
 
     expect(screen.getAllByRole("option")).toHaveLength(currencyOptions.length);
+  });
+
+  it("renders each option with a two-letter badge and a stacked name/code", async () => {
+    const user = userEvent.setup();
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+
+    const eurOption = getCurrencyOption("EUR");
+    expect(eurOption).toHaveTextContent("EU");
+    expect(eurOption).toHaveTextContent("Euro");
+    expect(eurOption).toHaveTextContent("EUR");
   });
 
   it("highlights the selected option and selects a new currency on click", async () => {
@@ -53,7 +69,7 @@ describe("CurrencyPicker", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toHaveFocus());
   });
 
-  it("opens from the keyboard and supports arrow navigation", async () => {
+  it("opens from the keyboard, focuses the search box, and supports arrow navigation", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={onChange} />);
@@ -62,10 +78,73 @@ describe("CurrencyPicker", () => {
     trigger.focus();
 
     await user.keyboard("{Enter}");
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+
+    await user.keyboard("{ArrowDown}");
     await waitFor(() => expect(getCurrencyOption("USD")).toHaveFocus());
+
     await user.keyboard("{ArrowDown}{Enter}");
 
     expect(onChange).toHaveBeenCalledWith("USN");
+  });
+
+  it("filters options by search query", async () => {
+    const user = userEvent.setup();
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+
+    await user.type(getSearchInput(), "japanese");
+
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(getCurrencyOption("JPY")).toBeInTheDocument();
+  });
+
+  it("shows an empty state when no currency matches the search query", async () => {
+    const user = userEvent.setup();
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+
+    await user.type(getSearchInput(), "not-a-real-currency");
+
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.getByText("No currencies found")).toBeInTheDocument();
+  });
+
+  it("closes the picker when Escape is pressed in the search input", async () => {
+    const user = userEvent.setup();
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toHaveFocus());
+  });
+
+  it("wraps option navigation forward past the last filtered option", async () => {
+    const user = userEvent.setup();
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+    await user.type(getSearchInput(), "dirham");
+
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() => expect(getCurrencyOption("AED")).toHaveFocus());
+
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() => expect(getCurrencyOption("MAD")).toHaveFocus());
+
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() => expect(getCurrencyOption("AED")).toHaveFocus());
   });
 
   it("renders a disabled fallback trigger when no server options exist", async () => {
@@ -108,6 +187,8 @@ describe("CurrencyPicker", () => {
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /Currency:/i }));
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+    await user.keyboard("{ArrowDown}");
     await waitFor(() => expect(getCurrencyOption("USD")).toHaveFocus());
 
     await user.keyboard("{End}");
@@ -120,20 +201,15 @@ describe("CurrencyPicker", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
-  it("supports trigger arrow navigation while open", async () => {
-    const user = userEvent.setup();
+  it("opens the picker via ArrowUp on the trigger and focuses the search input", async () => {
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
 
     const trigger = screen.getByRole("button", { name: /Currency:/i });
-    await user.click(trigger);
-
-    trigger.focus();
-    fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    await waitFor(() => expect(getCurrencyOption("USN")).toHaveFocus());
-
     trigger.focus();
     fireEvent.keyDown(trigger, { key: "ArrowUp" });
-    await waitFor(() => expect(getCurrencyOption("USD")).toHaveFocus());
+
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
   });
 
   it("wraps option navigation upward and closes on option escape", async () => {
@@ -141,6 +217,8 @@ describe("CurrencyPicker", () => {
     render(<CurrencyPicker currencyOptions={currencyOptions} value="AED" onChange={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /Currency:/i }));
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+    await user.keyboard("{ArrowDown}");
     const firstOption = getCurrencyOption("AED");
     await waitFor(() => expect(firstOption).toHaveFocus());
 
@@ -151,7 +229,7 @@ describe("CurrencyPicker", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
-  it("ignores disabled trigger keyboard input and falls back to first option for unknown values", async () => {
+  it("ignores disabled trigger keyboard input and falls back to the raw code for unknown values", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
       <CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} disabled={true} />
@@ -164,9 +242,12 @@ describe("CurrencyPicker", () => {
 
     rerender(<CurrencyPicker currencyOptions={currencyOptions} value="ZZZ" onChange={vi.fn()} />);
 
-    const fallbackTrigger = screen.getByRole("button", { name: "Currency: United Arab Emirates Dirham AED" });
+    const fallbackTrigger = screen.getByRole("button", { name: "Currency: ZZZ ZZZ" });
     await user.click(fallbackTrigger);
-    expect(getCurrencyOption("AED")).toHaveAttribute("data-selected", "true");
+
+    expect(screen.getAllByRole("option").every((option) => option.getAttribute("data-selected") === "false")).toBe(
+      true
+    );
   });
 
   it("leaves picker open for unhandled option keys", async () => {
@@ -174,6 +255,8 @@ describe("CurrencyPicker", () => {
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /Currency:/i }));
+    await waitFor(() => expect(getSearchInput()).toHaveFocus());
+    await user.keyboard("{ArrowDown}");
     const selectedOption = getCurrencyOption("USD");
     await waitFor(() => expect(selectedOption).toHaveFocus());
 

@@ -105,4 +105,10 @@ describe("TripEditBudget", () => {
     expect(screen.getByDisplayValue("3000")).toBeDisabled();
     expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeDisabled();
   });
+
+  it("defaults to USD and enabled controls when currency and disabled are omitted", () => {
+    render(<TripEditBudget currencyOptions={currencyOptions} onCurrencyChange={vi.fn()} onTotalChange={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeEnabled();
+  });
 });
