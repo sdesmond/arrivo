@@ -250,6 +250,26 @@ describe("CurrencyPicker", () => {
     );
   });
 
+  it("hides the search input and focuses options when searchable is false", async () => {
+    const user = userEvent.setup();
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} searchable={false} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+
+    expect(screen.queryByRole("textbox", { name: "Search currencies" })).not.toBeInTheDocument();
+    await waitFor(() => expect(getCurrencyOption("USD")).toHaveFocus());
+  });
+
+  it("keeps the picker open for trigger Escape when already closed", () => {
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    const trigger = screen.getByRole("button", { name: /Currency:/i });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Escape" });
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
   it("leaves picker open for unhandled option keys", async () => {
     const user = userEvent.setup();
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);

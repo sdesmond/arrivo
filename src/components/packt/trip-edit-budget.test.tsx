@@ -55,6 +55,7 @@ describe("TripEditBudget", () => {
 
     expect(screen.getByDisplayValue("3000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("3000").parentElement).toHaveClass("rounded-lg", "h-9");
     expect(screen.queryByText("Per person")).not.toBeInTheDocument();
   });
 
@@ -76,6 +77,20 @@ describe("TripEditBudget", () => {
 
     expect(onCurrencyChange).toHaveBeenLastCalledWith("EUR");
     expect(onTotalChange).toHaveBeenLastCalledWith(4200);
+  });
+
+  it("preserves decimal typing while clamping to two fraction digits", async () => {
+    const user = userEvent.setup();
+    const onTotalChange = vi.fn();
+    render(<TripEditBudgetHarness onTotalChange={onTotalChange} />);
+
+    const totalInput = screen.getByDisplayValue("3000");
+
+    await user.clear(totalInput);
+    await user.type(totalInput, "12.345");
+
+    expect(totalInput).toHaveValue("12.34");
+    expect(onTotalChange).toHaveBeenLastCalledWith(12.34);
   });
 
   it("closes the picker on Escape and returns focus to the trigger", async () => {
