@@ -171,7 +171,6 @@ export function CostDialog({
               autoFocus
               error={!!amountError}
               inputMode="decimal"
-              min="0"
               placeholder="0.00"
               step="0.01"
               onAmountKeyDown={(event) => {

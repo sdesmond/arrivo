@@ -19,7 +19,6 @@ export interface CurrencyAmountFieldProps {
   disabled?: boolean;
   error?: boolean;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
-  min?: number | string;
   maxFractionDigits?: number;
   onAmountKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   placeholder?: string;
@@ -43,7 +42,6 @@ export function CurrencyAmountField({
   disabled = false,
   error = false,
   inputMode = "decimal",
-  min,
   maxFractionDigits = 2,
   onAmountKeyDown,
   placeholder,
@@ -88,7 +86,6 @@ export function CurrencyAmountField({
         id={amountInputId}
         disabled={disabled}
         type="text"
-        min={min}
         step={step}
         inputMode={inputMode}
         placeholder={placeholder}

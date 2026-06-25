@@ -4,7 +4,7 @@ baseline_commit: 7dabed9fe76544f3db5c3be4cbaece376871b5b5
 
 # Story 1.2: Unified Cost Entry on Events/Reservations
 
-Status: review
+Status: done
 
 ## Story
 
@@ -242,6 +242,21 @@ Creates the `expenses` table and `ExpenseCategory` enum, drops `Event.cost`/`Res
 - [Source: EXPERIENCE.md §State Patterns] — Conversion lookup failure toast (Story 1.3 deferred)
 - [Source: DESIGN.md §Components] — field-row, currency-picker-row visual specs
 - [Source: project-context.md] — Tech stack, component conventions, CSS token rules, testing standards
+
+### Review Findings
+
+- [x] [Review][Decision] CurrencyPicker shows search field but AC 6 amended — user chose to keep search; AC 6 should be updated to reflect search is allowed.
+- [x] [Review][Patch] PlaceRow missing local expense state + parent notification on save/remove — applied: added local `expense` state + `useEffect` sync, `setExpense()` on save/remove.
+- [x] [Review][Patch] PlaceRow error swallowed in handleExpenseSave — applied: re-throw error after toast.
+- [x] [Review][Patch] TOCTOU race in updateExpense — applied: UPDATE ... RETURNING detects concurrent deletion and throws.
+- [x] [Review][Patch] updateExpense uses `Record<string, unknown>` for Drizzle `.set()` — applied: changed to `Partial<typeof expenses.$inferInsert>`.
+- [x] [Review][Patch] No validation preventing expense linking to both eventId AND reservationId — applied: added `eventId && reservationId` guard.
+- [x] [Review][Patch] dbExpenseToType uses unsafe type assertion on category — applied: validates against `ExpenseCategory` values, falls back to `Misc`.
+- [x] [Review][Patch] Tab order: currency before amount — User decided to keep current order. AC 5 to be updated.
+- [x] [Review][Patch] CurrencyAmountField `min="0"` has no effect on `type="text"` — applied: removed decorative `min` prop.
+- [x] [Review][Defer] reservation-row spreads null values into Expense state before explicit overrides — `src/components/packt/reservation-row.tsx` — deferred, ordering-dependent but currently correct due to explicit overrides.
+- [x] [Review][Defer] TripEditBudget empty decimal point produces NaN — `src/components/packt/trip-edit-budget.tsx` — deferred, very low probability.
+- [x] [Review][Defer] updateExpense eventId: undefined skips update vs null clears FK — `src/app/(app)/trips/[tripId]/budget/actions.ts` — deferred, matches documented convention.
 
 ## Dev Agent Record
 

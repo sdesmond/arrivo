@@ -39,6 +39,10 @@ function validateCreateExpenseInput(input: CreateExpenseInput): void {
   if (!input.eventId && !input.reservationId) {
     throw new Error("Expense must be linked to an event or reservation.");
   }
+
+  if (input.eventId && input.reservationId) {
+    throw new Error("Expense cannot be linked to both an event and a reservation.");
+  }
 }
 
 export async function createExpense(tripId: string, input: CreateExpenseInput): Promise<string> {
@@ -96,7 +100,7 @@ export async function updateExpense(expenseId: string, patch: UpdateExpensePatch
     throw new Error("Currency is required.");
   }
 
-  const updates: Record<string, unknown> = {
+  const updates: Partial<typeof expenses.$inferInsert> = {
     updatedAt: new Date(),
   };
 
@@ -119,7 +123,16 @@ export async function updateExpense(expenseId: string, patch: UpdateExpensePatch
   }
   if (patch.convertedCurrencyProfile !== undefined) updates.convertedCurrencyProfile = patch.convertedCurrencyProfile;
 
-  await db.update(expenses).set(updates).where(eq(expenses.id, expenseId));
+  const [updatedRow] = await db
+    .update(expenses)
+    .set(updates)
+    .where(eq(expenses.id, expenseId))
+    .returning({ id: expenses.id });
+
+  if (!updatedRow) {
+    throw new Error("Expense was deleted before update could complete.");
+  }
+
   revalidatePath(`/trips/${expenseRow.tripId}`);
 }
 

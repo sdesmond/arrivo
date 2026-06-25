@@ -18,6 +18,7 @@ import {
   userCompanions,
 } from "@/db/schema";
 import { getTripStatus } from "@/lib/utils";
+import { ExpenseCategory } from "@/data/types";
 import type {
   Trip,
   UserProfile,
@@ -157,7 +158,9 @@ export function dbExpenseToType(row: typeof expenses.$inferSelect): Expense {
     tripId: row.tripId,
     eventId: row.eventId ?? undefined,
     reservationId: row.reservationId ?? undefined,
-    category: row.category as Expense["category"],
+    category: Object.values(ExpenseCategory).includes(row.category as Expense["category"])
+      ? (row.category as Expense["category"])
+      : ExpenseCategory.Misc,
     amount: Number(row.amount),
     currency: row.currency,
     convertedAmountTrip: row.convertedAmountTrip != null ? Number(row.convertedAmountTrip) : undefined,
