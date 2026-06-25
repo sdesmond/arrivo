@@ -28,20 +28,25 @@ vi.mock("./cost-dialog", () => ({
     open,
     onOpenChange,
     onSave,
+    onRemove,
   }: {
     open: boolean;
     onOpenChange: (v: boolean) => void;
-    onSave: (c?: number) => void;
+    onSave: (expense: { category: string; amount: number; currency: string; date: string }) => void;
+    onRemove?: () => void;
   }) =>
     open ? (
-      <button
-        onClick={() => {
-          onSave(50);
-          onOpenChange(false);
-        }}
-      >
-        cost-save
-      </button>
+      <>
+        <button
+          onClick={() => {
+            onSave({ category: "food", amount: 50, currency: "USD", date: "2026-08-01" });
+            onOpenChange(false);
+          }}
+        >
+          cost-save
+        </button>
+        {onRemove ? <button onClick={onRemove}>cost-remove</button> : null}
+      </>
     ) : null,
 }));
 vi.mock("./location-dialog", () => ({
@@ -98,6 +103,7 @@ const defaultProps = {
   showCostDialog: false,
   onCostOpenChange: vi.fn(),
   onCostSave: vi.fn(),
+  onCostRemove: vi.fn(),
   showLocationDialog: false,
   onLocationOpenChange: vi.fn(),
   onLocationSave: vi.fn(),

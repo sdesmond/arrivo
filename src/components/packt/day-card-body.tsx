@@ -10,6 +10,7 @@ import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/type
 
 export interface DayCardBodyProps {
   day: DayItinerary;
+  defaultExpenseCurrency?: string;
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
@@ -39,6 +40,7 @@ interface DraftState {
 
 export function DayCardBody({
   day,
+  defaultExpenseCurrency,
   tripDocs,
   onUpdateEvent,
   onDeleteEvent,
@@ -153,6 +155,7 @@ export function DayCardBody({
         dayNumber={day.dayNumber}
         dayId={day.id}
         dayDate={day.date}
+        defaultExpenseCurrency={defaultExpenseCurrency}
         timelineItems={timelineItems}
         renderEntries={renderEntries}
         tripDocs={tripDocs}

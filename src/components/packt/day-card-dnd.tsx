@@ -39,6 +39,7 @@ export interface DayCardDndProps {
   dayNumber: number;
   dayId?: string;
   dayDate?: string;
+  defaultExpenseCurrency?: string;
   timelineItems: TimelineItem[];
   renderEntries: RenderEntry[];
   tripDocs?: Document[];
@@ -68,6 +69,7 @@ export function DayCardDnd({
   dayNumber,
   dayId,
   dayDate,
+  defaultExpenseCurrency,
   timelineItems,
   renderEntries,
   tripDocs,
@@ -178,6 +180,7 @@ export function DayCardDnd({
                 ) : (
                   <PlaceRow
                     place={{ id: "draft", name: "", position: 0 }}
+                    defaultCurrency={defaultExpenseCurrency}
                     dayDate={dayDate}
                     isDraft
                     onCreate={commitDraft}
@@ -201,6 +204,7 @@ export function DayCardDnd({
                 entry.item.data.linkedReservationId ? (
                   <PlaceRow
                     place={entry.item.data}
+                    defaultCurrency={defaultExpenseCurrency}
                     dayDate={dayDate}
                     isLast={isLast}
                     onUpdate={onUpdateEvent}
@@ -212,6 +216,7 @@ export function DayCardDnd({
                   <SortablePlaceRow
                     id={`event-${entry.item.data.id}`}
                     place={entry.item.data}
+                    defaultCurrency={defaultExpenseCurrency}
                     dayDate={dayDate}
                     isLast={isLast}
                     onUpdate={onUpdateEvent}
@@ -234,7 +239,13 @@ export function DayCardDnd({
       <DragOverlay dropAnimation={null}>
         {activeItem ? (
           activeItem.kind === "event" ? (
-            <PlaceRow place={activeItem.data} dayDate={dayDate} onUpdate={() => {}} onDelete={() => {}} />
+            <PlaceRow
+              place={activeItem.data}
+              defaultCurrency={defaultExpenseCurrency}
+              dayDate={dayDate}
+              onUpdate={() => {}}
+              onDelete={() => {}}
+            />
           ) : activeItem.kind === "note" ? (
             <NoteItem note={activeItem.data} displayOnly />
           ) : (

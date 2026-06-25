@@ -131,7 +131,17 @@ describe("PlaceRowActionBar", () => {
   });
 
   it("cost displays formatted value with comma separators", () => {
-    const place: TripEvent = { ...basePlace, cost: 1234567.89 };
+    const place: TripEvent = {
+      ...basePlace,
+      expense: {
+        id: "expense-1",
+        tripId: "trip-1",
+        category: "shopping",
+        amount: 1234567.89,
+        currency: "USD",
+        date: "2026-08-01",
+      },
+    };
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
     expect(screen.getByText("1,234,567.89")).toBeInTheDocument();
   });

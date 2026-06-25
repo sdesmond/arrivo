@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { ChevronRight, MapPin, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
 import { IconSize } from "@/lib/size-tokens";
-import { type TripEvent, type Document } from "@/data/types";
+import { type CreateExpenseInput, type Document, type TripEvent } from "@/data/types";
 import { cn, isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
@@ -25,6 +27,7 @@ function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHH
 export interface PlaceRowProps {
   place: TripEvent;
   dayDate?: string;
+  defaultCurrency?: string;
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
@@ -41,6 +44,7 @@ export interface PlaceRowProps {
 export function PlaceRow({
   place,
   dayDate,
+  defaultCurrency,
   isLast,
   onUpdate,
   onDelete,
@@ -116,6 +120,41 @@ export function PlaceRow({
     const val = draftNote.trim() || undefined;
     if (val !== place.note) onUpdate({ ...place, note: val });
     setIsEditingNote(false);
+  }
+
+  async function handleExpenseSave(expenseInput: CreateExpenseInput): Promise<void> {
+    if (!place.tripId) {
+      toast.error("Failed to save cost.");
+      return;
+    }
+
+    const linkedExpenseInput = {
+      ...expenseInput,
+      eventId: place.id,
+    };
+
+    try {
+      if (place.expense?.id) {
+        await updateExpense(place.expense.id, linkedExpenseInput);
+        return;
+      }
+
+      await createExpense(place.tripId, linkedExpenseInput);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save cost.");
+    }
+  }
+
+  async function handleExpenseRemove(): Promise<void> {
+    if (!place.expense?.id) {
+      return;
+    }
+
+    try {
+      await deleteExpense(place.expense.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove cost.");
+    }
   }
 
   return (
@@ -296,6 +335,7 @@ export function PlaceRow({
       {!isLinkedEvent && (
         <PlaceRowDialogs
           place={place}
+          defaultCurrency={defaultCurrency}
           tripDocs={tripDocs}
           showTimeDialog={showTimeDialog}
           onTimeOpenChange={setShowTimeDialog}
@@ -308,7 +348,8 @@ export function PlaceRow({
           }}
           showCostDialog={showCostDialog}
           onCostOpenChange={setShowCostDialog}
-          onCostSave={(cost) => onUpdate({ ...place, cost })}
+          onCostSave={handleExpenseSave}
+          onCostRemove={handleExpenseRemove}
           showLocationDialog={showLocationDialog}
           onLocationOpenChange={setShowLocationDialog}
           onLocationSave={(location) =>

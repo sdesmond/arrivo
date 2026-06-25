@@ -16,6 +16,7 @@ const HIGHLIGHT_DURATION_MS = 1500;
 export interface ReservationsTabProps {
   tripId: string;
   reservations: Reservation[];
+  defaultExpenseCurrency?: string;
   tripDocs?: Document[];
   isDateless: boolean;
   onOpenEditDates: () => void;
@@ -33,7 +34,14 @@ function sectionSortKey(type: ReservationType, reservations: Reservation[], now:
   return [1, -startAtMs];
 }
 
-export function ReservationsTab({ tripId, reservations, tripDocs, isDateless, onOpenEditDates }: ReservationsTabProps) {
+export function ReservationsTab({
+  tripId,
+  reservations,
+  defaultExpenseCurrency,
+  tripDocs,
+  isDateless,
+  onOpenEditDates,
+}: ReservationsTabProps) {
   const now = useNow();
   const router = useRouter();
   const pathname = usePathname();
@@ -179,6 +187,7 @@ export function ReservationsTab({ tripId, reservations, tripDocs, isDateless, on
             key={section.type}
             type={section.type}
             reservations={section.items}
+            defaultExpenseCurrency={defaultExpenseCurrency}
             open={openSections.has(section.type)}
             onToggle={() => toggleSection(section.type)}
             now={now}
