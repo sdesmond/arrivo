@@ -4,6 +4,7 @@ import {
   trips,
   days,
   events,
+  expenses,
   documents,
   reservations,
   collaborators,
@@ -27,6 +28,7 @@ import {
   dbEventToType,
   dbDocToType,
   dbReservationToType,
+  dbExpenseToType,
   dbCollabToType,
   dbChecklistToType,
   dbLoyaltyToType,
@@ -288,6 +290,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .orderBy(asc(tripPackingLists.position));
 
   const tripReservations = await db.select().from(reservations).where(eq(reservations.tripId, tripId));
+  const tripExpenses = await db.select().from(expenses).where(eq(expenses.tripId, tripId));
 
   const reservationIds = tripReservations.map((row) => row.id);
   const reservationDocRows =
@@ -306,8 +309,20 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     docsByReservationId.set(docRow.reservationId, existing);
   }
 
+  const expensesByEventId = new Map<string, typeof expenses.$inferSelect>();
+  const expensesByReservationId = new Map<string, typeof expenses.$inferSelect>();
+  for (const expenseRow of tripExpenses) {
+    if (expenseRow.eventId) {
+      expensesByEventId.set(expenseRow.eventId, expenseRow);
+    }
+    if (expenseRow.reservationId) {
+      expensesByReservationId.set(expenseRow.reservationId, expenseRow);
+    }
+  }
+
   const reservationsDomain = tripReservations.map((row) => ({
     ...dbReservationToType(row),
+    expense: expensesByReservationId.get(row.id) ? dbExpenseToType(expensesByReservationId.get(row.id)!) : undefined,
     documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
   }));
   const linkedEvents = deriveLinkedEvents(reservationsDomain);
@@ -418,6 +433,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
         ),
         ...(eventsByDay.get(day.id) ?? []).map((event) => ({
           ...dbEventToType(event),
+          expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
           docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
         })),
       ].sort((first, second) => first.position - second.position),
@@ -432,6 +448,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     })),
     unscheduledEvents: unscheduledEvents.map((event) => ({
       ...dbEventToType(event),
+      expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
       docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
     })),
     docs: tripDocs.map(dbDocToType),
