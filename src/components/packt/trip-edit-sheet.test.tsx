@@ -125,6 +125,19 @@ vi.mock("@/components/ui/alert-dialog", () => ({
 
 import { TripEditSheet } from "./trip-edit-sheet";
 import { TripDateConflictResolution, type Trip, type UpdateTripPatch } from "@/data/types";
+import { listSupportedCurrencies } from "@/lib/currencies";
+
+const currencyOptions = listSupportedCurrencies();
+
+function getCurrencyOption(code: string) {
+  const option = currencyOptions.find((currencyOption) => currencyOption.code === code);
+
+  if (!option) {
+    throw new Error(`Missing currency option for ${code}`);
+  }
+
+  return screen.getByRole("option", { name: `${option.name} ${option.code}` });
+}
 
 const baseTrip: Trip = {
   id: "trip-1",
@@ -135,7 +148,6 @@ const baseTrip: Trip = {
   budget: {
     currency: "USD",
     total: 3000,
-    perPerson: 1500,
   },
 };
 
@@ -147,44 +159,53 @@ describe("TripEditSheet", () => {
   });
 
   it("renders pre-filled trip name", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByDisplayValue("Tokyo Adventure")).toBeInTheDocument();
   });
 
   it("renders pre-filled start and end dates", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByTestId("date-range-start")).toHaveValue("2026-06-01");
     expect(screen.getByTestId("date-range-end")).toHaveValue("2026-06-10");
   });
 
   it("applies the highlight pulse ring to the dates field when highlightDates is true", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} highlightDates />);
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        highlightDates
+      />
+    );
     const datesField = screen.getByTestId("trip-edit-dates-field");
     expect(datesField).toHaveClass("highlight-pulse-ring");
   });
 
   it("does not highlight the dates field by default", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     const datesField = screen.getByTestId("trip-edit-dates-field");
     expect(datesField).not.toHaveClass("highlight-pulse-ring");
   });
 
-  it("renders budget total and per-person inputs with pre-filled values", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+  it("renders the budget total input with the current currency", () => {
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByDisplayValue("3000")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("1500")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
   });
 
   it("budget section label text is visible", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(screen.getByText("Per person")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
   });
 
   it("Cancel button calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
     await user.click(screen.getAllByRole("button", { name: /cancel/i })[0]);
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -192,7 +213,7 @@ describe("TripEditSheet", () => {
   it("Save button calls onSave with current draft values", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledOnce();
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
@@ -200,7 +221,6 @@ describe("TripEditSheet", () => {
     expect(patch.startDate).toBe("2026-06-01");
     expect(patch.endDate).toBe("2026-06-10");
     expect(patch.budgetTotal).toBe(3000);
-    expect(patch.budgetPerPerson).toBe(1500);
     expect(patch).not.toHaveProperty("coverImageUrl");
   });
 
@@ -208,7 +228,9 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     const tripWithCover: Trip = { ...baseTrip, coverImageUrl: "https://example.com/cover.jpg" };
-    render(<TripEditSheet trip={tripWithCover} open onClose={vi.fn()} onSave={onSave} />);
+    render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={tripWithCover} open onClose={vi.fn()} onSave={onSave} />
+    );
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
     expect(patch).not.toHaveProperty("coverImageUrl");
@@ -217,7 +239,7 @@ describe("TripEditSheet", () => {
   it("onSave includes modified name after editing", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     const nameInput = screen.getByDisplayValue("Tokyo Adventure");
     await user.clear(nameInput);
     await user.type(nameInput, "Kyoto Journey");
@@ -227,15 +249,27 @@ describe("TripEditSheet", () => {
 
   it("resets the trip dates after closing and reopening without saving", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    const { rerender } = render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
 
     await user.clear(screen.getByTestId("date-range-start"));
     await user.type(screen.getByTestId("date-range-start"), "2026-07-01");
     await user.clear(screen.getByTestId("date-range-end"));
     await user.type(screen.getByTestId("date-range-end"), "2026-07-10");
 
-    rerender(<TripEditSheet trip={baseTrip} open={false} onClose={vi.fn()} onSave={vi.fn()} />);
-    rerender(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    rerender(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    );
+    rerender(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
 
     expect(screen.getByTestId("date-range-start")).toHaveValue("2026-06-01");
     expect(screen.getByTestId("date-range-end")).toHaveValue("2026-06-10");
@@ -243,27 +277,41 @@ describe("TripEditSheet", () => {
 
   it("resets the trip name after closing and reopening without saving", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    const { rerender } = render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
 
     const nameInput = screen.getByDisplayValue("Tokyo Adventure");
     await user.clear(nameInput);
     await user.type(nameInput, "Kyoto Journey");
 
-    rerender(<TripEditSheet trip={baseTrip} open={false} onClose={vi.fn()} onSave={vi.fn()} />);
-    rerender(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    rerender(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    );
+    rerender(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
 
     expect(screen.getByDisplayValue("Tokyo Adventure")).toBeInTheDocument();
   });
 
   it("renders nothing when trip is null", () => {
-    const { container } = render(<TripEditSheet trip={null} open onClose={vi.fn()} onSave={vi.fn()} />);
+    const { container } = render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={null} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
     expect(container).toBeEmptyDOMElement();
   });
 
   it("onSave includes updated start date", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     const startInput = screen.getByTestId("date-range-start");
     await user.clear(startInput);
     await user.type(startInput, "2026-07-01");
@@ -272,17 +320,16 @@ describe("TripEditSheet", () => {
   });
 
   it("does not render a status select", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("updates budget currency input", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    const currencyInput = screen.getByDisplayValue("USD");
-    await user.clear(currencyInput);
-    await user.type(currencyInput, "EUR");
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /Currency: US Dollar USD/i }));
+    await user.click(getCurrencyOption("EUR"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetCurrency: "EUR" }));
   });
@@ -290,24 +337,15 @@ describe("TripEditSheet", () => {
   it("sets budgetTotal to undefined when input is cleared", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     await user.clear(screen.getByDisplayValue("3000"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetTotal: undefined }));
   });
 
-  it("sets budgetPerPerson to undefined when input is cleared", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    await user.clear(screen.getByDisplayValue("1500"));
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetPerPerson: undefined }));
-  });
-
   it("addCollaborator via TripEditCollaborators callback does not crash", async () => {
     const user = userEvent.setup();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: /add-collaborator/i }));
     expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
   });
@@ -318,7 +356,7 @@ describe("TripEditSheet", () => {
       ...baseTrip,
       collaborators: [{ name: "Alice", email: "a@a.com", initials: "A", role: "editor" as const }],
     };
-    render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: /remove-collaborator/i }));
     expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
   });
@@ -329,14 +367,14 @@ describe("TripEditSheet", () => {
       ...baseTrip,
       collaborators: [{ name: "Alice", email: "a@a.com", initials: "A", role: "editor" as const }],
     };
-    render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: /update-role/i }));
     expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
   });
 
   it("updateCollaboratorRole with no collaborators returns early without crash", async () => {
     const user = userEvent.setup();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: /update-role/i }));
     expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
   });
@@ -344,7 +382,7 @@ describe("TripEditSheet", () => {
   it("onSave includes updated end date after editing", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     const endInput = screen.getByTestId("date-range-end");
     await user.clear(endInput);
     await user.type(endInput, "2026-07-10");
@@ -355,7 +393,7 @@ describe("TripEditSheet", () => {
   it("normalizes a one-day selection by saving the same start and end date", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
 
     const endInput = screen.getByTestId("date-range-end");
     await user.clear(endInput);
@@ -372,7 +410,7 @@ describe("TripEditSheet", () => {
   it("sends null startDate when clearing both dates on a scheduled trip (AC13)", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
 
     await user.clear(screen.getByTestId("date-range-start"));
     await user.clear(screen.getByTestId("date-range-end"));
@@ -384,7 +422,7 @@ describe("TripEditSheet", () => {
   it("Drawer onOpenChange(false) calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
     await user.click(screen.getByTestId("sheet-close-trigger"));
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -392,20 +430,31 @@ describe("TripEditSheet", () => {
   it("Drawer onOpenChange(true) does not call onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={onClose} onSave={vi.fn()} />);
     await user.click(screen.getByTestId("sheet-open-trigger"));
     expect(onClose).not.toHaveBeenCalled();
   });
 
   it("disables save controls and shows Saving... while the trip save is pending", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} saving />);
+    render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} saving />
+    );
 
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
     expect(screen.getAllByRole("button", { name: "Cancel" })[0]).toBeDisabled();
   });
 
   it("renders a delete button when onDelete is provided", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} />);
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
     expect(screen.getByRole("button", { name: "Delete trip" })).toBeInTheDocument();
   });
 
@@ -413,7 +462,16 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
 
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} onDelete={onDelete} />);
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={onDelete}
+      />
+    );
 
     await user.click(screen.getByRole("button", { name: "Delete trip" }));
     expect(screen.getByText(/Delete\s+Tokyo Adventure\?/)).toBeInTheDocument();
@@ -427,6 +485,7 @@ describe("TripEditSheet", () => {
     const onResolveDateChange = vi.fn();
     render(
       <TripEditSheet
+        currencyOptions={currencyOptions}
         trip={baseTrip}
         open
         onClose={vi.fn()}
@@ -471,6 +530,7 @@ describe("TripEditSheet", () => {
     };
     render(
       <TripEditSheet
+        currencyOptions={currencyOptions}
         trip={baseTrip}
         open
         onClose={vi.fn()}
@@ -495,6 +555,7 @@ describe("TripEditSheet", () => {
   it("keeps the keep-events action visible when the dialog only warns about removed content", () => {
     render(
       <TripEditSheet
+        currencyOptions={currencyOptions}
         trip={baseTrip}
         open
         onClose={vi.fn()}
@@ -518,6 +579,7 @@ describe("TripEditSheet", () => {
     const onResolveDateChange = vi.fn();
     render(
       <TripEditSheet
+        currencyOptions={currencyOptions}
         trip={baseTrip}
         open
         onClose={vi.fn()}
@@ -540,7 +602,7 @@ describe("TripEditSheet", () => {
   it("onSave patch does not include destination fields when destination was not changed", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
     expect(patch.destinationName).toBeUndefined();
@@ -551,7 +613,7 @@ describe("TripEditSheet", () => {
   it("onSave patch includes new destination after selecting via onSelect callback", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     await user.click(screen.getByRole("button", { name: "select-destination" }));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
@@ -563,7 +625,7 @@ describe("TripEditSheet", () => {
   it("onSave patch includes null destination fields after clearing via onClear callback", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
     await user.click(screen.getByRole("button", { name: "clear-destination" }));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
@@ -575,15 +637,19 @@ describe("TripEditSheet", () => {
   it("resets destination input after closing and reopening without saving", async () => {
     const user = userEvent.setup();
     const trip = { ...baseTrip, destinationName: "Paris" };
-    const { rerender } = render(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    const { rerender } = render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
 
     expect(screen.getByTestId("destination-input")).toHaveValue("Paris");
 
     await user.click(screen.getByRole("button", { name: "clear-destination" }));
     expect(screen.getByTestId("destination-input")).toHaveValue("");
 
-    rerender(<TripEditSheet trip={trip} open={false} onClose={vi.fn()} onSave={vi.fn()} />);
-    rerender(<TripEditSheet trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    rerender(
+      <TripEditSheet currencyOptions={currencyOptions} trip={trip} open={false} onClose={vi.fn()} onSave={vi.fn()} />
+    );
+    rerender(<TripEditSheet currencyOptions={currencyOptions} trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
 
     expect(screen.getByTestId("destination-input")).toHaveValue("Paris");
   });

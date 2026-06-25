@@ -294,6 +294,8 @@ When("I set the event location for {string} using the first lookup suggestion", 
   await expect(input).toHaveValue("Paris, France");
   await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
   await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).not.toBeVisible({ timeout: 10_000 });
+  await expect(row.getByRole("button", { name: /Paris, France/ })).toBeVisible({ timeout: 10_000 });
 });
 
 When("I open the time picker and set a start time", async ({ page }) => {

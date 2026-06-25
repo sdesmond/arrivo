@@ -142,20 +142,14 @@ describe("dbTripToType", () => {
     const result = dbTripToType({
       ...BASE_TRIP,
       budgetTotal: "5000.00",
-      budgetPerPerson: "2500.00",
       budgetCurrency: "EUR",
     });
-    expect(result.budget).toEqual({ currency: "EUR", total: 5000, perPerson: 2500 });
+    expect(result.budget).toEqual({ currency: "EUR", total: 5000 });
   });
 
   it("defaults budget currency to USD when null", () => {
     const result = dbTripToType({ ...BASE_TRIP, budgetTotal: "1000.00", budgetCurrency: null });
     expect(result.budget?.currency).toBe("USD");
-  });
-
-  it("defaults budget perPerson to 0 when null", () => {
-    const result = dbTripToType({ ...BASE_TRIP, budgetTotal: "1000.00", budgetPerPerson: null });
-    expect(result.budget?.perPerson).toBe(0);
   });
 });
 

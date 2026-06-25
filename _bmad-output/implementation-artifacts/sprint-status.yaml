@@ -43,7 +43,7 @@ story_location: "{project-root}/_bmad-output/implementation-artifacts"
 
 development_status:
   epic-1: in-progress
-  1-1-set-trip-budget-currency: ready-for-dev
+  1-1-set-trip-budget-currency: in-progress
   1-2-unified-cost-entry-on-events-reservations: backlog
   1-3-currency-conversion-at-entry-time: backlog
   1-4-track-actual-spend-category-breakdown: backlog

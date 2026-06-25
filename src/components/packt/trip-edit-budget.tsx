@@ -1,40 +1,43 @@
 "use client";
 
+import { CurrencyPicker } from "@/components/packt/currency-picker";
 import { Field, Section } from "@/components/packt/form-section";
 import { Input } from "@/components/ui/input";
+import type { CurrencyOption } from "@/data/types";
+import { cn } from "@/lib/utils";
 
 export interface TripEditBudgetProps {
+  currencyOptions: CurrencyOption[];
   currency?: string;
   total?: number;
-  perPerson?: number;
   onCurrencyChange: (currency: string) => void;
   onTotalChange: (total: number | undefined) => void;
-  onPerPersonChange: (perPerson: number | undefined) => void;
   disabled?: boolean;
 }
 
 export function TripEditBudget({
+  currencyOptions,
   currency,
   total,
-  perPerson,
   onCurrencyChange,
   onTotalChange,
-  onPerPersonChange,
   disabled = false,
 }: TripEditBudgetProps) {
   return (
     <Section title="Budget">
-      <Field label="Currency" htmlFor="trip-budget-currency">
-        <Input
-          id="trip-budget-currency"
-          disabled={disabled}
-          value={currency ?? ""}
-          placeholder="USD"
-          onChange={(event) => onCurrencyChange(event.target.value)}
-        />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Total" htmlFor="trip-budget-total">
+      <Field label="Total" htmlFor="trip-budget-total">
+        <div
+          className={cn(
+            "flex h-9 items-center rounded-lg border border-input bg-transparent transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+            disabled && "opacity-50"
+          )}
+        >
+          <CurrencyPicker
+            currencyOptions={currencyOptions}
+            value={currency ?? "USD"}
+            onChange={onCurrencyChange}
+            disabled={disabled}
+          />
           <Input
             id="trip-budget-total"
             disabled={disabled}
@@ -42,25 +45,13 @@ export function TripEditBudget({
             min={0}
             value={total ?? ""}
             onChange={(event) => {
-              const val = event.target.value;
-              onTotalChange(val !== "" ? Math.max(0, Number(val)) : undefined);
+              const value = event.target.value;
+              onTotalChange(value !== "" ? Math.max(0, Number(value)) : undefined);
             }}
+            className="flex-1 rounded-none border-0 ring-0 focus-visible:ring-0"
           />
-        </Field>
-        <Field label="Per person" htmlFor="trip-budget-per-person">
-          <Input
-            id="trip-budget-per-person"
-            disabled={disabled}
-            type="number"
-            min={0}
-            value={perPerson ?? ""}
-            onChange={(event) => {
-              const val = event.target.value;
-              onPerPersonChange(val !== "" ? Math.max(0, Number(val)) : undefined);
-            }}
-          />
-        </Field>
-      </div>
+        </div>
+      </Field>
     </Section>
   );
 }

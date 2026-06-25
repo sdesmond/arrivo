@@ -3,11 +3,12 @@
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
 import { TravelHistoryList } from "@/components/packt/travel-history-list";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { type TripListEntry } from "@/data/types";
+import { type CurrencyOption, type TripListEntry } from "@/data/types";
 import { useTravelHistoryPageHandlers } from "./use-travel-history-page-handlers";
 
 interface TravelHistoryPageClientProps {
   initialEntries: TripListEntry[];
+  currencyOptions?: CurrencyOption[];
   nowISO: string;
   dateFormat: string;
   initialViewMode: "cards" | "list";
@@ -15,6 +16,7 @@ interface TravelHistoryPageClientProps {
 
 export function TravelHistoryPageClient({
   initialEntries,
+  currencyOptions = [],
   nowISO,
   dateFormat,
   initialViewMode,
@@ -35,6 +37,7 @@ export function TravelHistoryPageClient({
       <TripEditSheet
         key={handlers.editingTrip ?? "none"}
         trip={handlers.editingEntry?.trip ?? null}
+        currencyOptions={currencyOptions}
         open={handlers.editingTrip !== null}
         onClose={handlers.closeTripEditSheet}
         onSave={async (patch) => {

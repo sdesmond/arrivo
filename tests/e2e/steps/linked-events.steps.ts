@@ -31,6 +31,9 @@ function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): Tr
   };
 }
 
+// Mirror getFloatingNow: take a Date's local wall-clock components and emit them
+// as a UTC ISO string. Keeps seeded reservation times aligned with the Now Card's
+// timezone-independent comparison.
 function toFloatingIso(date: Date): string {
   return new Date(
     Date.UTC(
@@ -43,10 +46,6 @@ function toFloatingIso(date: Date): string {
       date.getMilliseconds()
     )
   ).toISOString();
-}
-
-function toLocalDateString(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
@@ -187,9 +186,17 @@ Given("I start from a three-day trip dated September 1, 2026 through September 3
 
 Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ scenario }, window: string) => {
   const now = new Date();
-  const startAt = window === "now" ? toFloatingIso(now) : toFloatingIso(new Date(now.getTime() + 60 * 60 * 1000));
-  const tripStartDate = toLocalDateString(now);
-  const tripEndDate = toLocalDateString(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000));
+  // The Now Card classifies events against a "floating" now (local wall-clock
+  // reinterpreted as UTC — see getFloatingNow). Seed times the same way so the
+  // comparison is timezone-independent; a true-UTC instant would shift by the
+  // machine offset and read as the wrong window west of UTC. A 5-minute margin
+  // absorbs the gap until the page sets its mock-date cookie.
+  const checkInAt =
+    window === "now" ? new Date(now.getTime() - 5 * 60 * 1000) : new Date(now.getTime() + 60 * 60 * 1000);
+  const startAt = toFloatingIso(checkInAt);
+  const endAt = toFloatingIso(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+  const tripStartDate = toFloatingIso(now).slice(0, 10);
+  const tripEndDate = toFloatingIso(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)).slice(0, 10);
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
@@ -203,7 +210,7 @@ Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ 
             type: "lodging",
             provider: "Torel Avantgarde",
             startAt,
-            endAt: toFloatingIso(new Date(now.getTime() + 24 * 60 * 60 * 1000)),
+            endAt,
           },
         ],
       },
@@ -220,6 +227,13 @@ When("I view the Itinerary tab", async ({ page }) => {
 });
 
 When("I view the trip list", async ({ page }) => {
+  await page.context().addCookies([
+    {
+      name: "__packt_mock_date__",
+      value: encodeURIComponent(new Date().toISOString()),
+      url: "http://localhost:3001",
+    },
+  ]);
   await page.goto("/trips");
 });
 

@@ -55,6 +55,7 @@ export type CoverType = (typeof CoverType)[keyof typeof CoverType];
 
 export const TripDetailTab = {
   Itinerary: "itin",
+  Budget: "budget",
   Map: "map",
   Documents: "docs",
   Packing: "pack",
@@ -271,6 +272,11 @@ export interface LocationLookupSelection {
   center: [number, number];
 }
 
+export interface CurrencyOption {
+  code: string;
+  name: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP EVENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -400,7 +406,6 @@ export interface Collaborator {
 export interface Budget {
   currency: string;
   total?: number;
-  perPerson?: number;
 }
 
 export interface PackingProgress {
@@ -576,7 +581,6 @@ export interface CreateTripInput {
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;
-  budgetPerPerson?: number;
   tags?: string[];
 }
 
@@ -591,7 +595,6 @@ export interface UpdateTripPatch {
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;
-  budgetPerPerson?: number;
   tags?: string[];
 }
 

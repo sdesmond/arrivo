@@ -63,7 +63,6 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
       ? {
           currency: row.budgetCurrency ?? "USD",
           total: Number(row.budgetTotal),
-          perPerson: Number(row.budgetPerPerson ?? 0),
         }
       : undefined,
     tags: row.tags ?? [],

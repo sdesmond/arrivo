@@ -1,6 +1,10 @@
+---
+baseline_commit: db0cc97bdab0238cd74ab4bf64c026a31f3628c9
+---
+
 # Story 1.1: Set Trip Budget & Currency
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -114,6 +118,29 @@ Source: ISO 4217 currency list. No API call — this is static data. Included cu
 - [Source: epics.md §UX-DR7] — Currency picker row pattern (code swatch + name + ISO code, `accent-soft` highlight, no checkmark)
 - [Source: epics.md §UX-DR13] — No-budget-set state for TripBudgetTab
 - [Source: project-context.md] — Technology stack, component conventions, CSS token rules
+
+### Review Findings
+
+#### Patch
+
+- [x] [Review][Patch] `toUtcWallClockIso` timezone bug — Date constructor interprets UTC components as local time, producing incorrect mock-date cookies in E2E [linked-events.steps.ts]
+- [x] [Review][Patch] `fireEvent.change` replacing `userEvent.type` lowers test fidelity in refactored tests [reservation-edit-drawer.test.tsx, save-as-template-dialog.test.tsx]
+- [x] [Review][Patch] CurrencyPicker `optionRefs` array goes stale when `currencyOptions` shrinks — leftover refs point to unmounted nodes [currency-picker.tsx] — dismissed, mitigated by clampCurrencyIndex
+- [x] [Review][Patch] Unknown currency value silently shows first option instead of the actual value — display lies to the user [currency-picker.tsx]
+- [x] [Review][Patch] `openCoverOptionsMenu` triple-retry stale-menu race in E2E helper — menu can close between visibility check and click [trip-cover-overflow.steps.ts]
+- [x] [Review][Patch] `resolveBudgetCurrency` error message omits the rejected code — debug unfriendly [actions.ts]
+- [x] [Review][Patch] TripEditSheet currency test validates broken empty-options path, not real production usage — test passes with disabled picker [trip-edit-sheet.test.tsx]
+- [x] [Review][Patch] `queueFocus` SSR path is misleading dead code — on server `callback()` runs but `focus()` is a no-op [currency-picker.tsx]
+- [x] [Review][Patch] `TripEditBudget.currencyOptions` is required but upstream `TripEditSheet` defaults to `[]` — type safety gap in prop chain [trip-edit-budget.tsx, trip-edit-sheet.tsx]
+- [x] [Review][Patch] `TripBudgetTab.formatBudgetAmount` throws on NaN/Infinity values — no `Number.isFinite` guard [trip-budget-tab.tsx]
+- [ ] [Review][Patch] CurrencyPicker trigger click to close doesn't refocus trigger — only Esc handler returns focus [currency-picker.tsx]
+
+#### Deferred
+
+- [x] [Review][Defer] `Budget.currency` typed as plain `string` — no compile-time guard against unsupported codes [data/types.ts] — deferred, pre-existing pattern across entire codebase
+- [x] [Review][Defer] 150-item currency list serialized into every page JS bundle — performance concern [currencies.ts] — deferred, pre-existing architectural concern, would need data-fetch pattern change
+- [x] [Review][Defer] save-as-template-dialog: unhandled onSave rejection — no error catch [save-as-template-dialog.tsx] — deferred, pre-existing, not in story scope
+- [x] [Review][Defer] save-as-template-dialog: rapid double-click before isSaving propagates — can invoke onSave twice [save-as-template-dialog.tsx] — deferred, pre-existing, not in story scope
 
 ## Dev Agent Record
 
