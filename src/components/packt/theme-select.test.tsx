@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 
 const mockSetTheme = vi.fn();
 vi.mock("next-themes", () => ({
@@ -26,5 +27,10 @@ describe("ThemeSelect", () => {
   it("renders enabled trigger when mounted", () => {
     render(<ThemeSelect />);
     expect(screen.getByRole("combobox", { name: /theme/i })).not.toBeDisabled();
+  });
+
+  it("uses the server snapshot during SSR", () => {
+    const markup = renderToString(<ThemeSelect />);
+    expect(markup).toContain("Theme");
   });
 });

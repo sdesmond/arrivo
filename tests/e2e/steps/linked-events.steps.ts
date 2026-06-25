@@ -31,22 +31,16 @@ function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): Tr
   };
 }
 
-function toFloatingIso(date: Date): string {
+function toUtcWallClockIso(date: Date): string {
   return new Date(
-    Date.UTC(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-      date.getHours(),
-      date.getMinutes(),
-      date.getSeconds(),
-      date.getMilliseconds()
-    )
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    date.getUTCHours(),
+    date.getUTCMinutes(),
+    date.getUTCSeconds(),
+    date.getUTCMilliseconds()
   ).toISOString();
-}
-
-function toLocalDateString(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
@@ -187,9 +181,12 @@ Given("I start from a three-day trip dated September 1, 2026 through September 3
 
 Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ scenario }, window: string) => {
   const now = new Date();
-  const startAt = window === "now" ? toFloatingIso(now) : toFloatingIso(new Date(now.getTime() + 60 * 60 * 1000));
-  const tripStartDate = toLocalDateString(now);
-  const tripEndDate = toLocalDateString(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000));
+  const startAt =
+    window === "now"
+      ? new Date(now.getTime() - 60 * 1000).toISOString()
+      : new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+  const tripStartDate = now.toISOString().slice(0, 10);
+  const tripEndDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
@@ -203,7 +200,7 @@ Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ 
             type: "lodging",
             provider: "Torel Avantgarde",
             startAt,
-            endAt: toFloatingIso(new Date(now.getTime() + 24 * 60 * 60 * 1000)),
+            endAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
           },
         ],
       },
@@ -220,6 +217,13 @@ When("I view the Itinerary tab", async ({ page }) => {
 });
 
 When("I view the trip list", async ({ page }) => {
+  await page.context().addCookies([
+    {
+      name: "__packt_mock_date__",
+      value: encodeURIComponent(toUtcWallClockIso(new Date())),
+      url: "http://localhost:3001",
+    },
+  ]);
   await page.goto("/trips");
 });
 

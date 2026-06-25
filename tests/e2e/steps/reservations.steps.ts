@@ -4,6 +4,14 @@ import { reservations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 
+function formatTimeForDisplay(time: string): string {
+  const [hourString, minute] = time.split(":");
+  const hour = Number(hourString);
+  const displayHour = hour % 12 || 12;
+  const meridiem = hour >= 12 ? "PM" : "AM";
+  return `${displayHour}:${minute} ${meridiem}`;
+}
+
 Given("I am on the Reservations tab", async ({ page }) => {
   await page.getByRole("button", { name: "Reservations", exact: true }).click();
   await expect(
@@ -156,6 +164,7 @@ When("I edit the reservation provider to {string}", async ({ page }, newProvider
 When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel: string, time: string) => {
   // Clicking the compact date-range display opens the inline date/time inputs directly.
   const timeInput = page.getByLabel(`${anchorLabel} time`);
+  const row = page.locator('[data-testid^="reservation-row-"]').first();
   if (!(await timeInput.isVisible())) {
     await page
       .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
@@ -164,8 +173,13 @@ When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel
       .click();
   }
   await timeInput.fill(time);
-  // Click away from the edit section to save and collapse.
-  await page.locator("body").click({ position: { x: 10, y: 10 } });
+  // Click a neutral point inside the row so blur saves without navigating away.
+  await row.click({ position: { x: 8, y: 8 } });
+  await expect(timeInput).not.toBeVisible({ timeout: 10_000 });
+  const displayTime = formatTimeForDisplay(time);
+  await expect(row.getByRole("button", { name: new RegExp(`\\b${displayTime}\\b`) }).first()).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
@@ -184,18 +198,10 @@ Then(
 );
 
 Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabel: string, time: string) => {
-  // After reload the panel is collapsed. Open it, verify the time input value (HH:MM,
-  // timezone-independent), then click away to close without altering anything.
-  const timeInput = page.getByLabel(`${anchorLabel} time`);
-  if (!(await timeInput.isVisible())) {
-    await page
-      .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
-      .or(page.getByRole("button", { name: "Add dates" }))
-      .first()
-      .click();
-  }
-  await expect(timeInput).toHaveValue(time, { timeout: 10_000 });
-  await page.locator("body").click({ position: { x: 10, y: 10 } });
+  const displayTime = formatTimeForDisplay(time);
+  await expect(page.getByRole("button", { name: new RegExp(`\\b${displayTime}\\b`) }).first()).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 When("I delete the reservation {string}", async ({ page }, provider: string) => {

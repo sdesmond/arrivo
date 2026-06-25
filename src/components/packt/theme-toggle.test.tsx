@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 
 const setThemeMock = vi.fn();
 let resolvedTheme = "light";
@@ -44,5 +45,11 @@ describe("ThemeToggle", () => {
     resolvedTheme = "dark";
     render(<ThemeToggle />);
     expect(screen.getByRole("button")).toHaveAttribute("aria-label", "Switch to light mode");
+  });
+
+  it("uses the server snapshot during SSR", () => {
+    resolvedTheme = "light";
+    const markup = renderToString(<ThemeToggle />);
+    expect(markup).toContain("Switch to dark mode");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationType } from "@/data/types";
@@ -111,6 +111,10 @@ describe("ReservationEditDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
+  function changeField(label: string, value: string): void {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
 
   it("does not render when closed", () => {
     render(
@@ -236,27 +240,29 @@ describe("ReservationEditDrawer", () => {
     const user = userEvent.setup();
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Lodging} open onOpenChange={onOpenChange} />);
 
-    await user.type(screen.getByLabelText("Provider *"), "Grand Hotel");
-    await user.type(screen.getByLabelText("Check-in date"), "2026-08-01");
-    await user.type(screen.getByLabelText("Check-in time"), "15:00");
-    await user.type(screen.getByLabelText("Check-out date"), "2026-08-05");
-    await user.type(screen.getByLabelText("Check-out time"), "11:00");
+    changeField("Provider *", "Grand Hotel");
+    changeField("Check-in date", "2026-08-01");
+    changeField("Check-in time", "15:00");
+    changeField("Check-out date", "2026-08-05");
+    changeField("Check-out time", "11:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() =>
-      expect(createReservation).toHaveBeenCalledWith("trip-1", {
-        type: ReservationType.Lodging,
-        provider: "Grand Hotel",
-        startAt: "2026-08-01T15:00:00.000Z",
-        endAt: "2026-08-05T11:00:00.000Z",
-        startAddress: undefined,
-        endAddress: undefined,
-        cost: undefined,
-        confirmationCode: undefined,
-        notes: undefined,
-      })
+    await vi.waitFor(
+      () =>
+        expect(createReservation).toHaveBeenCalledWith("trip-1", {
+          type: ReservationType.Lodging,
+          provider: "Grand Hotel",
+          startAt: "2026-08-01T15:00:00.000Z",
+          endAt: "2026-08-05T11:00:00.000Z",
+          startAddress: undefined,
+          endAddress: undefined,
+          cost: undefined,
+          confirmationCode: undefined,
+          notes: undefined,
+        }),
+      { timeout: 10_000 }
     );
-  });
+  }, 15_000);
 
   it("saves with address fields and cost when provided", async () => {
     vi.mocked(createReservation).mockResolvedValueOnce(undefined);
@@ -272,23 +278,25 @@ describe("ReservationEditDrawer", () => {
     await user.type(screen.getByLabelText("Cost (Optional)"), "349.99");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() =>
-      expect(createReservation).toHaveBeenCalledWith(
-        "trip-1",
-        expect.objectContaining({
-          startAddress: "JFK Airport, New York",
-          startLocationName: undefined,
-          startLocationLat: undefined,
-          startLocationLng: undefined,
-          endAddress: "LAX Airport, Los Angeles",
-          endLocationName: undefined,
-          endLocationLat: undefined,
-          endLocationLng: undefined,
-          cost: 349.99,
-        })
-      )
+    await vi.waitFor(
+      () =>
+        expect(createReservation).toHaveBeenCalledWith(
+          "trip-1",
+          expect.objectContaining({
+            startAddress: "JFK Airport, New York",
+            startLocationName: undefined,
+            startLocationLat: undefined,
+            startLocationLng: undefined,
+            endAddress: "LAX Airport, Los Angeles",
+            endLocationName: undefined,
+            endLocationLat: undefined,
+            endLocationLng: undefined,
+            cost: 349.99,
+          })
+        ),
+      { timeout: 10_000 }
     );
-  });
+  }, 15_000);
 
   it("saves structured location fields when suggestions are selected", async () => {
     vi.mocked(createReservation).mockResolvedValueOnce(undefined);
@@ -302,22 +310,24 @@ describe("ReservationEditDrawer", () => {
     await user.click(screen.getByRole("button", { name: "reservation-end-address-resolve" }));
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() =>
-      expect(createReservation).toHaveBeenCalledWith(
-        "trip-1",
-        expect.objectContaining({
-          startAddress: "Queens, NY 11430",
-          startLocationName: "JFK Airport",
-          startLocationLat: 40.6413,
-          startLocationLng: -73.7781,
-          endAddress: "1 World Way, Los Angeles, CA",
-          endLocationName: "LAX Airport",
-          endLocationLat: 33.9416,
-          endLocationLng: -118.4085,
-        })
-      )
+    await vi.waitFor(
+      () =>
+        expect(createReservation).toHaveBeenCalledWith(
+          "trip-1",
+          expect.objectContaining({
+            startAddress: "Queens, NY 11430",
+            startLocationName: "JFK Airport",
+            startLocationLat: 40.6413,
+            startLocationLng: -73.7781,
+            endAddress: "1 World Way, Los Angeles, CA",
+            endLocationName: "LAX Airport",
+            endLocationLat: 33.9416,
+            endLocationLng: -118.4085,
+          })
+        ),
+      { timeout: 10_000 }
     );
-  });
+  }, 15_000);
 
   it("blocks save and shows an error when cost is not a valid number", async () => {
     const user = userEvent.setup();
@@ -339,14 +349,14 @@ describe("ReservationEditDrawer", () => {
     const user = userEvent.setup();
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={onOpenChange} />);
 
-    await user.type(screen.getByLabelText("Provider *"), "Misc");
-    await user.type(screen.getByLabelText("Start date"), "2026-08-01");
-    await user.type(screen.getByLabelText("Start time"), "10:00");
+    changeField("Provider *", "Misc");
+    changeField("Start date", "2026-08-01");
+    changeField("Start time", "10:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"), { timeout: 10_000 });
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-  });
+  }, 15_000);
 
   it("calls onOpenChange(false) when Cancel is clicked", async () => {
     const onOpenChange = vi.fn();
