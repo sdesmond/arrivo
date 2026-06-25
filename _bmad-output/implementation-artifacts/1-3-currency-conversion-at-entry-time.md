@@ -4,7 +4,7 @@ baseline_commit: 48701a4
 
 # Story 1.3: Currency Conversion at Entry Time
 
-Status: review
+Status: done
 
 ## Story
 
@@ -251,3 +251,29 @@ claude-opus-4-8 (Claude Code dev-story workflow)
 ## Change Log
 
 - 2026-06-25: Implemented currency conversion at entry time — added `lib/currency.ts` Frankfurter client (convert/convertDual/recalculate stub + bounded today-only rate cache) and wired server-side dual conversion into createExpense/updateExpense with non-blocking failure toast. All ACs satisfied. (Status: ready-for-dev → review)
+
+### Review Findings
+
+**decision-needed:**
+
+- [x] [Review][Decision] Server-side toast not visible to user — RESOLVED: removed `toast.error()` from `computeConversions`, actions now return `conversionError` flag, and `place-row.tsx`/`reservation-row.tsx` call `toast.error()` client-side.
+
+**patch:**
+
+- [x] [Review][Patch] Cache TTL test doesn't test TTL [src/lib/currency.test.ts] — Fixed: replaced `vi.advanceTimersByTime` with `vi.setSystemTime` to properly advance `Date.now()`.
+- [x] [Review][Patch] Unguarded `conversions[tripCurrency]` access [actions.ts] — Fixed: added null checks before accessing conversion results.
+- [x] [Review][Patch] No case normalization on currency codes [actions.ts, currency.ts] — Fixed: added `.toUpperCase()` at all normalization points.
+- [x] [Review][Patch] Sequential DB queries add unnecessary latency [actions.ts] — Fixed: wrapped both queries in `Promise.all`.
+- [x] [Review][Patch] `toast.error()` in catch could cause double fault — Resolved as part of decision-needed fix (toast removed from Server Action).
+- [x] [Review][Patch] `Number(expenseRow.amount)` on nullable numeric string [actions.ts] — Fixed: added `?? 0` guard.
+- [x] [Review][Patch] No `beforeEach` cleanup in doc-row.test.tsx — Dismissed: `beforeEach(vi.clearAllMocks)` already present at line 74, finding was invalid.
+- [x] [Review][Patch] `todayISO()` called twice — potential midnight rollover race [currency.ts] — Fixed: hoisted to a single `today` variable.
+- [x] [Review][Patch] Redundant conditional in `computeConversions` assignment [actions.ts] — Fixed: replaced redundant `tripCurrency !== currency` guards with null checks on conversion result.
+- [x] [Review][Patch] Missing conversionRate assertions in unrelated-field-change test [actions.test.ts] — Fixed: added absence assertions for all 6 conversion fields.
+- [x] [Review][Patch] `patch.currency` null guard missing [actions.ts] — Fixed: added `patch.currency !== null` check.
+- [x] [Review][Patch] `convert()` empty-string `toCurrency` guard missing [currency.ts] — Fixed: added validation that throws when target currency is empty.
+
+**defer:**
+
+- [x] [Review][Defer] `getNow()`/`Date.now()` divergence risk [currency.ts:88-90] — Date comparison uses `getNow()` from mock-date while cache TTL uses `Date.now()`. If mock-date returns an offset, cache behavior is inconsistent. Low risk for current usage.
+- [x] [Review][Defer] `recalculate()` stub signature may change in Story 1.6 [currency.ts:153] — Current stub accepts `Expense[]` but will likely need trip/user lookup context for batch recalculation. Intentional placeholder.

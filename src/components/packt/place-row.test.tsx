@@ -494,7 +494,7 @@ describe("PlaceRow", () => {
 
   it("cost dialog save creates a linked expense", async () => {
     const user = userEvent.setup();
-    vi.mocked(createExpense).mockResolvedValueOnce("expense-1");
+    vi.mocked(createExpense).mockResolvedValueOnce({ id: "expense-1" });
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });

@@ -239,7 +239,10 @@ export function ReservationRow({
   async function handleExpenseSave(expenseInput: CreateExpenseInput): Promise<void> {
     try {
       if (expense?.id) {
-        await updateExpense(expense.id, { ...expenseInput, reservationId: reservation.id });
+        const updateResult = await updateExpense(expense.id, { ...expenseInput, reservationId: reservation.id });
+        if (updateResult?.conversionError) {
+          toast.error("Couldn't convert currency — try again.");
+        }
         setExpense({
           ...expense,
           ...expenseInput,
@@ -254,12 +257,15 @@ export function ReservationRow({
         return;
       }
 
-      const createdExpenseId = await createExpense(reservation.tripId, {
+      const createResult = await createExpense(reservation.tripId, {
         ...expenseInput,
         reservationId: reservation.id,
       });
+      if (createResult.conversionError) {
+        toast.error("Couldn't convert currency — try again.");
+      }
       setExpense({
-        id: createdExpenseId,
+        id: createResult.id,
         tripId: reservation.tripId,
         reservationId: reservation.id,
         category: expenseInput.category,

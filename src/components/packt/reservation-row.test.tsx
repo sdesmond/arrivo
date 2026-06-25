@@ -262,7 +262,7 @@ describe("ReservationRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(updateReservation).mockResolvedValue(undefined);
-    vi.mocked(createExpense).mockResolvedValue("expense-new");
+    vi.mocked(createExpense).mockResolvedValue({ id: "expense-new" });
     vi.mocked(updateExpense).mockResolvedValue(undefined);
     vi.mocked(deleteExpenseAction).mockResolvedValue(undefined);
   });

@@ -1,32 +1,22 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  assertTripAccess,
-  convertDual,
-  db,
-  expensesTable,
-  requireUser,
-  revalidatePath,
-  toastError,
-  tripsTable,
-  usersTable,
-} = vi.hoisted(() => ({
-  assertTripAccess: vi.fn(),
-  convertDual: vi.fn(),
-  db: {
-    delete: vi.fn(),
-    insert: vi.fn(),
-    select: vi.fn(),
-    update: vi.fn(),
-  },
-  expensesTable: { id: "expenses.id", tripId: "expenses.tripId" },
-  requireUser: vi.fn(),
-  revalidatePath: vi.fn(),
-  toastError: vi.fn(),
-  tripsTable: { id: "trips.id", budgetCurrency: "trips.budgetCurrency" },
-  usersTable: { id: "users.id", currency: "users.currency" },
-}));
+const { assertTripAccess, convertDual, db, expensesTable, requireUser, revalidatePath, tripsTable, usersTable } =
+  vi.hoisted(() => ({
+    assertTripAccess: vi.fn(),
+    convertDual: vi.fn(),
+    db: {
+      delete: vi.fn(),
+      insert: vi.fn(),
+      select: vi.fn(),
+      update: vi.fn(),
+    },
+    expensesTable: { id: "expenses.id", tripId: "expenses.tripId" },
+    requireUser: vi.fn(),
+    revalidatePath: vi.fn(),
+    tripsTable: { id: "trips.id", budgetCurrency: "trips.budgetCurrency" },
+    usersTable: { id: "users.id", currency: "users.currency" },
+  }));
 
 vi.mock("@/lib/auth-helpers", () => ({
   assertTripAccess,
@@ -49,10 +39,6 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/currency", () => ({
   convertDual,
-}));
-
-vi.mock("sonner", () => ({
-  toast: { error: toastError, success: vi.fn() },
 }));
 
 import { createExpense, updateExpense, deleteExpense } from "./actions";
@@ -139,7 +125,8 @@ describe("budget actions", () => {
       note: "Museum tickets",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(result).toBe("expense-1");
+    expect(result.id).toBe("expense-1");
+    expect(result.conversionError).toBeUndefined();
   });
 
   it("rejects an expense without a linked event or reservation", async () => {
@@ -201,7 +188,7 @@ describe("budget actions", () => {
     });
   });
 
-  it("saves the expense unconverted and shows a toast when conversion fails", async () => {
+  it("saves the expense unconverted with a conversionError flag when conversion fails", async () => {
     mockCurrencyLookups("EUR", "GBP");
     convertDual.mockRejectedValue(new Error("Frankfurter unavailable"));
 
@@ -213,8 +200,8 @@ describe("budget actions", () => {
       date: "2026-08-01",
     });
 
-    expect(result).toBe("expense-1");
-    expect(toastError).toHaveBeenCalledWith("Couldn't convert currency — try again.");
+    expect(result.id).toBe("expense-1");
+    expect(result.conversionError).toBe(true);
     expect(insertedExpenseValues).toMatchObject({
       convertedAmountTrip: null,
       convertedCurrencyTrip: null,
@@ -276,6 +263,10 @@ describe("budget actions", () => {
 
     expect(convertDual).not.toHaveBeenCalled();
     expect(updatedExpenseValues).not.toHaveProperty("convertedAmountTrip");
+    expect(updatedExpenseValues).not.toHaveProperty("conversionRateTrip");
+    expect(updatedExpenseValues).not.toHaveProperty("convertedCurrencyTrip");
+    expect(updatedExpenseValues).not.toHaveProperty("convertedAmountProfile");
+    expect(updatedExpenseValues).not.toHaveProperty("conversionRateProfile");
     expect(updatedExpenseValues).not.toHaveProperty("convertedCurrencyProfile");
   });
 

@@ -129,7 +129,7 @@ describe("lib/currency", () => {
       const fetchSpy = mockFetchRates({ EUR: 0.92 });
 
       await convert(100, "USD", "EUR", TODAY);
-      vi.advanceTimersByTime(60 * 60 * 1000 + 1);
+      vi.setSystemTime(new Date("2026-06-25T13:00:01Z"));
       await convert(100, "USD", "EUR", TODAY);
 
       expect(fetchSpy).toHaveBeenCalledTimes(2);

@@ -87,7 +87,8 @@ export async function convertDual(
   }
 
   const lookupDate = resolveLookupDate(date);
-  const useCache = lookupDate === todayISO();
+  const today = todayISO();
+  const useCache = lookupDate === today;
   const cache = getCache();
 
   const rates: Record<string, number> = {};
@@ -136,6 +137,10 @@ export async function convert(
   toCurrency: string,
   date: string
 ): Promise<ConversionResult> {
+  if (!toCurrency) {
+    throw new Error("Target currency is required.");
+  }
+
   if (fromCurrency === toCurrency) {
     return { convertedAmount: amount, rate: 1 };
   }
