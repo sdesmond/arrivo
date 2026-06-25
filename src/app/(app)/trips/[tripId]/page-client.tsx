@@ -41,6 +41,7 @@ const TABS: { id: TripDetailTabValue; label: string }[] = [
 interface TripDetailClientProps {
   detail: TripDetailPayload;
   currencyOptions?: CurrencyOption[];
+  defaultExpenseCurrency?: string;
   nowISO: string;
   dateFormat: string;
   initialExpandedDayNumber?: number;
@@ -52,6 +53,7 @@ interface TripDetailClientProps {
 export function TripDetailClient({
   detail,
   currencyOptions = [],
+  defaultExpenseCurrency,
   nowISO,
   dateFormat,
   initialExpandedDayNumber,
@@ -193,6 +195,7 @@ export function TripDetailClient({
           <TripDetailTabBody
             tripId={trip.id}
             trip={trip}
+            defaultExpenseCurrency={defaultExpenseCurrency}
             activeTab={activeTab}
             days={days}
             unscheduledEvents={unscheduledEvents}

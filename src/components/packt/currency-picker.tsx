@@ -14,6 +14,7 @@ export interface CurrencyPickerProps {
   value?: string;
   onChange: (currency: string) => void;
   disabled?: boolean;
+  searchable?: boolean;
 }
 
 function queueFocus(callback: () => void): void {
@@ -51,6 +52,7 @@ export function CurrencyPicker({
   value = "USD",
   onChange,
   disabled = false,
+  searchable = true,
 }: CurrencyPickerProps): ReactElement {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -70,14 +72,14 @@ export function CurrencyPicker({
   );
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || searchable) {
       return;
     }
 
     queueFocus(() => {
-      searchInputRef.current?.focus();
+      optionRefs.current[activeIndex]?.focus();
     });
-  }, [isOpen]);
+  }, [activeIndex, isOpen, searchable]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -95,6 +97,20 @@ export function CurrencyPicker({
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    if (!searchable) {
+      return;
+    }
+
+    queueFocus(() => {
+      searchInputRef.current?.focus();
+    });
+  }, [isOpen, searchable]);
 
   function closePicker(): void {
     setIsOpen(false);
@@ -121,9 +137,7 @@ export function CurrencyPicker({
   function moveActiveIndex(step: number): void {
     const nextIndex = clampCurrencyIndex(activeIndex + step, filteredOptions.length);
     setActiveIndex(nextIndex);
-    queueFocus(() => {
-      optionRefs.current[nextIndex]?.focus();
-    });
+    optionRefs.current[nextIndex]?.focus();
   }
 
   function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>): void {
@@ -184,12 +198,12 @@ export function CurrencyPicker({
       case "Home":
         event.preventDefault();
         setActiveIndex(0);
-        queueFocus(() => optionRefs.current[0]?.focus());
+        optionRefs.current[0]?.focus();
         break;
       case "End":
         event.preventDefault();
         setActiveIndex(filteredOptions.length - 1);
-        queueFocus(() => optionRefs.current[filteredOptions.length - 1]?.focus());
+        optionRefs.current[filteredOptions.length - 1]?.focus();
         break;
       case "Enter":
       case " ":
@@ -243,25 +257,27 @@ export function CurrencyPicker({
             boxShadow: "0 18px 36px color-mix(in srgb, var(--fg) 12%, transparent)",
           }}
         >
-          <div className="border-b p-2" style={{ borderColor: "var(--line)" }}>
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2"
-                strokeWidth={1.5}
-                style={{ color: "var(--fg-3)" }}
-              />
-              <Input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search"
-                aria-label="Search currencies"
-                value={query}
-                onChange={handleSearchChange}
-                onKeyDown={handleSearchKeyDown}
-                className="pl-8"
-              />
+          {searchable ? (
+            <div className="border-b p-2" style={{ borderColor: "var(--line)" }}>
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2"
+                  strokeWidth={1.5}
+                  style={{ color: "var(--fg-3)" }}
+                />
+                <Input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search"
+                  aria-label="Search currencies"
+                  value={query}
+                  onChange={handleSearchChange}
+                  onKeyDown={handleSearchKeyDown}
+                  className="pl-8"
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <ScrollArea className="h-80">
             <div id={listboxId} role="listbox" aria-label="Currency options" className="p-2">

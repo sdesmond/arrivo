@@ -3,6 +3,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationRow } from "./reservation-row";
+import {
+  createExpense,
+  deleteExpense as deleteExpenseAction,
+  updateExpense,
+} from "@/app/(app)/trips/[tripId]/budget/actions";
 import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 import { formatReservationDateRange } from "./reservation-type-badge";
@@ -16,6 +21,12 @@ vi.mock("sonner", () => ({
 vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
   updateReservation: vi.fn(),
   deleteReservation: vi.fn(),
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
+  createExpense: vi.fn(),
+  deleteExpense: vi.fn(),
+  updateExpense: vi.fn(),
 }));
 
 vi.mock("./reservation-docs-block", () => ({
@@ -149,12 +160,14 @@ vi.mock("./reservation-field-dialog", () => ({
 }));
 
 vi.mock("@/components/packt/cost-dialog", () => ({
-  CostDialog: ({ open, onOpenChange, onSave }: CostDialogProps) =>
+  CostDialog: ({ open, onOpenChange, onSave, onRemove }: CostDialogProps) =>
     open ? (
       <div>
         <button
           onClick={() => {
-            onSave(199.99);
+            void Promise.resolve(
+              onSave({ category: "food", amount: 199.99, currency: "USD", date: "2026-08-01" })
+            ).catch(() => undefined);
             onOpenChange(false);
           }}
         >
@@ -162,7 +175,9 @@ vi.mock("@/components/packt/cost-dialog", () => ({
         </button>
         <button
           onClick={() => {
-            onSave(undefined);
+            if (onRemove) {
+              void Promise.resolve(onRemove()).catch(() => undefined);
+            }
             onOpenChange(false);
           }}
         >
@@ -188,7 +203,15 @@ const populatedReservation: Reservation = {
   endLocationName: "Grand Hotel Paris",
   endLocationLat: 48.8566,
   endLocationLng: 2.3522,
-  cost: 499,
+  expense: {
+    id: "expense-1",
+    tripId: "trip-1",
+    reservationId: "res-1",
+    category: "lodging",
+    amount: 499,
+    currency: "USD",
+    date: "2026-08-01",
+  },
   confirmationCode: "ABC123",
   notes: "Late checkout requested",
   documents: [],
@@ -239,6 +262,9 @@ describe("ReservationRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(updateReservation).mockResolvedValue(undefined);
+    vi.mocked(createExpense).mockResolvedValue("expense-new");
+    vi.mocked(updateExpense).mockResolvedValue(undefined);
+    vi.mocked(deleteExpenseAction).mockResolvedValue(undefined);
   });
 
   it("renders all fields with values for a populated reservation", () => {
@@ -512,14 +538,23 @@ describe("ReservationRow", () => {
     expect(screen.getByRole("button", { name: "Check-out · Updated place" })).toBeInTheDocument();
   });
 
-  it("updates cost after saving through the cost dialog", async () => {
+  it("updates linked expense after saving through the cost dialog", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
     await user.click(screen.getByRole("button", { name: "499.00" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { cost: 199.99 });
+    expect(updateExpense).toHaveBeenCalledWith(
+      "expense-1",
+      expect.objectContaining({
+        reservationId: "res-1",
+        category: "food",
+        amount: 199.99,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    );
     expect(
       screen.getByRole("button", {
         name: new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(199.99),
@@ -527,14 +562,14 @@ describe("ReservationRow", () => {
     ).toBeInTheDocument();
   });
 
-  it("clears cost when Remove is clicked in the cost dialog", async () => {
+  it("clears linked expense when Remove is clicked in the cost dialog", async () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
     await user.click(screen.getByRole("button", { name: "499.00" }));
     await user.click(screen.getByRole("button", { name: "dialog-remove" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { cost: null });
+    expect(deleteExpenseAction).toHaveBeenCalledWith("expense-1");
     expect(screen.getByRole("button", { name: "Add cost" })).toBeInTheDocument();
   });
 
@@ -583,7 +618,7 @@ describe("ReservationRow", () => {
   });
 
   it("shows a toast when saving the cost dialog fails", async () => {
-    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(updateExpense).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 

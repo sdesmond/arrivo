@@ -2,6 +2,18 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+const { createExpense, deleteExpense, updateExpense } = vi.hoisted(() => ({
+  createExpense: vi.fn(),
+  deleteExpense: vi.fn(),
+  updateExpense: vi.fn(),
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
+  createExpense,
+  deleteExpense,
+  updateExpense,
+}));
+
 vi.mock("lucide-react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("lucide-react")>();
   return {
@@ -33,6 +45,7 @@ vi.mock("./place-row-dialogs", () => ({
     showCostDialog,
     onCostOpenChange,
     onCostSave,
+    onCostRemove,
     showLocationDialog,
     onLocationOpenChange,
     onLocationSave,
@@ -46,7 +59,8 @@ vi.mock("./place-row-dialogs", () => ({
     onTimeSave: (t?: string, et?: string) => void;
     showCostDialog: boolean;
     onCostOpenChange: (v: boolean) => void;
-    onCostSave: (cost?: number) => void;
+    onCostSave: (expense: { category: string; amount: number; currency: string; date: string }) => void;
+    onCostRemove?: () => void;
     showLocationDialog: boolean;
     onLocationOpenChange: (v: boolean) => void;
     onLocationSave: (location?: { address: string; name?: string; lat?: number; lng?: number }) => void;
@@ -79,7 +93,10 @@ vi.mock("./place-row-dialogs", () => ({
       )}
       {showCostDialog && (
         <div data-testid="cost-dialog">
-          <button onClick={() => onCostSave(99)}>cost-save</button>
+          <button onClick={() => onCostSave({ category: "food", amount: 99, currency: "USD", date: "2026-08-01" })}>
+            cost-save
+          </button>
+          {onCostRemove ? <button onClick={onCostRemove}>cost-remove</button> : null}
           <button onClick={() => onCostOpenChange(false)}>cost-close</button>
         </div>
       )}
@@ -117,7 +134,7 @@ vi.mock("./place-row-dialogs", () => ({
 
 import { PlaceRow } from "./place-row";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import type { TripEvent } from "@/data/types";
+import { ExpenseCategory, type TripEvent } from "@/data/types";
 import {
   ANCHOR_LABELS,
   RESERVATION_TYPE_META,
@@ -133,6 +150,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 const basePlace: TripEvent = {
   id: "ev-1",
+  tripId: "trip-1",
   name: "Tokyo Tower",
   startAt: "2026-05-13T10:00:00Z",
   endAt: "2026-05-13T11:00:00Z",
@@ -291,8 +309,19 @@ describe("PlaceRow", () => {
     expect(screen.getByRole("button", { name: /add cost/i })).toBeInTheDocument();
   });
 
-  it("shows cost amount when cost is set", () => {
-    const place = { ...basePlace, cost: 42.5 };
+  it("shows cost amount when a linked expense is set", () => {
+    const place = {
+      ...basePlace,
+      expense: {
+        id: "expense-1",
+        tripId: "trip-1",
+        eventId: "ev-1",
+        category: ExpenseCategory.Food,
+        amount: 42.5,
+        currency: "USD",
+        date: "2026-08-01",
+      },
+    };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.getByText("42.50")).toBeInTheDocument();
   });
@@ -433,15 +462,24 @@ describe("PlaceRow", () => {
     expect(screen.getByTestId("cost-dialog")).toBeInTheDocument();
   });
 
-  it("cost dialog save calls onUpdate with new cost", async () => {
+  it("cost dialog save creates a linked expense", async () => {
     const user = userEvent.setup();
-    const onUpdate = vi.fn();
-    render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
+    vi.mocked(createExpense).mockResolvedValueOnce("expense-1");
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add cost/i }));
     await user.click(screen.getByRole("button", { name: "cost-save" }));
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ cost: 99 }));
+    expect(createExpense).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        eventId: "ev-1",
+        category: "food",
+        amount: 99,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    );
   });
 
   it("clicking doc count button toggles docs block", async () => {

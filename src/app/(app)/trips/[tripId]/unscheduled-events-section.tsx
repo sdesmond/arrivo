@@ -9,6 +9,7 @@ import { formatDate, pluralize } from "@/lib/utils";
 
 export interface UnscheduledEventsSectionProps {
   unscheduledEvents: TripEvent[];
+  defaultExpenseCurrency?: string;
   dateFormat?: string;
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
@@ -17,6 +18,7 @@ export interface UnscheduledEventsSectionProps {
 
 export function UnscheduledEventsSection({
   unscheduledEvents,
+  defaultExpenseCurrency,
   dateFormat,
   tripDocs,
   onUpdateEvent,
@@ -95,6 +97,7 @@ export function UnscheduledEventsSection({
                   key={event.id}
                   id={`unscheduled-event-${event.id}`}
                   place={event}
+                  defaultCurrency={defaultExpenseCurrency}
                   dayDate={event.startAt?.slice(0, 10) ?? event.displacedDate}
                   isLast={index === eventsForDate.length - 1}
                   onUpdate={onUpdateEvent}

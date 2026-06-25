@@ -252,7 +252,6 @@ describe("ReservationEditDrawer", () => {
           endAt: "2026-08-05T11:00:00.000Z",
           startAddress: undefined,
           endAddress: undefined,
-          cost: undefined,
           confirmationCode: undefined,
           notes: undefined,
         }),
@@ -260,7 +259,7 @@ describe("ReservationEditDrawer", () => {
     );
   }, 15_000);
 
-  it("saves with address fields and cost when provided", async () => {
+  it("saves with address fields when provided", async () => {
     vi.mocked(createReservation).mockResolvedValueOnce(undefined);
     const onOpenChange = vi.fn();
     const user = userEvent.setup();
@@ -271,7 +270,6 @@ describe("ReservationEditDrawer", () => {
     await user.type(screen.getByLabelText("Departure time"), "10:00");
     await user.type(screen.getByLabelText("Departure address (Optional)"), "JFK Airport, New York");
     await user.type(screen.getByLabelText("Arrival address (Optional)"), "LAX Airport, Los Angeles");
-    await user.type(screen.getByLabelText("Cost (Optional)"), "349.99");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     await vi.waitFor(
@@ -287,7 +285,6 @@ describe("ReservationEditDrawer", () => {
             endLocationName: undefined,
             endLocationLat: undefined,
             endLocationLng: undefined,
-            cost: 349.99,
           })
         ),
       { timeout: 10_000 }
@@ -324,20 +321,6 @@ describe("ReservationEditDrawer", () => {
       { timeout: 10_000 }
     );
   }, 15_000);
-
-  it("blocks save and shows an error when cost is not a valid number", async () => {
-    const user = userEvent.setup();
-    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
-
-    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
-    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
-    await user.type(screen.getByLabelText("Departure time"), "10:00");
-    await user.type(screen.getByLabelText("Cost (Optional)"), "abc");
-    await user.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(await screen.findByRole("status")).toHaveTextContent("Cost must be a valid number.");
-    expect(createReservation).not.toHaveBeenCalled();
-  });
 
   it("shows a toast and does not close the drawer when createReservation fails", async () => {
     vi.mocked(createReservation).mockRejectedValueOnce(new Error("Save failed"));

@@ -82,14 +82,16 @@ export function PlaceRowActionBar({
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: place.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
-          background: place.cost !== undefined ? "var(--accent-soft)" : "none",
+          color: place.expense ? "var(--accent-ink)" : "var(--fg-4)",
+          background: place.expense ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
         }}
       >
         <DollarSign size={IconSize.actionChip} strokeWidth={1.5} />
-        {place.cost !== undefined
-          ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(place.cost)
+        {place.expense
+          ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+              place.expense.amount
+            )
           : "Add cost"}
       </button>
 

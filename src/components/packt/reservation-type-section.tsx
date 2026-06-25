@@ -8,6 +8,7 @@ import type { Document, Reservation, ReservationType } from "@/data/types";
 export interface ReservationTypeSectionProps {
   type: ReservationType;
   reservations: Reservation[];
+  defaultExpenseCurrency?: string;
   open: boolean;
   onToggle: () => void;
   now: Date;
@@ -76,6 +77,7 @@ function renderPreview(reservations: Reservation[], now: Date) {
 export function ReservationTypeSection({
   type,
   reservations,
+  defaultExpenseCurrency,
   open,
   onToggle,
   now,
@@ -159,6 +161,7 @@ export function ReservationTypeSection({
             <ReservationRow
               key={reservation.id}
               reservation={reservation}
+              defaultCurrency={defaultExpenseCurrency}
               type={type}
               isLast={index === all.length - 1}
               tripDocs={tripDocs}

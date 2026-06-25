@@ -17,6 +17,7 @@ const { mockAssertTripAccess, mockDbSelect, schemaTokens } = vi.hoisted(() => ({
     },
     collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId" },
     reservations: { tripId: "reservations.tripId" },
+    expenses: { tripId: "expenses.tripId" },
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
     tripPackingLists: {},
     itineraryNotes: {},
@@ -334,6 +335,11 @@ describe("getTripDetail", () => {
           where: async () => [
             { id: "res-1", tripId: "trip-1", type: "flight", provider: "Acme", startAt: null, endAt: null },
           ],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
         }),
       })
       .mockReturnValueOnce({

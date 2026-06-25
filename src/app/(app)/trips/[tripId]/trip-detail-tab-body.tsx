@@ -24,6 +24,7 @@ import type {
 export interface TripDetailTabBodyProps {
   tripId: string;
   trip: Trip;
+  defaultExpenseCurrency?: string;
   activeTab: TripDetailTab;
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
@@ -96,6 +97,7 @@ export interface TripDetailTabBodyProps {
 export function TripDetailTabBody({
   tripId,
   trip,
+  defaultExpenseCurrency,
   activeTab,
   days,
   unscheduledEvents,
@@ -152,6 +154,7 @@ export function TripDetailTabBody({
         <TripItineraryView
           days={days}
           unscheduledEvents={unscheduledEvents}
+          defaultExpenseCurrency={defaultExpenseCurrency}
           dateFormat={dateFormat}
           initialExpandedDayNumber={initialExpandedDayNumber}
           highlightedEventId={highlightedEventId}
@@ -222,6 +225,7 @@ export function TripDetailTabBody({
         <ReservationsTab
           tripId={tripId}
           reservations={reservations}
+          defaultExpenseCurrency={defaultExpenseCurrency}
           tripDocs={docs.filter((document) => document.scope === "trip")}
           isDateless={isDateless}
           onOpenEditDates={onOpenEditDates}

@@ -90,7 +90,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
         locationAddress: updated.locationAddress,
         locationLat: updated.locationLat,
         locationLng: updated.locationLng,
-        cost: updated.cost,
         confirmationNumber: updated.confirmationNumber,
         note: updated.note,
       });

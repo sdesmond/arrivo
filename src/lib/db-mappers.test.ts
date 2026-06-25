@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import {
   dbTripToType,
+  dbExpenseToType,
   dbEventToType,
   dbDocToType,
   dbReservationToType,
@@ -22,6 +23,7 @@ import type {
   events,
   documents,
   reservations,
+  expenses,
   collaborators,
   packingItems,
   tripPackingLists,
@@ -40,6 +42,7 @@ type TripRow = typeof trips.$inferSelect;
 type EventRow = typeof events.$inferSelect;
 type DocRow = typeof documents.$inferSelect;
 type ReservationRow = typeof reservations.$inferSelect;
+type ExpenseRow = typeof expenses.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
 type PackingItemRow = typeof packingItems.$inferSelect;
 type TripPackingListRow = typeof tripPackingLists.$inferSelect;
@@ -168,7 +171,6 @@ const BASE_EVENT: EventRow = {
   locationAddress: null,
   locationLat: null,
   locationLng: null,
-  cost: null,
   confirmationNumber: null,
   position: 0,
   createdAt: null,
@@ -191,7 +193,6 @@ describe("dbEventToType", () => {
     expect(result.locationAddress).toBeUndefined();
     expect(result.locationLat).toBeUndefined();
     expect(result.locationLng).toBeUndefined();
-    expect(result.cost).toBeUndefined();
     expect(result.confirmationNumber).toBeUndefined();
     expect(result.note).toBeUndefined();
   });
@@ -210,11 +211,6 @@ describe("dbEventToType", () => {
     const literal = "2026-05-13T15:00:00.000Z";
     const result = dbEventToType({ ...BASE_EVENT, startAt: new Date(literal) });
     expect(result.startAt).toBe(literal);
-  });
-
-  it("converts cost numeric string to number", () => {
-    const result = dbEventToType({ ...BASE_EVENT, cost: "149.99" });
-    expect(result.cost).toBe(149.99);
   });
 
   it("maps location fields when present", () => {
@@ -249,7 +245,6 @@ const BASE_RESERVATION: ReservationRow = {
   endLocationName: null,
   endLocationLat: null,
   endLocationLng: null,
-  cost: null,
   confirmationCode: null,
   serviceNumber: null,
   notes: null,
@@ -278,7 +273,6 @@ describe("dbReservationToType", () => {
     expect(result.endLocationName).toBeUndefined();
     expect(result.endLocationLat).toBeUndefined();
     expect(result.endLocationLng).toBeUndefined();
-    expect(result.cost).toBeUndefined();
     expect(result.confirmationCode).toBeUndefined();
     expect(result.serviceNumber).toBeUndefined();
     expect(result.notes).toBeUndefined();
@@ -338,10 +332,76 @@ describe("dbReservationToType", () => {
     expect(result.endLocationLat).toBe(33.9416);
     expect(result.endLocationLng).toBe(-118.4085);
   });
+});
 
-  it("converts cost numeric string to number", () => {
-    const result = dbReservationToType({ ...BASE_RESERVATION, cost: "249.99" });
-    expect(result.cost).toBe(249.99);
+const BASE_EXPENSE: ExpenseRow = {
+  id: "expense-1",
+  tripId: "trip-1",
+  eventId: "event-1",
+  reservationId: null,
+  category: "activity",
+  amount: "149.99",
+  currency: "USD",
+  convertedAmountTrip: null,
+  conversionRateTrip: null,
+  convertedCurrencyTrip: null,
+  convertedAmountProfile: null,
+  conversionRateProfile: null,
+  convertedCurrencyProfile: null,
+  date: "2026-08-01",
+  note: null,
+  createdAt: null,
+  updatedAt: null,
+};
+
+describe("dbExpenseToType", () => {
+  it("maps numeric and optional fields", () => {
+    const result = dbExpenseToType(BASE_EXPENSE);
+
+    expect(result).toEqual({
+      id: "expense-1",
+      tripId: "trip-1",
+      eventId: "event-1",
+      reservationId: undefined,
+      category: "activity",
+      amount: 149.99,
+      currency: "USD",
+      convertedAmountTrip: undefined,
+      conversionRateTrip: undefined,
+      convertedCurrencyTrip: undefined,
+      convertedAmountProfile: undefined,
+      conversionRateProfile: undefined,
+      convertedCurrencyProfile: undefined,
+      date: "2026-08-01",
+      note: undefined,
+      createdAt: undefined,
+      updatedAt: undefined,
+    });
+  });
+
+  it("maps conversion fields and timestamps when present", () => {
+    const createdAt = new Date("2026-08-01T12:00:00.000Z");
+    const updatedAt = new Date("2026-08-02T12:00:00.000Z");
+    const result = dbExpenseToType({
+      ...BASE_EXPENSE,
+      convertedAmountTrip: "200.00",
+      conversionRateTrip: "1.23450000",
+      convertedCurrencyTrip: "CAD",
+      convertedAmountProfile: "210.00",
+      conversionRateProfile: "1.30000000",
+      convertedCurrencyProfile: "AUD",
+      createdAt,
+      updatedAt,
+    });
+
+    expect(result.convertedAmountTrip).toBe(200);
+    expect(result.conversionRateTrip).toBe(1.2345);
+    expect(result.convertedCurrencyTrip).toBe("CAD");
+    expect(result.convertedAmountProfile).toBe(210);
+    expect(result.conversionRateProfile).toBe(1.3);
+    expect(result.convertedCurrencyProfile).toBe("AUD");
+    expect(result.createdAt).toBe(createdAt.toISOString());
+    expect(result.updatedAt).toBe(updatedAt.toISOString());
   });
 });
 

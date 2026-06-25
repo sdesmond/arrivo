@@ -72,7 +72,6 @@ export async function createReservation(tripId: string, input: CreateReservation
       endLocationName: input.endLocationName,
       endLocationLat: input.endLocationLat,
       endLocationLng: input.endLocationLng,
-      cost: input.cost != null ? String(input.cost) : undefined,
       confirmationCode: input.confirmationCode,
       serviceNumber: input.serviceNumber,
       notes: input.notes,
@@ -182,7 +181,6 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
         if (patch.endLocationLng !== undefined) updates.endLocationLng = patch.endLocationLng;
       }
     }
-    if (patch.cost !== undefined) updates.cost = patch.cost != null ? String(patch.cost) : null;
     if (patch.confirmationCode !== undefined) updates.confirmationCode = patch.confirmationCode || null;
     if (patch.serviceNumber !== undefined) updates.serviceNumber = patch.serviceNumber || null;
     if (patch.notes !== undefined) updates.notes = patch.notes || null;
