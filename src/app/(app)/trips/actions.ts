@@ -17,6 +17,7 @@ import type {
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover, stableStringify } from "@/lib/utils";
+import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
@@ -34,6 +35,19 @@ import {
 
 const DAY_NUMBER_TEMP_OFFSET = 1000;
 const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
+
+function resolveBudgetCurrency(code?: string): string | undefined {
+  const normalizedCode = normalizeCurrencyCode(code);
+  if (!normalizedCode) {
+    return undefined;
+  }
+
+  if (!isSupportedCurrencyCode(normalizedCode)) {
+    throw new Error("Invalid budget currency.");
+  }
+
+  return normalizedCode;
+}
 
 interface RemovedDayContentSummary {
   confirmation: TripDateChangeConfirmation;
@@ -167,6 +181,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
+  const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency);
 
   let tripId = "";
   await db.transaction(async (tx) => {
@@ -182,9 +197,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
         destinationCountry: input.destinationCountry ?? null,
         destinationCountryCode: input.destinationCountryCode ?? null,
         notes: input.notes ?? null,
-        budgetCurrency: input.budgetCurrency ?? null,
+        budgetCurrency: budgetCurrency ?? null,
         budgetTotal: input.budgetTotal?.toString(),
-        budgetPerPerson: input.budgetPerPerson?.toString(),
         tags: input.tags ?? [],
       })
       .returning();
@@ -261,6 +275,7 @@ export async function updateTripMetadata(
 ): Promise<UpdateTripMetadataResult> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
+  const budgetCurrency = resolveBudgetCurrency(patch.budgetCurrency);
 
   let eventDocumentUrlsToCleanup: string[] = [];
   let confirmation: TripDateChangeConfirmation | null = null;
@@ -305,9 +320,8 @@ export async function updateTripMetadata(
         destinationCountry: patch.destinationCountry,
         destinationCountryCode: patch.destinationCountryCode,
         notes: patch.notes,
-        budgetCurrency: patch.budgetCurrency,
+        budgetCurrency,
         budgetTotal: patch.budgetTotal?.toString(),
-        budgetPerPerson: patch.budgetPerPerson?.toString(),
         tags: patch.tags,
         updatedAt: new Date(),
       };

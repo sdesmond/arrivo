@@ -300,6 +300,18 @@ describe("TripDetailClient", () => {
     expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("docs");
   });
 
+  it("switches to the Budget tab from the tab bar", async () => {
+    const user = userEvent.setup();
+    const pushStateSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Budget" }));
+
+    expect(pushStateSpy).toHaveBeenCalledWith(null, "", "/trips/trip-1?tab=budget");
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("budget");
+  });
+
   it("pushes a tab deep link while preserving existing query parameters", async () => {
     const user = userEvent.setup();
     const pushStateSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});

@@ -15,6 +15,7 @@ import type {
   UpdateTripPatch,
   TripDetailTab as TripDetailTabValue,
   PackingTemplate,
+  CurrencyOption,
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
@@ -30,6 +31,7 @@ const DATES_HIGHLIGHT_DURATION_MS = 1500;
 const TABS: { id: TripDetailTabValue; label: string }[] = [
   { id: "res", label: "Reservations" },
   { id: "itin", label: "Itinerary" },
+  { id: "budget", label: "Budget" },
   { id: "map", label: "Map" },
   { id: "docs", label: "Documents" },
   { id: "pack", label: "Packing" },
@@ -38,6 +40,7 @@ const TABS: { id: TripDetailTabValue; label: string }[] = [
 
 interface TripDetailClientProps {
   detail: TripDetailPayload;
+  currencyOptions?: CurrencyOption[];
   nowISO: string;
   dateFormat: string;
   initialExpandedDayNumber?: number;
@@ -48,6 +51,7 @@ interface TripDetailClientProps {
 
 export function TripDetailClient({
   detail,
+  currencyOptions = [],
   nowISO,
   dateFormat,
   initialExpandedDayNumber,
@@ -188,6 +192,7 @@ export function TripDetailClient({
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           <TripDetailTabBody
             tripId={trip.id}
+            trip={trip}
             activeTab={activeTab}
             days={days}
             unscheduledEvents={unscheduledEvents}
@@ -235,6 +240,9 @@ export function TripDetailClient({
               setEditingTrip(true);
               setHighlightTripDates(true);
             }}
+            onOpenEditBudget={() => {
+              setEditingTrip(true);
+            }}
             onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
             onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
             onAddDay={handlers.handleAddDay}
@@ -248,6 +256,7 @@ export function TripDetailClient({
       <TripEditSheet
         key={trip.id}
         trip={trip}
+        currencyOptions={currencyOptions}
         open={editingTrip}
         onClose={() => {
           setEditingTrip(false);

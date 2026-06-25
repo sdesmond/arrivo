@@ -1,5 +1,6 @@
 import { headers, cookies } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
+import { listSupportedCurrencies } from "@/lib/currencies";
 import { listTripsForUser, getUserById } from "@/lib/queries";
 import { getServerNow } from "@/lib/server-now";
 import { detectDefaultDateFormat } from "@/lib/utils";
@@ -10,7 +11,11 @@ export default async function TravelHistoryPage() {
   const now = await getServerNow();
   const cookieStore = await cookies();
   const initialViewMode = cookieStore.get("travel-history-view-mode")?.value === "list" ? "list" : "cards";
-  const [entries, profile] = await Promise.all([listTripsForUser(session.id!, now), getUserById(session.id!)]);
+  const [entries, profile, currencyOptions] = await Promise.all([
+    listTripsForUser(session.id!, now),
+    getUserById(session.id!),
+    listSupportedCurrencies(),
+  ]);
   const dateFormat = profile?.dateFormat ?? detectDefaultDateFormat((await headers()).get("accept-language") ?? "");
   return (
     <TravelHistoryPageClient
@@ -18,6 +23,7 @@ export default async function TravelHistoryPage() {
       nowISO={now.toISOString()}
       dateFormat={dateFormat}
       initialViewMode={initialViewMode}
+      currencyOptions={currencyOptions}
     />
   );
 }

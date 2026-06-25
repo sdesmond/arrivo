@@ -261,6 +261,11 @@ describe("updateTripMetadata", () => {
     assertTripAccess.mockResolvedValue(undefined);
   });
 
+  it("rejects unsupported budget currencies before mutating", async () => {
+    await expect(updateTripMetadata("trip-1", { budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency.");
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
   it("returns confirmation-required before mutating when removed days contain events", async () => {
     const { operations, transaction } = createTransactionMock({
       existingDays: [
@@ -538,6 +543,17 @@ describe("createTrip", () => {
     db.update.mockReset();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+  });
+
+  it("rejects unsupported budget currencies before inserting a trip", async () => {
+    db.select.mockReturnValue({
+      from: () => ({
+        where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User" }],
+      }),
+    });
+
+    await expect(createTrip({ name: "Tokyo", budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency.");
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   function setupCreateTripDb(defaultCoverType: string | null) {

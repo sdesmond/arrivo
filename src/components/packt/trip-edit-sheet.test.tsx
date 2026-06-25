@@ -125,6 +125,19 @@ vi.mock("@/components/ui/alert-dialog", () => ({
 
 import { TripEditSheet } from "./trip-edit-sheet";
 import { TripDateConflictResolution, type Trip, type UpdateTripPatch } from "@/data/types";
+import { listSupportedCurrencies } from "@/lib/currencies";
+
+const currencyOptions = listSupportedCurrencies();
+
+function getCurrencyOption(code: string) {
+  const option = currencyOptions.find((currencyOption) => currencyOption.code === code);
+
+  if (!option) {
+    throw new Error(`Missing currency option for ${code}`);
+  }
+
+  return screen.getByRole("option", { name: `${option.name} ${option.code}` });
+}
 
 const baseTrip: Trip = {
   id: "trip-1",
@@ -135,7 +148,6 @@ const baseTrip: Trip = {
   budget: {
     currency: "USD",
     total: 3000,
-    perPerson: 1500,
   },
 };
 
@@ -169,16 +181,16 @@ describe("TripEditSheet", () => {
     expect(datesField).not.toHaveClass("highlight-pulse-ring");
   });
 
-  it("renders budget total and per-person inputs with pre-filled values", () => {
+  it("renders the budget total input with the current currency", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByDisplayValue("3000")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("1500")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: USD USD/i })).toBeInTheDocument();
   });
 
   it("budget section label text is visible", () => {
     render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(screen.getByText("Per person")).toBeInTheDocument();
+    expect(screen.getByText("Currency")).toBeInTheDocument();
   });
 
   it("Cancel button calls onClose", async () => {
@@ -200,7 +212,6 @@ describe("TripEditSheet", () => {
     expect(patch.startDate).toBe("2026-06-01");
     expect(patch.endDate).toBe("2026-06-10");
     expect(patch.budgetTotal).toBe(3000);
-    expect(patch.budgetPerPerson).toBe(1500);
     expect(patch).not.toHaveProperty("coverImageUrl");
   });
 
@@ -279,10 +290,9 @@ describe("TripEditSheet", () => {
   it("updates budget currency input", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    const currencyInput = screen.getByDisplayValue("USD");
-    await user.clear(currencyInput);
-    await user.type(currencyInput, "EUR");
+    render(<TripEditSheet trip={baseTrip} currencyOptions={currencyOptions} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /Currency: US Dollar USD/i }));
+    await user.click(getCurrencyOption("EUR"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetCurrency: "EUR" }));
   });
@@ -294,15 +304,6 @@ describe("TripEditSheet", () => {
     await user.clear(screen.getByDisplayValue("3000"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetTotal: undefined }));
-  });
-
-  it("sets budgetPerPerson to undefined when input is cleared", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    await user.clear(screen.getByDisplayValue("1500"));
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetPerPerson: undefined }));
   });
 
   it("addCollaborator via TripEditCollaborators callback does not crash", async () => {

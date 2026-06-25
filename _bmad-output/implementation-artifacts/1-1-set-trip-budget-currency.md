@@ -1,6 +1,10 @@
+---
+baseline_commit: db0cc97bdab0238cd74ab4bf64c026a31f3628c9
+---
+
 # Story 1.1: Set Trip Budget & Currency
 
-Status: ready-for-dev
+Status: in-progress
 
 ## Story
 

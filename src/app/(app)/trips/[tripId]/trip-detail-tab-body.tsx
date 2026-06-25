@@ -3,6 +3,7 @@
 import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
 import { TripDocsTab } from "@/components/packt/trip-docs-tab";
+import { TripBudgetTab } from "@/components/packt/trip-budget-tab";
 import { PackingListsView } from "@/components/packt/packing-lists-view";
 import { ReservationsTab } from "@/components/packt/reservations-tab";
 import type {
@@ -16,11 +17,13 @@ import type {
   RemovePackingSectionInput,
   Reservation,
   TripDetailTab,
+  Trip,
   TripPackingList,
 } from "@/data/types";
 
 export interface TripDetailTabBodyProps {
   tripId: string;
+  trip: Trip;
   activeTab: TripDetailTab;
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
@@ -78,6 +81,7 @@ export interface TripDetailTabBodyProps {
   ) => Promise<void>;
   isDateless: boolean;
   onOpenEditDates: () => void;
+  onOpenEditBudget: () => void;
   onActivateReservationsCta: () => void;
   onLinkedEventTap: (linkedReservationId: string) => void;
   onAddDay: () => void;
@@ -91,6 +95,7 @@ export interface TripDetailTabBodyProps {
 
 export function TripDetailTabBody({
   tripId,
+  trip,
   activeTab,
   days,
   unscheduledEvents,
@@ -133,6 +138,7 @@ export function TripDetailTabBody({
   onInsertFromPackingSource,
   isDateless,
   onOpenEditDates,
+  onOpenEditBudget,
   onActivateReservationsCta,
   onLinkedEventTap,
   onAddDay,
@@ -184,6 +190,7 @@ export function TripDetailTabBody({
       {activeTab === "docs" && (
         <TripDocsTab tripId={tripId} docs={docs.filter((document) => document.scope === "trip")} />
       )}
+      {activeTab === "budget" && <TripBudgetTab budget={trip.budget} onOpenEditBudget={onOpenEditBudget} />}
       {activeTab === "map" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
       )}

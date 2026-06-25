@@ -9,6 +9,7 @@ import {
   type Budget,
   type Collaborator,
   type CollaboratorRole,
+  type CurrencyOption,
   type Trip,
   type TripDateChangeConfirmation,
   type TripDateConflictResolution as TripDateConflictResolutionValue,
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
 
 interface TripEditSheetProps {
   trip: Trip | null;
+  currencyOptions?: CurrencyOption[];
   open: boolean;
   onClose: () => void;
   onSave: (patch: UpdateTripPatch) => void | Promise<void>;
@@ -40,6 +42,7 @@ interface TripEditSheetProps {
 
 export function TripEditSheet({
   trip,
+  currencyOptions = [],
   open,
   onClose,
   onSave,
@@ -147,7 +150,6 @@ export function TripEditSheet({
         : {}),
       budgetCurrency: currentDraft.budget?.currency,
       budgetTotal: currentDraft.budget?.total,
-      budgetPerPerson: currentDraft.budget?.perPerson,
       tags: currentDraft.tags,
     };
   }
@@ -206,12 +208,11 @@ export function TripEditSheet({
               disabled={isBusy}
             />
             <TripEditBudget
+              currencyOptions={currencyOptions}
               currency={draft.budget?.currency}
               total={draft.budget?.total}
-              perPerson={draft.budget?.perPerson}
               onCurrencyChange={(currency) => setBudget("currency", currency)}
               onTotalChange={(total) => setBudget("total", total)}
-              onPerPersonChange={(perPerson) => setBudget("perPerson", perPerson)}
               disabled={isBusy}
             />
             <Section title="People">

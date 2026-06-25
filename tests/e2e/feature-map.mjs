@@ -130,6 +130,8 @@ export const FEATURE_MAP = [
     "src/components/packt/mobile-upcoming-tab.tsx",
   ]),
   entry("trips", [
+    "src/components/packt/currency-picker.tsx",
+    "src/components/packt/trip-budget-tab.tsx",
     "src/components/packt/trip-card.tsx",
     "src/components/packt/trip-edit-*.tsx",
     "src/components/packt/trip-hero.tsx",
