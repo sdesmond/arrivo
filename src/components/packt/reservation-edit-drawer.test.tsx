@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationType } from "@/data/types";
@@ -111,10 +111,6 @@ describe("ReservationEditDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  function changeField(label: string, value: string): void {
-    fireEvent.change(screen.getByLabelText(label), { target: { value } });
-  }
 
   it("does not render when closed", () => {
     render(
@@ -240,11 +236,11 @@ describe("ReservationEditDrawer", () => {
     const user = userEvent.setup();
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Lodging} open onOpenChange={onOpenChange} />);
 
-    changeField("Provider *", "Grand Hotel");
-    changeField("Check-in date", "2026-08-01");
-    changeField("Check-in time", "15:00");
-    changeField("Check-out date", "2026-08-05");
-    changeField("Check-out time", "11:00");
+    await user.type(screen.getByLabelText("Provider *"), "Grand Hotel");
+    await user.type(screen.getByLabelText("Check-in date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Check-in time"), "15:00");
+    await user.type(screen.getByLabelText("Check-out date"), "2026-08-05");
+    await user.type(screen.getByLabelText("Check-out time"), "11:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     await vi.waitFor(
@@ -349,9 +345,9 @@ describe("ReservationEditDrawer", () => {
     const user = userEvent.setup();
     render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={onOpenChange} />);
 
-    changeField("Provider *", "Misc");
-    changeField("Start date", "2026-08-01");
-    changeField("Start time", "10:00");
+    await user.type(screen.getByLabelText("Provider *"), "Misc");
+    await user.type(screen.getByLabelText("Start date"), "2026-08-01");
+    await user.type(screen.getByLabelText("Start time"), "10:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"), { timeout: 10_000 });

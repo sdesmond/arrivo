@@ -43,7 +43,7 @@ function resolveBudgetCurrency(code?: string): string | undefined {
   }
 
   if (!isSupportedCurrencyCode(normalizedCode)) {
-    throw new Error("Invalid budget currency.");
+    throw new Error(`Invalid budget currency: ${normalizedCode}`);
   }
 
   return normalizedCode;

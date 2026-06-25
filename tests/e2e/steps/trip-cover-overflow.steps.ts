@@ -29,23 +29,7 @@ async function openCoverOptionsMenu(page: Page): Promise<void> {
   const trigger = page.getByTitle("Cover options");
   const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
 
-  try {
-    await expect(editCoverItem).toBeVisible({ timeout: 2000 });
-    return;
-  } catch {
-    /* menu likely closed */
-  }
-
   await trigger.click();
-
-  try {
-    await expect(editCoverItem).toBeVisible({ timeout: 3000 });
-    return;
-  } catch {
-    await trigger.focus();
-    await trigger.press("Enter");
-  }
-
   await expect(editCoverItem).toBeVisible({ timeout: 5000 });
 }
 

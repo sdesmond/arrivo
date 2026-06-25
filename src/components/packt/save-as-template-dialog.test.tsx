@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -8,19 +8,17 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+const TEMPLATE_NAME_LABEL = "Template name";
+
 describe("SaveAsTemplateDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  function changeTemplateName(value: string): void {
-    fireEvent.change(screen.getByLabelText("Template name"), { target: { value } });
-  }
-
   it("renders name input and save button when open", () => {
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={vi.fn()} itemCount={3} />);
 
-    expect(screen.getByLabelText("Template name")).toBeInTheDocument();
+    expect(screen.getByLabelText(TEMPLATE_NAME_LABEL)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save template" })).toBeInTheDocument();
   });
 
@@ -43,24 +41,20 @@ describe("SaveAsTemplateDialog", () => {
   });
 
   it("save button is enabled after typing a name", async () => {
+    const user = userEvent.setup();
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={vi.fn()} itemCount={3} />);
 
-    changeTemplateName("Beach Trip");
+    await user.type(screen.getByLabelText(TEMPLATE_NAME_LABEL), "Beach Trip");
     expect(screen.getByRole("button", { name: "Save template" })).not.toBeDisabled();
   });
 
   it("shows inline validation error when form submitted with empty name", async () => {
+    const user = userEvent.setup();
     const onSave = vi.fn();
 
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={onSave} itemCount={3} />);
 
-    // Type and clear to bypass the disabled state, then submit via keyboard
-    changeTemplateName("x");
-    // Manually trigger form submit with empty value by directly clicking — button is disabled, so simulate via form
-    // Actually the button is disabled when empty, so test via the form's submit event
-    // We can type whitespace-only to trigger the server-side-equivalent client check
-    changeTemplateName("   ");
-    // The button should still be disabled (trim check), verify no call
+    await user.type(screen.getByLabelText(TEMPLATE_NAME_LABEL), "   ");
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -70,7 +64,7 @@ describe("SaveAsTemplateDialog", () => {
 
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={onSave} itemCount={3} />);
 
-    changeTemplateName("  Beach Trip  ");
+    await user.type(screen.getByLabelText(TEMPLATE_NAME_LABEL), "  Beach Trip  ");
     await user.click(screen.getByRole("button", { name: "Save template" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith("Beach Trip"));
@@ -83,7 +77,7 @@ describe("SaveAsTemplateDialog", () => {
 
     render(<SaveAsTemplateDialog open={true} onClose={onClose} onSave={onSave} itemCount={3} />);
 
-    changeTemplateName("My Template");
+    await user.type(screen.getByLabelText(TEMPLATE_NAME_LABEL), "My Template");
     await user.click(screen.getByRole("button", { name: "Save template" }));
 
     await waitFor(() => {
@@ -99,7 +93,7 @@ describe("SaveAsTemplateDialog", () => {
 
     render(<SaveAsTemplateDialog open={true} onClose={onClose} onSave={onSave} itemCount={3} />);
 
-    changeTemplateName("My Template");
+    await user.type(screen.getByLabelText(TEMPLATE_NAME_LABEL), "My Template");
     await user.click(screen.getByRole("button", { name: "Save template" }));
 
     await waitFor(() => {
@@ -140,11 +134,11 @@ describe("SaveAsTemplateDialog", () => {
   });
 
   it("shows inline validation error when submitting empty name via Enter key", async () => {
+    const user = userEvent.setup();
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={vi.fn()} itemCount={3} />);
 
-    const input = screen.getByLabelText("Template name");
-    input.focus();
-    fireEvent.keyDown(input, { key: "Enter" });
+    const input = screen.getByLabelText(TEMPLATE_NAME_LABEL);
+    await user.type(input, "{Enter}");
 
     expect(screen.getByRole("alert")).toHaveTextContent("Template name is required");
   });
@@ -154,19 +148,18 @@ describe("SaveAsTemplateDialog", () => {
 
     rerender(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={vi.fn()} itemCount={3} />);
 
-    expect(screen.getByLabelText("Template name")).toHaveValue("");
+    expect(screen.getByLabelText(TEMPLATE_NAME_LABEL)).toHaveValue("");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save template" })).toBeDisabled();
   });
 
   it("clears the error when user types after a failed submission attempt", async () => {
+    const user = userEvent.setup();
     render(<SaveAsTemplateDialog open={true} onClose={vi.fn()} onSave={vi.fn()} itemCount={3} />);
 
-    // Force the error state by finding the form and submitting with empty name via keyboard
-    changeTemplateName("a");
-    changeTemplateName("   ");
-    // Button is disabled because trim is empty; but type a real name and verify error gone
-    changeTemplateName("Valid Name");
+    await user.type(screen.getByLabelText(TEMPLATE_NAME_LABEL), "a");
+    await user.clear(screen.getByLabelText(TEMPLATE_NAME_LABEL));
+    await user.type(screen.getByLabelText(TEMPLATE_NAME_LABEL), "Valid Name");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

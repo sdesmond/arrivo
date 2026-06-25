@@ -16,7 +16,6 @@ export interface CurrencyPickerProps {
 
 function queueFocus(callback: () => void): void {
   if (typeof window === "undefined") {
-    callback();
     return;
   }
 
@@ -47,7 +46,7 @@ export function CurrencyPicker({
   const listboxId = useId();
   const selectedIndex = currencyOptions.findIndex((option) => option.code === value);
   const fallbackOption: CurrencyOption = { code: value, name: value };
-  const selectedOption = selectedIndex >= 0 ? currencyOptions[selectedIndex] : (currencyOptions[0] ?? fallbackOption);
+  const selectedOption = selectedIndex >= 0 ? currencyOptions[selectedIndex] : fallbackOption;
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(selectedIndex >= 0 ? selectedIndex : 0);
 
@@ -192,7 +191,7 @@ export function CurrencyPicker({
         aria-label={`Currency: ${selectedOption.name} ${selectedOption.code}`}
         onClick={() => {
           if (isOpen) {
-            setIsOpen(false);
+            closePicker();
             return;
           }
 

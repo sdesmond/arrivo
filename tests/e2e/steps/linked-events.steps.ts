@@ -31,18 +31,6 @@ function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): Tr
   };
 }
 
-function toUtcWallClockIso(date: Date): string {
-  return new Date(
-    date.getUTCFullYear(),
-    date.getUTCMonth(),
-    date.getUTCDate(),
-    date.getUTCHours(),
-    date.getUTCMinutes(),
-    date.getUTCSeconds(),
-    date.getUTCMilliseconds()
-  ).toISOString();
-}
-
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
   const dayToggle = page.getByRole("button", { name: /stops?$/ }).nth(dayIndex - 1);
   const expanded = await dayToggle.getAttribute("aria-expanded");
@@ -220,7 +208,7 @@ When("I view the trip list", async ({ page }) => {
   await page.context().addCookies([
     {
       name: "__packt_mock_date__",
-      value: encodeURIComponent(toUtcWallClockIso(new Date())),
+      value: encodeURIComponent(new Date().toISOString()),
       url: "http://localhost:3001",
     },
   ]);

@@ -182,9 +182,9 @@ describe("TripEditSheet", () => {
   });
 
   it("renders the budget total input with the current currency", () => {
-    render(<TripEditSheet trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<TripEditSheet trip={baseTrip} currencyOptions={currencyOptions} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByDisplayValue("3000")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Currency: USD USD/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
   });
 
   it("budget section label text is visible", () => {

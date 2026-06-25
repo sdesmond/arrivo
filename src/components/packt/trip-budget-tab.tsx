@@ -21,7 +21,8 @@ function formatBudgetAmount(budget: Budget): string {
       maximumFractionDigits: 2,
     }).format(budget.total);
   } catch {
-    return `${budget.currency} ${budget.total.toFixed(2)}`;
+    const safeTotal = Number.isFinite(budget.total) ? budget.total.toFixed(2) : "??";
+    return `${budget.currency} ${safeTotal}`;
   }
 }
 

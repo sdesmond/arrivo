@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 interface TripEditSheetProps {
   trip: Trip | null;
-  currencyOptions?: CurrencyOption[];
+  currencyOptions: CurrencyOption[];
   open: boolean;
   onClose: () => void;
   onSave: (patch: UpdateTripPatch) => void | Promise<void>;
@@ -42,7 +42,7 @@ interface TripEditSheetProps {
 
 export function TripEditSheet({
   trip,
-  currencyOptions = [],
+  currencyOptions,
   open,
   onClose,
   onSave,
