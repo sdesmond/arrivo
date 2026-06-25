@@ -11,6 +11,7 @@ const COVER_UPLOAD_PNG = Buffer.from(
 async function applyFirstStubCoverPhoto(page: Page): Promise<void> {
   const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
   await openCoverOptionsMenu(page);
+  await expect(editCoverItem).toBeVisible({ timeout: 5000 });
   await editCoverItem.click();
   const pickerDialog = page.getByRole("dialog");
   const stubPhotoButton = pickerDialog.locator('button[title="Stub Photographer 1"]');
@@ -26,10 +27,18 @@ async function applyFirstStubCoverPhoto(page: Page): Promise<void> {
 }
 
 async function openCoverOptionsMenu(page: Page): Promise<void> {
-  const trigger = page.getByTitle("Cover options");
   const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
 
-  await trigger.click();
+  // Idempotent: clicking the trigger toggles the Base UI menu, so re-clicking an
+  // already-open menu closes it mid-animation and detaches the items. Only open
+  // when the menu is closed.
+  try {
+    await expect(editCoverItem).toBeVisible({ timeout: 2000 });
+    return;
+  } catch {
+    /* menu is closed — open it below */
+  }
+  await page.getByTitle("Cover options").click();
   await expect(editCoverItem).toBeVisible({ timeout: 5000 });
 }
 
@@ -46,7 +55,6 @@ Given("I have an existing trip with a photo destination", async ({ page, scenari
 });
 
 Given("I already selected the first stub cover photo", async ({ page }) => {
-  await page.getByTitle("Cover options").click();
   await applyFirstStubCoverPhoto(page);
 });
 
@@ -82,19 +90,8 @@ Then("the cover options menu hides remove and info actions", async ({ page }) =>
 });
 
 When("I open the cover picker from the cover options menu", async ({ page }) => {
-  const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
-  let visible = false;
-  try {
-    await expect(editCoverItem).toBeVisible({ timeout: 2000 });
-    visible = true;
-  } catch {
-    /* menu likely closed — will open below */
-  }
-  if (!visible) {
-    await page.getByTitle("Cover options").click();
-    await expect(editCoverItem).toBeVisible({ timeout: 5000 });
-  }
-  await editCoverItem.click();
+  await openCoverOptionsMenu(page);
+  await page.getByRole("menuitem", { name: "Edit Cover" }).click();
 });
 
 When("I reload the trip detail page", async ({ page }) => {

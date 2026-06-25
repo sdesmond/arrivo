@@ -31,6 +31,23 @@ function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): Tr
   };
 }
 
+// Mirror getFloatingNow: take a Date's local wall-clock components and emit them
+// as a UTC ISO string. Keeps seeded reservation times aligned with the Now Card's
+// timezone-independent comparison.
+function toFloatingIso(date: Date): string {
+  return new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+      date.getMilliseconds()
+    )
+  ).toISOString();
+}
+
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
   const dayToggle = page.getByRole("button", { name: /stops?$/ }).nth(dayIndex - 1);
   const expanded = await dayToggle.getAttribute("aria-expanded");
@@ -169,12 +186,17 @@ Given("I start from a three-day trip dated September 1, 2026 through September 3
 
 Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ scenario }, window: string) => {
   const now = new Date();
-  const startAt =
-    window === "now"
-      ? new Date(now.getTime() - 60 * 1000).toISOString()
-      : new Date(now.getTime() + 60 * 60 * 1000).toISOString();
-  const tripStartDate = now.toISOString().slice(0, 10);
-  const tripEndDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // The Now Card classifies events against a "floating" now (local wall-clock
+  // reinterpreted as UTC — see getFloatingNow). Seed times the same way so the
+  // comparison is timezone-independent; a true-UTC instant would shift by the
+  // machine offset and read as the wrong window west of UTC. A 5-minute margin
+  // absorbs the gap until the page sets its mock-date cookie.
+  const checkInAt =
+    window === "now" ? new Date(now.getTime() - 5 * 60 * 1000) : new Date(now.getTime() + 60 * 60 * 1000);
+  const startAt = toFloatingIso(checkInAt);
+  const endAt = toFloatingIso(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+  const tripStartDate = toFloatingIso(now).slice(0, 10);
+  const tripEndDate = toFloatingIso(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)).slice(0, 10);
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
@@ -188,7 +210,7 @@ Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ 
             type: "lodging",
             provider: "Torel Avantgarde",
             startAt,
-            endAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+            endAt,
           },
         ],
       },
