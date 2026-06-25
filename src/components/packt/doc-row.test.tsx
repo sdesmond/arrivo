@@ -5,6 +5,8 @@ import type { Document } from "@/data/types";
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   uploadDocument: vi.fn().mockResolvedValue(undefined),
+  removeDocument: vi.fn().mockResolvedValue(undefined),
+  renameDocument: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/components/ui/tooltip", () => ({
@@ -58,6 +60,7 @@ vi.mock("@/components/ui/dialog", () => ({
 
 import { DocRow } from "./doc-row";
 import { shareDoc } from "@/lib/utils";
+import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   id: "doc-1",
@@ -168,6 +171,101 @@ describe("DocRow", () => {
       expect(shareDoc).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })
       );
+    });
+  });
+
+  describe("rename", () => {
+    async function startEditing(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByText("Boarding Pass.pdf"));
+      return screen.getByDisplayValue("Boarding Pass.pdf");
+    }
+
+    it("renames the document on blur when the name changed", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      const input = await startEditing(user);
+      await user.clear(input);
+      await user.type(input, "Renamed.pdf");
+      await user.tab();
+
+      expect(renameDocument).toHaveBeenCalledWith("doc-1", "Renamed.pdf");
+      expect(screen.getByText("Renamed.pdf")).toBeInTheDocument();
+    });
+
+    it("renames the document when Enter is pressed", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      const input = await startEditing(user);
+      await user.clear(input);
+      await user.type(input, "ViaEnter.pdf{Enter}");
+
+      expect(renameDocument).toHaveBeenCalledWith("doc-1", "ViaEnter.pdf");
+      expect(screen.getByText("ViaEnter.pdf")).toBeInTheDocument();
+    });
+
+    it("discards the rename when Escape is pressed", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      const input = await startEditing(user);
+      await user.clear(input);
+      await user.type(input, "Discarded.pdf{Escape}");
+
+      expect(renameDocument).not.toHaveBeenCalled();
+      expect(screen.getByText("Boarding Pass.pdf")).toBeInTheDocument();
+    });
+
+    it("does not rename when the name is unchanged", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      await startEditing(user);
+      await user.tab();
+
+      expect(renameDocument).not.toHaveBeenCalled();
+    });
+
+    it("does not rename when the name is blank", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      const input = await startEditing(user);
+      await user.clear(input);
+      await user.tab();
+
+      expect(renameDocument).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("delete", () => {
+    function openConfirm(user: ReturnType<typeof userEvent.setup>) {
+      return user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    }
+
+    it("deletes the document after confirming", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      await openConfirm(user);
+      await user.click(screen.getByRole("button", { name: "Delete" }));
+
+      expect(removeDocument).toHaveBeenCalledWith("doc-1");
+    });
+
+    it("shows an error and keeps the row when deletion fails", async () => {
+      vi.mocked(removeDocument).mockRejectedValueOnce(new Error("network down"));
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      await openConfirm(user);
+      await user.click(screen.getByRole("button", { name: "Delete" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
+    });
+
+    it("clears the error and closes the dialog on Cancel", async () => {
+      const user = userEvent.setup();
+      render(<DocRow doc={makeDoc()} />);
+      await openConfirm(user);
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     });
   });
 });

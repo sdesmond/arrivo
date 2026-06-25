@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -12,6 +12,12 @@ vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
   createExpense,
   deleteExpense,
   updateExpense,
+}));
+
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+
+vi.mock("sonner", () => ({
+  toast: { error: toastError, success: vi.fn() },
 }));
 
 vi.mock("lucide-react", async (importOriginal) => {
@@ -93,10 +99,30 @@ vi.mock("./place-row-dialogs", () => ({
       )}
       {showCostDialog && (
         <div data-testid="cost-dialog">
-          <button onClick={() => onCostSave({ category: "food", amount: 99, currency: "USD", date: "2026-08-01" })}>
+          <button
+            onClick={async () => {
+              try {
+                await onCostSave({ category: "food", amount: 99, currency: "USD", date: "2026-08-01" });
+              } catch {
+                /* CostDialog swallows the rethrow after surfacing its own toast */
+              }
+            }}
+          >
             cost-save
           </button>
-          {onCostRemove ? <button onClick={onCostRemove}>cost-remove</button> : null}
+          {onCostRemove ? (
+            <button
+              onClick={async () => {
+                try {
+                  await onCostRemove();
+                } catch {
+                  /* CostDialog swallows the rethrow after surfacing its own toast */
+                }
+              }}
+            >
+              cost-remove
+            </button>
+          ) : null}
           <button onClick={() => onCostOpenChange(false)}>cost-close</button>
         </div>
       )}
@@ -168,6 +194,10 @@ const linkedPlace: TripEvent = {
 };
 
 describe("PlaceRow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders the event name", () => {
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
@@ -948,5 +978,92 @@ describe("PlaceRow", () => {
     await user.click(screen.getByRole("button", { name: "cancel-delete" }));
     expect(onDelete).not.toHaveBeenCalled();
     expect(screen.queryByTestId("delete-event-dialog")).not.toBeInTheDocument();
+  });
+
+  // ── Cost save / remove (handleExpenseSave / handleExpenseRemove) ───────────
+
+  const placeWithExpense: TripEvent = {
+    ...basePlace,
+    expense: {
+      id: "expense-1",
+      tripId: "trip-1",
+      eventId: "ev-1",
+      category: ExpenseCategory.Food,
+      amount: 10,
+      currency: "USD",
+      date: "2026-08-01",
+    },
+  };
+
+  it("cost save updates the existing expense instead of creating a new one", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateExpense).mockResolvedValueOnce(undefined);
+    render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByText("10.00"));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+
+    expect(updateExpense).toHaveBeenCalledWith(
+      "expense-1",
+      expect.objectContaining({ eventId: "ev-1", amount: 99, currency: "USD" })
+    );
+    expect(createExpense).not.toHaveBeenCalled();
+  });
+
+  it("cost save without a tripId surfaces a toast and skips the server action", async () => {
+    const user = userEvent.setup();
+    const place: TripEvent = { ...basePlace, tripId: undefined };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+
+    expect(toastError).toHaveBeenCalledWith("Failed to save cost.");
+    expect(createExpense).not.toHaveBeenCalled();
+    expect(updateExpense).not.toHaveBeenCalled();
+  });
+
+  it("cost save surfaces the error message when the create action fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createExpense).mockRejectedValueOnce(new Error("save boom"));
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+
+    expect(toastError).toHaveBeenCalledWith("save boom");
+  });
+
+  it("cost remove deletes the expense and clears the amount", async () => {
+    const user = userEvent.setup();
+    vi.mocked(deleteExpense).mockResolvedValueOnce(undefined);
+    render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByText("10.00"));
+    await user.click(screen.getByRole("button", { name: "cost-remove" }));
+
+    expect(deleteExpense).toHaveBeenCalledWith("expense-1");
+    expect(screen.queryByText("10.00")).not.toBeInTheDocument();
+  });
+
+  it("cost remove is a no-op when there is no expense yet", async () => {
+    const user = userEvent.setup();
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: "cost-remove" }));
+
+    expect(deleteExpense).not.toHaveBeenCalled();
+  });
+
+  it("cost remove surfaces the error message when the delete action fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(deleteExpense).mockRejectedValueOnce(new Error("remove boom"));
+    render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByText("10.00"));
+    await user.click(screen.getByRole("button", { name: "cost-remove" }));
+
+    expect(toastError).toHaveBeenCalledWith("remove boom");
   });
 });
