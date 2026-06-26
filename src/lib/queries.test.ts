@@ -260,6 +260,50 @@ describe("listTripsForUser", () => {
       "Check-out — Hotel Avenida Palace",
     ]);
   });
+
+  it("keeps the current local day's Linked Events when now is a late evening west of UTC", async () => {
+    // Regression: "today" must be the wall-clock date, not now.toISOString()'s UTC
+    // date. `now` is a late-evening LOCAL instant (built with the local Date ctor so
+    // the wall-clock date is May 13 in any runtime zone). Under the old UTC-based
+    // todayISO, this rolled forward to May 14 west of UTC and dropped the Check-in.
+    const lateEveningNow = new Date(2026, 4, 13, 22, 30);
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            orderBy: async () => [
+              { trip: { id: "trip-1", name: "Lisbon Trip", startDate: "2026-05-13", endDate: "2026-05-20" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ groupBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ groupBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "res-1",
+              tripId: "trip-1",
+              type: "lodging",
+              provider: "Hotel Avenida Palace",
+              startAt: "2026-05-13T19:00:00.000Z",
+              endAt: "2026-05-15T11:00:00.000Z",
+            },
+          ],
+        }),
+      });
+
+    const result = await listTripsForUser("user-1", lateEveningNow);
+
+    expect(result[0].todayEvents.map((event) => event.name)).toContain("Check-in — Hotel Avenida Palace");
+    expect(result[0].summaryEvents.map((event) => event.name)).toContain("Check-in — Hotel Avenida Palace");
+  });
 });
 
 describe("getTripDetail", () => {
