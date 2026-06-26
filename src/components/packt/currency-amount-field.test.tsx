@@ -49,7 +49,7 @@ describe("CurrencyAmountField", () => {
     );
 
     expect(screen.getByRole("textbox", { name: "Amount" })).toHaveValue("25");
-    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
   });
 
   it("passes amount and currency changes through callbacks", async () => {
@@ -60,7 +60,7 @@ describe("CurrencyAmountField", () => {
     render(<CurrencyAmountFieldHarness onAmountChange={onAmountChange} onCurrencyChange={onCurrencyChange} />);
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "42");
-    await user.click(screen.getByRole("button", { name: /Currency: US Dollar USD/i }));
+    await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
     await user.click(screen.getByRole("option", { name: "Euro EUR" }));
 
     expect(onAmountChange).toHaveBeenLastCalledWith("42");
@@ -112,6 +112,6 @@ describe("CurrencyAmountField", () => {
     );
 
     expect(screen.getByRole("textbox", { name: "Amount" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeDisabled();
   });
 });

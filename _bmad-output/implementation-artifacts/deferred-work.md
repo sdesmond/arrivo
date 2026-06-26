@@ -10,3 +10,8 @@
 - reservation-row spreads null values into Expense state before explicit overrides — ordering-dependent but currently correct due to explicit overrides
 - TripEditBudget empty decimal point produces NaN — very low probability
 - updateExpense eventId: undefined skips update vs null clears FK — matches documented convention
+
+## Deferred from: code review of 1-3-currency-conversion-at-entry-time.md (2026-06-25)
+
+- `getNow()`/`Date.now()` divergence risk — date comparison uses `getNow()` from mock-date while cache TTL uses `Date.now()`. If mock-date returns an offset, cache behavior is inconsistent. Low risk for current usage.
+- `recalculate()` stub signature may change in Story 1.6 — current stub accepts `Expense[]` but will likely need trip/user lookup context for batch recalculation. Intentional placeholder.

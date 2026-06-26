@@ -143,7 +143,23 @@ describe("PlaceRowActionBar", () => {
       },
     };
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
-    expect(screen.getByText("1,234,567.89")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "$1,234,567.89" })).toBeInTheDocument();
+  });
+
+  it("cost displays the saved currency code when no narrow symbol is available", () => {
+    const place: TripEvent = {
+      ...basePlace,
+      expense: {
+        id: "expense-1",
+        tripId: "trip-1",
+        category: "shopping",
+        amount: 42.5,
+        currency: "AED",
+        date: "2026-08-01",
+      },
+    };
+    render(<PlaceRowActionBar {...defaultProps} place={place} />);
+    expect(screen.getByRole("button", { name: "AED 42.50" })).toBeInTheDocument();
   });
 
   it("shows the saved place name when a location has one", () => {

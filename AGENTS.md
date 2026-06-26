@@ -148,7 +148,9 @@ Pass the original request as context so scope and test checks have what they nee
 **This step is not optional.** Presenting an un-reviewed story or plan is a process failure — the same severity as shipping untested code. If you catch yourself about to present a story/plan file without having run the reviewer, stop and run it first.
 
 **Testing-first gate — NON-NEGOTIABLE:**
-For every coding change, tests are first-class deliverables, not cleanup work after implementation. A change is incomplete until the required unit/component tests and any required E2E coverage have been identified and authored in the same change. Coverage thresholds and validator failures are enforcement backstops, not the reason tests get written. If you cannot name the tests you will add or update before coding, stop and resolve that first.
+For every coding change, tests are first-class deliverables, not cleanup work after implementation. A change is incomplete until the required unit/component tests and any required E2E coverage have been identified, authored, and run in the same change. Coverage thresholds and validator failures are enforcement backstops, not the reason tests get written. If you cannot name the tests you will add or update before coding, stop and resolve that first.
+
+Before editing any production file, you MUST name the exact test files and scenarios you expect to touch. For runtime code changes, the first code edit should be in those tests unless the task is docs-only, copy-only, or pure config with no runtime behavior change. If you choose not to start with a failing or expanded test, you must be able to explain why that was not practical for that task.
 
 **Branch-confirmation gate — NON-NEGOTIABLE:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
@@ -156,12 +158,20 @@ Before starting any new development task, you MUST ask the user whether they wan
 **Default workflow for any coding task:**
 
 1. Ask whether the user wants a branch created before development begins
-2. Identify the required tests, then implement the change and write/update those tests in the same change — tests are part of implementation, not something added after a coverage miss
+2. Name the exact tests you will add or update before touching production code
    - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create the matching colocated `*.test.ts` / `*.test.tsx` alongside it in the same change
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend the `.feature` file and matching step definitions in `tests/e2e/` in the same change
    - If you cannot name the exact tests you are adding or updating, pause and resolve that before editing production code
-3. Run `packt-build-validator` **once** after the change is fully implemented and tested: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (dev-story, quick-dev, story-automator, etc.) must **not** invoke it themselves
-4. If the validator flags issues, fix them and run `packt-build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. For the final pre-merge/PR check, run the full E2E suite (`npm run test:e2e`) rather than the affected subset
+3. Start implementation by creating or updating those tests first whenever runtime behavior is changing
+   - Preferred path: write failing or expanded tests first, then change production code until they pass
+   - Acceptable exception: docs-only, copy-only, styling-only, or config-only tasks with no meaningful runtime branch to test first
+   - Do not make a production-only diff and plan to "come back for tests later"
+4. Run targeted tests for touched areas before running broad validation
+   - For unit or component work, run matching Vitest files first
+   - For user-facing flow changes, run affected Playwright coverage first when practical
+   - Do not treat `packt-build-validator` as first signal that tests were missing
+5. Run `packt-build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (dev-story, quick-dev, story-automator, etc.) must **not** invoke it themselves
+6. If the validator flags issues, fix them and run `packt-build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. For the final pre-merge/PR check, run the full E2E suite (`npm run test:e2e`) rather than the affected subset
 
 ## Key Conventions
 
@@ -209,12 +219,15 @@ Before starting any new development task, you MUST ask the user whether they wan
 ### Testing
 
 - Tests are first-class deliverables for every coding change; do not defer them until a validator, coverage report, or reviewer points out they are missing
+- Before touching production code, name exact test files and E2E scenarios that will change; if you cannot name them, stop and resolve that first
+- For runtime behavior changes, start by editing tests first unless task is docs-only, copy-only, styling-only, or config-only
 - Unit test files live **next to their source file** (`foo.tsx` → `foo.test.tsx`); never under a separate `__tests__/` directory
 - Any edit in `src/lib/**` or `src/components/packt/**` must include the matching colocated test edit in the same change
 - E2E goes in `tests/e2e/` only — Gherkin features in `features/`, step definitions in `steps/`
 - Any new or materially changed user-facing flow must include the `.feature` update and matching step-definition update in the same change
 - Use Vitest (`vitest`, `@testing-library/react`) for unit/component tests
 - Use `playwright-bdd` + Playwright for E2E — write scenarios in `.feature` files, implement in step `.ts` files
+- Run targeted tests for touched files or flows before broad validation; validator confirms completed work, not missing test intent
 - E2E fixture setup must use Object Mothers and scenario-owned fixture creation under `tests/e2e/` rather than permanent feature-specific seed rows
 - Reusable E2E starting states belong in the mother/materializer helpers in `tests/e2e/e2e-seed-data.ts`, `tests/e2e/scenario-fixture.ts`, and related helpers — extend those instead of inventing ad hoc shared setup
 - `tests/e2e/global-setup.ts` is for minimal bootstrap data only, such as baseline auth prerequisites; do not add feature-specific shared trips, templates, documents, or profile rows there

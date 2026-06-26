@@ -3,11 +3,85 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { expenses } from "@/db/schema";
+import { expenses, trips, users } from "@/db/schema";
 import { ExpenseCategory, type CreateExpenseInput, type UpdateExpensePatch } from "@/data/types";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
+import { convertDual } from "@/lib/currency";
 
 const VALID_EXPENSE_CATEGORIES = new Set(Object.values(ExpenseCategory));
+
+interface ConversionFields {
+  convertedAmountTrip: string | null;
+  conversionRateTrip: string | null;
+  convertedCurrencyTrip: string | null;
+  convertedAmountProfile: string | null;
+  conversionRateProfile: string | null;
+  convertedCurrencyProfile: string | null;
+}
+
+const NULL_CONVERSIONS: ConversionFields = {
+  convertedAmountTrip: null,
+  conversionRateTrip: null,
+  convertedCurrencyTrip: null,
+  convertedAmountProfile: null,
+  conversionRateProfile: null,
+  convertedCurrencyProfile: null,
+};
+
+/**
+ * Resolve the dual conversions for an expense against the trip's budget currency
+ * and the acting user's profile currency. Conversion is server-side only — the
+ * fetched rates never reach the client. A lookup failure is non-blocking: the
+ * expense saves unconverted and the client is signalled via the returned flag.
+ */
+async function computeConversions(
+  tripId: string,
+  userId: string,
+  amount: number,
+  currency: string,
+  date: string
+): Promise<{ fields: ConversionFields; conversionError?: boolean }> {
+  const normalizedCurrency = currency.toUpperCase();
+
+  const [[tripRow], [userRow]] = await Promise.all([
+    db.select({ budgetCurrency: trips.budgetCurrency }).from(trips).where(eq(trips.id, tripId)),
+    db.select({ currency: users.currency }).from(users).where(eq(users.id, userId)),
+  ]);
+
+  const tripCurrency = tripRow?.budgetCurrency?.toUpperCase() ?? null;
+  const profileCurrency = userRow?.currency?.toUpperCase() ?? null;
+
+  const targets: string[] = [];
+  if (tripCurrency && tripCurrency !== normalizedCurrency) targets.push(tripCurrency);
+  if (profileCurrency && profileCurrency !== normalizedCurrency) targets.push(profileCurrency);
+
+  if (targets.length === 0) {
+    return { fields: { ...NULL_CONVERSIONS } };
+  }
+
+  try {
+    const conversions = await convertDual(amount, normalizedCurrency, targets, date);
+    const fields: ConversionFields = { ...NULL_CONVERSIONS };
+
+    const tripConversion = tripCurrency ? conversions[tripCurrency] : undefined;
+    if (tripConversion) {
+      fields.convertedAmountTrip = tripConversion.convertedAmount.toString();
+      fields.conversionRateTrip = tripConversion.rate.toString();
+      fields.convertedCurrencyTrip = tripCurrency;
+    }
+
+    const profileConversion = profileCurrency ? conversions[profileCurrency] : undefined;
+    if (profileConversion) {
+      fields.convertedAmountProfile = profileConversion.convertedAmount.toString();
+      fields.conversionRateProfile = profileConversion.rate.toString();
+      fields.convertedCurrencyProfile = profileCurrency;
+    }
+
+    return { fields };
+  } catch {
+    return { fields: { ...NULL_CONVERSIONS }, conversionError: true };
+  }
+}
 
 function validateExpenseCategory(category: string): asserts category is CreateExpenseInput["category"] {
   if (!VALID_EXPENSE_CATEGORIES.has(category as CreateExpenseInput["category"])) {
@@ -45,10 +119,16 @@ function validateCreateExpenseInput(input: CreateExpenseInput): void {
   }
 }
 
-export async function createExpense(tripId: string, input: CreateExpenseInput): Promise<string> {
+export async function createExpense(
+  tripId: string,
+  input: CreateExpenseInput
+): Promise<{ id: string; conversionError?: boolean }> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
   validateCreateExpenseInput(input);
+
+  const currency = input.currency.trim().toUpperCase();
+  const { fields, conversionError } = await computeConversions(tripId, user.id!, input.amount, currency, input.date);
 
   const [createdExpense] = await db
     .insert(expenses)
@@ -58,25 +138,31 @@ export async function createExpense(tripId: string, input: CreateExpenseInput): 
       reservationId: input.reservationId ?? null,
       category: input.category,
       amount: input.amount.toString(),
-      currency: input.currency.trim(),
-      convertedAmountTrip: input.convertedAmountTrip?.toString() ?? null,
-      conversionRateTrip: input.conversionRateTrip?.toString() ?? null,
-      convertedCurrencyTrip: input.convertedCurrencyTrip ?? null,
-      convertedAmountProfile: input.convertedAmountProfile?.toString() ?? null,
-      conversionRateProfile: input.conversionRateProfile?.toString() ?? null,
-      convertedCurrencyProfile: input.convertedCurrencyProfile ?? null,
+      currency,
+      ...fields,
       date: input.date,
       note: input.note?.trim() || null,
     })
     .returning({ id: expenses.id });
 
   revalidatePath(`/trips/${tripId}`);
-  return createdExpense.id;
+  return { id: createdExpense.id, ...(conversionError ? { conversionError: true } : {}) };
 }
 
-export async function updateExpense(expenseId: string, patch: UpdateExpensePatch): Promise<void> {
+export async function updateExpense(
+  expenseId: string,
+  patch: UpdateExpensePatch
+): Promise<{ conversionError?: boolean } | void> {
   const user = await requireUser();
-  const [expenseRow] = await db.select({ tripId: expenses.tripId }).from(expenses).where(eq(expenses.id, expenseId));
+  const [expenseRow] = await db
+    .select({
+      tripId: expenses.tripId,
+      amount: expenses.amount,
+      currency: expenses.currency,
+      date: expenses.date,
+    })
+    .from(expenses)
+    .where(eq(expenses.id, expenseId));
 
   if (!expenseRow) {
     throw new Error("Expense not found.");
@@ -96,7 +182,7 @@ export async function updateExpense(expenseId: string, patch: UpdateExpensePatch
     validateDate(patch.date);
   }
 
-  if (patch.currency !== undefined && !patch.currency.trim()) {
+  if (patch.currency !== undefined && patch.currency !== null && !patch.currency.trim()) {
     throw new Error("Currency is required.");
   }
 
@@ -111,17 +197,25 @@ export async function updateExpense(expenseId: string, patch: UpdateExpensePatch
   if (patch.currency !== undefined) updates.currency = patch.currency.trim();
   if (patch.date !== undefined) updates.date = patch.date;
   if (patch.note !== undefined) updates.note = patch.note?.trim() || null;
-  if (patch.convertedAmountTrip !== undefined)
-    updates.convertedAmountTrip = patch.convertedAmountTrip?.toString() ?? null;
-  if (patch.conversionRateTrip !== undefined) updates.conversionRateTrip = patch.conversionRateTrip?.toString() ?? null;
-  if (patch.convertedCurrencyTrip !== undefined) updates.convertedCurrencyTrip = patch.convertedCurrencyTrip;
-  if (patch.convertedAmountProfile !== undefined) {
-    updates.convertedAmountProfile = patch.convertedAmountProfile?.toString() ?? null;
+
+  let conversionError: boolean | undefined;
+
+  const conversionAffected = patch.amount !== undefined || patch.currency !== undefined || patch.date !== undefined;
+
+  if (conversionAffected) {
+    const nextAmount = patch.amount ?? Number(expenseRow.amount ?? 0);
+    const nextCurrency = (patch.currency ?? expenseRow.currency).trim();
+    const nextDate = patch.date ?? expenseRow.date;
+    const { fields, conversionError: error } = await computeConversions(
+      expenseRow.tripId,
+      user.id!,
+      nextAmount,
+      nextCurrency,
+      nextDate
+    );
+    Object.assign(updates, fields);
+    conversionError = error;
   }
-  if (patch.conversionRateProfile !== undefined) {
-    updates.conversionRateProfile = patch.conversionRateProfile?.toString() ?? null;
-  }
-  if (patch.convertedCurrencyProfile !== undefined) updates.convertedCurrencyProfile = patch.convertedCurrencyProfile;
 
   const [updatedRow] = await db
     .update(expenses)
@@ -134,6 +228,10 @@ export async function updateExpense(expenseId: string, patch: UpdateExpensePatch
   }
 
   revalidatePath(`/trips/${expenseRow.tripId}`);
+
+  if (conversionError) {
+    return { conversionError: true };
+  }
 }
 
 export async function deleteExpense(expenseId: string): Promise<void> {

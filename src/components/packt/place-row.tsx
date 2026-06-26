@@ -144,7 +144,10 @@ export function PlaceRow({
 
     try {
       if (expense?.id) {
-        await updateExpense(expense.id, linkedExpenseInput);
+        const updateResult = await updateExpense(expense.id, linkedExpenseInput);
+        if (updateResult?.conversionError) {
+          toast.error("Couldn't convert currency — try again.");
+        }
         setExpense({
           ...expense,
           ...expenseInput,
@@ -159,9 +162,12 @@ export function PlaceRow({
         return;
       }
 
-      const createdExpenseId = await createExpense(place.tripId, linkedExpenseInput);
+      const createResult = await createExpense(place.tripId, linkedExpenseInput);
+      if (createResult.conversionError) {
+        toast.error("Couldn't convert currency — try again.");
+      }
       setExpense({
-        id: createdExpenseId,
+        id: createResult.id,
         tripId: place.tripId,
         eventId: place.id,
         category: expenseInput.category,

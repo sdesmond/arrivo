@@ -16,8 +16,39 @@ function getCurrencyOption(code: string) {
   return screen.getByRole("option", { name: `${option.name} ${option.code}` });
 }
 
+function getNextCurrencyCode(code: string): string {
+  const index = currencyOptions.findIndex((currencyOption) => currencyOption.code === code);
+  if (index === -1 || index === currencyOptions.length - 1) {
+    throw new Error(`Missing next currency option for ${code}`);
+  }
+
+  return currencyOptions[index + 1].code;
+}
+
+function getFirstCurrencyCode(): string {
+  const firstCode = currencyOptions[0]?.code;
+  if (!firstCode) {
+    throw new Error("Currency options are empty");
+  }
+
+  return firstCode;
+}
+
+function getLastCurrencyCode(): string {
+  const lastCode = currencyOptions.at(-1)?.code;
+  if (!lastCode) {
+    throw new Error("Currency options are empty");
+  }
+
+  return lastCode;
+}
+
 function getSearchInput() {
   return screen.getByRole("textbox", { name: "Search currencies" });
+}
+
+function getUnitedStatesTrigger() {
+  return screen.getByRole("button", { name: /Currency: United States Dollar USD/i });
 }
 
 describe("CurrencyPicker", () => {
@@ -55,7 +86,7 @@ describe("CurrencyPicker", () => {
 
     expect(onChange).toHaveBeenCalledWith("EUR");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toHaveFocus());
+    await waitFor(() => expect(getUnitedStatesTrigger()).toHaveFocus());
   });
 
   it("closes on Escape and returns focus to the trigger", async () => {
@@ -66,12 +97,13 @@ describe("CurrencyPicker", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toHaveFocus());
+    await waitFor(() => expect(getUnitedStatesTrigger()).toHaveFocus());
   });
 
   it("opens from the keyboard, focuses the search box, and supports arrow navigation", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
+    const nextCurrencyCode = getNextCurrencyCode("USD");
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={onChange} />);
 
     const trigger = screen.getByRole("button", { name: /Currency:/i });
@@ -85,7 +117,7 @@ describe("CurrencyPicker", () => {
 
     await user.keyboard("{ArrowDown}{Enter}");
 
-    expect(onChange).toHaveBeenCalledWith("USN");
+    expect(onChange).toHaveBeenCalledWith(nextCurrencyCode);
   });
 
   it("filters options by search query", async () => {
@@ -124,7 +156,7 @@ describe("CurrencyPicker", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toHaveFocus());
+    await waitFor(() => expect(getUnitedStatesTrigger()).toHaveFocus());
   });
 
   it("wraps option navigation forward past the last filtered option", async () => {
@@ -133,18 +165,18 @@ describe("CurrencyPicker", () => {
 
     await user.click(screen.getByRole("button", { name: /Currency:/i }));
     await waitFor(() => expect(getSearchInput()).toHaveFocus());
-    await user.type(getSearchInput(), "dirham");
+    await user.type(getSearchInput(), "guinea");
 
     expect(screen.getAllByRole("option")).toHaveLength(2);
 
     await user.keyboard("{ArrowDown}");
-    await waitFor(() => expect(getCurrencyOption("AED")).toHaveFocus());
+    await waitFor(() => expect(getCurrencyOption("GNF")).toHaveFocus());
 
     await user.keyboard("{ArrowDown}");
-    await waitFor(() => expect(getCurrencyOption("MAD")).toHaveFocus());
+    await waitFor(() => expect(getCurrencyOption("PGK")).toHaveFocus());
 
     await user.keyboard("{ArrowDown}");
-    await waitFor(() => expect(getCurrencyOption("AED")).toHaveFocus());
+    await waitFor(() => expect(getCurrencyOption("GNF")).toHaveFocus());
   });
 
   it("renders a disabled fallback trigger when no server options exist", async () => {
@@ -184,6 +216,8 @@ describe("CurrencyPicker", () => {
 
   it("supports home, end, and tab keyboard handling while open", async () => {
     const user = userEvent.setup();
+    const firstCurrencyCode = getFirstCurrencyCode();
+    const lastCurrencyCode = getLastCurrencyCode();
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /Currency:/i }));
@@ -192,10 +226,10 @@ describe("CurrencyPicker", () => {
     await waitFor(() => expect(getCurrencyOption("USD")).toHaveFocus());
 
     await user.keyboard("{End}");
-    await waitFor(() => expect(getCurrencyOption("ZWL")).toHaveFocus());
+    await waitFor(() => expect(getCurrencyOption(lastCurrencyCode)).toHaveFocus());
 
     await user.keyboard("{Home}");
-    await waitFor(() => expect(getCurrencyOption("AED")).toHaveFocus());
+    await waitFor(() => expect(getCurrencyOption(firstCurrencyCode)).toHaveFocus());
 
     await user.keyboard("{Tab}");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
@@ -214,18 +248,20 @@ describe("CurrencyPicker", () => {
 
   it("wraps option navigation upward and closes on option escape", async () => {
     const user = userEvent.setup();
-    render(<CurrencyPicker currencyOptions={currencyOptions} value="AED" onChange={vi.fn()} />);
+    const firstCurrencyCode = getFirstCurrencyCode();
+    const lastCurrencyCode = getLastCurrencyCode();
+    render(<CurrencyPicker currencyOptions={currencyOptions} value={firstCurrencyCode} onChange={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /Currency:/i }));
     await waitFor(() => expect(getSearchInput()).toHaveFocus());
     await user.keyboard("{ArrowDown}");
-    const firstOption = getCurrencyOption("AED");
+    const firstOption = getCurrencyOption(firstCurrencyCode);
     await waitFor(() => expect(firstOption).toHaveFocus());
 
     fireEvent.keyDown(firstOption, { key: "ArrowUp" });
-    await waitFor(() => expect(getCurrencyOption("ZWL")).toHaveFocus());
+    await waitFor(() => expect(getCurrencyOption(lastCurrencyCode)).toHaveFocus());
 
-    fireEvent.keyDown(getCurrencyOption("ZWL"), { key: "Escape" });
+    fireEvent.keyDown(getCurrencyOption(lastCurrencyCode), { key: "Escape" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 

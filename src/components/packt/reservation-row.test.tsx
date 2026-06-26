@@ -262,7 +262,7 @@ describe("ReservationRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(updateReservation).mockResolvedValue(undefined);
-    vi.mocked(createExpense).mockResolvedValue("expense-new");
+    vi.mocked(createExpense).mockResolvedValue({ id: "expense-new" });
     vi.mocked(updateExpense).mockResolvedValue(undefined);
     vi.mocked(deleteExpenseAction).mockResolvedValue(undefined);
   });
@@ -279,7 +279,7 @@ describe("ReservationRow", () => {
 
     expect(screen.getByRole("button", { name: "Check-in · JFK Airport" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "499.00" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "$499.00" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ABC123" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Late checkout requested" })).toBeInTheDocument();
   });
@@ -542,7 +542,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "499.00" }));
+    await user.click(screen.getByRole("button", { name: "$499.00" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
     expect(updateExpense).toHaveBeenCalledWith(
@@ -557,7 +557,7 @@ describe("ReservationRow", () => {
     );
     expect(
       screen.getByRole("button", {
-        name: new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(199.99),
+        name: "$199.99",
       })
     ).toBeInTheDocument();
   });
@@ -566,11 +566,30 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "499.00" }));
+    await user.click(screen.getByRole("button", { name: "$499.00" }));
     await user.click(screen.getByRole("button", { name: "dialog-remove" }));
 
     expect(deleteExpenseAction).toHaveBeenCalledWith("expense-1");
     expect(screen.getByRole("button", { name: "Add cost" })).toBeInTheDocument();
+  });
+
+  it("shows the saved expense currency on the reservation cost chip", () => {
+    render(
+      <ReservationRow
+        reservation={{
+          ...populatedReservation,
+          expense: {
+            ...populatedReservation.expense!,
+            currency: "AED",
+            amount: 499,
+          },
+        }}
+        type={ReservationType.Lodging}
+        isLast={false}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "AED 499.00" })).toBeInTheDocument();
   });
 
   it("updates confirmation code after saving through the dialog", async () => {
@@ -622,7 +641,7 @@ describe("ReservationRow", () => {
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
-    await user.click(screen.getByRole("button", { name: "499.00" }));
+    await user.click(screen.getByRole("button", { name: "$499.00" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
     await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));

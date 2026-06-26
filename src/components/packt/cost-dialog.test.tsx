@@ -91,7 +91,7 @@ describe("CostDialog", () => {
     const user = userEvent.setup();
     render(<CostDialog open defaultCurrency="USD" onOpenChange={vi.fn()} onSave={vi.fn()} />, { wrapper: Wrapper });
 
-    await user.click(screen.getByRole("button", { name: /Currency: US Dollar USD/i }));
+    await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
 
     expect(screen.getByRole("textbox", { name: "Search currencies" })).toBeInTheDocument();
   });
