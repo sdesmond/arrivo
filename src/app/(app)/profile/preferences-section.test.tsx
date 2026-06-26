@@ -146,54 +146,58 @@ describe("ProfilePreferencesSection", () => {
     expect(screen.getByText("Budget")).toBeInTheDocument();
   });
 
-  it("renders threshold inputs with defaults", () => {
+  it("renders threshold selects with defaults", () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    expect(screen.getByLabelText("Warning %")).toHaveValue(80);
-    expect(screen.getByLabelText("Danger %")).toHaveValue(90);
+    expect(screen.getByRole("combobox", { name: "Warning %" })).toHaveTextContent(/^80/);
+    expect(screen.getByRole("combobox", { name: "Danger %" })).toHaveTextContent(/^90/);
   });
 
-  it("renders threshold inputs with saved values", () => {
+  it("renders threshold selects with saved values", () => {
     const userWithThresholds: UserProfile = { ...mockUser, warningThreshold: 50, dangerThreshold: 75 };
     render(<ProfilePreferencesSection user={userWithThresholds} />);
-    expect(screen.getByLabelText("Warning %")).toHaveValue(50);
-    expect(screen.getByLabelText("Danger %")).toHaveValue(75);
+    expect(screen.getByRole("combobox", { name: "Warning %" })).toHaveTextContent(/^50/);
+    expect(screen.getByRole("combobox", { name: "Danger %" })).toHaveTextContent(/^75/);
   });
 
-  it("Save disabled when warning >= danger", async () => {
+  it("danger options <= warning threshold are disabled", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    const warningInput = screen.getByLabelText("Warning %");
-    const dangerInput = screen.getByLabelText("Danger %");
-    await userEvent.clear(dangerInput);
-    await userEvent.type(dangerInput, "50");
-    await userEvent.clear(warningInput);
-    await userEvent.type(warningInput, "90");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.getByText("Warning must be less than danger.")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Danger %" }));
+    const disabledOption = await screen.findByRole("option", { name: "80%" });
+    expect(disabledOption).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("Save enabled with valid threshold pair", async () => {
+  it("changing warning threshold auto-adjusts danger when invalid", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    const warningInput = screen.getByLabelText("Warning %");
-    await userEvent.clear(warningInput);
-    await userEvent.type(warningInput, "50");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Warning %" }));
+    await user.click(await screen.findByRole("option", { name: "90%" }));
+    expect(screen.getByRole("combobox", { name: "Danger %" })).toHaveTextContent(/^100/);
+  });
+
+  it("Save enabled after changing warning threshold", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Warning %" }));
+    await user.click(await screen.findByRole("option", { name: "50%" }));
     expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
   });
 
-  it("only threshold fields sent in patch when only thresholds change", async () => {
+  it("both threshold fields sent in patch when either changes", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    const warningInput = screen.getByLabelText("Warning %");
-    await userEvent.clear(warningInput);
-    await userEvent.type(warningInput, "50");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Warning %" }));
+    await user.click(await screen.findByRole("option", { name: "50%" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ warningThreshold: 50, dangerThreshold: 90 });
   });
 
-  it("changing thresholds marks dirty", async () => {
+  it("changing danger threshold marks dirty", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    const dangerInput = screen.getByLabelText("Danger %");
-    await userEvent.clear(dangerInput);
-    await userEvent.type(dangerInput, "95");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Danger %" }));
+    await user.click(await screen.findByRole("option", { name: "100%" }));
     expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
   });
 

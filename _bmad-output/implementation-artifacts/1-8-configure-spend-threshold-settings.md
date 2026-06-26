@@ -4,7 +4,7 @@ baseline_commit: 2b91353
 
 # Story 1.8: Configure Spend Threshold Settings
 
-Status: review
+Status: done
 
 ## Story
 
@@ -230,6 +230,16 @@ claude-sonnet-4-6
 - `src/app/(app)/profile/passport-section.test.tsx` — added required threshold fields to `UserProfile` test fixture
 - `src/app/(app)/profile/page-client.test.tsx` — added required threshold fields to `UserProfile` test fixture
 - `src/app/(app)/profile/identity-section.test.tsx` — added required threshold fields to `UserProfile` test fixture
+
+## Review Findings
+
+- [x] [Review][Patch] NaN from number input propagates to DB [preferences-section.tsx:85, actions.ts:59] — replaced with Select (no free-form input)
+- [x] [Review][Patch] Fractional values pass server range check for integer column [actions.ts:59,62] — replaced with Select (integer-only values)
+- [x] [Review][Patch] Client/server threshold-comparison logic diverges for partial updates [actions.ts:68, preferences-section.tsx:95] — always send both threshold fields together
+- [x] [Review][Patch] Two inconsistent error messages for same validation condition [preferences-section.tsx:95,119] — Select disabled options eliminate need for inline error
+- [x] [Review][Patch] aria-describedby IDs reference non-existent elements [preferences-section.tsx:107,115] — removed with Input replacement
+- [x] [Review][Patch] clampThreshold silently clamps out-of-range input without user feedback [preferences-section.tsx:78] — replaced with Select (no clamping needed)
+- [x] [Review][Patch] handleSave sends both threshold fields even when only one changed [preferences-section.tsx:112] — reverted to sending both by design (required for correct server-side pair validation)
 
 ## Change Log
 

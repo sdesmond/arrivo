@@ -5,10 +5,13 @@ import { Section, Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { updateProfile } from "./actions";
 import { CoverType } from "@/data/types";
 import type { UserProfile } from "@/data/types";
+
+const THRESHOLD_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 const DATE_FORMAT_OPTIONS = [
   { value: "MM/DD/YYYY", label: "Month/Day" },
@@ -78,28 +81,22 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, next, warningThreshold, dangerThreshold));
   }
 
-  function clampThreshold(value: number) {
-    return Math.min(100, Math.max(0, value));
-  }
-
   function handleWarningThresholdChange(next: number) {
-    const clamped = clampThreshold(next);
-    if (clamped === warningThreshold) return;
-    setWarningThreshold(clamped);
-    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, clamped, dangerThreshold));
+    if (next === warningThreshold) return;
+    const nextDanger = dangerThreshold <= next ? Math.min(next + 10, 100) : dangerThreshold;
+    setWarningThreshold(next);
+    setDangerThreshold(nextDanger);
+    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, next, nextDanger));
   }
 
   function handleDangerThresholdChange(next: number) {
-    const clamped = clampThreshold(next);
-    if (clamped === dangerThreshold) return;
-    setDangerThreshold(clamped);
-    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, warningThreshold, clamped));
+    if (next === dangerThreshold) return;
+    setDangerThreshold(next);
+    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, warningThreshold, next));
   }
 
   const currencyError =
     currency.length > 0 && !/^[A-Z]{3}$/.test(currency) ? "Currency must be a 3-letter ISO code (e.g. USD)." : null;
-
-  const thresholdError = warningThreshold >= dangerThreshold ? "Warning must be less than danger." : null;
 
   function handleSave() {
     startTransition(async () => {
@@ -184,34 +181,40 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
 
       <Section title="Budget">
         <div className="flex gap-3">
-          <Field label="Warning %" htmlFor="pref-warning" error={thresholdError ?? undefined}>
-            <Input
-              id="pref-warning"
-              type="number"
-              min={0}
-              max={100}
-              value={warningThreshold}
-              onChange={(event) => handleWarningThresholdChange(Number(event.target.value))}
-              aria-invalid={!!thresholdError || undefined}
-              aria-describedby={thresholdError ? "pref-warning-error" : undefined}
-            />
+          <Field label="Warning %" htmlFor="pref-warning">
+            <Select
+              value={String(warningThreshold)}
+              onValueChange={(selectedValue) => handleWarningThresholdChange(Number(selectedValue))}
+            >
+              <SelectTrigger id="pref-warning" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THRESHOLD_OPTIONS.map((value) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {value}%
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
-          <Field
-            label="Danger %"
-            htmlFor="pref-danger"
-            error={dangerThreshold <= warningThreshold ? "Must be greater than warning." : undefined}
-          >
-            <Input
-              id="pref-danger"
-              type="number"
-              min={0}
-              max={100}
-              value={dangerThreshold}
-              onChange={(event) => handleDangerThresholdChange(Number(event.target.value))}
-              aria-invalid={dangerThreshold <= warningThreshold || undefined}
-              aria-describedby={dangerThreshold <= warningThreshold ? "pref-danger-error" : undefined}
-            />
+          <Field label="Danger %" htmlFor="pref-danger">
+            <Select
+              value={String(dangerThreshold)}
+              onValueChange={(selectedValue) => handleDangerThresholdChange(Number(selectedValue))}
+            >
+              <SelectTrigger id="pref-danger" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THRESHOLD_OPTIONS.map((value) => (
+                  <SelectItem key={value} value={String(value)} disabled={value <= warningThreshold}>
+                    {value}%
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
       </Section>
@@ -222,7 +225,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
             Saved
           </span>
         )}
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!currencyError || !!thresholdError}>
+        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!currencyError}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </div>
