@@ -11,6 +11,7 @@ import type {
   TripEvent,
   DayItemType,
   Document,
+  Expense,
   PackingItem,
   PackingTemplate,
   PullTemplatesResult,
@@ -32,6 +33,7 @@ export interface TripDetailTabBodyProps {
   packingItems: PackingItem[];
   packingLists: TripPackingList[];
   reservations: Reservation[];
+  expenses: Expense[];
   templates: PackingTemplate[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
@@ -105,6 +107,7 @@ export function TripDetailTabBody({
   packingItems,
   packingLists,
   reservations,
+  expenses,
   templates,
   dateFormat,
   initialExpandedDayNumber,
@@ -193,7 +196,9 @@ export function TripDetailTabBody({
       {activeTab === "docs" && (
         <TripDocsTab tripId={tripId} docs={docs.filter((document) => document.scope === "trip")} />
       )}
-      {activeTab === "budget" && <TripBudgetTab budget={trip.budget} onOpenEditBudget={onOpenEditBudget} />}
+      {activeTab === "budget" && (
+        <TripBudgetTab budget={trip.budget} expenses={expenses} onOpenEditBudget={onOpenEditBudget} />
+      )}
       {activeTab === "map" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
       )}

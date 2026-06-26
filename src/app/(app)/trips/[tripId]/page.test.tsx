@@ -72,6 +72,7 @@ const baseDetail: TripDetailPayload = {
   packingItems: [],
   packingLists: [],
   reservations: [],
+  expenses: [],
 };
 
 describe("TripDetailPage", () => {

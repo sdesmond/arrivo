@@ -167,6 +167,7 @@ const baseDetail: TripDetailPayload = {
   packingItems: [],
   packingLists: [],
   reservations: [],
+  expenses: [],
 };
 
 describe("TripDetailClient", () => {

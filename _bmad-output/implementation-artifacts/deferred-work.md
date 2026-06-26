@@ -15,3 +15,9 @@
 
 - `getNow()`/`Date.now()` divergence risk — date comparison uses `getNow()` from mock-date while cache TTL uses `Date.now()`. If mock-date returns an offset, cache behavior is inconsistent. Low risk for current usage.
 - `recalculate()` stub signature may change in Story 1.6 — current stub accepts `Expense[]` but will likely need trip/user lookup context for batch recalculation. Intentional placeholder.
+
+## Deferred from: code review of 1-4-track-actual-spend-category-breakdown.md (2026-06-26)
+
+- Currency label mismatch when expenses lack conversion data — pre-existing design constraint; spec explicitly falls back to raw amount for unconverted entries but label may show trip currency while sum is mixed.
+- `convertedCurrencyTrip` first-match assumption with no consistency check — `resolveTripCurrency` picks first expense with truthy `convertedCurrencyTrip`; no `Set` size validation across all expenses. Low probability.
+- `CategoryBreakdownEntry.count` computed but never surfaced in UI — harmlessly retained for future consumers.
