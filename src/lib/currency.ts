@@ -7,11 +7,12 @@ import type { Expense } from "@/data/types";
  * This is the ONLY module that calls Frankfurter or holds the rate cache.
  * All conversion call sites import from here — never duplicate fetch logic.
  *
- * Uses the v1 historical endpoint (`/v1/{date}`), not `/latest`. The v1 target
- * parameter is `symbols` (not `to`). Base currency is always specified explicitly.
+ * Uses the v2 rates endpoint with `date`, `base`, and comma-joined `quotes`.
+ * Frankfurter v2 covers more active country currencies than v1, which keeps
+ * entry-time conversion aligned with the expanded currency picker.
  */
 
-const FRANKFURTER_BASE = "https://api.frankfurter.dev/v1";
+const FRANKFURTER_BASE = "https://api.frankfurter.dev/v2/rates";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1hr — only applies to today-dated lookups
 
 interface ConversionResult {
@@ -51,19 +52,34 @@ const resolveLookupDate = (date: string): string => {
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
 
 async function fetchRates(fromCurrency: string, toCurrencies: string[], date: string): Promise<Record<string, number>> {
-  const url = `${FRANKFURTER_BASE}/${date}?base=${fromCurrency}&symbols=${toCurrencies.join(",")}`;
+  const url = `${FRANKFURTER_BASE}?date=${date}&base=${fromCurrency}&quotes=${toCurrencies.join(",")}`;
   const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(`Currency conversion failed (HTTP ${response.status}).`);
   }
 
-  const data = (await response.json()) as { rates?: Record<string, number> };
-  if (!data.rates) {
+  const data = (await response.json()) as unknown;
+  if (!Array.isArray(data) || data.length === 0) {
     throw new Error("Currency conversion returned no rates.");
   }
 
-  return data.rates;
+  const rates: Record<string, number> = {};
+
+  for (const row of data) {
+    const quote = typeof row?.quote === "string" ? row.quote : null;
+    const rate = typeof row?.rate === "number" ? row.rate : null;
+
+    if (quote && rate !== null) {
+      rates[quote] = rate;
+    }
+  }
+
+  if (Object.keys(rates).length === 0) {
+    throw new Error("Currency conversion returned no rates.");
+  }
+
+  return rates;
 }
 
 /**

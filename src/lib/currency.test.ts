@@ -5,10 +5,16 @@ import { convert, convertDual, recalculate } from "./currency";
 const TODAY = "2026-06-25";
 const PAST = "2024-01-15";
 
-function mockFetchRates(rates: Record<string, number>) {
+function mockFetchRates(rates: Record<string, number>, base = "USD", date = TODAY) {
   return vi.spyOn(globalThis, "fetch").mockResolvedValue({
     ok: true,
-    json: async () => ({ amount: 1, base: "USD", date: TODAY, rates }),
+    json: async () =>
+      Object.entries(rates).map(([quote, rate]) => ({
+        date,
+        base,
+        quote,
+        rate,
+      })),
   } as Response);
 }
 
@@ -29,13 +35,22 @@ describe("lib/currency", () => {
   });
 
   describe("convert", () => {
-    it("calls Frankfurter with the v1 historical URL and returns converted amount + rate", async () => {
+    it("calls Frankfurter with the v2 historical URL and returns converted amount + rate", async () => {
       const fetchSpy = mockFetchRates({ EUR: 0.92 });
 
       const result = await convert(100, "USD", "EUR", PAST);
 
-      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v1/${PAST}?base=USD&symbols=EUR`);
+      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v2/rates?date=${PAST}&base=USD&quotes=EUR`);
       expect(result).toEqual({ convertedAmount: 92, rate: 0.92 });
+    });
+
+    it("supports source currencies that v1 misses but v2 serves", async () => {
+      const fetchSpy = mockFetchRates({ USD: 0.014 }, "AFN", PAST);
+
+      const result = await convert(100, "AFN", "USD", PAST);
+
+      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v2/rates?date=${PAST}&base=AFN&quotes=USD`);
+      expect(result).toEqual({ convertedAmount: 1.4, rate: 0.014 });
     });
 
     it("rounds the converted amount to 2 decimal places", async () => {
@@ -63,7 +78,7 @@ describe("lib/currency", () => {
       const result = await convertDual(200, "USD", ["EUR", "GBP"], PAST);
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
-      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v1/${PAST}?base=USD&symbols=EUR,GBP`);
+      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v2/rates?date=${PAST}&base=USD&quotes=EUR,GBP`);
       expect(result).toEqual({
         EUR: { convertedAmount: 184, rate: 0.92 },
         GBP: { convertedAmount: 158, rate: 0.79 },
@@ -84,7 +99,7 @@ describe("lib/currency", () => {
 
       const result = await convertDual(100, "USD", ["USD", "GBP"], PAST);
 
-      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v1/${PAST}?base=USD&symbols=GBP`);
+      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v2/rates?date=${PAST}&base=USD&quotes=GBP`);
       expect(result).toEqual({ GBP: { convertedAmount: 79, rate: 0.79 } });
     });
 
@@ -101,7 +116,7 @@ describe("lib/currency", () => {
 
       await convertDual(100, "USD", ["EUR"], "2030-01-01");
 
-      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v1/${TODAY}?base=USD&symbols=EUR`);
+      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v2/rates?date=${TODAY}&base=USD&quotes=EUR`);
     });
   });
 
@@ -146,7 +161,7 @@ describe("lib/currency", () => {
     it("throws when the response omits the rates object", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
-        json: async () => ({ amount: 1, base: "USD", date: PAST }),
+        json: async () => ({ date: PAST, base: "USD", quote: "EUR", rate: 0.92 }),
       } as Response);
 
       await expect(convert(100, "USD", "EUR", PAST)).rejects.toThrow("Currency conversion returned no rates.");
