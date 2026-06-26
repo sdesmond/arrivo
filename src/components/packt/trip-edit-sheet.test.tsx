@@ -193,13 +193,13 @@ describe("TripEditSheet", () => {
   it("renders the budget total input with the current currency", () => {
     render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByDisplayValue("3000")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
   });
 
   it("budget section label text is visible", () => {
     render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
   });
 
   it("Cancel button calls onClose", async () => {
@@ -328,7 +328,7 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
-    await user.click(screen.getByRole("button", { name: /Currency: US Dollar USD/i }));
+    await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
     await user.click(getCurrencyOption("EUR"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetCurrency: "EUR" }));

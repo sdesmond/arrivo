@@ -54,7 +54,7 @@ describe("TripEditBudget", () => {
     render(<TripEditBudgetHarness />);
 
     expect(screen.getByDisplayValue("3000")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
     expect(screen.getByDisplayValue("3000").parentElement).toHaveClass("rounded-lg", "h-9");
     expect(screen.queryByText("Per person")).not.toBeInTheDocument();
   });
@@ -67,7 +67,7 @@ describe("TripEditBudget", () => {
 
     const totalInput = screen.getByDisplayValue("3000");
 
-    await user.click(screen.getByRole("button", { name: /Currency: US Dollar USD/i }));
+    await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
 
     expect(getCurrencyOption("USD")).toHaveAttribute("data-selected", "true");
 
@@ -97,11 +97,13 @@ describe("TripEditBudget", () => {
     const user = userEvent.setup();
     render(<TripEditBudgetHarness />);
 
-    await user.click(screen.getByRole("button", { name: /Currency: US Dollar USD/i }));
+    await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toHaveFocus());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toHaveFocus()
+    );
   });
 
   it("maps a cleared total input to undefined", async () => {
@@ -118,12 +120,12 @@ describe("TripEditBudget", () => {
     render(<TripEditBudgetHarness disabled />);
 
     expect(screen.getByDisplayValue("3000")).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeDisabled();
   });
 
   it("defaults to USD and enabled controls when currency and disabled are omitted", () => {
     render(<TripEditBudget currencyOptions={currencyOptions} onCurrencyChange={vi.fn()} onTotalChange={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: /Currency: US Dollar USD/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeEnabled();
   });
 });
