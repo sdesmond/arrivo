@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const { createExpense } = vi.hoisted(() => ({ createExpense: vi.fn() }));
+
+vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
+  createExpense,
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 import { TripBudgetTab } from "./trip-budget-tab";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
@@ -21,7 +32,7 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
 
 describe("TripBudgetTab", () => {
   it("shows the Set a budget prompt and the empty state when no budget and no expenses", () => {
-    render(<TripBudgetTab budget={undefined} expenses={[]} onOpenEditBudget={vi.fn()} />);
+    render(<TripBudgetTab tripId="trip-1" budget={undefined} expenses={[]} onOpenEditBudget={vi.fn()} />);
 
     expect(screen.getByText("Actual spent")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set a budget" })).toBeInTheDocument();
@@ -33,7 +44,7 @@ describe("TripBudgetTab", () => {
   it("opens the budget editor from the Set a budget prompt", async () => {
     const user = userEvent.setup();
     const onOpenEditBudget = vi.fn();
-    render(<TripBudgetTab budget={undefined} expenses={[]} onOpenEditBudget={onOpenEditBudget} />);
+    render(<TripBudgetTab tripId="trip-1" budget={undefined} expenses={[]} onOpenEditBudget={onOpenEditBudget} />);
 
     await user.click(screen.getByRole("button", { name: "Set a budget" }));
 
@@ -45,7 +56,14 @@ describe("TripBudgetTab", () => {
       makeExpense({ id: "a", category: ExpenseCategory.Food, convertedAmountTrip: 40 }),
       makeExpense({ id: "b", category: ExpenseCategory.Lodging, convertedAmountTrip: 60 }),
     ];
-    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={expenses}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("Actual spent")).toBeInTheDocument();
     expect(screen.getByText("€100.00")).toBeInTheDocument();
@@ -53,7 +71,14 @@ describe("TripBudgetTab", () => {
 
   it("shows Budget total and Remaining when a budget exists", () => {
     const expenses = [makeExpense({ id: "a", convertedAmountTrip: 250 })];
-    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={expenses}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("Budget")).toBeInTheDocument();
     expect(screen.getByText("€5,000.00")).toBeInTheDocument();
@@ -67,6 +92,7 @@ describe("TripBudgetTab", () => {
     const onOpenEditBudget = vi.fn();
     render(
       <TripBudgetTab
+        tripId="trip-1"
         budget={{ currency: "EUR", total: 5000 }}
         expenses={[makeExpense()]}
         onOpenEditBudget={onOpenEditBudget}
@@ -84,7 +110,14 @@ describe("TripBudgetTab", () => {
       makeExpense({ id: "b", category: ExpenseCategory.Food, convertedAmountTrip: 30 }),
       makeExpense({ id: "c", category: ExpenseCategory.Lodging, convertedAmountTrip: 200 }),
     ];
-    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={expenses}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("Food")).toBeInTheDocument();
     expect(screen.getByText("€50.00")).toBeInTheDocument();
@@ -94,7 +127,14 @@ describe("TripBudgetTab", () => {
 
   it("omits categories with no expenses", () => {
     const expenses = [makeExpense({ id: "a", category: ExpenseCategory.Transport, convertedAmountTrip: 42 })];
-    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={expenses}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("Transport")).toBeInTheDocument();
     expect(screen.queryByText("Food")).not.toBeInTheDocument();
@@ -102,7 +142,14 @@ describe("TripBudgetTab", () => {
   });
 
   it("shows the No expenses yet empty state with the toolbar still visible", () => {
-    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={[]} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={[]}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("No expenses yet")).toBeInTheDocument();
     expect(screen.getByText("Actual spent")).toBeInTheDocument();
@@ -114,7 +161,7 @@ describe("TripBudgetTab", () => {
       makeExpense({ id: "a", category: ExpenseCategory.Food, convertedAmountTrip: 50 }),
       makeExpense({ id: "b", category: ExpenseCategory.Lodging, convertedAmountTrip: 25 }),
     ];
-    render(<TripBudgetTab budget={undefined} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+    render(<TripBudgetTab tripId="trip-1" budget={undefined} expenses={expenses} onOpenEditBudget={vi.fn()} />);
 
     expect(screen.getByText("€75.00")).toBeInTheDocument();
     expect(screen.queryByText("Remaining")).not.toBeInTheDocument();
@@ -126,21 +173,42 @@ describe("TripBudgetTab", () => {
       makeExpense({ id: "a", category: ExpenseCategory.Food, amount: 33, convertedAmountTrip: undefined }),
       makeExpense({ id: "b", category: ExpenseCategory.Lodging, convertedAmountTrip: 7 }),
     ];
-    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={expenses}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("€33.00")).toBeInTheDocument();
     expect(screen.getByText("€40.00")).toBeInTheDocument();
   });
 
   it("treats a budget without a total as unset", () => {
-    render(<TripBudgetTab budget={{ currency: "EUR", total: undefined }} expenses={[]} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: undefined }}
+        expenses={[]}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByRole("button", { name: "Set a budget" })).toBeInTheDocument();
     expect(screen.queryByText("Remaining")).not.toBeInTheDocument();
   });
 
   it("falls back to a code-prefixed amount when Intl currency formatting fails", () => {
-    render(<TripBudgetTab budget={{ currency: "invalid", total: 100 }} expenses={[]} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "invalid", total: 100 }}
+        expenses={[]}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("invalid 0.00")).toBeInTheDocument();
   });
@@ -148,6 +216,7 @@ describe("TripBudgetTab", () => {
   it("renders ?? when an amount is not finite (Infinity)", () => {
     render(
       <TripBudgetTab
+        tripId="trip-1"
         budget={{ currency: "invalid", total: Number.POSITIVE_INFINITY }}
         expenses={[]}
         onOpenEditBudget={vi.fn()}
@@ -158,14 +227,28 @@ describe("TripBudgetTab", () => {
   });
 
   it("renders ?? for NaN amounts", () => {
-    render(<TripBudgetTab budget={{ currency: "EUR", total: Number.NaN }} expenses={[]} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: Number.NaN }}
+        expenses={[]}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getAllByText("EUR ??").length).toBeGreaterThan(0);
   });
 
   it("shows negative Remaining when overspent", () => {
     const expenses = [makeExpense({ id: "a", convertedAmountTrip: 6000 })];
-    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={expenses}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
 
     expect(screen.getByText("Remaining")).toBeInTheDocument();
     expect(screen.getByText("-€1,000.00")).toBeInTheDocument();
@@ -175,6 +258,7 @@ describe("TripBudgetTab", () => {
     const budgetNoCurrency = { currency: "", total: 5000 } as import("@/data/types").Budget;
     render(
       <TripBudgetTab
+        tripId="trip-1"
         budget={budgetNoCurrency}
         expenses={[makeExpense({ id: "a", convertedAmountTrip: 100 })]}
         onOpenEditBudget={vi.fn()}
@@ -184,5 +268,52 @@ describe("TripBudgetTab", () => {
     expect(screen.getByText("Actual spent")).toBeInTheDocument();
     expect(screen.queryByText("Remaining")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set a budget" })).toBeInTheDocument();
+  });
+
+  it("shows the Add Misc Expense button in the toolbar regardless of expense state", () => {
+    render(<TripBudgetTab tripId="trip-1" budget={undefined} expenses={[]} onOpenEditBudget={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Add Misc Expense" })).toBeInTheDocument();
+  });
+
+  it("keeps the Add Misc Expense button visible alongside existing expenses", () => {
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "EUR", total: 5000 }}
+        expenses={[makeExpense()]}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Add Misc Expense" })).toBeInTheDocument();
+  });
+
+  it("opens the Misc Expense modal from the toolbar button", async () => {
+    const user = userEvent.setup();
+    render(<TripBudgetTab tripId="trip-1" budget={undefined} expenses={[]} onOpenEditBudget={vi.fn()} />);
+
+    expect(screen.queryByRole("textbox", { name: "Amount" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add Misc Expense" }));
+
+    expect(screen.getByRole("textbox", { name: "Amount" })).toBeInTheDocument();
+  });
+
+  it("defaults the Misc Expense modal currency to the resolved defaultExpenseCurrency", async () => {
+    const user = userEvent.setup();
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={undefined}
+        expenses={[]}
+        onOpenEditBudget={vi.fn()}
+        defaultExpenseCurrency="GBP"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add Misc Expense" }));
+
+    expect(screen.getByRole("button", { name: /Currency: British Pound GBP/i })).toBeInTheDocument();
   });
 });

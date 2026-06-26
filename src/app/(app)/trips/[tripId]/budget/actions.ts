@@ -89,9 +89,19 @@ function validateExpenseCategory(category: string): asserts category is CreateEx
   }
 }
 
+const MAX_EXPENSE_AMOUNT = 50000;
+
 function validateAmount(amount: number): void {
-  if (!Number.isFinite(amount) || amount < 0) {
-    throw new Error("Amount must be a valid number.");
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Amount must be greater than 0.");
+  }
+
+  if (amount > MAX_EXPENSE_AMOUNT) {
+    throw new Error("Amount must be 50,000 or less.");
+  }
+
+  if (Number(amount.toFixed(2)) !== amount) {
+    throw new Error("Amount must have at most 2 decimal places.");
   }
 }
 
@@ -109,10 +119,6 @@ function validateCreateExpenseInput(input: CreateExpenseInput): void {
   validateExpenseCategory(input.category);
   validateAmount(input.amount);
   validateDate(input.date);
-
-  if (!input.eventId && !input.reservationId) {
-    throw new Error("Expense must be linked to an event or reservation.");
-  }
 
   if (input.eventId && input.reservationId) {
     throw new Error("Expense cannot be linked to both an event and a reservation.");
