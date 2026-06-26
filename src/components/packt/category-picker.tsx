@@ -46,6 +46,7 @@ export interface CategoryPickerProps {
   onChange: (category: ExpenseCategoryValue) => void;
   disabled?: boolean;
   error?: boolean;
+  required?: boolean;
 }
 
 export function CategoryPicker({
@@ -53,6 +54,7 @@ export function CategoryPicker({
   onChange,
   disabled = false,
   error = false,
+  required = false,
 }: CategoryPickerProps): ReactElement {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -173,12 +175,14 @@ export function CategoryPicker({
 
   return (
     <div ref={rootRef} className="relative">
+      {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- listbox-trigger button must surface aria-required per Accessibility Floor spec */}
       <button
         ref={triggerRef}
         type="button"
         aria-controls={listboxId}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        aria-required={required}
         disabled={disabled}
         className="flex h-10 w-full items-center justify-between rounded-xl border px-3 text-left outline-none disabled:cursor-not-allowed disabled:opacity-50"
         style={{

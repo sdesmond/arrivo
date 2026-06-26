@@ -155,6 +155,12 @@ describe("CategoryPicker", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Food" })).toHaveFocus());
   });
 
+  it("marks the trigger aria-required when required", () => {
+    render(<CategoryPicker onChange={vi.fn()} required />);
+
+    expect(screen.getByRole("button", { name: /select category/i })).toHaveAttribute("aria-required", "true");
+  });
+
   it("selects with Space and keeps the picker open for unrelated option keys", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

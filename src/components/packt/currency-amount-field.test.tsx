@@ -98,6 +98,25 @@ describe("CurrencyAmountField", () => {
     expect(screen.getByRole("textbox", { name: "Amount" }).parentElement).toHaveClass("border-destructive");
   });
 
+  it("hides the search field in the currency picker when searchable is false", async () => {
+    const user = userEvent.setup();
+    render(
+      <CurrencyAmountField
+        amount="25"
+        currency="USD"
+        currencyOptions={currencyOptions}
+        onAmountChange={vi.fn()}
+        onCurrencyChange={vi.fn()}
+        amountInputLabel="Amount"
+        searchable={false}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
+
+    expect(screen.queryByPlaceholderText("Search")).not.toBeInTheDocument();
+  });
+
   it("disables both controls together", () => {
     render(
       <CurrencyAmountField

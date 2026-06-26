@@ -22,6 +22,7 @@ export interface CurrencyAmountFieldProps {
   maxFractionDigits?: number;
   onAmountKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   placeholder?: string;
+  searchable?: boolean;
   step?: number | string;
 }
 
@@ -45,6 +46,7 @@ export function CurrencyAmountField({
   maxFractionDigits = 2,
   onAmountKeyDown,
   placeholder,
+  searchable = true,
   step,
 }: CurrencyAmountFieldProps): ReactElement {
   const normalizedAmount = amount ?? "";
@@ -81,6 +83,7 @@ export function CurrencyAmountField({
         value={currency}
         onChange={onCurrencyChange}
         disabled={disabled}
+        searchable={searchable}
       />
       <Input
         id={amountInputId}
