@@ -71,6 +71,8 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
       passportNationality: users.passportNationality,
       knownTravelerNumber: users.knownTravelerNumber,
       defaultCoverType: users.defaultCoverType,
+      warningThreshold: users.warningThreshold,
+      dangerThreshold: users.dangerThreshold,
     })
     .from(users)
     .where(eq(users.id, id));

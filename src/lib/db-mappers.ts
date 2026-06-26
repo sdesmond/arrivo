@@ -87,6 +87,8 @@ export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
     passportNationality: row.passportNationality ?? null,
     knownTravelerNumber: row.knownTravelerNumber ?? null,
     defaultCoverType: isCoverType(defaultCoverType) ? defaultCoverType : undefined,
+    warningThreshold: row.warningThreshold,
+    dangerThreshold: row.dangerThreshold,
     loyaltyNumbers: [],
     wishlistDestinations: [],
     companions: [],

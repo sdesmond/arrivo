@@ -108,6 +108,8 @@ export interface UserProfile {
   passportNationality: string | null;
   knownTravelerNumber: string | null;
   defaultCoverType?: CoverType;
+  warningThreshold: number;
+  dangerThreshold: number;
   loyaltyNumbers: LoyaltyNumber[];
   wishlistDestinations: WishlistDestination[];
   companions: Companion[];
@@ -123,6 +125,8 @@ export interface UpdateUserProfilePatch {
   passportExpiry?: string;
   passportNationality?: string | null;
   knownTravelerNumber?: string | null;
+  warningThreshold?: number;
+  dangerThreshold?: number;
 }
 
 export interface AddLoyaltyNumberInput {
