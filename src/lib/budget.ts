@@ -1,4 +1,8 @@
+import { BudgetStatus } from "@/data/types";
 import type { Expense, ExpenseCategory } from "@/data/types";
+
+export const DEFAULT_WARNING_THRESHOLD = 80;
+export const DEFAULT_DANGER_THRESHOLD = 90;
 
 export interface CategoryBreakdownEntry {
   category: ExpenseCategory;
@@ -48,6 +52,38 @@ export function calculateCategoryBreakdown(expenses: Expense[], currency: string
   }
 
   return [...byCategory.values()].sort((first, second) => second.subtotal - first.subtotal);
+}
+
+/**
+ * Where actual spend sits relative to the user's warning/danger thresholds.
+ * `budgetTotal <= 0` is treated as neutral — there's no meaningful percentage
+ * to compare against a budget that isn't set.
+ */
+export function calculateBudgetStatus(
+  actual: number,
+  budgetTotal: number,
+  warningThreshold: number,
+  dangerThreshold: number
+): BudgetStatus {
+  if (budgetTotal <= 0) {
+    return BudgetStatus.Neutral;
+  }
+
+  const clampedActual = Math.max(actual, 0);
+  const percentage = (clampedActual / budgetTotal) * 100;
+
+  if (!Number.isFinite(percentage)) {
+    return BudgetStatus.Neutral;
+  }
+
+  const effectiveThreshold = Math.max(warningThreshold, dangerThreshold);
+  if (percentage >= effectiveThreshold) {
+    return BudgetStatus.Danger;
+  }
+  if (percentage >= Math.min(warningThreshold, dangerThreshold)) {
+    return BudgetStatus.Warning;
+  }
+  return BudgetStatus.Neutral;
 }
 
 const dateOnly = (isoDateTime: string): string => isoDateTime.slice(0, 10);

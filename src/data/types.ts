@@ -68,6 +68,13 @@ export const ExpenseCategory = {
 } as const;
 export type ExpenseCategory = (typeof ExpenseCategory)[keyof typeof ExpenseCategory];
 
+export const BudgetStatus = {
+  Neutral: "neutral",
+  Warning: "warning",
+  Danger: "danger",
+} as const;
+export type BudgetStatus = (typeof BudgetStatus)[keyof typeof BudgetStatus];
+
 export const TripDetailTab = {
   Itinerary: "itin",
   Budget: "budget",

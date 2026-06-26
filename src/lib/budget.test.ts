@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateActual,
+  calculateBudgetStatus,
   calculateCategoryBreakdown,
   hasCurrencyChangeMismatch,
   hasCurrencyMismatch,
   needsRecalculation,
 } from "./budget";
+import { BudgetStatus } from "@/data/types";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
 
@@ -222,6 +224,48 @@ describe("hasCurrencyMismatch", () => {
 
     expect(hasCurrencyMismatch(expenses, "USD", NOW)).toBe(false);
     expect(hasCurrencyMismatch(expenses, "usd", NOW)).toBe(false);
+  });
+});
+
+describe("calculateBudgetStatus", () => {
+  it("returns neutral when actual/budget is below the warning threshold", () => {
+    expect(calculateBudgetStatus(50, 1000, 80, 90)).toBe(BudgetStatus.Neutral);
+  });
+
+  it("returns warning when actual/budget is at or above the warning threshold and below the danger threshold", () => {
+    expect(calculateBudgetStatus(850, 1000, 80, 90)).toBe(BudgetStatus.Warning);
+  });
+
+  it("returns danger when actual/budget is at or above the danger threshold", () => {
+    expect(calculateBudgetStatus(950, 1000, 80, 90)).toBe(BudgetStatus.Danger);
+  });
+
+  it("returns neutral when budgetTotal is zero (division by zero guard)", () => {
+    expect(calculateBudgetStatus(100, 0, 80, 90)).toBe(BudgetStatus.Neutral);
+  });
+
+  it("returns neutral when budgetTotal is negative", () => {
+    expect(calculateBudgetStatus(100, -1000, 80, 90)).toBe(BudgetStatus.Neutral);
+  });
+
+  it("is neutral exactly at the boundary just under the warning threshold", () => {
+    expect(calculateBudgetStatus(799, 1000, 80, 90)).toBe(BudgetStatus.Neutral);
+  });
+
+  it("is warning exactly at the warning threshold boundary", () => {
+    expect(calculateBudgetStatus(800, 1000, 80, 90)).toBe(BudgetStatus.Warning);
+  });
+
+  it("is warning exactly at the boundary just under the danger threshold", () => {
+    expect(calculateBudgetStatus(899, 1000, 80, 90)).toBe(BudgetStatus.Warning);
+  });
+
+  it("is danger exactly at the danger threshold boundary", () => {
+    expect(calculateBudgetStatus(900, 1000, 80, 90)).toBe(BudgetStatus.Danger);
+  });
+
+  it("returns danger when actual exceeds budget entirely", () => {
+    expect(calculateBudgetStatus(1200, 1000, 80, 90)).toBe(BudgetStatus.Danger);
   });
 });
 

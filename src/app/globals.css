@@ -45,6 +45,12 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-fg: var(--accent-fg);
   --color-accent-ink: var(--accent-ink);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
 
   /* Fonts */
   --font-sans: var(--font-body);
@@ -101,6 +107,14 @@
   --accent-soft: #d6efec;
   --accent-fg: #ffffff;
   --accent-ink: #0a4a44;
+
+  /* Warning / Danger — budget status indicators */
+  --warning: #b6790a;
+  --warning-soft: #fbeacb;
+  --warning-ink: #6b4406;
+  --danger: var(--destructive);
+  --danger-soft: #fbe4e1;
+  --danger-ink: #7a261d;
 
   /* Cover / photo overlay tokens — same in both themes (scrim always on photo) */
   --cover-scrim: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.1) 60%, transparent 100%);
@@ -175,6 +189,14 @@ html[data-font-size="large"] {
   --accent-soft: rgba(43, 181, 166, 0.14);
   --accent-fg: #07151a;
   --accent-ink: #b6ece6;
+
+  /* Warning / Danger — budget status indicators, dark */
+  --warning: #e3a83a;
+  --warning-soft: rgba(227, 168, 58, 0.16);
+  --warning-ink: #f5d9a0;
+  --danger: var(--destructive);
+  --danger-soft: rgba(255, 99, 71, 0.14);
+  --danger-ink: #ffb3a8;
 
   /* Shadows — dark */
   --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.02), 0 1px 2px rgba(0, 0, 0, 0.4);
