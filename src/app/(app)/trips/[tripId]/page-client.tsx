@@ -10,6 +10,7 @@ import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { TripDetailTab } from "@/data/types";
 import type {
   TripDetailPayload,
+  TripCurrencyChangeMode,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripPatch,
@@ -70,6 +71,9 @@ export function TripDetailClient({
   const [editingTrip, setEditingTrip] = useState(false);
   const [highlightTripDates, setHighlightTripDates] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
+  const [pendingCurrencyChangeMode, setPendingCurrencyChangeMode] = useState<TripCurrencyChangeMode | undefined>(
+    undefined
+  );
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const [reservationsAnnouncement, setReservationsAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
@@ -119,31 +123,40 @@ export function TripDetailClient({
     router.push(buildReservationsDeepLinkHref(pathname, searchParams, target), { scroll: false });
   }
 
-  async function handleTripSave(patch: UpdateTripPatch): Promise<void> {
-    const result = await handlers.handleTripSave(patch);
+  async function handleTripSave(patch: UpdateTripPatch, currencyChangeMode?: TripCurrencyChangeMode): Promise<void> {
+    const result = await handlers.handleTripSave(patch, currencyChangeMode);
     if (!result) return;
     if (result.status === "saved") {
       setTripDateConfirmation(null);
       setPendingTripPatch(null);
+      setPendingCurrencyChangeMode(undefined);
       setEditingTrip(false);
       return;
     }
     setPendingTripPatch(patch);
+    setPendingCurrencyChangeMode(currencyChangeMode);
     setTripDateConfirmation(result.confirmation);
   }
 
   async function handleTripDateResolution(resolution: TripDateConflictResolution): Promise<void> {
     if (!pendingTripPatch || !tripDateConfirmation) return;
-    const result = await handlers.handleTripSaveResolution(pendingTripPatch, resolution, tripDateConfirmation);
+    const result = await handlers.handleTripSaveResolution(
+      pendingTripPatch,
+      resolution,
+      tripDateConfirmation,
+      pendingCurrencyChangeMode
+    );
     if (!result || result.status !== "saved") return;
     setTripDateConfirmation(null);
     setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
     setEditingTrip(false);
   }
 
   function handleTripDateResolutionCancel(): void {
     setTripDateConfirmation(null);
     setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
   }
 
   function handleTabChange(nextTab: TripDetailTabValue): void {
@@ -261,6 +274,7 @@ export function TripDetailClient({
         key={trip.id}
         trip={trip}
         currencyOptions={currencyOptions}
+        expenses={expenses}
         open={editingTrip}
         onClose={() => {
           setEditingTrip(false);

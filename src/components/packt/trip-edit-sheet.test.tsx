@@ -88,6 +88,28 @@ vi.mock("@/components/ui/drawer", () => ({
   DrawerTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
 }));
 
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) =>
+    open ? (
+      <>
+        {children}
+        <button data-testid="currency-dialog-dismiss" onClick={() => onOpenChange?.(false)} />
+      </>
+    ) : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock("@/components/ui/alert-dialog", () => ({
   AlertDialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <>{children}</> : null),
   AlertDialogContent: (props: { children: React.ReactNode }) => <>{props.children}</>,
@@ -124,7 +146,13 @@ vi.mock("@/components/ui/alert-dialog", () => ({
 }));
 
 import { TripEditSheet } from "./trip-edit-sheet";
-import { TripDateConflictResolution, type Trip, type UpdateTripPatch } from "@/data/types";
+import {
+  TripCurrencyChangeMode,
+  TripDateConflictResolution,
+  type Expense,
+  type Trip,
+  type UpdateTripPatch,
+} from "@/data/types";
 import { listSupportedCurrencies } from "@/lib/currencies";
 
 const currencyOptions = listSupportedCurrencies();
@@ -652,5 +680,172 @@ describe("TripEditSheet", () => {
     rerender(<TripEditSheet currencyOptions={currencyOptions} trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
 
     expect(screen.getByTestId("destination-input")).toHaveValue("Paris");
+  });
+
+  describe("currency change confirmation", () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const mismatchedExpense: Expense = {
+      id: "expense-1",
+      tripId: "trip-1",
+      category: "food",
+      amount: 50,
+      currency: "GBP",
+      date: today,
+      createdAt: `${today}T11:55:00.000Z`,
+      updatedAt: `${today}T11:55:00.000Z`,
+    };
+
+    async function changeCurrencyToEur(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
+      await user.click(getCurrencyOption("EUR"));
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+    }
+
+    it("commits immediately when the currency is unchanged", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(
+        <TripEditSheet
+          currencyOptions={currencyOptions}
+          trip={baseTrip}
+          expenses={[mismatchedExpense]}
+          open
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetTotal: 3000 }));
+      expect(screen.queryByRole("button", { name: "Convert" })).not.toBeInTheDocument();
+    });
+
+    it("commits immediately when changing currency creates no mismatch", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(
+        <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />
+      );
+
+      await changeCurrencyToEur(user);
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetCurrency: "EUR" }));
+      expect(screen.queryByRole("button", { name: "Convert" })).not.toBeInTheDocument();
+    });
+
+    it("opens the currency change dialog when changing currency creates a mismatch", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(
+        <TripEditSheet
+          currencyOptions={currencyOptions}
+          trip={baseTrip}
+          expenses={[mismatchedExpense]}
+          open
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      );
+
+      await changeCurrencyToEur(user);
+
+      expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
+      expect(onSave).not.toHaveBeenCalled();
+    });
+
+    it("Cancel from the currency dialog makes no mutation, closes the dialog, and returns focus to Save", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      globalThis.requestAnimationFrame = (callback: FrameRequestCallback) => {
+        callback(0);
+        return 0;
+      };
+      render(
+        <TripEditSheet
+          currencyOptions={currencyOptions}
+          trip={baseTrip}
+          expenses={[mismatchedExpense]}
+          open
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      );
+
+      await changeCurrencyToEur(user);
+      const cancelButtons = screen.getAllByRole("button", { name: "Cancel" });
+      await user.click(cancelButtons[cancelButtons.length - 1]);
+
+      expect(onSave).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: "Convert" })).not.toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole("button", { name: /save changes/i })).toHaveFocus());
+    });
+
+    it("Convert from the currency dialog calls onSave with convert mode", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(
+        <TripEditSheet
+          currencyOptions={currencyOptions}
+          trip={baseTrip}
+          expenses={[mismatchedExpense]}
+          open
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      );
+
+      await changeCurrencyToEur(user);
+      await user.click(screen.getByRole("button", { name: "Convert" }));
+
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ budgetCurrency: "EUR" }),
+        TripCurrencyChangeMode.Convert
+      );
+    });
+
+    it("Leave As Is from the currency dialog calls onSave with leave-as-is mode", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(
+        <TripEditSheet
+          currencyOptions={currencyOptions}
+          trip={baseTrip}
+          expenses={[mismatchedExpense]}
+          open
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      );
+
+      await changeCurrencyToEur(user);
+      await user.click(screen.getByRole("button", { name: "Leave As Is" }));
+
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ budgetCurrency: "EUR" }),
+        TripCurrencyChangeMode.LeaveAsIs
+      );
+    });
+
+    it("dismissing the currency dialog via Esc/outside click behaves as Cancel", async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(
+        <TripEditSheet
+          currencyOptions={currencyOptions}
+          trip={baseTrip}
+          expenses={[mismatchedExpense]}
+          open
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      );
+
+      await changeCurrencyToEur(user);
+      await user.click(screen.getByTestId("currency-dialog-dismiss"));
+
+      expect(onSave).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: "Convert" })).not.toBeInTheDocument();
+    });
   });
 });

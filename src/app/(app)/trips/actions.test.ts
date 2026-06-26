@@ -1,8 +1,17 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { collaborators, days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import {
+  collaborators,
+  days,
+  documents,
+  events,
+  expenses,
+  itineraryChecklists,
+  itineraryNotes,
+  trips,
+} from "@/db/schema";
 
-const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => ({
+const { assertTripAccess, db, recalculateAll, requireUser, revalidatePath } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   db: {
     delete: vi.fn(),
@@ -11,6 +20,7 @@ const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => (
     transaction: vi.fn(),
     update: vi.fn(),
   },
+  recalculateAll: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -22,6 +32,10 @@ vi.mock("@/lib/auth-helpers", () => ({
 
 vi.mock("@/db", () => ({
   db,
+}));
+
+vi.mock("@/lib/currency", () => ({
+  recalculateAll,
 }));
 
 vi.mock("next/cache", () => ({
@@ -109,6 +123,7 @@ interface TransactionFixture {
   checklistRows?: Array<{ id: string }>;
   eventDocs?: Array<{ eventId: string | null; url: string | null }>;
   existingDays: Array<{ id: string; tripId: string; dayNumber: number; date: string | null; label: string }>;
+  expenseRows?: unknown[];
   noteRows?: Array<{ id: string }>;
   removedEvents?: Array<{ id: string; name: string; dayId: string | null; position: number }>;
   tripRow?: { id: string; startDate: string | null; endDate: string | null };
@@ -118,6 +133,7 @@ function createTransactionMock({
   checklistRows = [],
   eventDocs = [],
   existingDays,
+  expenseRows = [],
   noteRows = [],
   removedEvents = [],
   tripRow = { id: "trip-1", startDate: "2026-08-01", endDate: "2026-08-02" },
@@ -167,6 +183,12 @@ function createTransactionMock({
         if (table === itineraryChecklists) {
           return {
             where: async () => checklistRows,
+          };
+        }
+
+        if (table === expenses) {
+          return {
+            where: async () => expenseRows,
           };
         }
 
@@ -512,6 +534,124 @@ describe("updateTripMetadata", () => {
     expect(dayUpdates).toHaveLength(0);
     const tripUpdate = operations.updates.find((entry) => entry.table === trips);
     expect(tripUpdate?.values).toEqual(expect.objectContaining({ name: "Renamed Dateless Trip", startDate: null }));
+  });
+
+  function makeExpenseRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "expense-1",
+      tripId: "trip-1",
+      eventId: null,
+      reservationId: null,
+      category: "food",
+      amount: "50",
+      currency: "EUR",
+      convertedAmountTrip: null,
+      conversionRateTrip: null,
+      convertedCurrencyTrip: null,
+      convertedAmountProfile: null,
+      conversionRateProfile: null,
+      convertedCurrencyProfile: null,
+      date: "2026-08-01",
+      note: null,
+      createdAt: null,
+      updatedAt: null,
+      ...overrides,
+    };
+  }
+
+  it("does not recalculate expenses when convertCurrency is omitted (Leave As Is)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { budgetCurrency: "USD" });
+
+    expect(result).toEqual({ status: "saved" });
+    expect(recalculateAll).not.toHaveBeenCalled();
+    expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ budgetCurrency: "USD" }));
+  });
+
+  it("does not recalculate expenses when convertCurrency is true but budgetCurrency is unchanged", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { name: "Renamed" }, undefined, undefined, true);
+
+    expect(result).toEqual({ status: "saved" });
+    expect(recalculateAll).not.toHaveBeenCalled();
+    expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
+  });
+
+  it("recalculates and persists mismatched expense conversions when convertCurrency is true (Convert)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ id: "expense-1", currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    recalculateAll.mockResolvedValue([{ expenseId: "expense-1", convertedAmount: 54, rate: 1.08 }]);
+
+    const result = await updateTripMetadata("trip-1", { budgetCurrency: "USD" }, undefined, undefined, true);
+
+    expect(result).toEqual({ status: "saved" });
+    expect(recalculateAll).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: "expense-1", currency: "EUR", amount: 50 })],
+      "USD"
+    );
+    const expenseUpdate = operations.updates.find((entry) => entry.table === expenses);
+    expect(expenseUpdate?.values).toEqual(
+      expect.objectContaining({
+        convertedAmountTrip: "54",
+        conversionRateTrip: "1.08",
+        convertedCurrencyTrip: "USD",
+        updatedAt: expect.any(Date),
+      })
+    );
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ budgetCurrency: "USD" }));
+  });
+
+  it("rolls back the currency change when recalculation fails (all-or-nothing)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ id: "expense-1", currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    recalculateAll.mockRejectedValue(new Error("Currency conversion failed (HTTP 503)."));
+
+    await expect(updateTripMetadata("trip-1", { budgetCurrency: "USD" }, undefined, undefined, true)).rejects.toThrow(
+      "Currency conversion failed (HTTP 503)."
+    );
+
+    expect(operations.updates.some((entry) => entry.table === trips)).toBe(false);
+    expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 

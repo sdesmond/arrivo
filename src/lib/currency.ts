@@ -173,19 +173,13 @@ export interface RecalculateResult {
 }
 
 /**
- * Batch-recalculate Trip Currency conversions for every expense that still
- * needs one (see `needsRecalculation` in `lib/budget.ts` — currency mismatch
- * plus a rate that may still be a proxy rather than the fixed historical
- * value), using each expense's own `date`. All-or-nothing: if any conversion
- * fetch fails, the whole call rejects and the caller persists nothing. Reused
- * by Story 1.7 (Trip Currency change) and Story 2.5 (Profile Currency change).
+ * Fetch one rate per distinct (currency, date) pair among `expenses` and apply it to
+ * every expense in that pair, in a single batch of parallel requests. All-or-nothing:
+ * if any conversion fetch fails, the whole call rejects and the caller persists nothing.
  */
-export async function recalculate(expenses: Expense[], tripCurrency: string): Promise<RecalculateResult[]> {
-  const now = getNow();
-  const stale = expenses.filter((expense) => needsRecalculation(expense, tripCurrency, now));
-
+async function convertExpenseBatch(expenses: Expense[], tripCurrency: string): Promise<RecalculateResult[]> {
   const byKey = new Map<string, Expense[]>();
-  for (const expense of stale) {
+  for (const expense of expenses) {
     const key = `${expense.currency}:${expense.date}`;
     const group = byKey.get(key);
     if (group) {
@@ -220,4 +214,31 @@ export async function recalculate(expenses: Expense[], tripCurrency: string): Pr
   }
 
   return results;
+}
+
+/**
+ * Batch-recalculate Trip Currency conversions for every expense that still
+ * needs one (see `needsRecalculation` in `lib/budget.ts` — currency mismatch
+ * plus a rate that may still be a proxy rather than the fixed historical
+ * value), using each expense's own `date`. Powers the standalone "Recalculate
+ * Conversions" action (Story 1.6), where re-running repeatedly shouldn't
+ * re-fetch rates that are already fixed.
+ */
+export async function recalculate(expenses: Expense[], tripCurrency: string): Promise<RecalculateResult[]> {
+  const now = getNow();
+  const stale = expenses.filter((expense) => needsRecalculation(expense, tripCurrency, now));
+  return convertExpenseBatch(stale, tripCurrency);
+}
+
+/**
+ * Batch-recalculate Trip Currency conversions for every expense whose currency
+ * differs from `tripCurrency`, with no staleness gate — unlike `recalculate()`,
+ * this is for when the trip currency itself just changed, so every existing
+ * conversion (computed against the *old* trip currency) is wrong regardless of
+ * how recently it was computed. Powers the Trip Currency change "Convert" path.
+ */
+export async function recalculateAll(expenses: Expense[], tripCurrency: string): Promise<RecalculateResult[]> {
+  const normalizedTripCurrency = tripCurrency.toUpperCase();
+  const mismatched = expenses.filter((expense) => expense.currency.toUpperCase() !== normalizedTripCurrency);
+  return convertExpenseBatch(mismatched, tripCurrency);
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateActual, calculateCategoryBreakdown, hasCurrencyMismatch, needsRecalculation } from "./budget";
+import {
+  calculateActual,
+  calculateCategoryBreakdown,
+  hasCurrencyChangeMismatch,
+  hasCurrencyMismatch,
+  needsRecalculation,
+} from "./budget";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
 
@@ -216,5 +222,45 @@ describe("hasCurrencyMismatch", () => {
 
     expect(hasCurrencyMismatch(expenses, "USD", NOW)).toBe(false);
     expect(hasCurrencyMismatch(expenses, "usd", NOW)).toBe(false);
+  });
+});
+
+describe("hasCurrencyChangeMismatch", () => {
+  it("returns false for an empty array", () => {
+    expect(hasCurrencyChangeMismatch([], "GBP")).toBe(false);
+  });
+
+  it("returns false when every expense currency already matches the new currency", () => {
+    const expenses = [makeExpense({ id: "a", currency: "GBP" }), makeExpense({ id: "b", currency: "GBP" })];
+
+    expect(hasCurrencyChangeMismatch(expenses, "GBP")).toBe(false);
+  });
+
+  it("returns true for a same-day, just-created mismatched expense (no staleness gate)", () => {
+    const today = "2026-06-26";
+    const expenses = [
+      makeExpense({
+        id: "a",
+        currency: "INR",
+        date: today,
+        createdAt: "2026-06-26T11:55:00.000Z",
+        updatedAt: "2026-06-26T11:55:00.000Z",
+      }),
+    ];
+
+    expect(hasCurrencyChangeMismatch(expenses, "GBP")).toBe(true);
+  });
+
+  it("compares currencies case-insensitively", () => {
+    const expenses = [makeExpense({ id: "a", currency: "gbp" })];
+
+    expect(hasCurrencyChangeMismatch(expenses, "GBP")).toBe(false);
+    expect(hasCurrencyChangeMismatch(expenses, "gbp")).toBe(false);
+  });
+
+  it("returns true when at least one expense currency differs from the new currency", () => {
+    const expenses = [makeExpense({ id: "a", currency: "GBP" }), makeExpense({ id: "b", currency: "INR" })];
+
+    expect(hasCurrencyChangeMismatch(expenses, "GBP")).toBe(true);
   });
 });
