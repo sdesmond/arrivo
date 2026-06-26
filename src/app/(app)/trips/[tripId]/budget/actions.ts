@@ -6,7 +6,8 @@ import { db } from "@/db";
 import { expenses, trips, users } from "@/db/schema";
 import { ExpenseCategory, type CreateExpenseInput, type UpdateExpensePatch } from "@/data/types";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
-import { convertDual } from "@/lib/currency";
+import { convertDual, recalculate } from "@/lib/currency";
+import { dbExpenseToType } from "@/lib/db-mappers";
 
 const VALID_EXPENSE_CATEGORIES = new Set(Object.values(ExpenseCategory));
 
@@ -240,6 +241,36 @@ export async function updateExpense(
   if (conversionError) {
     return { conversionError: true };
   }
+}
+
+export async function recalculateConversions(tripId: string): Promise<{ recalculated: true }> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const [tripRow] = await db.select({ budgetCurrency: trips.budgetCurrency }).from(trips).where(eq(trips.id, tripId));
+  const tripCurrency = (tripRow?.budgetCurrency ?? "").toUpperCase();
+
+  const expenseRows = await db.select().from(expenses).where(eq(expenses.tripId, tripId));
+  const tripExpenses = expenseRows.map(dbExpenseToType);
+
+  const results = await recalculate(tripExpenses, tripCurrency);
+
+  await Promise.all(
+    results.map((result) =>
+      db
+        .update(expenses)
+        .set({
+          convertedAmountTrip: result.convertedAmount.toString(),
+          conversionRateTrip: result.rate.toString(),
+          convertedCurrencyTrip: tripCurrency,
+          updatedAt: new Date(),
+        })
+        .where(eq(expenses.id, result.expenseId))
+    )
+  );
+
+  revalidatePath(`/trips/${tripId}`);
+  return { recalculated: true };
 }
 
 export async function deleteExpense(expenseId: string): Promise<void> {

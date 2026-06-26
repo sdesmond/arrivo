@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { ExpenseCategory } from "@/data/types";
 import type { Budget, Expense } from "@/data/types";
 import { Button } from "@/components/ui/button";
 import { TripAddExpenseModal } from "@/components/packt/trip-add-expense-modal";
-import { calculateActual, calculateCategoryBreakdown } from "@/lib/budget";
+import { useNow } from "@/components/providers/mock-date-provider";
+import { recalculateConversions } from "@/app/(app)/trips/[tripId]/budget/actions";
+import { calculateActual, calculateCategoryBreakdown, hasCurrencyMismatch } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -68,10 +72,31 @@ export function TripBudgetTab({
   const breakdown = calculateCategoryBreakdown(expenses, tripCurrency);
   const hasBudget = !!budget && budget.total != null && !!budget.currency;
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const now = useNow();
+  const showRecalculate = hasCurrencyMismatch(expenses, tripCurrency, now);
+
+  async function handleRecalculate(): Promise<void> {
+    setIsRecalculating(true);
+    try {
+      await recalculateConversions(tripId);
+      toast.success("Conversions recalculated.");
+    } catch {
+      toast.error("Recalculation failed — no amounts were changed. Try again.");
+    } finally {
+      setIsRecalculating(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {showRecalculate ? (
+          <Button type="button" variant="secondary" size="sm" disabled={isRecalculating} onClick={handleRecalculate}>
+            {isRecalculating ? <Loader2 className="animate-spin" strokeWidth={1.5} aria-hidden="true" /> : null}
+            {isRecalculating ? "Recalculating..." : "Recalculate Conversions"}
+          </Button>
+        ) : null}
         <Button type="button" onClick={() => setShowAddExpenseModal(true)}>
           Add Misc Expense
         </Button>

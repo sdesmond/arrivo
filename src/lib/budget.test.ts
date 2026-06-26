@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateActual, calculateCategoryBreakdown } from "./budget";
+import { calculateActual, calculateCategoryBreakdown, hasCurrencyMismatch, needsRecalculation } from "./budget";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
+
+const NOW = new Date("2026-06-26T12:00:00.000Z");
 
 function makeExpense(overrides: Partial<Expense> = {}): Expense {
   return {
@@ -99,5 +101,120 @@ describe("calculateCategoryBreakdown", () => {
     const breakdown = calculateCategoryBreakdown(expenses, "USD");
 
     expect(breakdown.map((tile) => tile.subtotal)).toEqual([500, 75, 10]);
+  });
+});
+
+describe("needsRecalculation", () => {
+  it("returns false when currency matches the trip currency, regardless of date", () => {
+    const expense = makeExpense({ currency: "USD", date: "2024-01-01" });
+
+    expect(needsRecalculation(expense, "USD", NOW)).toBe(false);
+  });
+
+  it("compares currencies case-insensitively", () => {
+    const expense = makeExpense({ currency: "usd", date: "2024-01-01" });
+
+    expect(needsRecalculation(expense, "USD", NOW)).toBe(false);
+    expect(needsRecalculation(expense, "usd", NOW)).toBe(false);
+  });
+
+  it("returns true for a future-dated mismatched expense, regardless of when it was last computed", () => {
+    const expense = makeExpense({
+      currency: "EUR",
+      date: "2026-07-15",
+      updatedAt: "2026-07-10T00:00:00.000Z",
+    });
+
+    expect(needsRecalculation(expense, "USD", NOW)).toBe(true);
+  });
+
+  it("returns true for a past-dated mismatched expense with no createdAt/updatedAt (conservative default)", () => {
+    const expense = makeExpense({ currency: "EUR", date: "2024-01-01" });
+
+    expect(needsRecalculation(expense, "USD", NOW)).toBe(true);
+  });
+
+  it("returns false when the conversion was last computed on the expense's date (real historical rate, fixed)", () => {
+    const expense = makeExpense({
+      currency: "EUR",
+      date: "2024-01-01",
+      updatedAt: "2024-01-01T18:00:00.000Z",
+    });
+
+    expect(needsRecalculation(expense, "USD", NOW)).toBe(false);
+  });
+
+  it("returns false when the conversion was last computed after the expense's date", () => {
+    const expense = makeExpense({
+      currency: "EUR",
+      date: "2024-01-01",
+      updatedAt: "2024-06-15T00:00:00.000Z",
+    });
+
+    expect(needsRecalculation(expense, "USD", NOW)).toBe(false);
+  });
+
+  it("returns true when the conversion was last computed before the expense's date (proxy rate from entry time)", () => {
+    const expense = makeExpense({
+      currency: "EUR",
+      date: "2026-06-20",
+      updatedAt: "2026-05-30T00:00:00.000Z",
+    });
+
+    expect(needsRecalculation(expense, "USD", NOW)).toBe(true);
+  });
+
+  it("falls back to createdAt when updatedAt is absent", () => {
+    const fixed = makeExpense({
+      currency: "EUR",
+      date: "2024-01-01",
+      createdAt: "2024-01-01T09:00:00.000Z",
+    });
+    const stale = makeExpense({
+      currency: "EUR",
+      date: "2026-06-20",
+      createdAt: "2026-05-30T00:00:00.000Z",
+    });
+
+    expect(needsRecalculation(fixed, "USD", NOW)).toBe(false);
+    expect(needsRecalculation(stale, "USD", NOW)).toBe(true);
+  });
+});
+
+describe("hasCurrencyMismatch", () => {
+  it("returns false for an empty array", () => {
+    expect(hasCurrencyMismatch([], "USD", NOW)).toBe(false);
+  });
+
+  it("returns false when all expense currencies match the trip currency", () => {
+    const expenses = [makeExpense({ id: "a", currency: "USD" }), makeExpense({ id: "b", currency: "USD" })];
+
+    expect(hasCurrencyMismatch(expenses, "USD", NOW)).toBe(false);
+  });
+
+  it("returns true when at least one expense has a different currency and needs recalculation", () => {
+    const expenses = [makeExpense({ id: "a", currency: "USD" }), makeExpense({ id: "b", currency: "EUR" })];
+
+    expect(hasCurrencyMismatch(expenses, "USD", NOW)).toBe(true);
+  });
+
+  it("returns false when the only mismatched expense already has a fixed historical rate", () => {
+    const expenses = [
+      makeExpense({
+        id: "a",
+        currency: "EUR",
+        date: "2024-01-01",
+        updatedAt: "2024-01-01T18:00:00.000Z",
+      }),
+    ];
+
+    expect(hasCurrencyMismatch(expenses, "USD", NOW)).toBe(false);
+  });
+
+  it("compares currencies case-insensitively", () => {
+    const expenses = [makeExpense({ id: "a", currency: "usd" })];
+
+    expect(hasCurrencyMismatch(expenses, "USD", NOW)).toBe(false);
+    expect(hasCurrencyMismatch(expenses, "usd", NOW)).toBe(false);
   });
 });

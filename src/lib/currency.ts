@@ -1,4 +1,5 @@
 import { getNow } from "@/lib/mock-date";
+import { needsRecalculation } from "@/lib/budget";
 import type { Expense } from "@/data/types";
 
 /**
@@ -165,12 +166,32 @@ export async function convert(
   return dual[toCurrency];
 }
 
+export interface RecalculateResult {
+  expenseId: string;
+  convertedAmount: number;
+  rate: number;
+}
+
 /**
- * Batch-recalculate conversions for a set of expenses.
- *
- * Stubbed for Story 1.6 ("Recalculate Conversions") — wired up when the manual
- * retry / Trip-currency-change recalculation flows land.
+ * Batch-recalculate Trip Currency conversions for every expense that still
+ * needs one (see `needsRecalculation` in `lib/budget.ts` — currency mismatch
+ * plus a rate that may still be a proxy rather than the fixed historical
+ * value), using each expense's own `date`. All-or-nothing: if any conversion
+ * fetch fails, the whole call rejects and the caller persists nothing. Reused
+ * by Story 1.7 (Trip Currency change) and Story 2.5 (Profile Currency change).
  */
-export async function recalculate(expenses: Expense[]): Promise<void> {
-  void expenses;
+export async function recalculate(expenses: Expense[], tripCurrency: string): Promise<RecalculateResult[]> {
+  const now = getNow();
+  const stale = expenses.filter((expense) => needsRecalculation(expense, tripCurrency, now));
+
+  return Promise.all(
+    stale.map(async (expense) => {
+      const conversions = await convertDual(expense.amount, expense.currency, [tripCurrency], expense.date);
+      const conversion = conversions[tripCurrency];
+      if (!conversion) {
+        throw new Error(`Currency conversion missing rate for ${tripCurrency}.`);
+      }
+      return { expenseId: expense.id, convertedAmount: conversion.convertedAmount, rate: conversion.rate };
+    })
+  );
 }

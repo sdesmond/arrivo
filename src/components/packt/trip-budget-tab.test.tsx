@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { createExpense } = vi.hoisted(() => ({ createExpense: vi.fn() }));
+const { createExpense, recalculateConversions } = vi.hoisted(() => ({
+  createExpense: vi.fn(),
+  recalculateConversions: vi.fn(),
+}));
 
 vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
   createExpense,
+  recalculateConversions,
 }));
 
 vi.mock("sonner", () => ({
@@ -13,8 +17,15 @@ vi.mock("sonner", () => ({
 }));
 
 import { TripBudgetTab } from "./trip-budget-tab";
+import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
+
+const NOW_ISO = "2026-06-26T12:00:00.000Z";
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
+}
 
 function makeExpense(overrides: Partial<Expense> = {}): Expense {
   return {
@@ -315,5 +326,156 @@ describe("TripBudgetTab", () => {
     await user.click(screen.getByRole("button", { name: "Add Misc Expense" }));
 
     expect(screen.getByRole("button", { name: /Currency: British Pound GBP/i })).toBeInTheDocument();
+  });
+
+  describe("Recalculate Conversions", () => {
+    it("hides the button when all expenses match the trip currency", () => {
+      const expenses = [makeExpense({ id: "a", currency: "EUR" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByRole("button", { name: "Recalculate Conversions" })).not.toBeInTheDocument();
+    });
+
+    it("hides the button when there are no expenses", () => {
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={[]}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByRole("button", { name: "Recalculate Conversions" })).not.toBeInTheDocument();
+    });
+
+    it("hides the button when the only mismatched expense already has a fixed historical rate", () => {
+      const expenses = [
+        makeExpense({
+          id: "a",
+          currency: "GBP",
+          date: "2024-01-01",
+          updatedAt: "2024-01-01T18:00:00.000Z",
+        }),
+      ];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />,
+        { wrapper: Wrapper }
+      );
+
+      expect(screen.queryByRole("button", { name: "Recalculate Conversions" })).not.toBeInTheDocument();
+    });
+
+    it("shows the button when at least one expense mismatches the trip currency", () => {
+      const expenses = [makeExpense({ id: "a", currency: "GBP" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole("button", { name: "Recalculate Conversions" })).toBeInTheDocument();
+    });
+
+    it("shows a spinner and disables the button while recalculating", async () => {
+      const user = userEvent.setup();
+      let resolveRecalculation: () => void = () => {};
+      recalculateConversions.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveRecalculation = resolve;
+          })
+      );
+      const expenses = [makeExpense({ id: "a", currency: "GBP" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Recalculate Conversions" }));
+
+      const recalculatingButton = screen.getByRole("button", { name: "Recalculating..." });
+      expect(recalculatingButton).toBeDisabled();
+
+      resolveRecalculation();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Recalculate Conversions" })).toBeEnabled());
+    });
+
+    it("calls recalculateConversions with the tripId on click", async () => {
+      const user = userEvent.setup();
+      recalculateConversions.mockResolvedValue({ recalculated: true });
+      const expenses = [makeExpense({ id: "a", currency: "GBP" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Recalculate Conversions" }));
+
+      expect(recalculateConversions).toHaveBeenCalledWith("trip-1");
+    });
+
+    it("shows a success toast on completion", async () => {
+      const user = userEvent.setup();
+      recalculateConversions.mockResolvedValue({ recalculated: true });
+      const { toast } = await import("sonner");
+      const expenses = [makeExpense({ id: "a", currency: "GBP" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Recalculate Conversions" }));
+
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Conversions recalculated."));
+    });
+
+    it("shows an error toast on failure", async () => {
+      const user = userEvent.setup();
+      recalculateConversions.mockRejectedValue(new Error("Currency conversion failed (HTTP 503)."));
+      const { toast } = await import("sonner");
+      const expenses = [makeExpense({ id: "a", currency: "GBP" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Recalculate Conversions" }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Recalculation failed — no amounts were changed. Try again.")
+      );
+    });
   });
 });
