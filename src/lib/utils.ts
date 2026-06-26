@@ -20,6 +20,22 @@ function asFloatingUtc(date: Date): Date {
   );
 }
 
+/**
+ * The wall-clock calendar date of `now` as a `YYYY-MM-DD` key.
+ *
+ * Packt is timezone-naive: stored event/reservation times are wall-clock strings
+ * and "now" is read in the runtime's local frame (see {@link isEventNow}). Derive
+ * "today" from local components — never `toISOString()`/`getUTC*`, which convert to
+ * UTC and roll the date forward an evening west of UTC, dropping the current day's
+ * events from views like the Now Card.
+ */
+export function getWallClockDateKey(now: Date): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function isEventPast(event: { endAt?: string }, now: Date): boolean {
   if (!event.endAt) return false;
   return new Date(event.endAt) < asFloatingUtc(now);
@@ -39,16 +55,16 @@ export function getTripStatus(
   now = getNow()
 ): "upcoming" | "active" | "past" {
   if (!startDate || !endDate) return "upcoming";
-  const todayUTC = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-  if (todayUTC < startDate) return "upcoming";
-  if (todayUTC > endDate) return "past";
+  const today = getWallClockDateKey(now);
+  if (today < startDate) return "upcoming";
+  if (today > endDate) return "past";
   return "active";
 }
 
 export function getActiveDayNumber(startDate: string, now = getNow()): number {
   const startParts = startDate.split("-").map(Number);
   const start = Date.UTC(startParts[0], startParts[1] - 1, startParts[2]);
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.floor((today - start) / 86_400_000) + 1;
 }
 

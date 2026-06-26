@@ -7,6 +7,7 @@ import {
   getDisplayedTripDays,
   getTripDays,
   getActiveDayNumber,
+  getWallClockDateKey,
   getTodayDisplay,
   formatTripDate,
   detectDefaultDateFormat,
@@ -174,6 +175,20 @@ describe("getDisplayedTripDays", () => {
 
   it("falls back to date-derived counts when dayTotal is absent", () => {
     expect(getDisplayedTripDays({ startDate: "2026-05-01", endDate: "2026-05-03" })).toBe(3);
+  });
+});
+
+describe("getWallClockDateKey", () => {
+  it("returns the local wall-clock date, not the UTC date", () => {
+    // Late-evening local instant. Built with the local Date constructor so the
+    // assertion is timezone-invariant: the wall-clock date is May 13 regardless
+    // of the runtime zone, whereas toISOString() would roll forward west of UTC.
+    const lateEvening = new Date(2026, 4, 13, 23, 30);
+    expect(getWallClockDateKey(lateEvening)).toBe("2026-05-13");
+  });
+
+  it("zero-pads single-digit months and days", () => {
+    expect(getWallClockDateKey(new Date(2026, 0, 5, 9, 0))).toBe("2026-01-05");
   });
 });
 
