@@ -40,7 +40,7 @@ import {
   dbTemplateItemToType,
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
-import { getTripStatus, toLocalDateKey } from "@/lib/utils";
+import { getTripStatus, getWallClockDateKey, toLocalDateKey } from "@/lib/utils";
 import type { PackingTemplate, PackingTemplateItem, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
@@ -110,7 +110,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
 
   if (rows.length === 0) return [];
 
-  const todayISO = now.toISOString().slice(0, 10);
+  const todayISO = getWallClockDateKey(now);
   const tripIds = rows.map(({ trip }) => trip.id);
 
   const [allTodayEvents, allSummaryEvents, dayCountAggs, packingAggs, allDocs, allCollabs, allReservations] =

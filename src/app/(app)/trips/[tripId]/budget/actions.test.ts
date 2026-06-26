@@ -67,7 +67,7 @@ describe("budget actions", () => {
     db.update.mockReturnValue({
       set: (values: Record<string, unknown>) => {
         updatedExpenseValues = values;
-        return { where: async () => undefined };
+        return { where: () => ({ returning: async () => [{ id: "expense-1" }] }) };
       },
     });
 
