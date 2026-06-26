@@ -21,7 +21,7 @@ jobs:
               env:
                   OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
               with:
-                  model: opencode/bigpickle
+                  model: opencode/big-pickle
                   prompt: |
                       You are a structural PR reviewer. You do NOT review code correctness, logic, or implementation. You check only the structure and metadata of the PR.
 
