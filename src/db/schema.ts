@@ -35,6 +35,8 @@ export const users = pgTable("users", {
   passportNationality: text("passport_nationality"),
   knownTravelerNumber: text("known_traveler_number"),
   defaultCoverType: text("default_cover_type"),
+  warningThreshold: integer("warning_threshold").default(80).notNull(),
+  dangerThreshold: integer("danger_threshold").default(90).notNull(),
 });
 
 export const accounts = pgTable(

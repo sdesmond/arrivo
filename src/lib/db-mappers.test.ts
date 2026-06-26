@@ -687,6 +687,8 @@ const BASE_USER: UserRow = {
   passportNationality: null,
   knownTravelerNumber: null,
   defaultCoverType: null,
+  warningThreshold: 80,
+  dangerThreshold: 90,
 };
 
 describe("dbUserToType", () => {
@@ -702,6 +704,18 @@ describe("dbUserToType", () => {
     expect(result.passportExpiry).toBeNull();
     expect(result.passportNationality).toBeNull();
     expect(result.knownTravelerNumber).toBeNull();
+  });
+
+  it("maps threshold fields correctly", () => {
+    const result = dbUserToType(BASE_USER);
+    expect(result.warningThreshold).toBe(80);
+    expect(result.dangerThreshold).toBe(90);
+  });
+
+  it("maps non-default threshold values correctly", () => {
+    const result = dbUserToType({ ...BASE_USER, warningThreshold: 50, dangerThreshold: 75 });
+    expect(result.warningThreshold).toBe(50);
+    expect(result.dangerThreshold).toBe(75);
   });
 
   it("null defaultCoverType becomes undefined", () => {

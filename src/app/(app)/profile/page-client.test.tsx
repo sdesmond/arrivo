@@ -34,6 +34,8 @@ const baseUser: UserProfile = {
   passportExpiry: null,
   passportNationality: null,
   knownTravelerNumber: null,
+  warningThreshold: 80,
+  dangerThreshold: 90,
   loyaltyNumbers: [],
   wishlistDestinations: [],
   companions: [],
