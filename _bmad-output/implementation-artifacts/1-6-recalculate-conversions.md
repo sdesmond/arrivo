@@ -4,7 +4,7 @@ baseline_commit: 00f6232
 
 # Story 1.6: Recalculate Conversions
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -294,6 +294,13 @@ claude-opus-4-8 (BMad create-story)
 
 - **2026-06-26** — Refined the recalculation trigger from "any currency mismatch" to "currency mismatch AND rate may still be a proxy" (AC1, AC2, AC7, AC8). Added `needsRecalculation()` to `lib/budget.ts`; `hasCurrencyMismatch()` now takes a `now: Date` param and delegates to it; `recalculate()` in `lib/currency.ts` filters through the same predicate via `getNow()`. Rationale: historical Frankfurter rates never change once fetched for their real date, so re-fetching an already-fixed past-dated conversion was a wasted API call and DB write with no effect — this change makes the button (and the recalculate action) a no-op for those rows while still always refreshing future-dated proxy rates and unresolved past-dated proxies.
 - **2026-06-26** — Fixed a bug surfaced while verifying the above refinement: `recalculateConversions` (`budget/actions.ts`) updated `convertedAmountTrip`/`conversionRateTrip`/`convertedCurrencyTrip` but never stamped `updatedAt`, so `needsRecalculation` would keep treating an already-corrected row as stale forever (the button would never hide, and every click would re-fetch the same rate from Frankfurter indefinitely). Added `updatedAt: new Date()` to the update's `.set()` call, matching the convention already used by `updateExpense`. Documented a related dev-only limitation in `deferred-work.md`: the dev mock-date picker doesn't affect real `createdAt`/`updatedAt` timestamps (those are always real wall-clock by codebase-wide convention), so jumping the mock date forward after entering a future-dated expense won't reliably surface the button in dev — confirmed not reproducible in real usage, since `getNow()` falls through to `new Date()` in production.
+
+### Review Findings
+
+- [x] [Review][Dismissed] No guard on missing/empty `budgetCurrency` [`src/app/(app)/trips/[tripId]/budget/actions.ts:250-251`] — not an issue: trip creation dialog always sets `budgetCurrency`, racing trip deletion after auth check is theoretical — when `tripRow` is undefined (race condition after access check) or `budgetCurrency` is null (trip exists with no budget set), `tripCurrency` becomes `""`. This makes every expense appear mismatched, then `convertDual` with empty target produces a cryptic error (`"Currency conversion missing rate for ."`). Fix: throw a clear error if `tripCurrency` is empty after the read.
+- [x] [Review][Patch] No rollback on partial DB update failure [`src/app/(app)/trips/[tripId]/budget/actions.ts:258-270`] — wrapped reads + writes in `db.transaction()`, updated tests — `Promise.all` over individual `db.update()` calls with no transaction wrapping. If one update rejects after others committed, rows are left partially updated. Violates AC4 (all-or-nothing). Fix: wrap reads + writes in a Drizzle transaction.
+- [x] [Review][Patch] Duplicate API calls for same `(currency, date)` pair [`src/lib/currency.ts:195`] — grouped stale expenses by `(currency, date)`, one `convertDual` call per group — `Promise.all` fires one `convertDual` per stale expense. Two expenses with `{currency: "EUR", date: "2024-01-15"}` hit the Frankfurter API twice for the identical rate. Fix: batch stale expenses by `(currency, date)` before calling `convertDual`.
+- [x] [Review][Defer] Client data stale after successful recalculation [`src/components/packt/trip-budget-tab.tsx:79-82`] — `handleRecalculate` calls the server action directly; the `expenses` prop is not refreshed client-side until navigation. Shared pattern across all budget actions (`createExpense`/`updateExpense`/`deleteExpense` also rely on `revalidatePath` alone). Deferred, pre-existing pattern.
 
 ### File List
 

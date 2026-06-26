@@ -184,14 +184,40 @@ export async function recalculate(expenses: Expense[], tripCurrency: string): Pr
   const now = getNow();
   const stale = expenses.filter((expense) => needsRecalculation(expense, tripCurrency, now));
 
-  return Promise.all(
-    stale.map(async (expense) => {
-      const conversions = await convertDual(expense.amount, expense.currency, [tripCurrency], expense.date);
+  const byKey = new Map<string, Expense[]>();
+  for (const expense of stale) {
+    const key = `${expense.currency}:${expense.date}`;
+    const group = byKey.get(key);
+    if (group) {
+      group.push(expense);
+    } else {
+      byKey.set(key, [expense]);
+    }
+  }
+
+  const groupEntries = Array.from(byKey.entries());
+  const groupResults = await Promise.all(
+    groupEntries.map(async ([, group]) => {
+      const [{ currency, date }] = group;
+      const conversions = await convertDual(1, currency, [tripCurrency], date);
       const conversion = conversions[tripCurrency];
       if (!conversion) {
         throw new Error(`Currency conversion missing rate for ${tripCurrency}.`);
       }
-      return { expenseId: expense.id, convertedAmount: conversion.convertedAmount, rate: conversion.rate };
+      return { rate: conversion.rate, group };
     })
   );
+
+  const results: RecalculateResult[] = [];
+  for (const { rate, group } of groupResults) {
+    for (const expense of group) {
+      results.push({
+        expenseId: expense.id,
+        convertedAmount: roundMoney(expense.amount * rate),
+        rate,
+      });
+    }
+  }
+
+  return results;
 }

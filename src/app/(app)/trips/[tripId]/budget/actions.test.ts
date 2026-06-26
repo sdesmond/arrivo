@@ -18,6 +18,7 @@ const {
     delete: vi.fn(),
     insert: vi.fn(),
     select: vi.fn(),
+    transaction: vi.fn(),
     update: vi.fn(),
   },
   expensesTable: { id: "expenses.id", tripId: "expenses.tripId" },
@@ -418,16 +419,18 @@ describe("budget actions", () => {
       };
     }
 
-    function mockUpdateCapture() {
+    function mockTransaction() {
+      const tx = { select: vi.fn(), update: vi.fn() };
       const updateWhereSpy = vi.fn().mockResolvedValue(undefined);
       let lastSetValues: Record<string, unknown> | undefined;
-      db.update.mockReturnValue({
+      tx.update.mockReturnValue({
         set: (values: Record<string, unknown>) => {
           lastSetValues = values;
           return { where: updateWhereSpy };
         },
       });
-      return { updateWhereSpy, getLastSetValues: () => lastSetValues };
+      db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx));
+      return { tx, updateWhereSpy, getLastSetValues: () => lastSetValues };
     }
 
     it("requires auth", async () => {
@@ -447,11 +450,11 @@ describe("budget actions", () => {
     });
 
     it("recalculates conversions for mismatched expenses and revalidates", async () => {
-      db.select
+      const { tx, updateWhereSpy, getLastSetValues } = mockTransaction();
+      tx.select
         .mockReturnValueOnce(createSelectMock([{ budgetCurrency: "USD" }]))
         .mockReturnValueOnce(createSelectMock([makeExpenseRow({ id: "expense-1", currency: "EUR" })]));
       recalculate.mockResolvedValue([{ expenseId: "expense-1", convertedAmount: 54, rate: 1.08 }]);
-      const { updateWhereSpy, getLastSetValues } = mockUpdateCapture();
 
       const result = await recalculateConversions("trip-1");
 
@@ -473,11 +476,11 @@ describe("budget actions", () => {
     });
 
     it("stamps updatedAt on recalculated rows so a future call sees the fixed rate as no-longer-stale", async () => {
-      db.select
+      const { tx, getLastSetValues } = mockTransaction();
+      tx.select
         .mockReturnValueOnce(createSelectMock([{ budgetCurrency: "USD" }]))
         .mockReturnValueOnce(createSelectMock([makeExpenseRow({ id: "expense-1", currency: "EUR" })]));
       recalculate.mockResolvedValue([{ expenseId: "expense-1", convertedAmount: 54, rate: 1.08 }]);
-      const { getLastSetValues } = mockUpdateCapture();
 
       const before = Date.now();
       await recalculateConversions("trip-1");
@@ -490,7 +493,8 @@ describe("budget actions", () => {
     });
 
     it("only updates expenses included in recalculate's results (skips matches)", async () => {
-      db.select
+      const { tx } = mockTransaction();
+      tx.select
         .mockReturnValueOnce(createSelectMock([{ budgetCurrency: "USD" }]))
         .mockReturnValueOnce(
           createSelectMock([
@@ -499,22 +503,22 @@ describe("budget actions", () => {
           ])
         );
       recalculate.mockResolvedValue([{ expenseId: "expense-1", convertedAmount: 54, rate: 1.08 }]);
-      mockUpdateCapture();
 
       await recalculateConversions("trip-1");
 
-      expect(db.update).toHaveBeenCalledTimes(1);
+      expect(tx.update).toHaveBeenCalledTimes(1);
     });
 
     it("throws and updates nothing when recalculate fails (all-or-nothing)", async () => {
-      db.select
+      const { tx } = mockTransaction();
+      tx.select
         .mockReturnValueOnce(createSelectMock([{ budgetCurrency: "USD" }]))
         .mockReturnValueOnce(createSelectMock([makeExpenseRow({ id: "expense-1", currency: "EUR" })]));
       recalculate.mockRejectedValue(new Error("Currency conversion failed (HTTP 503)."));
 
       await expect(recalculateConversions("trip-1")).rejects.toThrow("Currency conversion failed (HTTP 503).");
 
-      expect(db.update).not.toHaveBeenCalled();
+      expect(tx.update).not.toHaveBeenCalled();
       expect(revalidatePath).not.toHaveBeenCalled();
     });
   });

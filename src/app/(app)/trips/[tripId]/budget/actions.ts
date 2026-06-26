@@ -247,27 +247,31 @@ export async function recalculateConversions(tripId: string): Promise<{ recalcul
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
 
-  const [tripRow] = await db.select({ budgetCurrency: trips.budgetCurrency }).from(trips).where(eq(trips.id, tripId));
-  const tripCurrency = (tripRow?.budgetCurrency ?? "").toUpperCase();
+  const results = await db.transaction(async (tx) => {
+    const [tripRow] = await tx.select({ budgetCurrency: trips.budgetCurrency }).from(trips).where(eq(trips.id, tripId));
+    const tripCurrency = (tripRow?.budgetCurrency ?? "").toUpperCase();
 
-  const expenseRows = await db.select().from(expenses).where(eq(expenses.tripId, tripId));
-  const tripExpenses = expenseRows.map(dbExpenseToType);
+    const expenseRows = await tx.select().from(expenses).where(eq(expenses.tripId, tripId));
+    const tripExpenses = expenseRows.map(dbExpenseToType);
 
-  const results = await recalculate(tripExpenses, tripCurrency);
+    const conversionResults = await recalculate(tripExpenses, tripCurrency);
 
-  await Promise.all(
-    results.map((result) =>
-      db
-        .update(expenses)
-        .set({
-          convertedAmountTrip: result.convertedAmount.toString(),
-          conversionRateTrip: result.rate.toString(),
-          convertedCurrencyTrip: tripCurrency,
-          updatedAt: new Date(),
-        })
-        .where(eq(expenses.id, result.expenseId))
-    )
-  );
+    await Promise.all(
+      conversionResults.map((result) =>
+        tx
+          .update(expenses)
+          .set({
+            convertedAmountTrip: result.convertedAmount.toString(),
+            conversionRateTrip: result.rate.toString(),
+            convertedCurrencyTrip: tripCurrency,
+            updatedAt: new Date(),
+          })
+          .where(eq(expenses.id, result.expenseId))
+      )
+    );
+
+    return conversionResults;
+  });
 
   revalidatePath(`/trips/${tripId}`);
   return { recalculated: true };

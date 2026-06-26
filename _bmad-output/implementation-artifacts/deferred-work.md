@@ -34,3 +34,7 @@
 - DB schema constraint for nullable eventId/reservationId not verified in diff — E2E run would catch if DB constraint still requires one non-null.
 - `validateAmount` error message masks NaN/Infinity as "must be greater than 0" — minor DX improvement for future.
 - Consider storing monetary values as cents (integers) instead of floating point — broad architectural refactor affecting all monetary fields across the codebase.
+
+## Deferred from: code review of 1-6-recalculate-conversions.md (2026-06-26)
+
+- Client data stale after successful recalculation — `handleRecalculate` calls server action directly; `expenses` prop not refreshed client-side until navigation. Shared pre-existing pattern across all budget actions (`createExpense`/`updateExpense`/`deleteExpense` also rely on `revalidatePath` alone).
