@@ -31,44 +31,75 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   const [currency, setCurrency] = useState(user.currency ?? "");
   const [distanceUnit, setDistanceUnit] = useState(user.distanceUnit ?? "imperial");
   const [coverType, setCoverType] = useState<string>(user.defaultCoverType ?? CoverType.Photo);
+  const [warningThreshold, setWarningThreshold] = useState(user.warningThreshold ?? 80);
+  const [dangerThreshold, setDangerThreshold] = useState(user.dangerThreshold ?? 90);
   const [isPending, startTransition] = useTransition();
   const [justSaved, setJustSaved] = useState(false);
 
-  function computeDirty(dateFormat: string, currency: string, distanceUnit: string, coverType: string) {
+  function computeDirty(
+    dateFormat: string,
+    currency: string,
+    distanceUnit: string,
+    coverType: string,
+    warningThreshold: number,
+    dangerThreshold: number
+  ) {
     return (
       dateFormat !== (user.dateFormat ?? "MM/DD/YYYY") ||
       currency !== (user.currency ?? "") ||
       distanceUnit !== (user.distanceUnit ?? "imperial") ||
-      coverType !== (user.defaultCoverType ?? CoverType.Photo)
+      coverType !== (user.defaultCoverType ?? CoverType.Photo) ||
+      warningThreshold !== (user.warningThreshold ?? 80) ||
+      dangerThreshold !== (user.dangerThreshold ?? 90)
     );
   }
 
   function handleDateFormatChange(next: string) {
     if (next === dateFormat) return;
     setDateFormat(next);
-    onDirtyChange?.(computeDirty(next, currency, distanceUnit, coverType));
+    onDirtyChange?.(computeDirty(next, currency, distanceUnit, coverType, warningThreshold, dangerThreshold));
   }
 
   function handleCurrencyChange(next: string) {
     if (next === currency) return;
     setCurrency(next);
-    onDirtyChange?.(computeDirty(dateFormat, next, distanceUnit, coverType));
+    onDirtyChange?.(computeDirty(dateFormat, next, distanceUnit, coverType, warningThreshold, dangerThreshold));
   }
 
   function handleDistanceUnitChange(next: string) {
     if (next === distanceUnit) return;
     setDistanceUnit(next);
-    onDirtyChange?.(computeDirty(dateFormat, currency, next, coverType));
+    onDirtyChange?.(computeDirty(dateFormat, currency, next, coverType, warningThreshold, dangerThreshold));
   }
 
   function handleCoverTypeChange(next: string) {
     if (next === coverType) return;
     setCoverType(next);
-    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, next));
+    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, next, warningThreshold, dangerThreshold));
+  }
+
+  function clampThreshold(value: number) {
+    return Math.min(100, Math.max(0, value));
+  }
+
+  function handleWarningThresholdChange(next: number) {
+    const clamped = clampThreshold(next);
+    if (clamped === warningThreshold) return;
+    setWarningThreshold(clamped);
+    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, clamped, dangerThreshold));
+  }
+
+  function handleDangerThresholdChange(next: number) {
+    const clamped = clampThreshold(next);
+    if (clamped === dangerThreshold) return;
+    setDangerThreshold(clamped);
+    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, warningThreshold, clamped));
   }
 
   const currencyError =
     currency.length > 0 && !/^[A-Z]{3}$/.test(currency) ? "Currency must be a 3-letter ISO code (e.g. USD)." : null;
+
+  const thresholdError = warningThreshold >= dangerThreshold ? "Warning must be less than danger." : null;
 
   function handleSave() {
     startTransition(async () => {
@@ -77,6 +108,10 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       if (currency !== (user.currency ?? "")) patch.currency = currency;
       if (distanceUnit !== (user.distanceUnit ?? "imperial")) patch.distanceUnit = distanceUnit;
       if (coverType !== (user.defaultCoverType ?? CoverType.Photo)) patch.defaultCoverType = coverType as CoverType;
+      if (warningThreshold !== (user.warningThreshold ?? 80) || dangerThreshold !== (user.dangerThreshold ?? 90)) {
+        patch.warningThreshold = warningThreshold;
+        patch.dangerThreshold = dangerThreshold;
+      }
       const result = await updateProfile(patch);
       if (result.error) {
         toast.error(result.error);
@@ -88,7 +123,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     });
   }
 
-  const isDirty = computeDirty(dateFormat, currency, distanceUnit, coverType);
+  const isDirty = computeDirty(dateFormat, currency, distanceUnit, coverType, warningThreshold, dangerThreshold);
 
   return (
     <Section>
@@ -147,13 +182,47 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         </ToggleGroup>
       </Field>
 
+      <Section title="Budget">
+        <div className="flex gap-3">
+          <Field label="Warning %" htmlFor="pref-warning" error={thresholdError ?? undefined}>
+            <Input
+              id="pref-warning"
+              type="number"
+              min={0}
+              max={100}
+              value={warningThreshold}
+              onChange={(event) => handleWarningThresholdChange(Number(event.target.value))}
+              aria-invalid={!!thresholdError || undefined}
+              aria-describedby={thresholdError ? "pref-warning-error" : undefined}
+            />
+          </Field>
+
+          <Field
+            label="Danger %"
+            htmlFor="pref-danger"
+            error={dangerThreshold <= warningThreshold ? "Must be greater than warning." : undefined}
+          >
+            <Input
+              id="pref-danger"
+              type="number"
+              min={0}
+              max={100}
+              value={dangerThreshold}
+              onChange={(event) => handleDangerThresholdChange(Number(event.target.value))}
+              aria-invalid={dangerThreshold <= warningThreshold || undefined}
+              aria-describedby={dangerThreshold <= warningThreshold ? "pref-danger-error" : undefined}
+            />
+          </Field>
+        </div>
+      </Section>
+
       <div className="flex items-center justify-end gap-3">
         {justSaved && (
           <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
             Saved
           </span>
         )}
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!currencyError}>
+        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!currencyError || !!thresholdError}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </div>

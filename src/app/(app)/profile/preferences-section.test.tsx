@@ -23,6 +23,8 @@ const mockUser: UserProfile = {
   passportExpiry: null,
   passportNationality: null,
   knownTravelerNumber: null,
+  warningThreshold: 80,
+  dangerThreshold: 90,
   loyaltyNumbers: [],
   wishlistDestinations: [],
   companions: [],
@@ -137,5 +139,69 @@ describe("ProfilePreferencesSection", () => {
     render(<ProfilePreferencesSection user={userWithGraphic} />);
     expect(screen.getByRole("button", { name: "Graphic" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Photo" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("renders Budget section with heading", () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByText("Budget")).toBeInTheDocument();
+  });
+
+  it("renders threshold inputs with defaults", () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByLabelText("Warning %")).toHaveValue(80);
+    expect(screen.getByLabelText("Danger %")).toHaveValue(90);
+  });
+
+  it("renders threshold inputs with saved values", () => {
+    const userWithThresholds: UserProfile = { ...mockUser, warningThreshold: 50, dangerThreshold: 75 };
+    render(<ProfilePreferencesSection user={userWithThresholds} />);
+    expect(screen.getByLabelText("Warning %")).toHaveValue(50);
+    expect(screen.getByLabelText("Danger %")).toHaveValue(75);
+  });
+
+  it("Save disabled when warning >= danger", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const warningInput = screen.getByLabelText("Warning %");
+    const dangerInput = screen.getByLabelText("Danger %");
+    await userEvent.clear(dangerInput);
+    await userEvent.type(dangerInput, "50");
+    await userEvent.clear(warningInput);
+    await userEvent.type(warningInput, "90");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByText("Warning must be less than danger.")).toBeInTheDocument();
+  });
+
+  it("Save enabled with valid threshold pair", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const warningInput = screen.getByLabelText("Warning %");
+    await userEvent.clear(warningInput);
+    await userEvent.type(warningInput, "50");
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+  });
+
+  it("only threshold fields sent in patch when only thresholds change", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const warningInput = screen.getByLabelText("Warning %");
+    await userEvent.clear(warningInput);
+    await userEvent.type(warningInput, "50");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ warningThreshold: 50, dangerThreshold: 90 });
+  });
+
+  it("changing thresholds marks dirty", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    const dangerInput = screen.getByLabelText("Danger %");
+    await userEvent.clear(dangerInput);
+    await userEvent.type(dangerInput, "95");
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+  });
+
+  it("existing field functionality preserved alongside Budget section", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    await userEvent.click(screen.getByRole("button", { name: "Day/Month" }));
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ dateFormat: "DD/MM/YYYY" });
   });
 });

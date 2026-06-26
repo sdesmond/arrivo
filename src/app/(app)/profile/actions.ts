@@ -56,6 +56,19 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
   if (patch.passportExpiry !== undefined && !DATE_RE.test(patch.passportExpiry)) {
     return { error: "Passport expiry must be a valid date (YYYY-MM-DD)." };
   }
+  if (patch.warningThreshold !== undefined && (patch.warningThreshold < 0 || patch.warningThreshold > 100)) {
+    return { error: "Warning threshold must be between 0 and 100." };
+  }
+  if (patch.dangerThreshold !== undefined && (patch.dangerThreshold < 0 || patch.dangerThreshold > 100)) {
+    return { error: "Danger threshold must be between 0 and 100." };
+  }
+  if (patch.warningThreshold !== undefined || patch.dangerThreshold !== undefined) {
+    const effectiveWarning = patch.warningThreshold ?? 80;
+    const effectiveDanger = patch.dangerThreshold ?? 90;
+    if (effectiveWarning >= effectiveDanger) {
+      return { error: "Warning threshold must be less than danger threshold." };
+    }
+  }
 
   const dbPatch: Omit<UpdateUserProfilePatch, "name"> & { name?: string | null } = { ...patch };
   if (trimmedName !== undefined) dbPatch.name = trimmedName || null;
