@@ -47,7 +47,7 @@ development_status:
   1-2-unified-cost-entry-on-events-reservations: done
   1-3-currency-conversion-at-entry-time: done
   1-4-track-actual-spend-category-breakdown: done
-  1-5-add-misc-expenses: backlog
+  1-5-add-misc-expenses: in-progress
   1-6-recalculate-conversions: backlog
   1-7-trip-currency-change-confirmation: backlog
   1-8-configure-spend-threshold-settings: backlog
