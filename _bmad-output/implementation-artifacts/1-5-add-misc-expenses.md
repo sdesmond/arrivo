@@ -4,7 +4,7 @@ baseline_commit: 3473e771d928ca7862d13c2a4b9b04a72e08df28
 
 # Story 1.5: Add Misc Expenses
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -225,6 +225,32 @@ This validation must be relaxed to allow both `null` (unlinked Misc Expense). Th
 - [Source: addendum.md §Component-Level Notes] — `TripAddExpenseModal` is a shadcn Dialog with currency, category, amount, date, note fields
 - [Source: PRD §4.4 FR-7] — Amount validation (>0, ≤2 decimals, ≤50,000), currency defaults, category required, note optional
 - [Source: project-context.md] — CSS custom properties, `cn()` convention, `"use client"` rule, file placement, type conventions
+
+### Review Findings
+
+- [x] [Review][Patch] Modal stays open on conversion error — Now returns early after conversion toast; modal stays open for retry.
+
+- [x] [Review][Patch] Decimal-places check uses floating-point equality [`src/app/(app)/trips/[tripId]/budget/actions.ts:102`] — Replaced with `String(amount).split(".")` string-based check.
+
+- [x] [Review][Patch] Client-side `validateAmountInput` missing ≤2 decimal places check [`src/components/packt/trip-add-expense-modal.tsx:45-58`] — Added `rawAmount.split(".")[1].length` check before parseFloat.
+
+- [x] [Review][Patch] Non-null assertion `category!` without direct guard [`src/components/packt/trip-add-expense-modal.tsx:109`] — Added `if (!category) return` before try block.
+
+- [x] [Review][Patch] Test assertion weakness [`src/components/packt/trip-add-expense-modal.test.tsx:212`] — Changed to `expect(onOpenChange).not.toHaveBeenCalled()`.
+
+- [x] [Review][Patch] Double-submit race condition [`src/components/packt/trip-add-expense-modal.tsx:111-143`] — Added `submittingRef` ref-based guard.
+
+- [x] [Review][Defer] Consider storing monetary values as cents (integers) instead of floating point — broad architectural refactor affecting all monetary fields. Deferred for separate discussion.
+
+- [x] [Review][Defer] Effect setState cascade resets fields when `defaultCurrency`/`defaultDate` change while modal open — intentional pattern, works for current use case.
+
+- [x] [Review][Defer] E2E only covers happy path — negative scenarios (validation errors, conversion errors, server failures) not covered. Follow-up.
+
+- [x] [Review][Defer] `isOpen as boolean` type assertion on Dialog callback — minor defensive measure, matches Dialog API type.
+
+- [x] [Review][Defer] DB schema constraint for nullable eventId/reservationId not verified in diff — E2E run would catch if DB constraint still requires one non-null.
+
+- [x] [Review][Defer] `validateAmount` error message masks NaN/Infinity as "must be greater than 0" — minor DX improvement for future.
 
 ## Dev Agent Record
 

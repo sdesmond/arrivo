@@ -100,7 +100,9 @@ function validateAmount(amount: number): void {
     throw new Error("Amount must be 50,000 or less.");
   }
 
-  if (Number(amount.toFixed(2)) !== amount) {
+  const decimalStr = String(amount);
+  const decimalIndex = decimalStr.indexOf(".");
+  if (decimalIndex !== -1 && decimalStr.length - decimalIndex - 1 > 2) {
     throw new Error("Amount must have at most 2 decimal places.");
   }
 }

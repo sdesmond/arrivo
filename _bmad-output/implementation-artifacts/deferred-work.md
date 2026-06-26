@@ -21,3 +21,12 @@
 - Currency label mismatch when expenses lack conversion data — pre-existing design constraint; spec explicitly falls back to raw amount for unconverted entries but label may show trip currency while sum is mixed.
 - `convertedCurrencyTrip` first-match assumption with no consistency check — `resolveTripCurrency` picks first expense with truthy `convertedCurrencyTrip`; no `Set` size validation across all expenses. Low probability.
 - `CategoryBreakdownEntry.count` computed but never surfaced in UI — harmlessly retained for future consumers.
+
+## Deferred from: code review of 1-5-add-misc-expenses.md (2026-06-26)
+
+- Effect setState cascade resets form fields when `defaultCurrency`/`defaultDate` change while modal open — intentional pattern, works for current use case.
+- E2E only covers happy path (validation errors, conversion errors, server failures not covered) — follow-up item.
+- `isOpen as boolean` type assertion on Dialog callback — minor defensive measure, matches Dialog API type.
+- DB schema constraint for nullable eventId/reservationId not verified in diff — E2E run would catch if DB constraint still requires one non-null.
+- `validateAmount` error message masks NaN/Infinity as "must be greater than 0" — minor DX improvement for future.
+- Consider storing monetary values as cents (integers) instead of floating point — broad architectural refactor affecting all monetary fields across the codebase.

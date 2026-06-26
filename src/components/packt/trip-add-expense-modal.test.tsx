@@ -174,7 +174,7 @@ describe("TripAddExpenseModal", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 
-  it("shows a toast and still closes when the save returns a conversionError", async () => {
+  it("shows a toast and stays open when the save returns a conversionError", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     createExpense.mockResolvedValue({ id: "expense-1", conversionError: true });
@@ -190,7 +190,7 @@ describe("TripAddExpenseModal", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Couldn't convert currency — try again."));
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    await waitFor(() => expect(onOpenChange).not.toHaveBeenCalled());
   });
 
   it("stays open and shows a toast when createExpense rejects", async () => {
@@ -209,7 +209,7 @@ describe("TripAddExpenseModal", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Network error"));
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it("forwards cancel and backdrop close to onOpenChange(false)", async () => {

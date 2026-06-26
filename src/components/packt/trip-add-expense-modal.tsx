@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -55,6 +55,11 @@ function FieldRow({ children, label, error }: RowProps): ReactElement {
 }
 
 function validateAmountInput(rawAmount: string): { amount: number; error?: string } {
+  const decimalPart = rawAmount.split(".")[1];
+  if (decimalPart && decimalPart.length > 2) {
+    return { amount: Number.NaN, error: "Amount must have at most 2 decimal places." };
+  }
+
   const amount = Number.parseFloat(rawAmount);
 
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -91,6 +96,7 @@ export function TripAddExpenseModal({
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
   const [categoryError, setCategoryError] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
@@ -109,6 +115,10 @@ export function TripAddExpenseModal({
   }, [defaultCurrency, defaultDate, open]);
 
   async function handleSave(): Promise<void> {
+    if (submittingRef.current) {
+      return;
+    }
+
     const { amount: parsedAmount, error: nextAmountError } = validateAmountInput(amount);
     const nextCategoryError = category ? undefined : "Category is required.";
 
@@ -119,11 +129,16 @@ export function TripAddExpenseModal({
       return;
     }
 
+    if (!category) {
+      return;
+    }
+
+    submittingRef.current = true;
     setSaving(true);
 
     try {
       const result = await createExpense(tripId, {
-        category: category!,
+        category,
         amount: parsedAmount,
         currency,
         date,
@@ -132,6 +147,7 @@ export function TripAddExpenseModal({
 
       if (result.conversionError) {
         toast.error("Couldn't convert currency — try again.");
+        return;
       }
 
       onOpenChange(false);
@@ -139,6 +155,7 @@ export function TripAddExpenseModal({
       toast.error(error instanceof Error ? error.message : "Failed to save expense.");
     } finally {
       setSaving(false);
+      submittingRef.current = false;
     }
   }
 
