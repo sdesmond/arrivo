@@ -4,7 +4,7 @@ baseline_commit: e935fc1ee61cbc02c1824979ded975bb090d03d8
 
 # Story 1.9: Threshold Status Indicator
 
-Status: review
+Status: done
 
 ## Story
 
@@ -279,3 +279,15 @@ claude-sonnet-4-6
 - `src/app/(app)/trips/[tripId]/page.tsx` — passes `profile.warningThreshold`/`profile.dangerThreshold` to the client component
 - `tests/e2e/feature-map.mjs` — registered the 3 new components under the existing "trips" feature entry
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` — status updated
+
+### Review Findings
+
+- [x] [Review][Decision] Zero-budget edge case: `budget.total === 0` makes `hasBudget=true`, but `calculateBudgetStatus` returns Neutral. Progress bar renders at 0% with no badge — a user who sets a $0 budget then adds expenses sees no warning. Resolution: treat `total: 0` as no-budget (`hasBudget` requires `total > 0`).
+- [x] [Review][Patch] No `--danger` base CSS variable — added `--danger: var(--destructive)` in both themes, `--color-danger` in `@theme inline`, updated components to use `--danger`.
+- [x] [Review][Patch] Duplicate default threshold values — extracted `DEFAULT_WARNING_THRESHOLD`/`DEFAULT_DANGER_THRESHOLD` to `src/lib/budget.ts`, imported in both consumers.
+- [x] [Review][Patch] Inverted thresholds — `calculateBudgetStatus` now uses `Math.max`/`Math.min` to ensure both thresholds are reachable regardless of ordering.
+- [x] [Review][Patch] NaN propagation — added `Number.isFinite` guard in `calculateBudgetStatus`.
+- [x] [Review][Patch] Negative actual — clamped with `Math.max(actual, 0)` in `calculateBudgetStatus`.
+- [x] [Review][Patch] No transition on progress-bar width — added `transition: width 0.3s ease` to fill div.
+- [x] [Review][Patch] `FILL_COLOR` lacks exhaustive type check — added `satisfies Record<BudgetStatus, string>` on the `budget-progress-bar.tsx` map.
+- [x] [Review][Defer] `flex-row-reverse` approach for tab icon positioning is fragile — if CSS fails, visual order reverses. Deferred: spec-chosen tradeoff for accessible-name ordering (`budget-progress-bar.tsx:1`).

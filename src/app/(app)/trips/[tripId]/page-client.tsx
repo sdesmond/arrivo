@@ -9,7 +9,12 @@ import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { BudgetStatus, TripDetailTab } from "@/data/types";
-import { calculateActual, calculateBudgetStatus } from "@/lib/budget";
+import {
+  calculateActual,
+  calculateBudgetStatus,
+  DEFAULT_WARNING_THRESHOLD,
+  DEFAULT_DANGER_THRESHOLD,
+} from "@/lib/budget";
 import type {
   TripDetailPayload,
   TripCurrencyChangeMode,
@@ -65,8 +70,8 @@ export function TripDetailClient({
   initialActiveTab = TripDetailTab.Itinerary,
   isNew,
   templates = [],
-  warningThreshold = 80,
-  dangerThreshold = 90,
+  warningThreshold = DEFAULT_WARNING_THRESHOLD,
+  dangerThreshold = DEFAULT_DANGER_THRESHOLD,
 }: TripDetailClientProps): ReactElement {
   const highlightedEventId = useFocusScroll();
 
@@ -87,7 +92,7 @@ export function TripDetailClient({
 
   const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses } = detail;
 
-  const hasBudget = !!trip.budget && trip.budget.total != null && !!trip.budget.currency;
+  const hasBudget = !!trip.budget && (trip.budget.total ?? 0) > 0 && !!trip.budget.currency;
   const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
   const budgetTotalAmount = hasBudget ? trip.budget!.total! : 0;
   const budgetStatus = hasBudget

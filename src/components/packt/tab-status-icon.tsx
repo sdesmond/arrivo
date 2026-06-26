@@ -12,7 +12,7 @@ export interface TabStatusIconProps {
 
 const ICON_CONTENT = {
   [BudgetStatus.Warning]: { Icon: TriangleAlert, label: "Warning", color: "var(--warning)" },
-  [BudgetStatus.Danger]: { Icon: CircleX, color: "var(--destructive)" },
+  [BudgetStatus.Danger]: { Icon: CircleX, color: "var(--danger)" },
 } as const;
 
 export function TabStatusIcon({ status, actual, budgetTotal }: TabStatusIconProps): ReactElement | null {

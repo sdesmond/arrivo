@@ -12,7 +12,14 @@ import { StatusBadge } from "@/components/packt/status-badge";
 import { TripAddExpenseModal } from "@/components/packt/trip-add-expense-modal";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { recalculateConversions } from "@/app/(app)/trips/[tripId]/budget/actions";
-import { calculateActual, calculateBudgetStatus, calculateCategoryBreakdown, hasCurrencyMismatch } from "@/lib/budget";
+import {
+  calculateActual,
+  calculateBudgetStatus,
+  calculateCategoryBreakdown,
+  hasCurrencyMismatch,
+  DEFAULT_WARNING_THRESHOLD,
+  DEFAULT_DANGER_THRESHOLD,
+} from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -69,14 +76,14 @@ export function TripBudgetTab({
   budget,
   expenses,
   defaultExpenseCurrency,
-  warningThreshold = 80,
-  dangerThreshold = 90,
+  warningThreshold = DEFAULT_WARNING_THRESHOLD,
+  dangerThreshold = DEFAULT_DANGER_THRESHOLD,
   onOpenEditBudget,
 }: TripBudgetTabProps): ReactElement {
   const tripCurrency = resolveTripCurrency(budget, expenses);
   const actual = calculateActual(expenses, tripCurrency);
   const breakdown = calculateCategoryBreakdown(expenses, tripCurrency);
-  const hasBudget = !!budget && budget.total != null && !!budget.currency;
+  const hasBudget = !!budget && (budget.total ?? 0) > 0 && !!budget.currency;
   const budgetStatus = hasBudget
     ? calculateBudgetStatus(actual, budget.total!, warningThreshold, dangerThreshold)
     : BudgetStatus.Neutral;

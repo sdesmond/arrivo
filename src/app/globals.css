@@ -48,6 +48,7 @@
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-warning-ink: var(--warning-ink);
+  --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-danger-ink: var(--danger-ink);
 
@@ -111,6 +112,7 @@
   --warning: #b6790a;
   --warning-soft: #fbeacb;
   --warning-ink: #6b4406;
+  --danger: var(--destructive);
   --danger-soft: #fbe4e1;
   --danger-ink: #7a261d;
 
@@ -192,6 +194,7 @@ html[data-font-size="large"] {
   --warning: #e3a83a;
   --warning-soft: rgba(227, 168, 58, 0.16);
   --warning-ink: #f5d9a0;
+  --danger: var(--destructive);
   --danger-soft: rgba(255, 99, 71, 0.14);
   --danger-ink: #ffb3a8;
 

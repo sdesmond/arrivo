@@ -19,7 +19,7 @@ describe("BudgetProgressBar", () => {
   it("renders with danger fill color", () => {
     const { container } = render(<BudgetProgressBar status={BudgetStatus.Danger} actual={95} budgetTotal={100} />);
     const fill = container.querySelector("[data-slot='budget-progress-bar-fill']");
-    expect(fill).toHaveStyle({ backgroundColor: "var(--destructive)" });
+    expect(fill).toHaveStyle({ backgroundColor: "var(--danger)" });
   });
 
   it("renders with correct width percentage", () => {

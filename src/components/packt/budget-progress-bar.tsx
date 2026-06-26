@@ -9,11 +9,11 @@ export interface BudgetProgressBarProps {
   budgetTotal: number;
 }
 
-const FILL_COLOR: Record<BudgetStatus, string> = {
+const FILL_COLOR = {
   [BudgetStatus.Neutral]: "var(--accent-brand)",
   [BudgetStatus.Warning]: "var(--warning)",
-  [BudgetStatus.Danger]: "var(--destructive)",
-};
+  [BudgetStatus.Danger]: "var(--danger)",
+} satisfies Record<BudgetStatus, string>;
 
 export function BudgetProgressBar({ status, actual, budgetTotal }: BudgetProgressBarProps): ReactElement {
   const rawPercentage = budgetTotal > 0 ? (actual / budgetTotal) * 100 : 0;
@@ -29,7 +29,7 @@ export function BudgetProgressBar({ status, actual, budgetTotal }: BudgetProgres
       <div
         data-slot="budget-progress-bar-fill"
         className="h-full rounded-full"
-        style={{ width: `${widthPercentage}%`, backgroundColor: FILL_COLOR[status] }}
+        style={{ width: `${widthPercentage}%`, backgroundColor: FILL_COLOR[status], transition: "width 0.3s ease" }}
       />
     </div>
   );

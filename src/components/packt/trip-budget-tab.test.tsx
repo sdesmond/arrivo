@@ -238,11 +238,12 @@ describe("TripBudgetTab", () => {
   });
 
   it("renders ?? for NaN amounts", () => {
+    const expenses = [makeExpense({ id: "a", convertedAmountTrip: Number.NaN })];
     render(
       <TripBudgetTab
         tripId="trip-1"
-        budget={{ currency: "EUR", total: Number.NaN }}
-        expenses={[]}
+        budget={{ currency: "EUR", total: 1000 }}
+        expenses={expenses}
         onOpenEditBudget={vi.fn()}
       />
     );

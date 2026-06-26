@@ -1,6 +1,9 @@
 import { BudgetStatus } from "@/data/types";
 import type { Expense, ExpenseCategory } from "@/data/types";
 
+export const DEFAULT_WARNING_THRESHOLD = 80;
+export const DEFAULT_DANGER_THRESHOLD = 90;
+
 export interface CategoryBreakdownEntry {
   category: ExpenseCategory;
   subtotal: number;
@@ -66,12 +69,18 @@ export function calculateBudgetStatus(
     return BudgetStatus.Neutral;
   }
 
-  const percentage = (actual / budgetTotal) * 100;
+  const clampedActual = Math.max(actual, 0);
+  const percentage = (clampedActual / budgetTotal) * 100;
 
-  if (percentage >= dangerThreshold) {
+  if (!Number.isFinite(percentage)) {
+    return BudgetStatus.Neutral;
+  }
+
+  const effectiveThreshold = Math.max(warningThreshold, dangerThreshold);
+  if (percentage >= effectiveThreshold) {
     return BudgetStatus.Danger;
   }
-  if (percentage >= warningThreshold) {
+  if (percentage >= Math.min(warningThreshold, dangerThreshold)) {
     return BudgetStatus.Warning;
   }
   return BudgetStatus.Neutral;

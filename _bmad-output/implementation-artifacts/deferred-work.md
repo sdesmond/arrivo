@@ -45,3 +45,7 @@
 - `convertMismatchedExpenses` reads all expenses then filters in JS — SQL selects every expense row for the trip, then `recalculateAll` discards matching-currency rows in JS. Performance optimization for future: could filter at the SQL level.
 - `TripCurrencyDialog` double-fires `onCancel` via button + onOpenChange — Cancel button calls `onCancel()` directly; `onOpenChange` also fires when parent sets `isOpen=false`. `restoreSaveButtonFocus` runs twice. Idempotent, harmless.
 - Focus returns to Save button, not currency trigger field (AC 9) — Spec was written for `TripEditBudget` architecture; corrected design wires through `TripEditSheet` where the trigger is the "Save changes" button. Focus target is correct for the implementation.
+
+## Deferred from: code review of 1-9-threshold-status-indicator.md (2026-06-26)
+
+- `flex-row-reverse` tab icon positioning fragile — if CSS fails, visual order reverses. Spec-chosen tradeoff for accessible-name ordering.
