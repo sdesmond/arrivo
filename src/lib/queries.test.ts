@@ -68,6 +68,7 @@ vi.mock("@/lib/db-mappers", () => ({
   dbDocToType: vi.fn((doc: unknown) => doc),
   dbCollabToType: vi.fn((collaborator: unknown) => collaborator),
   dbReservationToType: vi.fn((reservation: unknown) => reservation),
+  dbExpenseToType: vi.fn((expense: { id: string }) => ({ id: expense.id })),
   dbChecklistToType: vi.fn(),
   dbLoyaltyToType: vi.fn(),
   dbWishlistToType: vi.fn(),
@@ -402,5 +403,62 @@ describe("getTripDetail", () => {
       expect.objectContaining({ id: "doc-older" }),
       expect.objectContaining({ id: "doc-newer" }),
     ]);
+  });
+
+  it("returns all trip expenses (including unlinked ones) in the payload", async () => {
+    mockDbSelect
+      // trip
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      // days
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      // events
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      // trip docs
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      // collaborators
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      // packing items
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      // packing lists
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      // reservations
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      // expenses
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "expense-event",
+              tripId: "trip-1",
+              eventId: "event-1",
+              reservationId: null,
+              category: "food",
+              amount: "10",
+              currency: "USD",
+              convertedAmountTrip: "10",
+              date: "2026-08-01",
+            },
+            {
+              id: "expense-unlinked",
+              tripId: "trip-1",
+              eventId: null,
+              reservationId: null,
+              category: "misc",
+              amount: "25",
+              currency: "USD",
+              convertedAmountTrip: "25",
+              date: "2026-08-02",
+            },
+          ],
+        }),
+      });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(result?.expenses.map((expense) => expense.id)).toEqual(["expense-event", "expense-unlinked"]);
   });
 });

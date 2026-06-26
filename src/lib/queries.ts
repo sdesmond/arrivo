@@ -456,5 +456,6 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     packingItems: tripPackingItems.map(dbPackingItemToType),
     packingLists: tripPackingListRows.map(dbPackingListToType),
     reservations: reservationsDomain,
+    expenses: tripExpenses.map(dbExpenseToType),
   };
 }

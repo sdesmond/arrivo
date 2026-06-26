@@ -589,6 +589,7 @@ export interface TripDetailPayload {
   packingItems: PackingItem[];
   packingLists: TripPackingList[];
   reservations: Reservation[];
+  expenses: Expense[];
 }
 
 export interface NewTripDraft {
