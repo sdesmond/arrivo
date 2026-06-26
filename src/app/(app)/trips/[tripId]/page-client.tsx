@@ -71,6 +71,9 @@ export function TripDetailClient({
   const [editingTrip, setEditingTrip] = useState(false);
   const [highlightTripDates, setHighlightTripDates] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
+  const [pendingCurrencyChangeMode, setPendingCurrencyChangeMode] = useState<TripCurrencyChangeMode | undefined>(
+    undefined
+  );
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const [reservationsAnnouncement, setReservationsAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
@@ -126,25 +129,34 @@ export function TripDetailClient({
     if (result.status === "saved") {
       setTripDateConfirmation(null);
       setPendingTripPatch(null);
+      setPendingCurrencyChangeMode(undefined);
       setEditingTrip(false);
       return;
     }
     setPendingTripPatch(patch);
+    setPendingCurrencyChangeMode(currencyChangeMode);
     setTripDateConfirmation(result.confirmation);
   }
 
   async function handleTripDateResolution(resolution: TripDateConflictResolution): Promise<void> {
     if (!pendingTripPatch || !tripDateConfirmation) return;
-    const result = await handlers.handleTripSaveResolution(pendingTripPatch, resolution, tripDateConfirmation);
+    const result = await handlers.handleTripSaveResolution(
+      pendingTripPatch,
+      resolution,
+      tripDateConfirmation,
+      pendingCurrencyChangeMode
+    );
     if (!result || result.status !== "saved") return;
     setTripDateConfirmation(null);
     setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
     setEditingTrip(false);
   }
 
   function handleTripDateResolutionCancel(): void {
     setTripDateConfirmation(null);
     setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
   }
 
   function handleTabChange(nextTab: TripDetailTabValue): void {

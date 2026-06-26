@@ -64,7 +64,8 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
     resolution: TripDateConflictResolution,
-    confirmation: TripDateChangeConfirmation
+    confirmation: TripDateChangeConfirmation,
+    currencyChangeMode?: TripCurrencyChangeMode
   ) => Promise<UpdateTripMetadataResult | undefined>;
   handleDeleteTrip: () => void;
   handleAddDay: () => void;
@@ -307,7 +308,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleDeleteChecklistItem,
     handleToggleChecklistItem,
     handleTripSave: (patch, currencyChangeMode) => handleTripSave(patch, undefined, undefined, currencyChangeMode),
-    handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
+    handleTripSaveResolution: (patch, resolution, confirmation, currencyChangeMode) =>
+      handleTripSave(patch, resolution, confirmation, currencyChangeMode),
     handleDeleteTrip,
     handleAddDay,
     handleRemoveLastDay,

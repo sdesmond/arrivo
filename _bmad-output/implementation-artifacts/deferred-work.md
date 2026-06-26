@@ -38,3 +38,10 @@
 ## Deferred from: code review of 1-6-recalculate-conversions.md (2026-06-26)
 
 - Client data stale after successful recalculation — `handleRecalculate` calls server action directly; `expenses` prop not refreshed client-side until navigation. Shared pre-existing pattern across all budget actions (`createExpense`/`updateExpense`/`deleteExpense` also rely on `revalidatePath` alone).
+
+## Deferred from: code review of 1-7-trip-currency-change-confirmation.md (2026-06-26)
+
+- Currency-change error toast hides actual error — `toast.error("Couldn't update currency — try again.")` discards the error object. Spec-driven design choice (UX-DR16).
+- `convertMismatchedExpenses` reads all expenses then filters in JS — SQL selects every expense row for the trip, then `recalculateAll` discards matching-currency rows in JS. Performance optimization for future: could filter at the SQL level.
+- `TripCurrencyDialog` double-fires `onCancel` via button + onOpenChange — Cancel button calls `onCancel()` directly; `onOpenChange` also fires when parent sets `isOpen=false`. `restoreSaveButtonFocus` runs twice. Idempotent, harmless.
+- Focus returns to Save button, not currency trigger field (AC 9) — Spec was written for `TripEditBudget` architecture; corrected design wires through `TripEditSheet` where the trigger is the "Save changes" button. Focus target is correct for the implementation.

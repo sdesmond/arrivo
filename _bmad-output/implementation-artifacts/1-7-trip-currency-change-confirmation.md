@@ -4,7 +4,7 @@ baseline_commit: 3efc228c3e16c993c134d3f2103df6346c12af41
 
 # Story 1.7: Trip Currency Change Confirmation
 
-Status: review
+Status: done
 
 ## Story
 
@@ -304,6 +304,16 @@ Manually testing the shipped flow (USD trip, add a 50 INR expense, change trip c
 - `src/lib/currency.ts` — new `recalculateAll()` (staleness-free) + extracted `convertExpenseBatch()` helper
 - `src/lib/currency.test.ts` — new tests for `recalculateAll()`
 - `tests/e2e/feature-map.mjs` — registered new dialog file under the `trips` feature
+
+### Review Findings
+
+- [x] [Review][Patch] `handleTripSave` loses `currencyChangeMode` on date-conflict resolution [`src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts:309-311`] — When both currency change and date conflict need resolution (user picks Convert in currency dialog, then server returns `confirmation-required` for date overlap), the resolution save path (`handleTripSaveResolution` → `handleTripSave(patch, resolution, confirmation)`) drops the `currencyChangeMode` param. `shouldConvertCurrency` is `false`, so expense conversions are never computed against the new currency. The trip's `budgetCurrency` is still updated via the patch, leaving stale `convertedAmountTrip` values. **Fixed**: threaded `currencyChangeMode` through `page-client.tsx` → `handleTripSaveResolution` → `use-trip-detail-handlers.ts`.
+- [x] [Review][Patch] `onSave` called without await in `handleSaveClick` [`src/components/packt/trip-edit-sheet.tsx:196`] — dismissed: upstream `handleTripSave` catches errors internally; the promise never rejects.
+
+- [x] [Review][Defer] Currency-change error toast hides actual error [`src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts:225-226`] — `toast.error("Couldn't update currency — try again.")` discards the `error` object. Spec-driven design choice (UX-DR16).
+- [x] [Review][Defer] `convertMismatchedExpenses` reads all expenses then filters in JS [`src/app/(app)/trips/actions.ts:72-73`] — SQL selects every expense row for the trip, then `recalculateAll` discards matching-currency rows in JS. Performance optimization for future: could filter at the SQL level.
+- [x] [Review][Defer] `TripCurrencyDialog` double-fires `onCancel` via button + onOpenChange [`src/components/packt/trip-currency-change-dialog.tsx:20,30`] — Cancel button calls `onCancel()` directly; `onOpenChange` also fires when parent sets `isOpen=false`. `restoreSaveButtonFocus` runs twice. Idempotent, harmless.
+- [x] [Review][Defer] Focus returns to Save button, not currency trigger field (AC 9) — Spec was written for `TripEditBudget` architecture; corrected design wires through `TripEditSheet` where the trigger is the "Save changes" button. Focus target is correct for the implementation.
 
 ### Change Log
 
