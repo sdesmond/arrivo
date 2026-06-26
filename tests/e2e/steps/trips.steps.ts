@@ -72,3 +72,34 @@ Then("I see an {string} section with {string}", async ({ page }, sectionTitle: s
   await expect(page.getByRole("heading", { name: sectionTitle })).toBeVisible();
   await expect(page.getByText(tripName).first()).toBeVisible();
 });
+
+When("I open the Budget tab", async ({ page }) => {
+  await page.getByRole("button", { name: "Budget" }).click();
+});
+
+When("I click the Add Misc Expense button", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Misc Expense" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+When("I enter {string} as the expense amount", async ({ page }, amount: string) => {
+  await page.getByRole("textbox", { name: "Amount" }).fill(amount);
+});
+
+When("I choose {string} as the expense category", async ({ page }, category: string) => {
+  await page.getByRole("button", { name: "Select category" }).click();
+  await page.getByRole("option", { name: category, exact: true }).click();
+});
+
+When("I save the Misc Expense", async ({ page }) => {
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+Then("the Budget tab shows {string} as Actual spent", async ({ page }, amount: string) => {
+  await expect(page.getByText(amount, { exact: true }).first()).toBeVisible();
+});
+
+Then("the Budget tab shows a {string} category tile", async ({ page }, category: string) => {
+  await expect(page.getByText(category, { exact: true })).toBeVisible();
+});

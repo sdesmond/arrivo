@@ -25,6 +25,16 @@ Feature: Trip Management
     And I open the trip edit sheet
     Then the trip edit sheet shows the original dates
 
+  Scenario: User adds a Misc Expense from the Budget tab
+    Given I have an existing trip
+    When I open the Budget tab
+    And I click the Add Misc Expense button
+    And I enter "42.50" as the expense amount
+    And I choose "Food" as the expense category
+    And I save the Misc Expense
+    Then the Budget tab shows "$42.50" as Actual spent
+    And the Budget tab shows a "Food" category tile
+
   Scenario: Dateless trip appears in Unscheduled section
     Given I am signed in
     When I open the New Trip dialog
