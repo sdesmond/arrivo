@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
+import { TabStatusIcon } from "@/components/packt/tab-status-icon";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { TripDetailTab } from "@/data/types";
+import { BudgetStatus, TripDetailTab } from "@/data/types";
+import { calculateActual, calculateBudgetStatus } from "@/lib/budget";
 import type {
   TripDetailPayload,
   TripCurrencyChangeMode,
@@ -49,6 +51,8 @@ interface TripDetailClientProps {
   initialActiveTab?: TripDetailTabValue;
   isNew?: boolean;
   templates?: PackingTemplate[];
+  warningThreshold?: number;
+  dangerThreshold?: number;
 }
 
 export function TripDetailClient({
@@ -61,6 +65,8 @@ export function TripDetailClient({
   initialActiveTab = TripDetailTab.Itinerary,
   isNew,
   templates = [],
+  warningThreshold = 80,
+  dangerThreshold = 90,
 }: TripDetailClientProps): ReactElement {
   const highlightedEventId = useFocusScroll();
 
@@ -80,6 +86,13 @@ export function TripDetailClient({
   const handlers = useTripDetailHandlers(detail);
 
   const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses } = detail;
+
+  const hasBudget = !!trip.budget && trip.budget.total != null && !!trip.budget.currency;
+  const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
+  const budgetTotalAmount = hasBudget ? trip.budget!.total! : 0;
+  const budgetStatus = hasBudget
+    ? calculateBudgetStatus(budgetActual, budgetTotalAmount, warningThreshold, dangerThreshold)
+    : BudgetStatus.Neutral;
 
   const tabParam = searchParams.get("tab");
   const previousTabParamRef = useRef(tabParam);
@@ -184,7 +197,7 @@ export function TripDetailClient({
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
-              className="shrink-0 px-3.5 py-3 transition-colors relative"
+              className="shrink-0 inline-flex flex-row-reverse items-center gap-1 px-3.5 py-3 transition-colors relative"
               style={{
                 fontSize: "calc(13px * var(--font-scale))",
                 fontWeight: activeTab === tabItem.id ? 600 : 400,
@@ -197,6 +210,9 @@ export function TripDetailClient({
               onClick={() => handleTabChange(tabItem.id)}
             >
               {tabItem.label}
+              {tabItem.id === TripDetailTab.Budget ? (
+                <TabStatusIcon status={budgetStatus} actual={budgetActual} budgetTotal={budgetTotalAmount} />
+              ) : null}
             </button>
           ))}
         </div>
@@ -209,6 +225,8 @@ export function TripDetailClient({
             tripId={trip.id}
             trip={trip}
             defaultExpenseCurrency={defaultExpenseCurrency}
+            warningThreshold={warningThreshold}
+            dangerThreshold={dangerThreshold}
             activeTab={activeTab}
             days={days}
             unscheduledEvents={unscheduledEvents}

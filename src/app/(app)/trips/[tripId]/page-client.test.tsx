@@ -442,6 +442,122 @@ describe("TripDetailClient", () => {
     expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "false");
   });
 
+  describe("budget tab status icon", () => {
+    it("shows no icon on the Budget tab label when budget status is neutral", () => {
+      render(
+        <TripDetailClient
+          detail={{
+            ...baseDetail,
+            trip: { id: "trip-1", name: "Tokyo", status: "upcoming", budget: { currency: "USD", total: 1000 } },
+            expenses: [
+              {
+                id: "expense-1",
+                tripId: "trip-1",
+                category: "misc",
+                amount: 100,
+                currency: "USD",
+                convertedAmountTrip: 100,
+                date: "2026-05-20",
+              },
+            ],
+          }}
+          nowISO="2026-05-24T12:00:00.000Z"
+          dateFormat="MM/DD/YYYY"
+        />
+      );
+
+      const budgetTabButton = screen.getByRole("button", { name: "Budget" });
+      expect(budgetTabButton.querySelector("svg")).not.toBeInTheDocument();
+    });
+
+    it("shows a warning icon on the Budget tab label when budget status is warning", () => {
+      render(
+        <TripDetailClient
+          detail={{
+            ...baseDetail,
+            trip: { id: "trip-1", name: "Tokyo", status: "upcoming", budget: { currency: "USD", total: 1000 } },
+            expenses: [
+              {
+                id: "expense-1",
+                tripId: "trip-1",
+                category: "misc",
+                amount: 850,
+                currency: "USD",
+                convertedAmountTrip: 850,
+                date: "2026-05-20",
+              },
+            ],
+          }}
+          nowISO="2026-05-24T12:00:00.000Z"
+          dateFormat="MM/DD/YYYY"
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      const budgetTabButton = screen.getByRole("button", { name: "Budget Warning" });
+      expect(budgetTabButton.querySelector("svg")).toBeInTheDocument();
+    });
+
+    it("shows a Near limit icon on the Budget tab label when danger threshold is crossed but actual is under the budget total", () => {
+      render(
+        <TripDetailClient
+          detail={{
+            ...baseDetail,
+            trip: { id: "trip-1", name: "Tokyo", status: "upcoming", budget: { currency: "USD", total: 1000 } },
+            expenses: [
+              {
+                id: "expense-1",
+                tripId: "trip-1",
+                category: "misc",
+                amount: 950,
+                currency: "USD",
+                convertedAmountTrip: 950,
+                date: "2026-05-20",
+              },
+            ],
+          }}
+          nowISO="2026-05-24T12:00:00.000Z"
+          dateFormat="MM/DD/YYYY"
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      const budgetTabButton = screen.getByRole("button", { name: "Budget Near limit" });
+      expect(budgetTabButton.querySelector("svg")).toBeInTheDocument();
+    });
+
+    it("shows an Over budget icon on the Budget tab label when actual has reached or passed the budget total", () => {
+      render(
+        <TripDetailClient
+          detail={{
+            ...baseDetail,
+            trip: { id: "trip-1", name: "Tokyo", status: "upcoming", budget: { currency: "USD", total: 1000 } },
+            expenses: [
+              {
+                id: "expense-1",
+                tripId: "trip-1",
+                category: "misc",
+                amount: 1100,
+                currency: "USD",
+                convertedAmountTrip: 1100,
+                date: "2026-05-20",
+              },
+            ],
+          }}
+          nowISO="2026-05-24T12:00:00.000Z"
+          dateFormat="MM/DD/YYYY"
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      const budgetTabButton = screen.getByRole("button", { name: "Budget Over budget" });
+      expect(budgetTabButton.querySelector("svg")).toBeInTheDocument();
+    });
+  });
+
   it("clears the dates highlight after the pulse duration elapses", () => {
     vi.useFakeTimers();
 

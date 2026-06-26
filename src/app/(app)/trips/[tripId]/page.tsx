@@ -51,6 +51,8 @@ export default async function TripDetailPage({
       isNew={isNew}
       templates={templates}
       currencyOptions={currencyOptions}
+      warningThreshold={profile?.warningThreshold}
+      dangerThreshold={profile?.dangerThreshold}
     />
   );
 }

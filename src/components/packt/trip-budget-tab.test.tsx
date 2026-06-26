@@ -328,6 +328,132 @@ describe("TripBudgetTab", () => {
     expect(screen.getByRole("button", { name: /Currency: British Pound GBP/i })).toBeInTheDocument();
   });
 
+  describe("threshold status", () => {
+    it("shows no progress bar and no badge when no budget set", () => {
+      const { container } = render(
+        <TripBudgetTab tripId="trip-1" budget={undefined} expenses={[]} onOpenEditBudget={vi.fn()} />
+      );
+
+      expect(container.querySelector("[data-slot='budget-progress-bar']")).not.toBeInTheDocument();
+      expect(screen.queryByText("Warning")).not.toBeInTheDocument();
+      expect(screen.queryByText("Over budget")).not.toBeInTheDocument();
+    });
+
+    it("shows progress bar with neutral fill and no badge when actual is below the warning threshold", () => {
+      const expenses = [makeExpense({ id: "a", convertedAmountTrip: 100 })];
+      const { container } = render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 1000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      const fill = container.querySelector("[data-slot='budget-progress-bar-fill']");
+      expect(fill).toHaveStyle({ backgroundColor: "var(--accent-brand)" });
+      expect(screen.queryByText("Warning")).not.toBeInTheDocument();
+      expect(screen.queryByText("Over budget")).not.toBeInTheDocument();
+    });
+
+    it("shows badge with warning icon and text when actual crosses the warning threshold", () => {
+      const expenses = [makeExpense({ id: "a", convertedAmountTrip: 850 })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 1000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      expect(screen.getByText("Warning")).toBeInTheDocument();
+    });
+
+    it("shows badge with Near limit when actual crosses the danger threshold but stays under the budget total", () => {
+      const expenses = [makeExpense({ id: "a", convertedAmountTrip: 950 })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 1000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      expect(screen.getByText("Near limit")).toBeInTheDocument();
+    });
+
+    it("shows badge with Over budget when actual reaches or passes the budget total", () => {
+      const expenses = [makeExpense({ id: "a", convertedAmountTrip: 1100 })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 1000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      expect(screen.getByText("Over budget")).toBeInTheDocument();
+    });
+
+    it("progress bar width matches the actual/budget percentage", () => {
+      const expenses = [makeExpense({ id: "a", convertedAmountTrip: 600 })];
+      const { container } = render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 1000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      const fill = container.querySelector("[data-slot='budget-progress-bar-fill']");
+      expect(fill).toHaveStyle({ width: "60%" });
+    });
+
+    it("updates status immediately when expenses change (re-render)", () => {
+      const expenses = [makeExpense({ id: "a", convertedAmountTrip: 100 })];
+      const { rerender } = render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 1000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      expect(screen.queryByText("Over budget")).not.toBeInTheDocument();
+
+      const updatedExpenses = [makeExpense({ id: "a", convertedAmountTrip: 1100 })];
+      rerender(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 1000 }}
+          expenses={updatedExpenses}
+          onOpenEditBudget={vi.fn()}
+          warningThreshold={80}
+          dangerThreshold={90}
+        />
+      );
+
+      expect(screen.getByText("Over budget")).toBeInTheDocument();
+    });
+  });
+
   describe("Recalculate Conversions", () => {
     it("hides the button when all expenses match the trip currency", () => {
       const expenses = [makeExpense({ id: "a", currency: "EUR" })];

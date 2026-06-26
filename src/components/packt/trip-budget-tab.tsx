@@ -4,13 +4,15 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { ExpenseCategory } from "@/data/types";
+import { BudgetStatus, ExpenseCategory } from "@/data/types";
 import type { Budget, Expense } from "@/data/types";
 import { Button } from "@/components/ui/button";
+import { BudgetProgressBar } from "@/components/packt/budget-progress-bar";
+import { StatusBadge } from "@/components/packt/status-badge";
 import { TripAddExpenseModal } from "@/components/packt/trip-add-expense-modal";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { recalculateConversions } from "@/app/(app)/trips/[tripId]/budget/actions";
-import { calculateActual, calculateCategoryBreakdown, hasCurrencyMismatch } from "@/lib/budget";
+import { calculateActual, calculateBudgetStatus, calculateCategoryBreakdown, hasCurrencyMismatch } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -32,6 +34,8 @@ export interface TripBudgetTabProps {
   budget?: Budget;
   expenses: Expense[];
   defaultExpenseCurrency?: string;
+  warningThreshold?: number;
+  dangerThreshold?: number;
   onOpenEditBudget: () => void;
 }
 
@@ -65,12 +69,17 @@ export function TripBudgetTab({
   budget,
   expenses,
   defaultExpenseCurrency,
+  warningThreshold = 80,
+  dangerThreshold = 90,
   onOpenEditBudget,
 }: TripBudgetTabProps): ReactElement {
   const tripCurrency = resolveTripCurrency(budget, expenses);
   const actual = calculateActual(expenses, tripCurrency);
   const breakdown = calculateCategoryBreakdown(expenses, tripCurrency);
   const hasBudget = !!budget && budget.total != null && !!budget.currency;
+  const budgetStatus = hasBudget
+    ? calculateBudgetStatus(actual, budget.total!, warningThreshold, dangerThreshold)
+    : BudgetStatus.Neutral;
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const now = useNow();
@@ -115,12 +124,20 @@ export function TripBudgetTab({
             >
               Actual spent
             </p>
-            <p
-              className="mt-1"
-              style={{ color: "var(--fg)", fontSize: "calc(32px * var(--font-scale))", fontWeight: 600 }}
-            >
-              {formatCurrencyAmount(actual, tripCurrency)}
-            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <p style={{ color: "var(--fg)", fontSize: "calc(32px * var(--font-scale))", fontWeight: 600 }}>
+                {formatCurrencyAmount(actual, tripCurrency)}
+              </p>
+              {hasBudget && budgetStatus !== BudgetStatus.Neutral ? (
+                <StatusBadge status={budgetStatus} actual={actual} budgetTotal={budget.total!} />
+              ) : null}
+            </div>
+
+            {hasBudget ? (
+              <div className="mt-2">
+                <BudgetProgressBar status={budgetStatus} actual={actual} budgetTotal={budget.total!} />
+              </div>
+            ) : null}
 
             {hasBudget ? (
               <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">

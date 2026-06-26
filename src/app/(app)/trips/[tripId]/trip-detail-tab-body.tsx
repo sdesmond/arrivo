@@ -26,6 +26,8 @@ export interface TripDetailTabBodyProps {
   tripId: string;
   trip: Trip;
   defaultExpenseCurrency?: string;
+  warningThreshold?: number;
+  dangerThreshold?: number;
   activeTab: TripDetailTab;
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
@@ -100,6 +102,8 @@ export function TripDetailTabBody({
   tripId,
   trip,
   defaultExpenseCurrency,
+  warningThreshold,
+  dangerThreshold,
   activeTab,
   days,
   unscheduledEvents,
@@ -202,6 +206,8 @@ export function TripDetailTabBody({
           budget={trip.budget}
           expenses={expenses}
           defaultExpenseCurrency={defaultExpenseCurrency}
+          warningThreshold={warningThreshold}
+          dangerThreshold={dangerThreshold}
           onOpenEditBudget={onOpenEditBudget}
         />
       )}
