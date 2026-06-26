@@ -28,6 +28,9 @@ export interface TripBudgetTabProps {
 }
 
 function formatCurrencyAmount(amount: number, currency: string): string {
+  if (!Number.isFinite(amount)) {
+    return `${currency} ??`;
+  }
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -35,7 +38,7 @@ function formatCurrencyAmount(amount: number, currency: string): string {
       maximumFractionDigits: 2,
     }).format(amount);
   } catch {
-    const safeAmount = Number.isFinite(amount) ? amount.toFixed(2) : "??";
+    const safeAmount = amount.toFixed(2);
     return `${currency} ${safeAmount}`;
   }
 }
@@ -53,7 +56,7 @@ export function TripBudgetTab({ budget, expenses, onOpenEditBudget }: TripBudget
   const tripCurrency = resolveTripCurrency(budget, expenses);
   const actual = calculateActual(expenses, tripCurrency);
   const breakdown = calculateCategoryBreakdown(expenses, tripCurrency);
-  const hasBudget = !!budget && budget.total != null;
+  const hasBudget = !!budget && budget.total != null && !!budget.currency;
 
   return (
     <div className="flex flex-col gap-4">

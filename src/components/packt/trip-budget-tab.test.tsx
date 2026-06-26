@@ -145,7 +145,7 @@ describe("TripBudgetTab", () => {
     expect(screen.getByText("invalid 0.00")).toBeInTheDocument();
   });
 
-  it("renders ?? when an amount is not finite", () => {
+  it("renders ?? when an amount is not finite (Infinity)", () => {
     render(
       <TripBudgetTab
         budget={{ currency: "invalid", total: Number.POSITIVE_INFINITY }}
@@ -155,5 +155,34 @@ describe("TripBudgetTab", () => {
     );
 
     expect(screen.getAllByText("invalid ??").length).toBeGreaterThan(0);
+  });
+
+  it("renders ?? for NaN amounts", () => {
+    render(<TripBudgetTab budget={{ currency: "EUR", total: Number.NaN }} expenses={[]} onOpenEditBudget={vi.fn()} />);
+
+    expect(screen.getAllByText("EUR ??").length).toBeGreaterThan(0);
+  });
+
+  it("shows negative Remaining when overspent", () => {
+    const expenses = [makeExpense({ id: "a", convertedAmountTrip: 6000 })];
+    render(<TripBudgetTab budget={{ currency: "EUR", total: 5000 }} expenses={expenses} onOpenEditBudget={vi.fn()} />);
+
+    expect(screen.getByText("Remaining")).toBeInTheDocument();
+    expect(screen.getByText("-€1,000.00")).toBeInTheDocument();
+  });
+
+  it("hides Remaining when budget exists but has no currency", () => {
+    const budgetNoCurrency = { currency: "", total: 5000 } as import("@/data/types").Budget;
+    render(
+      <TripBudgetTab
+        budget={budgetNoCurrency}
+        expenses={[makeExpense({ id: "a", convertedAmountTrip: 100 })]}
+        onOpenEditBudget={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Actual spent")).toBeInTheDocument();
+    expect(screen.queryByText("Remaining")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Set a budget" })).toBeInTheDocument();
   });
 });

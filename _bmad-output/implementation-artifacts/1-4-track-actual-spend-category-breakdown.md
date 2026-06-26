@@ -4,7 +4,7 @@ baseline_commit: 48e70897a4ffd66f552f662196fdd234c1d651c6
 
 # Story 1.4: Track Actual Spend & Category Breakdown
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -255,6 +255,16 @@ claude-opus-4-8 (BMad dev-story)
 - `src/app/(app)/trips/[tripId]/page.test.tsx`
 - `src/app/(app)/trips/[tripId]/page-client.test.tsx`
 
+### Review Findings
+
+- [x] [Review][Patch] NaN propagates to render as "NaN" in `formatCurrencyAmount` [trip-budget-tab.tsx:39] — fixed: added `Number.isFinite` guard before formatting.
+- [x] [Review][Patch] Overspent budget renders negative remaining with zero test coverage [trip-budget-tab.test.tsx] — fixed: added test for overspent state.
+- [x] [Review][Patch] `resolveTripCurrency` may misrepresent trip currency when budget has total but no currency [trip-budget-tab.tsx:44] — fixed: `hasBudget` now checks `!!budget.currency`.
+- [x] [Review][Defer] Currency label mismatch when expenses lack conversion data — deferred, pre-existing design constraint (spec explicitly falls back to raw amount for unconverted entries).
+- [x] [Review][Defer] `convertedCurrencyTrip` first-match assumption with no consistency check — deferred, low probability, minor impact.
+- [x] [Review][Defer] `CategoryBreakdownEntry.count` computed but never surfaced in UI — deferred, harmless future-proofing.
+
 ### Change Log
 
 - 2026-06-26: Implemented Story 1.4 — shared `lib/budget.ts` calculations, `expenses` threaded through `TripDetailPayload`, and `TripBudgetTab` rewritten for actual spend + category breakdown. Status → review.
+- 2026-06-26: Code review — 3 patch findings, 3 deferred, 9 dismissed.
