@@ -10,6 +10,7 @@ import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { TripDetailTab } from "@/data/types";
 import type {
   TripDetailPayload,
+  TripCurrencyChangeMode,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripPatch,
@@ -119,8 +120,8 @@ export function TripDetailClient({
     router.push(buildReservationsDeepLinkHref(pathname, searchParams, target), { scroll: false });
   }
 
-  async function handleTripSave(patch: UpdateTripPatch): Promise<void> {
-    const result = await handlers.handleTripSave(patch);
+  async function handleTripSave(patch: UpdateTripPatch, currencyChangeMode?: TripCurrencyChangeMode): Promise<void> {
+    const result = await handlers.handleTripSave(patch, currencyChangeMode);
     if (!result) return;
     if (result.status === "saved") {
       setTripDateConfirmation(null);
@@ -261,6 +262,7 @@ export function TripDetailClient({
         key={trip.id}
         trip={trip}
         currencyOptions={currencyOptions}
+        expenses={expenses}
         open={editingTrip}
         onClose={() => {
           setEditingTrip(false);

@@ -658,6 +658,12 @@ export type UpdateTripMetadataResult =
   | { status: "saved" }
   | { status: "confirmation-required"; confirmation: TripDateChangeConfirmation };
 
+export const TripCurrencyChangeMode = {
+  Convert: "convert",
+  LeaveAsIs: "leave-as-is",
+} as const;
+export type TripCurrencyChangeMode = (typeof TripCurrencyChangeMode)[keyof typeof TripCurrencyChangeMode];
+
 export interface CreateEventInput {
   name: string;
   startAt?: string; // ISO datetime

@@ -138,6 +138,7 @@ export const FEATURE_MAP = [
     "src/components/packt/trip-edit-*.tsx",
     "src/components/packt/trip-hero.tsx",
     "src/components/packt/trip-date-change-confirmation-dialog.tsx",
+    "src/components/packt/trip-currency-change-dialog.tsx",
     "src/components/packt/trips-active-entry-panel.tsx",
     "src/components/packt/trips-section-head.tsx",
     "src/components/packt/trips-topbar.tsx",

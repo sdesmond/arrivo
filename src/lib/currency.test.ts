@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { convert, convertDual, recalculate } from "./currency";
+import { convert, convertDual, recalculate, recalculateAll } from "./currency";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
 
@@ -286,6 +286,80 @@ describe("lib/currency", () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(results).toEqual([{ expenseId: "a", convertedAmount: 108, rate: 1.08 }]);
+    });
+  });
+
+  describe("recalculateAll", () => {
+    it("recalculates a same-day, just-created mismatched expense (no staleness gate)", async () => {
+      const fetchSpy = mockFetchRates({ GBP: 0.79 }, "INR", TODAY);
+      const expenses = [
+        makeExpense({
+          id: "a",
+          currency: "INR",
+          amount: 50,
+          date: TODAY,
+          createdAt: `${TODAY}T11:55:00.000Z`,
+          updatedAt: `${TODAY}T11:55:00.000Z`,
+        }),
+      ];
+
+      const results = await recalculateAll(expenses, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(results).toEqual([{ expenseId: "a", convertedAmount: 39.5, rate: 0.79 }]);
+    });
+
+    it("skips expenses already matching the trip currency (case-insensitive)", async () => {
+      const fetchSpy = mockFetchRates({ GBP: 0.79 }, "INR", TODAY);
+      const expenses = [makeExpense({ id: "a", currency: "gbp" })];
+
+      const results = await recalculateAll(expenses, "GBP");
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(results).toEqual([]);
+    });
+
+    it("returns correct results for multiple mismatched expenses, using each expense's own date", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+        const urlString = String(url);
+        if (urlString.includes("date=2024-01-15")) {
+          return {
+            ok: true,
+            json: async () => [{ date: "2024-01-15", base: "EUR", quote: "USD", rate: 1.08 }],
+          } as Response;
+        }
+        return {
+          ok: true,
+          json: async () => [{ date: "2024-02-20", base: "GBP", quote: "USD", rate: 1.25 }],
+        } as Response;
+      });
+
+      const expenses = [
+        makeExpense({ id: "a", currency: "EUR", amount: 50, date: "2024-01-15" }),
+        makeExpense({ id: "b", currency: "GBP", amount: 20, date: "2024-02-20" }),
+      ];
+
+      const results = await recalculateAll(expenses, "USD");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(results).toEqual([
+        { expenseId: "a", convertedAmount: 54, rate: 1.08 },
+        { expenseId: "b", convertedAmount: 25, rate: 1.25 },
+      ]);
+    });
+
+    it("throws on fetch failure with no partial results (all-or-nothing)", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 503 } as Response);
+
+      const expenses = [makeExpense({ id: "a", currency: "EUR" })];
+
+      await expect(recalculateAll(expenses, "USD")).rejects.toThrow("Currency conversion failed (HTTP 503).");
+    });
+
+    it("returns an empty array for an empty expenses list", async () => {
+      const results = await recalculateAll([], "USD");
+
+      expect(results).toEqual([]);
     });
   });
 });

@@ -91,3 +91,16 @@ export function needsRecalculation(expense: Expense, tripCurrency: string, now: 
 export function hasCurrencyMismatch(expenses: Expense[], tripCurrency: string, now: Date): boolean {
   return expenses.some((expense) => needsRecalculation(expense, tripCurrency, now));
 }
+
+/**
+ * True when at least one expense's currency differs from `newCurrency`, with no
+ * staleness gating. Unlike `hasCurrencyMismatch` (which only flags a possibly-stale
+ * rate for the *current* trip currency), this answers "is the trip currency itself
+ * about to change in a way that invalidates existing conversions" — every currency
+ * mismatch matters here regardless of when the expense was last computed. Drives the
+ * Trip Currency change confirmation dialog.
+ */
+export function hasCurrencyChangeMismatch(expenses: Expense[], newCurrency: string): boolean {
+  const normalizedNewCurrency = newCurrency.toUpperCase();
+  return expenses.some((expense) => expense.currency.toUpperCase() !== normalizedNewCurrency);
+}
