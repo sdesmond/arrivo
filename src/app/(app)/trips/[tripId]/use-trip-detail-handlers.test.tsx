@@ -81,6 +81,7 @@ const detail: TripDetailPayload = {
   packingItems: [],
   packingLists: [],
   reservations: [],
+  expenses: [],
   trip: {
     id: "trip-1",
     name: "Tokyo",

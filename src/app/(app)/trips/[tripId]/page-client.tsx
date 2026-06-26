@@ -75,7 +75,7 @@ export function TripDetailClient({
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = detail;
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses } = detail;
 
   const tabParam = searchParams.get("tab");
   const previousTabParamRef = useRef(tabParam);
@@ -203,6 +203,7 @@ export function TripDetailClient({
             packingItems={packingItems}
             packingLists={packingLists}
             reservations={reservations}
+            expenses={expenses}
             templates={templates}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}
