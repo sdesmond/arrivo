@@ -49,3 +49,45 @@ export function calculateCategoryBreakdown(expenses: Expense[], currency: string
 
   return [...byCategory.values()].sort((first, second) => second.subtotal - first.subtotal);
 }
+
+const dateOnly = (isoDateTime: string): string => isoDateTime.slice(0, 10);
+
+/**
+ * True when an expense's Trip-Currency conversion is worth re-fetching: the
+ * currency differs from `tripCurrency` AND the stored rate may be a stand-in
+ * rather than the real historical rate.
+ *
+ * `resolveLookupDate` in `lib/currency.ts` clamps any lookup for a future date
+ * to "today" (Frankfurter has no rates for dates that haven't happened), so a
+ * conversion computed before `expense.date` arrived used that day's rate as a
+ * proxy. Once the conversion is (re)computed on or after `expense.date`, the
+ * real historical rate is fixed forever and never needs refreshing again.
+ * Missing `updatedAt`/`createdAt` (no record of when it was computed) defaults
+ * to needing recalculation rather than silently never refreshing.
+ */
+export function needsRecalculation(expense: Expense, tripCurrency: string, now: Date): boolean {
+  if (expense.currency.toUpperCase() === tripCurrency.toUpperCase()) {
+    return false;
+  }
+
+  const today = dateOnly(now.toISOString());
+  if (expense.date > today) {
+    return true;
+  }
+
+  const lastComputedAt = expense.updatedAt ?? expense.createdAt;
+  if (!lastComputedAt) {
+    return true;
+  }
+
+  return expense.date > dateOnly(lastComputedAt);
+}
+
+/**
+ * True when at least one expense needs its Trip-Currency conversion
+ * recalculated (see `needsRecalculation`). Drives "Recalculate Conversions"
+ * button visibility.
+ */
+export function hasCurrencyMismatch(expenses: Expense[], tripCurrency: string, now: Date): boolean {
+  return expenses.some((expense) => needsRecalculation(expense, tripCurrency, now));
+}

@@ -1,9 +1,23 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convert, convertDual, recalculate } from "./currency";
+import { ExpenseCategory } from "@/data/types";
+import type { Expense } from "@/data/types";
 
 const TODAY = "2026-06-25";
 const PAST = "2024-01-15";
+
+function makeExpense(overrides: Partial<Expense> = {}): Expense {
+  return {
+    id: "expense-1",
+    tripId: "trip-1",
+    category: ExpenseCategory.Misc,
+    amount: 100,
+    currency: "USD",
+    date: PAST,
+    ...overrides,
+  };
+}
 
 function mockFetchRates(rates: Record<string, number>, base = "USD", date = TODAY) {
   return vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -175,8 +189,103 @@ describe("lib/currency", () => {
   });
 
   describe("recalculate", () => {
-    it("resolves without throwing (Story 1.6 stub)", async () => {
-      await expect(recalculate([])).resolves.toBeUndefined();
+    it("calls convertDual only for expenses whose currency differs from the trip currency", async () => {
+      const fetchSpy = mockFetchRates({ USD: 1.08 }, "EUR", PAST);
+      const expenses = [
+        makeExpense({ id: "a", currency: "EUR", amount: 50, date: PAST }),
+        makeExpense({ id: "b", currency: "USD", amount: 30 }),
+      ];
+
+      await recalculate(expenses, "USD");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(lastFetchUrl(fetchSpy)).toBe(`https://api.frankfurter.dev/v2/rates?date=${PAST}&base=EUR&quotes=USD`);
+    });
+
+    it("skips expenses already matching the trip currency (case-insensitive)", async () => {
+      const fetchSpy = mockFetchRates({ USD: 1.08 }, "EUR", PAST);
+      const expenses = [makeExpense({ id: "a", currency: "usd" })];
+
+      const results = await recalculate(expenses, "USD");
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(results).toEqual([]);
+    });
+
+    it("returns correct results for multiple mismatched expenses, using each expense's own date", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+        const urlString = String(url);
+        if (urlString.includes("date=2024-01-15")) {
+          return {
+            ok: true,
+            json: async () => [{ date: "2024-01-15", base: "EUR", quote: "USD", rate: 1.08 }],
+          } as Response;
+        }
+        return {
+          ok: true,
+          json: async () => [{ date: "2024-02-20", base: "GBP", quote: "USD", rate: 1.25 }],
+        } as Response;
+      });
+
+      const expenses = [
+        makeExpense({ id: "a", currency: "EUR", amount: 50, date: "2024-01-15" }),
+        makeExpense({ id: "b", currency: "GBP", amount: 20, date: "2024-02-20" }),
+      ];
+
+      const results = await recalculate(expenses, "USD");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(results).toEqual([
+        { expenseId: "a", convertedAmount: 54, rate: 1.08 },
+        { expenseId: "b", convertedAmount: 25, rate: 1.25 },
+      ]);
+    });
+
+    it("throws on fetch failure with no partial results (all-or-nothing)", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 503 } as Response);
+
+      const expenses = [makeExpense({ id: "a", currency: "EUR" })];
+
+      await expect(recalculate(expenses, "USD")).rejects.toThrow("Currency conversion failed (HTTP 503).");
+    });
+
+    it("returns an empty array for an empty expenses list", async () => {
+      const results = await recalculate([], "USD");
+
+      expect(results).toEqual([]);
+    });
+
+    it("skips a past-dated mismatched expense already computed on/after its date (fixed historical rate)", async () => {
+      const fetchSpy = mockFetchRates({ USD: 1.08 }, "EUR", PAST);
+      const expenses = [makeExpense({ id: "a", currency: "EUR", date: PAST, updatedAt: `${PAST}T18:00:00.000Z` })];
+
+      const results = await recalculate(expenses, "USD");
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(results).toEqual([]);
+    });
+
+    it("recalculates a past-dated mismatched expense computed before its date (proxy rate from entry time)", async () => {
+      const fetchSpy = mockFetchRates({ USD: 1.08 }, "EUR", PAST);
+      const expenses = [makeExpense({ id: "a", currency: "EUR", date: PAST, updatedAt: "2023-01-01T00:00:00.000Z" })];
+
+      const results = await recalculate(expenses, "USD");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(results).toEqual([{ expenseId: "a", convertedAmount: 108, rate: 1.08 }]);
+    });
+
+    it("always recalculates a future-dated mismatched expense, regardless of when it was last computed", async () => {
+      const futureDate = "2030-01-01";
+      const fetchSpy = mockFetchRates({ USD: 1.08 }, "EUR", TODAY);
+      const expenses = [
+        makeExpense({ id: "a", currency: "EUR", date: futureDate, updatedAt: `${TODAY}T00:00:00.000Z` }),
+      ];
+
+      const results = await recalculate(expenses, "USD");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(results).toEqual([{ expenseId: "a", convertedAmount: 108, rate: 1.08 }]);
     });
   });
 });
