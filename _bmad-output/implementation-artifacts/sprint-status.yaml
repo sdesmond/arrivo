@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-24
-last_updated: 2026-06-26T16:15
+last_updated: 2026-06-26T20:00
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -50,7 +50,7 @@ development_status:
   1-5-add-misc-expenses: done
   1-6-recalculate-conversions: done
   1-7-trip-currency-change-confirmation: done
-  1-8-configure-spend-threshold-settings: backlog
+  1-8-configure-spend-threshold-settings: review
   1-9-threshold-status-indicator: backlog
   epic-1-retrospective: optional
   epic-2: backlog
