@@ -197,7 +197,13 @@ export function TripDetailTabBody({
         <TripDocsTab tripId={tripId} docs={docs.filter((document) => document.scope === "trip")} />
       )}
       {activeTab === "budget" && (
-        <TripBudgetTab budget={trip.budget} expenses={expenses} onOpenEditBudget={onOpenEditBudget} />
+        <TripBudgetTab
+          tripId={tripId}
+          budget={trip.budget}
+          expenses={expenses}
+          defaultExpenseCurrency={defaultExpenseCurrency}
+          onOpenEditBudget={onOpenEditBudget}
+        />
       )}
       {activeTab === "map" && (
         <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>

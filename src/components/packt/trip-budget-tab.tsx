@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { ExpenseCategory } from "@/data/types";
 import type { Budget, Expense } from "@/data/types";
 import { Button } from "@/components/ui/button";
+import { TripAddExpenseModal } from "@/components/packt/trip-add-expense-modal";
 import { calculateActual, calculateCategoryBreakdown } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
@@ -22,8 +24,10 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 };
 
 export interface TripBudgetTabProps {
+  tripId: string;
   budget?: Budget;
   expenses: Expense[];
+  defaultExpenseCurrency?: string;
   onOpenEditBudget: () => void;
 }
 
@@ -52,14 +56,27 @@ function resolveTripCurrency(budget: Budget | undefined, expenses: Expense[]): s
   return converted ?? expenses[0]?.currency ?? "USD";
 }
 
-export function TripBudgetTab({ budget, expenses, onOpenEditBudget }: TripBudgetTabProps): ReactElement {
+export function TripBudgetTab({
+  tripId,
+  budget,
+  expenses,
+  defaultExpenseCurrency,
+  onOpenEditBudget,
+}: TripBudgetTabProps): ReactElement {
   const tripCurrency = resolveTripCurrency(budget, expenses);
   const actual = calculateActual(expenses, tripCurrency);
   const breakdown = calculateCategoryBreakdown(expenses, tripCurrency);
   const hasBudget = !!budget && budget.total != null && !!budget.currency;
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button type="button" onClick={() => setShowAddExpenseModal(true)}>
+          Add Misc Expense
+        </Button>
+      </div>
+
       <div className="rounded-2xl p-5" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -131,6 +148,13 @@ export function TripBudgetTab({ budget, expenses, onOpenEditBudget }: TripBudget
           ))}
         </div>
       )}
+
+      <TripAddExpenseModal
+        tripId={tripId}
+        defaultCurrency={defaultExpenseCurrency}
+        open={showAddExpenseModal}
+        onOpenChange={setShowAddExpenseModal}
+      />
     </div>
   );
 }

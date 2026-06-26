@@ -129,17 +129,102 @@ describe("budget actions", () => {
     expect(result.conversionError).toBeUndefined();
   });
 
-  it("rejects an expense without a linked event or reservation", async () => {
+  it("creates an unlinked expense with no eventId or reservationId", async () => {
+    mockCurrencyLookups("USD", "USD");
+
+    const result = await createExpense("trip-1", {
+      category: ExpenseCategory.Food,
+      amount: 18,
+      currency: "USD",
+      date: "2026-08-01",
+    });
+
+    expect(insertedExpenseValues).toMatchObject({
+      eventId: null,
+      reservationId: null,
+    });
+    expect(result.id).toBe("expense-1");
+  });
+
+  it("rejects an expense linked to both an event and a reservation", async () => {
     await expect(
       createExpense("trip-1", {
+        eventId: "event-1",
+        reservationId: "reservation-1",
         category: ExpenseCategory.Food,
         amount: 18,
         currency: "USD",
         date: "2026-08-01",
       })
-    ).rejects.toThrow("Expense must be linked to an event or reservation.");
+    ).rejects.toThrow("Expense cannot be linked to both an event and a reservation.");
 
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a zero or negative amount", async () => {
+    await expect(
+      createExpense("trip-1", {
+        eventId: "event-1",
+        category: ExpenseCategory.Food,
+        amount: 0,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    ).rejects.toThrow("Amount must be greater than 0.");
+
+    await expect(
+      createExpense("trip-1", {
+        eventId: "event-1",
+        category: ExpenseCategory.Food,
+        amount: -5,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    ).rejects.toThrow("Amount must be greater than 0.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an amount with more than 2 decimal places", async () => {
+    await expect(
+      createExpense("trip-1", {
+        eventId: "event-1",
+        category: ExpenseCategory.Food,
+        amount: 12.345,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    ).rejects.toThrow("Amount must have at most 2 decimal places.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an amount above the 50,000 ceiling", async () => {
+    await expect(
+      createExpense("trip-1", {
+        eventId: "event-1",
+        category: ExpenseCategory.Food,
+        amount: 50000.01,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    ).rejects.toThrow("Amount must be 50,000 or less.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("accepts an amount exactly at the 50,000 ceiling", async () => {
+    mockCurrencyLookups("USD", "USD");
+
+    const result = await createExpense("trip-1", {
+      eventId: "event-1",
+      category: ExpenseCategory.Food,
+      amount: 50000,
+      currency: "USD",
+      date: "2026-08-01",
+    });
+
+    expect(result.id).toBe("expense-1");
   });
 
   it("stores dual conversions when the entry currency differs from the trip and profile currencies", async () => {
