@@ -178,3 +178,18 @@ export function getCurrencySymbol(code: string): string {
     return code;
   }
 }
+
+export function formatCurrencyChipAmount(amount: number, code: string): string {
+  const normalizedCode = normalizeCurrencyCode(code);
+  const formattedAmount = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+
+  if (!normalizedCode) {
+    return formattedAmount;
+  }
+
+  const symbol = getCurrencySymbol(normalizedCode);
+  return symbol === normalizedCode ? `${normalizedCode} ${formattedAmount}` : `${symbol}${formattedAmount}`;
+}

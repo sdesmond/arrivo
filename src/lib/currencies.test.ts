@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   SUPPORTED_CURRENCIES,
+  formatCurrencyChipAmount,
   getCurrencySymbol,
   isSupportedCurrencyCode,
   listSupportedCurrencies,
@@ -48,6 +49,13 @@ describe("currencies", () => {
     expect(getCurrencySymbol("USD")).toBe("$");
     expect(getCurrencySymbol("EUR")).toBe("€");
     expect(getCurrencySymbol("ZZZ")).toBe("ZZZ");
+  });
+
+  it("formats chip amounts with the saved currency symbol or code", () => {
+    expect(formatCurrencyChipAmount(42.5, "USD")).toBe("$42.50");
+    expect(formatCurrencyChipAmount(42.5, "EUR")).toBe("€42.50");
+    expect(formatCurrencyChipAmount(42.5, "AED")).toBe("AED 42.50");
+    expect(formatCurrencyChipAmount(42.5, "ZZZ")).toBe("ZZZ 42.50");
   });
 
   it("falls back to the code when Intl rejects a malformed currency code", () => {

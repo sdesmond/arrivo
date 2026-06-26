@@ -28,6 +28,7 @@ import {
   type SavedLocationValue,
   type UpdateReservationPatch,
 } from "@/data/types";
+import { formatCurrencyChipAmount } from "@/lib/currencies";
 import { cn, combineDateAndTimeToIso, getLocationDisplayLabel, pluralize } from "@/lib/utils";
 
 export interface ReservationRowProps {
@@ -119,9 +120,7 @@ export function ReservationRow({
   const [endDateDraft, setEndDateDraft] = useState<string | undefined>(undefined);
   const [endTimeDraft, setEndTimeDraft] = useState<string | undefined>(undefined);
   const [dateError, setDateError] = useState<string | undefined>(undefined);
-  const costDisplay = expense
-    ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(expense.amount)
-    : "";
+  const costDisplay = expense ? formatCurrencyChipAmount(expense.amount, expense.currency) : "";
   const [isDeleting, startTransition] = useTransition();
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
@@ -467,8 +466,14 @@ export function ReservationRow({
             border: "1px solid transparent",
           }}
         >
-          <DollarSign size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
-          {costDisplay || "Add cost"}
+          {expense ? (
+            costDisplay
+          ) : (
+            <>
+              <DollarSign size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
+              Add cost
+            </>
+          )}
         </button>
         <button
           type="button"

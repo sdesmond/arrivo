@@ -353,7 +353,24 @@ describe("PlaceRow", () => {
       },
     };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
-    expect(screen.getByText("42.50")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "$42.50" })).toBeInTheDocument();
+  });
+
+  it("shows the saved expense currency on the event cost chip", () => {
+    const place = {
+      ...basePlace,
+      expense: {
+        id: "expense-2",
+        tripId: "trip-1",
+        eventId: "ev-1",
+        category: ExpenseCategory.Food,
+        amount: 42.5,
+        currency: "AED",
+        date: "2026-08-01",
+      },
+    };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "AED 42.50" })).toBeInTheDocument();
   });
 
   it("shows doc count button when docs are present", () => {
@@ -1000,7 +1017,7 @@ describe("PlaceRow", () => {
     vi.mocked(updateExpense).mockResolvedValueOnce(undefined);
     render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
 
-    await user.click(screen.getByText("10.00"));
+    await user.click(screen.getByRole("button", { name: "$10.00" }));
     await user.click(screen.getByRole("button", { name: "cost-save" }));
 
     expect(updateExpense).toHaveBeenCalledWith(
@@ -1039,11 +1056,11 @@ describe("PlaceRow", () => {
     vi.mocked(deleteExpense).mockResolvedValueOnce(undefined);
     render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
 
-    await user.click(screen.getByText("10.00"));
+    await user.click(screen.getByRole("button", { name: "$10.00" }));
     await user.click(screen.getByRole("button", { name: "cost-remove" }));
 
     expect(deleteExpense).toHaveBeenCalledWith("expense-1");
-    expect(screen.queryByText("10.00")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "$10.00" })).not.toBeInTheDocument();
   });
 
   it("cost remove is a no-op when there is no expense yet", async () => {
@@ -1061,7 +1078,7 @@ describe("PlaceRow", () => {
     vi.mocked(deleteExpense).mockRejectedValueOnce(new Error("remove boom"));
     render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
 
-    await user.click(screen.getByText("10.00"));
+    await user.click(screen.getByRole("button", { name: "$10.00" }));
     await user.click(screen.getByRole("button", { name: "cost-remove" }));
 
     expect(toastError).toHaveBeenCalledWith("remove boom");
