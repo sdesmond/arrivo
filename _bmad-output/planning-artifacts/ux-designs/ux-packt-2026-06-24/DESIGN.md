@@ -112,6 +112,7 @@ components:
 - **category-donut-palette**: 11 segments (one per `ExpenseCategory` value), extending shadcn's `chart-N` token convention rather than a hand-picked palette — direct segment labels where space allows, legend + tooltip fallback for small segments. Color is secondary to the label/legend text per the Accessibility Floor.
 - **budget-adherence-donut**: 3 segments — under (`accent-brand`), on (`warning`), over (`destructive`) — same semantics as the Budget tab's threshold states.
 - **destination-donut-palette**: per-country segments, same hue-generation convention as `category-donut-palette` but sized to the number of distinct countries in range rather than a fixed 11 — countries vary trip to trip, categories don't. "Unknown" reuses `fg-4`, same as the donut-chart base spec.
+- **expense-table**: row-per-expense list on the Budget tab, sitting directly beneath the `category-tile` grid — div/card-based like `field-row`, not a native `<table>`. Sortable column headers (Date, Amount, Category, Title) toggle ascending/descending on click with a direction icon. Event/reservation-linked rows are clickable and navigate to that event/reservation (no edit surface); Misc Expense rows are clickable and open the Misc Expense modal in edit mode. Row targets meet the existing minimum `h-8` interactive sizing.
 
 ## Do's and Don'ts
 
@@ -121,3 +122,5 @@ components:
 - Don't introduce charts on the per-trip Budget tab — charts live exclusively in Travel Retrospective's Spending view; the Budget tab's `category-tile` stays a plain figure, never a chart primitive.
 - Don't show the status badge or tab icon at the neutral state — silence is the neutral signal.
 - Don't let color be the sole signal on any Travel Retrospective chart — every donut leans on direct labels or a legend first, color second.
+- Do reuse the Misc Expense modal for both add and edit — don't build a second dialog for editing an existing Misc Expense.
+- Don't open an edit dialog from an `expense-table` row that's linked to an event or reservation — that row navigates to its existing `CostDialog` instead, never duplicates it.

@@ -6,6 +6,9 @@ import { ChevronDown } from "lucide-react";
 import { ExpenseCategory, type ExpenseCategory as ExpenseCategoryValue } from "@/data/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useViewportClampedPanel } from "@/lib/use-viewport-clamped-panel";
+
+const PANEL_PREFERRED_HEIGHT_PX = 320;
 
 const CATEGORY_OPTIONS: Array<{ value: ExpenseCategoryValue; label: string }> = [
   { value: ExpenseCategory.Food, label: "Food" },
@@ -64,6 +67,7 @@ export function CategoryPicker({
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(selectedIndex >= 0 ? selectedIndex : 0);
   const selectedOption = selectedIndex >= 0 ? CATEGORY_OPTIONS[selectedIndex] : undefined;
+  const panel = useViewportClampedPanel(isOpen, triggerRef, PANEL_PREFERRED_HEIGHT_PX);
 
   useEffect(() => {
     if (!isOpen) {
@@ -206,14 +210,17 @@ export function CategoryPicker({
 
       {isOpen ? (
         <div
-          className="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-xl"
+          className={cn(
+            "absolute left-0 z-30 w-full overflow-hidden rounded-xl",
+            panel.placement === "below" ? "top-full mt-2" : "bottom-full mb-2"
+          )}
           style={{
             border: "1px solid var(--line)",
             background: "var(--surface)",
             boxShadow: "0 18px 36px color-mix(in srgb, var(--fg) 12%, transparent)",
           }}
         >
-          <ScrollArea className="max-h-80">
+          <ScrollArea className="h-80" style={panel.maxHeightPx ? { height: panel.maxHeightPx } : undefined}>
             <div id={listboxId} role="listbox" aria-label="Expense categories" className="p-2">
               {CATEGORY_OPTIONS.map((option, index) => {
                 const isSelected = option.value === value;
@@ -234,7 +241,7 @@ export function CategoryPicker({
                     )}
                     style={{
                       background: isSelected ? "var(--accent-soft)" : "transparent",
-                      color: isSelected ? "var(--accent-fg)" : "var(--fg)",
+                      color: isSelected ? "var(--accent-ink)" : "var(--fg)",
                     }}
                     onClick={() => {
                       onChange(option.value);

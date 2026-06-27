@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { createExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
+import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { CategoryPicker } from "@/components/packt/category-picker";
 import { CurrencyAmountField } from "@/components/packt/currency-amount-field";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listSupportedCurrencies } from "@/lib/currencies";
-import { type ExpenseCategory } from "@/data/types";
+import { type Expense, type ExpenseCategory } from "@/data/types";
 
 const currencyOptions = listSupportedCurrencies();
 const MAX_EXPENSE_AMOUNT = 50000;
@@ -76,6 +76,7 @@ function validateAmountInput(rawAmount: string): { amount: number; error?: strin
 export interface TripAddExpenseModalProps {
   tripId: string;
   defaultCurrency?: string;
+  expense?: Expense;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -83,6 +84,7 @@ export interface TripAddExpenseModalProps {
 export function TripAddExpenseModal({
   tripId,
   defaultCurrency = "USD",
+  expense,
   open,
   onOpenChange,
 }: TripAddExpenseModalProps): ReactElement {
@@ -104,15 +106,23 @@ export function TripAddExpenseModal({
     }
 
     /* eslint-disable react-hooks/set-state-in-effect */
-    setAmount("");
-    setCurrency(defaultCurrency);
-    setCategory(undefined);
-    setDate(defaultDate);
-    setNote("");
+    if (expense) {
+      setAmount(String(expense.amount));
+      setCurrency(expense.currency);
+      setCategory(expense.category);
+      setDate(expense.date);
+      setNote(expense.note ?? "");
+    } else {
+      setAmount("");
+      setCurrency(defaultCurrency);
+      setCategory(undefined);
+      setDate(defaultDate);
+      setNote("");
+    }
     setAmountError(undefined);
     setCategoryError(undefined);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [defaultCurrency, defaultDate, open]);
+  }, [defaultCurrency, defaultDate, expense, open]);
 
   async function handleSave(): Promise<void> {
     if (submittingRef.current) {
@@ -137,15 +147,17 @@ export function TripAddExpenseModal({
     setSaving(true);
 
     try {
-      const result = await createExpense(tripId, {
+      const patch = {
         category,
         amount: parsedAmount,
         currency,
         date,
         note: note.trim() || undefined,
-      });
+      };
 
-      if (result.conversionError) {
+      const result = expense ? await updateExpense(expense.id, patch) : await createExpense(tripId, patch);
+
+      if (result?.conversionError) {
         toast.error("Couldn't convert currency — try again.");
         return;
       }
@@ -159,11 +171,30 @@ export function TripAddExpenseModal({
     }
   }
 
+  async function handleRemove(): Promise<void> {
+    if (!expense || submittingRef.current) {
+      return;
+    }
+
+    submittingRef.current = true;
+    setSaving(true);
+
+    try {
+      await deleteExpense(expense.id);
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove expense.");
+    } finally {
+      setSaving(false);
+      submittingRef.current = false;
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => onOpenChange(isOpen as boolean)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Add Misc Expense</DialogTitle>
+          <DialogTitle>{expense ? "Edit Misc Expense" : "Add Misc Expense"}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
@@ -224,6 +255,11 @@ export function TripAddExpenseModal({
         </div>
 
         <DialogFooter className="gap-2">
+          {expense ? (
+            <Button variant="ghost" className="sm:mr-auto" onClick={() => void handleRemove()} disabled={saving}>
+              Remove
+            </Button>
+          ) : null}
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>

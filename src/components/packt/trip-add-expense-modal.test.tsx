@@ -1,16 +1,35 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { TripAddExpenseModal } from "./trip-add-expense-modal";
+import { ExpenseCategory } from "@/data/types";
+import type { Expense } from "@/data/types";
 
-const { createExpense } = vi.hoisted(() => ({
+const { createExpense, updateExpense, deleteExpense } = vi.hoisted(() => ({
   createExpense: vi.fn(),
+  updateExpense: vi.fn(),
+  deleteExpense: vi.fn(),
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
   createExpense,
+  updateExpense,
+  deleteExpense,
 }));
+
+function makeExpense(overrides: Partial<Expense> = {}): Expense {
+  return {
+    id: "expense-1",
+    tripId: "trip-1",
+    category: ExpenseCategory.Misc,
+    amount: 25,
+    currency: "USD",
+    date: "2026-08-02",
+    note: "Visa fee",
+    ...overrides,
+  };
+}
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
@@ -43,6 +62,10 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("TripAddExpenseModal", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders nothing when closed", () => {
     render(<TripAddExpenseModal tripId="trip-1" open={false} onOpenChange={vi.fn()} />, { wrapper: Wrapper });
 
@@ -276,5 +299,123 @@ describe("TripAddExpenseModal", () => {
 
     expect(screen.queryByRole("listbox", { name: "Currency options" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
+  });
+
+  describe("edit mode", () => {
+    it("renders in add mode with Add Misc Expense title when no expense prop", () => {
+      render(<TripAddExpenseModal tripId="trip-1" open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+
+      expect(screen.getByText("Add Misc Expense")).toBeInTheDocument();
+      expect(screen.queryByText("Edit Misc Expense")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    });
+
+    it("renders in edit mode with Edit Misc Expense title when expense prop provided", () => {
+      const expense = makeExpense();
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={vi.fn()} />, {
+        wrapper: Wrapper,
+      });
+
+      expect(screen.getByText("Edit Misc Expense")).toBeInTheDocument();
+      expect(screen.queryByText("Add Misc Expense")).not.toBeInTheDocument();
+    });
+
+    it("pre-fills amount, currency, category, date, and note from the expense prop", () => {
+      const expense = makeExpense({
+        amount: 120.5,
+        currency: "EUR",
+        category: ExpenseCategory.Activity,
+        date: "2026-08-03",
+        note: "Visa fee",
+      });
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={vi.fn()} />, {
+        wrapper: Wrapper,
+      });
+
+      expect(screen.getByRole("textbox", { name: "Amount" })).toHaveValue("120.5");
+      expect(screen.getByRole("button", { name: /Currency: Euro EUR/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Activity" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /august 3, 2026/i })).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Note" })).toHaveValue("Visa fee");
+    });
+
+    it("shows Remove button only in edit mode, not in add mode", () => {
+      const expense = makeExpense();
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={vi.fn()} />, {
+        wrapper: Wrapper,
+      });
+
+      expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    });
+
+    it("calls updateExpense with updated fields on Save in edit mode", async () => {
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      const expense = makeExpense({ id: "expense-9" });
+      updateExpense.mockResolvedValue(undefined);
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={onOpenChange} />, {
+        wrapper: Wrapper,
+      });
+
+      const amountInput = screen.getByRole("textbox", { name: "Amount" });
+      await user.clear(amountInput);
+      await user.type(amountInput, "75");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() =>
+        expect(updateExpense).toHaveBeenCalledWith("expense-9", {
+          category: ExpenseCategory.Misc,
+          amount: 75,
+          currency: "USD",
+          date: "2026-08-02",
+          note: "Visa fee",
+        })
+      );
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
+
+    it("calls deleteExpense with expense.id on Remove in edit mode", async () => {
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      const expense = makeExpense({ id: "expense-9" });
+      deleteExpense.mockResolvedValue(undefined);
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={onOpenChange} />, {
+        wrapper: Wrapper,
+      });
+
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+
+      await waitFor(() => expect(deleteExpense).toHaveBeenCalledWith("expense-9"));
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
+
+    it("Cancel in edit mode closes without saving", async () => {
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      const expense = makeExpense();
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={onOpenChange} />, {
+        wrapper: Wrapper,
+      });
+
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(updateExpense).not.toHaveBeenCalled();
+    });
+
+    it("validation errors work the same in edit mode as add mode", async () => {
+      const user = userEvent.setup();
+      const expense = makeExpense();
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={vi.fn()} />, {
+        wrapper: Wrapper,
+      });
+
+      const amountInput = screen.getByRole("textbox", { name: "Amount" });
+      await user.clear(amountInput);
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(screen.getByText("Amount must be greater than 0.")).toBeInTheDocument());
+      expect(updateExpense).not.toHaveBeenCalled();
+    });
   });
 });

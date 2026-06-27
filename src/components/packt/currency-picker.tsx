@@ -8,6 +8,10 @@ import { getCurrencySymbol } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useViewportClampedPanel } from "@/lib/use-viewport-clamped-panel";
+
+const PANEL_PREFERRED_HEIGHT_PX = 320;
+const PANEL_PREFERRED_WIDTH_PX = 320;
 
 export interface CurrencyPickerProps {
   currencyOptions: CurrencyOption[];
@@ -65,6 +69,9 @@ export function CurrencyPicker({
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const panel = useViewportClampedPanel(isOpen, triggerRef, PANEL_PREFERRED_HEIGHT_PX, {
+    preferredWidth: PANEL_PREFERRED_WIDTH_PX,
+  });
 
   const filteredOptions = useMemo(
     () => currencyOptions.filter((option) => matchesQuery(option, query)),
@@ -250,11 +257,16 @@ export function CurrencyPicker({
 
       {isOpen ? (
         <div
-          className="absolute left-0 top-full z-30 mt-2 w-80 overflow-hidden rounded-xl"
+          data-testid="currency-picker-panel"
+          className={cn(
+            "absolute left-0 z-30 w-80 overflow-hidden rounded-xl",
+            panel.placement === "below" ? "top-full mt-2" : "bottom-full mb-2"
+          )}
           style={{
             border: "1px solid var(--line)",
             background: "var(--surface)",
             boxShadow: "0 18px 36px color-mix(in srgb, var(--fg) 12%, transparent)",
+            ...(panel.maxWidthPx ? { width: panel.maxWidthPx } : {}),
           }}
         >
           {searchable ? (
@@ -279,7 +291,7 @@ export function CurrencyPicker({
             </div>
           ) : null}
 
-          <ScrollArea className="h-80">
+          <ScrollArea className="h-80" style={panel.maxHeightPx ? { height: panel.maxHeightPx } : undefined}>
             <div id={listboxId} role="listbox" aria-label="Currency options" className="p-2">
               {filteredOptions.length === 0 ? (
                 <p className="px-2 py-4 text-center text-sm" style={{ color: "var(--fg-3)" }}>
@@ -307,7 +319,7 @@ export function CurrencyPicker({
                       )}
                       style={{
                         background: isSelected ? "var(--accent-soft)" : "transparent",
-                        color: isSelected ? "var(--accent-fg)" : "var(--fg)",
+                        color: isSelected ? "var(--accent-ink)" : "var(--fg)",
                       }}
                       onClick={() => handleSelect(option.code)}
                       onFocus={() => setActiveIndex(index)}

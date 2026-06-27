@@ -258,6 +258,14 @@ export function TripEditSheet({
           </div>
 
           <DrawerFooter className="shrink-0 gap-3" style={{ borderTop: "1px solid var(--line)" }}>
+            <div className="flex flex-row justify-end gap-2">
+              <Button variant="ghost" onClick={onClose} disabled={isBusy}>
+                Cancel
+              </Button>
+              <Button ref={saveButtonRef} disabled={isBusy} onClick={handleSaveClick}>
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
             {onDelete ? (
               <>
                 <Separator />
@@ -266,14 +274,6 @@ export function TripEditSheet({
                 </Button>
               </>
             ) : null}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="ghost" onClick={onClose} disabled={isBusy}>
-                Cancel
-              </Button>
-              <Button ref={saveButtonRef} disabled={isBusy} onClick={handleSaveClick}>
-                {saving ? "Saving..." : "Save changes"}
-              </Button>
-            </div>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>

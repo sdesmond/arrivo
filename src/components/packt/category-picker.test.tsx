@@ -155,6 +155,19 @@ describe("CategoryPicker", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Food" })).toHaveFocus());
   });
 
+  it("uses a fixed-height scroll area so all categories remain reachable by scrolling", async () => {
+    // `max-h-*` alone leaves the inner viewport's `height: 100%` unresolved (no definite
+    // parent height), so the list silently clips instead of scrolling. Must stay `h-80`.
+    const user = userEvent.setup();
+    render(<CategoryPicker onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /select category/i }));
+
+    const scrollArea = document.querySelector('[data-slot="scroll-area"]');
+    expect(scrollArea).toHaveClass("h-80");
+    expect(scrollArea).not.toHaveClass("max-h-80");
+  });
+
   it("marks the trigger aria-required when required", () => {
     render(<CategoryPicker onChange={vi.fn()} required />);
 

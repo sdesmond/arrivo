@@ -52,11 +52,10 @@ export function TimeDialog({ time, endTime, eventName, open, onOpenChange, onSav
             <TimePicker value={draftEnd || undefined} onChange={(value) => setDraftEnd(value ?? "")} />
           </Field>
         </div>
-        <DialogFooter>
-          {(time || endTime) && (
+        <DialogFooter className="flex-row items-center justify-between">
+          {time || endTime ? (
             <Button
               variant="ghost"
-              className="sm:mr-auto"
               onClick={() => {
                 onSave(undefined, undefined);
                 onOpenChange(false);
@@ -64,6 +63,8 @@ export function TimeDialog({ time, endTime, eventName, open, onOpenChange, onSav
             >
               Remove
             </Button>
+          ) : (
+            <span />
           )}
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)}>

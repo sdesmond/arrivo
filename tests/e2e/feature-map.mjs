@@ -133,6 +133,7 @@ export const FEATURE_MAP = [
     "src/components/packt/currency-picker.tsx",
     "src/components/packt/trip-budget-tab.tsx",
     "src/components/packt/trip-add-expense-modal.tsx",
+    "src/components/packt/expense-table.tsx",
     "src/components/packt/budget-progress-bar.tsx",
     "src/components/packt/status-badge.tsx",
     "src/components/packt/tab-status-icon.tsx",

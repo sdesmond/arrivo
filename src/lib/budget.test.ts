@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  CATEGORY_LABELS,
   calculateActual,
   calculateBudgetStatus,
   calculateCategoryBreakdown,
   hasCurrencyChangeMismatch,
   hasCurrencyMismatch,
   needsRecalculation,
+  tripCurrencyAmount,
 } from "./budget";
 import { BudgetStatus } from "@/data/types";
 import { ExpenseCategory } from "@/data/types";
@@ -306,5 +308,34 @@ describe("hasCurrencyChangeMismatch", () => {
     const expenses = [makeExpense({ id: "a", currency: "GBP" }), makeExpense({ id: "b", currency: "INR" })];
 
     expect(hasCurrencyChangeMismatch(expenses, "GBP")).toBe(true);
+  });
+});
+
+describe("tripCurrencyAmount", () => {
+  it("returns convertedAmountTrip when present", () => {
+    expect(tripCurrencyAmount(makeExpense({ convertedAmountTrip: 42.5 }))).toBe(42.5);
+  });
+
+  it("falls back to raw amount when convertedAmountTrip is null", () => {
+    expect(tripCurrencyAmount(makeExpense({ amount: 15, convertedAmountTrip: null as unknown as undefined }))).toBe(15);
+  });
+
+  it("falls back to raw amount when convertedAmountTrip is undefined", () => {
+    expect(tripCurrencyAmount(makeExpense({ amount: 20, convertedAmountTrip: undefined }))).toBe(20);
+  });
+});
+
+describe("CATEGORY_LABELS", () => {
+  it("has a label for every ExpenseCategory value", () => {
+    const categoryValues = Object.values(ExpenseCategory) as ExpenseCategory[];
+    for (const cat of categoryValues) {
+      expect(CATEGORY_LABELS[cat]).toEqual(expect.any(String));
+    }
+  });
+
+  it("returns a human-readable label for each category", () => {
+    expect(CATEGORY_LABELS[ExpenseCategory.Food]).toBe("Food");
+    expect(CATEGORY_LABELS[ExpenseCategory.Misc]).toBe("Misc");
+    expect(CATEGORY_LABELS[ExpenseCategory.CarRental]).toBe("Car Rental");
   });
 });

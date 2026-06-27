@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CurrencyPicker } from "./currency-picker";
@@ -52,6 +52,10 @@ function getUnitedStatesTrigger() {
 }
 
 describe("CurrencyPicker", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders the full server-provided currency list", async () => {
     const user = userEvent.setup();
     render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
@@ -345,5 +349,35 @@ describe("CurrencyPicker", () => {
 
     fireEvent.keyDown(trigger, { key: "A" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("does not constrain the dropdown panel width when the viewport has plenty of room", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+
+    expect(screen.getByTestId("currency-picker-panel").style.width).toBe("");
+  });
+
+  it("clamps the dropdown panel width on a narrow viewport", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(300);
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+
+    await waitFor(() => expect(screen.getByTestId("currency-picker-panel")).toHaveStyle({ width: "284px" }));
+  });
+
+  it("floors the clamped dropdown panel width on a very narrow viewport", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(200);
+    render(<CurrencyPicker currencyOptions={currencyOptions} value="USD" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Currency:/i }));
+
+    await waitFor(() => expect(screen.getByTestId("currency-picker-panel")).toHaveStyle({ width: "240px" }));
   });
 });

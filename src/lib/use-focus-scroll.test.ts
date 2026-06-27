@@ -36,6 +36,46 @@ describe("useFocusScroll", () => {
     document.body.removeChild(element);
   });
 
+  it("retries until the target element mounts (e.g. after a tab switch) and then scrolls", () => {
+    vi.useFakeTimers();
+    mockGet.mockReturnValue("ev-123");
+
+    renderHook(() => useFocusScroll());
+
+    // The element isn't in the DOM yet — simulates the target tab still switching in.
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    const element = document.createElement("div");
+    element.id = "event-ev-123";
+    const scrollIntoView = vi.fn();
+    element.scrollIntoView = scrollIntoView;
+    document.body.appendChild(element);
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+    document.body.removeChild(element);
+    vi.useRealTimers();
+  });
+
+  it("gives up retrying once the poll timeout elapses without the element mounting", () => {
+    vi.useFakeTimers();
+    mockGet.mockReturnValue("ev-123");
+
+    renderHook(() => useFocusScroll());
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(document.getElementById("event-ev-123")).toBeNull();
+    vi.useRealTimers();
+  });
+
   it("returns null when no focus param is set", () => {
     mockGet.mockReturnValue(null);
     const { result } = renderHook(() => useFocusScroll());

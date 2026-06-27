@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
 import { TripDocsTab } from "@/components/packt/trip-docs-tab";
@@ -89,6 +90,7 @@ export interface TripDetailTabBodyProps {
   onOpenEditBudget: () => void;
   onActivateReservationsCta: () => void;
   onLinkedEventTap: (linkedReservationId: string) => void;
+  onEditExpense?: (expense: Expense) => void;
   onAddDay: () => void;
   onRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -150,11 +152,17 @@ export function TripDetailTabBody({
   onOpenEditBudget,
   onActivateReservationsCta,
   onLinkedEventTap,
+  onEditExpense,
   onAddDay,
   onRemoveLastDay,
   addingDay,
   removingDay,
 }: TripDetailTabBodyProps): ReactElement {
+  const allEvents = useMemo(
+    () => days.flatMap((day) => day.events).concat(unscheduledEvents),
+    [days, unscheduledEvents]
+  );
+
   return (
     <>
       {activeTab === "itin" && (
@@ -205,10 +213,14 @@ export function TripDetailTabBody({
           tripId={tripId}
           budget={trip.budget}
           expenses={expenses}
+          events={allEvents}
+          reservations={reservations}
+          dateFormat={dateFormat}
           defaultExpenseCurrency={defaultExpenseCurrency}
           warningThreshold={warningThreshold}
           dangerThreshold={dangerThreshold}
           onOpenEditBudget={onOpenEditBudget}
+          onEditExpense={onEditExpense}
         />
       )}
       {activeTab === "map" && (
