@@ -1,6 +1,10 @@
+---
+baseline_commit: 525f2d7d8d66bb265a4fb63e3988ac317c6bfb88
+---
+
 # Story 1.10: View and Manage All Trip Expenses in a Table
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -30,7 +34,7 @@ So that I can review and manage my spend without hunting through the itinerary o
 
 ### 1. Build expense-table component (AC: 1, 2, 3, 4, 5, 6, 8)
 
-- [ ] Create `src/components/packt/expense-table.tsx`:
+- [x] Create `src/components/packt/expense-table.tsx`:
   - Define `ExpenseTableProps` interface with: `expenses: Expense[]`, `tripId: string`, `events: TripEvent[]`, `reservations: Reservation[]`, `onEditExpense: (expense: Expense) => void`
   - Renders below the category tile grid (div/card-based like `field-row`, not `<table>`) with columns: Date, Title, Category, Amount
   - Title column: for `eventId`-linked rows, show the matching event's `name`; for `reservationId`-linked rows, show the matching reservation's `provider`; for unlinked (Misc) rows, show `note` or fall back to `CATEGORY_LABELS[category]`
@@ -38,7 +42,7 @@ So that I can review and manage my spend without hunting through the itinerary o
   - Sorting is client-side: `useMemo` over the expenses array, no server request
   - Row targets meet `h-8` minimum interactive sizing
   - When `expenses.length === 0`, returns `null` (caller shows "No expenses yet")
-- [ ] Create `src/components/packt/expense-table.test.tsx`:
+- [x] Create `src/components/packt/expense-table.test.tsx`:
   - "renders all expense rows with Date, Title, Category, Amount columns"
   - "shows event name for event-linked expense"
   - "shows reservation provider for reservation-linked expense"
@@ -52,7 +56,7 @@ So that I can review and manage my spend without hunting through the itinerary o
 
 ### 2. Wire expense-table into TripBudgetTab (AC: 1, 4, 5, 6, 8)
 
-- [ ] In `src/components/packt/trip-budget-tab.tsx`:
+- [x] In `src/components/packt/trip-budget-tab.tsx`:
   - Import `ExpenseTable` and render it below the category tile grid, inside the `expenses.length > 0` block
   - Add `events` and `reservations` props to `TripBudgetTabProps` — needed so the table can resolve event/reservation names and build navigation links
   - Add `onEditExpense` callback prop — called when a Misc Expense row is clicked
@@ -60,7 +64,7 @@ So that I can review and manage my spend without hunting through the itinerary o
   - Pass `editingExpense` to `TripAddExpenseModal` as an optional `expense` prop (edit mode)
   - Modal `open` prop: `showAddExpenseModal || editingExpense !== null` — either add or edit mode opens it
   - Import `CATEGORY_LABELS` (already defined in the file) for the Title fallback
-- [ ] Update `src/components/packt/trip-budget-tab.test.tsx`:
+- [x] Update `src/components/packt/trip-budget-tab.test.tsx`:
   - "renders expense-table below category tiles when expenses exist"
   - "does not render expense-table when expenses array is empty"
   - "opens misc expense modal in edit mode when a misc expense row is clicked"
@@ -68,7 +72,7 @@ So that I can review and manage my spend without hunting through the itinerary o
 
 ### 3. Extend TripAddExpenseModal for dual-mode add/edit (AC: 6, 7)
 
-- [ ] In `src/components/packt/trip-add-expense-modal.tsx`:
+- [x] In `src/components/packt/trip-add-expense-modal.tsx`:
   - Add optional `expense?: Expense` prop to `TripAddExpenseModalProps`
   - When `expense` is provided (edit mode):
     - Pre-fill all fields from the expense: amount, currency, category, date, note
@@ -78,7 +82,7 @@ So that I can review and manage my spend without hunting through the itinerary o
     - Remove calls `deleteExpense(expense.id)` then closes the modal
   - When `expense` is not provided (add mode): existing behavior unchanged
   - Reset `editingExpense` state on close via `onOpenChange(false)` — parent should clear its `editingExpense` state in the same handler
-- [ ] Update `src/components/packt/trip-add-expense-modal.test.tsx`:
+- [x] Update `src/components/packt/trip-add-expense-modal.test.tsx`:
   - "renders in add mode with Add Misc Expense title when no expense prop"
   - "renders in edit mode with Edit Misc Expense title when expense prop provided"
   - "pre-fills amount, currency, category, date, and note in edit mode"
@@ -90,14 +94,14 @@ So that I can review and manage my spend without hunting through the itinerary o
 
 ### 4. Thread data and callbacks through trip-detail-tab-body (AC: 4, 5, 6)
 
-- [ ] In `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx`:
+- [x] In `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx`:
   - Derive a flat `allEvents: TripEvent[]` array with `useMemo`: `const allEvents = useMemo(() => days.flatMap((d) => d.events).concat(unscheduledEvents), [days, unscheduledEvents])`
   - Add `events` and `reservations` to the `<TripBudgetTab>` props spread (both already available from `TripDetailTabBodyProps` — no new interface additions needed for those)
   - Add `onEditExpense?: (expense: Expense) => void` to `TripDetailTabBodyProps` and pass through to `<TripBudgetTab>`
 
 ### 5. Register in feature-map.mjs
 
-- [ ] Add `"src/components/packt/expense-table.tsx"` to the `trips` feature's sourceGlobs array in `tests/e2e/feature-map.mjs` (alongside `trip-budget-tab.tsx`, `trip-add-expense-modal.tsx`, etc.)
+- [x] Add `"src/components/packt/expense-table.tsx"` to the `trips` feature's sourceGlobs array in `tests/e2e/feature-map.mjs` (alongside `trip-budget-tab.tsx`, `trip-add-expense-modal.tsx`, etc.)
 
 ### 6. Navigation logic for clickable rows (AC: 4, 5)
 
@@ -231,15 +235,27 @@ A brief scenario covering the expense-table flow: sort by amount, click event-li
 
 ### Agent Model Used
 
+Claude Sonnet 4.6
+
 ### Debug Log References
 
 - `npx vitest run "src/components/packt/expense-table.test.tsx"`
 - `npx vitest run "src/components/packt/trip-budget-tab.test.tsx"`
 - `npx vitest run "src/components/packt/trip-add-expense-modal.test.tsx"`
+- `npx vitest run "src/lib/use-focus-scroll.test.ts"`
 - `npx tsc --noEmit`
-- `npx vitest run` (full suite)
+- `npm run test:coverage` (full suite — 2651 passed, lines 96.42%, branches 90.4%, functions 96.2%)
+- `npm run build`
+- `npm run test:e2e` (full suite — 158 passed)
 
 ### Completion Notes List
+
+- `CATEGORY_LABELS` was relocated from `trip-budget-tab.tsx` into `src/lib/budget.ts` (rather than importing it from `trip-budget-tab.tsx` as the Dev Notes suggested) — importing it from the component would have pulled `trip-budget-tab.tsx`'s server-action import chain into `expense-table.tsx`'s module graph, breaking test isolation. `trip-budget-tab.tsx` now imports `CATEGORY_LABELS` from `@/lib/budget` too.
+- Added `data-slot="category-tile-grid"` to the category tile container so unit tests and the `trips.steps.ts` E2E step can scope queries to it — the expense-table's Category column now also renders category label text below the tiles, which made unscoped `getByText(category)` queries ambiguous.
+- `TripBudgetTabProps` gained an optional `onEditExpense?: (expense: Expense) => void` passthrough (Task 2/4 spec) in addition to `TripBudgetTab`'s own internal `editingExpense` state — the internal state controls the modal; the optional callback notifies a parent if one is supplied. No current caller passes it.
+- Post-implementation fix: moved the "Add Misc Expense" button (per user request) from the top toolbar to sit directly above the category tiles/expense-table content, in both the empty and populated states.
+- Post-implementation fix: the Amount column was right-aligned; changed to left-aligned to match the other columns (per user request).
+- Post-implementation bug fix: clicking an event-linked expense row from a non-Itinerary tab switched tabs but did not scroll to or pulse-highlight the event. Root cause: `useFocusScroll`'s scroll effect only ran once when the `focus` query param changed, and on the first render after `router.push` the Itinerary view hadn't mounted yet (the `tab` state update commits in a later render), so `document.getElementById` found nothing and never retried. Fixed by polling for the target element for up to 2s (50ms interval) before giving up, with regression tests in `src/lib/use-focus-scroll.test.ts`.
 
 ### File List
 
@@ -250,4 +266,8 @@ A brief scenario covering the expense-table flow: sort by amount, click event-li
 - `src/components/packt/trip-add-expense-modal.tsx` — MODIFY
 - `src/components/packt/trip-add-expense-modal.test.tsx` — MODIFY
 - `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx` — MODIFY
+- `src/lib/budget.ts` — MODIFY (added `CATEGORY_LABELS`)
+- `src/lib/use-focus-scroll.ts` — MODIFY (poll-and-retry fix for tab-switch race)
+- `src/lib/use-focus-scroll.test.ts` — MODIFY
 - `tests/e2e/feature-map.mjs` — MODIFY
+- `tests/e2e/steps/trips.steps.ts` — MODIFY (scope category-tile query to avoid ambiguity with expense-table)
