@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { createExpense, recalculateConversions } = vi.hoisted(() => ({
@@ -39,6 +39,14 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     date: "2026-08-01",
     ...overrides,
   };
+}
+
+function tileGrid(container: HTMLElement): HTMLElement {
+  const grid = container.querySelector('[data-slot="category-tile-grid"]');
+  if (!grid) {
+    throw new Error("category-tile-grid not found");
+  }
+  return grid as HTMLElement;
 }
 
 describe("TripBudgetTab", () => {
@@ -121,7 +129,7 @@ describe("TripBudgetTab", () => {
       makeExpense({ id: "b", category: ExpenseCategory.Food, convertedAmountTrip: 30 }),
       makeExpense({ id: "c", category: ExpenseCategory.Lodging, convertedAmountTrip: 200 }),
     ];
-    render(
+    const { container } = render(
       <TripBudgetTab
         tripId="trip-1"
         budget={{ currency: "EUR", total: 5000 }}
@@ -130,15 +138,15 @@ describe("TripBudgetTab", () => {
       />
     );
 
-    expect(screen.getByText("Food")).toBeInTheDocument();
+    expect(within(tileGrid(container)).getByText("Food")).toBeInTheDocument();
     expect(screen.getByText("€50.00")).toBeInTheDocument();
-    expect(screen.getByText("Lodging")).toBeInTheDocument();
+    expect(within(tileGrid(container)).getByText("Lodging")).toBeInTheDocument();
     expect(screen.getByText("€200.00")).toBeInTheDocument();
   });
 
   it("omits categories with no expenses", () => {
     const expenses = [makeExpense({ id: "a", category: ExpenseCategory.Transport, convertedAmountTrip: 42 })];
-    render(
+    const { container } = render(
       <TripBudgetTab
         tripId="trip-1"
         budget={{ currency: "EUR", total: 5000 }}
@@ -147,9 +155,9 @@ describe("TripBudgetTab", () => {
       />
     );
 
-    expect(screen.getByText("Transport")).toBeInTheDocument();
-    expect(screen.queryByText("Food")).not.toBeInTheDocument();
-    expect(screen.queryByText("Lodging")).not.toBeInTheDocument();
+    expect(within(tileGrid(container)).getByText("Transport")).toBeInTheDocument();
+    expect(within(tileGrid(container)).queryByText("Food")).not.toBeInTheDocument();
+    expect(within(tileGrid(container)).queryByText("Lodging")).not.toBeInTheDocument();
   });
 
   it("shows the No expenses yet empty state with the toolbar still visible", () => {
@@ -184,7 +192,7 @@ describe("TripBudgetTab", () => {
       makeExpense({ id: "a", category: ExpenseCategory.Food, amount: 33, convertedAmountTrip: undefined }),
       makeExpense({ id: "b", category: ExpenseCategory.Lodging, convertedAmountTrip: 7 }),
     ];
-    render(
+    const { container } = render(
       <TripBudgetTab
         tripId="trip-1"
         budget={{ currency: "EUR", total: 5000 }}
@@ -193,7 +201,7 @@ describe("TripBudgetTab", () => {
       />
     );
 
-    expect(screen.getByText("€33.00")).toBeInTheDocument();
+    expect(within(tileGrid(container)).getByText("€33.00")).toBeInTheDocument();
     expect(screen.getByText("€40.00")).toBeInTheDocument();
   });
 
@@ -603,6 +611,91 @@ describe("TripBudgetTab", () => {
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith("Recalculation failed — no amounts were changed. Try again.")
       );
+    });
+  });
+
+  describe("expense table", () => {
+    it("renders expense-table below category tiles when expenses exist", () => {
+      const expenses = [makeExpense({ id: "a" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole("table", { name: "Expenses" })).toBeInTheDocument();
+    });
+
+    it("does not render expense-table when expenses array is empty — shows No expenses yet", () => {
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={[]}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByRole("table", { name: "Expenses" })).not.toBeInTheDocument();
+      expect(screen.getByText("No expenses yet")).toBeInTheDocument();
+    });
+
+    it("formats expense dates using the provided dateFormat", () => {
+      const expenses = [makeExpense({ id: "a", date: "2026-08-01" })];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          dateFormat="DD/MM/YYYY"
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("1 Aug 2026")).toBeInTheDocument();
+    });
+
+    it("shows the trip-currency converted amount alongside the native amount in the table", () => {
+      const expenses = [
+        makeExpense({
+          id: "a",
+          amount: 10,
+          currency: "GBP",
+          convertedAmountTrip: 11.7,
+          convertedCurrencyTrip: "EUR",
+        }),
+      ];
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={expenses}
+          onOpenEditBudget={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("£10.00 (€11.70)")).toBeInTheDocument();
+    });
+
+    it("opens misc expense modal in edit mode when a misc expense row is clicked", async () => {
+      const user = userEvent.setup();
+      const expense = makeExpense({ id: "a", category: ExpenseCategory.Misc, note: "Coffee", amount: 5.5 });
+      render(
+        <TripBudgetTab
+          tripId="trip-1"
+          budget={{ currency: "EUR", total: 5000 }}
+          expenses={[expense]}
+          onOpenEditBudget={vi.fn()}
+        />,
+        { wrapper: Wrapper }
+      );
+
+      await user.click(screen.getByText("Coffee"));
+
+      expect(screen.getByText("Edit Misc Expense")).toBeInTheDocument();
     });
   });
 });

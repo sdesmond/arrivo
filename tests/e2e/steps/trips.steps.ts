@@ -101,5 +101,5 @@ Then("the Budget tab shows {string} as Actual spent", async ({ page }, amount: s
 });
 
 Then("the Budget tab shows a {string} category tile", async ({ page }, category: string) => {
-  await expect(page.getByText(category, { exact: true })).toBeVisible();
+  await expect(page.locator('[data-slot="category-tile-grid"]').getByText(category, { exact: true })).toBeVisible();
 });

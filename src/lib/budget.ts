@@ -1,8 +1,22 @@
-import { BudgetStatus } from "@/data/types";
+import { BudgetStatus, ExpenseCategory as ExpenseCategoryValues } from "@/data/types";
 import type { Expense, ExpenseCategory } from "@/data/types";
 
 export const DEFAULT_WARNING_THRESHOLD = 80;
 export const DEFAULT_DANGER_THRESHOLD = 90;
+
+export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  [ExpenseCategoryValues.Food]: "Food",
+  [ExpenseCategoryValues.Lodging]: "Lodging",
+  [ExpenseCategoryValues.Transport]: "Transport",
+  [ExpenseCategoryValues.Activity]: "Activity",
+  [ExpenseCategoryValues.Sightseeing]: "Sightseeing",
+  [ExpenseCategoryValues.Gas]: "Gas",
+  [ExpenseCategoryValues.Groceries]: "Groceries",
+  [ExpenseCategoryValues.Flights]: "Flights",
+  [ExpenseCategoryValues.CarRental]: "Car Rental",
+  [ExpenseCategoryValues.Shopping]: "Shopping",
+  [ExpenseCategoryValues.Misc]: "Misc",
+};
 
 export interface CategoryBreakdownEntry {
   category: ExpenseCategory;
@@ -15,7 +29,7 @@ export interface CategoryBreakdownEntry {
  * canonical figure (populated at entry time); fall back to the raw `amount` only
  * when conversion was never stored (pre-conversion entries).
  */
-function tripCurrencyAmount(expense: Expense): number {
+export function tripCurrencyAmount(expense: Expense): number {
   return expense.convertedAmountTrip ?? expense.amount;
 }
 
