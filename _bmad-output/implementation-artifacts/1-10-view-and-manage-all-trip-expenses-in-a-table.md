@@ -257,6 +257,38 @@ Claude Sonnet 4.6
 - Post-implementation fix: the Amount column was right-aligned; changed to left-aligned to match the other columns (per user request).
 - Post-implementation bug fix: clicking an event-linked expense row from a non-Itinerary tab switched tabs but did not scroll to or pulse-highlight the event. Root cause: `useFocusScroll`'s scroll effect only ran once when the `focus` query param changed, and on the first render after `router.push` the Itinerary view hadn't mounted yet (the `tab` state update commits in a later render), so `document.getElementById` found nothing and never retried. Fixed by polling for the target element for up to 2s (50ms interval) before giving up, with regression tests in `src/lib/use-focus-scroll.test.ts`.
 
+### Additional changes outside story scope
+
+The following landed on this branch alongside story 1.10 but address pre-existing UI issues
+unrelated to the Budget tab / expense table. Called out separately so they aren't mistaken for
+story 1.10 deliverables:
+
+- `85cdec0` — Dialog footers (cost, reservation-field, time, currency-change dialogs) previously
+  used `sm:mr-auto`/`sm:justify-between` to position an optional Remove button, which shifted the
+  Cancel/Save group depending on whether Remove rendered. Footers now always render
+  `flex-row justify-between` with an invisible spacer `<span />` standing in for Remove when absent,
+  so Cancel/Save stay anchored.
+- `0c593db` — Category/currency picker dropdown panels used plain absolute positioning, which isn't
+  constrained by viewport edges; on short/narrow screens the panel could render past the bottom or
+  right edge with no way to scroll it into view. Added `useViewportClampedPanel` (new hook) so both
+  pickers flip above the trigger and clamp height when there's no room below, and the currency
+  picker (fixed 320px panel width) also clamps width on narrow viewports. Also fixed the
+  selected-option text color to use the existing `--accent-ink` token instead of `--accent-fg`,
+  matching the convention used elsewhere for text on an `--accent-soft` background.
+- `9ac64c6` — Right/left `Drawer` variants (used by Edit Trip and reservation editing) were always
+  75vw capped at `max-w-sm`, leaving content cramped on phone-width screens. Below the `sm`
+  breakpoint they're now full viewport width; side-panel sizing is unchanged at `sm` and up.
+- `77a5bcf` — In the Edit Trip sheet, Delete trip sat above Cancel/Save (easy to tap by accident
+  while scrolling toward the primary actions), and Cancel/Save stacked full-width on mobile. They
+  now share one right-aligned row on both mobile and desktop, with Delete moved below a separator.
+
+Files touched by these additional changes (not part of the File List below):
+`src/components/packt/cost-dialog.tsx`, `src/components/packt/reservation-field-dialog.tsx`,
+`src/components/packt/time-dialog.tsx`, `src/components/packt/trip-currency-change-dialog.tsx`,
+`src/components/packt/category-picker.tsx` (+ test), `src/components/packt/currency-picker.tsx`
+(+ test), `src/lib/use-viewport-clamped-panel.ts` (NEW, + test), `src/components/ui/drawer.tsx`,
+`src/components/packt/trip-edit-sheet.tsx`.
+
 ### File List
 
 - `src/components/packt/expense-table.tsx` — NEW
