@@ -30,11 +30,11 @@ export function TripCurrencyChangeDialog({
           currency?
         </p>
 
-        <DialogFooter className="gap-2 sm:justify-between">
+        <DialogFooter className="flex-row items-center justify-between">
           <Button variant="ghost" autoFocus onClick={onCancel} disabled={saving}>
             Cancel
           </Button>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={() => void onLeaveAsIs()} disabled={saving}>
               Leave As Is
             </Button>

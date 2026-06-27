@@ -209,13 +209,15 @@ export function CostDialog({
           </FieldRow>
         </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
+        <DialogFooter className="flex-row items-center justify-between">
           {expense && onRemove ? (
             <Button variant="ghost" title="Remove cost" onClick={() => void handleRemove()} disabled={saving}>
               Remove
             </Button>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
