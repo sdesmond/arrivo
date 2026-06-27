@@ -12,7 +12,7 @@ inputDocuments:
 
 ## Overview
 
-This document provides the complete epic and story breakdown for Packt, decomposing the requirements from the PRD, UX Design, and Architecture requirements into implementable stories. Scope: Trip Budget Management & Travel Retrospective (`prd-packt-2026-06-23`) — both features are fully in scope, FR-1–FR-21 less FR-14 (retired during the UX pass, see PRD §6 Non-Goals).
+This document provides the complete epic and story breakdown for Packt, decomposing the requirements from the PRD, UX Design, and Architecture requirements into implementable stories. Scope: Trip Budget Management & Travel Retrospective (`prd-packt-2026-06-23`) — both features are fully in scope, FR-1–FR-22 less FR-14 (retired during the UX pass, see PRD §6 Non-Goals).
 
 ## Requirements Inventory
 
@@ -58,6 +58,8 @@ FR20: Spending view shows a total-spend figure: sum of all filtered spend in the
 
 FR21: Spending view shows an average-trip-spend figure: total filtered spend ÷ count of filtered trips. Inherits FR13's exclusion rule (trips with no spend data in range don't dilute the average).
 
+FR22: Budget tab shows a line-item table of every expense for the trip (event-linked, reservation-linked, and Misc), sitting beneath the category tile grid, sortable by date, amount, category, and title. Clicking an event/reservation-linked row navigates to and highlights that event/reservation; clicking a Misc Expense row opens the Misc Expense modal in edit mode (with Remove), fulfilling FR7's edit/delete consequence which had no UI until this requirement. Sorting is client-side; no new query.
+
 **Retired:** FR14 (Spend-over-time bar chart) — considered and cut during the UX pass; no distinct value over the headline figures and donut breakdowns already on the view. Left as a numbering gap, not renumbered (see PRD `.decision-log.md`).
 
 ### NonFunctional Requirements
@@ -93,6 +95,7 @@ NFR4: Data migration — the existing `cost` field on `Event`/`Reservation` is d
 - Max amount ceiling fixed at 50,000 in entry currency (resolves PRD §9 Assumptions Index for FR7).
 - No new validation library (zod) introduced — inline validation matching existing action conventions. App-wide zod adoption explicitly deferred as a separate, future architecture decision.
 - E2E: new `tests/e2e/features/budget.feature` (tag `@feat:budget`) and `tests/e2e/steps/budget.steps.ts`, plus new `tests/e2e/features/spending.feature` (tag `@feat:spending`) and `tests/e2e/steps/spending.steps.ts`; `tests/e2e/feature-map.mjs` must register both features' source globs (`trip-budget-tab`, `trip-add-expense-modal`, `budget/actions.ts`, `cost-dialog`, `trip-edit-budget`, `trip-currency-change-dialog`, `preferences-section` for budget; `spending-view` and its children, `travel-history` page.tsx/page-client.tsx, `lib/spending.ts`, `profile-currency-change-dialog` for spending) or `feature-map.test.mjs` fails the coverage worker.
+- Story 1.10's `expense-table` component is covered under the existing `@feat:budget` feature/source globs (`trip-budget-tab`, `trip-add-expense-modal`) — no new feature file or tag needed; extend `budget.feature`/`budget.steps.ts` with sort/navigate/edit-misc scenarios.
 
 ### UX Design Requirements
 
@@ -150,6 +153,10 @@ UX-DR26: Implement the two new Spending-view empty states: zero trips ever logge
 
 UX-DR27: Implement the Travel Retrospective Accessibility Floor additions: every chart's root graphic element carries `role="img"` + a data-summarizing `aria-label`; the category/destination palette and the "Unknown"/budget-adherence colors clear 3:1 non-text contrast (WCAG 1.4.11) against adjacent segments and the chart-card surface; donut center text is a true text node, never image/canvas; date-filter changes announce via a polite live region (e.g. "Showing All Time — 12 trips"); the 3 chart cards follow natural top-to-bottom DOM/tab order.
 
+UX-DR28: Build `expense-table` component — row-per-expense list sitting beneath the `category-tile` grid on the Budget tab; div/card-based (matching `field-row`), not a native `<table>`. Sortable column headers (Date, Amount, Category, Title) toggle ascending/descending on click with a direction icon. Event/reservation-linked rows are clickable and navigate (no edit surface); Misc Expense rows are clickable and open the edit modal. Row targets meet the existing minimum `h-8` interactive sizing.
+
+UX-DR29: Extend `TripAddExpenseModal` into a dual-mode add/edit modal — optional `expense` prop pre-fills fields when editing; footer adds a Remove action (`sm:mr-auto`, matching the existing CostDialog Remove-button convention) alongside Cancel/Save. Remove calls the existing `deleteExpense` action; Save on an existing expense calls the existing `updateExpense` action.
+
 ### FR Coverage Map
 
 FR1: Epic 1 - Budget total + currency as comparison target
@@ -163,6 +170,7 @@ FR8: Epic 1 - Per-entry currency conversion
 FR9: Epic 1 - Recalculate Conversions action
 FR10: Epic 1 - Threshold settings
 FR11: Epic 1 - Threshold status indicator
+FR22: Epic 1 - Expense table on Budget tab
 FR12: Epic 2 - Spending view on History page
 FR13: Epic 2 - Date filter + trip-inclusion rule
 FR15: Epic 2 - Category breakdown donut
@@ -177,7 +185,7 @@ FR21: Epic 2 - Average trip spend figure
 
 ### Epic 1: Trip Budget Management
 Trip owners/editors can set a budget, track actual spend (auto-summed from events/reservations plus manual Misc Expenses) against it in their Trip Currency, see category breakdowns, get threshold warnings, and handle currency mismatches — all per-trip.
-**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR8, FR9, FR10, FR11
+**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR8, FR9, FR10, FR11, FR22
 
 ### Epic 2: Travel Retrospective
 Users can review spending across their full trip history from a new "Spending" view on the History page — category/destination/budget-adherence breakdowns and headline figures (total/average trip/average daily spend), all driven by one date filter, in their profile currency, with currency-change handling.
@@ -188,9 +196,9 @@ Users can review spending across their full trip history from a new "Spending" v
 
 Trip owners/editors can set a budget, track actual spend (auto-summed from events/reservations plus manual Misc Expenses) against it in their Trip Currency, see category breakdowns, get threshold warnings, and handle currency mismatches — all per-trip.
 
-**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR8, FR9, FR10, FR11
+**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR8, FR9, FR10, FR11, FR22
 **Relevant NFRs:** NFR1, NFR2, NFR3, NFR4
-**Relevant UX-DRs:** UX-DR1–UX-DR16
+**Relevant UX-DRs:** UX-DR1–UX-DR16, UX-DR28, UX-DR29
 
 ### Story 1.1: Set Trip Budget & Currency
 
@@ -421,6 +429,48 @@ So that I notice budget risk without having to do math myself.
 **Given** the tab status icon
 **When** a screen reader encounters the "Budget" tab
 **Then** the icon itself is `aria-hidden="true"`, paired with a visually-hidden `<span>` reading "Warning"/"Over budget" so the tab's accessible name becomes "Budget, Warning" (NFR3)
+
+### Story 1.10: View and Manage All Trip Expenses in a Table
+
+As a trip owner/editor,
+I want to see every expense on my trip in one sortable table,
+So that I can review and manage my spend without hunting through the itinerary or reservations.
+
+**Acceptance Criteria:**
+
+**Given** I am on the Budget tab with at least one `expenses` row
+**When** I view the page below the category tile grid
+**Then** I see a row-per-expense `expense-table` (UX-DR28) listing every `expenses` row for the trip with Date, Title, Category, and Amount columns (FR22)
+**And** Title shows the linked event's name, the linked reservation's provider, or — for a Misc Expense — its note, falling back to its category label when no note is set
+
+**Given** the expense table
+**When** I click a column header (Date, Amount, Category, or Title)
+**Then** the table re-sorts client-side by that column, ascending on first click and descending on a second click, with an icon indicating current sort direction (FR22, UX-DR28)
+**And** no server request is made — sorting operates on the already-loaded `expenses` array
+
+**Given** an expense row linked to an event
+**When** I click that row
+**Then** I am navigated to the Itinerary tab with that event scrolled into view and highlighted, reusing the existing `?focus=<eventId>` mechanism (FR22)
+
+**Given** an expense row linked to a reservation
+**When** I click that row
+**Then** I am navigated to the Reservations tab with that reservation scrolled into view and highlighted, reusing the existing reservation highlight mechanism (FR22)
+
+**Given** a Misc Expense row (no event or reservation link)
+**When** I click that row
+**Then** the Misc Expense modal opens pre-filled with that row's amount, currency, category, date, and note, in edit mode (FR22, UX-DR29)
+
+**Given** the Misc Expense modal is open in edit mode
+**When** I click Remove
+**Then** the expense is deleted via the existing `deleteExpense` action and the table, Actual figure, and category tiles update immediately (FR22, UX-DR29)
+
+**Given** the Misc Expense modal is open in edit mode
+**When** I change a field and click Save
+**Then** the expense is updated via the existing `updateExpense` action and the table, Actual figure, and category tiles update immediately (FR22, UX-DR29)
+
+**Given** a trip has zero `expenses` rows
+**When** I view the Budget tab
+**Then** the existing "No expenses yet" message is shown and no table is rendered (FR22)
 
 ## Epic 2: Travel Retrospective
 

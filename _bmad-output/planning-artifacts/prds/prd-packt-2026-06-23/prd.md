@@ -140,6 +140,20 @@ Budget tab shows Actual broken down by category (the shared enum from FR-4/FR-7)
 - A category with zero items is omitted from the breakdown rather than shown as a zero row.
 - Categories are a pre-defined enum (no freeform categorization), so every Cost Entry maps to exactly one category — no fallback/"uncategorized" case to handle.
 
+#### FR-22: Expense table on Budget tab
+
+Budget tab shows a line-item table of every Cost Entry for the trip (event-linked, reservation-linked, and Misc), sortable by date, amount, category, and title, with click-to-navigate for linked entries and click-to-edit for Misc Expenses. Realizes UJ-1.
+
+**Consequences (testable):**
+
+- The table lists every `expenses` row for the trip, regardless of the category-tile grouping above it — not filtered or paginated. It sits directly beneath the category tile grid.
+- Title column shows the linked event's name, the linked reservation's provider, or — for a Misc Expense — its note (falling back to its category label when no note is set).
+- Day column shows the Cost Entry's own `date` field directly — no separate join against trip days.
+- Clicking an event-linked row navigates to the Itinerary tab and scrolls/highlights that event (reuses the existing `?focus=<eventId>` mechanism). Clicking a reservation-linked row navigates to the Reservations tab and highlights it (reuses the existing reservation highlight mechanism). Neither opens an edit surface — editing those stays exclusively in their own `CostDialog`.
+- Clicking a Misc Expense row (no link) opens the Misc Expense modal in edit mode, pre-filled, with a Remove action — fulfilling FR-7's "can be edited or deleted after creation" consequence, which had no UI before this requirement.
+- Sorting is client-side over the already-loaded `expenses` array — no new query, no server round-trip.
+- Zero expenses shows the existing "No expenses yet" message; no separate table empty state.
+
 ### 4.4 Misc Expense Entry
 
 **Description:** For spend that isn't tied to any event or reservation — a visa fee, travel insurance, pre-trip gear — the traveler adds it directly in the Budget tab as a Misc Expense: amount, currency, category, date, optional note. Realizes UJ-1.
@@ -317,7 +331,7 @@ Spending view shows the average spend per trip across all trips in the filtered 
 
 ### 7.1 In Scope
 
-All of §4.1–4.6 (FR-1 through FR-21, less FR-14, retired — see §6 Non-Goals): Budget Definition and Trip Currency change handling, Unified Cost Entry, Actual Spend Tracking and category breakdown, Misc Expense entry and dual (Trip Currency + profile currency) conversion, Threshold Alerts, and Travel Retrospective (cross-trip Spending view: category, destination, and budget-adherence charts plus average daily spend, total spend, and average trip spend, driven by a single date filter, with profile currency change handling). See §4 for full FR detail.
+All of §4.1–4.6 (FR-1 through FR-22, less FR-14, retired — see §6 Non-Goals): Budget Definition and Trip Currency change handling, Unified Cost Entry, Actual Spend Tracking, category breakdown, and the expense table (FR-22), Misc Expense entry and dual (Trip Currency + profile currency) conversion, Threshold Alerts, and Travel Retrospective (cross-trip Spending view: category, destination, and budget-adherence charts plus average daily spend, total spend, and average trip spend, driven by a single date filter, with profile currency change handling). See §4 for full FR detail.
 
 ### 7.2 Out of Scope for MVP
 
