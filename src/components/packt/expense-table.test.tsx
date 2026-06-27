@@ -515,4 +515,178 @@ describe("ExpenseTable", () => {
 
     expect(onEditExpense).toHaveBeenCalledWith(expense);
   });
+
+  describe("keyboard navigation", () => {
+    it("moves focus to the next row on ArrowDown", async () => {
+      const user = userEvent.setup();
+      const expenses = [makeExpense({ id: "a", note: "First" }), makeExpense({ id: "b", note: "Second" })];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      const rows = screen.getAllByRole("row");
+      rows[1].focus();
+      await user.keyboard("{ArrowDown}");
+
+      expect(document.activeElement).toBe(rows[2]);
+    });
+
+    it("moves focus to the previous row on ArrowUp", async () => {
+      const user = userEvent.setup();
+      const expenses = [
+        makeExpense({ id: "a", note: "First" }),
+        makeExpense({ id: "b", note: "Second" }),
+        makeExpense({ id: "c", note: "Third" }),
+      ];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      const rows = screen.getAllByRole("row");
+      rows[2].focus();
+      await user.keyboard("{ArrowUp}");
+
+      expect(document.activeElement).toBe(rows[1]);
+    });
+
+    it("does not move past the first row on ArrowUp", async () => {
+      const user = userEvent.setup();
+      const expenses = [makeExpense({ id: "a", note: "First" }), makeExpense({ id: "b", note: "Second" })];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      const rows = screen.getAllByRole("row");
+      rows[1].focus();
+      await user.keyboard("{ArrowUp}");
+
+      expect(document.activeElement).toBe(rows[1]);
+    });
+
+    it("moves focus to the first row on Home", async () => {
+      const user = userEvent.setup();
+      const expenses = [
+        makeExpense({ id: "a", note: "First" }),
+        makeExpense({ id: "b", note: "Second" }),
+        makeExpense({ id: "c", note: "Third" }),
+      ];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      const rows = screen.getAllByRole("row");
+      rows[2].focus();
+      await user.keyboard("{Home}");
+
+      expect(document.activeElement).toBe(rows[1]);
+    });
+
+    it("moves focus to the last row on End", async () => {
+      const user = userEvent.setup();
+      const expenses = [
+        makeExpense({ id: "a", note: "First" }),
+        makeExpense({ id: "b", note: "Second" }),
+        makeExpense({ id: "c", note: "Third" }),
+      ];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      const rows = screen.getAllByRole("row");
+      rows[1].focus();
+      await user.keyboard("{End}");
+
+      expect(document.activeElement).toBe(rows[3]);
+    });
+
+    it("does not move past the last row on ArrowDown", async () => {
+      const user = userEvent.setup();
+      const expenses = [makeExpense({ id: "a", note: "First" }), makeExpense({ id: "b", note: "Second" })];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      const rows = screen.getAllByRole("row");
+      rows[2].focus();
+      await user.keyboard("{ArrowDown}");
+
+      expect(document.activeElement).toBe(rows[2]);
+    });
+  });
+
+  describe("resolveTitle fallback", () => {
+    it("falls back to category label when eventId has no matching event", () => {
+      const expenses = [makeExpense({ id: "a", eventId: "missing-event", category: ExpenseCategory.Food })];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      expect(screen.getAllByText("Food")).toHaveLength(2);
+    });
+
+    it("falls back to category label when reservationId has no matching reservation", () => {
+      const expenses = [makeExpense({ id: "a", reservationId: "missing-res", category: ExpenseCategory.Lodging })];
+      render(
+        <ExpenseTable
+          expenses={expenses}
+          tripId="trip-1"
+          events={[]}
+          reservations={[]}
+          tripCurrency="USD"
+          onEditExpense={vi.fn()}
+        />
+      );
+
+      expect(screen.getAllByText("Lodging")).toHaveLength(2);
+    });
+  });
 });

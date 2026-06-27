@@ -49,3 +49,13 @@
 ## Deferred from: code review of 1-9-threshold-status-indicator.md (2026-06-26)
 
 - `flex-row-reverse` tab icon positioning fragile — if CSS fails, visual order reverses. Spec-chosen tradeoff for accessible-name ordering.
+
+## Deferred from: code review of 1-10-view-and-manage-all-trip-expenses-in-a-table.md (2026-06-27)
+
+- `resolveTitle` silently prefers `eventId` when both `eventId` and `reservationId` are set — data model allows both but no valid use case for dual-linking
+- Empty `<span />` spacer in dialog footers — intentional layout pattern
+- Non-finite `convertedAmountTrip` display produces `"$10.00 (NaN)"` — corrupted data, no meaningful display possible
+- `formatDate` binary format check treats any non-"MM/DD/YYYY" as "D MMM YYYY" — pre-existing utility behavior
+- No `maxWidthPx` clamping in CategoryPicker — pre-existing issue, out of scope
+- Toolbar grouping dissolved from spec (Add Misc Expense moved to below tiles) — documented intentional user-requested fix
+- `onEditExpense` passthrough called but no parent wires it — documented as future scaffolding

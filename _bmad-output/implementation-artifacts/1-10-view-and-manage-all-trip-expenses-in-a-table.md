@@ -4,7 +4,7 @@ baseline_commit: 525f2d7d8d66bb265a4fb63e3988ac317c6bfb88
 
 # Story 1.10: View and Manage All Trip Expenses in a Table
 
-Status: review
+Status: done
 
 ## Story
 
@@ -109,6 +109,29 @@ So that I can review and manage my spend without hunting through the itinerary o
 - Event-linked row: `router.push(\`?tab=itin&focus=\${expense.eventId}\`, { scroll: false })` — the existing `useFocusScroll()` reads `?focus=` from search params and scrolls/highlights the event in the itinerary view
 - Reservation-linked row: builds the deep-link href using `buildReservationsDeepLinkHref` (or constructs `?tab=res&highlight=<id>` directly) and calls `router.push(href, { scroll: false })` — the ReservationsTab reads `?highlight=` to scroll to the reservation
 - Misc Expense row: calls `onEditExpense(expense)` prop — parent sets editing state, which opens the modal
+
+### Review Findings
+
+**Patch (actionable):**
+- [x] [Review][Patch] `budget.total!` non-null assertion throws if total is undefined [`trip-budget-tab.tsx:89`] — dismissed, guarded by `hasBudget` check on line 82
+- [x] [Review][Patch] Stale ref window in `useViewportClampedPanel` — dismissed, intentional pattern; ref initializer sets correct value on first render, sync effect handles updates, recalculate effect correctly doesn't depend on preferred values
+- [x] [Review][Patch] `tripCurrency.toUpperCase()` no guard — dismissed, `resolveTripCurrency` always returns a string (falls back to "USD"), safe
+- [x] [Review][Patch] `cost-dialog.tsx` lost `flex-wrap` on Cancel/Save button group — deferred, intentional per user
+- [x] [Review][Patch] `compareRows` amount sort returns NaN when both expenses have NaN `convertedAmountTrip` — dismissed, conversion pipeline (`amount * rate`) can't produce NaN with validated inputs
+- [x] [Review][Patch] No keyboard arrow navigation (ArrowUp/ArrowDown/Home/End) between table rows — **FIXED** [`expense-table.tsx`]
+- [x] [Review][Patch] Modal title conflict when both `showAddExpenseModal` and `editingExpense` are set simultaneously — dismissed, dialog overlay prevents concurrent user interaction
+- [x] [Review][Patch] Missing test for `resolveTitle` fallback when event/reservation ID doesn't match any passed array entry — **FIXED** [`expense-table.test.tsx`]
+
+**Deferred (pre-existing / intentional):**
+- [x] [Review][Defer] `resolveTitle` silently prefers `eventId` when both `eventId` and `reservationId` are set — data model allows both but no valid use case for dual-linking
+- [x] [Review][Defer] Empty `<span />` spacer in dialog footers — intentional layout pattern
+- [x] [Review][Defer] Non-finite `convertedAmountTrip` display produces `"$10.00 (NaN)"` — corrupted data, no meaningful display possible
+- [x] [Review][Defer] `formatDate` binary format check treats any non-"MM/DD/YYYY" as "D MMM YYYY" — pre-existing utility behavior
+- [x] [Review][Defer] No `maxWidthPx` clamping in CategoryPicker — pre-existing issue, out of scope
+- [x] [Review][Defer] Toolbar grouping dissolved from spec (Add Misc Expense moved to below tiles) — documented intentional user-requested fix
+- [x] [Review][Defer] `onEditExpense` passthrough called but no parent wires it — documented as future scaffolding
+
+**Dismissed (false positives / noise): 5**
 
 ## Dev Notes
 

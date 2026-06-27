@@ -149,10 +149,40 @@ export function ExpenseTable({
     onEditExpense(expense);
   }
 
-  function handleRowKeyDown(event: KeyboardEvent<HTMLDivElement>, expense: Expense): void {
+  function handleRowKeyDown(event: KeyboardEvent<HTMLDivElement>, expense: Expense, index: number): void {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       handleRowActivate(expense);
+      return;
+    }
+
+    const rowElements = document.querySelectorAll<HTMLElement>(
+      `[data-trip-id="${tripId}"] [role="row"]:not(:first-child)`
+    );
+
+    switch (event.key) {
+      case "ArrowDown": {
+        event.preventDefault();
+        const nextIndex = Math.min(index + 1, rowElements.length - 1);
+        rowElements[nextIndex]?.focus();
+        break;
+      }
+      case "ArrowUp": {
+        event.preventDefault();
+        const prevIndex = Math.max(index - 1, 0);
+        rowElements[prevIndex]?.focus();
+        break;
+      }
+      case "Home": {
+        event.preventDefault();
+        rowElements[0]?.focus();
+        break;
+      }
+      case "End": {
+        event.preventDefault();
+        rowElements[rowElements.length - 1]?.focus();
+        break;
+      }
     }
   }
 
@@ -204,13 +234,13 @@ export function ExpenseTable({
         })}
       </div>
 
-      {sortedRows.map(({ expense, title }) => (
+      {sortedRows.map(({ expense, title }, index) => (
         <div
           key={expense.id}
           role="row"
           tabIndex={0}
           onClick={() => handleRowActivate(expense)}
-          onKeyDown={(event) => handleRowKeyDown(event, expense)}
+          onKeyDown={(event) => handleRowKeyDown(event, expense, index)}
           className={cn(
             "grid h-10 cursor-pointer items-center outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           )}
