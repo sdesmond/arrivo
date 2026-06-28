@@ -20,6 +20,7 @@ jobs:
             - uses: anomalyco/opencode/github@latest
               env:
                   OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+                  GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB }}
               with:
                   model: opencode/big-pickle
                   prompt: |
@@ -40,7 +41,7 @@ jobs:
                       FAIL if any secret is found (include file:line). PASS if none found.
 
                       **4. Tests included** — [FAIL severity]
-                      Every changed source file (`.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`) must have a corresponding test change in the same PR. Ignore config files, lockfiles, type definitions, generated code, docs, and test files themselves.
+                      Every changed source file (`.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`) must have a corresponding test change in the same PR. Ignore config files, lockfiles, type definitions, generated code, docs, and test files themselves. Exceptions are allowed for things like barrel files, index files, and other files that don't contain logic. If a source file is changed without a corresponding test change, list the source file(s) in the output.
                       FAIL if source changes exist without test changes covering the same module/area. PASS otherwise.
 
                       ## Output format
