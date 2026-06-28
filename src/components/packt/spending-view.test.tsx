@@ -151,4 +151,36 @@ describe("SpendingView", () => {
     expect(screen.getByText("No trips in the selected range")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /Category breakdown donut chart/ })).not.toBeInTheDocument();
   });
+
+  it("renders destination breakdown donut when summary has destination data", () => {
+    render(
+      <SpendingView
+        initialRange={SpendingDateRange.ThisYear}
+        initialSummary={makeSummary({
+          tripCount: 1,
+          destinationBreakdown: [{ countryCode: "US", countryName: "United States", total: 100 }],
+        })}
+        trips={[makeTrip()]}
+        currency="USD"
+        onRangeChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: /Destination breakdown donut chart/ })).toBeInTheDocument();
+  });
+
+  it("still shows 'No trips in the selected range' when no data", () => {
+    render(
+      <SpendingView
+        initialRange={SpendingDateRange.ThisYear}
+        initialSummary={makeSummary({ tripCount: 0 })}
+        trips={[makeTrip()]}
+        currency="USD"
+        onRangeChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("No trips in the selected range")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Destination breakdown donut chart/ })).not.toBeInTheDocument();
+  });
 });

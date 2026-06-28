@@ -23,4 +23,24 @@ describe("ChartCard", () => {
 
     expect(container.querySelector('[data-slot="chart-card"]')).toHaveClass("custom-class");
   });
+
+  it("renders a title heading when provided", () => {
+    render(
+      <ChartCard title="Categories">
+        <p>Chart content</p>
+      </ChartCard>
+    );
+
+    expect(screen.getByRole("heading", { name: "Categories" })).toBeInTheDocument();
+  });
+
+  it("renders no heading when title is omitted", () => {
+    const { container } = render(
+      <ChartCard>
+        <p>Chart content</p>
+      </ChartCard>
+    );
+
+    expect(container.querySelector("h3")).not.toBeInTheDocument();
+  });
 });

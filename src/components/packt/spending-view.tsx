@@ -6,6 +6,7 @@ import type { SpendingDateRange, SpendingSummary, Trip } from "@/data/types";
 import { SpendingDateFilter } from "@/components/packt/spending-date-filter";
 import { SpendingHeadlineFigures } from "@/components/packt/spending-headline-figures";
 import { CategoryBreakdownDonut } from "@/components/packt/category-breakdown-donut";
+import { DestinationBreakdownDonut } from "@/components/packt/destination-breakdown-donut";
 import { formatCurrency } from "@/lib/utils";
 
 export interface SpendingViewProps {
@@ -54,7 +55,13 @@ export function SpendingView({
       <SpendingHeadlineFigures summary={initialSummary} currency={currency} />
       <section aria-live="polite">
         {hasTripsInRange ? (
-          <CategoryBreakdownDonut data={initialSummary.categoryBreakdown} formatCurrency={handleFormatCurrency} />
+          <div className="grid gap-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))" }}>
+            <CategoryBreakdownDonut data={initialSummary.categoryBreakdown} formatCurrency={handleFormatCurrency} />
+            <DestinationBreakdownDonut
+              data={initialSummary.destinationBreakdown}
+              formatCurrency={handleFormatCurrency}
+            />
+          </div>
         ) : (
           <p style={{ color: "var(--fg-2)" }}>No trips in the selected range</p>
         )}

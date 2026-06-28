@@ -63,3 +63,9 @@
 ## Deferred from: code review of 2-1-spending-view-foundation-headline-figures.md (2026-06-27)
 
 - Null `endDate` non-null assertion crash in sort — `use-travel-history-page-handlers.ts:35` uses `second.endDate!.localeCompare(first.endDate!)`. If `endDate` is null/undefined on any past trip, the `.localeCompare` call throws. Pre-existing, not caused by this change.
+
+## Deferred from: code review of 2-3-destination-breakdown-donut.md (2026-06-28)
+
+- h3 heading hierarchy may skip heading levels in parent page context [`chart-card.tsx:18`] — pre-existing concern (heading-level fit depends on consumer context)
+- No test for `hasTripsInRange` true with zero-expense trips (both donuts render null) — pre-existing gap, not required by spec
+- `totalSpend` computed before filter — center figure differs from visible segments when entries have `total <= 0` — pre-existing pattern shared with category donut

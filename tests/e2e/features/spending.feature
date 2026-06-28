@@ -42,3 +42,17 @@ Feature: Spending View
     And I switch to the "Spending" view
     And I change the spending date range to "All Time"
     Then I do not see the category breakdown donut
+
+  Scenario: Destination donut renders visible segments when trips span multiple destinations
+    Given I have trips spanning multiple destinations in my travel history
+    When I navigate to the travel history page
+    And I switch to the "Spending" view
+    And I change the spending date range to "All Time"
+    Then I see the destination breakdown donut
+
+  Scenario: Unknown segment renders when a trip has no destination set
+    Given I have a trip with no destination set in my travel history
+    When I navigate to the travel history page
+    And I switch to the "Spending" view
+    And I change the spending date range to "All Time"
+    Then I see an "Unknown" segment in the destination breakdown donut
