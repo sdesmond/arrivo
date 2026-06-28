@@ -262,6 +262,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
 
   const hasDestination = !!input.destinationName || !!input.destinationCenter;
   let coverUrl: string | null = null;
+  let coverPhotographer: string | null = null;
+  let coverPhotographerUrl: string | null = null;
   try {
     if (!hasDestination) {
       coverUrl = deriveGraphicCover(input.name);
@@ -293,7 +295,10 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
         }
       } else if (coverType === CoverType.Photo && input.destinationName) {
         const images = await searchCoverImages(input.destinationName);
-        coverUrl = images[0]?.url ?? null;
+        const firstImage = images[0];
+        coverUrl = firstImage?.url ?? null;
+        coverPhotographer = firstImage?.photographer ?? null;
+        coverPhotographerUrl = firstImage?.photographerUrl ?? null;
       }
     }
   } catch (error) {
@@ -301,7 +306,14 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   }
 
   if (coverUrl) {
-    await db.update(trips).set({ coverImageUrl: coverUrl }).where(eq(trips.id, tripId));
+    await db
+      .update(trips)
+      .set({
+        coverImageUrl: coverUrl,
+        ...(coverPhotographer && { coverPhotographer }),
+        ...(coverPhotographerUrl && { coverPhotographerUrl }),
+      })
+      .where(eq(trips.id, tripId));
   }
 
   revalidatePath("/trips");
