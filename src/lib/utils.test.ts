@@ -25,6 +25,7 @@ import {
   getLocationDisplayLabel,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
+  formatCurrency,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -271,6 +272,25 @@ describe("formatDate", () => {
 
   it("handles single-digit day without leading zero", () => {
     expect(formatDate("2026-01-05", "DD/MM/YYYY")).toBe("5 Jan 2026");
+  });
+});
+
+describe("formatCurrency", () => {
+  it("formats positive amounts correctly", () => {
+    expect(formatCurrency(1234.5, "USD")).toBe("$1,234.50");
+  });
+
+  it("formats zero as $0.00", () => {
+    expect(formatCurrency(0, "USD")).toBe("$0.00");
+  });
+
+  it("handles non-finite amounts gracefully", () => {
+    expect(formatCurrency(NaN, "USD")).toBe("USD ??");
+    expect(formatCurrency(Infinity, "USD")).toBe("USD ??");
+  });
+
+  it("handles unknown currency codes with fallback", () => {
+    expect(formatCurrency(10, "XXXX")).toBe("XXXX 10.00");
   });
 });
 
