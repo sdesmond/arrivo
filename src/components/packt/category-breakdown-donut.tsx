@@ -12,6 +12,8 @@ export interface CategoryBreakdownDonutProps {
 }
 
 export function CategoryBreakdownDonut({ data, formatCurrency }: CategoryBreakdownDonutProps): ReactElement | null {
+  const totalSpend = data.reduce((sum, entry) => sum + entry.total, 0);
+
   const segments = data
     .filter((entry) => entry.total > 0)
     .sort((first, second) => second.total - first.total)
@@ -24,8 +26,6 @@ export function CategoryBreakdownDonut({ data, formatCurrency }: CategoryBreakdo
   if (segments.length === 0) {
     return null;
   }
-
-  const totalSpend = segments.reduce((sum, segment) => sum + segment.value, 0);
   const accessibleLabel = `Category breakdown donut chart: ${segments
     .map((segment) => `${segment.name} ${formatCurrency(segment.value)}`)
     .join(", ")}`;

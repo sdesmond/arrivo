@@ -4,7 +4,7 @@ baseline_commit: fec1ac9fc8d7d38defd1d63ddc733c9ee5bf54ab
 
 # Story 2.2: Category Breakdown Donut
 
-Status: review
+Status: done
 
 ## Story
 
@@ -281,3 +281,26 @@ Claude
 - `tests/e2e/e2e-seed-data.ts` (MODIFY — added `ExpenseSeed`, `E2E_CATEGORY_EXPENSES`, `expenses` field on trip mothers)
 - `tests/e2e/scenario-fixture.ts` (MODIFY — expense insertion in `createTrip`)
 - `package.json` / `package-lock.json` (MODIFY — added `recharts` dependency via shadcn)
+
+### Review Findings
+
+- [x] [Review][Patch] role="img" + aria-label moved to container `<div>` wrapper [donut-chart.tsx] — wrapped PieChart in `<div role="img" aria-label={...}>`. Also hides legend from a11y tree via `aria-hidden`.
+
+- [x] [Review][Dismiss] AC4 missing direct segment labels on arcs [donut-chart.tsx] — dismissed. Current legend+tooltip is sufficient.
+- [x] [Review][Dismiss] AC3 3:1 non-text contrast unverified [CATEGORY_CHART_COLORS] — dismissed. Colors established in Story 2.1 globals.css.
+- [x] [Review][Patch] strokeWidth gaps between segments [donut-chart.tsx] — added `stroke={segment.color}` on each Cell.
+- [x] [Review][Patch] outerRadius="100%" may clip at container edges [donut-chart.tsx] — changed to 90%.
+- [x] [Review][Patch] ChartConfig built but bypassed by direct var() fill on Cell [donut-chart.tsx] — removed unused chartConfig construction.
+- [x] [Review][Patch] Center text positioned at SVG viewport center, not donut center [donut-chart.tsx] — kept as-is (SVG 50% IS pie center in Recharts).
+- [x] [Review][Patch] Legend not aria-associated with chart [donut-chart.tsx] — wrapped chart+legend in single `role="img"` container; legend marked `aria-hidden`.
+- [x] [Review][Dismiss] No guard for empty data array in DonutChart [donut-chart.tsx] — only consumer already guards.
+- [x] [Review][Dismiss] No type guard for category not in ExpenseCategory enum [category-breakdown-donut.tsx] — UI uses select, backend validates.
+- [x] [Review][Patch] testDOM coupling in chart-card.test.tsx — switched to `container.querySelector('[data-slot="chart-card"]')`.
+- [x] [Review][Patch] formatCurrency arrow recreated every render [spending-view.tsx] — wrapped in `useCallback`.
+- [x] [Review][Patch] totalSpend recomputed from already-filtered segments [category-breakdown-donut.tsx] — computed from original data before filtering.
+- [x] [Review][Patch] E2E expense dates hardcoded [e2e-seed-data.ts] — inlined in step definition, derived from shared startDate variable.
+- [x] [Review][Patch] toHaveStyle assertion with CSS variable may not resolve in jsdom [category-breakdown-donut.test.tsx] — switched to `toHaveAttribute("style", expect.stringContaining(...))`.
+
+- [x] [Review][Dismiss] String() default formatter is dead code [donut-chart.tsx] — All consumers pass `formatValue`; fallback is reasonable defensive code.
+- [x] [Review][Dismiss] Duplicated accessible label strings across test files — Inherent to testing; expected values must be asserted verbatim.
+- [x] [Review][Dismiss] Duplicate segment.name values causing React key collision [donut-chart.tsx] — Impossible per data contract: `buildSpendingSummary` groups by unique category.

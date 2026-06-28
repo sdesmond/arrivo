@@ -1,19 +1,30 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
-import { E2E_CATEGORY_EXPENSES } from "../e2e-seed-data";
+import { ExpenseCategory } from "../../src/data/types";
 
 Given("I have a past trip with categorized expenses in my travel history", async ({ page, scenario }) => {
+  const startDate = "2025-01-01";
+  const day2 = "2025-01-02";
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Category Spend Trip", startDate: "2025-01-01", endDate: "2025-01-03" },
+        trip: { name: "Category Spend Trip", startDate, endDate: "2025-01-03" },
         days: [
-          { dayNumber: 1, date: "2025-01-01", label: "Day 1" },
-          { dayNumber: 2, date: "2025-01-02", label: "Day 2" },
+          { dayNumber: 1, date: startDate, label: "Day 1" },
+          { dayNumber: 2, date: day2, label: "Day 2" },
           { dayNumber: 3, date: "2025-01-03", label: "Day 3" },
         ],
-        expenses: E2E_CATEGORY_EXPENSES,
+        expenses: [
+          {
+            category: ExpenseCategory.Lodging,
+            amount: 600,
+            currency: "USD",
+            date: startDate,
+            convertedAmountProfile: 600,
+          },
+          { category: ExpenseCategory.Food, amount: 150, currency: "USD", date: day2, convertedAmountProfile: 150 },
+        ],
       },
       setCurrent: true,
     },

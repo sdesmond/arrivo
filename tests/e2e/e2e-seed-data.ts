@@ -275,11 +275,6 @@ export const E2E_RESERVATION = {
   confirmationCode: "E2E-CONF-123",
 } as const;
 
-export const E2E_CATEGORY_EXPENSES: ExpenseSeed[] = [
-  { category: ExpenseCategory.Lodging, amount: 600, currency: "USD", date: "2025-01-01", convertedAmountProfile: 600 },
-  { category: ExpenseCategory.Food, amount: 150, currency: "USD", date: "2025-01-02", convertedAmountProfile: 150 },
-];
-
 export const E2E_PICK_DOC = {
   name: "E2E Pick Doc",
   kind: "pdf",

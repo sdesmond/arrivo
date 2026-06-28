@@ -4,24 +4,23 @@ import { ChartCard } from "./chart-card";
 
 describe("ChartCard", () => {
   it("renders children inside bordered card", () => {
-    render(
+    const { container } = render(
       <ChartCard>
         <p>Chart content</p>
       </ChartCard>
     );
 
-    const card = screen.getByText("Chart content").parentElement;
     expect(screen.getByText("Chart content")).toBeInTheDocument();
-    expect(card).toHaveClass("border");
+    expect(container.querySelector('[data-slot="chart-card"]')).toHaveClass("border");
   });
 
   it("applies custom className", () => {
-    render(
+    const { container } = render(
       <ChartCard className="custom-class">
         <p>Chart content</p>
       </ChartCard>
     );
 
-    expect(screen.getByText("Chart content").parentElement).toHaveClass("custom-class");
+    expect(container.querySelector('[data-slot="chart-card"]')).toHaveClass("custom-class");
   });
 });

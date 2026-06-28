@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ReactElement } from "react";
 import type { SpendingDateRange, SpendingSummary, Trip } from "@/data/types";
 import { SpendingDateFilter } from "@/components/packt/spending-date-filter";
@@ -36,6 +36,8 @@ export function SpendingView({
     onRangeChange(nextRange);
   }
 
+  const handleFormatCurrency = useCallback((amount: number) => formatCurrency(amount, currency), [currency]);
+
   if (trips.length === 0) {
     return (
       <p style={{ color: "var(--fg-2)" }}>
@@ -52,10 +54,7 @@ export function SpendingView({
       <SpendingHeadlineFigures summary={initialSummary} currency={currency} />
       <section aria-live="polite">
         {hasTripsInRange ? (
-          <CategoryBreakdownDonut
-            data={initialSummary.categoryBreakdown}
-            formatCurrency={(amount) => formatCurrency(amount, currency)}
-          />
+          <CategoryBreakdownDonut data={initialSummary.categoryBreakdown} formatCurrency={handleFormatCurrency} />
         ) : (
           <p style={{ color: "var(--fg-2)" }}>No trips in the selected range</p>
         )}

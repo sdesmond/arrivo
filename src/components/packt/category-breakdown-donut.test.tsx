@@ -38,7 +38,7 @@ describe("CategoryBreakdownDonut", () => {
     );
 
     const swatch = container.querySelector('[data-slot="donut-chart-legend-item"] span[aria-hidden]');
-    expect(swatch).toHaveStyle({ backgroundColor: CATEGORY_CHART_COLORS[ExpenseCategory.Food] });
+    expect(swatch).toHaveAttribute("style", expect.stringContaining(CATEGORY_CHART_COLORS[ExpenseCategory.Food]));
   });
 
   it("generates accessibleLabel summarizing all segments", () => {
