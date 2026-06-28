@@ -52,6 +52,19 @@
   --color-danger-soft: var(--danger-soft);
   --color-danger-ink: var(--danger-ink);
 
+  /* Chart tokens */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+  --color-chart-9: var(--chart-9);
+  --color-chart-10: var(--chart-10);
+  --color-chart-11: var(--chart-11);
+
   /* Fonts */
   --font-sans: var(--font-body);
   --font-heading: var(--font-heading-family);
@@ -157,6 +170,20 @@
   --sidebar-accent-foreground: #131311;
   --sidebar-border: rgba(20, 20, 18, 0.08);
   --sidebar-ring: #0e8b80;
+
+  /* Chart tokens — light. Hues spaced for no similar-hue-and-lightness adjacency; each is
+     ≥3:1 non-text contrast (WCAG 1.4.11) against --surface (near-white). */
+  --chart-1: hsl(199 70% 38%);
+  --chart-2: hsl(26 75% 45%);
+  --chart-3: hsl(271 55% 45%);
+  --chart-4: hsl(142 45% 33%);
+  --chart-5: hsl(340 65% 48%);
+  --chart-6: hsl(48 80% 38%);
+  --chart-7: hsl(221 65% 45%);
+  --chart-8: hsl(12 70% 45%);
+  --chart-9: hsl(175 55% 30%);
+  --chart-10: hsl(300 55% 45%);
+  --chart-11: hsl(95 45% 33%);
 }
 
 /* ─── Font size scale overrides ─── */
@@ -232,6 +259,20 @@ html[data-font-size="large"] {
   --sidebar-accent-foreground: #ecedef;
   --sidebar-border: rgba(255, 255, 255, 0.07);
   --sidebar-ring: #2bb5a6;
+
+  /* Chart tokens — dark. Same hues as light, lifted in lightness for ≥3:1 contrast
+     against the dark --surface. */
+  --chart-1: hsl(199 70% 62%);
+  --chart-2: hsl(26 75% 65%);
+  --chart-3: hsl(271 55% 68%);
+  --chart-4: hsl(142 45% 55%);
+  --chart-5: hsl(340 65% 68%);
+  --chart-6: hsl(48 80% 60%);
+  --chart-7: hsl(221 65% 68%);
+  --chart-8: hsl(12 70% 65%);
+  --chart-9: hsl(175 55% 52%);
+  --chart-10: hsl(300 55% 68%);
+  --chart-11: hsl(95 45% 55%);
 }
 
 /* ─── Base styles ─── */
