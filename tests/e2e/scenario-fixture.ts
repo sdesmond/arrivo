@@ -8,6 +8,7 @@ import {
   days,
   documents,
   events,
+  expenses,
   itineraryChecklists,
   itineraryNotes,
   packingItems,
@@ -393,6 +394,19 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           size: documentSeed.size != null ? String(documentSeed.size) : null,
           url: documentSeed.url,
         });
+      }
+
+      if (seed.expenses.length > 0) {
+        await db.insert(expenses).values(
+          seed.expenses.map((item) => ({
+            tripId: trip.id,
+            category: item.category,
+            amount: item.amount.toString(),
+            currency: item.currency,
+            convertedAmountProfile: (item.convertedAmountProfile ?? item.amount).toString(),
+            date: item.date,
+          }))
+        );
       }
 
       registerCleanup({ entity: "trip", id: trip.id });

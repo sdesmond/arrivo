@@ -28,3 +28,17 @@ Feature: Spending View
     And I switch to the "Spending" view
     And I change the spending date range to "Last Year"
     Then the spending live region announces "Showing Last Year — 0 trips"
+
+  Scenario: Category donut renders visible segments when trips have categorized expenses
+    Given I have a past trip with categorized expenses in my travel history
+    When I navigate to the travel history page
+    And I switch to the "Spending" view
+    And I change the spending date range to "All Time"
+    Then I see the category breakdown donut
+
+  Scenario: Category donut not rendered when no category spend exists
+    Given I have past trips in my travel history
+    When I navigate to the travel history page
+    And I switch to the "Spending" view
+    And I change the spending date range to "All Time"
+    Then I do not see the category breakdown donut

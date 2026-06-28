@@ -1,3 +1,4 @@
+import { ExpenseCategory } from "../../src/data/types";
 import type { ReservationType } from "../../src/data/types";
 
 export interface UserSeed {
@@ -83,6 +84,14 @@ export interface NoteSeed {
   content: string;
 }
 
+export interface ExpenseSeed {
+  category: ExpenseCategory;
+  amount: number;
+  currency: string;
+  date: string;
+  convertedAmountProfile?: number;
+}
+
 export interface ReservationSeed {
   type: ReservationType;
   provider: string;
@@ -119,6 +128,7 @@ export interface TripMother {
   notes: NoteSeed[];
   checklists: ChecklistSeed[];
   reservations: ReservationSeed[];
+  expenses: ExpenseSeed[];
 }
 
 export interface TemplateItemSeed {
@@ -148,6 +158,7 @@ export interface TripMotherOverrides {
   notes?: NoteSeed[];
   checklists?: ChecklistSeed[];
   reservations?: ReservationSeed[];
+  expenses?: ExpenseSeed[];
 }
 
 export interface TemplateMotherOverrides {
@@ -202,6 +213,7 @@ export const THREE_DAY_TRIP_MOTHER: TripMother = {
   notes: [],
   checklists: [],
   reservations: [],
+  expenses: [],
 };
 
 export const DATELESS_TRIP_MOTHER: TripMother = {
@@ -218,6 +230,7 @@ export const DATELESS_TRIP_MOTHER: TripMother = {
   notes: [],
   checklists: [],
   reservations: [],
+  expenses: [],
 };
 
 export const DELETE_TRIP_MOTHER: TripMother = {
@@ -237,6 +250,7 @@ export const DELETE_TRIP_MOTHER: TripMother = {
   notes: [],
   checklists: [],
   reservations: [],
+  expenses: [],
 };
 
 export const EMPTY_TEMPLATE_MOTHER: TemplateMother = {
@@ -260,6 +274,11 @@ export const E2E_RESERVATION = {
   endAt: "2026-07-03T11:00:00Z",
   confirmationCode: "E2E-CONF-123",
 } as const;
+
+export const E2E_CATEGORY_EXPENSES: ExpenseSeed[] = [
+  { category: ExpenseCategory.Lodging, amount: 600, currency: "USD", date: "2025-01-01", convertedAmountProfile: 600 },
+  { category: ExpenseCategory.Food, amount: 150, currency: "USD", date: "2025-01-02", convertedAmountProfile: 150 },
+];
 
 export const E2E_PICK_DOC = {
   name: "E2E Pick Doc",
@@ -467,6 +486,7 @@ export function cloneTripMother(
     notes: overrides.notes ? cloneValue(overrides.notes) : base.notes,
     checklists: overrides.checklists ? cloneValue(overrides.checklists) : base.checklists,
     reservations: overrides.reservations ? cloneValue(overrides.reservations) : base.reservations,
+    expenses: overrides.expenses ? cloneValue(overrides.expenses) : base.expenses,
   };
 }
 
