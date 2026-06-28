@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CATEGORY_CHART_COLORS,
   CATEGORY_LABELS,
   calculateActual,
   calculateBudgetStatus,
@@ -337,5 +338,21 @@ describe("CATEGORY_LABELS", () => {
     expect(CATEGORY_LABELS[ExpenseCategory.Food]).toBe("Food");
     expect(CATEGORY_LABELS[ExpenseCategory.Misc]).toBe("Misc");
     expect(CATEGORY_LABELS[ExpenseCategory.CarRental]).toBe("Car Rental");
+  });
+});
+
+describe("CATEGORY_CHART_COLORS", () => {
+  it("maps all 11 ExpenseCategory values", () => {
+    const categoryValues = Object.values(ExpenseCategory) as ExpenseCategory[];
+    expect(categoryValues).toHaveLength(11);
+    for (const category of categoryValues) {
+      expect(CATEGORY_CHART_COLORS[category]).toEqual(expect.any(String));
+    }
+  });
+
+  it("values are CSS variable references", () => {
+    for (const color of Object.values(CATEGORY_CHART_COLORS)) {
+      expect(color).toMatch(/^var\(--chart-(?:[1-9]|1[01])\)$/);
+    }
   });
 });

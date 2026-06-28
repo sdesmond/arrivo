@@ -5,6 +5,8 @@ import type { ReactElement } from "react";
 import type { SpendingDateRange, SpendingSummary, Trip } from "@/data/types";
 import { SpendingDateFilter } from "@/components/packt/spending-date-filter";
 import { SpendingHeadlineFigures } from "@/components/packt/spending-headline-figures";
+import { CategoryBreakdownDonut } from "@/components/packt/category-breakdown-donut";
+import { formatCurrency } from "@/lib/utils";
 
 export interface SpendingViewProps {
   initialRange: SpendingDateRange;
@@ -49,7 +51,14 @@ export function SpendingView({
       <SpendingDateFilter range={range} onChange={handleRangeChange} tripCount={initialSummary.tripCount} />
       <SpendingHeadlineFigures summary={initialSummary} currency={currency} />
       <section aria-live="polite">
-        {hasTripsInRange ? null : <p style={{ color: "var(--fg-2)" }}>No trips in the selected range</p>}
+        {hasTripsInRange ? (
+          <CategoryBreakdownDonut
+            data={initialSummary.categoryBreakdown}
+            formatCurrency={(amount) => formatCurrency(amount, currency)}
+          />
+        ) : (
+          <p style={{ color: "var(--fg-2)" }}>No trips in the selected range</p>
+        )}
       </section>
     </div>
   );
