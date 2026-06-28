@@ -10,8 +10,8 @@ jobs:
         permissions:
             id-token: write
             contents: read
-            pull-requests: read
-            issues: read
+            pull-requests: write
+            issues: write
         steps:
             - name: Checkout repository
               uses: actions/checkout@v6
@@ -29,8 +29,8 @@ jobs:
                       Each check below produces exactly one verdict: PASS, WARN, or FAIL.
 
                       **1. PR title & description** — [WARN severity]
-                      Title should say what the change is. Description should elaborate on the description and provide a link to an issue/ticket if needed.
-                      PASS if both are present and meaningful. WARN if either is missing, generic ("bug fixes"), or has no issue link.
+                      Title should say what the change is. Description should elaborate on the title and provide good details.
+                      PASS if both are present and meaningful. WARN if either is missing, generic ("bug fixes").
 
                       **2. Scope** — [WARN severity]
                       The PR should address one concern.
