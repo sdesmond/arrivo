@@ -55,7 +55,7 @@ export function SpendingView({
       <SpendingHeadlineFigures summary={initialSummary} currency={currency} />
       <section aria-live="polite">
         {hasTripsInRange ? (
-          <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <CategoryBreakdownDonut data={initialSummary.categoryBreakdown} formatCurrency={handleFormatCurrency} />
             <DestinationBreakdownDonut
               data={initialSummary.destinationBreakdown}
