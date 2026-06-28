@@ -18,6 +18,20 @@ export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   [ExpenseCategoryValues.Misc]: "Misc",
 };
 
+export const CATEGORY_CHART_COLORS: Record<ExpenseCategory, string> = {
+  [ExpenseCategoryValues.Food]: "var(--chart-1)",
+  [ExpenseCategoryValues.Lodging]: "var(--chart-2)",
+  [ExpenseCategoryValues.Transport]: "var(--chart-3)",
+  [ExpenseCategoryValues.Activity]: "var(--chart-4)",
+  [ExpenseCategoryValues.Sightseeing]: "var(--chart-5)",
+  [ExpenseCategoryValues.Gas]: "var(--chart-6)",
+  [ExpenseCategoryValues.Groceries]: "var(--chart-7)",
+  [ExpenseCategoryValues.Flights]: "var(--chart-8)",
+  [ExpenseCategoryValues.CarRental]: "var(--chart-9)",
+  [ExpenseCategoryValues.Shopping]: "var(--chart-10)",
+  [ExpenseCategoryValues.Misc]: "var(--chart-11)",
+};
+
 export interface CategoryBreakdownEntry {
   category: ExpenseCategory;
   subtotal: number;

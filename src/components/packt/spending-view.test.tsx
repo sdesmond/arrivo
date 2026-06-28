@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SpendingView } from "./spending-view";
-import { SpendingDateRange } from "@/data/types";
+import { ExpenseCategory, SpendingDateRange } from "@/data/types";
 import type { SpendingSummary, Trip } from "@/data/types";
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
@@ -118,5 +118,37 @@ describe("SpendingView", () => {
 
     expect(screen.getAllByText("$0.00")).toHaveLength(2);
     expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("renders category breakdown donut when summary has category data", () => {
+    render(
+      <SpendingView
+        initialRange={SpendingDateRange.ThisYear}
+        initialSummary={makeSummary({
+          tripCount: 1,
+          categoryBreakdown: [{ category: ExpenseCategory.Food, total: 100, count: 2 }],
+        })}
+        trips={[makeTrip()]}
+        currency="USD"
+        onRangeChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: /Category breakdown donut chart/ })).toBeInTheDocument();
+  });
+
+  it("still shows no-trips-in-range state when no data", () => {
+    render(
+      <SpendingView
+        initialRange={SpendingDateRange.ThisYear}
+        initialSummary={makeSummary({ tripCount: 0 })}
+        trips={[makeTrip()]}
+        currency="USD"
+        onRangeChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("No trips in the selected range")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Category breakdown donut chart/ })).not.toBeInTheDocument();
   });
 });
