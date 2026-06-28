@@ -90,6 +90,17 @@ describe("DestinationBreakdownDonut", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders a 'Countries' title", () => {
+    render(
+      <DestinationBreakdownDonut
+        data={[{ countryCode: "US", countryName: "United States", total: 100 }]}
+        formatCurrency={formatCurrency}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Countries" })).toBeInTheDocument();
+  });
+
   it("renders inside chart-card wrapper", () => {
     const { container } = render(
       <DestinationBreakdownDonut

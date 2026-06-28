@@ -70,6 +70,17 @@ describe("CategoryBreakdownDonut", () => {
     expect(container.querySelector('[data-slot="chart-card"]')).toBeInTheDocument();
   });
 
+  it("renders a 'Categories' title", () => {
+    render(
+      <CategoryBreakdownDonut
+        data={[{ category: ExpenseCategory.Food, total: 100, count: 1 }]}
+        formatCurrency={formatCurrency}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Categories" })).toBeInTheDocument();
+  });
+
   it("zero items data array renders nothing", () => {
     const { container } = render(<CategoryBreakdownDonut data={[]} formatCurrency={formatCurrency} />);
 

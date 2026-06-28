@@ -31,7 +31,7 @@ export function CategoryBreakdownDonut({ data, formatCurrency }: CategoryBreakdo
     .join(", ")}`;
 
   return (
-    <ChartCard>
+    <ChartCard title="Categories">
       <DonutChart
         data={segments}
         centerFigure={formatCurrency(totalSpend)}

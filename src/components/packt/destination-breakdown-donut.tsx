@@ -40,7 +40,7 @@ export function DestinationBreakdownDonut({
     .join(", ")}`;
 
   return (
-    <ChartCard>
+    <ChartCard title="Countries">
       <DonutChart
         data={segments}
         centerFigure={formatCurrency(totalSpend)}
