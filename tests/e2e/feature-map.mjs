@@ -96,6 +96,14 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/reservations/**",
   ]),
   entry("save-trip-as-template", ["src/components/packt/save-as-template-dialog.tsx"]),
+  entry("spending", [
+    "src/components/packt/spending-view.tsx",
+    "src/components/packt/spending-date-filter.tsx",
+    "src/components/packt/spending-headline-figures.tsx",
+    "src/app/(app)/travel-history/page-client.tsx",
+    "src/app/(app)/travel-history/page.tsx",
+    "src/lib/spending.ts",
+  ]),
   entry("template-items", [
     "src/components/packt/template-editor-view.tsx",
     "src/components/packt/delete-packing-section-alert-dialog.tsx",
