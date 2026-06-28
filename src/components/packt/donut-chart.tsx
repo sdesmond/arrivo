@@ -27,6 +27,7 @@ export function DonutChart({
         <ChartContainer config={{}} className="mx-auto aspect-square w-full" style={{ maxHeight: 260 }}>
           <PieChart>
             <Tooltip
+              isAnimationActive={false}
               content={
                 <ChartTooltipContent
                   hideLabel
