@@ -4,7 +4,7 @@ baseline_commit: fec1ac9fc8d7d38defd1d63ddc733c9ee5bf54ab
 
 # Story 2.2: Category Breakdown Donut
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -258,7 +258,9 @@ Claude
 - Recharts charts render in jsdom unit tests without a `ResizeObserver` polyfill because shadcn's `ChartContainer` passes a fixed `initialDimension` (320×200) to `ResponsiveContainer`, which is used as the permanent size when no `ResizeObserver` is available — no extra test setup needed.
 - `CategoryBreakdownDonut` returns `null` when all segments are zero/absent (AC6); `SpendingView` renders it only when `hasTripsInRange`, falling back to the existing "No trips in the selected range" message otherwise.
 - Extended `tests/e2e/e2e-seed-data.ts` and `scenario-fixture.ts` with `ExpenseSeed`/`expenses` support on the trip mother (per Story 2.1 dev notes anticipating this need) so E2E scenarios can seed real categorized expenses; cascade delete on `expenses.tripId` means no extra cleanup logic was needed.
-- Full affected E2E suite (164 scenarios, including both new category-donut scenarios) passed. `packt-build-validator` (lint/typecheck/coverage/full build) was intentionally not run this session per user instruction to stop beforehand — run it before merging.
+- Full affected E2E suite (164 scenarios, including both new category-donut scenarios) passed. `packt-build-validator` (lint/typecheck/coverage/full build) was intentionally not run in the original session per user instruction to stop beforehand.
+- Post-implementation polish (separate follow-up pass): fixed donut segment colors not rendering (was a stale dev-build CSS cache, not a code bug — confirmed via live browser inspection) and legend label/value spacing (grid `1fr` columns + `ml-auto` stretched too wide; switched to a flex-wrap row). Also added the category name to the hover tooltip alongside the value.
+- Ran `packt-build-validator` (full scope, including the full `npm run test:e2e` suite as the pre-merge gate, not just affected) — all five checks pass: lint (1 pre-existing unrelated warning), tsc, coverage (96.09% lines / 96.2% functions / 90.13% branches), e2e (164/164), build. Story moved to review.
 
 ### File List
 
