@@ -783,7 +783,11 @@ describe("createTrip", () => {
     expect(operations.updates).toEqual([
       {
         table: trips,
-        values: { coverImageUrl: "https://images.example/paris.jpg" },
+        values: {
+          coverImageUrl: "https://images.example/paris.jpg",
+          coverPhotographer: "Photographer",
+          coverPhotographerUrl: "https://unsplash.com/@photographer",
+        },
       },
     ]);
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
