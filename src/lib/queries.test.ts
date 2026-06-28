@@ -48,6 +48,7 @@ vi.mock("@/db/schema", () => schemaTokens);
 
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(() => "and"),
+  or: vi.fn(() => "or"),
   asc: vi.fn(() => "asc"),
   count: vi.fn(() => "count"),
   eq: vi.fn(() => "eq"),
@@ -79,7 +80,7 @@ vi.mock("@/lib/db-mappers", () => ({
   dbTemplateItemToType: vi.fn(),
 }));
 
-import { getTripDetail, listTripsForUser } from "./queries";
+import { getTripDetail, listExpensesForUserInRange, listTripsForUser } from "./queries";
 
 describe("listTripsForUser", () => {
   beforeEach(() => {
@@ -460,5 +461,110 @@ describe("getTripDetail", () => {
     const result = await getTripDetail("trip-1", "user-1");
 
     expect(result?.expenses.map((expense) => expense.id)).toEqual(["expense-event", "expense-unlinked"]);
+  });
+});
+
+describe("listExpensesForUserInRange", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("applies any-date-overlap inclusion rule and returns trips for user", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Lisbon Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result.trips).toEqual([expect.objectContaining({ id: "trip-1", name: "Lisbon Trip" })]);
+  });
+
+  it("returns mapped expenses with dbExpenseToType", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Lisbon Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "expense-1", tripId: "trip-1", category: "food", amount: "10" }],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result.expenses).toEqual([{ id: "expense-1" }]);
+  });
+
+  it("threads aggregated day totals onto dateless trips", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [{ trip: { id: "trip-1", name: "Flex Trip", startDate: null, endDate: null } }],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [{ tripId: "trip-1", dayTotal: 3 }],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result.trips).toEqual([expect.objectContaining({ id: "trip-1", name: "Flex Trip", dayTotal: 3 })]);
+  });
+
+  it("returns empty trips and expenses when the user has no trips in range", async () => {
+    mockDbSelect.mockReturnValueOnce({
+      from: () => ({
+        innerJoin: () => ({
+          where: async () => [],
+        }),
+      }),
+    });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result).toEqual({ trips: [], expenses: [] });
   });
 });

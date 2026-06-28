@@ -1,5 +1,5 @@
 # generated: 2026-06-24
-# last_updated: 2026-06-26
+# last_updated: 2026-06-27
 # project: packt
 # project_key: NOKEY
 # tracking_system: file-system
@@ -52,10 +52,10 @@ development_status:
   1-7-trip-currency-change-confirmation: done
   1-8-configure-spend-threshold-settings: done
   1-9-threshold-status-indicator: done
-   1-10-view-and-manage-all-trip-expenses-in-a-table: done
+  1-10-view-and-manage-all-trip-expenses-in-a-table: done
   epic-1-retrospective: optional
-  epic-2: backlog
-  2-1-spending-view-foundation-headline-figures: backlog
+  epic-2: in-progress
+  2-1-spending-view-foundation-headline-figures: done
   2-2-category-breakdown-donut: backlog
   2-3-destination-breakdown-donut: backlog
   2-4-budget-adherence-donut: backlog

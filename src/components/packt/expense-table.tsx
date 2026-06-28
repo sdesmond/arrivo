@@ -5,7 +5,7 @@ import type { KeyboardEvent, ReactElement } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Expense, Reservation, TripEvent } from "@/data/types";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { CATEGORY_LABELS, tripCurrencyAmount } from "@/lib/budget";
 import { buildReservationsDeepLinkHref } from "@/app/(app)/trips/[tripId]/trip-detail-tabs";
 
@@ -50,26 +50,14 @@ function resolveTitle(expense: Expense, events: TripEvent[], reservations: Reser
   return expense.note?.trim() || CATEGORY_LABELS[expense.category];
 }
 
-function formatCurrencyValue(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${currency} ${amount.toFixed(2)}`;
-  }
-}
-
 function formatAmount(expense: Expense, tripCurrency: string): string {
-  const native = formatCurrencyValue(expense.amount, expense.currency);
+  const native = formatCurrency(expense.amount, expense.currency);
 
   if (expense.currency.toUpperCase() === tripCurrency.toUpperCase() || expense.convertedAmountTrip === undefined) {
     return native;
   }
 
-  const converted = formatCurrencyValue(expense.convertedAmountTrip, expense.convertedCurrencyTrip ?? tripCurrency);
+  const converted = formatCurrency(expense.convertedAmountTrip, expense.convertedCurrencyTrip ?? tripCurrency);
   return `${native} (${converted})`;
 }
 

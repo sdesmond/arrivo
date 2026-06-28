@@ -20,7 +20,7 @@ import {
   packingTemplates,
   packingTemplateItems,
 } from "@/db/schema";
-import { eq, and, sql, inArray, asc, count, isNull } from "drizzle-orm";
+import { eq, and, or, sql, inArray, asc, count, isNull } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { deriveLinkedEvents } from "@/lib/linked-events";
 import {
@@ -41,7 +41,15 @@ import {
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
 import { getTripStatus, getWallClockDateKey, toLocalDateKey } from "@/lib/utils";
-import type { PackingTemplate, PackingTemplateItem, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
+import type {
+  PackingTemplate,
+  PackingTemplateItem,
+  TripListEntry,
+  TripDetailPayload,
+  UserProfile,
+  Trip,
+  Expense,
+} from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
 
@@ -224,6 +232,52 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
       summaryEvents,
     };
   });
+}
+
+export async function listExpensesForUserInRange(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<{ trips: Trip[]; expenses: Expense[] }> {
+  const tripRows = await db
+    .select({ trip: trips })
+    .from(trips)
+    .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
+    .where(
+      or(
+        isNull(trips.startDate),
+        isNull(trips.endDate),
+        and(sql`${trips.startDate} <= ${endDate}`, sql`${trips.endDate} >= ${startDate}`)
+      )
+    );
+
+  const tripList = tripRows.map(({ trip }) => trip);
+  if (tripList.length === 0) {
+    return { trips: [], expenses: [] };
+  }
+
+  const tripIds = tripList.map((trip) => trip.id);
+  const [expenseRows, dayCountAggs] = await Promise.all([
+    db.select().from(expenses).where(inArray(expenses.tripId, tripIds)),
+    db
+      .select({ tripId: days.tripId, dayTotal: count() })
+      .from(days)
+      .where(inArray(days.tripId, tripIds))
+      .groupBy(days.tripId),
+  ]);
+
+  const dayTotalsByTrip = dayCountAggs.reduce<Record<string, number>>((acc, dayCountAgg) => {
+    acc[dayCountAgg.tripId] = dayCountAgg.dayTotal;
+    return acc;
+  }, {});
+
+  return {
+    trips: tripList.map((trip) => {
+      const tripEntry = dbTripToType(trip);
+      return { ...tripEntry, dayTotal: dayTotalsByTrip[trip.id] ?? tripEntry.dayTotal };
+    }),
+    expenses: expenseRows.map(dbExpenseToType),
+  };
 }
 
 export async function listTemplatesForUser(userId: string): Promise<PackingTemplate[]> {

@@ -22,7 +22,7 @@ import {
   DEFAULT_WARNING_THRESHOLD,
   DEFAULT_DANGER_THRESHOLD,
 } from "@/lib/budget";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 export interface TripBudgetTabProps {
   tripId: string;
@@ -36,22 +36,6 @@ export interface TripBudgetTabProps {
   dangerThreshold?: number;
   onOpenEditBudget: () => void;
   onEditExpense?: (expense: Expense) => void;
-}
-
-function formatCurrencyAmount(amount: number, currency: string): string {
-  if (!Number.isFinite(amount)) {
-    return `${currency} ??`;
-  }
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    const safeAmount = amount.toFixed(2);
-    return `${currency} ${safeAmount}`;
-  }
 }
 
 function resolveTripCurrency(budget: Budget | undefined, expenses: Expense[]): string {
@@ -147,7 +131,7 @@ export function TripBudgetTab({
             </p>
             <div className="mt-1 flex items-center gap-2">
               <p style={{ color: "var(--fg)", fontSize: "calc(32px * var(--font-scale))", fontWeight: 600 }}>
-                {formatCurrencyAmount(actual, tripCurrency)}
+                {formatCurrency(actual, tripCurrency)}
               </p>
               {hasBudget && budgetStatus !== BudgetStatus.Neutral ? (
                 <StatusBadge status={budgetStatus} actual={actual} budgetTotal={budget.total!} />
@@ -164,13 +148,11 @@ export function TripBudgetTab({
               <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
                 <p style={{ fontSize: "calc(13px * var(--font-scale))" }}>
                   <span style={{ color: "var(--fg-4)" }}>Budget</span>{" "}
-                  <span style={{ color: "var(--fg-2)" }}>{formatCurrencyAmount(budget.total!, tripCurrency)}</span>
+                  <span style={{ color: "var(--fg-2)" }}>{formatCurrency(budget.total!, tripCurrency)}</span>
                 </p>
                 <p style={{ fontSize: "calc(13px * var(--font-scale))" }}>
                   <span style={{ color: "var(--fg-4)" }}>Remaining</span>{" "}
-                  <span style={{ color: "var(--fg-2)" }}>
-                    {formatCurrencyAmount(budget.total! - actual, tripCurrency)}
-                  </span>
+                  <span style={{ color: "var(--fg-2)" }}>{formatCurrency(budget.total! - actual, tripCurrency)}</span>
                 </p>
               </div>
             ) : (
@@ -213,7 +195,7 @@ export function TripBudgetTab({
                   className="mt-1"
                   style={{ color: "var(--fg)", fontSize: "calc(20px * var(--font-scale))", fontWeight: 600 }}
                 >
-                  {formatCurrencyAmount(tile.subtotal, tripCurrency)}
+                  {formatCurrency(tile.subtotal, tripCurrency)}
                 </p>
               </div>
             ))}

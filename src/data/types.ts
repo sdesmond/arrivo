@@ -86,6 +86,27 @@ export const TripDetailTab = {
 } as const;
 export type TripDetailTab = (typeof TripDetailTab)[keyof typeof TripDetailTab];
 
+export const SpendingDateRange = {
+  ThisYear: "this-year",
+  LastYear: "last-year",
+  Last12Months: "last-12-months",
+  AllTime: "all-time",
+} as const;
+export type SpendingDateRange = (typeof SpendingDateRange)[keyof typeof SpendingDateRange];
+
+export interface SpendingSummary {
+  totalSpend: number;
+  averageTripSpend: number;
+  averageDailySpend: number | null;
+  averageTripDuration: number | null;
+  tripCount: number;
+  countedTripCount: number;
+  totalTripDays: number;
+  categoryBreakdown: { category: ExpenseCategory; total: number; count: number }[];
+  destinationBreakdown: { countryCode: string | null; countryName: string; total: number }[];
+  budgetAdherence: { underBudget: number; onBudget: number; overBudget: number };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // USER
 // ─────────────────────────────────────────────────────────────────────────────

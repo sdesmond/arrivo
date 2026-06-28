@@ -253,6 +253,21 @@ export function getLocationDisplayLabel(name: string | null | undefined, address
   return address?.trim() ?? "";
 }
 
+export function formatCurrency(amount: number, currency: string): string {
+  if (!Number.isFinite(amount)) {
+    return `${currency} ??`;
+  }
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}
+
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, (_key, val) =>
     val !== null && typeof val === "object" && !Array.isArray(val)
