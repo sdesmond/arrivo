@@ -4,7 +4,7 @@ baseline_commit: 7750e29044ba44de73f10bea40d1e099f1f6480d
 
 # Story 2.3: Destination Breakdown Donut
 
-Status: review
+Status: done
 
 ## Story
 
@@ -84,6 +84,21 @@ So that I know which places I've spent the most money traveling to.
   - Add scenario: Spending view has trips across multiple destinations → destination donut renders visible segments including "Unknown"
   - Add scenario: No destination data → destination donut area handles gracefully (shows "Unknown" segment or hides)
 - [x] **`tests/e2e/steps/spending.steps.ts`** — MODIFY — step definitions for new scenarios
+
+### Review Findings
+
+#### decision-needed
+- [x] [Review][Decision] Desktop layout places donuts side-by-side, contradicting "below CategoryBreakdownDonut" (AC 5) — Resolved: keep side-by-side. User explicitly requested this ("there should be at least two charts per row, not each donut taking up the entire width, at least not until mobile width") after reviewing the stacked layout in the browser. AC 5's "below" describes DOM/source order (destination donut still comes after category donut in markup), not forced vertical stacking.
+
+#### patch
+- [x] [Review][Patch] Test `toContain` on `textContent` risks false-positive substring matches [`destination-breakdown-donut.test.tsx:25`] — Fixed: switched to `toBe` with an exact-match selector (`span:nth-child(2)`).
+- [x] [Review][Patch] E2E "Unknown" scenario never verifies "Unknown" text appears [`spending.feature:53-58`] — Fixed: scenario now asserts via a new `Then I see an "Unknown" segment in the destination breakdown donut` step that checks the donut's `aria-label` contains "Unknown".
+- [x] [Review][Patch] Grid leaves one donut off-center when sibling returns null [`spending-view.tsx:58`] — Dismissed: user confirmed left-aligned in first column is desired behavior.
+
+#### defer
+- [x] [Review][Defer] h3 heading hierarchy may skip heading levels in parent page context [`chart-card.tsx:18`] — deferred, pre-existing concern (heading-level fit depends on consumer context)
+- [x] [Review][Defer] No test for `hasTripsInRange` true with zero-expense trips (both donuts render null) — deferred, pre-existing gap, not required by spec
+- [x] [Review][Defer] `totalSpend` computed before filter — center figure differs from visible segments when entries have `total <= 0` — deferred, pre-existing pattern shared with category donut
 
 ## Dev Notes
 

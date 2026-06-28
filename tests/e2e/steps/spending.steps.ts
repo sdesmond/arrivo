@@ -165,3 +165,9 @@ Then("I do not see the category breakdown donut", async ({ page }) => {
 Then("I see the destination breakdown donut", async ({ page }) => {
   await expect(page.getByRole("img", { name: /Destination breakdown donut chart/ })).toBeVisible();
 });
+
+Then("I see an {string} segment in the destination breakdown donut", async ({ page }, segmentName: string) => {
+  const donut = page.getByRole("img", { name: /Destination breakdown donut chart/ });
+  await expect(donut).toBeVisible();
+  await expect(donut).toHaveAttribute("aria-label", new RegExp(segmentName));
+});

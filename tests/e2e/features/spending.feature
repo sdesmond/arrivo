@@ -55,4 +55,4 @@ Feature: Spending View
     When I navigate to the travel history page
     And I switch to the "Spending" view
     And I change the spending date range to "All Time"
-    Then I see the destination breakdown donut
+    Then I see an "Unknown" segment in the destination breakdown donut

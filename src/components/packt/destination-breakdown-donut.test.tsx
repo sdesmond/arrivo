@@ -19,12 +19,12 @@ describe("DestinationBreakdownDonut", () => {
       />
     );
 
-    const names = [...container.querySelectorAll('[data-slot="donut-chart-legend-item"]')].map(
+    const names = [...container.querySelectorAll('[data-slot="donut-chart-legend-item"] > span:nth-child(2)')].map(
       (item) => item.textContent
     );
-    expect(names[0]).toContain("Japan");
-    expect(names[1]).toContain("United States");
-    expect(names[2]).toContain("France");
+    expect(names[0]).toBe("Japan");
+    expect(names[1]).toBe("United States");
+    expect(names[2]).toBe("France");
   });
 
   it("renders all segments including 'Unknown'", () => {
