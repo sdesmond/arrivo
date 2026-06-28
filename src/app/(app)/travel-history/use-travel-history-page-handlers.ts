@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   TripDateConflictResolution,
+  type SpendingDateRange,
   type Trip,
   type TripDateChangeConfirmation,
   type TripListEntry,
@@ -13,7 +15,13 @@ import {
 import { getTripStatus } from "@/lib/utils";
 import { deleteTrip, updateTripMetadata } from "@/app/(app)/trips/actions";
 
+export type TravelHistoryView = "trips" | "spending";
+
 export function useTravelHistoryPageHandlers(initialEntries: TripListEntry[], now: Date) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeView: TravelHistoryView = searchParams.get("view") === "spending" ? "spending" : "trips";
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
   const [deletingTrip, setDeletingTrip] = useState<Trip | null>(null);
   const [savingTrip, startTripSave] = useTransition();
@@ -96,8 +104,30 @@ export function useTravelHistoryPageHandlers(initialEntries: TripListEntry[], no
 
   const editingEntry = editingTrip ? (initialEntries.find((entry) => entry.trip.id === editingTrip) ?? null) : null;
 
+  function handleViewChange(view: TravelHistoryView): void {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (view === "trips") {
+      nextParams.delete("view");
+    } else {
+      nextParams.set("view", "spending");
+    }
+    const query = nextParams.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  }
+
+  function handleRangeChange(range: SpendingDateRange): void {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("view", "spending");
+    nextParams.set("range", range);
+    const query = nextParams.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  }
+
   return {
     pastTrips,
+    activeView,
+    handleViewChange,
+    handleRangeChange,
     editingTrip,
     editingEntry,
     deletingTrip,
