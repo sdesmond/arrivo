@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Trash2 } from "lucide-react";
 import {
   type Budget,
   type Collaborator,
@@ -225,21 +225,28 @@ export function TripEditSheet({
           </div>
 
           <DrawerFooter className="shrink-0 gap-3" style={{ borderTop: "1px solid var(--line)" }}>
-            {onDelete ? (
-              <>
-                <Separator />
-                <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} disabled={isBusy}>
-                  Delete trip
+            <div className="flex items-center justify-between">
+              <div>
+                {onDelete ? (
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    disabled={isBusy}
+                    aria-label="Delete trip"
+                  >
+                    <Trash2 strokeWidth={1.5} />
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={onClose} disabled={isBusy}>
+                  Cancel
                 </Button>
-              </>
-            ) : null}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="ghost" onClick={onClose} disabled={isBusy}>
-                Cancel
-              </Button>
-              <Button ref={saveButtonRef} disabled={isBusy} onClick={() => onSave(getPatch())}>
-                {saving ? "Saving..." : "Save changes"}
-              </Button>
+                <Button ref={saveButtonRef} disabled={isBusy} onClick={() => onSave(getPatch())}>
+                  {saving ? "Saving..." : "Save changes"}
+                </Button>
+              </div>
             </div>
           </DrawerFooter>
         </DrawerContent>
