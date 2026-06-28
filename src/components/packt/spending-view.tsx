@@ -11,7 +11,6 @@ export interface SpendingViewProps {
   initialSummary: SpendingSummary;
   trips: Trip[];
   currency: string;
-  dateFormat: string;
   onRangeChange: (range: SpendingDateRange) => void;
 }
 
@@ -20,7 +19,6 @@ export function SpendingView({
   initialSummary,
   trips,
   currency,
-  dateFormat,
   onRangeChange,
 }: SpendingViewProps): ReactElement {
   const [range, setRange] = useState(initialRange);
@@ -49,7 +47,7 @@ export function SpendingView({
   return (
     <div className="flex flex-col gap-6">
       <SpendingDateFilter range={range} onChange={handleRangeChange} tripCount={initialSummary.tripCount} />
-      <SpendingHeadlineFigures summary={initialSummary} currency={currency} dateFormat={dateFormat} />
+      <SpendingHeadlineFigures summary={initialSummary} currency={currency} />
       <section aria-live="polite">
         {hasTripsInRange ? null : <p style={{ color: "var(--fg-2)" }}>No trips in the selected range</p>}
       </section>

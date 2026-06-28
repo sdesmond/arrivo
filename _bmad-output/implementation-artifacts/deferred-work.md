@@ -59,3 +59,7 @@
 - No `maxWidthPx` clamping in CategoryPicker — pre-existing issue, out of scope
 - Toolbar grouping dissolved from spec (Add Misc Expense moved to below tiles) — documented intentional user-requested fix
 - `onEditExpense` passthrough called but no parent wires it — documented as future scaffolding
+
+## Deferred from: code review of 2-1-spending-view-foundation-headline-figures.md (2026-06-27)
+
+- Null `endDate` non-null assertion crash in sort — `use-travel-history-page-handlers.ts:35` uses `second.endDate!.localeCompare(first.endDate!)`. If `endDate` is null/undefined on any past trip, the `.localeCompare` call throws. Pre-existing, not caused by this change.

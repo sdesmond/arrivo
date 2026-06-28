@@ -5,10 +5,10 @@ import { cn, formatCurrency, pluralize } from "@/lib/utils";
 export interface SpendingHeadlineFiguresProps {
   summary: SpendingSummary;
   currency: string;
-  dateFormat: string;
 }
 
 function formatTripDuration(days: number): string {
+  if (!Number.isFinite(days)) return "—";
   const rounded = Math.round(days * 10) / 10;
   return `${rounded} ${pluralize(rounded, "day")}`;
 }

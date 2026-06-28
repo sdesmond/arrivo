@@ -4,7 +4,7 @@ baseline_commit: da58c156d598d8cb4c87673a0b9c78ed8ebbdc22
 
 # Story 2.1: Spending View Foundation & Headline Figures
 
-Status: review
+Status: done
 
 ## Story
 
@@ -390,3 +390,9 @@ Claude
 - `src/app/(app)/travel-history/use-travel-history-page-handlers.test.tsx`
 - `src/app/globals.css`
 - `tests/e2e/feature-map.mjs`
+
+### Review Findings
+
+- [x] [Review][Patch] Remove unused `dateFormat` prop from `SpendingHeadlineFigures` [src/components/packt/spending-headline-figures.tsx:8]
+- [x] [Review][Patch] Add `!Number.isFinite(days)` guard to `formatTripDuration` [src/components/packt/spending-headline-figures.tsx:12]
+- [x] [Review][Defer] Null `endDate` non-null assertion crash in sort [src/app/(app)/travel-history/use-travel-history-page-handlers.ts:35] — deferred, pre-existing (not caused by this change)

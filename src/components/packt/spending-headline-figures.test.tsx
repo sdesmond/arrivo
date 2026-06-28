@@ -21,7 +21,7 @@ function makeSummary(overrides: Partial<SpendingSummary> = {}): SpendingSummary 
 
 describe("SpendingHeadlineFigures", () => {
   it("renders Total Spend, Average Trip Spend, Average Daily Spend, Average Days per Trip in order", () => {
-    render(<SpendingHeadlineFigures summary={makeSummary()} currency="USD" dateFormat="MM/DD/YYYY" />);
+    render(<SpendingHeadlineFigures summary={makeSummary()} currency="USD" />);
 
     const labels = screen.getAllByText(/Total Spend|Average Trip Spend|Average Daily Spend|Average Days per Trip/);
     expect(labels.map((label) => label.textContent)).toEqual([
@@ -39,7 +39,7 @@ describe("SpendingHeadlineFigures", () => {
       averageDailySpend: 88.18,
       averageTripDuration: 4.5,
     });
-    render(<SpendingHeadlineFigures summary={summary} currency="EUR" dateFormat="MM/DD/YYYY" />);
+    render(<SpendingHeadlineFigures summary={summary} currency="EUR" />);
 
     expect(screen.getByText("€1,234.50")).toBeInTheDocument();
     expect(screen.getByText("€617.25")).toBeInTheDocument();
@@ -48,16 +48,14 @@ describe("SpendingHeadlineFigures", () => {
   });
 
   it("shows $0 for currency figures and a dash for daily spend and trip length when summary has zero spend", () => {
-    render(<SpendingHeadlineFigures summary={makeSummary()} currency="USD" dateFormat="MM/DD/YYYY" />);
+    render(<SpendingHeadlineFigures summary={makeSummary()} currency="USD" />);
 
     expect(screen.getAllByText("$0.00")).toHaveLength(2);
     expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
   it("renders labels above each figure", () => {
-    render(
-      <SpendingHeadlineFigures summary={makeSummary({ totalSpend: 100 })} currency="USD" dateFormat="MM/DD/YYYY" />
-    );
+    render(<SpendingHeadlineFigures summary={makeSummary({ totalSpend: 100 })} currency="USD" />);
 
     const label = screen.getByText("Total Spend");
     const figure = screen.getByText("$100.00");

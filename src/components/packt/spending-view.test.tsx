@@ -33,7 +33,6 @@ describe("SpendingView", () => {
         initialSummary={makeSummary({ tripCount: 2, totalSpend: 100 })}
         trips={[makeTrip()]}
         currency="USD"
-        dateFormat="MM/DD/YYYY"
         onRangeChange={vi.fn()}
       />
     );
@@ -51,7 +50,6 @@ describe("SpendingView", () => {
         initialSummary={makeSummary({ tripCount: 1 })}
         trips={[makeTrip()]}
         currency="USD"
-        dateFormat="MM/DD/YYYY"
         onRangeChange={onRangeChange}
       />
     );
@@ -69,7 +67,6 @@ describe("SpendingView", () => {
         initialSummary={makeSummary()}
         trips={[]}
         currency="USD"
-        dateFormat="MM/DD/YYYY"
         onRangeChange={vi.fn()}
       />
     );
@@ -87,7 +84,6 @@ describe("SpendingView", () => {
         initialSummary={makeSummary({ tripCount: 0 })}
         trips={[makeTrip()]}
         currency="USD"
-        dateFormat="MM/DD/YYYY"
         onRangeChange={vi.fn()}
       />
     );
@@ -102,7 +98,6 @@ describe("SpendingView", () => {
         initialSummary={makeSummary({ tripCount: 0 })}
         trips={[makeTrip()]}
         currency="USD"
-        dateFormat="MM/DD/YYYY"
         onRangeChange={vi.fn()}
       />
     );
@@ -117,7 +112,6 @@ describe("SpendingView", () => {
         initialSummary={makeSummary({ tripCount: 0 })}
         trips={[makeTrip()]}
         currency="USD"
-        dateFormat="MM/DD/YYYY"
         onRangeChange={vi.fn()}
       />
     );

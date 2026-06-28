@@ -86,7 +86,6 @@ export function TravelHistoryPageClient({
               initialSummary={initialSummary ?? EMPTY_SPENDING_SUMMARY}
               trips={initialEntries.map((entry) => entry.trip)}
               currency={currency}
-              dateFormat={dateFormat}
               onRangeChange={handlers.handleRangeChange}
             />
           ) : (
