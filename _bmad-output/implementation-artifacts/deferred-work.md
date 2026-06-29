@@ -69,3 +69,7 @@
 - h3 heading hierarchy may skip heading levels in parent page context [`chart-card.tsx:18`] — pre-existing concern (heading-level fit depends on consumer context)
 - No test for `hasTripsInRange` true with zero-expense trips (both donuts render null) — pre-existing gap, not required by spec
 - `totalSpend` computed before filter — center figure differs from visible segments when entries have `total <= 0` — pre-existing pattern shared with category donut
+
+## Deferred from: code review of 2-4-budget-adherence-donut.md (2026-06-28)
+
+- No floating-point boundary test values — IEEE 754 drift at ±2% threshold is real but requires specific budget/spend combos; test coverage otherwise solid.
