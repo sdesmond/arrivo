@@ -256,6 +256,8 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           destinationName: seed.trip.destinationName ?? null,
           destinationCountry: seed.trip.destinationCountry ?? null,
           destinationCountryCode: seed.trip.destinationCountryCode ?? null,
+          budgetCurrency: seed.trip.budgetCurrency ?? null,
+          budgetTotal: seed.trip.budgetTotal != null ? seed.trip.budgetTotal.toString() : null,
         })
         .returning({ id: trips.id, name: trips.name, startDate: trips.startDate, endDate: trips.endDate });
 

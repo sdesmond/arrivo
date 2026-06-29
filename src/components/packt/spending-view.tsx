@@ -7,6 +7,7 @@ import { SpendingDateFilter } from "@/components/packt/spending-date-filter";
 import { SpendingHeadlineFigures } from "@/components/packt/spending-headline-figures";
 import { CategoryBreakdownDonut } from "@/components/packt/category-breakdown-donut";
 import { DestinationBreakdownDonut } from "@/components/packt/destination-breakdown-donut";
+import { BudgetAdherenceDonut } from "@/components/packt/budget-adherence-donut";
 import { formatCurrency } from "@/lib/utils";
 
 export interface SpendingViewProps {
@@ -61,6 +62,7 @@ export function SpendingView({
               data={initialSummary.destinationBreakdown}
               formatCurrency={handleFormatCurrency}
             />
+            <BudgetAdherenceDonut data={initialSummary.budgetAdherence} />
           </div>
         ) : (
           <p style={{ color: "var(--fg-2)" }}>No trips in the selected range</p>

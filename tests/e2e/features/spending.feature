@@ -56,3 +56,17 @@ Feature: Spending View
     And I switch to the "Spending" view
     And I change the spending date range to "All Time"
     Then I see an "Unknown" segment in the destination breakdown donut
+
+  Scenario: Budget adherence donut renders segments with correct counts when trips span under/on/over budget
+    Given I have trips under, on, and over budget in my travel history
+    When I navigate to the travel history page
+    And I switch to the "Spending" view
+    And I change the spending date range to "All Time"
+    Then I see the budget adherence donut with "Under budget 1 trip, On budget 1 trip, Over budget 1 trip"
+
+  Scenario: Trips without budget set are excluded from the adherence count
+    Given I have a trip with no budget set in my travel history
+    When I navigate to the travel history page
+    And I switch to the "Spending" view
+    And I change the spending date range to "All Time"
+    Then I see the budget adherence donut with "Under budget 0 trips, On budget 0 trips, Over budget 0 trips"

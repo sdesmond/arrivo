@@ -183,4 +183,21 @@ describe("SpendingView", () => {
     expect(screen.getByText("No trips in the selected range")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /Destination breakdown donut chart/ })).not.toBeInTheDocument();
   });
+
+  it("renders budget adherence donut when summary has non-zero budget adherence data", () => {
+    render(
+      <SpendingView
+        initialRange={SpendingDateRange.ThisYear}
+        initialSummary={makeSummary({
+          tripCount: 4,
+          budgetAdherence: { underBudget: 2, onBudget: 1, overBudget: 1 },
+        })}
+        trips={[makeTrip()]}
+        currency="USD"
+        onRangeChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: /Budget adherence donut chart/ })).toBeInTheDocument();
+  });
 });

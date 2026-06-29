@@ -98,10 +98,10 @@ export function buildSpendingSummary(
 
     const budgetTotal = trip.budget?.total;
     if (budgetTotal != null && budgetTotal > 0) {
-      const spendPercentage = (tripSpend / budgetTotal) * 100;
-      if (spendPercentage < 100) {
+      const spendPercentage = Math.round((tripSpend / budgetTotal) * 100 * 100) / 100;
+      if (spendPercentage < 98) {
         underBudget += 1;
-      } else if (spendPercentage === 100) {
+      } else if (spendPercentage <= 102) {
         onBudget += 1;
       } else {
         overBudget += 1;

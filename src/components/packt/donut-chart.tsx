@@ -45,7 +45,7 @@ export function DonutChart({
                 <Cell key={segment.name} fill={segment.color} stroke={segment.color} />
               ))}
             </Pie>
-            <text x="50%" y="50%" textAnchor="middle">
+            <text data-testid="center-figure" x="50%" y="50%" textAnchor="middle">
               <tspan
                 x="50%"
                 dy={centerLabel ? "-0.3em" : "0.3em"}
