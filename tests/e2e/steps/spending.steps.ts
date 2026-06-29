@@ -121,6 +121,106 @@ Given("I have a trip with no destination set in my travel history", async ({ pag
   await scenario.signIn(page);
 });
 
+Given("I have trips under, on, and over budget in my travel history", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        trip: { name: "Under Budget Trip", startDate: "2025-01-01", endDate: "2025-01-03", budgetTotal: 200 },
+        days: [
+          { dayNumber: 1, date: "2025-01-01", label: "Day 1" },
+          { dayNumber: 2, date: "2025-01-02", label: "Day 2" },
+          { dayNumber: 3, date: "2025-01-03", label: "Day 3" },
+        ],
+        expenses: [
+          {
+            category: ExpenseCategory.Lodging,
+            amount: 100,
+            currency: "USD",
+            date: "2025-01-01",
+            convertedAmountProfile: 100,
+          },
+        ],
+      },
+      setCurrent: false,
+    },
+  });
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        trip: { name: "On Budget Trip", startDate: "2025-02-01", endDate: "2025-02-03", budgetTotal: 100 },
+        days: [
+          { dayNumber: 1, date: "2025-02-01", label: "Day 1" },
+          { dayNumber: 2, date: "2025-02-02", label: "Day 2" },
+          { dayNumber: 3, date: "2025-02-03", label: "Day 3" },
+        ],
+        expenses: [
+          {
+            category: ExpenseCategory.Food,
+            amount: 100,
+            currency: "USD",
+            date: "2025-02-01",
+            convertedAmountProfile: 100,
+          },
+        ],
+      },
+      setCurrent: false,
+    },
+  });
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        trip: { name: "Over Budget Trip", startDate: "2025-03-01", endDate: "2025-03-03", budgetTotal: 50 },
+        days: [
+          { dayNumber: 1, date: "2025-03-01", label: "Day 1" },
+          { dayNumber: 2, date: "2025-03-02", label: "Day 2" },
+          { dayNumber: 3, date: "2025-03-03", label: "Day 3" },
+        ],
+        expenses: [
+          {
+            category: ExpenseCategory.Misc,
+            amount: 100,
+            currency: "USD",
+            date: "2025-03-01",
+            convertedAmountProfile: 100,
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+  await scenario.signIn(page);
+});
+
+Given("I have a trip with no budget set in my travel history", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        trip: { name: "No Budget Trip", startDate: "2025-04-01", endDate: "2025-04-03" },
+        days: [
+          { dayNumber: 1, date: "2025-04-01", label: "Day 1" },
+          { dayNumber: 2, date: "2025-04-02", label: "Day 2" },
+          { dayNumber: 3, date: "2025-04-03", label: "Day 3" },
+        ],
+        expenses: [
+          {
+            category: ExpenseCategory.Misc,
+            amount: 100,
+            currency: "USD",
+            date: "2025-04-01",
+            convertedAmountProfile: 100,
+          },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+  await scenario.signIn(page);
+});
+
 When("I switch to the {string} view", async ({ page }, viewLabel: string) => {
   await page.getByRole("button", { name: viewLabel, exact: true }).click();
 });
@@ -170,4 +270,10 @@ Then("I see an {string} segment in the destination breakdown donut", async ({ pa
   const donut = page.getByRole("img", { name: /Destination breakdown donut chart/ });
   await expect(donut).toBeVisible();
   await expect(donut).toHaveAttribute("aria-label", new RegExp(segmentName));
+});
+
+Then("I see the budget adherence donut with {string}", async ({ page }, summary: string) => {
+  const donut = page.getByRole("img", { name: /Budget adherence donut chart/ });
+  await expect(donut).toBeVisible();
+  await expect(donut).toHaveAttribute("aria-label", new RegExp(summary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });

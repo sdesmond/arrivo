@@ -117,6 +117,8 @@ export interface TripSeed {
   destinationName?: string | null;
   destinationCountry?: string | null;
   destinationCountryCode?: string | null;
+  budgetCurrency?: string | null;
+  budgetTotal?: number | null;
 }
 
 export interface TripMother {

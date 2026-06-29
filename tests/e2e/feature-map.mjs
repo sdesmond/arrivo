@@ -104,6 +104,7 @@ export const FEATURE_MAP = [
     "src/components/packt/donut-chart.tsx",
     "src/components/packt/category-breakdown-donut.tsx",
     "src/components/packt/destination-breakdown-donut.tsx",
+    "src/components/packt/budget-adherence-donut.tsx",
     "src/app/(app)/travel-history/page-client.tsx",
     "src/app/(app)/travel-history/page.tsx",
     "src/lib/spending.ts",
