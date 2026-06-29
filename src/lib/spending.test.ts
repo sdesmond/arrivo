@@ -96,7 +96,7 @@ describe("buildSpendingSummary", () => {
     expect(summary.destinationBreakdown).toEqual([{ countryCode: null, countryName: "Unknown", total: 15 }]);
   });
 
-  it("budgetAdherence counts under/on/over using trip spend vs budget total", () => {
+  it("budgetAdherence counts under/on/over using trip spend vs budget total within a +/-2% band", () => {
     const trips = [
       makeTrip({ id: "trip-under", budget: { currency: "USD", total: 200 } }),
       makeTrip({ id: "trip-on", budget: { currency: "USD", total: 100 } }),
@@ -111,6 +111,42 @@ describe("buildSpendingSummary", () => {
     const summary = buildSpendingSummary(trips, expenses, SpendingDateRange.AllTime);
 
     expect(summary.budgetAdherence).toEqual({ underBudget: 1, onBudget: 1, overBudget: 1 });
+  });
+
+  it("classifies spend at 97.9% as under budget (below 98% threshold)", () => {
+    const trips = [makeTrip({ id: "trip-1", budget: { currency: "USD", total: 1000 } })];
+    const expenses = [makeExpense({ tripId: "trip-1", convertedAmountProfile: 979 })];
+
+    const summary = buildSpendingSummary(trips, expenses, SpendingDateRange.AllTime);
+
+    expect(summary.budgetAdherence).toEqual({ underBudget: 1, onBudget: 0, overBudget: 0 });
+  });
+
+  it("classifies spend at 98% as on budget (within +/-2%)", () => {
+    const trips = [makeTrip({ id: "trip-1", budget: { currency: "USD", total: 1000 } })];
+    const expenses = [makeExpense({ tripId: "trip-1", convertedAmountProfile: 980 })];
+
+    const summary = buildSpendingSummary(trips, expenses, SpendingDateRange.AllTime);
+
+    expect(summary.budgetAdherence).toEqual({ underBudget: 0, onBudget: 1, overBudget: 0 });
+  });
+
+  it("classifies spend at 102% as on budget (within +/-2%)", () => {
+    const trips = [makeTrip({ id: "trip-1", budget: { currency: "USD", total: 1000 } })];
+    const expenses = [makeExpense({ tripId: "trip-1", convertedAmountProfile: 1020 })];
+
+    const summary = buildSpendingSummary(trips, expenses, SpendingDateRange.AllTime);
+
+    expect(summary.budgetAdherence).toEqual({ underBudget: 0, onBudget: 1, overBudget: 0 });
+  });
+
+  it("classifies spend at 102.1% as over budget (above 102% threshold)", () => {
+    const trips = [makeTrip({ id: "trip-1", budget: { currency: "USD", total: 1000 } })];
+    const expenses = [makeExpense({ tripId: "trip-1", convertedAmountProfile: 1021 })];
+
+    const summary = buildSpendingSummary(trips, expenses, SpendingDateRange.AllTime);
+
+    expect(summary.budgetAdherence).toEqual({ underBudget: 0, onBudget: 0, overBudget: 1 });
   });
 
   it("budget adherence excludes trips without a budget", () => {
