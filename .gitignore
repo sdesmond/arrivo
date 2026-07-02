@@ -21,6 +21,7 @@ tests/e2e/.auth/
 # next.js
 /.next/
 /.next-e2e/
+/.next-validate/
 /out/
 
 # production
