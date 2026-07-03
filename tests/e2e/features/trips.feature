@@ -29,10 +29,11 @@ Feature: Trip Management
     Given I have an existing trip
     When I open the Budget tab
     And I click the Add Misc Expense button
+    And I choose "EUR" as the expense currency
     And I enter "42.50" as the expense amount
     And I choose "Food" as the expense category
     And I save the Misc Expense
-    Then the Budget tab shows "$42.50" as Actual spent
+    Then the Budget tab shows "€42.50" as Actual spent
     And the Budget tab shows a "Food" category tile
 
   Scenario: Dateless trip appears in Unscheduled section
@@ -43,3 +44,14 @@ Feature: Trip Management
     Then I am on the trip detail page for "Unscheduled Test Trip"
     When I navigate to the trips list
     Then I see an "Unscheduled" section with "Unscheduled Test Trip"
+
+  Scenario: New trip inherits preferred currency for its budget
+    Given I am signed in with preferred currency "EUR"
+    When I open the New Trip dialog
+    And I type "Euro Budget Trip" in the title field
+    And I type "100" in the budget field
+    And I click the Create button
+    Then I am on the trip detail page for "Euro Budget Trip"
+    When I open the Budget tab
+    Then the Budget tab shows "€0.00" as Actual spent
+    And the Budget tab shows "€100.00" as Budget

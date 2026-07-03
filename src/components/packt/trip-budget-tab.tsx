@@ -38,9 +38,13 @@ export interface TripBudgetTabProps {
   onEditExpense?: (expense: Expense) => void;
 }
 
-function resolveTripCurrency(budget: Budget | undefined, expenses: Expense[]): string {
+function resolveTripCurrency(budget: Budget | undefined, expenses: Expense[], defaultExpenseCurrency?: string): string {
   if (budget?.currency) {
     return budget.currency;
+  }
+
+  if (defaultExpenseCurrency) {
+    return defaultExpenseCurrency;
   }
 
   const converted = expenses.find((expense) => expense.convertedCurrencyTrip)?.convertedCurrencyTrip;
@@ -60,7 +64,7 @@ export function TripBudgetTab({
   onOpenEditBudget,
   onEditExpense,
 }: TripBudgetTabProps): ReactElement {
-  const tripCurrency = resolveTripCurrency(budget, expenses);
+  const tripCurrency = resolveTripCurrency(budget, expenses, defaultExpenseCurrency);
   const actual = calculateActual(expenses, tripCurrency);
   const breakdown = calculateCategoryBreakdown(expenses, tripCurrency);
   const hasBudget = !!budget && (budget.total ?? 0) > 0 && !!budget.currency;

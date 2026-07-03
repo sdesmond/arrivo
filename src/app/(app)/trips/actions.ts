@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import type {
   CreateTripInput,
   UpdateTripPatch,
@@ -26,7 +27,7 @@ import type {
 } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import { deriveGraphicCover, stableStringify } from "@/lib/utils";
+import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/lib/utils";
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
 import { recalculateAll } from "@/lib/currency";
 import { dbExpenseToType } from "@/lib/db-mappers";
@@ -204,8 +205,9 @@ async function summarizeRemovedDayContent(
 
 export async function createTrip(input: CreateTripInput): Promise<{ tripId: string }> {
   const sessionUser = await requireUser();
+  const acceptLanguage = (await headers()).get("accept-language") ?? "";
   const [user] = await db
-    .select({ id: users.id, email: users.email, name: users.name })
+    .select({ id: users.id, email: users.email, name: users.name, currency: users.currency })
     .from(users)
     .where(eq(users.email, sessionUser.email!));
 
@@ -215,6 +217,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   const userId = user.id;
   const userEmail = user.email;
   const userName = user.name ?? userEmail;
+  const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
 
   if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
     throw new Error("Invalid start date format. Expected YYYY-MM-DD.");
@@ -222,7 +225,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
-  const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency);
+  const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
 
   let tripId = "";
   await db.transaction(async (tx) => {

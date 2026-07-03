@@ -10,6 +10,7 @@ import {
   itineraryNotes,
   trips,
 } from "@/db/schema";
+import { headers } from "next/headers";
 
 const { assertTripAccess, db, recalculateAll, requireUser, revalidatePath } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
@@ -679,7 +680,7 @@ describe("createTrip", () => {
   it("rejects unsupported budget currencies before inserting a trip", async () => {
     db.select.mockReturnValue({
       from: () => ({
-        where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User" }],
+        where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: "USD" }],
       }),
     });
 
@@ -713,7 +714,7 @@ describe("createTrip", () => {
     db.select
       .mockReturnValueOnce({
         from: () => ({
-          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User" }],
+          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: "USD" }],
         }),
       })
       .mockReturnValueOnce({
@@ -731,6 +732,57 @@ describe("createTrip", () => {
 
     return operations;
   }
+
+  it("defaults trip budget currency from the user's preferred currency", async () => {
+    const operations = setupCreateTripDb(null);
+
+    await expect(
+      createTrip({
+        name: "Paris Trip",
+        budgetTotal: 1500,
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({
+        budgetCurrency: "USD",
+        budgetTotal: "1500",
+      }),
+    });
+  });
+
+  it("falls back to locale-derived currency when the user preference is null", async () => {
+    vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
+    const operations = setupCreateTripDb(null);
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: null }],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ defaultCoverType: null }],
+        }),
+      });
+
+    await expect(
+      createTrip({
+        name: "London Trip",
+        budgetTotal: 200,
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({
+        budgetCurrency: "GBP",
+        budgetTotal: "200",
+      }),
+    });
+  });
 
   it("stores destination fields and applies the first Unsplash cover when the default is photo", async () => {
     vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
