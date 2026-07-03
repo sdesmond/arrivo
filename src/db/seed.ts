@@ -26,7 +26,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const [user] = await db
     .insert(users)
-    .values({ email: DEMO_EMAIL, name: "Demo User", passwordHash })
+    .values({ email: DEMO_EMAIL, name: "Demo User", passwordHash, currency: "USD" })
     .onConflictDoNothing({ target: users.email })
     .returning();
 

@@ -6,6 +6,8 @@ import { users, collaborators } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
+import { headers } from "next/headers";
+import { detectPreferredCurrency } from "@/lib/utils";
 
 type ActionState = { error?: string } | undefined;
 
@@ -34,10 +36,12 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
     return { error: "Email and password (min 8 chars) required." };
   }
 
+  const acceptLanguage = (await headers()).get("accept-language") ?? "";
+  const currency = detectPreferredCurrency(acceptLanguage);
   const passwordHash = await bcrypt.hash(password, 10);
   const [newUser] = await db
     .insert(users)
-    .values({ email, name, passwordHash })
+    .values({ email, name, passwordHash, currency })
     .onConflictDoNothing({ target: users.email })
     .returning();
 

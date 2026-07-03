@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
 import { getUserById } from "@/lib/queries";
+import { detectPreferredCurrency } from "@/lib/utils";
 import { ProfilePageClient } from "./page-client";
 
 export default async function ProfilePage() {
@@ -8,5 +10,8 @@ export default async function ProfilePage() {
 
   if (!user) return null;
 
-  return <ProfilePageClient user={user} />;
+  const acceptLanguage = (await headers()).get("accept-language") ?? "";
+  const currency = user.currency ?? detectPreferredCurrency(acceptLanguage);
+
+  return <ProfilePageClient user={{ ...user, currency }} />;
 }

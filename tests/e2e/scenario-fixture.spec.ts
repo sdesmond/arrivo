@@ -49,6 +49,7 @@ test.describe("E2E scenario fixtures", () => {
           name: foreignUser.user.name,
           passwordHash: "foreign-hash",
           dateFormat: foreignUser.user.dateFormat,
+          currency: foreignUser.user.currency ?? "USD",
         })
         .returning({ id: users.id })
     );
