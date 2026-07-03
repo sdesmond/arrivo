@@ -46,9 +46,9 @@ Then("my name {string} should appear in the sidebar", async ({ page }, name: str
 });
 
 When("I set currency to {string}", async ({ page }, currency: string) => {
-  const currencyInput = page.locator("#pref-currency");
-  await currencyInput.clear();
-  await currencyInput.fill(currency);
+  await page.getByRole("button", { name: /Currency:/i }).click();
+  await page.getByRole("textbox", { name: "Search currencies" }).fill(currency);
+  await page.getByRole("option", { name: new RegExp(`${currency}$`, "i") }).click();
 });
 
 When("I save the Preferences section", async ({ page }) => {
@@ -60,7 +60,7 @@ When("I save the Preferences section", async ({ page }) => {
 Then("the currency preference should persist after reload", async ({ page }) => {
   await page.reload();
   await page.getByRole("tab", { name: "Preferences" }).click();
-  await expect(page.locator("#pref-currency")).toHaveValue("EUR");
+  await expect(page.getByRole("button", { name: /Currency: Euro EUR/i })).toBeVisible();
 });
 
 Then("the Identity section should be active", async ({ page }) => {

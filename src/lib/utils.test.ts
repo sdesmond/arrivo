@@ -11,6 +11,7 @@ import {
   getTodayDisplay,
   formatTripDate,
   detectDefaultDateFormat,
+  detectPreferredCurrency,
   formatDate,
   combineDateAndTimeToIso,
   toHHMM,
@@ -258,6 +259,32 @@ describe("detectDefaultDateFormat", () => {
 
   it("returns DD/MM/YYYY for empty string", () => {
     expect(detectDefaultDateFormat("")).toBe("DD/MM/YYYY");
+  });
+});
+
+describe("detectPreferredCurrency", () => {
+  it("returns USD for en-US", () => {
+    expect(detectPreferredCurrency("en-US,en;q=0.9")).toBe("USD");
+  });
+
+  it("returns EUR for fr-FR", () => {
+    expect(detectPreferredCurrency("fr-FR")).toBe("EUR");
+  });
+
+  it("returns GBP for en-GB", () => {
+    expect(detectPreferredCurrency("en-GB,en;q=0.9")).toBe("GBP");
+  });
+
+  it("returns JPY for ja-JP", () => {
+    expect(detectPreferredCurrency("ja-JP")).toBe("JPY");
+  });
+
+  it("falls back to USD for plain language without region", () => {
+    expect(detectPreferredCurrency("en")).toBe("USD");
+  });
+
+  it("falls back to USD for empty string", () => {
+    expect(detectPreferredCurrency("")).toBe("USD");
   });
 });
 

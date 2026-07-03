@@ -204,7 +204,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           name: seed.user.name,
           passwordHash,
           dateFormat: seed.user.dateFormat,
-          currency: seed.user.currency,
+          currency: seed.user.currency ?? "USD",
           defaultCoverType: seed.user.defaultCoverType,
         })
         .returning({ id: users.id, email: users.email, name: users.name });

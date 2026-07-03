@@ -84,10 +84,42 @@ export function formatTripDate(dateStr: string): string {
 }
 
 const MDY_LOCALES = new Set(["en-US", "en-PH"]);
+const LOCALE_CURRENCY_BY_REGION: Record<string, string> = {
+  AU: "AUD",
+  CA: "CAD",
+  CH: "CHF",
+  CN: "CNY",
+  DE: "EUR",
+  ES: "EUR",
+  FR: "EUR",
+  GB: "GBP",
+  IE: "EUR",
+  IN: "INR",
+  IT: "EUR",
+  JP: "JPY",
+  MX: "MXN",
+  NL: "EUR",
+  NZ: "NZD",
+  PH: "PHP",
+  PT: "EUR",
+  US: "USD",
+};
 
 export function detectDefaultDateFormat(acceptLanguage: string): string {
   const primary = acceptLanguage.split(",")[0]?.split(";")[0]?.trim() ?? "";
   return MDY_LOCALES.has(primary) ? "MM/DD/YYYY" : "DD/MM/YYYY";
+}
+
+export function detectPreferredCurrency(acceptLanguage: string): string {
+  const primary = acceptLanguage.split(",")[0]?.split(";")[0]?.trim() ?? "";
+  const localeParts = primary.split("-");
+  const region = localeParts[1]?.toUpperCase();
+
+  if (region) {
+    return LOCALE_CURRENCY_BY_REGION[region] ?? "USD";
+  }
+
+  return "USD";
 }
 
 export function formatDate(dateStr: string, format: string): string {

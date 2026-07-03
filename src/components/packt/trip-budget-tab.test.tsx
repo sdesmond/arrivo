@@ -175,6 +175,20 @@ describe("TripBudgetTab", () => {
     expect(screen.getByRole("button", { name: "Edit budget" })).toBeInTheDocument();
   });
 
+  it("uses defaultExpenseCurrency for zero-state totals when budget currency is missing", () => {
+    render(
+      <TripBudgetTab
+        tripId="trip-1"
+        budget={{ currency: "", total: 5000 }}
+        expenses={[]}
+        defaultExpenseCurrency="EUR"
+        onOpenEditBudget={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("€0.00")).toBeInTheDocument();
+  });
+
   it("shows the Actual figure but hides Remaining when expenses exist without a budget", () => {
     const expenses = [
       makeExpense({ id: "a", category: ExpenseCategory.Food, convertedAmountTrip: 50 }),

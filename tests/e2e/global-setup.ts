@@ -23,6 +23,7 @@ export default async function globalSetup() {
     name: BASELINE_E2E_USER.name,
     passwordHash,
     dateFormat: "MM/DD/YYYY",
+    currency: "USD",
   });
 
   await client.end();

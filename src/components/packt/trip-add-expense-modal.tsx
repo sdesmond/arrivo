@@ -215,7 +215,6 @@ export function TripAddExpenseModal({
               error={!!amountError}
               inputMode="decimal"
               placeholder="0.00"
-              searchable={false}
               step="0.01"
               onAmountKeyDown={(event) => {
                 if (event.key === "Enter") {
