@@ -100,7 +100,7 @@ describe("TripAddExpenseModal", () => {
     expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
   });
 
-  it("uses a non-searchable currency picker", async () => {
+  it("uses a searchable currency picker", async () => {
     const user = userEvent.setup();
     render(<TripAddExpenseModal tripId="trip-1" defaultCurrency="USD" open onOpenChange={vi.fn()} />, {
       wrapper: Wrapper,
@@ -108,7 +108,7 @@ describe("TripAddExpenseModal", () => {
 
     await user.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
 
-    expect(screen.queryByPlaceholderText("Search")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search currencies" })).toBeInTheDocument();
   });
 
   it("marks the category control as aria-required", () => {

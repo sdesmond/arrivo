@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CurrencyPicker } from "@/components/packt/currency-picker";
 import { Section, Field } from "@/components/packt/form-section";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listSupportedCurrencies } from "@/lib/currencies";
 import { toast } from "sonner";
 import { updateProfile } from "./actions";
 import { CoverType } from "@/data/types";
@@ -23,6 +24,7 @@ const COVER_TYPE_OPTIONS = [
   { value: CoverType.Map, label: "Map" },
   { value: CoverType.Graphic, label: "Graphic" },
 ] as const;
+const CURRENCY_OPTIONS = listSupportedCurrencies();
 
 interface ProfilePreferencesSectionProps {
   user: UserProfile;
@@ -31,7 +33,7 @@ interface ProfilePreferencesSectionProps {
 
 export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePreferencesSectionProps) {
   const [dateFormat, setDateFormat] = useState(user.dateFormat ?? "MM/DD/YYYY");
-  const [currency, setCurrency] = useState(user.currency ?? "");
+  const [currency, setCurrency] = useState(user.currency ?? "USD");
   const [distanceUnit, setDistanceUnit] = useState(user.distanceUnit ?? "imperial");
   const [coverType, setCoverType] = useState<string>(user.defaultCoverType ?? CoverType.Photo);
   const [warningThreshold, setWarningThreshold] = useState(user.warningThreshold ?? 80);
@@ -49,7 +51,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   ) {
     return (
       dateFormat !== (user.dateFormat ?? "MM/DD/YYYY") ||
-      currency !== (user.currency ?? "") ||
+      currency !== (user.currency ?? "USD") ||
       distanceUnit !== (user.distanceUnit ?? "imperial") ||
       coverType !== (user.defaultCoverType ?? CoverType.Photo) ||
       warningThreshold !== (user.warningThreshold ?? 80) ||
@@ -95,14 +97,11 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, warningThreshold, next));
   }
 
-  const currencyError =
-    currency.length > 0 && !/^[A-Z]{3}$/.test(currency) ? "Currency must be a 3-letter ISO code (e.g. USD)." : null;
-
   function handleSave() {
     startTransition(async () => {
       const patch: Parameters<typeof updateProfile>[0] = {};
       if (dateFormat !== (user.dateFormat ?? "MM/DD/YYYY")) patch.dateFormat = dateFormat;
-      if (currency !== (user.currency ?? "")) patch.currency = currency;
+      if (currency !== (user.currency ?? "USD")) patch.currency = currency;
       if (distanceUnit !== (user.distanceUnit ?? "imperial")) patch.distanceUnit = distanceUnit;
       if (coverType !== (user.defaultCoverType ?? CoverType.Photo)) patch.defaultCoverType = coverType as CoverType;
       if (warningThreshold !== (user.warningThreshold ?? 80) || dangerThreshold !== (user.dangerThreshold ?? 90)) {
@@ -138,17 +137,8 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         </ToggleGroup>
       </Field>
 
-      <Field label="Currency" htmlFor="pref-currency" error={currencyError ?? undefined}>
-        <Input
-          id="pref-currency"
-          type="text"
-          value={currency}
-          onChange={(event) => handleCurrencyChange(event.target.value.toUpperCase().slice(0, 3))}
-          placeholder="USD"
-          maxLength={3}
-          aria-invalid={!!currencyError || undefined}
-          aria-describedby={currencyError ? "pref-currency-error" : undefined}
-        />
+      <Field label="Currency">
+        <CurrencyPicker currencyOptions={CURRENCY_OPTIONS} value={currency} onChange={handleCurrencyChange} />
       </Field>
 
       <Field label="Distance units">
@@ -225,7 +215,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
             Saved
           </span>
         )}
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!currencyError}>
+        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </div>

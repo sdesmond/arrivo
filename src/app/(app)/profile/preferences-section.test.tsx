@@ -38,7 +38,7 @@ describe("ProfilePreferencesSection", () => {
   it("renders with initial values", () => {
     render(<ProfilePreferencesSection user={mockUser} />);
     expect(screen.getByText("Date format")).toBeInTheDocument();
-    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
     expect(screen.getByText("Distance units")).toBeInTheDocument();
   });
 
@@ -58,12 +58,13 @@ describe("ProfilePreferencesSection", () => {
     expect(metricBtn).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("currency input changes and uppercases value", async () => {
+  it("currency picker is searchable and updates selection", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    const input = screen.getByLabelText("Currency") as HTMLInputElement;
-    await userEvent.clear(input);
-    await userEvent.type(input, "eur");
-    expect(input.value).toBe("EUR");
+    await userEvent.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Search currencies" }), "euro");
+    await userEvent.click(screen.getByRole("option", { name: /Euro EUR/i }));
+
+    expect(screen.getByRole("button", { name: /Currency: Euro EUR/i })).toBeInTheDocument();
   });
 
   it("Save button disabled when not dirty", () => {
@@ -88,9 +89,8 @@ describe("ProfilePreferencesSection", () => {
 
   it("sends only currency when only currency changes", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    const input = screen.getByLabelText("Currency") as HTMLInputElement;
-    await userEvent.clear(input);
-    await userEvent.type(input, "EUR");
+    await userEvent.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
+    await userEvent.click(screen.getByRole("option", { name: /Euro EUR/i }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ currency: "EUR" });
   });
