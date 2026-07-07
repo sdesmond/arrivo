@@ -472,7 +472,7 @@ describe("TripEditSheet", () => {
     expect(screen.getAllByRole("button", { name: "Cancel" })[0]).toBeDisabled();
   });
 
-  it("renders a delete button when onDelete is provided", () => {
+  it("renders an icon-only delete button, left-aligned with the Cancel/Save group, when onDelete is provided", () => {
     render(
       <TripEditSheet
         currencyOptions={currencyOptions}
@@ -483,7 +483,16 @@ describe("TripEditSheet", () => {
         onDelete={vi.fn()}
       />
     );
-    expect(screen.getByRole("button", { name: "Delete trip" })).toBeInTheDocument();
+    const deleteButton = screen.getByRole("button", { name: "Delete trip" });
+    expect(deleteButton).toBeInTheDocument();
+    expect(deleteButton).not.toHaveTextContent("Delete trip");
+
+    const cancelButton = screen.getByRole("button", { name: "Cancel" });
+    const saveButton = screen.getByRole("button", { name: "Save changes" });
+    const row = deleteButton.parentElement;
+    expect(row).toBe(cancelButton.parentElement?.parentElement);
+    expect(row).toBe(saveButton.parentElement?.parentElement);
+    expect(deleteButton.compareDocumentPosition(cancelButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("opens the delete confirmation dialog and calls onDelete", async () => {
