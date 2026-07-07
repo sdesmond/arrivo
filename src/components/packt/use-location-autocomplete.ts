@@ -51,6 +51,7 @@ export function useLocationAutocomplete({
 }: UseLocationAutocompleteOptions): UseLocationAutocompleteResult {
   const sessionTokenRef = useRef("");
   const cancelRetrieveRef = useRef(false);
+  const suppressSearchRef = useRef(false);
   const [suggestions, setSuggestions] = useState<AutocompleteSuggestionOption[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [retrieveLoading, setRetrieveLoading] = useState(false);
@@ -63,6 +64,11 @@ export function useLocationAutocomplete({
   }, []);
 
   useEffect(() => {
+    if (suppressSearchRef.current) {
+      suppressSearchRef.current = false;
+      return;
+    }
+
     const searchQuery = resolvedValue === value ? "" : value.trim();
     if (searchQuery.length < 2) {
       return;
@@ -127,6 +133,7 @@ export function useLocationAutocomplete({
 
   async function handleSuggestionSelect(suggestion: AutocompleteSuggestionOption): Promise<void> {
     cancelRetrieveRef.current = true;
+    suppressSearchRef.current = true;
     onValueChange(suggestion.inputValue);
     setSuggestions([]);
     setHighlightedIndex(-1);
@@ -140,6 +147,7 @@ export function useLocationAutocomplete({
       if (cancelRetrieveRef.current) {
         return;
       }
+      suppressSearchRef.current = true;
       onValueChange(mode === "destination" ? location.placeName : location.fullAddress);
       onResolved(location);
     } catch (error) {
