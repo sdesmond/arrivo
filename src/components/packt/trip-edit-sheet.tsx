@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
   TripCurrencyChangeMode,
   type Budget,
@@ -257,23 +257,32 @@ export function TripEditSheet({
             </Section>
           </div>
 
-          <DrawerFooter className="shrink-0 gap-3" style={{ borderTop: "1px solid var(--line)" }}>
-            <div className="flex flex-row justify-end gap-2">
-              <Button variant="ghost" onClick={onClose} disabled={isBusy}>
-                Cancel
-              </Button>
-              <Button ref={saveButtonRef} disabled={isBusy} onClick={handleSaveClick}>
-                {saving ? "Saving..." : "Save changes"}
-              </Button>
-            </div>
-            {onDelete ? (
-              <>
-                <Separator />
-                <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} disabled={isBusy}>
-                  Delete trip
+          <DrawerFooter className="shrink-0" style={{ borderTop: "1px solid var(--line)" }}>
+            <div className="flex flex-row items-center justify-between gap-2">
+              {onDelete ? (
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="size-11 shrink-0"
+                  title="Delete trip"
+                  aria-label="Delete trip"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  disabled={isBusy}
+                >
+                  <Trash2 strokeWidth={1.5} />
                 </Button>
-              </>
-            ) : null}
+              ) : (
+                <div />
+              )}
+              <div className="flex flex-row justify-end gap-2">
+                <Button variant="ghost" onClick={onClose} disabled={isBusy}>
+                  Cancel
+                </Button>
+                <Button ref={saveButtonRef} disabled={isBusy} onClick={handleSaveClick}>
+                  {saving ? "Saving..." : "Save changes"}
+                </Button>
+              </div>
+            </div>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
