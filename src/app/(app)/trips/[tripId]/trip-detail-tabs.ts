@@ -18,6 +18,7 @@ export function resolveTripDetailTab(value: SearchParamValue): TripDetailTab {
   const resolvedValue = readSearchParamValue(value);
 
   switch (resolvedValue) {
+    case TripDetailTab.Budget:
     case TripDetailTab.Map:
     case TripDetailTab.Documents:
     case TripDetailTab.Packing:

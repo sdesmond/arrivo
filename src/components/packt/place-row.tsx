@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight, MapPin, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
 import { IconSize } from "@/lib/size-tokens";
-import { type TripEvent, type Document } from "@/data/types";
+import { type CreateExpenseInput, type Document, type Expense, type TripEvent } from "@/data/types";
 import { cn, isEventNow } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
@@ -25,6 +27,7 @@ function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHH
 export interface PlaceRowProps {
   place: TripEvent;
   dayDate?: string;
+  defaultCurrency?: string;
   isLast?: boolean;
   onUpdate: (event: TripEvent) => void;
   onDelete: (id: string) => void;
@@ -41,6 +44,7 @@ export interface PlaceRowProps {
 export function PlaceRow({
   place,
   dayDate,
+  defaultCurrency,
   isLast,
   onUpdate,
   onDelete,
@@ -67,6 +71,15 @@ export function PlaceRow({
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [expense, setExpense] = useState<Expense | undefined>(place.expense);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setExpense(place.expense);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [place.expense]);
+
+  const placeWithExpense = { ...place, expense };
 
   const now = useNow();
   const hasDocs = (place.docs?.length ?? 0) > 0;
@@ -116,6 +129,71 @@ export function PlaceRow({
     const val = draftNote.trim() || undefined;
     if (val !== place.note) onUpdate({ ...place, note: val });
     setIsEditingNote(false);
+  }
+
+  async function handleExpenseSave(expenseInput: CreateExpenseInput): Promise<void> {
+    if (!place.tripId) {
+      toast.error("Failed to save cost.");
+      return;
+    }
+
+    const linkedExpenseInput = {
+      ...expenseInput,
+      eventId: place.id,
+    };
+
+    try {
+      if (expense?.id) {
+        const updateResult = await updateExpense(expense.id, linkedExpenseInput);
+        if (updateResult?.conversionError) {
+          toast.error("Couldn't convert currency — try again.");
+        }
+        setExpense({
+          ...expense,
+          ...expenseInput,
+          eventId: place.id,
+          convertedAmountTrip: expenseInput.convertedAmountTrip ?? undefined,
+          conversionRateTrip: expenseInput.conversionRateTrip ?? undefined,
+          convertedCurrencyTrip: expenseInput.convertedCurrencyTrip ?? undefined,
+          convertedAmountProfile: expenseInput.convertedAmountProfile ?? undefined,
+          conversionRateProfile: expenseInput.conversionRateProfile ?? undefined,
+          convertedCurrencyProfile: expenseInput.convertedCurrencyProfile ?? undefined,
+        });
+        return;
+      }
+
+      const createResult = await createExpense(place.tripId, linkedExpenseInput);
+      if (createResult.conversionError) {
+        toast.error("Couldn't convert currency — try again.");
+      }
+      setExpense({
+        id: createResult.id,
+        tripId: place.tripId,
+        eventId: place.id,
+        category: expenseInput.category,
+        amount: expenseInput.amount,
+        currency: expenseInput.currency,
+        date: expenseInput.date,
+        note: expenseInput.note,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save cost.");
+      throw error;
+    }
+  }
+
+  async function handleExpenseRemove(): Promise<void> {
+    if (!expense?.id) {
+      return;
+    }
+
+    try {
+      await deleteExpense(expense.id);
+      setExpense(undefined);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove cost.");
+      throw error;
+    }
   }
 
   return (
@@ -242,7 +320,7 @@ export function PlaceRow({
               </div>
 
               <PlaceRowActionBar
-                place={place}
+                place={placeWithExpense}
                 showDocs={showDocs}
                 onToggleDocs={() => setShowDocs((prev) => !prev)}
                 onOpenTime={() => setShowTimeDialog(true)}
@@ -295,7 +373,8 @@ export function PlaceRow({
 
       {!isLinkedEvent && (
         <PlaceRowDialogs
-          place={place}
+          place={placeWithExpense}
+          defaultCurrency={defaultCurrency}
           tripDocs={tripDocs}
           showTimeDialog={showTimeDialog}
           onTimeOpenChange={setShowTimeDialog}
@@ -308,7 +387,8 @@ export function PlaceRow({
           }}
           showCostDialog={showCostDialog}
           onCostOpenChange={setShowCostDialog}
-          onCostSave={(cost) => onUpdate({ ...place, cost })}
+          onCostSave={handleExpenseSave}
+          onCostRemove={handleExpenseRemove}
           showLocationDialog={showLocationDialog}
           onLocationOpenChange={setShowLocationDialog}
           onLocationSave={(location) =>

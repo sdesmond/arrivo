@@ -138,7 +138,6 @@ export async function createEvent(dayId: string, input: CreateEventInput): Promi
     locationAddress: input.locationAddress,
     locationLat: input.locationLat,
     locationLng: input.locationLng,
-    cost: input.cost?.toString(),
     confirmationNumber: input.confirmationNumber,
     note: input.note,
   };
@@ -188,7 +187,6 @@ export async function updateEvent(eventId: string, patch: UpdateEventPatch): Pro
       locationAddress: patch.locationAddress ?? null,
       locationLat: patch.locationLat ?? null,
       locationLng: patch.locationLng ?? null,
-      cost: patch.cost !== undefined ? patch.cost.toString() : null,
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));

@@ -23,6 +23,7 @@ import { UnscheduledEventsSection } from "./unscheduled-events-section";
 export interface TripItineraryViewProps {
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
+  defaultExpenseCurrency?: string;
   isDateless: boolean;
   onOpenEditDates: () => void;
   reservationCount: number;
@@ -78,6 +79,7 @@ interface PickerState {
 export function TripItineraryView({
   days,
   unscheduledEvents,
+  defaultExpenseCurrency,
   isDateless,
   onOpenEditDates,
   reservationCount,
@@ -168,6 +170,7 @@ export function TripItineraryView({
         )}
         <UnscheduledEventsSection
           unscheduledEvents={unscheduledEvents}
+          defaultExpenseCurrency={defaultExpenseCurrency}
           dateFormat={dateFormat}
           tripDocs={tripDocs}
           onUpdateEvent={onUpdateEvent}
@@ -180,6 +183,7 @@ export function TripItineraryView({
             <DayCard
               key={day.dayNumber}
               day={day}
+              defaultExpenseCurrency={defaultExpenseCurrency}
               dateFormat={dateFormat}
               initialOpen={initialExpandedDayNumber === day.dayNumber}
               highlightedEventId={highlightedEventId}

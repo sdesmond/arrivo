@@ -276,7 +276,6 @@ describe("createReservation", () => {
       endLocationName: "Los Angeles International Airport",
       endLocationLat: 33.9416,
       endLocationLng: -118.4085,
-      cost: 499.99,
       confirmationCode: "ABC123",
       serviceNumber: "SVC-9",
       notes: "Late checkout requested",
@@ -296,7 +295,6 @@ describe("createReservation", () => {
       endLocationName: "Los Angeles International Airport",
       endLocationLat: 33.9416,
       endLocationLng: -118.4085,
-      cost: "499.99",
       confirmationCode: "ABC123",
       serviceNumber: "SVC-9",
       notes: "Late checkout requested",
@@ -602,7 +600,6 @@ describe("updateReservation", () => {
     endLocationName: null,
     endLocationLat: null,
     endLocationLng: null,
-    cost: null,
     confirmationCode: null,
     serviceNumber: null,
     notes: null,
@@ -867,24 +864,6 @@ describe("updateReservation", () => {
     expect(updatedReservationValues).not.toHaveProperty("startLocationLng");
   });
 
-  it("updates cost independently, converting to a numeric string", async () => {
-    await updateReservation("res-1", { cost: 349.5 });
-
-    expect(updatedReservationValues).toMatchObject({ cost: "349.5" });
-  });
-
-  it("clears cost when set to null", async () => {
-    mockSelectResults(
-      [{ tripId: "trip-1" }],
-      [{ ...baseRow, cost: "199.00" }],
-      [{ startDate: "2026-08-01", endDate: "2026-08-05" }]
-    );
-
-    await updateReservation("res-1", { cost: null });
-
-    expect(updatedReservationValues).toMatchObject({ cost: null });
-  });
-
   it.each([ReservationType.Lodging, ReservationType.RentalCar, ReservationType.Cruise])(
     "rejects clearing endAt for %s reservations",
     async (type) => {
@@ -1079,7 +1058,6 @@ describe("deleteReservation", () => {
     endLocationName: null,
     endLocationLat: null,
     endLocationLng: null,
-    cost: null,
     confirmationCode: null,
     notes: null,
   };

@@ -208,6 +208,51 @@ describe("updateProfile — server-side validation (AC10)", () => {
     const result = await updateProfile({ defaultCoverType: "graphic" });
     expect(result).toEqual({});
   });
+
+  it("rejects warning threshold >= danger threshold", async () => {
+    const result = await updateProfile({ warningThreshold: 90, dangerThreshold: 50 });
+    expect(result).toEqual({ error: "Warning threshold must be less than danger threshold." });
+  });
+
+  it("rejects equal warning and danger thresholds", async () => {
+    const result = await updateProfile({ warningThreshold: 80, dangerThreshold: 80 });
+    expect(result).toEqual({ error: "Warning threshold must be less than danger threshold." });
+  });
+
+  it("rejects warning threshold out of range (negative)", async () => {
+    const result = await updateProfile({ warningThreshold: -1 });
+    expect(result).toEqual({ error: "Warning threshold must be between 0 and 100." });
+  });
+
+  it("rejects warning threshold out of range (over 100)", async () => {
+    const result = await updateProfile({ warningThreshold: 101 });
+    expect(result).toEqual({ error: "Warning threshold must be between 0 and 100." });
+  });
+
+  it("rejects danger threshold out of range (negative)", async () => {
+    const result = await updateProfile({ dangerThreshold: -1 });
+    expect(result).toEqual({ error: "Danger threshold must be between 0 and 100." });
+  });
+
+  it("rejects danger threshold out of range (over 100)", async () => {
+    const result = await updateProfile({ dangerThreshold: 101 });
+    expect(result).toEqual({ error: "Danger threshold must be between 0 and 100." });
+  });
+
+  it("accepts valid threshold pair", async () => {
+    const result = await updateProfile({ warningThreshold: 50, dangerThreshold: 75 });
+    expect(result).toEqual({});
+  });
+
+  it("threshold fields can be combined with other fields", async () => {
+    const result = await updateProfile({ currency: "EUR", warningThreshold: 30 });
+    expect(result).toEqual({});
+  });
+
+  it("existing field validation still works when thresholds present", async () => {
+    const result = await updateProfile({ currency: "INVALID", warningThreshold: 50 });
+    expect(result).toEqual({ error: "Currency must be a 3-letter ISO code." });
+  });
 });
 
 describe("updateCompanion — passportExpiry validation, zero-row detection, exception safety", () => {

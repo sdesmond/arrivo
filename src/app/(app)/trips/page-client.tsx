@@ -5,7 +5,7 @@ import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
 import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { NewTripDialog } from "@/components/packt/new-trip-dialog";
-import { type TripListEntry } from "@/data/types";
+import { type CurrencyOption, type TripListEntry } from "@/data/types";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import {
   AlertDialog,
@@ -20,12 +20,19 @@ import {
 
 interface TripsPageClientProps {
   initialEntries: TripListEntry[];
+  currencyOptions?: CurrencyOption[];
   nowISO: string;
   dateFormat: string;
   initialViewMode: "cards" | "list";
 }
 
-export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialViewMode }: TripsPageClientProps) {
+export function TripsPageClient({
+  initialEntries,
+  currencyOptions = [],
+  nowISO,
+  dateFormat,
+  initialViewMode,
+}: TripsPageClientProps) {
   const now = new Date(nowISO);
   const handlers = useTripsPageHandlers(initialEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
@@ -55,6 +62,7 @@ export function TripsPageClient({ initialEntries, nowISO, dateFormat, initialVie
       <TripEditSheet
         key={handlers.editingTrip ?? "none"}
         trip={handlers.editingEntry?.trip ?? null}
+        currencyOptions={currencyOptions}
         open={handlers.editingTrip !== null}
         onClose={handlers.closeTripEditSheet}
         onSave={async (patch) => {

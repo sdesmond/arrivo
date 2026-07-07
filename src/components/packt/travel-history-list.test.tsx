@@ -115,6 +115,22 @@ describe("TravelHistoryList", () => {
     expect(screen.getByRole("button", { name: "List" }).className).toContain("active");
   });
 
+  it("switches back to cards view from list mode", () => {
+    render(
+      <TravelHistoryList
+        trips={pastTrips}
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="list"
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
+    expect(screen.getByRole("button", { name: "Cards" }).className).toContain("active");
+  });
+
   it("calls onEditTrip when an edit action is triggered", () => {
     const onEditTrip = vi.fn();
     render(

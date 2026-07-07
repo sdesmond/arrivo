@@ -4,6 +4,7 @@ import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "luc
 import type { TripEvent } from "@/data/types";
 import { toHHMM, pluralize, getLocationDisplayLabel } from "@/lib/utils";
 import { IconSize } from "@/lib/size-tokens";
+import { formatCurrencyChipAmount } from "@/lib/currencies";
 
 function formatTime(timeStr: string): string {
   if (!timeStr) return "—";
@@ -82,15 +83,19 @@ export function PlaceRowActionBar({
         className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: place.cost !== undefined ? "var(--accent-ink)" : "var(--fg-4)",
-          background: place.cost !== undefined ? "var(--accent-soft)" : "none",
+          color: place.expense ? "var(--accent-ink)" : "var(--fg-4)",
+          background: place.expense ? "var(--accent-soft)" : "none",
           border: "1px solid transparent",
         }}
       >
-        <DollarSign size={IconSize.actionChip} strokeWidth={1.5} />
-        {place.cost !== undefined
-          ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(place.cost)
-          : "Add cost"}
+        {place.expense ? (
+          formatCurrencyChipAmount(place.expense.amount, place.expense.currency)
+        ) : (
+          <>
+            <DollarSign size={IconSize.actionChip} strokeWidth={1.5} />
+            Add cost
+          </>
+        )}
       </button>
 
       {/* Docs toggle */}

@@ -3,9 +3,20 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { trips, collaborators, documents, days, events, itineraryNotes, itineraryChecklists, users } from "@/db/schema";
+import {
+  trips,
+  collaborators,
+  documents,
+  days,
+  events,
+  expenses,
+  itineraryNotes,
+  itineraryChecklists,
+  users,
+} from "@/db/schema";
 import { asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import type {
   CreateTripInput,
   UpdateTripPatch,
@@ -16,8 +27,11 @@ import type {
 } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import { deriveGraphicCover, stableStringify } from "@/lib/utils";
-import { lockTripForUpdate } from "@/lib/server-action-locks";
+import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/lib/utils";
+import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
+import { recalculateAll } from "@/lib/currency";
+import { dbExpenseToType } from "@/lib/db-mappers";
+import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
@@ -34,6 +48,48 @@ import {
 
 const DAY_NUMBER_TEMP_OFFSET = 1000;
 const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
+
+function resolveBudgetCurrency(code?: string): string | undefined {
+  const normalizedCode = normalizeCurrencyCode(code);
+  if (!normalizedCode) {
+    return undefined;
+  }
+
+  if (!isSupportedCurrencyCode(normalizedCode)) {
+    throw new Error(`Invalid budget currency: ${normalizedCode}`);
+  }
+
+  return normalizedCode;
+}
+
+/**
+ * Recalculates Trip-Currency conversions for mismatched expenses and persists
+ * the results within the caller's transaction, so a fetch failure rolls back
+ * the trip currency change alongside it (no partial state).
+ */
+async function convertMismatchedExpenses(
+  transaction: DbTransaction,
+  tripId: string,
+  budgetCurrency: string
+): Promise<void> {
+  const expenseRows = await transaction.select().from(expenses).where(eq(expenses.tripId, tripId));
+  const tripExpenses = expenseRows.map(dbExpenseToType);
+  const conversionResults = await recalculateAll(tripExpenses, budgetCurrency);
+
+  await Promise.all(
+    conversionResults.map((result) =>
+      transaction
+        .update(expenses)
+        .set({
+          convertedAmountTrip: result.convertedAmount.toString(),
+          conversionRateTrip: result.rate.toString(),
+          convertedCurrencyTrip: budgetCurrency,
+          updatedAt: new Date(),
+        })
+        .where(eq(expenses.id, result.expenseId))
+    )
+  );
+}
 
 interface RemovedDayContentSummary {
   confirmation: TripDateChangeConfirmation;
@@ -149,8 +205,9 @@ async function summarizeRemovedDayContent(
 
 export async function createTrip(input: CreateTripInput): Promise<{ tripId: string }> {
   const sessionUser = await requireUser();
+  const acceptLanguage = (await headers()).get("accept-language") ?? "";
   const [user] = await db
-    .select({ id: users.id, email: users.email, name: users.name })
+    .select({ id: users.id, email: users.email, name: users.name, currency: users.currency })
     .from(users)
     .where(eq(users.email, sessionUser.email!));
 
@@ -160,6 +217,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   const userId = user.id;
   const userEmail = user.email;
   const userName = user.name ?? userEmail;
+  const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
 
   if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
     throw new Error("Invalid start date format. Expected YYYY-MM-DD.");
@@ -167,6 +225,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
+  const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
 
   let tripId = "";
   await db.transaction(async (tx) => {
@@ -182,9 +241,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
         destinationCountry: input.destinationCountry ?? null,
         destinationCountryCode: input.destinationCountryCode ?? null,
         notes: input.notes ?? null,
-        budgetCurrency: input.budgetCurrency ?? null,
+        budgetCurrency: budgetCurrency ?? null,
         budgetTotal: input.budgetTotal?.toString(),
-        budgetPerPerson: input.budgetPerPerson?.toString(),
         tags: input.tags ?? [],
       })
       .returning();
@@ -269,10 +327,13 @@ export async function updateTripMetadata(
   tripId: string,
   patch: UpdateTripPatch,
   resolution?: TripDateConflictResolution,
-  expectedConfirmation?: TripDateChangeConfirmation
+  expectedConfirmation?: TripDateChangeConfirmation,
+  convertCurrency?: boolean
 ): Promise<UpdateTripMetadataResult> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
+  const budgetCurrency = resolveBudgetCurrency(patch.budgetCurrency);
+  const shouldConvertCurrency = !!convertCurrency && !!budgetCurrency;
 
   let eventDocumentUrlsToCleanup: string[] = [];
   let confirmation: TripDateChangeConfirmation | null = null;
@@ -317,9 +378,8 @@ export async function updateTripMetadata(
         destinationCountry: patch.destinationCountry,
         destinationCountryCode: patch.destinationCountryCode,
         notes: patch.notes,
-        budgetCurrency: patch.budgetCurrency,
+        budgetCurrency,
         budgetTotal: patch.budgetTotal?.toString(),
-        budgetPerPerson: patch.budgetPerPerson?.toString(),
         tags: patch.tags,
         updatedAt: new Date(),
       };
@@ -336,6 +396,9 @@ export async function updateTripMetadata(
             existingDays.map((day) => day.id)
           )
         );
+      if (shouldConvertCurrency) {
+        await convertMismatchedExpenses(transaction, tripId, budgetCurrency!);
+      }
       await transaction.update(trips).set(buildTripUpdatePayload(null, null)).where(eq(trips.id, tripId));
       return;
     }
@@ -399,6 +462,9 @@ export async function updateTripMetadata(
         await transaction.insert(days).values(appendedDayRows);
       }
 
+      if (shouldConvertCurrency) {
+        await convertMismatchedExpenses(transaction, tripId, budgetCurrency!);
+      }
       await transaction
         .update(trips)
         .set(buildTripUpdatePayload(desiredDayRows[0]?.date ?? null, desiredDayRows.at(-1)?.date ?? null))
@@ -408,6 +474,9 @@ export async function updateTripMetadata(
 
     // ── dateless → dateless no-op (metadata-only edit) ──────────────────────
     if (isCurrentlyDateless && !desiredRange.startDate) {
+      if (shouldConvertCurrency) {
+        await convertMismatchedExpenses(transaction, tripId, budgetCurrency!);
+      }
       await transaction.update(trips).set(buildTripUpdatePayload(null, null)).where(eq(trips.id, tripId));
       return;
     }
@@ -505,6 +574,9 @@ export async function updateTripMetadata(
         .where(eq(days.id, existingDay.id));
     }
 
+    if (shouldConvertCurrency) {
+      await convertMismatchedExpenses(transaction, tripId, budgetCurrency!);
+    }
     await transaction
       .update(trips)
       .set(buildTripUpdatePayload(desiredDayRows[0]?.date ?? null, desiredDayRows.at(-1)?.date ?? null))

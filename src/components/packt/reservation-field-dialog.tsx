@@ -130,11 +130,10 @@ export function ReservationFieldDialog(props: ReservationFieldDialogProps) {
             autoFocus
           />
         )}
-        <DialogFooter>
-          {props.value && (
+        <DialogFooter className="flex-row items-center justify-between">
+          {props.value ? (
             <Button
               variant="ghost"
-              className="sm:mr-auto"
               onClick={() => {
                 props.onSave(undefined);
                 props.onOpenChange(false);
@@ -142,6 +141,8 @@ export function ReservationFieldDialog(props: ReservationFieldDialogProps) {
             >
               Remove
             </Button>
+          ) : (
+            <span />
           )}
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => props.onOpenChange(false)}>

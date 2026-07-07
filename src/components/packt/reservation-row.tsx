@@ -4,6 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { Trash2, Wallet, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { IconSize } from "@/lib/size-tokens";
+import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
 import {
   ANCHOR_LABELS,
   SERVICE_NUMBER_LABELS,
@@ -20,11 +21,14 @@ import { CostDialog } from "@/components/packt/cost-dialog";
 import { ReservationFieldDialog } from "@/components/packt/reservation-field-dialog";
 import {
   ReservationType,
+  type CreateExpenseInput,
   type Document,
+  type Expense,
   type Reservation,
   type SavedLocationValue,
   type UpdateReservationPatch,
 } from "@/data/types";
+import { formatCurrencyChipAmount } from "@/lib/currencies";
 import { cn, combineDateAndTimeToIso, getLocationDisplayLabel, pluralize } from "@/lib/utils";
 
 export interface ReservationRowProps {
@@ -32,6 +36,7 @@ export interface ReservationRowProps {
   type: ReservationType;
   isLast: boolean;
   tripDocs?: Document[];
+  defaultCurrency?: string;
   highlighted?: boolean;
   position?: number;
   total?: number;
@@ -72,6 +77,7 @@ export function ReservationRow({
   type,
   isLast,
   tripDocs,
+  defaultCurrency,
   highlighted = false,
   position = 1,
   total = 1,
@@ -95,7 +101,7 @@ export function ReservationRow({
       reservation.endLocationLng
     )
   );
-  const [cost, setCost] = useState<number | undefined>(reservation.cost);
+  const [expense, setExpense] = useState<Expense | undefined>(reservation.expense);
   const [confirmationCode, setConfirmationCode] = useState<string | undefined>(
     reservation.confirmationCode?.trim() || undefined
   );
@@ -114,10 +120,7 @@ export function ReservationRow({
   const [endDateDraft, setEndDateDraft] = useState<string | undefined>(undefined);
   const [endTimeDraft, setEndTimeDraft] = useState<string | undefined>(undefined);
   const [dateError, setDateError] = useState<string | undefined>(undefined);
-  const costDisplay =
-    cost != null
-      ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cost)
-      : "";
+  const costDisplay = expense ? formatCurrencyChipAmount(expense.amount, expense.currency) : "";
   const [isDeleting, startTransition] = useTransition();
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
@@ -136,6 +139,12 @@ export function ReservationRow({
     : total > 1
       ? `Delete ${provider} reservation (${position} of ${total})`
       : `Delete ${provider}`;
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setExpense(reservation.expense);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [reservation.expense]);
 
   useEffect(() => {
     if (editingDates) {
@@ -224,6 +233,64 @@ export function ReservationRow({
         deletingRef.current = false;
       }
     });
+  }
+
+  async function handleExpenseSave(expenseInput: CreateExpenseInput): Promise<void> {
+    try {
+      if (expense?.id) {
+        const updateResult = await updateExpense(expense.id, { ...expenseInput, reservationId: reservation.id });
+        if (updateResult?.conversionError) {
+          toast.error("Couldn't convert currency — try again.");
+        }
+        setExpense({
+          ...expense,
+          ...expenseInput,
+          reservationId: reservation.id,
+          convertedAmountTrip: expenseInput.convertedAmountTrip ?? undefined,
+          conversionRateTrip: expenseInput.conversionRateTrip ?? undefined,
+          convertedCurrencyTrip: expenseInput.convertedCurrencyTrip ?? undefined,
+          convertedAmountProfile: expenseInput.convertedAmountProfile ?? undefined,
+          conversionRateProfile: expenseInput.conversionRateProfile ?? undefined,
+          convertedCurrencyProfile: expenseInput.convertedCurrencyProfile ?? undefined,
+        });
+        return;
+      }
+
+      const createResult = await createExpense(reservation.tripId, {
+        ...expenseInput,
+        reservationId: reservation.id,
+      });
+      if (createResult.conversionError) {
+        toast.error("Couldn't convert currency — try again.");
+      }
+      setExpense({
+        id: createResult.id,
+        tripId: reservation.tripId,
+        reservationId: reservation.id,
+        category: expenseInput.category,
+        amount: expenseInput.amount,
+        currency: expenseInput.currency,
+        date: expenseInput.date,
+        note: expenseInput.note,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save.");
+      throw error;
+    }
+  }
+
+  async function handleExpenseRemove(): Promise<void> {
+    if (!expense?.id) {
+      return;
+    }
+
+    try {
+      await deleteExpense(expense.id);
+      setExpense(undefined);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save.");
+      throw error;
+    }
   }
 
   return (
@@ -394,13 +461,19 @@ export function ReservationRow({
           className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-            color: cost != null ? "var(--accent-ink)" : "var(--fg-4)",
-            background: cost != null ? "var(--accent-soft)" : "none",
+            color: expense ? "var(--accent-ink)" : "var(--fg-4)",
+            background: expense ? "var(--accent-soft)" : "none",
             border: "1px solid transparent",
           }}
         >
-          <DollarSign size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
-          {costDisplay || "Add cost"}
+          {expense ? (
+            costDisplay
+          ) : (
+            <>
+              <DollarSign size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
+              Add cost
+            </>
+          )}
         </button>
         <button
           type="button"
@@ -537,15 +610,12 @@ export function ReservationRow({
         }}
       />
       <CostDialog
-        cost={cost}
+        expense={expense}
+        defaultCurrency={defaultCurrency}
         open={showCostDialog}
         onOpenChange={setShowCostDialog}
-        onSave={(next) => {
-          setCost(next);
-          void updateReservation(reservation.id, { cost: next ?? null }).catch((err) =>
-            toast.error(err instanceof Error ? err.message : "Failed to save.")
-          );
-        }}
+        onSave={handleExpenseSave}
+        onRemove={handleExpenseRemove}
       />
       <ReservationFieldDialog
         title="Confirmation code"

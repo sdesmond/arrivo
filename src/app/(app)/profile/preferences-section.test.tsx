@@ -23,6 +23,8 @@ const mockUser: UserProfile = {
   passportExpiry: null,
   passportNationality: null,
   knownTravelerNumber: null,
+  warningThreshold: 80,
+  dangerThreshold: 90,
   loyaltyNumbers: [],
   wishlistDestinations: [],
   companions: [],
@@ -36,7 +38,7 @@ describe("ProfilePreferencesSection", () => {
   it("renders with initial values", () => {
     render(<ProfilePreferencesSection user={mockUser} />);
     expect(screen.getByText("Date format")).toBeInTheDocument();
-    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
     expect(screen.getByText("Distance units")).toBeInTheDocument();
   });
 
@@ -56,12 +58,13 @@ describe("ProfilePreferencesSection", () => {
     expect(metricBtn).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("currency input changes and uppercases value", async () => {
+  it("currency picker is searchable and updates selection", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    const input = screen.getByLabelText("Currency") as HTMLInputElement;
-    await userEvent.clear(input);
-    await userEvent.type(input, "eur");
-    expect(input.value).toBe("EUR");
+    await userEvent.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Search currencies" }), "euro");
+    await userEvent.click(screen.getByRole("option", { name: /Euro EUR/i }));
+
+    expect(screen.getByRole("button", { name: /Currency: Euro EUR/i })).toBeInTheDocument();
   });
 
   it("Save button disabled when not dirty", () => {
@@ -86,9 +89,8 @@ describe("ProfilePreferencesSection", () => {
 
   it("sends only currency when only currency changes", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    const input = screen.getByLabelText("Currency") as HTMLInputElement;
-    await userEvent.clear(input);
-    await userEvent.type(input, "EUR");
+    await userEvent.click(screen.getByRole("button", { name: /Currency: United States Dollar USD/i }));
+    await userEvent.click(screen.getByRole("option", { name: /Euro EUR/i }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ currency: "EUR" });
   });
@@ -137,5 +139,73 @@ describe("ProfilePreferencesSection", () => {
     render(<ProfilePreferencesSection user={userWithGraphic} />);
     expect(screen.getByRole("button", { name: "Graphic" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Photo" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("renders Budget section with heading", () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByText("Budget")).toBeInTheDocument();
+  });
+
+  it("renders threshold selects with defaults", () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByRole("combobox", { name: "Warning %" })).toHaveTextContent(/^80/);
+    expect(screen.getByRole("combobox", { name: "Danger %" })).toHaveTextContent(/^90/);
+  });
+
+  it("renders threshold selects with saved values", () => {
+    const userWithThresholds: UserProfile = { ...mockUser, warningThreshold: 50, dangerThreshold: 75 };
+    render(<ProfilePreferencesSection user={userWithThresholds} />);
+    expect(screen.getByRole("combobox", { name: "Warning %" })).toHaveTextContent(/^50/);
+    expect(screen.getByRole("combobox", { name: "Danger %" })).toHaveTextContent(/^75/);
+  });
+
+  it("danger options <= warning threshold are disabled", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Danger %" }));
+    const disabledOption = await screen.findByRole("option", { name: "80%" });
+    expect(disabledOption).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("changing warning threshold auto-adjusts danger when invalid", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Warning %" }));
+    await user.click(await screen.findByRole("option", { name: "90%" }));
+    expect(screen.getByRole("combobox", { name: "Danger %" })).toHaveTextContent(/^100/);
+  });
+
+  it("Save enabled after changing warning threshold", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Warning %" }));
+    await user.click(await screen.findByRole("option", { name: "50%" }));
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+  });
+
+  it("both threshold fields sent in patch when either changes", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Warning %" }));
+    await user.click(await screen.findByRole("option", { name: "50%" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ warningThreshold: 50, dangerThreshold: 90 });
+  });
+
+  it("changing danger threshold marks dirty", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Danger %" }));
+    await user.click(await screen.findByRole("option", { name: "100%" }));
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+  });
+
+  it("existing field functionality preserved alongside Budget section", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    await userEvent.click(screen.getByRole("button", { name: "Day/Month" }));
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ dateFormat: "DD/MM/YYYY" });
   });
 });

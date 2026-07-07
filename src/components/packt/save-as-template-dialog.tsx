@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleSave(): Promise<void> {
     const trimmed = name.trim();
@@ -55,7 +56,7 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()} disablePointerDismissal>
-      <DialogContent showCloseButton={false}>
+      <DialogContent showCloseButton={false} initialFocus={inputRef}>
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle id="save-template-dialog-title">Save as template</DialogTitle>
@@ -81,6 +82,7 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
               Template name
             </label>
             <Input
+              ref={inputRef}
               id="save-template-name"
               className="h-11"
               placeholder="e.g. Beach Holiday"

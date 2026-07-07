@@ -53,8 +53,31 @@ export const CoverType = {
 } as const;
 export type CoverType = (typeof CoverType)[keyof typeof CoverType];
 
+export const ExpenseCategory = {
+  Food: "food",
+  Lodging: "lodging",
+  Transport: "transport",
+  Activity: "activity",
+  Sightseeing: "sightseeing",
+  Gas: "gas",
+  Groceries: "groceries",
+  Flights: "flights",
+  CarRental: "car-rental",
+  Shopping: "shopping",
+  Misc: "misc",
+} as const;
+export type ExpenseCategory = (typeof ExpenseCategory)[keyof typeof ExpenseCategory];
+
+export const BudgetStatus = {
+  Neutral: "neutral",
+  Warning: "warning",
+  Danger: "danger",
+} as const;
+export type BudgetStatus = (typeof BudgetStatus)[keyof typeof BudgetStatus];
+
 export const TripDetailTab = {
   Itinerary: "itin",
+  Budget: "budget",
   Map: "map",
   Documents: "docs",
   Packing: "pack",
@@ -62,6 +85,27 @@ export const TripDetailTab = {
   Reservations: "res",
 } as const;
 export type TripDetailTab = (typeof TripDetailTab)[keyof typeof TripDetailTab];
+
+export const SpendingDateRange = {
+  ThisYear: "this-year",
+  LastYear: "last-year",
+  Last12Months: "last-12-months",
+  AllTime: "all-time",
+} as const;
+export type SpendingDateRange = (typeof SpendingDateRange)[keyof typeof SpendingDateRange];
+
+export interface SpendingSummary {
+  totalSpend: number;
+  averageTripSpend: number;
+  averageDailySpend: number | null;
+  averageTripDuration: number | null;
+  tripCount: number;
+  countedTripCount: number;
+  totalTripDays: number;
+  categoryBreakdown: { category: ExpenseCategory; total: number; count: number }[];
+  destinationBreakdown: { countryCode: string | null; countryName: string; total: number }[];
+  budgetAdherence: { underBudget: number; onBudget: number; overBudget: number };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USER
@@ -92,6 +136,8 @@ export interface UserProfile {
   passportNationality: string | null;
   knownTravelerNumber: string | null;
   defaultCoverType?: CoverType;
+  warningThreshold: number;
+  dangerThreshold: number;
   loyaltyNumbers: LoyaltyNumber[];
   wishlistDestinations: WishlistDestination[];
   companions: Companion[];
@@ -107,6 +153,8 @@ export interface UpdateUserProfilePatch {
   passportExpiry?: string;
   passportNationality?: string | null;
   knownTravelerNumber?: string | null;
+  warningThreshold?: number;
+  dangerThreshold?: number;
 }
 
 export interface AddLoyaltyNumberInput {
@@ -220,7 +268,7 @@ export interface Reservation {
   endLocationName?: string;
   endLocationLat?: number;
   endLocationLng?: number;
-  cost?: number;
+  expense?: Expense;
   confirmationCode?: string;
   serviceNumber?: string;
   notes?: string;
@@ -271,6 +319,31 @@ export interface LocationLookupSelection {
   center: [number, number];
 }
 
+export interface CurrencyOption {
+  code: string;
+  name: string;
+}
+
+export interface Expense {
+  id: string;
+  tripId: string;
+  eventId?: string;
+  reservationId?: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency: string;
+  convertedAmountTrip?: number;
+  conversionRateTrip?: number;
+  convertedCurrencyTrip?: string;
+  convertedAmountProfile?: number;
+  conversionRateProfile?: number;
+  convertedCurrencyProfile?: string;
+  date: string;
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP EVENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -297,9 +370,7 @@ export interface TripEvent {
   locationAddress?: string;
   locationLat?: number;
   locationLng?: number;
-
-  // ── Cost ──────────────────────────────────────────────────────────────────
-  cost?: number;
+  expense?: Expense;
 
   // ── Booking reference ─────────────────────────────────────────────────────
   confirmationNumber?: string;
@@ -400,7 +471,6 @@ export interface Collaborator {
 export interface Budget {
   currency: string;
   total?: number;
-  perPerson?: number;
 }
 
 export interface PackingProgress {
@@ -551,6 +621,7 @@ export interface TripDetailPayload {
   packingItems: PackingItem[];
   packingLists: TripPackingList[];
   reservations: Reservation[];
+  expenses: Expense[];
 }
 
 export interface NewTripDraft {
@@ -576,7 +647,6 @@ export interface CreateTripInput {
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;
-  budgetPerPerson?: number;
   tags?: string[];
 }
 
@@ -591,7 +661,6 @@ export interface UpdateTripPatch {
   notes?: string;
   budgetCurrency?: string;
   budgetTotal?: number;
-  budgetPerPerson?: number;
   tags?: string[];
 }
 
@@ -621,6 +690,12 @@ export type UpdateTripMetadataResult =
   | { status: "saved" }
   | { status: "confirmation-required"; confirmation: TripDateChangeConfirmation };
 
+export const TripCurrencyChangeMode = {
+  Convert: "convert",
+  LeaveAsIs: "leave-as-is",
+} as const;
+export type TripCurrencyChangeMode = (typeof TripCurrencyChangeMode)[keyof typeof TripCurrencyChangeMode];
+
 export interface CreateEventInput {
   name: string;
   startAt?: string; // ISO datetime
@@ -629,7 +704,6 @@ export interface CreateEventInput {
   locationAddress?: string;
   locationLat?: number;
   locationLng?: number;
-  cost?: number;
   confirmationNumber?: string;
   note?: string;
   afterEventId?: string;
@@ -644,7 +718,6 @@ export interface UpdateEventPatch {
   locationAddress?: string;
   locationLat?: number;
   locationLng?: number;
-  cost?: number;
   confirmationNumber?: string;
   note?: string;
 }
@@ -700,7 +773,6 @@ export interface CreateReservationInput {
   endLocationName?: string;
   endLocationLat?: number;
   endLocationLng?: number;
-  cost?: number;
   confirmationCode?: string;
   serviceNumber?: string;
   notes?: string;
@@ -718,10 +790,41 @@ export interface UpdateReservationPatch {
   endLocationName?: string;
   endLocationLat?: number;
   endLocationLng?: number;
-  cost?: number | null;
   confirmationCode?: string;
   serviceNumber?: string;
   notes?: string;
+}
+
+export interface CreateExpenseInput {
+  eventId?: string;
+  reservationId?: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency: string;
+  date: string;
+  note?: string;
+  convertedAmountTrip?: number | null;
+  conversionRateTrip?: number | null;
+  convertedCurrencyTrip?: string | null;
+  convertedAmountProfile?: number | null;
+  conversionRateProfile?: number | null;
+  convertedCurrencyProfile?: string | null;
+}
+
+export interface UpdateExpensePatch {
+  eventId?: string | null;
+  reservationId?: string | null;
+  category?: ExpenseCategory;
+  amount?: number;
+  currency?: string;
+  date?: string;
+  note?: string | null;
+  convertedAmountTrip?: number | null;
+  conversionRateTrip?: number | null;
+  convertedCurrencyTrip?: string | null;
+  convertedAmountProfile?: number | null;
+  conversionRateProfile?: number | null;
+  convertedCurrencyProfile?: string | null;
 }
 
 export interface AddPackingItemInput {

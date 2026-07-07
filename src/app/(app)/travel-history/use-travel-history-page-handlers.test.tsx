@@ -3,7 +3,19 @@ import { renderHook, act } from "@testing-library/react";
 import { toast } from "sonner";
 import { deleteTrip, updateTripMetadata } from "@/app/(app)/trips/actions";
 import { useTravelHistoryPageHandlers } from "./use-travel-history-page-handlers";
-import { TripDateConflictResolution, type TripListEntry } from "@/data/types";
+import { SpendingDateRange, TripDateConflictResolution, type TripListEntry } from "@/data/types";
+
+const { mockPathname, mockSearchParams, mockRouterPush } = vi.hoisted(() => ({
+  mockPathname: vi.fn(() => "/travel-history"),
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
+  mockRouterPush: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname(),
+  useSearchParams: () => mockSearchParams(),
+  useRouter: () => ({ push: mockRouterPush }),
+}));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -37,6 +49,53 @@ const entries: TripListEntry[] = [
 describe("useTravelHistoryPageHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPathname.mockReturnValue("/travel-history");
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+  });
+
+  it("defaults activeView to trips when no ?view= search param is present", () => {
+    const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
+
+    expect(result.current.activeView).toBe("trips");
+  });
+
+  it("initializes activeView to spending from the ?view= search param", () => {
+    mockSearchParams.mockReturnValue(new URLSearchParams("view=spending"));
+
+    const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
+
+    expect(result.current.activeView).toBe("spending");
+  });
+
+  it("handleViewChange navigates to ?view=spending", () => {
+    const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
+
+    act(() => {
+      result.current.handleViewChange("spending");
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/travel-history?view=spending");
+  });
+
+  it("handleViewChange navigating back to trips removes the view param", () => {
+    mockSearchParams.mockReturnValue(new URLSearchParams("view=spending&range=all-time"));
+    const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
+
+    act(() => {
+      result.current.handleViewChange("trips");
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/travel-history?range=all-time");
+  });
+
+  it("handleRangeChange navigates with view=spending and the selected range", () => {
+    const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
+
+    act(() => {
+      result.current.handleRangeChange(SpendingDateRange.AllTime);
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/travel-history?view=spending&range=all-time");
   });
 
   it("filters to past trips only and sorts by endDate descending", () => {

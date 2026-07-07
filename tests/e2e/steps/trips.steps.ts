@@ -8,6 +8,19 @@ Given("I have an existing trip", async ({ page, scenario }) => {
   await scenario.gotoCurrentTrip(page);
 });
 
+Given("I am signed in with preferred currency {string}", async ({ page, scenario }, currency: string) => {
+  await scenario.materialize({
+    user: {
+      overrides: {
+        user: {
+          currency,
+        },
+      },
+    },
+  });
+  await scenario.signIn(page);
+});
+
 When("I open the trip edit sheet", async ({ page }) => {
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
@@ -16,6 +29,10 @@ When("I open the trip edit sheet", async ({ page }) => {
 When("I change the trip name to {string}", async ({ page }, name: string) => {
   const nameInput = page.getByRole("dialog").getByRole("textbox").first();
   await nameInput.fill(name);
+});
+
+When("I type {string} in the budget field", async ({ page }, budget: string) => {
+  await page.getByRole("dialog").getByRole("textbox", { name: "Budget" }).fill(budget);
 });
 
 When("I save", async ({ page }) => {
@@ -71,4 +88,51 @@ When("I navigate to the trips list", async ({ page }) => {
 Then("I see an {string} section with {string}", async ({ page }, sectionTitle: string, tripName: string) => {
   await expect(page.getByRole("heading", { name: sectionTitle })).toBeVisible();
   await expect(page.getByText(tripName).first()).toBeVisible();
+});
+
+When("I open the Budget tab", async ({ page }) => {
+  await page.getByRole("button", { name: "Budget" }).click();
+});
+
+When("I click the Add Misc Expense button", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Misc Expense" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+When("I enter {string} as the expense amount", async ({ page }, amount: string) => {
+  await page.getByRole("textbox", { name: "Amount" }).fill(amount);
+});
+
+When("I choose {string} as the expense currency", async ({ page }, currency: string) => {
+  await page.getByRole("button", { name: /Currency:/i }).click();
+  await page.getByRole("textbox", { name: "Search currencies" }).fill(currency);
+  await page.getByRole("option", { name: new RegExp(`${currency}$`, "i") }).click();
+});
+
+When("I choose {string} as the expense category", async ({ page }, category: string) => {
+  await page.getByRole("button", { name: "Select category" }).click();
+  await page.getByRole("option", { name: category, exact: true }).click();
+});
+
+When("I save the Misc Expense", async ({ page }) => {
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+Then("the Budget tab shows {string} as Actual spent", async ({ page }, amount: string) => {
+  await expect(page.getByText(amount, { exact: true }).first()).toBeVisible();
+});
+
+Then("the Budget tab shows {string} as Budget", async ({ page }, amount: string) => {
+  const escapedAmount = amount.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  await expect(
+    page
+      .locator("p")
+      .filter({ hasText: new RegExp(`^Budget\\s+${escapedAmount}$`) })
+      .first()
+  ).toBeVisible();
+});
+
+Then("the Budget tab shows a {string} category tile", async ({ page }, category: string) => {
+  await expect(page.locator('[data-slot="category-tile-grid"]').getByText(category, { exact: true })).toBeVisible();
 });

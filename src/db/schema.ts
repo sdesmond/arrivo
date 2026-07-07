@@ -35,6 +35,8 @@ export const users = pgTable("users", {
   passportNationality: text("passport_nationality"),
   knownTravelerNumber: text("known_traveler_number"),
   defaultCoverType: text("default_cover_type"),
+  warningThreshold: integer("warning_threshold").default(80).notNull(),
+  dangerThreshold: integer("danger_threshold").default(90).notNull(),
 });
 
 export const accounts = pgTable(
@@ -142,7 +144,6 @@ export const events = pgTable(
     locationAddress: text("location_address"),
     locationLat: doublePrecision("location_lat"),
     locationLng: doublePrecision("location_lng"),
-    cost: numeric("cost", { precision: 12, scale: 2 }),
     confirmationNumber: text("confirmation_number"),
     position: integer("position").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
@@ -170,13 +171,40 @@ export const reservations = pgTable("reservations", {
   endLocationName: text("end_location_name"),
   endLocationLat: doublePrecision("end_location_lat"),
   endLocationLng: doublePrecision("end_location_lng"),
-  cost: numeric("cost", { precision: 12, scale: 2 }),
   confirmationCode: text("confirmation_code"),
   serviceNumber: text("service_number"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
 });
+
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    tripId: uuid("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
+    reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    currency: text("currency").notNull(),
+    convertedAmountTrip: numeric("converted_amount_trip", { precision: 12, scale: 2 }),
+    conversionRateTrip: numeric("conversion_rate_trip", { precision: 18, scale: 8 }),
+    convertedCurrencyTrip: text("converted_currency_trip"),
+    convertedAmountProfile: numeric("converted_amount_profile", { precision: 12, scale: 2 }),
+    conversionRateProfile: numeric("conversion_rate_profile", { precision: 18, scale: 8 }),
+    convertedCurrencyProfile: text("converted_currency_profile"),
+    date: date("date").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
+  },
+  (table) => [index().on(table.tripId), index().on(table.eventId), index().on(table.reservationId)]
+);
 
 export const documents = pgTable("documents", {
   id: uuid("id")

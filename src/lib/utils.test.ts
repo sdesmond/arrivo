@@ -7,9 +7,11 @@ import {
   getDisplayedTripDays,
   getTripDays,
   getActiveDayNumber,
+  getWallClockDateKey,
   getTodayDisplay,
   formatTripDate,
   detectDefaultDateFormat,
+  detectPreferredCurrency,
   formatDate,
   combineDateAndTimeToIso,
   toHHMM,
@@ -24,6 +26,7 @@ import {
   getLocationDisplayLabel,
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
+  formatCurrency,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -177,6 +180,20 @@ describe("getDisplayedTripDays", () => {
   });
 });
 
+describe("getWallClockDateKey", () => {
+  it("returns the local wall-clock date, not the UTC date", () => {
+    // Late-evening local instant. Built with the local Date constructor so the
+    // assertion is timezone-invariant: the wall-clock date is May 13 regardless
+    // of the runtime zone, whereas toISOString() would roll forward west of UTC.
+    const lateEvening = new Date(2026, 4, 13, 23, 30);
+    expect(getWallClockDateKey(lateEvening)).toBe("2026-05-13");
+  });
+
+  it("zero-pads single-digit months and days", () => {
+    expect(getWallClockDateKey(new Date(2026, 0, 5, 9, 0))).toBe("2026-01-05");
+  });
+});
+
 describe("getActiveDayNumber", () => {
   it("returns 1 on startDate", () => {
     const now = new Date("2026-05-13T12:00:00");
@@ -245,6 +262,32 @@ describe("detectDefaultDateFormat", () => {
   });
 });
 
+describe("detectPreferredCurrency", () => {
+  it("returns USD for en-US", () => {
+    expect(detectPreferredCurrency("en-US,en;q=0.9")).toBe("USD");
+  });
+
+  it("returns EUR for fr-FR", () => {
+    expect(detectPreferredCurrency("fr-FR")).toBe("EUR");
+  });
+
+  it("returns GBP for en-GB", () => {
+    expect(detectPreferredCurrency("en-GB,en;q=0.9")).toBe("GBP");
+  });
+
+  it("returns JPY for ja-JP", () => {
+    expect(detectPreferredCurrency("ja-JP")).toBe("JPY");
+  });
+
+  it("falls back to USD for plain language without region", () => {
+    expect(detectPreferredCurrency("en")).toBe("USD");
+  });
+
+  it("falls back to USD for empty string", () => {
+    expect(detectPreferredCurrency("")).toBe("USD");
+  });
+});
+
 describe("formatDate", () => {
   it("formats as MM/DD/YYYY (month-first readable)", () => {
     expect(formatDate("2026-04-24", "MM/DD/YYYY")).toBe("Apr 24, 2026");
@@ -256,6 +299,25 @@ describe("formatDate", () => {
 
   it("handles single-digit day without leading zero", () => {
     expect(formatDate("2026-01-05", "DD/MM/YYYY")).toBe("5 Jan 2026");
+  });
+});
+
+describe("formatCurrency", () => {
+  it("formats positive amounts correctly", () => {
+    expect(formatCurrency(1234.5, "USD")).toBe("$1,234.50");
+  });
+
+  it("formats zero as $0.00", () => {
+    expect(formatCurrency(0, "USD")).toBe("$0.00");
+  });
+
+  it("handles non-finite amounts gracefully", () => {
+    expect(formatCurrency(NaN, "USD")).toBe("USD ??");
+    expect(formatCurrency(Infinity, "USD")).toBe("USD ??");
+  });
+
+  it("handles unknown currency codes with fallback", () => {
+    expect(formatCurrency(10, "XXXX")).toBe("XXXX 10.00");
   });
 });
 

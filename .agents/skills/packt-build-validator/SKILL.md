@@ -56,7 +56,9 @@ You must split the validation workflow into five distinct tasks. Execute them **
    - Capture overall scenario status, failing scenario names, and any setup or browser errors.
 
 5. **Worker 5 (Next.js Build Profile):**
-   - Command: `npm run build 2>&1`
+   - Command: `NEXT_DISTDIR=.next-validate npm run build 2>&1`
+   - Builds into an isolated `.next-validate` dir (never the default `.next`) so this never races or
+     corrupts a concurrently running `npm run dev` session, which compiles into `.next` on every request.
    - Capture build integrity and final chunk compilation layout.
 
 ## Aggregation & Reporting Rules

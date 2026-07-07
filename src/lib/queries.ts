@@ -4,6 +4,7 @@ import {
   trips,
   days,
   events,
+  expenses,
   documents,
   reservations,
   collaborators,
@@ -19,7 +20,7 @@ import {
   packingTemplates,
   packingTemplateItems,
 } from "@/db/schema";
-import { eq, and, sql, inArray, asc, count, isNull } from "drizzle-orm";
+import { eq, and, or, sql, inArray, asc, count, isNull } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { deriveLinkedEvents } from "@/lib/linked-events";
 import {
@@ -27,6 +28,7 @@ import {
   dbEventToType,
   dbDocToType,
   dbReservationToType,
+  dbExpenseToType,
   dbCollabToType,
   dbChecklistToType,
   dbLoyaltyToType,
@@ -38,8 +40,16 @@ import {
   dbTemplateItemToType,
 } from "@/lib/db-mappers";
 import { CoverType } from "@/data/types";
-import { getTripStatus, toLocalDateKey } from "@/lib/utils";
-import type { PackingTemplate, PackingTemplateItem, TripListEntry, TripDetailPayload, UserProfile } from "@/data/types";
+import { getTripStatus, getWallClockDateKey, toLocalDateKey } from "@/lib/utils";
+import type {
+  PackingTemplate,
+  PackingTemplateItem,
+  TripListEntry,
+  TripDetailPayload,
+  UserProfile,
+  Trip,
+  Expense,
+} from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
 
@@ -69,6 +79,8 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
       passportNationality: users.passportNationality,
       knownTravelerNumber: users.knownTravelerNumber,
       defaultCoverType: users.defaultCoverType,
+      warningThreshold: users.warningThreshold,
+      dangerThreshold: users.dangerThreshold,
     })
     .from(users)
     .where(eq(users.id, id));
@@ -108,7 +120,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
 
   if (rows.length === 0) return [];
 
-  const todayISO = now.toISOString().slice(0, 10);
+  const todayISO = getWallClockDateKey(now);
   const tripIds = rows.map(({ trip }) => trip.id);
 
   const [allTodayEvents, allSummaryEvents, dayCountAggs, packingAggs, allDocs, allCollabs, allReservations] =
@@ -222,6 +234,52 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
   });
 }
 
+export async function listExpensesForUserInRange(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<{ trips: Trip[]; expenses: Expense[] }> {
+  const tripRows = await db
+    .select({ trip: trips })
+    .from(trips)
+    .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
+    .where(
+      or(
+        isNull(trips.startDate),
+        isNull(trips.endDate),
+        and(sql`${trips.startDate} <= ${endDate}`, sql`${trips.endDate} >= ${startDate}`)
+      )
+    );
+
+  const tripList = tripRows.map(({ trip }) => trip);
+  if (tripList.length === 0) {
+    return { trips: [], expenses: [] };
+  }
+
+  const tripIds = tripList.map((trip) => trip.id);
+  const [expenseRows, dayCountAggs] = await Promise.all([
+    db.select().from(expenses).where(inArray(expenses.tripId, tripIds)),
+    db
+      .select({ tripId: days.tripId, dayTotal: count() })
+      .from(days)
+      .where(inArray(days.tripId, tripIds))
+      .groupBy(days.tripId),
+  ]);
+
+  const dayTotalsByTrip = dayCountAggs.reduce<Record<string, number>>((acc, dayCountAgg) => {
+    acc[dayCountAgg.tripId] = dayCountAgg.dayTotal;
+    return acc;
+  }, {});
+
+  return {
+    trips: tripList.map((trip) => {
+      const tripEntry = dbTripToType(trip);
+      return { ...tripEntry, dayTotal: dayTotalsByTrip[trip.id] ?? tripEntry.dayTotal };
+    }),
+    expenses: expenseRows.map(dbExpenseToType),
+  };
+}
+
 export async function listTemplatesForUser(userId: string): Promise<PackingTemplate[]> {
   const rows = await db
     .select()
@@ -288,6 +346,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .orderBy(asc(tripPackingLists.position));
 
   const tripReservations = await db.select().from(reservations).where(eq(reservations.tripId, tripId));
+  const tripExpenses = await db.select().from(expenses).where(eq(expenses.tripId, tripId));
 
   const reservationIds = tripReservations.map((row) => row.id);
   const reservationDocRows =
@@ -306,8 +365,20 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     docsByReservationId.set(docRow.reservationId, existing);
   }
 
+  const expensesByEventId = new Map<string, typeof expenses.$inferSelect>();
+  const expensesByReservationId = new Map<string, typeof expenses.$inferSelect>();
+  for (const expenseRow of tripExpenses) {
+    if (expenseRow.eventId) {
+      expensesByEventId.set(expenseRow.eventId, expenseRow);
+    }
+    if (expenseRow.reservationId) {
+      expensesByReservationId.set(expenseRow.reservationId, expenseRow);
+    }
+  }
+
   const reservationsDomain = tripReservations.map((row) => ({
     ...dbReservationToType(row),
+    expense: expensesByReservationId.get(row.id) ? dbExpenseToType(expensesByReservationId.get(row.id)!) : undefined,
     documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
   }));
   const linkedEvents = deriveLinkedEvents(reservationsDomain);
@@ -418,6 +489,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
         ),
         ...(eventsByDay.get(day.id) ?? []).map((event) => ({
           ...dbEventToType(event),
+          expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
           docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
         })),
       ].sort((first, second) => first.position - second.position),
@@ -432,6 +504,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     })),
     unscheduledEvents: unscheduledEvents.map((event) => ({
       ...dbEventToType(event),
+      expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
       docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
     })),
     docs: tripDocs.map(dbDocToType),
@@ -439,5 +512,6 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     packingItems: tripPackingItems.map(dbPackingItemToType),
     packingLists: tripPackingListRows.map(dbPackingListToType),
     reservations: reservationsDomain,
+    expenses: tripExpenses.map(dbExpenseToType),
   };
 }

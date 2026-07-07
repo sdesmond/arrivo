@@ -71,10 +71,10 @@ function DrawerContent({ className, children, ...props }: DrawerPrimitive.Popup.
             "data-[direction=top]:inset-x-0 data-[direction=top]:top-0 data-[direction=top]:max-h-[80vh] data-[direction=top]:rounded-b-xl data-[direction=top]:border-b",
             "data-[direction=top]:data-starting-style:-translate-y-full data-[direction=top]:data-ending-style:-translate-y-full",
             // right
-            "data-[direction=right]:inset-y-0 data-[direction=right]:right-0 data-[direction=right]:h-full data-[direction=right]:w-3/4 data-[direction=right]:border-l data-[direction=right]:sm:max-w-sm",
+            "data-[direction=right]:inset-y-0 data-[direction=right]:right-0 data-[direction=right]:h-full data-[direction=right]:w-full data-[direction=right]:border-l data-[direction=right]:sm:w-3/4 data-[direction=right]:sm:max-w-sm",
             "data-[direction=right]:data-starting-style:translate-x-full data-[direction=right]:data-ending-style:translate-x-full",
             // left
-            "data-[direction=left]:inset-y-0 data-[direction=left]:left-0 data-[direction=left]:h-full data-[direction=left]:w-3/4 data-[direction=left]:border-r data-[direction=left]:sm:max-w-sm",
+            "data-[direction=left]:inset-y-0 data-[direction=left]:left-0 data-[direction=left]:h-full data-[direction=left]:w-full data-[direction=left]:border-r data-[direction=left]:sm:w-3/4 data-[direction=left]:sm:max-w-sm",
             "data-[direction=left]:data-starting-style:-translate-x-full data-[direction=left]:data-ending-style:-translate-x-full",
             className
           )}

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Key Screen — Budget Tab</title>
+<style>
+/*
+  Governing spine sections:
+  - EXPERIENCE.md: Information Architecture (Budget tab row), Component Patterns
+    (Budget header, Status badge, Tab status icon, Progress bar, Toolbar, Category tile grid),
+    State Patterns (Warning state, Recalculate button shown).
+  - DESIGN.md: colors (warning/warning-soft/warning-ink), components
+    (budget-progress-bar, status-badge, tab-status-icon, category-tile).
+  Shows the WARNING state (Actual at 84% of Budget, between the 80/90 thresholds).
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #e9e9e6;
+  display: flex;
+  justify-content: center;
+  padding: 32px;
+}
+.device-frame {
+  width: 760px;
+  background: #ffffff; /* --bg */
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.04); /* --shadow-3 */
+  overflow: hidden;
+}
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(20,20,18,0.08); /* --line */
+  background: #ffffff; /* --bg */
+}
+.tab {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #7a7a72; /* --fg-3 */
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tab.active {
+  color: #131311; /* --fg */
+  font-weight: 600;
+  border-bottom-color: #0e8b80; /* --accent-brand */
+}
+.tab .icon-warn {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+}
+.body {
+  padding: 28px 24px;
+}
+.header-block {
+  margin-bottom: 20px;
+}
+.figure-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.actual-figure {
+  font-size: 34px;
+  font-weight: 600;
+  color: #131311; /* --fg */
+}
+.actual-label {
+  font-size: 14px;
+  color: #7a7a72; /* --fg-3 */
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fbeacb; /* --warning-soft */
+  color: #6b4406; /* --warning-ink */
+  margin-left: 8px;
+}
+.sub-figures {
+  display: flex;
+  gap: 24px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #7a7a72; /* --fg-3 */
+}
+.sub-figures b { color: #4a4a45; } /* --fg-2 */
+.progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 9999px;
+  background: #efefec; /* --surface-2 */
+  margin-top: 14px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 84%;
+  border-radius: 9999px;
+  background: #b6790a; /* --warning */
+}
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+}
+.btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  cursor: default;
+}
+.btn-primary {
+  background: #0e8b80; /* --accent-brand */
+  color: #ffffff; /* --accent-fg */
+  border: none;
+}
+.btn-secondary {
+  background: #ffffff;
+  color: #131311;
+  border: 1px solid rgba(20,20,18,0.08); /* --line */
+}
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.tile {
+  background: #f6f6f4; /* --surface */
+  border: 1px solid rgba(20,20,18,0.08); /* --line */
+  border-radius: 10px;
+  padding: 16px 10px;
+  text-align: center;
+}
+.tile .label {
+  font-size: 12px;
+  color: #7a7a72; /* --fg-3 */
+  margin-bottom: 6px;
+}
+.tile .figure {
+  font-size: 18px;
+  font-weight: 600;
+  color: #131311; /* --fg */
+}
+.caption {
+  margin-top: 18px;
+  font-size: 12px;
+  color: #a0a098;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div>
+<div class="device-frame">
+  <div class="tab-bar">
+    <div class="tab">Reservations</div>
+    <div class="tab">Itinerary</div>
+    <div class="tab">Map</div>
+    <div class="tab">Documents</div>
+    <div class="tab">Packing</div>
+    <div class="tab">Notes</div>
+    <div class="tab active">
+      Budget
+      <svg class="icon-warn" viewBox="0 0 24 24" fill="none" stroke="#b6790a" stroke-width="1.5">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+  </div>
+  <div class="body">
+    <div class="header-block">
+      <div class="figure-row">
+        <span class="actual-figure">$3,780</span>
+        <span class="actual-label">spent</span>
+        <span class="badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b4406" stroke-width="2">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          Warning
+        </span>
+      </div>
+      <div class="sub-figures">
+        <span>Budget <b>$4,500</b></span>
+        <span>Remaining <b>$720</b></span>
+        <span>84% of budget</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill"></div></div>
+    </div>
+    <div class="toolbar">
+      <div class="btn btn-primary">Add Misc Expense</div>
+      <div class="btn btn-secondary">Recalculate Conversions</div>
+    </div>
+    <div class="tile-grid">
+      <div class="tile"><div class="label">Lodging</div><div class="figure">$1,800</div></div>
+      <div class="tile"><div class="label">Transport</div><div class="figure">$620</div></div>
+      <div class="tile"><div class="label">Food</div><div class="figure">$480</div></div>
+      <div class="tile"><div class="label">Misc</div><div class="figure">$880</div></div>
+    </div>
+  </div>
+</div>
+<div class="caption">Budget tab — Warning state (84% of budget, between 80%/90% thresholds). "Recalculate Conversions" shown because the Misc visa-fee entry's currency differs from Trip Currency.</div>
+</div>
+</body>
+</html>

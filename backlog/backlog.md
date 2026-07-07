@@ -43,3 +43,7 @@ The Notes tab exists on the trip detail page as a placeholder. The trip-level `n
 Needs full design and implementation: display in the Notes tab, editing UX (inline or via a dedicated entry point), and an empty state that communicates what the field is for (general reminders, parking-lot ideas not yet on the itinerary).
 
 ## Improvements
+
+### Add Zod
+
+Is it worth adding Zod for validation?

@@ -7,6 +7,10 @@ import {
   E2E_EVENT_REORDER_FIRST,
   E2E_EVENT_REORDER_SECOND,
   E2E_EVENT_UNTIMED,
+  E2E_TRIP_FOURTH_DATE,
+  E2E_TRIP_SECOND_DATE,
+  E2E_TRIP_START_DATE,
+  E2E_TRIP_THIRD_DATE,
 } from "../e2e-seed-data";
 import { Given, When, Then, Before } from "../fixtures";
 
@@ -58,6 +62,42 @@ function getLatestChecklist(page: Page) {
   return page.locator('[id^="checklist-"]').last();
 }
 
+function formatDayHeading(isoDate: string): string {
+  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatRangeDate(isoDate: string): string {
+  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatRangeLabel(startDate: string, endDate: string): string {
+  return `${formatRangeDate(startDate)} — ${formatRangeDate(endDate)}`;
+}
+
+async function changeTripDateRange(page: Page, startDate: string, endDate: string): Promise<void> {
+  const dialog = page.getByRole("dialog");
+  const dateTrigger = dialog
+    .getByRole("button")
+    .filter({ hasText: /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/ })
+    .or(dialog.getByRole("button", { name: "Pick a date range" }))
+    .first();
+  await dateTrigger.click();
+  await clickDate(page, startDate);
+  if (startDate !== endDate) {
+    await clickDate(page, endDate);
+  }
+}
+
 Before({ tags: "@trip-with-untimed-event" }, async ({ scenario }) => {
   await scenario.materialize({
     user: { setCurrent: true },
@@ -106,8 +146,8 @@ Before({ tags: "@day-append" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Append Day Trip", startDate: "2026-08-01", endDate: "2026-08-01" },
-        days: [{ dayNumber: 1, date: "2026-08-01", label: "Day 1" }],
+        trip: { name: "Append Day Trip", startDate: E2E_TRIP_START_DATE, endDate: E2E_TRIP_START_DATE },
+        days: [{ dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" }],
       },
       setCurrent: true,
     },
@@ -120,10 +160,10 @@ Before({ tags: "@day-remove-empty" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Remove Empty Day Trip", startDate: "2026-08-01", endDate: "2026-08-02" },
+        trip: { name: "Remove Empty Day Trip", startDate: E2E_TRIP_START_DATE, endDate: E2E_TRIP_SECOND_DATE },
         days: [
-          { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
-          { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+          { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+          { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
         ],
       },
       setCurrent: true,
@@ -144,10 +184,10 @@ Before({ tags: "@day-remove-populated" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Populated Final Day Trip", startDate: "2026-08-01", endDate: "2026-08-02" },
+        trip: { name: "Populated Final Day Trip", startDate: E2E_TRIP_START_DATE, endDate: E2E_TRIP_SECOND_DATE },
         days: [
-          { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
-          { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+          { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+          { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
         ],
         events: [{ name: "Final day booking", position: 0, dayNumber: 2 }],
       },
@@ -162,8 +202,8 @@ Before({ tags: "@date-edit-extend-end" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Edit Range Extend Trip", startDate: "2026-08-01", endDate: null },
-        days: [{ dayNumber: 1, date: "2026-08-01", label: "Day 1" }],
+        trip: { name: "Edit Range Extend Trip", startDate: E2E_TRIP_START_DATE, endDate: null },
+        days: [{ dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" }],
       },
       setCurrent: true,
     },
@@ -176,10 +216,10 @@ Before({ tags: "@date-edit-extend-start" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Edit Range Earlier Trip", startDate: "2026-08-02", endDate: "2026-08-03" },
+        trip: { name: "Edit Range Earlier Trip", startDate: E2E_TRIP_SECOND_DATE, endDate: E2E_TRIP_THIRD_DATE },
         days: [
-          { dayNumber: 1, date: "2026-08-02", label: "Day 1" },
-          { dayNumber: 2, date: "2026-08-03", label: "Day 2" },
+          { dayNumber: 1, date: E2E_TRIP_SECOND_DATE, label: "Day 1" },
+          { dayNumber: 2, date: E2E_TRIP_THIRD_DATE, label: "Day 2" },
         ],
       },
       setCurrent: true,
@@ -193,11 +233,11 @@ Before({ tags: "@date-edit-shorten-empty" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Shorten Empty Range Trip", startDate: "2026-08-01", endDate: "2026-08-03" },
+        trip: { name: "Shorten Empty Range Trip", startDate: E2E_TRIP_START_DATE, endDate: E2E_TRIP_THIRD_DATE },
         days: [
-          { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
-          { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
-          { dayNumber: 3, date: "2026-08-03", label: "Day 3" },
+          { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+          { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
+          { dayNumber: 3, date: E2E_TRIP_THIRD_DATE, label: "Day 3" },
         ],
       },
       setCurrent: true,
@@ -211,10 +251,10 @@ Before({ tags: "@date-edit-keep-unscheduled" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Keep Unscheduled Edit Trip", startDate: "2026-08-01", endDate: "2026-08-02" },
+        trip: { name: "Keep Unscheduled Edit Trip", startDate: E2E_TRIP_START_DATE, endDate: E2E_TRIP_SECOND_DATE },
         days: [
-          { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
-          { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+          { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+          { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
         ],
         events: [{ name: "Final day booking", position: 0, dayNumber: 2 }],
       },
@@ -229,10 +269,10 @@ Before({ tags: "@date-edit-delete-events" }, async ({ scenario }) => {
     trip: {
       mother: "threeDayTrip",
       overrides: {
-        trip: { name: "Delete Displaced Events Trip", startDate: "2026-08-01", endDate: "2026-08-02" },
+        trip: { name: "Delete Displaced Events Trip", startDate: E2E_TRIP_START_DATE, endDate: E2E_TRIP_SECOND_DATE },
         days: [
-          { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
-          { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+          { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+          { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
         ],
         events: [{ name: "Final day booking", position: 0, dayNumber: 2 }],
       },
@@ -294,6 +334,8 @@ When("I set the event location for {string} using the first lookup suggestion", 
   await expect(input).toHaveValue("Paris, France");
   await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
   await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).not.toBeVisible({ timeout: 10_000 });
+  await expect(row.getByRole("button", { name: /Paris, France/ })).toBeVisible({ timeout: 10_000 });
 });
 
 When("I open the time picker and set a start time", async ({ page }) => {
@@ -503,9 +545,9 @@ Then("the checklist should not be visible on the timeline", async ({ page }) => 
 
 When("I add a day to the itinerary", async ({ page }) => {
   await page.getByRole("button", { name: "Add Day" }).click();
-  await expect(page.getByText("Sun, Aug 2")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/\b2 days\b/)).toBeVisible();
-  await expect(page.getByText("Aug 1, 2026 — Aug 2, 2026")).toBeVisible();
+  await expect(page.getByText(formatRangeLabel(E2E_TRIP_START_DATE, E2E_TRIP_SECOND_DATE))).toBeVisible();
 });
 
 Then("the appended day and advanced end date are persisted", async ({ scenario }) => {
@@ -516,14 +558,14 @@ Then("the appended day and advanced end date are persisted", async ({ scenario }
     const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
     const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
     expect(tripDays).toHaveLength(2);
-    expect(tripDays.find((day) => day.dayNumber === 2)?.date).toBe("2026-08-02");
-    expect(trip.endDate).toBe("2026-08-02");
+    expect(tripDays.find((day) => day.dayNumber === 2)?.date).toBe(E2E_TRIP_SECOND_DATE);
+    expect(trip.endDate).toBe(E2E_TRIP_SECOND_DATE);
   });
 });
 
 When("I remove the final empty day", async ({ page }) => {
   await page.getByTitle("Remove day").last().click();
-  await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).not.toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/\b1 day\b/)).toBeVisible();
 });
 
@@ -535,7 +577,7 @@ Then("only the preceding day remains scheduled", async ({ scenario }) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
     const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
     expect(tripDays).toHaveLength(1);
-    expect(trip.endDate).toBe("2026-08-01");
+    expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
 });
 
@@ -578,7 +620,7 @@ Then("planned content deletion is disclosed", async ({ page }) => {
 
 When("I confirm destructive day removal", async ({ page }) => {
   await page.getByRole("button", { name: "Remove Day", exact: true }).click();
-  await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).not.toBeVisible({ timeout: 10_000 });
 });
 
 Then("the populated final day and its content are deleted", async ({ scenario }) => {
@@ -591,26 +633,28 @@ Then("the populated final day and its content are deleted", async ({ scenario })
     const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
     expect(tripDays).toHaveLength(1);
     expect(remainingEvents).toHaveLength(0);
-    expect(trip.endDate).toBe("2026-08-01");
+    expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
 });
 
 When(
   "I change the trip date range to {string} through {string}",
   async ({ page }, startDate: string, endDate: string) => {
-    const dialog = page.getByRole("dialog");
-    const dateTrigger = dialog
-      .getByRole("button")
-      .filter({ hasText: /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/ })
-      .or(dialog.getByRole("button", { name: "Pick a date range" }))
-      .first();
-    await dateTrigger.click();
-    await clickDate(page, startDate);
-    if (startDate !== endDate) {
-      await clickDate(page, endDate);
-    }
+    await changeTripDateRange(page, startDate, endDate);
   }
 );
+
+When("I change the trip date range to the default future trip dates", async ({ page }) => {
+  await changeTripDateRange(page, E2E_TRIP_START_DATE, E2E_TRIP_THIRD_DATE);
+});
+
+When("I shorten the trip date range to the first future trip day", async ({ page }) => {
+  await changeTripDateRange(page, E2E_TRIP_START_DATE, E2E_TRIP_START_DATE);
+});
+
+When("I shift the trip date range one day later", async ({ page }) => {
+  await changeTripDateRange(page, E2E_TRIP_SECOND_DATE, E2E_TRIP_FOURTH_DATE);
+});
 
 When("I save the trip date change", async ({ page }) => {
   await page.getByRole("button", { name: "Save changes" }).click();
@@ -620,12 +664,12 @@ Then("the edited trip includes the appended scheduled days", async ({ page, scen
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
-  await expect(page.getByText("Mon, Aug 3")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_THIRD_DATE))).toBeVisible({ timeout: 10_000 });
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
     const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
     expect(tripDays).toHaveLength(3);
-    expect(trip.endDate).toBe("2026-08-03");
+    expect(trip.endDate).toBe(E2E_TRIP_THIRD_DATE);
   });
 });
 
@@ -633,13 +677,13 @@ Then("the edited trip includes the prepended scheduled days", async ({ page, sce
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
-  await expect(page.getByText("Sat, Aug 1")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_START_DATE))).toBeVisible({ timeout: 10_000 });
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
     const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
     expect(tripDays).toHaveLength(3);
-    expect(tripDays.find((day) => day.dayNumber === 1)?.date).toBe("2026-08-01");
-    expect(trip.startDate).toBe("2026-08-01");
+    expect(tripDays.find((day) => day.dayNumber === 1)?.date).toBe(E2E_TRIP_START_DATE);
+    expect(trip.startDate).toBe(E2E_TRIP_START_DATE);
   });
 });
 
@@ -648,13 +692,13 @@ Then("the empty removed days are deleted without a warning", async ({ page, scen
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
-  await expect(page.getByText("Sun, Aug 3")).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_THIRD_DATE))).not.toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/\b1 day\b/)).toBeVisible({ timeout: 10_000 });
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
     const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
     expect(tripDays).toHaveLength(1);
-    expect(trip.endDate).toBe("2026-08-01");
+    expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
 });
 
@@ -684,7 +728,7 @@ Then("the removed day's events are persisted as unscheduled", async ({ page, sce
     expect(tripDays).toHaveLength(1);
     expect(remainingEvents).toHaveLength(1);
     expect(remainingEvents[0].dayId).toBeNull();
-    expect(remainingEvents[0].displacedDate).toBe("2026-08-02");
+    expect(remainingEvents[0].displacedDate).toBe(E2E_TRIP_SECOND_DATE);
   });
 });
 
@@ -697,13 +741,13 @@ Then("the removed day's events are deleted after the date change", async ({ page
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
-  await expect(page.getByText("Sun, Aug 2")).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).not.toBeVisible({ timeout: 10_000 });
   await withE2EDb(async (db) => {
     const tripDays = await db.select().from(days).where(eq(days.tripId, currentTrip.id));
     const remainingEvents = await db.select().from(events).where(eq(events.tripId, currentTrip.id));
     const [trip] = await db.select().from(trips).where(eq(trips.id, currentTrip.id));
     expect(tripDays).toHaveLength(1);
     expect(remainingEvents).toHaveLength(0);
-    expect(trip.endDate).toBe("2026-08-01");
+    expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
 });

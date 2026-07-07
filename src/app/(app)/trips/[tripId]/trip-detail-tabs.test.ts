@@ -10,6 +10,7 @@ describe("resolveTripDetailTab", () => {
 
   it("resolves recognized tab values", () => {
     expect(resolveTripDetailTab("res")).toBe("res");
+    expect(resolveTripDetailTab("budget")).toBe("budget");
     expect(resolveTripDetailTab("docs")).toBe("docs");
   });
 });

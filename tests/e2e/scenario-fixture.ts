@@ -8,6 +8,7 @@ import {
   days,
   documents,
   events,
+  expenses,
   itineraryChecklists,
   itineraryNotes,
   packingItems,
@@ -203,7 +204,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           name: seed.user.name,
           passwordHash,
           dateFormat: seed.user.dateFormat,
-          currency: seed.user.currency,
+          currency: seed.user.currency ?? "USD",
           defaultCoverType: seed.user.defaultCoverType,
         })
         .returning({ id: users.id, email: users.email, name: users.name });
@@ -255,6 +256,8 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           destinationName: seed.trip.destinationName ?? null,
           destinationCountry: seed.trip.destinationCountry ?? null,
           destinationCountryCode: seed.trip.destinationCountryCode ?? null,
+          budgetCurrency: seed.trip.budgetCurrency ?? null,
+          budgetTotal: seed.trip.budgetTotal != null ? seed.trip.budgetTotal.toString() : null,
         })
         .returning({ id: trips.id, name: trips.name, startDate: trips.startDate, endDate: trips.endDate });
 
@@ -393,6 +396,19 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           size: documentSeed.size != null ? String(documentSeed.size) : null,
           url: documentSeed.url,
         });
+      }
+
+      if (seed.expenses.length > 0) {
+        await db.insert(expenses).values(
+          seed.expenses.map((item) => ({
+            tripId: trip.id,
+            category: item.category,
+            amount: item.amount.toString(),
+            currency: item.currency,
+            convertedAmountProfile: (item.convertedAmountProfile ?? item.amount).toString(),
+            date: item.date,
+          }))
+        );
       }
 
       registerCleanup({ entity: "trip", id: trip.id });

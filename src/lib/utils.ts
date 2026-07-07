@@ -20,6 +20,22 @@ function asFloatingUtc(date: Date): Date {
   );
 }
 
+/**
+ * The wall-clock calendar date of `now` as a `YYYY-MM-DD` key.
+ *
+ * Packt is timezone-naive: stored event/reservation times are wall-clock strings
+ * and "now" is read in the runtime's local frame (see {@link isEventNow}). Derive
+ * "today" from local components — never `toISOString()`/`getUTC*`, which convert to
+ * UTC and roll the date forward an evening west of UTC, dropping the current day's
+ * events from views like the Now Card.
+ */
+export function getWallClockDateKey(now: Date): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function isEventPast(event: { endAt?: string }, now: Date): boolean {
   if (!event.endAt) return false;
   return new Date(event.endAt) < asFloatingUtc(now);
@@ -39,16 +55,16 @@ export function getTripStatus(
   now = getNow()
 ): "upcoming" | "active" | "past" {
   if (!startDate || !endDate) return "upcoming";
-  const todayUTC = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-  if (todayUTC < startDate) return "upcoming";
-  if (todayUTC > endDate) return "past";
+  const today = getWallClockDateKey(now);
+  if (today < startDate) return "upcoming";
+  if (today > endDate) return "past";
   return "active";
 }
 
 export function getActiveDayNumber(startDate: string, now = getNow()): number {
   const startParts = startDate.split("-").map(Number);
   const start = Date.UTC(startParts[0], startParts[1] - 1, startParts[2]);
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.floor((today - start) / 86_400_000) + 1;
 }
 
@@ -68,10 +84,42 @@ export function formatTripDate(dateStr: string): string {
 }
 
 const MDY_LOCALES = new Set(["en-US", "en-PH"]);
+const LOCALE_CURRENCY_BY_REGION: Record<string, string> = {
+  AU: "AUD",
+  CA: "CAD",
+  CH: "CHF",
+  CN: "CNY",
+  DE: "EUR",
+  ES: "EUR",
+  FR: "EUR",
+  GB: "GBP",
+  IE: "EUR",
+  IN: "INR",
+  IT: "EUR",
+  JP: "JPY",
+  MX: "MXN",
+  NL: "EUR",
+  NZ: "NZD",
+  PH: "PHP",
+  PT: "EUR",
+  US: "USD",
+};
 
 export function detectDefaultDateFormat(acceptLanguage: string): string {
   const primary = acceptLanguage.split(",")[0]?.split(";")[0]?.trim() ?? "";
   return MDY_LOCALES.has(primary) ? "MM/DD/YYYY" : "DD/MM/YYYY";
+}
+
+export function detectPreferredCurrency(acceptLanguage: string): string {
+  const primary = acceptLanguage.split(",")[0]?.split(";")[0]?.trim() ?? "";
+  const localeParts = primary.split("-");
+  const region = localeParts[1]?.toUpperCase();
+
+  if (region) {
+    return LOCALE_CURRENCY_BY_REGION[region] ?? "USD";
+  }
+
+  return "USD";
 }
 
 export function formatDate(dateStr: string, format: string): string {
@@ -235,6 +283,21 @@ export function getLocationDisplayLabel(name: string | null | undefined, address
   const trimmedName = name?.trim();
   if (trimmedName) return trimmedName;
   return address?.trim() ?? "";
+}
+
+export function formatCurrency(amount: number, currency: string): string {
+  if (!Number.isFinite(amount)) {
+    return `${currency} ??`;
+  }
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
 }
 
 export function stableStringify(value: unknown): string {

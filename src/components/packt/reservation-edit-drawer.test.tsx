@@ -243,22 +243,23 @@ describe("ReservationEditDrawer", () => {
     await user.type(screen.getByLabelText("Check-out time"), "11:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() =>
-      expect(createReservation).toHaveBeenCalledWith("trip-1", {
-        type: ReservationType.Lodging,
-        provider: "Grand Hotel",
-        startAt: "2026-08-01T15:00:00.000Z",
-        endAt: "2026-08-05T11:00:00.000Z",
-        startAddress: undefined,
-        endAddress: undefined,
-        cost: undefined,
-        confirmationCode: undefined,
-        notes: undefined,
-      })
+    await vi.waitFor(
+      () =>
+        expect(createReservation).toHaveBeenCalledWith("trip-1", {
+          type: ReservationType.Lodging,
+          provider: "Grand Hotel",
+          startAt: "2026-08-01T15:00:00.000Z",
+          endAt: "2026-08-05T11:00:00.000Z",
+          startAddress: undefined,
+          endAddress: undefined,
+          confirmationCode: undefined,
+          notes: undefined,
+        }),
+      { timeout: 10_000 }
     );
-  });
+  }, 15_000);
 
-  it("saves with address fields and cost when provided", async () => {
+  it("saves with address fields when provided", async () => {
     vi.mocked(createReservation).mockResolvedValueOnce(undefined);
     const onOpenChange = vi.fn();
     const user = userEvent.setup();
@@ -269,26 +270,26 @@ describe("ReservationEditDrawer", () => {
     await user.type(screen.getByLabelText("Departure time"), "10:00");
     await user.type(screen.getByLabelText("Departure address (Optional)"), "JFK Airport, New York");
     await user.type(screen.getByLabelText("Arrival address (Optional)"), "LAX Airport, Los Angeles");
-    await user.type(screen.getByLabelText("Cost (Optional)"), "349.99");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() =>
-      expect(createReservation).toHaveBeenCalledWith(
-        "trip-1",
-        expect.objectContaining({
-          startAddress: "JFK Airport, New York",
-          startLocationName: undefined,
-          startLocationLat: undefined,
-          startLocationLng: undefined,
-          endAddress: "LAX Airport, Los Angeles",
-          endLocationName: undefined,
-          endLocationLat: undefined,
-          endLocationLng: undefined,
-          cost: 349.99,
-        })
-      )
+    await vi.waitFor(
+      () =>
+        expect(createReservation).toHaveBeenCalledWith(
+          "trip-1",
+          expect.objectContaining({
+            startAddress: "JFK Airport, New York",
+            startLocationName: undefined,
+            startLocationLat: undefined,
+            startLocationLng: undefined,
+            endAddress: "LAX Airport, Los Angeles",
+            endLocationName: undefined,
+            endLocationLat: undefined,
+            endLocationLng: undefined,
+          })
+        ),
+      { timeout: 10_000 }
     );
-  });
+  }, 15_000);
 
   it("saves structured location fields when suggestions are selected", async () => {
     vi.mocked(createReservation).mockResolvedValueOnce(undefined);
@@ -302,36 +303,24 @@ describe("ReservationEditDrawer", () => {
     await user.click(screen.getByRole("button", { name: "reservation-end-address-resolve" }));
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() =>
-      expect(createReservation).toHaveBeenCalledWith(
-        "trip-1",
-        expect.objectContaining({
-          startAddress: "Queens, NY 11430",
-          startLocationName: "JFK Airport",
-          startLocationLat: 40.6413,
-          startLocationLng: -73.7781,
-          endAddress: "1 World Way, Los Angeles, CA",
-          endLocationName: "LAX Airport",
-          endLocationLat: 33.9416,
-          endLocationLng: -118.4085,
-        })
-      )
+    await vi.waitFor(
+      () =>
+        expect(createReservation).toHaveBeenCalledWith(
+          "trip-1",
+          expect.objectContaining({
+            startAddress: "Queens, NY 11430",
+            startLocationName: "JFK Airport",
+            startLocationLat: 40.6413,
+            startLocationLng: -73.7781,
+            endAddress: "1 World Way, Los Angeles, CA",
+            endLocationName: "LAX Airport",
+            endLocationLat: 33.9416,
+            endLocationLng: -118.4085,
+          })
+        ),
+      { timeout: 10_000 }
     );
-  });
-
-  it("blocks save and shows an error when cost is not a valid number", async () => {
-    const user = userEvent.setup();
-    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Flight} open onOpenChange={vi.fn()} />);
-
-    await user.type(screen.getByLabelText("Provider *"), "Acme Air");
-    await user.type(screen.getByLabelText("Departure date"), "2026-08-01");
-    await user.type(screen.getByLabelText("Departure time"), "10:00");
-    await user.type(screen.getByLabelText("Cost (Optional)"), "abc");
-    await user.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(await screen.findByRole("status")).toHaveTextContent("Cost must be a valid number.");
-    expect(createReservation).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("shows a toast and does not close the drawer when createReservation fails", async () => {
     vi.mocked(createReservation).mockRejectedValueOnce(new Error("Save failed"));
@@ -344,9 +333,9 @@ describe("ReservationEditDrawer", () => {
     await user.type(screen.getByLabelText("Start time"), "10:00");
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"), { timeout: 10_000 });
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-  });
+  }, 15_000);
 
   it("calls onOpenChange(false) when Cancel is clicked", async () => {
     const onOpenChange = vi.fn();

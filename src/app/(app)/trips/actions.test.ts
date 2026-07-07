@@ -5,13 +5,14 @@ import {
   days,
   documents,
   events,
+  expenses,
   itineraryChecklists,
   itineraryNotes,
-  packingItems,
   trips,
 } from "@/db/schema";
+import { headers } from "next/headers";
 
-const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => ({
+const { assertTripAccess, db, recalculateAll, requireUser, revalidatePath } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   db: {
     delete: vi.fn(),
@@ -20,6 +21,7 @@ const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => (
     transaction: vi.fn(),
     update: vi.fn(),
   },
+  recalculateAll: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -31,6 +33,10 @@ vi.mock("@/lib/auth-helpers", () => ({
 
 vi.mock("@/db", () => ({
   db,
+}));
+
+vi.mock("@/lib/currency", () => ({
+  recalculateAll,
 }));
 
 vi.mock("next/cache", () => ({
@@ -118,6 +124,7 @@ interface TransactionFixture {
   checklistRows?: Array<{ id: string }>;
   eventDocs?: Array<{ eventId: string | null; url: string | null }>;
   existingDays: Array<{ id: string; tripId: string; dayNumber: number; date: string | null; label: string }>;
+  expenseRows?: unknown[];
   noteRows?: Array<{ id: string }>;
   removedEvents?: Array<{ id: string; name: string; dayId: string | null; position: number }>;
   tripRow?: { id: string; startDate: string | null; endDate: string | null };
@@ -127,6 +134,7 @@ function createTransactionMock({
   checklistRows = [],
   eventDocs = [],
   existingDays,
+  expenseRows = [],
   noteRows = [],
   removedEvents = [],
   tripRow = { id: "trip-1", startDate: "2026-08-01", endDate: "2026-08-02" },
@@ -176,6 +184,12 @@ function createTransactionMock({
         if (table === itineraryChecklists) {
           return {
             where: async () => checklistRows,
+          };
+        }
+
+        if (table === expenses) {
+          return {
+            where: async () => expenseRows,
           };
         }
 
@@ -259,6 +273,11 @@ describe("updateTripMetadata", () => {
     process.env.UPLOAD_STUB = "true";
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("rejects unsupported budget currencies before mutating", async () => {
+    await expect(updateTripMetadata("trip-1", { budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   it("returns confirmation-required before mutating when removed days contain events", async () => {
@@ -517,6 +536,124 @@ describe("updateTripMetadata", () => {
     const tripUpdate = operations.updates.find((entry) => entry.table === trips);
     expect(tripUpdate?.values).toEqual(expect.objectContaining({ name: "Renamed Dateless Trip", startDate: null }));
   });
+
+  function makeExpenseRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "expense-1",
+      tripId: "trip-1",
+      eventId: null,
+      reservationId: null,
+      category: "food",
+      amount: "50",
+      currency: "EUR",
+      convertedAmountTrip: null,
+      conversionRateTrip: null,
+      convertedCurrencyTrip: null,
+      convertedAmountProfile: null,
+      conversionRateProfile: null,
+      convertedCurrencyProfile: null,
+      date: "2026-08-01",
+      note: null,
+      createdAt: null,
+      updatedAt: null,
+      ...overrides,
+    };
+  }
+
+  it("does not recalculate expenses when convertCurrency is omitted (Leave As Is)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { budgetCurrency: "USD" });
+
+    expect(result).toEqual({ status: "saved" });
+    expect(recalculateAll).not.toHaveBeenCalled();
+    expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ budgetCurrency: "USD" }));
+  });
+
+  it("does not recalculate expenses when convertCurrency is true but budgetCurrency is unchanged", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { name: "Renamed" }, undefined, undefined, true);
+
+    expect(result).toEqual({ status: "saved" });
+    expect(recalculateAll).not.toHaveBeenCalled();
+    expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
+  });
+
+  it("recalculates and persists mismatched expense conversions when convertCurrency is true (Convert)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ id: "expense-1", currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    recalculateAll.mockResolvedValue([{ expenseId: "expense-1", convertedAmount: 54, rate: 1.08 }]);
+
+    const result = await updateTripMetadata("trip-1", { budgetCurrency: "USD" }, undefined, undefined, true);
+
+    expect(result).toEqual({ status: "saved" });
+    expect(recalculateAll).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: "expense-1", currency: "EUR", amount: 50 })],
+      "USD"
+    );
+    const expenseUpdate = operations.updates.find((entry) => entry.table === expenses);
+    expect(expenseUpdate?.values).toEqual(
+      expect.objectContaining({
+        convertedAmountTrip: "54",
+        conversionRateTrip: "1.08",
+        convertedCurrencyTrip: "USD",
+        updatedAt: expect.any(Date),
+      })
+    );
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ budgetCurrency: "USD" }));
+  });
+
+  it("rolls back the currency change when recalculation fails (all-or-nothing)", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      expenseRows: [makeExpenseRow({ id: "expense-1", currency: "EUR" })],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    recalculateAll.mockRejectedValue(new Error("Currency conversion failed (HTTP 503)."));
+
+    await expect(updateTripMetadata("trip-1", { budgetCurrency: "USD" }, undefined, undefined, true)).rejects.toThrow(
+      "Currency conversion failed (HTTP 503)."
+    );
+
+    expect(operations.updates.some((entry) => entry.table === trips)).toBe(false);
+    expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
 });
 
 describe("createTrip", () => {
@@ -538,6 +675,17 @@ describe("createTrip", () => {
     db.update.mockReset();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+  });
+
+  it("rejects unsupported budget currencies before inserting a trip", async () => {
+    db.select.mockReturnValue({
+      from: () => ({
+        where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: "USD" }],
+      }),
+    });
+
+    await expect(createTrip({ name: "Tokyo", budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   function setupCreateTripDb(defaultCoverType: string | null) {
@@ -566,7 +714,7 @@ describe("createTrip", () => {
     db.select
       .mockReturnValueOnce({
         from: () => ({
-          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User" }],
+          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: "USD" }],
         }),
       })
       .mockReturnValueOnce({
@@ -584,6 +732,57 @@ describe("createTrip", () => {
 
     return operations;
   }
+
+  it("defaults trip budget currency from the user's preferred currency", async () => {
+    const operations = setupCreateTripDb(null);
+
+    await expect(
+      createTrip({
+        name: "Paris Trip",
+        budgetTotal: 1500,
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({
+        budgetCurrency: "USD",
+        budgetTotal: "1500",
+      }),
+    });
+  });
+
+  it("falls back to locale-derived currency when the user preference is null", async () => {
+    vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
+    const operations = setupCreateTripDb(null);
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: null }],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ defaultCoverType: null }],
+        }),
+      });
+
+    await expect(
+      createTrip({
+        name: "London Trip",
+        budgetTotal: 200,
+      })
+    ).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({
+        budgetCurrency: "GBP",
+        budgetTotal: "200",
+      }),
+    });
+  });
 
   it("stores destination fields and applies the first Unsplash cover when the default is photo", async () => {
     vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
@@ -1047,606 +1246,6 @@ describe("searchAddressLocations", () => {
 
     await expect(searchAddressLocations("Tokyo", "sess")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
     expect(requireUser).not.toHaveBeenCalled();
-  });
-});
-
-describe.skip("packing actions", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "user-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("adds a packing label with the next position after access checks", async () => {
-    const insertValues = vi.fn().mockResolvedValue(undefined);
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ maxPos: 2 }],
-      }),
-    });
-    db.insert.mockReturnValueOnce({
-      values: insertValues,
-    });
-
-    await addPackingItem("trip-1", { name: "Documents", isLabel: true });
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(db.insert).toHaveBeenCalledWith(packingItems);
-    expect(insertValues).toHaveBeenCalledWith({
-      tripId: "trip-1",
-      listId: null,
-      name: "Documents",
-      done: false,
-      isLabel: true,
-      position: 3,
-      labelId: null,
-    });
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("assigns position 0 and ungrouped when the trip has no existing packing items", async () => {
-    const insertValues = vi.fn().mockResolvedValue(undefined);
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ maxPos: null }],
-      }),
-    });
-    db.insert.mockReturnValueOnce({
-      values: insertValues,
-    });
-
-    await addPackingItem("trip-1", { name: "Passport" });
-
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 0, labelId: null }));
-  });
-
-  it("quick-add appends a plain item ungrouped at the bottom (AC4), not under the last section", async () => {
-    const insertValues = vi.fn().mockResolvedValue(undefined);
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ maxPos: 4 }],
-      }),
-    });
-    db.insert.mockReturnValueOnce({ values: insertValues });
-
-    await addPackingItem("trip-1", { name: "Phone charger" });
-
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 5, labelId: null }));
-  });
-
-  it("removes a packing entry only after loading the item and checking trip access", async () => {
-    const deleteWhere = vi.fn().mockResolvedValue(undefined);
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ id: "pack-1", tripId: "trip-1" }],
-      }),
-    });
-    db.delete.mockReturnValueOnce({
-      where: deleteWhere,
-    });
-
-    await removePackingItem("pack-1");
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(db.delete).toHaveBeenCalledWith(packingItems);
-    expect(deleteWhere).toHaveBeenCalled();
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("toggles a packing entry and revalidates both the trip detail and trips list", async () => {
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ id: "pack-1", tripId: "trip-1", done: false }],
-      }),
-    });
-    db.update.mockReturnValueOnce({
-      set: () => ({
-        where: updateWhere,
-      }),
-    });
-
-    await togglePackingItem("pack-1");
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(db.update).toHaveBeenCalledWith(packingItems);
-    expect(updateWhere).toHaveBeenCalled();
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("reorders packing entries after access checks and revalidates the trip detail route", async () => {
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const transaction = {
-      select: vi.fn(() => ({
-        from: () => ({
-          where: async () => [{ id: "label-1" }],
-        }),
-      })),
-      update: vi.fn(() => ({
-        set: (values: unknown) => ({
-          where: async () => {
-            updateWhere(values);
-          },
-        }),
-      })),
-    };
-    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await reorderPackingItems("trip-1", [
-      { id: "pack-2", labelId: null, position: 0 },
-      { id: "pack-1", labelId: "label-1", position: 1 },
-      { id: "pack-3", labelId: null, position: 2 },
-    ]);
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(transaction.update).toHaveBeenCalledTimes(3);
-    expect(updateWhere).toHaveBeenNthCalledWith(1, { position: 0, labelId: null });
-    expect(updateWhere).toHaveBeenNthCalledWith(2, { position: 1, labelId: "label-1" });
-    expect(updateWhere).toHaveBeenNthCalledWith(3, { position: 2, labelId: null });
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("reorderPackingItems is a no-op for an empty ordering", async () => {
-    await reorderPackingItems("trip-1", []);
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(db.transaction).not.toHaveBeenCalled();
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("updatePackingItem trims the name before updating it in DB", async () => {
-    const updateSet = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ id: "pack-1", tripId: "trip-1", name: "Passport" }],
-      }),
-    });
-    db.update.mockReturnValueOnce({ set: updateSet });
-
-    await updatePackingItem("pack-1", { name: "  Passport (renewed)  " });
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(db.update).toHaveBeenCalledWith(packingItems);
-    expect(updateSet).toHaveBeenCalledWith({ name: "Passport (renewed)" });
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("updatePackingItem throws when item not found", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [] }),
-    });
-
-    await expect(updatePackingItem("nonexistent", { name: "New name" })).rejects.toThrow("Packing item not found");
-
-    expect(assertTripAccess).not.toHaveBeenCalled();
-    expect(db.update).not.toHaveBeenCalled();
-  });
-
-  it("updatePackingItem rejects a blank trimmed name", async () => {
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ id: "pack-1", tripId: "trip-1", name: "Passport" }],
-      }),
-    });
-
-    await expect(updatePackingItem("pack-1", { name: "   " })).rejects.toThrow("Packing item name is required");
-
-    expect(assertTripAccess).not.toHaveBeenCalled();
-    expect(db.update).not.toHaveBeenCalled();
-  });
-
-  it("addPackingItem with afterItemId inserts at targetPos + 1 and shifts later items", async () => {
-    const insertValues = vi.fn().mockResolvedValue(undefined);
-    const shiftWhere = vi.fn().mockResolvedValue(undefined);
-    const transaction = {
-      select: vi.fn(() => ({
-        from: () => ({
-          where: async () => [{ id: "label-1", tripId: "trip-1", position: 2 }],
-        }),
-      })),
-      update: vi.fn(() => ({
-        set: () => ({
-          where: shiftWhere,
-        }),
-      })),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await addPackingItem("trip-1", { name: "Visa", afterItemId: "label-1" });
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(transaction.select).toHaveBeenCalled();
-    expect(transaction.update).toHaveBeenCalled();
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ name: "Visa", position: 3, tripId: "trip-1" }));
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("addPackingItem stores the section labelId for a contextual add under a label", async () => {
-    const insertValues = vi.fn().mockResolvedValue(undefined);
-    const transaction = {
-      select: vi.fn(() => ({
-        from: () => ({
-          where: async () => [{ id: "label-1", tripId: "trip-1", position: 2 }],
-        }),
-      })),
-      update: vi.fn(() => ({ set: () => ({ where: vi.fn().mockResolvedValue(undefined) }) })),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await addPackingItem("trip-1", { name: "Visa", afterItemId: "label-1", labelId: "label-1" });
-
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ labelId: "label-1" }));
-  });
-
-  it("addPackingItem forces labelId to null for a section label even if one is passed", async () => {
-    const insertValues = vi.fn().mockResolvedValue(undefined);
-    db.select.mockReturnValueOnce({
-      from: () => ({
-        where: async () => [{ maxPos: 1 }],
-      }),
-    });
-    db.insert.mockReturnValueOnce({ values: insertValues });
-
-    await addPackingItem("trip-1", { name: "Toiletries", isLabel: true, labelId: "label-1" });
-
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ isLabel: true, labelId: null }));
-  });
-
-  it("addPackingItem with beforeItemId inserts before the target to create an ungrouped item", async () => {
-    const insertValues = vi.fn().mockResolvedValue(undefined);
-    const shiftWhere = vi.fn().mockResolvedValue(undefined);
-    const transaction = {
-      select: vi.fn(() => ({
-        from: () => ({
-          where: async () => [{ id: "label-1", tripId: "trip-1", position: 0 }],
-        }),
-      })),
-      update: vi.fn(() => ({
-        set: () => ({
-          where: shiftWhere,
-        }),
-      })),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await addPackingItem("trip-1", { name: " Travel adapter ", beforeItemId: "label-1" });
-
-    expect(transaction.select).toHaveBeenCalled();
-    expect(transaction.update).toHaveBeenCalled();
-    expect(insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Travel adapter", position: 0, tripId: "trip-1" })
-    );
-  });
-
-  it("addPackingItem with afterItemId throws when target item not found", async () => {
-    const transaction = {
-      select: vi.fn(() => ({
-        from: () => ({
-          where: async () => [],
-        }),
-      })),
-    };
-    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await expect(addPackingItem("trip-1", { name: "Visa", afterItemId: "bad-id" })).rejects.toThrow(
-      "Target item not found"
-    );
-  });
-
-  it("addPackingItem rejects a blank trimmed name", async () => {
-    await expect(addPackingItem("trip-1", { name: "   " })).rejects.toThrow("Packing item name is required");
-
-    expect(db.insert).not.toHaveBeenCalled();
-  });
-});
-
-describe.skip("pullTemplatesOntoTrip", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    requireUser.mockResolvedValue({ id: "user-1" });
-  });
-
-  it("returns {added:0,skipped:0} immediately for empty templateIds without DB calls", async () => {
-    const result = await pullTemplatesOntoTrip("trip-1", []);
-
-    expect(result).toEqual({ added: 0, skipped: 0 });
-    expect(db.select).not.toHaveBeenCalled();
-    expect(db.transaction).not.toHaveBeenCalled();
-  });
-
-  it("enforces requireUser and assertTripAccess with editor role", async () => {
-    const insertValues = vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: "new-1" }]) }));
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) =>
-      cb({
-        select: vi
-          .fn()
-          .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) })
-          .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) }),
-        insert: vi.fn(() => ({ values: insertValues })),
-      })
-    );
-
-    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
-
-    expect(requireUser).toHaveBeenCalled();
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-  });
-
-  it("inserts all template items when the trip list is empty", async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      select: vi
-        .fn()
-        .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [
-                { id: "ti-1", text: "Passport", isLabel: false, position: 0, labelId: null },
-                { id: "ti-2", text: "Phone Charger", isLabel: false, position: 1, labelId: null },
-              ],
-            }),
-          }),
-        }),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) }); // existing items
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [{ id: "tmpl-1" }] }),
-    }); // owned templates
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
-
-    expect(result).toEqual({ added: 2, skipped: 0 });
-    expect(insertValues).toHaveBeenCalledTimes(2);
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-  });
-
-  it("skips a duplicate when existing item name matches case-insensitively", async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      select: vi
-        .fn()
-        .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 0 }] }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [{ id: "ti-1", text: "sunscreen", isLabel: false, position: 0, labelId: null }],
-            }),
-          }),
-        }),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [{ name: "Sunscreen" }] }),
-    }); // existing items contain "Sunscreen"
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [{ id: "tmpl-1" }] }),
-    });
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
-
-    expect(result).toEqual({ added: 0, skipped: 1 });
-    expect(insertValues).not.toHaveBeenCalled();
-  });
-
-  it("deduplicates across two templates sharing an item text", async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      select: vi
-        .fn()
-        .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [{ id: "ti-1", text: "Toothbrush", isLabel: false, position: 0, labelId: null }],
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [{ id: "ti-2", text: "Toothbrush", isLabel: false, position: 0, labelId: null }],
-            }),
-          }),
-        }),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [{ id: "tmpl-1" }, { id: "tmpl-2" }] }),
-    });
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1", "tmpl-2"]);
-
-    expect(result).toEqual({ added: 1, skipped: 1 });
-  });
-
-  it("silently skips a template not owned by the current user", async () => {
-    const transaction = {
-      select: vi.fn().mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) }),
-      insert: vi.fn(),
-    };
-
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [] }),
-    }); // no owned templates returned
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    const result = await pullTemplatesOntoTrip("trip-1", ["foreign-tmpl"]);
-
-    expect(result).toEqual({ added: 0, skipped: 0 });
-    expect(transaction.insert).not.toHaveBeenCalled();
-  });
-
-  it("appends after the last existing item position", async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      select: vi
-        .fn()
-        .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 3 }] }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [{ id: "ti-1", text: "Tent", isLabel: false, position: 0, labelId: null }],
-            }),
-          }),
-        }),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ name: "Laptop" }] }) });
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
-
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ position: 4 }));
-  });
-
-  it("maps label cross-references: inserted label id becomes labelId for child items", async () => {
-    const labelReturning = vi.fn().mockResolvedValue([{ id: "new-label-id" }]);
-    const itemReturning = vi.fn().mockResolvedValue([{ id: "new-item-id" }]);
-    let insertCallIndex = 0;
-    const insertValues = vi.fn(() => {
-      insertCallIndex++;
-      return { returning: insertCallIndex === 1 ? labelReturning : itemReturning };
-    });
-    const transaction = {
-      select: vi
-        .fn()
-        .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: null }] }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [
-                { id: "label-tmpl-id", text: "Toiletries", isLabel: true, position: 0, labelId: null },
-                { id: "item-tmpl-id", text: "Toothbrush", isLabel: false, position: 1, labelId: "label-tmpl-id" },
-              ],
-            }),
-          }),
-        }),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
-
-    // Second insert (Toothbrush) should reference the new label id
-    expect(insertValues).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ labelId: "new-label-id", name: "Toothbrush" })
-    );
-  });
-
-  it("reuses an existing label id when a duplicate template label matches an existing label", async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: "new-item-id" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      select: vi
-        .fn()
-        .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 1 }] }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [
-                { id: "label-tmpl-id", text: "Toiletries", isLabel: true, position: 0, labelId: null },
-                { id: "item-tmpl-id", text: "Toothbrush", isLabel: false, position: 1, labelId: "label-tmpl-id" },
-              ],
-            }),
-          }),
-        }),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [{ name: "Toiletries", id: "existing-label-id", isLabel: true }] }),
-    });
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
-
-    expect(result).toEqual({ added: 1, skipped: 1 });
-    expect(insertValues).toHaveBeenCalledOnce();
-    expect(insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({ labelId: "existing-label-id", name: "Toothbrush" })
-    );
-  });
-
-  it("does not attach children to a non-label row when a duplicate template label matches plain text", async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: "new-item-id" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      select: vi
-        .fn()
-        .mockReturnValueOnce({ from: () => ({ where: async () => [{ maxPos: 1 }] }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () => ({
-              orderBy: async () => [
-                { id: "label-tmpl-id", text: "Toiletries", isLabel: true, position: 0, labelId: null },
-                { id: "item-tmpl-id", text: "Toothbrush", isLabel: false, position: 1, labelId: "label-tmpl-id" },
-              ],
-            }),
-          }),
-        }),
-      insert: vi.fn(() => ({ values: insertValues })),
-    };
-
-    db.select.mockReturnValueOnce({
-      from: () => ({ where: async () => [{ name: "Toiletries", id: "existing-item-id", isLabel: false }] }),
-    });
-    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "tmpl-1" }] }) });
-    db.transaction.mockImplementation(async (cb: (tx: typeof transaction) => Promise<void>) => cb(transaction));
-
-    const result = await pullTemplatesOntoTrip("trip-1", ["tmpl-1"]);
-
-    expect(result).toEqual({ added: 1, skipped: 1 });
-    expect(insertValues).toHaveBeenCalledOnce();
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ labelId: null, name: "Toothbrush" }));
   });
 });
 

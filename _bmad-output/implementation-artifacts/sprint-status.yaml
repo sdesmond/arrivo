@@ -1,0 +1,63 @@
+# generated: 2026-06-24
+# last_updated: 2026-06-28
+# project: packt
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: {project-root}/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-06-24
+last_updated: 2026-06-28
+project: packt
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+development_status:
+  epic-1: in-progress
+  1-1-set-trip-budget-currency: done
+  1-2-unified-cost-entry-on-events-reservations: done
+  1-3-currency-conversion-at-entry-time: done
+  1-4-track-actual-spend-category-breakdown: done
+  1-5-add-misc-expenses: done
+  1-6-recalculate-conversions: done
+  1-7-trip-currency-change-confirmation: done
+  1-8-configure-spend-threshold-settings: done
+  1-9-threshold-status-indicator: done
+  1-10-view-and-manage-all-trip-expenses-in-a-table: done
+  epic-1-retrospective: optional
+  epic-2: in-progress
+  2-1-spending-view-foundation-headline-figures: done
+  2-2-category-breakdown-donut: done
+  2-3-destination-breakdown-donut: done
+  2-4-budget-adherence-donut: in-progress
+  2-5-profile-currency-change-confirmation: backlog
+  epic-2-retrospective: optional

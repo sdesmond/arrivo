@@ -1,5 +1,11 @@
 import { expect, type Page } from "@playwright/test";
 import { When, Then } from "../fixtures";
+import {
+  E2E_TRIP_ALT_START_DATE,
+  E2E_TRIP_ALT_THIRD_DATE,
+  E2E_TRIP_START_DATE,
+  E2E_TRIP_THIRD_DATE,
+} from "../e2e-seed-data";
 
 async function clickDate(page: Page, isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00`);
@@ -26,6 +32,24 @@ function formatRangeLabel(isoDate: string): string {
   });
 }
 
+function formatDayTogglePattern(isoDate: string): RegExp {
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  const month = date.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const day = date.getUTCDate();
+  return new RegExp(`Day 1|${month}\\s*${day}|${day}\\s*${month}`, "i");
+}
+
+async function selectDateRange(page: Page, startDate: string, endDate: string): Promise<void> {
+  await page.getByRole("button", { name: /optional date range/i }).click();
+  await clickDate(page, startDate);
+  await clickDate(page, endDate);
+  await expect(
+    page.getByRole("button", {
+      name: `${formatRangeLabel(startDate)} – ${formatRangeLabel(endDate)}`,
+    })
+  ).toBeVisible();
+}
+
 When("I open the New Trip dialog", async ({ page }) => {
   await page.getByRole("button", { name: "New trip", exact: true }).click();
 });
@@ -42,14 +66,15 @@ When("I type {string} in the destination field", async ({ page }, destination: s
 });
 
 When("I select dates {string} to {string}", async ({ page }, startDate: string, endDate: string) => {
-  await page.getByRole("button", { name: /optional date range/i }).click();
-  await clickDate(page, startDate);
-  await clickDate(page, endDate);
-  await expect(
-    page.getByRole("button", {
-      name: `${formatRangeLabel(startDate)} – ${formatRangeLabel(endDate)}`,
-    })
-  ).toBeVisible();
+  await selectDateRange(page, startDate, endDate);
+});
+
+When("I select the default future trip dates", async ({ page }) => {
+  await selectDateRange(page, E2E_TRIP_START_DATE, E2E_TRIP_THIRD_DATE);
+});
+
+When("I select the alternate future trip dates", async ({ page }) => {
+  await selectDateRange(page, E2E_TRIP_ALT_START_DATE, E2E_TRIP_ALT_THIRD_DATE);
 });
 
 When("I click the Create button", async ({ page }) => {
@@ -79,7 +104,7 @@ Then("I am on the trip detail page for {string}", async ({ page, scenario }, tit
 Then("Day 1 is expanded", async ({ page }) => {
   const dayOneToggle = page
     .locator("button[aria-expanded]")
-    .filter({ hasText: /Day 1|Aug 1|1 Aug/i })
+    .filter({ hasText: formatDayTogglePattern(E2E_TRIP_START_DATE) })
     .first();
   await expect(dayOneToggle).toBeVisible({ timeout: 10_000 });
   await expect(dayOneToggle).toHaveAttribute("aria-expanded", "true");

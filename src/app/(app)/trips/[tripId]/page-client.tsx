@@ -4,17 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
+import { TabStatusIcon } from "@/components/packt/tab-status-icon";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { TripDetailTab } from "@/data/types";
+import { BudgetStatus, TripDetailTab } from "@/data/types";
+import {
+  calculateActual,
+  calculateBudgetStatus,
+  DEFAULT_WARNING_THRESHOLD,
+  DEFAULT_DANGER_THRESHOLD,
+} from "@/lib/budget";
 import type {
   TripDetailPayload,
+  TripCurrencyChangeMode,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripPatch,
   TripDetailTab as TripDetailTabValue,
   PackingTemplate,
+  CurrencyOption,
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
@@ -30,6 +39,7 @@ const DATES_HIGHLIGHT_DURATION_MS = 1500;
 const TABS: { id: TripDetailTabValue; label: string }[] = [
   { id: "res", label: "Reservations" },
   { id: "itin", label: "Itinerary" },
+  { id: "budget", label: "Budget" },
   { id: "map", label: "Map" },
   { id: "docs", label: "Documents" },
   { id: "pack", label: "Packing" },
@@ -38,22 +48,30 @@ const TABS: { id: TripDetailTabValue; label: string }[] = [
 
 interface TripDetailClientProps {
   detail: TripDetailPayload;
+  currencyOptions?: CurrencyOption[];
+  defaultExpenseCurrency?: string;
   nowISO: string;
   dateFormat: string;
   initialExpandedDayNumber?: number;
   initialActiveTab?: TripDetailTabValue;
   isNew?: boolean;
   templates?: PackingTemplate[];
+  warningThreshold?: number;
+  dangerThreshold?: number;
 }
 
 export function TripDetailClient({
   detail,
+  currencyOptions = [],
+  defaultExpenseCurrency,
   nowISO,
   dateFormat,
   initialExpandedDayNumber,
   initialActiveTab = TripDetailTab.Itinerary,
   isNew,
   templates = [],
+  warningThreshold = DEFAULT_WARNING_THRESHOLD,
+  dangerThreshold = DEFAULT_DANGER_THRESHOLD,
 }: TripDetailClientProps): ReactElement {
   const highlightedEventId = useFocusScroll();
 
@@ -64,12 +82,22 @@ export function TripDetailClient({
   const [editingTrip, setEditingTrip] = useState(false);
   const [highlightTripDates, setHighlightTripDates] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
+  const [pendingCurrencyChangeMode, setPendingCurrencyChangeMode] = useState<TripCurrencyChangeMode | undefined>(
+    undefined
+  );
   const [tripDateConfirmation, setTripDateConfirmation] = useState<TripDateChangeConfirmation | null>(null);
   const [reservationsAnnouncement, setReservationsAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations } = detail;
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses } = detail;
+
+  const hasBudget = !!trip.budget && (trip.budget.total ?? 0) > 0 && !!trip.budget.currency;
+  const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
+  const budgetTotalAmount = hasBudget ? trip.budget!.total! : 0;
+  const budgetStatus = hasBudget
+    ? calculateBudgetStatus(budgetActual, budgetTotalAmount, warningThreshold, dangerThreshold)
+    : BudgetStatus.Neutral;
 
   const tabParam = searchParams.get("tab");
   const previousTabParamRef = useRef(tabParam);
@@ -113,31 +141,40 @@ export function TripDetailClient({
     router.push(buildReservationsDeepLinkHref(pathname, searchParams, target), { scroll: false });
   }
 
-  async function handleTripSave(patch: UpdateTripPatch): Promise<void> {
-    const result = await handlers.handleTripSave(patch);
+  async function handleTripSave(patch: UpdateTripPatch, currencyChangeMode?: TripCurrencyChangeMode): Promise<void> {
+    const result = await handlers.handleTripSave(patch, currencyChangeMode);
     if (!result) return;
     if (result.status === "saved") {
       setTripDateConfirmation(null);
       setPendingTripPatch(null);
+      setPendingCurrencyChangeMode(undefined);
       setEditingTrip(false);
       return;
     }
     setPendingTripPatch(patch);
+    setPendingCurrencyChangeMode(currencyChangeMode);
     setTripDateConfirmation(result.confirmation);
   }
 
   async function handleTripDateResolution(resolution: TripDateConflictResolution): Promise<void> {
     if (!pendingTripPatch || !tripDateConfirmation) return;
-    const result = await handlers.handleTripSaveResolution(pendingTripPatch, resolution, tripDateConfirmation);
+    const result = await handlers.handleTripSaveResolution(
+      pendingTripPatch,
+      resolution,
+      tripDateConfirmation,
+      pendingCurrencyChangeMode
+    );
     if (!result || result.status !== "saved") return;
     setTripDateConfirmation(null);
     setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
     setEditingTrip(false);
   }
 
   function handleTripDateResolutionCancel(): void {
     setTripDateConfirmation(null);
     setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
   }
 
   function handleTabChange(nextTab: TripDetailTabValue): void {
@@ -165,7 +202,7 @@ export function TripDetailClient({
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
-              className="shrink-0 px-3.5 py-3 transition-colors relative"
+              className="shrink-0 inline-flex flex-row-reverse items-center gap-1 px-3.5 py-3 transition-colors relative"
               style={{
                 fontSize: "calc(13px * var(--font-scale))",
                 fontWeight: activeTab === tabItem.id ? 600 : 400,
@@ -178,6 +215,9 @@ export function TripDetailClient({
               onClick={() => handleTabChange(tabItem.id)}
             >
               {tabItem.label}
+              {tabItem.id === TripDetailTab.Budget ? (
+                <TabStatusIcon status={budgetStatus} actual={budgetActual} budgetTotal={budgetTotalAmount} />
+              ) : null}
             </button>
           ))}
         </div>
@@ -188,6 +228,10 @@ export function TripDetailClient({
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           <TripDetailTabBody
             tripId={trip.id}
+            trip={trip}
+            defaultExpenseCurrency={defaultExpenseCurrency}
+            warningThreshold={warningThreshold}
+            dangerThreshold={dangerThreshold}
             activeTab={activeTab}
             days={days}
             unscheduledEvents={unscheduledEvents}
@@ -195,6 +239,7 @@ export function TripDetailClient({
             packingItems={packingItems}
             packingLists={packingLists}
             reservations={reservations}
+            expenses={expenses}
             templates={templates}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}
@@ -235,6 +280,9 @@ export function TripDetailClient({
               setEditingTrip(true);
               setHighlightTripDates(true);
             }}
+            onOpenEditBudget={() => {
+              setEditingTrip(true);
+            }}
             onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
             onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
             onAddDay={handlers.handleAddDay}
@@ -248,6 +296,8 @@ export function TripDetailClient({
       <TripEditSheet
         key={trip.id}
         trip={trip}
+        currencyOptions={currencyOptions}
+        expenses={expenses}
         open={editingTrip}
         onClose={() => {
           setEditingTrip(false);

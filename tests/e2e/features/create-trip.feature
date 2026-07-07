@@ -7,7 +7,7 @@ Feature: Create Trip
   Scenario: Create a trip with a date range navigates to trip page with Day 1 expanded
     When I open the New Trip dialog
     And I type "E2E Date Trip" in the title field
-    And I select dates "2026-08-01" to "2026-08-03"
+    And I select the default future trip dates
     And I click the Create button
     Then I am on the trip detail page for "E2E Date Trip"
     And Day 1 is expanded
@@ -15,7 +15,7 @@ Feature: Create Trip
   Scenario: Creating a trip with dates shows staggered day card animation
     When I open the New Trip dialog
     And I type "E2E Animated Trip" in the title field
-    And I select dates "2026-09-01" to "2026-09-03"
+    And I select the alternate future trip dates
     And I click the Create button
     Then I am on the trip detail page for "E2E Animated Trip"
     And the day cards have the stagger animation class

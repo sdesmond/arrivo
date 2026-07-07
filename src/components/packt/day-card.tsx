@@ -9,6 +9,7 @@ import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/type
 
 interface DayCardProps {
   day: DayItinerary;
+  defaultExpenseCurrency?: string;
   dateFormat?: string;
   tripDocs?: Document[];
   initialOpen?: boolean;
@@ -37,6 +38,7 @@ interface DayCardProps {
 
 export function DayCard({
   day,
+  defaultExpenseCurrency,
   dateFormat = "MM/DD/YYYY",
   tripDocs,
   initialOpen,
@@ -110,6 +112,7 @@ export function DayCard({
       {open && (
         <DayCardBody
           day={day}
+          defaultExpenseCurrency={defaultExpenseCurrency}
           tripDocs={tripDocs}
           newlyCreatedChecklistId={newlyCreatedChecklistId}
           highlightedEventId={highlightedEventId}

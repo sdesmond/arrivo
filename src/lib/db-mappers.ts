@@ -4,6 +4,7 @@ import {
   events,
   documents,
   reservations,
+  expenses,
   collaborators,
   itineraryChecklists,
   checklistItems,
@@ -17,6 +18,7 @@ import {
   userCompanions,
 } from "@/db/schema";
 import { getTripStatus } from "@/lib/utils";
+import { ExpenseCategory } from "@/data/types";
 import type {
   Trip,
   UserProfile,
@@ -24,6 +26,7 @@ import type {
   Document,
   Reservation,
   ReservationType,
+  Expense,
   Collaborator,
   DocPreviewLine,
   Checklist,
@@ -63,7 +66,6 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
       ? {
           currency: row.budgetCurrency ?? "USD",
           total: Number(row.budgetTotal),
-          perPerson: Number(row.budgetPerPerson ?? 0),
         }
       : undefined,
     tags: row.tags ?? [],
@@ -85,6 +87,8 @@ export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
     passportNationality: row.passportNationality ?? null,
     knownTravelerNumber: row.knownTravelerNumber ?? null,
     defaultCoverType: isCoverType(defaultCoverType) ? defaultCoverType : undefined,
+    warningThreshold: row.warningThreshold,
+    dangerThreshold: row.dangerThreshold,
     loyaltyNumbers: [],
     wishlistDestinations: [],
     companions: [],
@@ -104,7 +108,6 @@ export function dbEventToType(row: typeof events.$inferSelect): TripEvent {
     locationAddress: row.locationAddress ?? undefined,
     locationLat: row.locationLat ?? undefined,
     locationLng: row.locationLng ?? undefined,
-    cost: row.cost ? Number(row.cost) : undefined,
     confirmationNumber: row.confirmationNumber ?? undefined,
     note: row.note ?? undefined,
     position: row.position,
@@ -143,10 +146,33 @@ export function dbReservationToType(row: typeof reservations.$inferSelect): Rese
     endLocationName: row.endLocationName ?? undefined,
     endLocationLat: row.endLocationLat ?? undefined,
     endLocationLng: row.endLocationLng ?? undefined,
-    cost: row.cost != null ? Number(row.cost) : undefined,
     confirmationCode: row.confirmationCode ?? undefined,
     serviceNumber: row.serviceNumber ?? undefined,
     notes: row.notes ?? undefined,
+    createdAt: row.createdAt?.toISOString() ?? undefined,
+    updatedAt: row.updatedAt?.toISOString() ?? undefined,
+  };
+}
+
+export function dbExpenseToType(row: typeof expenses.$inferSelect): Expense {
+  return {
+    id: row.id,
+    tripId: row.tripId,
+    eventId: row.eventId ?? undefined,
+    reservationId: row.reservationId ?? undefined,
+    category: Object.values(ExpenseCategory).includes(row.category as Expense["category"])
+      ? (row.category as Expense["category"])
+      : ExpenseCategory.Misc,
+    amount: Number(row.amount),
+    currency: row.currency,
+    convertedAmountTrip: row.convertedAmountTrip != null ? Number(row.convertedAmountTrip) : undefined,
+    conversionRateTrip: row.conversionRateTrip != null ? Number(row.conversionRateTrip) : undefined,
+    convertedCurrencyTrip: row.convertedCurrencyTrip ?? undefined,
+    convertedAmountProfile: row.convertedAmountProfile != null ? Number(row.convertedAmountProfile) : undefined,
+    conversionRateProfile: row.conversionRateProfile != null ? Number(row.conversionRateProfile) : undefined,
+    convertedCurrencyProfile: row.convertedCurrencyProfile ?? undefined,
+    date: row.date,
+    note: row.note ?? undefined,
     createdAt: row.createdAt?.toISOString() ?? undefined,
     updatedAt: row.updatedAt?.toISOString() ?? undefined,
   };

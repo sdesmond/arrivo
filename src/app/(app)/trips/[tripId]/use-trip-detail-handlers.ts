@@ -3,6 +3,7 @@
 import React from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { TripCurrencyChangeMode } from "@/data/types";
 import type {
   DayItemType,
   DayItinerary,
@@ -56,11 +57,15 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleUpdateChecklistItem: (itemId: string, content: string) => void;
   handleDeleteChecklistItem: (itemId: string) => void;
   handleToggleChecklistItem: (itemId: string) => void;
-  handleTripSave: (patch: UpdateTripPatch) => Promise<UpdateTripMetadataResult | undefined>;
+  handleTripSave: (
+    patch: UpdateTripPatch,
+    currencyChangeMode?: TripCurrencyChangeMode
+  ) => Promise<UpdateTripMetadataResult | undefined>;
   handleTripSaveResolution: (
     patch: UpdateTripPatch,
     resolution: TripDateConflictResolution,
-    confirmation: TripDateChangeConfirmation
+    confirmation: TripDateChangeConfirmation,
+    currencyChangeMode?: TripCurrencyChangeMode
   ) => Promise<UpdateTripMetadataResult | undefined>;
   handleDeleteTrip: () => void;
   handleAddDay: () => void;
@@ -90,7 +95,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
         locationAddress: updated.locationAddress,
         locationLat: updated.locationLat,
         locationLng: updated.locationLng,
-        cost: updated.cost,
         confirmationNumber: updated.confirmationNumber,
         note: updated.note,
       });
@@ -212,14 +216,33 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
-    confirmation?: TripDateChangeConfirmation
+    confirmation?: TripDateChangeConfirmation,
+    currencyChangeMode?: TripCurrencyChangeMode
   ): Promise<UpdateTripMetadataResult | undefined> {
     return new Promise((resolve) => {
       startSaveTripTransition(async () => {
         try {
-          resolve(await updateTripMetadata(trip.id, patch, resolution, confirmation));
+          const result = await updateTripMetadata(
+            trip.id,
+            patch,
+            resolution,
+            confirmation,
+            currencyChangeMode === TripCurrencyChangeMode.Convert
+          );
+          if (currencyChangeMode && result.status === "saved") {
+            toast.success(
+              currencyChangeMode === TripCurrencyChangeMode.Convert
+                ? "Currency and conversions updated."
+                : "Trip currency changed."
+            );
+          }
+          resolve(result);
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to save trip changes. Please try again.");
+          if (currencyChangeMode) {
+            toast.error("Couldn't update currency — try again.");
+          } else {
+            toast.error(error instanceof Error ? error.message : "Failed to save trip changes. Please try again.");
+          }
           resolve(undefined);
         }
       });
@@ -284,8 +307,9 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleUpdateChecklistItem,
     handleDeleteChecklistItem,
     handleToggleChecklistItem,
-    handleTripSave: (patch) => handleTripSave(patch),
-    handleTripSaveResolution: (patch, resolution, confirmation) => handleTripSave(patch, resolution, confirmation),
+    handleTripSave: (patch, currencyChangeMode) => handleTripSave(patch, undefined, undefined, currencyChangeMode),
+    handleTripSaveResolution: (patch, resolution, confirmation, currencyChangeMode) =>
+      handleTripSave(patch, resolution, confirmation, currencyChangeMode),
     handleDeleteTrip,
     handleAddDay,
     handleRemoveLastDay,

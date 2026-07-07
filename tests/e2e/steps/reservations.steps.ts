@@ -1,8 +1,43 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { reservations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
+import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
 import { Given, When, Then } from "../fixtures";
+
+function formatTimeForDisplay(time: string): string {
+  const [hourString, minute] = time.split(":");
+  const hour = Number(hourString);
+  const displayHour = hour % 12 || 12;
+  const meridiem = hour >= 12 ? "PM" : "AM";
+  return `${displayHour}:${minute} ${meridiem}`;
+}
+
+async function selectCalendarDate(page: Page, anchorLabel: string, dateString: string): Promise<void> {
+  const [yearString, monthString, dayString] = dateString.split("-");
+  const year = Number(yearString);
+  const month = Number(monthString);
+  const day = Number(dayString);
+  const today = new Date();
+  const targetMonthIndex = year * 12 + (month - 1);
+  const currentMonthIndex = today.getUTCFullYear() * 12 + today.getUTCMonth();
+  const stepCount = targetMonthIndex - currentMonthIndex;
+  const navButtonName = stepCount >= 0 ? /Go to the Next Month/i : /Go to the Previous Month/i;
+  const targetDataDay = `${month}/${day}/${year}`;
+
+  await page.getByRole("button", { name: `${anchorLabel} date` }).click();
+  const popover = page.locator('[data-slot="popover-content"]').last();
+  for (let attempt = 0; attempt < Math.abs(stepCount); attempt += 1) {
+    if ((await popover.locator(`[data-day="${targetDataDay}"]`).count()) > 0) {
+      break;
+    }
+    await popover.getByRole("button", { name: navButtonName }).click();
+  }
+
+  const targetDay = popover.locator(`[data-day="${targetDataDay}"]`).first();
+  await expect(targetDay).toBeVisible({ timeout: 10_000 });
+  await targetDay.click();
+}
 
 Given("I am on the Reservations tab", async ({ page }) => {
   await page.getByRole("button", { name: "Reservations", exact: true }).click();
@@ -20,13 +55,13 @@ Given("the trip has reservations across multiple types", async ({ page, scenario
           {
             type: "lodging",
             provider: "Soonest Hotel",
-            startAt: "2030-01-10T15:00:00Z",
-            endAt: "2030-01-12T11:00:00Z",
+            startAt: e2eTripDateTime(0, "15:00:00"),
+            endAt: e2eTripDateTime(2, "11:00:00"),
           },
           {
             type: "flight",
             provider: "Later Air",
-            startAt: "2030-02-15T10:00:00Z",
+            startAt: e2eTripDateTime(40, "10:00:00"),
           },
         ],
       },
@@ -56,6 +91,10 @@ When("I set the {string} date to today", async ({ page }, anchorLabel: string) =
     .locator('[data-slot="popover-content"]')
     .getByRole("button", { name: /^Today,/ })
     .click();
+});
+
+When("I set the {string} date to trip day {int}", async ({ page }, anchorLabel: string, dayNumber: number) => {
+  await selectCalendarDate(page, anchorLabel, e2eTripDate(dayNumber - 1));
 });
 
 When("I set the {string} time to {string}", async ({ page }, anchorLabel: string, time: string) => {
@@ -125,8 +164,8 @@ Given("the trip has a Lodging reservation", async ({ page, scenario }) => {
           {
             type: "lodging",
             provider: "Original Hotel Name",
-            startAt: "2030-01-10T15:00:00Z",
-            endAt: "2030-01-12T11:00:00Z",
+            startAt: e2eTripDateTime(0, "15:00:00"),
+            endAt: e2eTripDateTime(2, "11:00:00"),
           },
         ],
       },
@@ -156,6 +195,7 @@ When("I edit the reservation provider to {string}", async ({ page }, newProvider
 When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel: string, time: string) => {
   // Clicking the compact date-range display opens the inline date/time inputs directly.
   const timeInput = page.getByLabel(`${anchorLabel} time`);
+  const row = page.locator('[data-testid^="reservation-row-"]').first();
   if (!(await timeInput.isVisible())) {
     await page
       .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
@@ -164,8 +204,13 @@ When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel
       .click();
   }
   await timeInput.fill(time);
-  // Click away from the edit section to save and collapse.
-  await page.locator("body").click({ position: { x: 10, y: 10 } });
+  // Click a neutral point inside the row so blur saves without navigating away.
+  await row.click({ position: { x: 8, y: 8 } });
+  await expect(timeInput).not.toBeVisible({ timeout: 10_000 });
+  const displayTime = formatTimeForDisplay(time);
+  await expect(row.getByRole("button", { name: new RegExp(`\\b${displayTime}\\b`) }).first()).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
@@ -184,18 +229,10 @@ Then(
 );
 
 Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabel: string, time: string) => {
-  // After reload the panel is collapsed. Open it, verify the time input value (HH:MM,
-  // timezone-independent), then click away to close without altering anything.
-  const timeInput = page.getByLabel(`${anchorLabel} time`);
-  if (!(await timeInput.isVisible())) {
-    await page
-      .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
-      .or(page.getByRole("button", { name: "Add dates" }))
-      .first()
-      .click();
-  }
-  await expect(timeInput).toHaveValue(time, { timeout: 10_000 });
-  await page.locator("body").click({ position: { x: 10, y: 10 } });
+  const displayTime = formatTimeForDisplay(time);
+  await expect(page.getByRole("button", { name: new RegExp(`\\b${displayTime}\\b`) }).first()).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 When("I delete the reservation {string}", async ({ page }, provider: string) => {
@@ -248,8 +285,8 @@ Given("the trip has a Lodging reservation with an attached document", async ({ p
           {
             type: "lodging",
             provider: "Original Hotel Name",
-            startAt: "2030-01-10T15:00:00Z",
-            endAt: "2030-01-12T11:00:00Z",
+            startAt: e2eTripDateTime(0, "15:00:00"),
+            endAt: e2eTripDateTime(2, "11:00:00"),
           },
         ],
         documents: [
@@ -295,8 +332,8 @@ Given(
             {
               type: "lodging",
               provider: "Original Hotel Name",
-              startAt: "2030-01-10T15:00:00Z",
-              endAt: "2030-01-12T11:00:00Z",
+              startAt: e2eTripDateTime(0, "15:00:00"),
+              endAt: e2eTripDateTime(2, "11:00:00"),
             },
           ],
           documents: [

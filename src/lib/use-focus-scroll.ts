@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 
 const SCROLL_SETTLE_DELAY_MS = 500;
 const FOCUS_HIGHLIGHT_DURATION_MS = 1500;
+const ELEMENT_POLL_INTERVAL_MS = 50;
+const ELEMENT_POLL_TIMEOUT_MS = 2000;
 
 export function useFocusScroll(): string | null {
   const searchParams = useSearchParams();
@@ -14,9 +16,32 @@ export function useFocusScroll(): string | null {
 
   useEffect(() => {
     if (!focusId) return;
-    const element = document.getElementById(`event-${focusId}`);
-    element?.scrollIntoView({ behavior: "smooth", block: "center" });
-    (element as HTMLElement | null)?.focus();
+
+    let cancelled = false;
+    let elapsedMs = 0;
+
+    // The target tab (e.g. Itinerary) may still be switching in when this runs — for example
+    // navigating here from another tab sets the `tab` and `focus` params together, but the
+    // `tab` state update commits after this effect's first pass. Poll briefly until the
+    // element mounts instead of giving up on the first miss.
+    function attemptScroll(): void {
+      if (cancelled) return;
+      const element = document.getElementById(`event-${focusId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.focus();
+        return;
+      }
+      if (elapsedMs >= ELEMENT_POLL_TIMEOUT_MS) return;
+      elapsedMs += ELEMENT_POLL_INTERVAL_MS;
+      setTimeout(attemptScroll, ELEMENT_POLL_INTERVAL_MS);
+    }
+
+    attemptScroll();
+
+    return () => {
+      cancelled = true;
+    };
   }, [focusId]);
 
   useEffect(() => {

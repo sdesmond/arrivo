@@ -6,9 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
+  TripCurrencyChangeMode,
   type Budget,
   type Collaborator,
   type CollaboratorRole,
+  type CurrencyOption,
+  type Expense,
   type Trip,
   type TripDateChangeConfirmation,
   type TripDateConflictResolution as TripDateConflictResolutionValue,
@@ -21,13 +24,17 @@ import { TripEditDestination } from "@/components/packt/trip-edit-destination";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
 import { TripDateChangeConfirmationDialog } from "@/components/packt/trip-date-change-confirmation-dialog";
+import { TripCurrencyChangeDialog } from "@/components/packt/trip-currency-change-dialog";
+import { hasCurrencyChangeMismatch } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 
 interface TripEditSheetProps {
   trip: Trip | null;
+  currencyOptions: CurrencyOption[];
+  expenses?: Expense[];
   open: boolean;
   onClose: () => void;
-  onSave: (patch: UpdateTripPatch) => void | Promise<void>;
+  onSave: (patch: UpdateTripPatch, currencyChangeMode?: TripCurrencyChangeMode) => void | Promise<void>;
   saving?: boolean;
   dateFormat?: string;
   dateChangeConfirmation?: TripDateChangeConfirmation | null;
@@ -40,6 +47,8 @@ interface TripEditSheetProps {
 
 export function TripEditSheet({
   trip,
+  currencyOptions,
+  expenses = [],
   open,
   onClose,
   onSave,
@@ -58,6 +67,7 @@ export function TripEditSheet({
   const [destinationPatch, setDestinationPatch] = useState<
     { name: string | null; country: string | null; countryCode: string | null } | undefined
   >(undefined);
+  const [pendingCurrencyPatch, setPendingCurrencyPatch] = useState<UpdateTripPatch | null>(null);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const isBusy = saving || isDeleting;
   useEffect(() => {
@@ -67,6 +77,7 @@ export function TripEditSheet({
       setDeleteDialogOpen(false);
       setDestinationInput(trip?.destinationName ?? "");
       setDestinationPatch(undefined);
+      setPendingCurrencyPatch(null);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, trip]);
@@ -122,6 +133,17 @@ export function TripEditSheet({
     onCancelDateChange?.();
     restoreSaveButtonFocus();
   }
+  function closeCurrencyDialog(): void {
+    setPendingCurrencyPatch(null);
+    restoreSaveButtonFocus();
+  }
+  function resolveCurrencyChange(mode: TripCurrencyChangeMode): void {
+    const patch = pendingCurrencyPatch;
+    setPendingCurrencyPatch(null);
+    if (patch) {
+      void onSave(patch, mode);
+    }
+  }
   function getPatch(): UpdateTripPatch {
     const currentDraft = draft;
     if (!currentDraft) {
@@ -147,12 +169,24 @@ export function TripEditSheet({
         : {}),
       budgetCurrency: currentDraft.budget?.currency,
       budgetTotal: currentDraft.budget?.total,
-      budgetPerPerson: currentDraft.budget?.perPerson,
       tags: currentDraft.tags,
     };
   }
   async function handleResolution(resolution: TripDateConflictResolutionValue): Promise<void> {
     await onResolveDateChange?.(resolution);
+  }
+  function handleSaveClick(): void {
+    const patch = getPatch();
+    const previousCurrency = (trip?.budget?.currency ?? "").toUpperCase();
+    const nextCurrency = (patch.budgetCurrency ?? "").toUpperCase();
+    const isCurrencyChanging = !!nextCurrency && nextCurrency !== previousCurrency;
+
+    if (isCurrencyChanging && hasCurrencyChangeMismatch(expenses, nextCurrency)) {
+      setPendingCurrencyPatch(patch);
+      return;
+    }
+
+    onSave(patch);
   }
 
   return (
@@ -206,12 +240,11 @@ export function TripEditSheet({
               disabled={isBusy}
             />
             <TripEditBudget
+              currencyOptions={currencyOptions}
               currency={draft.budget?.currency}
               total={draft.budget?.total}
-              perPerson={draft.budget?.perPerson}
               onCurrencyChange={(currency) => setBudget("currency", currency)}
               onTotalChange={(total) => setBudget("total", total)}
-              onPerPersonChange={(perPerson) => setBudget("perPerson", perPerson)}
               disabled={isBusy}
             />
             <Section title="People">
@@ -225,6 +258,14 @@ export function TripEditSheet({
           </div>
 
           <DrawerFooter className="shrink-0 gap-3" style={{ borderTop: "1px solid var(--line)" }}>
+            <div className="flex flex-row justify-end gap-2">
+              <Button variant="ghost" onClick={onClose} disabled={isBusy}>
+                Cancel
+              </Button>
+              <Button ref={saveButtonRef} disabled={isBusy} onClick={handleSaveClick}>
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
             {onDelete ? (
               <>
                 <Separator />
@@ -233,14 +274,6 @@ export function TripEditSheet({
                 </Button>
               </>
             ) : null}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="ghost" onClick={onClose} disabled={isBusy}>
-                Cancel
-              </Button>
-              <Button ref={saveButtonRef} disabled={isBusy} onClick={() => onSave(getPatch())}>
-                {saving ? "Saving..." : "Save changes"}
-              </Button>
-            </div>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
@@ -262,6 +295,13 @@ export function TripEditSheet({
         saving={saving}
         onResolveDateChange={handleResolution}
         onCancelDateChange={closeDateChangeDialog}
+      />
+      <TripCurrencyChangeDialog
+        isOpen={pendingCurrencyPatch !== null}
+        saving={isBusy}
+        onCancel={closeCurrencyDialog}
+        onLeaveAsIs={() => resolveCurrencyChange(TripCurrencyChangeMode.LeaveAsIs)}
+        onConvert={() => resolveCurrencyChange(TripCurrencyChangeMode.Convert)}
       />
     </>
   );

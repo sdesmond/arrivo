@@ -51,14 +51,12 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
   const [startResolvedLocation, setStartResolvedLocation] = useState<SavedLocationValue | undefined>(undefined);
   const [endAddress, setEndAddress] = useState("");
   const [endResolvedLocation, setEndResolvedLocation] = useState<SavedLocationValue | undefined>(undefined);
-  const [cost, setCost] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [serviceNumber, setServiceNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [providerError, setProviderError] = useState<string | undefined>(undefined);
   const [startAtError, setStartAtError] = useState<string | undefined>(undefined);
   const [endAtError, setEndAtError] = useState<string | undefined>(undefined);
-  const [costError, setCostError] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const providerInputRef = useRef<HTMLInputElement | null>(null);
@@ -84,14 +82,12 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       setStartResolvedLocation(undefined);
       setEndAddress("");
       setEndResolvedLocation(undefined);
-      setCost("");
       setConfirmationCode("");
       setServiceNumber("");
       setNotes("");
       setProviderError(undefined);
       setStartAtError(undefined);
       setEndAtError(undefined);
-      setCostError(undefined);
       setSaving(false);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -101,7 +97,6 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
     setProviderError(undefined);
     setStartAtError(undefined);
     setEndAtError(undefined);
-    setCostError(undefined);
 
     if (!provider.trim()) {
       setProviderError("Provider is required.");
@@ -141,11 +136,6 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       return;
     }
 
-    if (cost && isNaN(parseFloat(cost))) {
-      setCostError("Cost must be a valid number.");
-      return;
-    }
-
     setSaving(true);
 
     const input: CreateReservationInput = {
@@ -161,7 +151,6 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
       endLocationName: endResolvedLocation?.name,
       endLocationLat: endResolvedLocation?.lat,
       endLocationLng: endResolvedLocation?.lng,
-      cost: cost ? parseFloat(cost) : undefined,
       confirmationCode: confirmationCode || undefined,
       serviceNumber: serviceNumber || undefined,
       notes: notes || undefined,
@@ -281,18 +270,6 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                   })
                 }
                 onClearResolved={() => setEndResolvedLocation(undefined)}
-                disabled={saving}
-              />
-            </Field>
-
-            <Field label="Cost (Optional)" htmlFor="reservation-cost" error={costError}>
-              <Input
-                id="reservation-cost"
-                className="h-9"
-                inputMode="decimal"
-                value={cost}
-                onChange={(event) => setCost(event.target.value)}
-                aria-invalid={!!costError}
                 disabled={saving}
               />
             </Field>

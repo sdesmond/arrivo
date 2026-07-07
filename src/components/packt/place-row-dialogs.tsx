@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripEvent, Document, SavedLocationValue } from "@/data/types";
+import type { CreateExpenseInput, Document, SavedLocationValue, TripEvent } from "@/data/types";
 import { toHHMM } from "@/lib/utils";
 import { TimeDialog } from "./time-dialog";
 import { CostDialog } from "./cost-dialog";
@@ -10,13 +10,15 @@ import { DeleteEventDialog } from "./delete-event-dialog";
 
 export interface PlaceRowDialogsProps {
   place: TripEvent;
+  defaultCurrency?: string;
   tripDocs?: Document[];
   showTimeDialog: boolean;
   onTimeOpenChange: (v: boolean) => void;
   onTimeSave: (t?: string, et?: string) => void;
   showCostDialog: boolean;
   onCostOpenChange: (v: boolean) => void;
-  onCostSave: (cost?: number) => void;
+  onCostSave: (expense: CreateExpenseInput) => Promise<void> | void;
+  onCostRemove?: () => Promise<void> | void;
   showLocationDialog: boolean;
   onLocationOpenChange: (v: boolean) => void;
   onLocationSave: (location?: SavedLocationValue) => void;
@@ -28,6 +30,7 @@ export interface PlaceRowDialogsProps {
 
 export function PlaceRowDialogs({
   place,
+  defaultCurrency,
   tripDocs,
   showTimeDialog,
   onTimeOpenChange,
@@ -35,6 +38,7 @@ export function PlaceRowDialogs({
   showCostDialog,
   onCostOpenChange,
   onCostSave,
+  onCostRemove,
   showLocationDialog,
   onLocationOpenChange,
   onLocationSave,
@@ -54,11 +58,13 @@ export function PlaceRowDialogs({
         onSave={onTimeSave}
       />
       <CostDialog
-        cost={place.cost}
+        expense={place.expense}
+        defaultCurrency={defaultCurrency}
         eventName={place.name}
         open={showCostDialog}
         onOpenChange={onCostOpenChange}
         onSave={onCostSave}
+        onRemove={onCostRemove}
       />
       <LocationDialog
         address={place.locationAddress}

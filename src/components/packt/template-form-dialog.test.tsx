@@ -78,4 +78,14 @@ describe("TemplateFormDialog", () => {
 
     expect(screen.getByLabelText("Template name")).toHaveValue("Carry-on Only");
   });
+
+  it("calls onOpenChange(false) when cancel is clicked", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+
+    render(<TemplateFormDialog mode="create" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

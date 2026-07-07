@@ -10,10 +10,19 @@ import {
   E2E_KEEP_DOC,
   E2E_MANAGE_DOC,
   E2E_PICK_DOC,
+  E2E_TRIP_START_DATE,
 } from "../e2e-seed-data";
 
 function escapeRegex(source: string): string {
   return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function dayButtonNamePattern(date: string): RegExp {
+  const parsedDate = new Date(`${date}T00:00:00`);
+  const weekday = parsedDate.toLocaleString("en-US", { weekday: "short" });
+  const month = parsedDate.toLocaleString("en-US", { month: "short" });
+  const day = String(parsedDate.getDate());
+  return new RegExp(`${weekday}.*(${month}\\s*${day}|${day}\\s*${month})`, "i");
 }
 
 Before({ tags: "@event-docs" }, async ({ scenario }) => {
@@ -47,7 +56,7 @@ Given("I am on the Itinerary tab", async ({ page }) => {
 });
 
 Given("I expand Day 1", async ({ page }) => {
-  const toggleBtn = page.getByRole("button", { name: /wed.*(jul\s*1|1\s*jul)/i }).first();
+  const toggleBtn = page.getByRole("button", { name: dayButtonNamePattern(E2E_TRIP_START_DATE) }).first();
   await toggleBtn.click();
   await expect(page.getByText(E2E_EVENT.name, { exact: true })).toBeVisible({ timeout: 5_000 });
 });

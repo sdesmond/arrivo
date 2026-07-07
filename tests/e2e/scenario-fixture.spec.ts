@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { days, packingTemplates, trips, users } from "../../src/db/schema";
 import { cleanupScenarioFixtureContext, createScenarioFixtureContext } from "./scenario-fixture";
 import { withE2EDb } from "./e2e-db";
-import { THREE_DAY_TRIP_MOTHER, cloneTripMother, cloneUserMother } from "./e2e-seed-data";
+import { E2E_TRIP_START_DATE, THREE_DAY_TRIP_MOTHER, cloneTripMother, cloneUserMother } from "./e2e-seed-data";
 
 // Self-tests for the scenario-fixture infrastructure (mothers, unique naming, materialize/cleanup).
 // These run as their own Playwright project (see playwright.config.ts) rather than a second Vitest
@@ -14,7 +14,7 @@ test.describe("E2E scenario fixtures", () => {
   test("clones trip mothers without mutating the base object", () => {
     const clone = cloneTripMother("threeDayTrip", {
       trip: { name: "Mutated Trip" },
-      days: [{ dayNumber: 1, date: "2026-09-01", label: "Day 1" }],
+      days: [{ dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" }],
     });
 
     expect(clone.trip.name).toBe("Mutated Trip");
@@ -49,6 +49,7 @@ test.describe("E2E scenario fixtures", () => {
           name: foreignUser.user.name,
           passwordHash: "foreign-hash",
           dateFormat: foreignUser.user.dateFormat,
+          currency: foreignUser.user.currency ?? "USD",
         })
         .returning({ id: users.id })
     );

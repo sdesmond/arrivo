@@ -1,24 +1,29 @@
 import { expect, type Page } from "@playwright/test";
 import { asc, eq } from "drizzle-orm";
 import { days } from "../../../src/db/schema";
+import {
+  E2E_TRIP_START_DATE,
+  E2E_TRIP_SECOND_DATE,
+  E2E_TRIP_THIRD_DATE,
+  e2eTripDate,
+  e2eTripDateTime,
+} from "../e2e-seed-data";
 import type { DaySeed, EventSeed, ReservationSeed, TripMotherOverrides } from "../e2e-seed-data";
 import { withE2EDb } from "../e2e-db";
 import { Given, Then, When } from "../fixtures";
 
 const EXTENSION_PROVIDER = "Extension Hotel";
-const LINKED_EVENTS_START_DATE = "2026-09-01";
-const LINKED_EVENTS_END_DATE = "2026-09-03";
 const LINKED_EVENTS_DAYS = [
-  { dayNumber: 1, date: "2026-09-01", label: "Day 1" },
-  { dayNumber: 2, date: "2026-09-02", label: "Day 2" },
-  { dayNumber: 3, date: "2026-09-03", label: "Day 3" },
+  { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+  { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
+  { dayNumber: 3, date: E2E_TRIP_THIRD_DATE, label: "Day 3" },
 ] satisfies DaySeed[];
 
 function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): TripMotherOverrides {
   return {
     trip: {
-      startDate: LINKED_EVENTS_START_DATE,
-      endDate: LINKED_EVENTS_END_DATE,
+      startDate: E2E_TRIP_START_DATE,
+      endDate: E2E_TRIP_THIRD_DATE,
       ...overrides.trip,
     },
     days: overrides.days ?? LINKED_EVENTS_DAYS,
@@ -31,6 +36,9 @@ function buildLinkedEventsTripOverrides(overrides: TripMotherOverrides = {}): Tr
   };
 }
 
+// Mirror getFloatingNow: take a Date's local wall-clock components and emit them
+// as a UTC ISO string. Keeps seeded reservation times aligned with the Now Card's
+// timezone-independent comparison.
 function toFloatingIso(date: Date): string {
   return new Date(
     Date.UTC(
@@ -43,10 +51,6 @@ function toFloatingIso(date: Date): string {
       date.getMilliseconds()
     )
   ).toISOString();
-}
-
-function toLocalDateString(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 async function ensureDayExpanded(page: Page, dayIndex: number): Promise<void> {
@@ -108,8 +112,8 @@ Given(
             {
               type: "lodging",
               provider: "Torel Avantgarde",
-              startAt: "2026-09-01T15:00:00Z",
-              endAt: "2026-09-02T11:00:00Z",
+              startAt: e2eTripDateTime(0, "15:00:00"),
+              endAt: e2eTripDateTime(1, "11:00:00"),
             },
           ],
         }),
@@ -132,8 +136,8 @@ Given(
             {
               type: "lodging",
               provider: "Torel Avantgarde",
-              startAt: "2026-09-01T15:00:00Z",
-              endAt: "2026-09-02T11:00:00Z",
+              startAt: e2eTripDateTime(0, "15:00:00"),
+              endAt: e2eTripDateTime(1, "11:00:00"),
             },
           ],
           events: [
@@ -159,8 +163,8 @@ Given("the trip has a Flight reservation with Delta departing and arriving on Da
           {
             type: "flight",
             provider: "Delta",
-            startAt: "2026-09-01T18:00:00Z",
-            endAt: "2026-09-02T02:00:00Z",
+            startAt: e2eTripDateTime(0, "18:00:00"),
+            endAt: e2eTripDateTime(1, "02:00:00"),
           },
         ],
       }),
@@ -171,7 +175,7 @@ Given("the trip has a Flight reservation with Delta departing and arriving on Da
   await scenario.gotoCurrentTrip(page);
 });
 
-Given("I start from a three-day trip dated September 1, 2026 through September 3, 2026", async ({ page, scenario }) => {
+Given("I start from the default future three-day trip", async ({ page, scenario }) => {
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
@@ -187,9 +191,17 @@ Given("I start from a three-day trip dated September 1, 2026 through September 3
 
 Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ scenario }, window: string) => {
   const now = new Date();
-  const startAt = window === "now" ? toFloatingIso(now) : toFloatingIso(new Date(now.getTime() + 60 * 60 * 1000));
-  const tripStartDate = toLocalDateString(now);
-  const tripEndDate = toLocalDateString(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000));
+  // The Now Card classifies events against a "floating" now (local wall-clock
+  // reinterpreted as UTC — see getFloatingNow). Seed times the same way so the
+  // comparison is timezone-independent; a true-UTC instant would shift by the
+  // machine offset and read as the wrong window west of UTC. A 5-minute margin
+  // absorbs the gap until the page sets its mock-date cookie.
+  const checkInAt =
+    window === "now" ? new Date(now.getTime() - 5 * 60 * 1000) : new Date(now.getTime() + 60 * 60 * 1000);
+  const startAt = toFloatingIso(checkInAt);
+  const endAt = toFloatingIso(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+  const tripStartDate = toFloatingIso(now).slice(0, 10);
+  const tripEndDate = toFloatingIso(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)).slice(0, 10);
   await scenario.materialize({
     trip: {
       mother: "threeDayTrip",
@@ -203,7 +215,7 @@ Given("the trip has a Lodging reservation whose Check-in is {string}", async ({ 
             type: "lodging",
             provider: "Torel Avantgarde",
             startAt,
-            endAt: toFloatingIso(new Date(now.getTime() + 24 * 60 * 60 * 1000)),
+            endAt,
           },
         ],
       },
@@ -220,6 +232,13 @@ When("I view the Itinerary tab", async ({ page }) => {
 });
 
 When("I view the trip list", async ({ page }) => {
+  await page.context().addCookies([
+    {
+      name: "__packt_mock_date__",
+      value: encodeURIComponent(new Date().toISOString()),
+      url: "http://localhost:3001",
+    },
+  ]);
   await page.goto("/trips");
 });
 
@@ -241,6 +260,32 @@ When(
     await selectCalendarDate(page, "Check-in date", startDate);
     await page.getByLabel("Check-in time").fill(startTime);
     await selectCalendarDate(page, "Check-out date", endDate);
+    await page.getByLabel("Check-out time").fill(endTime);
+    await saveReservation(page);
+  }
+);
+
+When(
+  "I add a Lodging reservation from the day before the trip at {string} to trip day 1 at {string}",
+  async ({ page }, startTime: string, endTime: string) => {
+    await openAddLodgingReservationDrawer(page);
+    await page.getByLabel("Provider *").fill(EXTENSION_PROVIDER);
+    await selectCalendarDate(page, "Check-in date", e2eTripDate(-1));
+    await page.getByLabel("Check-in time").fill(startTime);
+    await selectCalendarDate(page, "Check-out date", E2E_TRIP_START_DATE);
+    await page.getByLabel("Check-out time").fill(endTime);
+    await saveReservation(page);
+  }
+);
+
+When(
+  "I add a Lodging reservation from the day after the trip at {string} to two days after the trip at {string}",
+  async ({ page }, startTime: string, endTime: string) => {
+    await openAddLodgingReservationDrawer(page);
+    await page.getByLabel("Provider *").fill(EXTENSION_PROVIDER);
+    await selectCalendarDate(page, "Check-in date", e2eTripDate(3));
+    await page.getByLabel("Check-in time").fill(startTime);
+    await selectCalendarDate(page, "Check-out date", e2eTripDate(4));
     await page.getByLabel("Check-out time").fill(endTime);
     await saveReservation(page);
   }
