@@ -263,6 +263,7 @@ describe("useLocationAutocomplete", () => {
   });
 
   it("resolves a selected location suggestion and stores the full address", async () => {
+    vi.useFakeTimers();
     const { onResolved, result } = renderAutocomplete();
 
     await act(async () => {
@@ -274,9 +275,16 @@ describe("useLocationAutocomplete", () => {
     expect(onResolved).toHaveBeenCalledWith(retrievedLocation);
     expect(result.current.retrieveLoading).toBe(false);
     expect(result.current.suggestions).toEqual([]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(searchAddressLocations).not.toHaveBeenCalled();
   });
 
   it("resolves a selected destination suggestion and stores the place name", async () => {
+    vi.useFakeTimers();
     const { onResolved, result } = renderAutocomplete({ mode: "destination" });
 
     await act(async () => {
@@ -291,6 +299,46 @@ describe("useLocationAutocomplete", () => {
 
     expect(result.current.value).toBe("Tokyo Tower");
     expect(onResolved).toHaveBeenCalledWith(retrievedLocation);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(searchLocations).not.toHaveBeenCalled();
+  });
+
+  it("does not re-search after selecting a suggestion, even when retrieval is slower than the debounce window", async () => {
+    let resolveRetrieve: (location: RetrievedLocation) => void = () => undefined;
+    vi.mocked(retrieveLocation).mockReturnValue(
+      new Promise<RetrievedLocation>((resolve) => {
+        resolveRetrieve = resolve;
+      })
+    );
+    vi.useFakeTimers();
+
+    const { onResolved, result } = renderAutocomplete();
+
+    const selectPromise = result.current.handleSuggestionSelect(buildSuggestion());
+
+    // Advance past the 300ms debounce window while retrieval is still in flight.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(searchAddressLocations).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveRetrieve(retrievedLocation);
+      await selectPromise;
+    });
+
+    expect(onResolved).toHaveBeenCalledWith(retrievedLocation);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(searchAddressLocations).not.toHaveBeenCalled();
   });
 
   it("ignores a retrieve result that was cancelled by later typing and rotates the session token", async () => {
