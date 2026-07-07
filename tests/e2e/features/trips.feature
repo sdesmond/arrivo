@@ -20,7 +20,7 @@ Feature: Trip Management
   Scenario: Canceling trip date edits resets the sheet draft on reopen
     Given I have an existing trip
     When I open the trip edit sheet
-    And I change the trip date range to "2026-07-02" through "2026-07-04"
+    And I shift the trip date range one day later
     And I close the trip edit sheet without saving
     And I open the trip edit sheet
     Then the trip edit sheet shows the original dates

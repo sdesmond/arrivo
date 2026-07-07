@@ -46,6 +46,7 @@ describe("lib/currency", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe("convert", () => {
@@ -86,6 +87,19 @@ describe("lib/currency", () => {
   });
 
   describe("convertDual", () => {
+    it("uses deterministic rates without fetch in E2E mode", async () => {
+      vi.stubEnv("PACKT_E2E", "true");
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      const result = await convertDual(200, "USD", ["EUR", "GBP"], PAST);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        EUR: { convertedAmount: 184, rate: 0.92 },
+        GBP: { convertedAmount: 158, rate: 0.79 },
+      });
+    });
+
     it("fetches both targets in a single call with comma-joined symbols", async () => {
       const fetchSpy = mockFetchRates({ EUR: 0.92, GBP: 0.79 });
 

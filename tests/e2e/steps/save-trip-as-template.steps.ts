@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { packingItems, tripPackingLists } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
+import { E2E_TRIP_ALT_START_DATE, E2E_TRIP_ALT_THIRD_DATE } from "../e2e-seed-data";
 import { Given, Then, When } from "../fixtures";
 
 async function seedSaveAsTemplateItems(tripId: string): Promise<void> {
@@ -28,8 +29,8 @@ Given("I have a trip with packing items for save-as-template", async ({ scenario
   const trip = await scenario.ensureCurrentTrip("threeDayTrip", {
     trip: {
       name: "E2E Save Template Trip",
-      startDate: "2026-07-11",
-      endDate: "2026-07-13",
+      startDate: E2E_TRIP_ALT_START_DATE,
+      endDate: E2E_TRIP_ALT_THIRD_DATE,
     },
   });
   await seedSaveAsTemplateItems(trip.id);

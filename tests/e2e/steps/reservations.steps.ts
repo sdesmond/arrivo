@@ -1,7 +1,8 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { reservations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
+import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
 import { Given, When, Then } from "../fixtures";
 
 function formatTimeForDisplay(time: string): string {
@@ -10,6 +11,32 @@ function formatTimeForDisplay(time: string): string {
   const displayHour = hour % 12 || 12;
   const meridiem = hour >= 12 ? "PM" : "AM";
   return `${displayHour}:${minute} ${meridiem}`;
+}
+
+async function selectCalendarDate(page: Page, anchorLabel: string, dateString: string): Promise<void> {
+  const [yearString, monthString, dayString] = dateString.split("-");
+  const year = Number(yearString);
+  const month = Number(monthString);
+  const day = Number(dayString);
+  const today = new Date();
+  const targetMonthIndex = year * 12 + (month - 1);
+  const currentMonthIndex = today.getUTCFullYear() * 12 + today.getUTCMonth();
+  const stepCount = targetMonthIndex - currentMonthIndex;
+  const navButtonName = stepCount >= 0 ? /Go to the Next Month/i : /Go to the Previous Month/i;
+  const targetDataDay = `${month}/${day}/${year}`;
+
+  await page.getByRole("button", { name: `${anchorLabel} date` }).click();
+  const popover = page.locator('[data-slot="popover-content"]').last();
+  for (let attempt = 0; attempt < Math.abs(stepCount); attempt += 1) {
+    if ((await popover.locator(`[data-day="${targetDataDay}"]`).count()) > 0) {
+      break;
+    }
+    await popover.getByRole("button", { name: navButtonName }).click();
+  }
+
+  const targetDay = popover.locator(`[data-day="${targetDataDay}"]`).first();
+  await expect(targetDay).toBeVisible({ timeout: 10_000 });
+  await targetDay.click();
 }
 
 Given("I am on the Reservations tab", async ({ page }) => {
@@ -28,13 +55,13 @@ Given("the trip has reservations across multiple types", async ({ page, scenario
           {
             type: "lodging",
             provider: "Soonest Hotel",
-            startAt: "2030-01-10T15:00:00Z",
-            endAt: "2030-01-12T11:00:00Z",
+            startAt: e2eTripDateTime(0, "15:00:00"),
+            endAt: e2eTripDateTime(2, "11:00:00"),
           },
           {
             type: "flight",
             provider: "Later Air",
-            startAt: "2030-02-15T10:00:00Z",
+            startAt: e2eTripDateTime(40, "10:00:00"),
           },
         ],
       },
@@ -64,6 +91,10 @@ When("I set the {string} date to today", async ({ page }, anchorLabel: string) =
     .locator('[data-slot="popover-content"]')
     .getByRole("button", { name: /^Today,/ })
     .click();
+});
+
+When("I set the {string} date to trip day {int}", async ({ page }, anchorLabel: string, dayNumber: number) => {
+  await selectCalendarDate(page, anchorLabel, e2eTripDate(dayNumber - 1));
 });
 
 When("I set the {string} time to {string}", async ({ page }, anchorLabel: string, time: string) => {
@@ -133,8 +164,8 @@ Given("the trip has a Lodging reservation", async ({ page, scenario }) => {
           {
             type: "lodging",
             provider: "Original Hotel Name",
-            startAt: "2030-01-10T15:00:00Z",
-            endAt: "2030-01-12T11:00:00Z",
+            startAt: e2eTripDateTime(0, "15:00:00"),
+            endAt: e2eTripDateTime(2, "11:00:00"),
           },
         ],
       },
@@ -254,8 +285,8 @@ Given("the trip has a Lodging reservation with an attached document", async ({ p
           {
             type: "lodging",
             provider: "Original Hotel Name",
-            startAt: "2030-01-10T15:00:00Z",
-            endAt: "2030-01-12T11:00:00Z",
+            startAt: e2eTripDateTime(0, "15:00:00"),
+            endAt: e2eTripDateTime(2, "11:00:00"),
           },
         ],
         documents: [
@@ -301,8 +332,8 @@ Given(
             {
               type: "lodging",
               provider: "Original Hotel Name",
-              startAt: "2030-01-10T15:00:00Z",
-              endAt: "2030-01-12T11:00:00Z",
+              startAt: e2eTripDateTime(0, "15:00:00"),
+              endAt: e2eTripDateTime(2, "11:00:00"),
             },
           ],
           documents: [
