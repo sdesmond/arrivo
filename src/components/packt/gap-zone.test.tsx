@@ -1,7 +1,26 @@
+import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ItineraryItemType } from "@/data/types";
+
+vi.mock("@/components/ui/popover", () => {
+  const PopoverOpenContext = React.createContext(false);
+  return {
+    Popover: ({ children, open }: { children: React.ReactNode; open?: boolean }) => (
+      <PopoverOpenContext.Provider value={Boolean(open)}>{children}</PopoverOpenContext.Provider>
+    ),
+    PopoverTrigger: ({ children, ...props }: React.ComponentProps<"button">) => <button {...props}>{children}</button>,
+    PopoverContent: ({ children, ...props }: React.ComponentProps<"div">) => {
+      const isOpen = React.useContext(PopoverOpenContext);
+      return isOpen ? (
+        <div data-testid="gap-type-picker-popup" {...props}>
+          {children}
+        </div>
+      ) : null;
+    },
+  };
+});
 
 vi.mock("./type-picker", () => ({
   TypePicker: ({
@@ -31,7 +50,8 @@ describe("GapZone", () => {
   it("renders TypePicker in active state (no insert button)", () => {
     render(<GapZone gapKey="ti-0" isActive={true} onOpen={vi.fn()} onSelectType={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.getByTestId("type-picker")).toBeInTheDocument();
-    expect(screen.queryByTitle("Insert item here")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Insert item here")).toBeInTheDocument();
+    expect(screen.getByTestId("gap-type-picker-popup")).toBeInTheDocument();
   });
 
   it("clicking the insert button calls onOpen", async () => {
