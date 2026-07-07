@@ -15,6 +15,12 @@ import type { Expense } from "@/data/types";
 
 const FRANKFURTER_BASE = "https://api.frankfurter.dev/v2/rates";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1hr — only applies to today-dated lookups
+const E2E_RATES_BY_BASE: Record<string, Record<string, number>> = {
+  EUR: { GBP: 0.86, USD: 1.08 },
+  GBP: { EUR: 1.16, USD: 1.25 },
+  INR: { GBP: 0.0095, USD: 0.012 },
+  USD: { EUR: 0.92, GBP: 0.79 },
+};
 
 interface ConversionResult {
   convertedAmount: number;
@@ -53,6 +59,11 @@ const resolveLookupDate = (date: string): string => {
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
 
 async function fetchRates(fromCurrency: string, toCurrencies: string[], date: string): Promise<Record<string, number>> {
+  if (process.env.PACKT_E2E === "true") {
+    const baseRates = E2E_RATES_BY_BASE[fromCurrency] ?? {};
+    return Object.fromEntries(toCurrencies.map((currency) => [currency, baseRates[currency] ?? 1]));
+  }
+
   const url = `${FRANKFURTER_BASE}?date=${date}&base=${fromCurrency}&quotes=${toCurrencies.join(",")}`;
   const response = await fetch(url);
 

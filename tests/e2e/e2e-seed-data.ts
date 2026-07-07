@@ -200,14 +200,14 @@ export const DEFAULT_USER_MOTHER: UserMother = {
 export const THREE_DAY_TRIP_MOTHER: TripMother = {
   trip: {
     name: "E2E Test Trip",
-    startDate: "2026-07-01",
-    endDate: "2026-07-03",
+    startDate: "2026-08-01",
+    endDate: "2026-08-03",
     coverImageUrl: "graphic:var(--accent-brand)/plane",
   },
   days: [
-    { dayNumber: 1, date: "2026-07-01", label: "Day 1" },
-    { dayNumber: 2, date: "2026-07-02", label: "Day 2" },
-    { dayNumber: 3, date: "2026-07-03", label: "Day 3" },
+    { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+    { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+    { dayNumber: 3, date: "2026-08-03", label: "Day 3" },
   ],
   events: [],
   documents: [],
