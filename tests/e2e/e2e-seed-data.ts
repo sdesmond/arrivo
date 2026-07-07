@@ -168,6 +168,35 @@ export interface TemplateMotherOverrides {
   items?: TemplateItemSeed[];
 }
 
+function toDateKey(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function firstDayOfMonthAfterNext(): string {
+  const now = new Date();
+  return toDateKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 1)));
+}
+
+export function e2eTripDate(offsetDays: number): string {
+  const date = new Date(`${E2E_TRIP_START_DATE}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return toDateKey(date);
+}
+
+export function e2eTripDateTime(offsetDays: number, time: string): string {
+  return `${e2eTripDate(offsetDays)}T${time}Z`;
+}
+
+export const E2E_TRIP_START_DATE = firstDayOfMonthAfterNext();
+export const E2E_TRIP_SECOND_DATE = e2eTripDate(1);
+export const E2E_TRIP_THIRD_DATE = e2eTripDate(2);
+export const E2E_TRIP_FOURTH_DATE = e2eTripDate(3);
+export const E2E_TRIP_ALT_START_DATE = e2eTripDate(10);
+export const E2E_TRIP_ALT_THIRD_DATE = e2eTripDate(12);
+
 export const BASELINE_E2E_USER = {
   email: process.env.E2E_EMAIL ?? "e2e@packt.local",
   name: "E2E Baseline User",
@@ -200,14 +229,14 @@ export const DEFAULT_USER_MOTHER: UserMother = {
 export const THREE_DAY_TRIP_MOTHER: TripMother = {
   trip: {
     name: "E2E Test Trip",
-    startDate: "2026-08-01",
-    endDate: "2026-08-03",
+    startDate: E2E_TRIP_START_DATE,
+    endDate: E2E_TRIP_THIRD_DATE,
     coverImageUrl: "graphic:var(--accent-brand)/plane",
   },
   days: [
-    { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
-    { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
-    { dayNumber: 3, date: "2026-08-03", label: "Day 3" },
+    { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+    { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
+    { dayNumber: 3, date: E2E_TRIP_THIRD_DATE, label: "Day 3" },
   ],
   events: [],
   documents: [],
@@ -238,13 +267,13 @@ export const DATELESS_TRIP_MOTHER: TripMother = {
 export const DELETE_TRIP_MOTHER: TripMother = {
   trip: {
     name: "E2E Delete Trip",
-    startDate: "2026-08-01",
-    endDate: "2026-08-03",
+    startDate: E2E_TRIP_START_DATE,
+    endDate: E2E_TRIP_THIRD_DATE,
   },
   days: [
-    { dayNumber: 1, date: "2026-08-01", label: "Day 1" },
-    { dayNumber: 2, date: "2026-08-02", label: "Day 2" },
-    { dayNumber: 3, date: "2026-08-03", label: "Day 3" },
+    { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
+    { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
+    { dayNumber: 3, date: E2E_TRIP_THIRD_DATE, label: "Day 3" },
   ],
   events: [],
   documents: [],
@@ -272,8 +301,8 @@ export const E2E_DOCUMENT = {
 export const E2E_RESERVATION = {
   type: "lodging",
   provider: "E2E Hotel Reservation",
-  startAt: "2026-07-01T15:00:00Z",
-  endAt: "2026-07-03T11:00:00Z",
+  startAt: e2eTripDateTime(0, "15:00:00"),
+  endAt: e2eTripDateTime(2, "11:00:00"),
   confirmationCode: "E2E-CONF-123",
 } as const;
 

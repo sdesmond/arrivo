@@ -10,7 +10,7 @@ import {
   E2E_KEEP_DOC,
   E2E_MANAGE_DOC,
   E2E_PICK_DOC,
-  THREE_DAY_TRIP_MOTHER,
+  E2E_TRIP_START_DATE,
 } from "../e2e-seed-data";
 
 function escapeRegex(source: string): string {
@@ -56,11 +56,7 @@ Given("I am on the Itinerary tab", async ({ page }) => {
 });
 
 Given("I expand Day 1", async ({ page }) => {
-  const startDate = THREE_DAY_TRIP_MOTHER.trip.startDate;
-  if (!startDate) {
-    throw new Error("Event docs trip mother is missing its Day 1 date.");
-  }
-  const toggleBtn = page.getByRole("button", { name: dayButtonNamePattern(startDate) }).first();
+  const toggleBtn = page.getByRole("button", { name: dayButtonNamePattern(E2E_TRIP_START_DATE) }).first();
   await toggleBtn.click();
   await expect(page.getByText(E2E_EVENT.name, { exact: true })).toBeVisible({ timeout: 5_000 });
 });

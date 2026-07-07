@@ -11,9 +11,9 @@ Feature: Reservations
     And I select the "Lodging" reservation type
     Then the "Add Lodging Reservation" drawer is open
     When I fill in the reservation provider with "Sunset Hotel"
-    And I set the "Check-in" date to today
+    And I set the "Check-in" date to trip day 1
     And I set the "Check-in" time to "09:00"
-    And I set the "Check-out" date to today
+    And I set the "Check-out" date to trip day 1
     And I set the "Check-out" time to "11:00"
     And I click "Save" on the reservation drawer
     Then the reservation "Sunset Hotel" appears in the "Lodging" section
@@ -23,7 +23,7 @@ Feature: Reservations
     And I select the "Flight" reservation type
     Then the "Add Flight Reservation" drawer is open
     When I fill in the reservation provider with "Acme Air"
-    And I set the "Departure" date to today
+    And I set the "Departure" date to trip day 1
     And I set the "Departure" time to "09:00"
     And I choose the first lookup suggestion for the "Departure" reservation address
     And I choose the first lookup suggestion for the "Arrival" reservation address
@@ -106,7 +106,7 @@ Feature: Reservations
     Then I see the "Set trip dates to add reservations" empty state
     When I click Set trip dates
     Then the trip edit sheet is open
-    And I change the trip date range to "2026-08-01" through "2026-08-03"
+    And I change the trip date range to the default future trip dates
     And I save the trip date change
     Then I see the "No reservations yet" empty state
     And the Add Reservation button is visible

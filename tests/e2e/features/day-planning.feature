@@ -95,28 +95,28 @@ Feature: Day Planning
   @date-edit-extend-end
   Scenario: User extends a trip date range from the edit sheet
     When I open the trip edit sheet
-    And I change the trip date range to "2026-08-01" through "2026-08-03"
+    And I change the trip date range to the default future trip dates
     And I save the trip date change
     Then the edited trip includes the appended scheduled days
 
   @date-edit-extend-start
   Scenario: User extends a trip date range earlier from the edit sheet
     When I open the trip edit sheet
-    And I change the trip date range to "2026-08-01" through "2026-08-03"
+    And I change the trip date range to the default future trip dates
     And I save the trip date change
     Then the edited trip includes the prepended scheduled days
 
   @date-edit-shorten-empty
   Scenario: User shortens empty removed days without confirmation
     When I open the trip edit sheet
-    And I change the trip date range to "2026-08-01" through "2026-08-01"
+    And I shorten the trip date range to the first future trip day
     And I save the trip date change
     Then the empty removed days are deleted without a warning
 
   @date-edit-keep-unscheduled
   Scenario: User shortens a populated date range and keeps displaced events unscheduled
     When I open the trip edit sheet
-    And I change the trip date range to "2026-08-01" through "2026-08-01"
+    And I shorten the trip date range to the first future trip day
     And I save the trip date change
     Then the trip edit warning explains the removed trip dates
     When I keep the displaced events as unscheduled
@@ -125,7 +125,7 @@ Feature: Day Planning
   @date-edit-delete-events
   Scenario: User shortens a populated date range and deletes displaced events
     When I open the trip edit sheet
-    And I change the trip date range to "2026-08-01" through "2026-08-01"
+    And I shorten the trip date range to the first future trip day
     And I save the trip date change
     Then the trip edit warning explains the removed trip dates
     When I delete the displaced events

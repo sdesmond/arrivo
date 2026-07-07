@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { packingItems, tripPackingLists } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import {
+  E2E_TRIP_ALT_START_DATE,
+  E2E_TRIP_ALT_THIRD_DATE,
   E2E_TEMPLATE_PULL,
   E2E_TEMPLATE_PULL_2,
   E2E_TEMPLATE_PULL_2_ITEMS,
@@ -28,8 +30,8 @@ Given("I have a trip with no packing items for pull", async ({ scenario }) => {
   const trip = await scenario.ensureCurrentTrip("threeDayTrip", {
     trip: {
       name: "E2E Pull Trip",
-      startDate: "2026-07-11",
-      endDate: "2026-07-13",
+      startDate: E2E_TRIP_ALT_START_DATE,
+      endDate: E2E_TRIP_ALT_THIRD_DATE,
     },
   });
 
@@ -44,8 +46,8 @@ Given("I have a trip with a pre-seeded packing item for pull", async ({ scenario
   const trip = await scenario.ensureCurrentTrip("threeDayTrip", {
     trip: {
       name: "E2E Pull Trip",
-      startDate: "2026-07-11",
-      endDate: "2026-07-13",
+      startDate: E2E_TRIP_ALT_START_DATE,
+      endDate: E2E_TRIP_ALT_THIRD_DATE,
     },
   });
 
