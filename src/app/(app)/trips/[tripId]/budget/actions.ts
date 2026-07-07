@@ -247,7 +247,7 @@ export async function recalculateConversions(tripId: string): Promise<{ recalcul
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
 
-  const results = await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     const [tripRow] = await tx.select({ budgetCurrency: trips.budgetCurrency }).from(trips).where(eq(trips.id, tripId));
     const tripCurrency = (tripRow?.budgetCurrency ?? "").toUpperCase();
 
@@ -269,8 +269,6 @@ export async function recalculateConversions(tripId: string): Promise<{ recalcul
           .where(eq(expenses.id, result.expenseId))
       )
     );
-
-    return conversionResults;
   });
 
   revalidatePath(`/trips/${tripId}`);

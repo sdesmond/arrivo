@@ -25,6 +25,13 @@ import { TypePicker } from "./type-picker";
 import { ItineraryItemType } from "@/data/types";
 
 describe("TypePicker", () => {
+  it("renders visible noun labels for each standard option", () => {
+    render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Event" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Note" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Checklist" })).toBeInTheDocument();
+  });
+
   it("renders MapPin icon with strokeWidth 1.5", () => {
     render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.getByTestId("map-pin-icon")).toHaveAttribute("data-stroke-width", "1.5");
@@ -49,7 +56,7 @@ describe("TypePicker", () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
     render(<TypePicker onSelect={onSelect} onDismiss={vi.fn()} />);
-    await user.click(screen.getByTitle("Add event"));
+    await user.click(screen.getByRole("button", { name: "Event" }));
     expect(onSelect).toHaveBeenCalledWith(ItineraryItemType.Event);
   });
 
@@ -57,7 +64,7 @@ describe("TypePicker", () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
     render(<TypePicker onSelect={onSelect} onDismiss={vi.fn()} />);
-    await user.click(screen.getByTitle("Add note"));
+    await user.click(screen.getByRole("button", { name: "Note" }));
     expect(onSelect).toHaveBeenCalledWith(ItineraryItemType.Note);
   });
 
@@ -78,7 +85,7 @@ describe("TypePicker", () => {
   it("clicking inside the picker does not call onDismiss", async () => {
     const onDismiss = vi.fn();
     render(<TypePicker onSelect={vi.fn()} onDismiss={onDismiss} />);
-    fireEvent.mouseDown(screen.getByTitle("Add event"));
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Event" }));
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
@@ -89,14 +96,14 @@ describe("TypePicker", () => {
 
   it("Backpack button rendered when onOpenPackingListPicker is provided", () => {
     render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} onOpenPackingListPicker={vi.fn()} />);
-    expect(screen.getByTitle("Insert packing list")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Packing list" })).toBeInTheDocument();
   });
 
   it("clicking Backpack button fires onOpenPackingListPicker", async () => {
     const onOpenPackingListPicker = vi.fn();
     const user = userEvent.setup();
     render(<TypePicker onSelect={vi.fn()} onDismiss={vi.fn()} onOpenPackingListPicker={onOpenPackingListPicker} />);
-    await user.click(screen.getByTitle("Insert packing list"));
+    await user.click(screen.getByRole("button", { name: "Packing list" }));
     expect(onOpenPackingListPicker).toHaveBeenCalledTimes(1);
   });
 
@@ -105,7 +112,7 @@ describe("TypePicker", () => {
     const onOpenPackingListPicker = vi.fn();
     const user = userEvent.setup();
     render(<TypePicker onSelect={vi.fn()} onDismiss={onDismiss} onOpenPackingListPicker={onOpenPackingListPicker} />);
-    await user.click(screen.getByTitle("Insert packing list"));
+    await user.click(screen.getByRole("button", { name: "Packing list" }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(onOpenPackingListPicker).toHaveBeenCalledTimes(1);
     expect(onDismiss.mock.invocationCallOrder[0]).toBeLessThan(onOpenPackingListPicker.mock.invocationCallOrder[0]);
@@ -132,7 +139,7 @@ describe("TypePicker — ListChecks (checklist)", () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
     render(<TypePicker onSelect={onSelect} onDismiss={vi.fn()} />);
-    await user.click(screen.getByTitle("Add checklist"));
+    await user.click(screen.getByRole("button", { name: "Checklist" }));
     expect(onSelect).toHaveBeenCalledWith(ItineraryItemType.Checklist);
   });
 });
