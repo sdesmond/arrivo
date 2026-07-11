@@ -41,6 +41,30 @@ describe("deriveLinkedEvents", () => {
     ]);
   });
 
+  it("appends the service number to the provider name when present", () => {
+    const reservation = createReservation({
+      id: "reservation-20",
+      type: "flight",
+      provider: "Delta",
+      serviceNumber: "DL123",
+    });
+
+    expect(deriveLinkedEvents([reservation])[0]?.name).toBe("Departure — Delta DL123");
+  });
+
+  it("combines provider and service number for same-day combined events", () => {
+    const reservation = createReservation({
+      id: "reservation-21",
+      type: "flight",
+      provider: "Delta",
+      serviceNumber: "DL123",
+      startAt: "2030-06-16T18:00:00Z",
+      endAt: "2030-06-16T22:00:00Z",
+    });
+
+    expect(deriveLinkedEvents([reservation])[0]?.name).toBe("Delta DL123");
+  });
+
   it("produces two TripEvents for dual-anchor Lodging", () => {
     const reservation = createReservation({
       id: "reservation-2",

@@ -18,7 +18,7 @@ export function deriveLinkedEvents(reservations: Reservation[]): TripEvent[] {
   for (const reservation of reservations) {
     const reservationType = normalizeReservationType(reservation.type);
     const anchorLabels = ANCHOR_LABELS[reservationType] ?? ANCHOR_LABELS.other;
-    const providerSuffix = reservation.provider ?? "";
+    const providerSuffix = [reservation.provider, reservation.serviceNumber].filter(Boolean).join(" ");
 
     const isSameLocalDay =
       !!reservation.startAt &&

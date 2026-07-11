@@ -122,6 +122,7 @@ vi.mock("./checklist-item", () => ({
     isDraft ? (
       <div>
         <button onClick={() => onCommitDraft?.("Passport")}>commit-checklist-draft</button>
+        <button onClick={() => onCommitDraft?.()}>commit-empty-checklist-draft</button>
         <button onClick={() => onCancelDraft?.()}>cancel-checklist-draft</button>
       </div>
     ) : (
@@ -424,6 +425,87 @@ describe("DayCardDnd", () => {
     expect(screen.getByRole("button", { name: "direct-place-row-manual-event-1" })).toBeInTheDocument();
   });
 
+  it("renders the checklist drag overlay when a checklist becomes active", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    act(() => {
+      dndHandlerCapture.onDragStart?.({ active: { id: "checklist-1" } });
+    });
+
+    expect(screen.getByTestId("checklist-item-checklist-1")).toBeInTheDocument();
+  });
+
+  it("defaults the note and checklist draft position to 0 when draftInsertAtPosition is not provided", () => {
+    const { rerender } = render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={[]}
+        renderEntries={[{ type: "draft", draftKind: "checklist" }]}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: "commit-checklist-draft" })).toBeInTheDocument();
+
+    rerender(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={[]}
+        renderEntries={[{ type: "draft", draftKind: "note" }]}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: "create-note-draft" })).toBeInTheDocument();
+  });
+
   it("excludes the Linked Event from the reorder payload sent to the server", () => {
     const onReorderDayItems = vi.fn();
 
@@ -500,9 +582,9 @@ describe("DayCardDnd", () => {
     expect(cancelDraft).toHaveBeenCalledOnce();
   });
 
-  it("renders the checklist draft row and commits through the provided callback", async () => {
+  it("renders the checklist draft row and commits through the provided commitDraft callback", async () => {
     const user = userEvent.setup();
-    const onAddChecklist = vi.fn();
+    const commitDraft = vi.fn();
     const cancelDraft = vi.fn();
 
     render(
@@ -520,21 +602,54 @@ describe("DayCardDnd", () => {
           onSelectType: vi.fn(),
           onDismiss: vi.fn(),
         })}
-        commitDraft={vi.fn()}
+        commitDraft={commitDraft}
         cancelDraft={cancelDraft}
         setOptimisticOrder={vi.fn()}
         onReorderDayItems={vi.fn()}
         onUpdateEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
         onLinkedEventTap={vi.fn()}
-        onAddChecklist={onAddChecklist}
       />
     );
 
     await user.click(screen.getByRole("button", { name: "commit-checklist-draft" }));
     await user.click(screen.getByRole("button", { name: "cancel-checklist-draft" }));
 
-    expect(onAddChecklist).toHaveBeenCalledWith(4, 9, "Passport");
-    expect(cancelDraft).toHaveBeenCalledTimes(2);
+    expect(commitDraft).toHaveBeenCalledWith("Passport");
+    expect(cancelDraft).toHaveBeenCalledOnce();
+  });
+
+  it("defaults to an empty string when the checklist draft commits with no first item content", async () => {
+    const user = userEvent.setup();
+    const commitDraft = vi.fn();
+
+    render(
+      <DayCardDnd
+        dayNumber={4}
+        dayId="day-4"
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={[{ type: "draft", draftKind: "checklist" }]}
+        draftInsertAtPosition={9}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={commitDraft}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "commit-empty-checklist-draft" }));
+
+    expect(commitDraft).toHaveBeenCalledWith("");
   });
 });

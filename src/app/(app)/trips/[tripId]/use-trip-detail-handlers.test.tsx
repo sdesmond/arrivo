@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { reorderDayItems } from "./actions";
+import { createChecklist, createChecklistWithItem, createEvent, createNote, reorderDayItems } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -140,6 +140,122 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() => expect(deleteTrip).toHaveBeenCalledWith("trip-1"));
     expect(mockPush).toHaveBeenCalledWith("/trips");
+  });
+
+  it("handleAddEvent resolves the returned promise on success", async () => {
+    vi.mocked(createEvent).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddEvent(1, "Museum");
+    });
+
+    await expect(addPromise).resolves.toBeUndefined();
+    expect(createEvent).toHaveBeenCalledWith("day-1", {
+      name: "Museum",
+      afterEventId: undefined,
+      insertAtPosition: undefined,
+    });
+  });
+
+  it("handleAddEvent rejects the returned promise and shows a toast on failure", async () => {
+    vi.mocked(createEvent).mockRejectedValueOnce(new Error("Add event failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddEvent(1, "Museum");
+    });
+
+    await expect(addPromise).rejects.toThrow("Add event failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add event failed"));
+  });
+
+  it("handleAddNote resolves the returned promise on success", async () => {
+    vi.mocked(createNote).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddNote(1, "Tickets");
+    });
+
+    await expect(addPromise).resolves.toBeUndefined();
+    expect(createNote).toHaveBeenCalledWith("day-1", "Tickets", undefined);
+  });
+
+  it("handleAddNote rejects the returned promise and shows a toast on failure", async () => {
+    vi.mocked(createNote).mockRejectedValueOnce(new Error("Add note failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddNote(1, "Tickets");
+    });
+
+    await expect(addPromise).rejects.toThrow("Add note failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add note failed"));
+  });
+
+  it("handleAddChecklist resolves the returned promise on success", async () => {
+    vi.mocked(createChecklist).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddChecklist(1, 0);
+    });
+
+    await expect(addPromise).resolves.toBeUndefined();
+    expect(createChecklist).toHaveBeenCalledWith("day-1", 0);
+  });
+
+  it("handleAddChecklist rejects the returned promise and shows a toast on failure", async () => {
+    vi.mocked(createChecklist).mockRejectedValueOnce(new Error("Add checklist failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddChecklist(1, 0);
+    });
+
+    await expect(addPromise).rejects.toThrow("Add checklist failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add checklist failed"));
+  });
+
+  it("handleAddChecklist with firstItemContent resolves the returned promise on success", async () => {
+    vi.mocked(createChecklistWithItem).mockResolvedValueOnce("checklist-1");
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddChecklist(1, 0, "Passport");
+    });
+
+    await expect(addPromise).resolves.toBeUndefined();
+    expect(createChecklistWithItem).toHaveBeenCalledWith("day-1", 0, "Passport");
+  });
+
+  it("handleAddChecklist with firstItemContent rejects the returned promise and shows a toast on failure", async () => {
+    vi.mocked(createChecklistWithItem).mockRejectedValueOnce(new Error("Add checklist item failed"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddChecklist(1, 0, "Passport");
+    });
+
+    await expect(addPromise).rejects.toThrow("Add checklist item failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add checklist item failed"));
   });
 
   it("adds packing items against the current trip", async () => {

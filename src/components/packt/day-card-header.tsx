@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { MapPin, ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ export interface DayCardHeaderProps {
   open: boolean;
   onToggle: () => void;
   dayNumber: number;
-  onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
+  onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;
   onRemove?: () => void;
   removeDisabled?: boolean;
 }
@@ -35,11 +35,31 @@ export function DayCardHeader({
 }: DayCardHeaderProps): ReactElement {
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
   const [draftSubtitle, setDraftSubtitle] = useState(subtitle ?? "");
+  const pendingSubtitleRef = useRef<string | null>(null);
 
-  function saveSubtitle(): void {
+  useEffect(() => {
+    if (pendingSubtitleRef.current === null) return;
+    // The update's promise can resolve slightly before the revalidated `subtitle` prop lands,
+    // so wait for the real value to show up instead of closing the editor on a timer.
+    if ((subtitle ?? "") === pendingSubtitleRef.current) {
+      pendingSubtitleRef.current = null;
+
+      setIsEditingSubtitle(false);
+    }
+  }, [subtitle]);
+
+  async function saveSubtitle(): Promise<void> {
     const val = draftSubtitle.trim() || undefined;
-    if (val !== subtitle) onUpdateDay?.(dayNumber, { subtitle: val });
-    setIsEditingSubtitle(false);
+    if (val === subtitle) {
+      setIsEditingSubtitle(false);
+      return;
+    }
+    try {
+      await onUpdateDay?.(dayNumber, { subtitle: val });
+      pendingSubtitleRef.current = val ?? "";
+    } catch {
+      // handler already surfaced a toast; keep the editor open so the user can retry
+    }
   }
 
   return (
