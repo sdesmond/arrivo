@@ -230,9 +230,9 @@ describe("ChecklistItem — draft mode", () => {
     expect(screen.getByPlaceholderText("Add an item…")).toHaveFocus();
   });
 
-  it("no chevron icon in draft mode", () => {
+  it("renders the chevron icon in draft mode too, so it doesn't pop in when the draft becomes real", () => {
     render(<ChecklistItem checklist={BASE_CHECKLIST} isDraft onCommitDraft={vi.fn()} onCancelDraft={vi.fn()} />);
-    expect(screen.queryByTestId("chevron-icon")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chevron-icon")).toBeInTheDocument();
   });
 
   it("pressing Enter with content calls onCommitDraft with the typed content", async () => {

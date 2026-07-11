@@ -182,18 +182,16 @@ export function ChecklistItem({
             {checkedCount}/{itemCount}
           </span>
         )}
-        {!isDraft && (
-          <ChevronDown
-            size={13}
-            strokeWidth={1.5}
-            style={{
-              color: "var(--fg-4)",
-              transform: isExpanded ? "rotate(180deg)" : undefined,
-              transition: "transform 0.15s",
-              flexShrink: 0,
-            }}
-          />
-        )}
+        <ChevronDown
+          size={13}
+          strokeWidth={1.5}
+          style={{
+            color: "var(--fg-4)",
+            transform: isExpanded ? "rotate(180deg)" : undefined,
+            transition: "transform 0.15s",
+            flexShrink: 0,
+          }}
+        />
       </button>
 
       {/* Expanded body */}
