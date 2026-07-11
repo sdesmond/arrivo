@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { GapZoneProps } from "./gap-zone";
 import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
@@ -16,11 +16,11 @@ export interface DayCardBodyProps {
   onDeleteEvent: (id: string) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
-  onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
-  onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
+  onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
+  onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
-  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
+  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => Promise<void>;
   newlyCreatedChecklistId?: string;
   highlightedEventId?: string | null;
   onOpenPackingListPicker?: (insertAtPosition: number) => void;
@@ -64,6 +64,7 @@ export function DayCardBody({
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
+  const pendingCommitBaselineRef = useRef<number | null>(null);
 
   const propTimelineItems: TimelineItem[] = [
     ...day.events.map((event) => ({ kind: "event" as const, data: event, position: event.position })),
@@ -93,6 +94,17 @@ export function DayCardBody({
     if (propIds === optimisticIds) setOptimisticOrder(null);
   }, [propTimelineItems, optimisticOrder]);
 
+  useEffect(() => {
+    if (pendingCommitBaselineRef.current === null) return;
+    // The add action's promise can resolve slightly before the revalidated `day` prop lands,
+    // so wait for the real item to actually show up in props instead of clearing on a timer.
+    if (propTimelineItems.length > pendingCommitBaselineRef.current) {
+      pendingCommitBaselineRef.current = null;
+
+      setDraft(null);
+    }
+  }, [propTimelineItems]);
+
   const persistedTimelineItems = timelineItems.filter(
     (item) => item.kind !== "event" || !item.data.linkedReservationId
   );
@@ -120,22 +132,29 @@ export function DayCardBody({
     setDraft({ kind: type, insertAtPosition, gapKey });
   }
 
-  function commitDraft(content: string): void {
+  async function commitDraft(content: string): Promise<void> {
     if (!draft) return;
-    if (draft.kind === ItineraryItemType.Note) {
-      onAddNote?.(day.dayNumber, content, draft.insertAtPosition);
-    } else {
-      const gapIndex = draft.gapKey === "bottom" ? -1 : parseInt(draft.gapKey.slice(3), 10);
-      const itemBefore = gapIndex >= 0 ? timelineItems[gapIndex] : undefined;
-      const afterEventId =
-        itemBefore?.kind === "event" && !itemBefore.data.linkedReservationId ? itemBefore.data.id : undefined;
-      if (afterEventId) {
-        onAddEvent?.(day.dayNumber, content, afterEventId);
+    const baselineCount = propTimelineItems.length;
+    try {
+      if (draft.kind === ItineraryItemType.Note) {
+        await onAddNote?.(day.dayNumber, content, draft.insertAtPosition);
+      } else if (draft.kind === ItineraryItemType.Checklist) {
+        await onAddChecklist?.(day.dayNumber, draft.insertAtPosition, content || undefined);
       } else {
-        onAddEvent?.(day.dayNumber, content, undefined, draft.insertAtPosition);
+        const gapIndex = draft.gapKey === "bottom" ? -1 : parseInt(draft.gapKey.slice(3), 10);
+        const itemBefore = gapIndex >= 0 ? timelineItems[gapIndex] : undefined;
+        const afterEventId =
+          itemBefore?.kind === "event" && !itemBefore.data.linkedReservationId ? itemBefore.data.id : undefined;
+        if (afterEventId) {
+          await onAddEvent?.(day.dayNumber, content, afterEventId);
+        } else {
+          await onAddEvent?.(day.dayNumber, content, undefined, draft.insertAtPosition);
+        }
       }
+      pendingCommitBaselineRef.current = baselineCount;
+    } catch {
+      // handler already surfaced a toast; keep the draft open so the user can retry
     }
-    setDraft(null);
   }
 
   function makeGapProps(gapKey: string, insertAtPosition: number): GapZoneProps {
@@ -170,7 +189,6 @@ export function DayCardBody({
         onUpdateEvent={onUpdateEvent}
         onDeleteEvent={onDeleteEvent}
         onLinkedEventTap={onLinkedEventTap}
-        onAddChecklist={onAddChecklist}
         onUpdateNote={onUpdateNote}
         onDeleteNote={onDeleteNote}
         onUpdateChecklistTitle={onUpdateChecklistTitle}

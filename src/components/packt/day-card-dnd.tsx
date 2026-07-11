@@ -47,14 +47,13 @@ export interface DayCardDndProps {
   highlightedEventId?: string | null;
   draftInsertAtPosition?: number;
   makeGapProps: (gapKey: string, insertAtPosition: number) => GapZoneProps;
-  commitDraft: (content: string) => void;
+  commitDraft: (content: string) => Promise<void>;
   cancelDraft: () => void;
   setOptimisticOrder: (order: string[]) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateEvent: (event: TripEvent) => void;
   onDeleteEvent: (id: string) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
-  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
   onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;
@@ -84,7 +83,6 @@ export function DayCardDnd({
   onUpdateEvent,
   onDeleteEvent,
   onLinkedEventTap,
-  onAddChecklist,
   onUpdateNote,
   onDeleteNote,
   onUpdateChecklistTitle,
@@ -164,10 +162,7 @@ export function DayCardDnd({
                       items: [],
                     }}
                     isDraft
-                    onCommitDraft={(firstItemContent) => {
-                      onAddChecklist?.(dayNumber, draftInsertAtPosition ?? 0, firstItemContent);
-                      cancelDraft();
-                    }}
+                    onCommitDraft={(firstItemContent) => commitDraft(firstItemContent ?? "")}
                     onCancelDraft={cancelDraft}
                   />
                 ) : entry.draftKind === ItineraryItemType.Note ? (

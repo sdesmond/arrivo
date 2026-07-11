@@ -45,12 +45,12 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleEventUpdate: (updated: TripEvent) => void;
   handleEventDelete: (id: string) => void;
   handleDayItemsReorder: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
-  handleDayUpdate: (dayNumber: number, updates: Partial<DayItinerary>) => void;
-  handleAddEvent: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
-  handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => void;
+  handleDayUpdate: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;
+  handleAddEvent: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
+  handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   handleUpdateNote: (noteId: string, content: string) => void;
   handleDeleteNote: (noteId: string) => void;
-  handleAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
+  handleAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => Promise<void>;
   handleUpdateChecklistTitle: (checklistId: string, title: string | undefined) => void;
   handleDeleteChecklist: (checklistId: string) => void;
   handleAddChecklistItem: (checklistId: string, content: string) => void;
@@ -124,27 +124,59 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): void {
+  function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
-    if (!day?.id) return;
-    React.startTransition(() => {
-      updateDay(day.id!, updates);
+    if (!day?.id) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await updateDay(day.id!, updates);
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to update day. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
     });
   }
 
-  function handleAddEvent(dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number): void {
+  function handleAddEvent(
+    dayNumber: number,
+    name: string,
+    afterEventId?: string,
+    insertAtPosition?: number
+  ): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
-    if (!day?.id) return;
-    React.startTransition(() => {
-      createEvent(day.id!, { name, afterEventId, insertAtPosition });
+    if (!day?.id) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await createEvent(day.id!, { name, afterEventId, insertAtPosition });
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to add event. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
     });
   }
 
-  function handleAddNote(dayNumber: number, content: string, insertAtPosition?: number): void {
+  function handleAddNote(dayNumber: number, content: string, insertAtPosition?: number): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
-    if (!day?.id) return;
-    React.startTransition(() => {
-      createNote(day.id!, content, insertAtPosition);
+    if (!day?.id) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      React.startTransition(async () => {
+        try {
+          await createNote(day.id!, content, insertAtPosition);
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to add note. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
+      });
     });
   }
 
@@ -160,20 +192,26 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleAddChecklist(dayNumber: number, insertAtPosition: number, firstItemContent?: string): void {
+  function handleAddChecklist(dayNumber: number, insertAtPosition: number, firstItemContent?: string): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
-    if (!day?.id) return;
-    if (firstItemContent) {
+    if (!day?.id) return Promise.resolve();
+    return new Promise((resolve, reject) => {
       React.startTransition(async () => {
-        const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent);
-        packingHandlers.setNewlyCreatedChecklistId(id);
-        setTimeout(() => packingHandlers.setNewlyCreatedChecklistId(null), 1000);
+        try {
+          if (firstItemContent) {
+            const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent);
+            packingHandlers.setNewlyCreatedChecklistId(id);
+            setTimeout(() => packingHandlers.setNewlyCreatedChecklistId(null), 1000);
+          } else {
+            await createChecklist(day.id!, insertAtPosition);
+          }
+          resolve();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to add checklist. Please try again.";
+          toast.error(message);
+          reject(error instanceof Error ? error : new Error(message));
+        }
       });
-      return;
-    }
-
-    React.startTransition(() => {
-      createChecklist(day.id!, insertAtPosition);
     });
   }
 

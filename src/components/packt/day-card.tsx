@@ -17,12 +17,12 @@ interface DayCardProps {
   onDeleteEvent: (id: string) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
-  onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => void;
-  onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => void;
-  onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => void;
+  onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;
+  onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
+  onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
-  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => void;
+  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => Promise<void>;
   newlyCreatedChecklistId?: string;
   highlightedEventId?: string | null;
   onUpdateChecklistTitle?: (checklistId: string, title: string | undefined) => void;

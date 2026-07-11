@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { DayItinerary } from "@/data/types";
+import { render, screen, waitFor } from "@testing-library/react";
+import { act } from "react";
+import { ItineraryItemType, type DayItinerary } from "@/data/types";
 import { DayCardBody } from "./day-card-body";
 
 interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
+  renderEntries: { type: string }[];
+  commitDraft: (content: string) => Promise<void>;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   highlightedEventId?: string | null;
 }
@@ -13,27 +16,49 @@ interface MockDayCardBottomAddProps {
   dayNumber: number;
   bottomInsertPosition: number;
   onOpenPackingListPicker?: (insertAtPosition: number) => void;
+  activateDraft: (type: ItineraryItemType, insertAtPosition: number, gapKey: string) => void;
 }
 
 vi.mock("./day-card-dnd", () => ({
-  DayCardDnd: ({ timelineItems, onLinkedEventTap, highlightedEventId }: MockDayCardDndProps) => (
+  DayCardDnd: ({
+    timelineItems,
+    renderEntries,
+    commitDraft,
+    onLinkedEventTap,
+    highlightedEventId,
+  }: MockDayCardDndProps) => (
     <div data-highlighted-event-id={highlightedEventId ?? ""}>
       {timelineItems.map((item) => (
         <span key={item.data.id}>{item.data.id}</span>
       ))}
+      <span data-testid="has-draft">
+        {renderEntries.some((entry) => entry.type === "draft") ? "draft-present" : "draft-absent"}
+      </span>
+      <button onClick={() => commitDraft("typed content")}>Commit draft</button>
       {onLinkedEventTap && <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap</button>}
     </div>
   ),
 }));
 
 vi.mock("./day-card-bottom-add", () => ({
-  DayCardBottomAdd: ({ dayNumber, bottomInsertPosition, onOpenPackingListPicker }: MockDayCardBottomAddProps) => (
+  DayCardBottomAdd: ({
+    dayNumber,
+    bottomInsertPosition,
+    onOpenPackingListPicker,
+    activateDraft,
+  }: MockDayCardBottomAddProps) => (
     <div>
       <button>Add a place to day {dayNumber}</button>
       <span>bottom-insert-{bottomInsertPosition}</span>
       {onOpenPackingListPicker && (
         <button onClick={() => onOpenPackingListPicker(bottomInsertPosition)}>Open packing picker</button>
       )}
+      <button onClick={() => activateDraft(ItineraryItemType.Note, bottomInsertPosition, "bottom")}>
+        Activate note draft
+      </button>
+      <button onClick={() => activateDraft(ItineraryItemType.Checklist, bottomInsertPosition, "bottom")}>
+        Activate checklist draft
+      </button>
     </div>
   ),
 }));
@@ -141,5 +166,155 @@ describe("DayCardBody", () => {
 
     screen.getByRole("button", { name: "Trigger linked tap" }).click();
     expect(onLinkedEventTap).toHaveBeenCalledWith("linked-reservation-1");
+  });
+
+  it("keeps the draft row visible until the real item lands in props, even after the add resolves", async () => {
+    let resolveAdd: (() => void) | undefined;
+    const onAddNote = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+
+    const { rerender } = render(
+      <DayCardBody
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddNote={onAddNote}
+      />
+    );
+
+    act(() => {
+      screen.getByRole("button", { name: "Activate note draft" }).click();
+    });
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    act(() => {
+      screen.getByRole("button", { name: "Commit draft" }).click();
+    });
+
+    expect(onAddNote).toHaveBeenCalledWith(1, "typed content", 3);
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    // The action's promise resolves, but the revalidated `day` prop hasn't landed yet —
+    // the draft must stay put rather than clearing on the promise alone.
+    await act(async () => {
+      resolveAdd?.();
+    });
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    // Once the real item actually shows up in props, the draft clears.
+    rerender(
+      <DayCardBody
+        day={{ ...day, notes: [...day.notes!, { id: "note-2", content: "typed content", position: 3 }] }}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddNote={onAddNote}
+      />
+    );
+
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-absent");
+  });
+
+  it("keeps the draft row open when the add fails, so the user can retry", async () => {
+    const onAddNote = vi.fn().mockRejectedValueOnce(new Error("Add failed"));
+
+    render(
+      <DayCardBody
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddNote={onAddNote}
+      />
+    );
+
+    act(() => {
+      screen.getByRole("button", { name: "Activate note draft" }).click();
+    });
+    act(() => {
+      screen.getByRole("button", { name: "Commit draft" }).click();
+    });
+
+    await waitFor(() => expect(onAddNote).toHaveBeenCalled());
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+  });
+
+  it("routes checklist draft commits through onAddChecklist and keeps the draft until the real checklist lands in props", async () => {
+    let resolveAdd: (() => void) | undefined;
+    const onAddChecklist = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+
+    const { rerender } = render(
+      <DayCardBody
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddChecklist={onAddChecklist}
+      />
+    );
+
+    act(() => {
+      screen.getByRole("button", { name: "Activate checklist draft" }).click();
+    });
+    act(() => {
+      screen.getByRole("button", { name: "Commit draft" }).click();
+    });
+
+    expect(onAddChecklist).toHaveBeenCalledWith(1, 3, "typed content");
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    await act(async () => {
+      resolveAdd?.();
+    });
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    rerender(
+      <DayCardBody
+        day={{
+          ...day,
+          checklists: [...day.checklists!, { id: "checklist-2", tripDayId: "day-1", position: 3, items: [] }],
+        }}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddChecklist={onAddChecklist}
+      />
+    );
+
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-absent");
+  });
+
+  it("keeps the checklist draft row open when onAddChecklist rejects", async () => {
+    const onAddChecklist = vi.fn().mockRejectedValueOnce(new Error("Add checklist failed"));
+
+    render(
+      <DayCardBody
+        day={day}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onAddChecklist={onAddChecklist}
+      />
+    );
+
+    act(() => {
+      screen.getByRole("button", { name: "Activate checklist draft" }).click();
+    });
+    act(() => {
+      screen.getByRole("button", { name: "Commit draft" }).click();
+    });
+
+    await waitFor(() => expect(onAddChecklist).toHaveBeenCalled());
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
   });
 });

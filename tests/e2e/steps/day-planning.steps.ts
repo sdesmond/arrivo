@@ -489,7 +489,9 @@ When("I add a checklist with item {string}", async ({ page }, itemContent: strin
   await page.getByTitle("Add checklist").click();
   await page.getByPlaceholder("Add an item…").fill(itemContent);
   await page.keyboard.press("Enter");
-  await expect(getLatestChecklist(page)).toBeVisible({ timeout: 5_000 });
+  // The draft placeholder also matches `[id^="checklist-"]`, so wait for the item's own
+  // content to render — proof the server-confirmed checklist replaced the draft.
+  await expect(getLatestChecklist(page).getByText(itemContent)).toBeVisible({ timeout: 10_000 });
 });
 
 Then("the checklist should be visible on the timeline", async ({ page }) => {
