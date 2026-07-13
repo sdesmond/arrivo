@@ -63,6 +63,18 @@ function resolveBudgetCurrency(code?: string): string | undefined {
   return normalizedCode;
 }
 
+function resolveTripTransitMode(transitMode: TransitMode | null | undefined): TransitMode | null | undefined {
+  if (transitMode === undefined || transitMode === null) {
+    return transitMode;
+  }
+
+  if (!isTransitMode(transitMode)) {
+    throw new Error(`Invalid transit mode: ${transitMode}`);
+  }
+
+  return transitMode;
+}
+
 /**
  * Recalculates Trip-Currency conversions for mismatched expenses and persists
  * the results within the caller's transaction, so a fetch failure rolls back
@@ -343,6 +355,7 @@ export async function updateTripMetadata(
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
   const budgetCurrency = resolveBudgetCurrency(patch.budgetCurrency);
+  const resolvedTransitMode = resolveTripTransitMode(patch.transitMode);
   const shouldConvertCurrency = !!convertCurrency && !!budgetCurrency;
 
   let eventDocumentUrlsToCleanup: string[] = [];
@@ -391,6 +404,7 @@ export async function updateTripMetadata(
         budgetCurrency,
         budgetTotal: patch.budgetTotal?.toString(),
         tags: patch.tags,
+        transitMode: resolvedTransitMode,
         updatedAt: new Date(),
       };
     }

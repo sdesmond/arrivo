@@ -117,7 +117,7 @@ import {
   updateTripMetadata,
 } from "./actions";
 import { searchCoverImages } from "./cover-image-search-actions";
-import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
+import { TransitMode, TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
 import { deriveGraphicCover } from "@/lib/utils";
 
 interface TransactionFixture {
@@ -278,6 +278,45 @@ describe("updateTripMetadata", () => {
   it("rejects unsupported budget currencies before mutating", async () => {
     await expect(updateTripMetadata("trip-1", { budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
     expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("persists a valid transit mode", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [{ id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { transitMode: TransitMode.Transit });
+
+    expect(result).toEqual({ status: "saved" });
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ transitMode: TransitMode.Transit }));
+  });
+
+  it("rejects an invalid transit mode before mutating", async () => {
+    await expect(updateTripMetadata("trip-1", { transitMode: "flying" as TransitMode })).rejects.toThrow(
+      "Invalid transit mode"
+    );
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("clears the transit mode when the patch sets it to null", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [{ id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { transitMode: null });
+
+    expect(result).toEqual({ status: "saved" });
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ transitMode: null }));
   });
 
   it("returns confirmation-required before mutating when removed days contain events", async () => {
