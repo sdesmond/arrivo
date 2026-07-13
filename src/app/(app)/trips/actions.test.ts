@@ -770,6 +770,17 @@ describe("createTrip", () => {
     });
   });
 
+  it("falls back to drive when the user's stored transit mode is not a valid TransitMode value", async () => {
+    const operations = setupCreateTripDb(null, "bicycle");
+
+    await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({ transitMode: "drive" }),
+    });
+  });
+
   it("defaults trip budget currency from the user's preferred currency", async () => {
     const operations = setupCreateTripDb(null);
 

@@ -31,7 +31,7 @@ import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@map
 import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/lib/utils";
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
 import { recalculateAll } from "@/lib/currency";
-import { dbExpenseToType } from "@/lib/db-mappers";
+import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
@@ -233,7 +233,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
   const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
-  const transitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
+  const resolvedTransitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
+  const transitMode = isTransitMode(resolvedTransitMode) ? resolvedTransitMode : TransitMode.Drive;
 
   let tripId = "";
   await db.transaction(async (tx) => {
