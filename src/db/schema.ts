@@ -30,6 +30,8 @@ export const users = pgTable("users", {
   dateFormat: text("date_format"),
   currency: text("currency"),
   distanceUnit: text("distance_unit"),
+  transitMode: text("transit_mode"),
+  walkThresholdMeters: integer("walk_threshold_meters"),
   passportNumber: text("passport_number"),
   passportExpiry: date("passport_expiry"),
   passportNationality: text("passport_nationality"),
@@ -102,9 +104,29 @@ export const trips = pgTable("trips", {
   tags: text("tags")
     .array()
     .default(sql`'{}'`),
+  transitMode: text("transit_mode"),
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
 });
+
+export const routeCache = pgTable(
+  "route_cache",
+  {
+    originLat: doublePrecision("origin_lat").notNull(),
+    originLng: doublePrecision("origin_lng").notNull(),
+    destLat: doublePrecision("destination_lat").notNull(),
+    destLng: doublePrecision("destination_lng").notNull(),
+    transitMode: text("transit_mode").notNull(),
+    distanceMeters: integer("distance_meters").notNull(),
+    durationSeconds: integer("duration_seconds").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true })
+      .default(sql`now()`)
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.originLat, table.originLng, table.destLat, table.destLng, table.transitMode] }),
+  ]
+);
 
 export const days = pgTable(
   "days",

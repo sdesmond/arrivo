@@ -7,7 +7,7 @@ import { eq, and, not, exists, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import { CoverType } from "@/data/types";
+import { CoverType, TransitMode } from "@/data/types";
 import { lockUserForUpdate } from "@/lib/server-action-locks";
 import type {
   UpdateUserProfilePatch,
@@ -46,6 +46,20 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
   }
   if (patch.distanceUnit !== undefined) {
     if (!["imperial", "metric"].includes(patch.distanceUnit)) return { error: "Invalid distance unit." };
+  }
+  if (patch.transitMode !== undefined && patch.transitMode !== null) {
+    const validModes = Object.values(TransitMode) as string[];
+    if (!validModes.includes(patch.transitMode)) {
+      return { error: "Invalid transit mode." };
+    }
+  }
+  if (patch.walkThresholdMeters !== undefined && patch.walkThresholdMeters !== null) {
+    if (!Number.isInteger(patch.walkThresholdMeters) || patch.walkThresholdMeters <= 0) {
+      return { error: "Walk threshold must be a positive integer." };
+    }
+    if (patch.walkThresholdMeters > 5000) {
+      return { error: "Walk threshold must be 5000 meters or less." };
+    }
   }
   if (patch.defaultCoverType !== undefined) {
     const validCoverTypes = Object.values(CoverType) as string[];

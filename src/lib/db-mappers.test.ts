@@ -69,6 +69,7 @@ const BASE_TRIP: TripRow = {
   budgetTotal: null,
   budgetPerPerson: null,
   tags: null,
+  transitMode: null,
   createdAt: null,
   updatedAt: null,
 };
@@ -96,6 +97,11 @@ describe("dbTripToType", () => {
     expect(result.coverPhotographerUrl).toBeUndefined();
     expect(result.notes).toBeUndefined();
     expect(result.budget).toBeUndefined();
+    expect(result.transitMode).toBeNull();
+  });
+
+  it("maps transit mode when present", () => {
+    expect(dbTripToType({ ...BASE_TRIP, transitMode: "transit" }).transitMode).toBe("transit");
   });
 
   it("null tags defaults to empty array", () => {
@@ -687,6 +693,8 @@ const BASE_USER: UserRow = {
   passportNationality: null,
   knownTravelerNumber: null,
   defaultCoverType: null,
+  transitMode: null,
+  walkThresholdMeters: null,
   warningThreshold: 80,
   dangerThreshold: 90,
 };
@@ -710,6 +718,18 @@ describe("dbUserToType", () => {
     const result = dbUserToType(BASE_USER);
     expect(result.warningThreshold).toBe(80);
     expect(result.dangerThreshold).toBe(90);
+  });
+
+  it("maps null transit preferences", () => {
+    const result = dbUserToType(BASE_USER);
+    expect(result.transitMode).toBeNull();
+    expect(result.walkThresholdMeters).toBeNull();
+  });
+
+  it("maps configured transit preferences", () => {
+    const result = dbUserToType({ ...BASE_USER, transitMode: "drive", walkThresholdMeters: 500 });
+    expect(result.transitMode).toBe("drive");
+    expect(result.walkThresholdMeters).toBe(500);
   });
 
   it("maps non-default threshold values correctly", () => {
