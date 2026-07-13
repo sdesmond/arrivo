@@ -49,7 +49,7 @@ function isCoverType(value: string): value is CoverType {
   return VALID_COVER_TYPES.some((coverType) => coverType === value);
 }
 
-function isTransitMode(value: string): value is TransitMode {
+export function isTransitMode(value: string): value is TransitMode {
   return VALID_TRANSIT_MODES.some((transitMode) => transitMode === value);
 }
 

@@ -44,7 +44,7 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   epic-1: in-progress
   1-1-set-global-transit-mode-preference-and-walk-distance-threshold: done
-  1-2-seed-trip-transit-default-automatically: backlog
+  1-2-seed-trip-transit-default-automatically: done
   1-3-set-trip-transit-default-via-getting-around-section: backlog
   epic-1-retrospective: optional
 
