@@ -9,10 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listSupportedCurrencies } from "@/lib/currencies";
 import { toast } from "sonner";
 import { updateProfile } from "./actions";
-import { CoverType } from "@/data/types";
-import type { UserProfile } from "@/data/types";
+import { Car, Footprints, TrainFront } from "lucide-react";
+import { CoverType, TransitMode } from "@/data/types";
+import type { TransitMode as TransitModeValue, UserProfile } from "@/data/types";
 
 const THRESHOLD_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+const IMPERIAL_WALK_THRESHOLDS = [200, 400, 800, 1600].map((feet) => ({
+  label: `${feet} ft`,
+  meters: Math.round(feet * 0.3048),
+}));
+const METRIC_WALK_THRESHOLDS = [100, 200, 500, 1000].map((meters) => ({
+  label: `${meters} m`,
+  meters,
+}));
+
+const TRANSIT_MODE_OPTIONS = [
+  { value: TransitMode.Walk, label: "Walk", Icon: Footprints },
+  { value: TransitMode.Drive, label: "Drive", Icon: Car },
+  { value: TransitMode.Transit, label: "Transit", Icon: TrainFront },
+] as const;
 
 const DATE_FORMAT_OPTIONS = [
   { value: "MM/DD/YYYY", label: "Month/Day" },
@@ -35,6 +50,8 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   const [dateFormat, setDateFormat] = useState(user.dateFormat ?? "MM/DD/YYYY");
   const [currency, setCurrency] = useState(user.currency ?? "USD");
   const [distanceUnit, setDistanceUnit] = useState(user.distanceUnit ?? "imperial");
+  const [transitMode, setTransitMode] = useState<TransitModeValue | null>(user.transitMode ?? null);
+  const [walkThresholdMeters, setWalkThresholdMeters] = useState<number | null>(user.walkThresholdMeters ?? null);
   const [coverType, setCoverType] = useState<string>(user.defaultCoverType ?? CoverType.Photo);
   const [warningThreshold, setWarningThreshold] = useState(user.warningThreshold ?? 80);
   const [dangerThreshold, setDangerThreshold] = useState(user.dangerThreshold ?? 90);
@@ -45,6 +62,8 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     dateFormat: string,
     currency: string,
     distanceUnit: string,
+    transitMode: TransitModeValue | null,
+    walkThresholdMeters: number | null,
     coverType: string,
     warningThreshold: number,
     dangerThreshold: number
@@ -53,6 +72,8 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       dateFormat !== (user.dateFormat ?? "MM/DD/YYYY") ||
       currency !== (user.currency ?? "USD") ||
       distanceUnit !== (user.distanceUnit ?? "imperial") ||
+      transitMode !== (user.transitMode ?? null) ||
+      walkThresholdMeters !== (user.walkThresholdMeters ?? null) ||
       coverType !== (user.defaultCoverType ?? CoverType.Photo) ||
       warningThreshold !== (user.warningThreshold ?? 80) ||
       dangerThreshold !== (user.dangerThreshold ?? 90)
@@ -62,25 +83,105 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   function handleDateFormatChange(next: string) {
     if (next === dateFormat) return;
     setDateFormat(next);
-    onDirtyChange?.(computeDirty(next, currency, distanceUnit, coverType, warningThreshold, dangerThreshold));
+    onDirtyChange?.(
+      computeDirty(
+        next,
+        currency,
+        distanceUnit,
+        transitMode,
+        walkThresholdMeters,
+        coverType,
+        warningThreshold,
+        dangerThreshold
+      )
+    );
   }
 
   function handleCurrencyChange(next: string) {
     if (next === currency) return;
     setCurrency(next);
-    onDirtyChange?.(computeDirty(dateFormat, next, distanceUnit, coverType, warningThreshold, dangerThreshold));
+    onDirtyChange?.(
+      computeDirty(
+        dateFormat,
+        next,
+        distanceUnit,
+        transitMode,
+        walkThresholdMeters,
+        coverType,
+        warningThreshold,
+        dangerThreshold
+      )
+    );
   }
 
   function handleDistanceUnitChange(next: string) {
     if (next === distanceUnit) return;
     setDistanceUnit(next);
-    onDirtyChange?.(computeDirty(dateFormat, currency, next, coverType, warningThreshold, dangerThreshold));
+    onDirtyChange?.(
+      computeDirty(
+        dateFormat,
+        currency,
+        next,
+        transitMode,
+        walkThresholdMeters,
+        coverType,
+        warningThreshold,
+        dangerThreshold
+      )
+    );
+  }
+
+  function handleTransitModeChange(next: string) {
+    if (!Object.values(TransitMode).includes(next as TransitModeValue) || next === transitMode) return;
+    const nextMode = next as TransitModeValue;
+    setTransitMode(nextMode);
+    onDirtyChange?.(
+      computeDirty(
+        dateFormat,
+        currency,
+        distanceUnit,
+        nextMode,
+        walkThresholdMeters,
+        coverType,
+        warningThreshold,
+        dangerThreshold
+      )
+    );
+  }
+
+  function handleWalkThresholdChange(next: string) {
+    const nextThreshold = next === "off" ? null : Number(next);
+    if (nextThreshold === walkThresholdMeters) return;
+    setWalkThresholdMeters(nextThreshold);
+    onDirtyChange?.(
+      computeDirty(
+        dateFormat,
+        currency,
+        distanceUnit,
+        transitMode,
+        nextThreshold,
+        coverType,
+        warningThreshold,
+        dangerThreshold
+      )
+    );
   }
 
   function handleCoverTypeChange(next: string) {
     if (next === coverType) return;
     setCoverType(next);
-    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, next, warningThreshold, dangerThreshold));
+    onDirtyChange?.(
+      computeDirty(
+        dateFormat,
+        currency,
+        distanceUnit,
+        transitMode,
+        walkThresholdMeters,
+        next,
+        warningThreshold,
+        dangerThreshold
+      )
+    );
   }
 
   function handleWarningThresholdChange(next: number) {
@@ -88,13 +189,26 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     const nextDanger = dangerThreshold <= next ? Math.min(next + 10, 100) : dangerThreshold;
     setWarningThreshold(next);
     setDangerThreshold(nextDanger);
-    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, next, nextDanger));
+    onDirtyChange?.(
+      computeDirty(dateFormat, currency, distanceUnit, transitMode, walkThresholdMeters, coverType, next, nextDanger)
+    );
   }
 
   function handleDangerThresholdChange(next: number) {
     if (next === dangerThreshold) return;
     setDangerThreshold(next);
-    onDirtyChange?.(computeDirty(dateFormat, currency, distanceUnit, coverType, warningThreshold, next));
+    onDirtyChange?.(
+      computeDirty(
+        dateFormat,
+        currency,
+        distanceUnit,
+        transitMode,
+        walkThresholdMeters,
+        coverType,
+        warningThreshold,
+        next
+      )
+    );
   }
 
   function handleSave() {
@@ -103,6 +217,8 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       if (dateFormat !== (user.dateFormat ?? "MM/DD/YYYY")) patch.dateFormat = dateFormat;
       if (currency !== (user.currency ?? "USD")) patch.currency = currency;
       if (distanceUnit !== (user.distanceUnit ?? "imperial")) patch.distanceUnit = distanceUnit;
+      if (transitMode !== (user.transitMode ?? null)) patch.transitMode = transitMode;
+      if (walkThresholdMeters !== (user.walkThresholdMeters ?? null)) patch.walkThresholdMeters = walkThresholdMeters;
       if (coverType !== (user.defaultCoverType ?? CoverType.Photo)) patch.defaultCoverType = coverType as CoverType;
       if (warningThreshold !== (user.warningThreshold ?? 80) || dangerThreshold !== (user.dangerThreshold ?? 90)) {
         patch.warningThreshold = warningThreshold;
@@ -119,7 +235,27 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     });
   }
 
-  const isDirty = computeDirty(dateFormat, currency, distanceUnit, coverType, warningThreshold, dangerThreshold);
+  const walkThresholdOptions = distanceUnit === "imperial" ? IMPERIAL_WALK_THRESHOLDS : METRIC_WALK_THRESHOLDS;
+  const selectedWalkThreshold = walkThresholdOptions.find((option) => option.meters === walkThresholdMeters);
+  const displayedWalkThreshold =
+    walkThresholdMeters !== null && !selectedWalkThreshold
+      ? {
+          label:
+            distanceUnit === "imperial" ? `${Math.round(walkThresholdMeters / 0.3048)} ft` : `${walkThresholdMeters} m`,
+          meters: walkThresholdMeters,
+        }
+      : null;
+  const walkThresholdLabel = selectedWalkThreshold?.label ?? displayedWalkThreshold?.label;
+  const isDirty = computeDirty(
+    dateFormat,
+    currency,
+    distanceUnit,
+    transitMode,
+    walkThresholdMeters,
+    coverType,
+    warningThreshold,
+    dangerThreshold
+  );
 
   return (
     <Section>
@@ -168,6 +304,45 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
           ))}
         </ToggleGroup>
       </Field>
+
+      <Section title="Getting Around">
+        <Field label="Default transit mode">
+          <ToggleGroup
+            aria-label="Default transit mode"
+            value={transitMode ? [transitMode] : []}
+            onValueChange={(values) => handleTransitModeChange(values[0] ?? "")}
+          >
+            {TRANSIT_MODE_OPTIONS.map(({ value, label, Icon }) => (
+              <ToggleGroupItem key={value} value={value} className="h-11 px-3.5">
+                <Icon strokeWidth={1.5} />
+                {label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </Field>
+
+        <Field label="Walk if closer than" htmlFor="pref-walk-threshold">
+          <Select
+            value={walkThresholdMeters === null ? "off" : String(walkThresholdMeters)}
+            onValueChange={(value) => handleWalkThresholdChange(value ?? "off")}
+          >
+            <SelectTrigger id="pref-walk-threshold" className="h-11 w-full">
+              <SelectValue>{walkThresholdMeters === null ? "Off" : walkThresholdLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">Off</SelectItem>
+              {displayedWalkThreshold && (
+                <SelectItem value={String(displayedWalkThreshold.meters)}>{displayedWalkThreshold.label}</SelectItem>
+              )}
+              {walkThresholdOptions.map((option) => (
+                <SelectItem key={option.meters} value={String(option.meters)}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </Section>
 
       <Section title="Budget">
         <div className="flex gap-3">

@@ -40,12 +40,17 @@ import type {
   PackingTemplateItem,
   TripPackingList,
 } from "@/data/types";
-import { CoverType } from "@/data/types";
+import { CoverType, TransitMode } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType);
+const VALID_TRANSIT_MODES = Object.values(TransitMode);
 
 function isCoverType(value: string): value is CoverType {
   return VALID_COVER_TYPES.some((coverType) => coverType === value);
+}
+
+function isTransitMode(value: string): value is TransitMode {
+  return VALID_TRANSIT_MODES.some((transitMode) => transitMode === value);
 }
 
 export function dbTripToType(row: typeof trips.$inferSelect): Trip {
@@ -69,6 +74,7 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
         }
       : undefined,
     tags: row.tags ?? [],
+    transitMode: row.transitMode && isTransitMode(row.transitMode) ? row.transitMode : null,
   };
 }
 
@@ -82,6 +88,8 @@ export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
     dateFormat: row.dateFormat ?? null,
     currency: row.currency ?? null,
     distanceUnit: row.distanceUnit ?? null,
+    transitMode: row.transitMode && isTransitMode(row.transitMode) ? row.transitMode : null,
+    walkThresholdMeters: row.walkThresholdMeters ?? null,
     passportNumber: row.passportNumber ?? null,
     passportExpiry: row.passportExpiry ?? null,
     passportNationality: row.passportNationality ?? null,

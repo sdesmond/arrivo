@@ -19,6 +19,8 @@ const mockUser: UserProfile = {
   currency: "USD",
   distanceUnit: "imperial",
   defaultCoverType: "photo",
+  transitMode: null,
+  walkThresholdMeters: null,
   passportNumber: null,
   passportExpiry: null,
   passportNationality: null,
@@ -144,6 +146,39 @@ describe("ProfilePreferencesSection", () => {
   it("renders Budget section with heading", () => {
     render(<ProfilePreferencesSection user={mockUser} />);
     expect(screen.getByText("Budget")).toBeInTheDocument();
+  });
+
+  it("renders transit preference controls", () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByText("Getting Around")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Walk" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drive" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Transit" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Walk if closer than" })).toHaveTextContent("Off");
+  });
+
+  it("saves changed transit mode", async () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    await userEvent.click(screen.getByRole("button", { name: "Drive" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ transitMode: "drive" });
+  });
+
+  it("converts imperial walk threshold to meters before saving", async () => {
+    const user = userEvent.setup();
+    render(<ProfilePreferencesSection user={mockUser} />);
+    await user.click(screen.getByRole("combobox", { name: "Walk if closer than" }));
+    await user.click(await screen.findByRole("option", { name: "200 ft" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ walkThresholdMeters: 61 });
+  });
+
+  it("keeps stored walk threshold in meters when distance unit changes", async () => {
+    const user = userEvent.setup();
+    render(<ProfilePreferencesSection user={{ ...mockUser, walkThresholdMeters: 61 }} />);
+    await user.click(screen.getByRole("button", { name: "metric" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ distanceUnit: "metric" });
   });
 
   it("renders threshold selects with defaults", () => {

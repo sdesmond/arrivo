@@ -148,6 +148,30 @@ describe("updateProfile — server-side validation (AC10)", () => {
     expect(result).toEqual({ error: "Invalid distance unit." });
   });
 
+  it("rejects an invalid transit mode", async () => {
+    const result = await updateProfile({ transitMode: "flying" as "walk" });
+    expect(result).toEqual({ error: "Invalid transit mode." });
+  });
+
+  it("accepts valid and cleared transit modes", async () => {
+    expect(await updateProfile({ transitMode: "transit" })).toEqual({});
+    expect(await updateProfile({ transitMode: null })).toEqual({});
+  });
+
+  it("rejects a non-positive or fractional walk threshold", async () => {
+    expect(await updateProfile({ walkThresholdMeters: 0 })).toEqual({
+      error: "Walk threshold must be a positive integer.",
+    });
+    expect(await updateProfile({ walkThresholdMeters: 100.5 })).toEqual({
+      error: "Walk threshold must be a positive integer.",
+    });
+  });
+
+  it("accepts positive integer and cleared walk thresholds", async () => {
+    expect(await updateProfile({ walkThresholdMeters: 500 })).toEqual({});
+    expect(await updateProfile({ walkThresholdMeters: null })).toEqual({});
+  });
+
   it("returns {} for valid patch with multiple fields", async () => {
     const result = await updateProfile({ name: "Alice", currency: "EUR" });
     expect(result).toEqual({});
