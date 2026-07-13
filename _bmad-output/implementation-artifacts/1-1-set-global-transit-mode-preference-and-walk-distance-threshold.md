@@ -4,7 +4,7 @@ baseline_commit: 275fd32f00fef7399af5359e95fc0e196803b8a8
 
 # Story 1.1: Set global Transit Mode preference and walk-distance threshold
 
-Status: review
+Status: done
 
 ## Story
 
@@ -67,6 +67,16 @@ so that new trips start with my usual preference and short hops are always walke
   - [x] Subtask 6.6: Write component tests in `src/app/(app)/profile/preferences-section.test.tsx` for: rendering the new fields, saving transitMode changes, saving walkThresholdMeters changes, dirty state tracking for the new fields
 
 - [x] Task 7: Run `packt-build-validator` to confirm everything passes
+
+### Review Findings
+
+- [x] [Review][Patch] Transit mode must always have a set default (decided: default to `"drive"`, no clear/unset affordance) — defaulted local state and the `computeDirty`/`handleSave` baseline to `user.transitMode ?? TransitMode.Drive` [src/app/(app)/profile/preferences-section.tsx]
+- [x] [Review][Patch] `walkThresholdMeters` validation has no upper bound (decided: cap at 5000m) — added max check to `updateProfile` [src/app/(app)/profile/actions.ts]
+- [x] [Review][Patch] "Getting Around" section renders before Budget, not after it as Subtask 6.1 specifies — reordered [src/app/(app)/profile/preferences-section.tsx]
+- [x] [Review][Patch] Unit-switch test doesn't verify the display conversion it's named for — added display-label assertions [src/app/(app)/profile/preferences-section.test.tsx]
+- [x] [Review][Patch] Feet→meters conversion uses an inline magic constant `0.3048` with no named constant — extracted `METERS_PER_FOOT` [src/app/(app)/profile/preferences-section.tsx]
+- [x] [Review][Defer] `route_cache` composite primary key uses four raw float columns with no rounding/quantization [src/db/schema.ts:711-728] — deferred, pre-existing (spec-mandated schema for this story; quantization strategy belongs with Story 2.1's cache-write path)
+- [x] [Review][Defer] `resolveEffectiveMode` has no guard against NaN/negative `hopDistanceMeters` [src/lib/route.ts:6-9] — deferred, pre-existing (no caller exists yet in this diff; Story 2.1 will supply real hop distances)
 
 ## Dev Notes
 
