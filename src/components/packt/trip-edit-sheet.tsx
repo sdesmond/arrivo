@@ -6,6 +6,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
+  TransitMode,
   TripCurrencyChangeMode,
   type Budget,
   type Collaborator,
@@ -18,6 +19,7 @@ import {
   type UpdateTripPatch,
 } from "@/data/types";
 import { Section, Field } from "@/components/packt/form-section";
+import { GettingAroundSection } from "@/components/packt/getting-around-section";
 import { TripEditBudget } from "@/components/packt/trip-edit-budget";
 import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
 import { TripEditDestination } from "@/components/packt/trip-edit-destination";
@@ -170,6 +172,7 @@ export function TripEditSheet({
       budgetCurrency: currentDraft.budget?.currency,
       budgetTotal: currentDraft.budget?.total,
       tags: currentDraft.tags,
+      transitMode: currentDraft.transitMode,
     };
   }
   async function handleResolution(resolution: TripDateConflictResolutionValue): Promise<void> {
@@ -245,6 +248,11 @@ export function TripEditSheet({
               total={draft.budget?.total}
               onCurrencyChange={(currency) => setBudget("currency", currency)}
               onTotalChange={(total) => setBudget("total", total)}
+              disabled={isBusy}
+            />
+            <GettingAroundSection
+              transitMode={draft.transitMode ?? TransitMode.Drive}
+              onTransitModeChange={(mode) => set("transitMode", mode)}
               disabled={isBusy}
             />
             <Section title="People">

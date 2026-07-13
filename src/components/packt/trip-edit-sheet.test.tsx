@@ -147,6 +147,7 @@ vi.mock("@/components/ui/alert-dialog", () => ({
 
 import { TripEditSheet } from "./trip-edit-sheet";
 import {
+  TransitMode,
   TripCurrencyChangeMode,
   TripDateConflictResolution,
   type Expense,
@@ -177,6 +178,7 @@ const baseTrip: Trip = {
     currency: "USD",
     total: 3000,
   },
+  transitMode: TransitMode.Drive,
 };
 
 describe("TripEditSheet", () => {
@@ -369,6 +371,38 @@ describe("TripEditSheet", () => {
     await user.clear(screen.getByDisplayValue("3000"));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetTotal: undefined }));
+  });
+
+  it("renders the Getting Around section pre-selected to the trip's transit mode", () => {
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("Getting Around")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drive" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Transit" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("defaults the Getting Around selection to Drive when the trip has no transit mode", () => {
+    const tripWithoutTransitMode: Trip = { ...baseTrip, transitMode: undefined };
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={tripWithoutTransitMode}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Drive" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("selecting a transit mode updates the draft and persists it on save", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: "Walk" }));
+    expect(screen.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ transitMode: TransitMode.Walk }));
   });
 
   it("addCollaborator via TripEditCollaborators callback does not crash", async () => {
