@@ -14,9 +14,10 @@ import { CoverType, TransitMode } from "@/data/types";
 import type { TransitMode as TransitModeValue, UserProfile } from "@/data/types";
 
 const THRESHOLD_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+const METERS_PER_FOOT = 0.3048;
 const IMPERIAL_WALK_THRESHOLDS = [200, 400, 800, 1600].map((feet) => ({
   label: `${feet} ft`,
-  meters: Math.round(feet * 0.3048),
+  meters: Math.round(feet * METERS_PER_FOOT),
 }));
 const METRIC_WALK_THRESHOLDS = [100, 200, 500, 1000].map((meters) => ({
   label: `${meters} m`,
@@ -50,7 +51,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   const [dateFormat, setDateFormat] = useState(user.dateFormat ?? "MM/DD/YYYY");
   const [currency, setCurrency] = useState(user.currency ?? "USD");
   const [distanceUnit, setDistanceUnit] = useState(user.distanceUnit ?? "imperial");
-  const [transitMode, setTransitMode] = useState<TransitModeValue | null>(user.transitMode ?? null);
+  const [transitMode, setTransitMode] = useState<TransitModeValue>(user.transitMode ?? TransitMode.Drive);
   const [walkThresholdMeters, setWalkThresholdMeters] = useState<number | null>(user.walkThresholdMeters ?? null);
   const [coverType, setCoverType] = useState<string>(user.defaultCoverType ?? CoverType.Photo);
   const [warningThreshold, setWarningThreshold] = useState(user.warningThreshold ?? 80);
@@ -62,7 +63,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     dateFormat: string,
     currency: string,
     distanceUnit: string,
-    transitMode: TransitModeValue | null,
+    transitMode: TransitModeValue,
     walkThresholdMeters: number | null,
     coverType: string,
     warningThreshold: number,
@@ -72,7 +73,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       dateFormat !== (user.dateFormat ?? "MM/DD/YYYY") ||
       currency !== (user.currency ?? "USD") ||
       distanceUnit !== (user.distanceUnit ?? "imperial") ||
-      transitMode !== (user.transitMode ?? null) ||
+      transitMode !== (user.transitMode ?? TransitMode.Drive) ||
       walkThresholdMeters !== (user.walkThresholdMeters ?? null) ||
       coverType !== (user.defaultCoverType ?? CoverType.Photo) ||
       warningThreshold !== (user.warningThreshold ?? 80) ||
@@ -217,7 +218,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       if (dateFormat !== (user.dateFormat ?? "MM/DD/YYYY")) patch.dateFormat = dateFormat;
       if (currency !== (user.currency ?? "USD")) patch.currency = currency;
       if (distanceUnit !== (user.distanceUnit ?? "imperial")) patch.distanceUnit = distanceUnit;
-      if (transitMode !== (user.transitMode ?? null)) patch.transitMode = transitMode;
+      if (transitMode !== (user.transitMode ?? TransitMode.Drive)) patch.transitMode = transitMode;
       if (walkThresholdMeters !== (user.walkThresholdMeters ?? null)) patch.walkThresholdMeters = walkThresholdMeters;
       if (coverType !== (user.defaultCoverType ?? CoverType.Photo)) patch.defaultCoverType = coverType as CoverType;
       if (warningThreshold !== (user.warningThreshold ?? 80) || dangerThreshold !== (user.dangerThreshold ?? 90)) {
@@ -241,7 +242,9 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
     walkThresholdMeters !== null && !selectedWalkThreshold
       ? {
           label:
-            distanceUnit === "imperial" ? `${Math.round(walkThresholdMeters / 0.3048)} ft` : `${walkThresholdMeters} m`,
+            distanceUnit === "imperial"
+              ? `${Math.round(walkThresholdMeters / METERS_PER_FOOT)} ft`
+              : `${walkThresholdMeters} m`,
           meters: walkThresholdMeters,
         }
       : null;
@@ -305,45 +308,6 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         </ToggleGroup>
       </Field>
 
-      <Section title="Getting Around">
-        <Field label="Default transit mode">
-          <ToggleGroup
-            aria-label="Default transit mode"
-            value={transitMode ? [transitMode] : []}
-            onValueChange={(values) => handleTransitModeChange(values[0] ?? "")}
-          >
-            {TRANSIT_MODE_OPTIONS.map(({ value, label, Icon }) => (
-              <ToggleGroupItem key={value} value={value} className="h-11 px-3.5">
-                <Icon strokeWidth={1.5} />
-                {label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </Field>
-
-        <Field label="Walk if closer than" htmlFor="pref-walk-threshold">
-          <Select
-            value={walkThresholdMeters === null ? "off" : String(walkThresholdMeters)}
-            onValueChange={(value) => handleWalkThresholdChange(value ?? "off")}
-          >
-            <SelectTrigger id="pref-walk-threshold" className="h-11 w-full">
-              <SelectValue>{walkThresholdMeters === null ? "Off" : walkThresholdLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="off">Off</SelectItem>
-              {displayedWalkThreshold && (
-                <SelectItem value={String(displayedWalkThreshold.meters)}>{displayedWalkThreshold.label}</SelectItem>
-              )}
-              {walkThresholdOptions.map((option) => (
-                <SelectItem key={option.meters} value={String(option.meters)}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </Section>
-
       <Section title="Budget">
         <div className="flex gap-3">
           <Field label="Warning %" htmlFor="pref-warning">
@@ -382,6 +346,45 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
             </Select>
           </Field>
         </div>
+      </Section>
+
+      <Section title="Getting Around">
+        <Field label="Default transit mode">
+          <ToggleGroup
+            aria-label="Default transit mode"
+            value={[transitMode]}
+            onValueChange={(values) => handleTransitModeChange(values[0] ?? "")}
+          >
+            {TRANSIT_MODE_OPTIONS.map(({ value, label, Icon }) => (
+              <ToggleGroupItem key={value} value={value} className="h-11 px-3.5">
+                <Icon strokeWidth={1.5} />
+                {label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </Field>
+
+        <Field label="Walk if closer than" htmlFor="pref-walk-threshold">
+          <Select
+            value={walkThresholdMeters === null ? "off" : String(walkThresholdMeters)}
+            onValueChange={(value) => handleWalkThresholdChange(value ?? "off")}
+          >
+            <SelectTrigger id="pref-walk-threshold" className="h-11 w-full">
+              <SelectValue>{walkThresholdMeters === null ? "Off" : walkThresholdLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">Off</SelectItem>
+              {displayedWalkThreshold && (
+                <SelectItem value={String(displayedWalkThreshold.meters)}>{displayedWalkThreshold.label}</SelectItem>
+              )}
+              {walkThresholdOptions.map((option) => (
+                <SelectItem key={option.meters} value={String(option.meters)}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
       </Section>
 
       <div className="flex items-center justify-end gap-3">

@@ -169,7 +169,13 @@ describe("updateProfile — server-side validation (AC10)", () => {
 
   it("accepts positive integer and cleared walk thresholds", async () => {
     expect(await updateProfile({ walkThresholdMeters: 500 })).toEqual({});
+    expect(await updateProfile({ walkThresholdMeters: 5000 })).toEqual({});
     expect(await updateProfile({ walkThresholdMeters: null })).toEqual({});
+  });
+
+  it("rejects a walk threshold over 5000 meters", async () => {
+    const result = await updateProfile({ walkThresholdMeters: 5001 });
+    expect(result).toEqual({ error: "Walk threshold must be 5000 meters or less." });
   });
 
   it("returns {} for valid patch with multiple fields", async () => {

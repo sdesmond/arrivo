@@ -53,12 +53,13 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
       return { error: "Invalid transit mode." };
     }
   }
-  if (
-    patch.walkThresholdMeters !== undefined &&
-    patch.walkThresholdMeters !== null &&
-    (!Number.isInteger(patch.walkThresholdMeters) || patch.walkThresholdMeters <= 0)
-  ) {
-    return { error: "Walk threshold must be a positive integer." };
+  if (patch.walkThresholdMeters !== undefined && patch.walkThresholdMeters !== null) {
+    if (!Number.isInteger(patch.walkThresholdMeters) || patch.walkThresholdMeters <= 0) {
+      return { error: "Walk threshold must be a positive integer." };
+    }
+    if (patch.walkThresholdMeters > 5000) {
+      return { error: "Walk threshold must be 5000 meters or less." };
+    }
   }
   if (patch.defaultCoverType !== undefined) {
     const validCoverTypes = Object.values(CoverType) as string[];

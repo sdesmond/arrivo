@@ -157,11 +157,18 @@ describe("ProfilePreferencesSection", () => {
     expect(screen.getByRole("combobox", { name: "Walk if closer than" })).toHaveTextContent("Off");
   });
 
+  it("defaults to Drive when no transit preference is saved", () => {
+    render(<ProfilePreferencesSection user={mockUser} />);
+    expect(screen.getByRole("button", { name: "Drive" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Transit" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("saves changed transit mode", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
-    await userEvent.click(screen.getByRole("button", { name: "Drive" }));
+    await userEvent.click(screen.getByRole("button", { name: "Walk" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ transitMode: "drive" });
+    expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ transitMode: "walk" });
   });
 
   it("converts imperial walk threshold to meters before saving", async () => {
@@ -176,7 +183,9 @@ describe("ProfilePreferencesSection", () => {
   it("keeps stored walk threshold in meters when distance unit changes", async () => {
     const user = userEvent.setup();
     render(<ProfilePreferencesSection user={{ ...mockUser, walkThresholdMeters: 61 }} />);
+    expect(screen.getByRole("combobox", { name: "Walk if closer than" })).toHaveTextContent("200 ft");
     await user.click(screen.getByRole("button", { name: "metric" }));
+    expect(screen.getByRole("combobox", { name: "Walk if closer than" })).toHaveTextContent("61 m");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ distanceUnit: "metric" });
   });
