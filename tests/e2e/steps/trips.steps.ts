@@ -136,3 +136,14 @@ Then("the Budget tab shows {string} as Budget", async ({ page }, amount: string)
 Then("the Budget tab shows a {string} category tile", async ({ page }, category: string) => {
   await expect(page.locator('[data-slot="category-tile-grid"]').getByText(category, { exact: true })).toBeVisible();
 });
+
+When("I select {string} as the transit mode", async ({ page }, mode: string) => {
+  await page.getByRole("dialog").getByRole("button", { name: mode, exact: true }).click();
+});
+
+Then("the trip edit sheet shows {string} as the selected transit mode", async ({ page }, mode: string) => {
+  await expect(page.getByRole("dialog").getByRole("button", { name: mode, exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+});

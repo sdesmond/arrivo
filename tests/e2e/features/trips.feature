@@ -55,3 +55,11 @@ Feature: Trip Management
     When I open the Budget tab
     Then the Budget tab shows "€0.00" as Actual spent
     And the Budget tab shows "€100.00" as Budget
+
+  Scenario: Changing the trip's transit mode via the Getting Around section
+    Given I have an existing trip
+    When I open the trip edit sheet
+    And I select "Walk" as the transit mode
+    And I save
+    And I open the trip edit sheet
+    Then the trip edit sheet shows "Walk" as the selected transit mode
