@@ -138,12 +138,11 @@ Then("the Budget tab shows a {string} category tile", async ({ page }, category:
 });
 
 When("I select {string} as the transit mode", async ({ page }, mode: string) => {
-  await page.getByRole("dialog").getByRole("button", { name: mode, exact: true }).click();
+  const section = page.getByRole("dialog").getByRole("group", { name: /default transit mode/i });
+  await section.getByRole("button", { name: mode, exact: true }).click();
 });
 
 Then("the trip edit sheet shows {string} as the selected transit mode", async ({ page }, mode: string) => {
-  await expect(page.getByRole("dialog").getByRole("button", { name: mode, exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  );
+  const section = page.getByRole("dialog").getByRole("group", { name: /default transit mode/i });
+  await expect(section.getByRole("button", { name: mode, exact: true })).toHaveAttribute("aria-pressed", "true");
 });

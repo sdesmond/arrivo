@@ -61,6 +61,16 @@ describe("GettingAroundSection", () => {
     }
   });
 
+  it("re-applies disabled state when the disabled prop toggles", () => {
+    const { rerender } = render(<GettingAroundSection transitMode={TransitMode.Drive} onTransitModeChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Walk" })).not.toBeDisabled();
+
+    rerender(<GettingAroundSection transitMode={TransitMode.Drive} onTransitModeChange={vi.fn()} disabled />);
+    for (const name of ["Walk", "Drive", "Transit"]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+  });
+
   it("supports roving arrow-key focus with Home/End jumping to first/last segment", async () => {
     const user = userEvent.setup();
     render(<GettingAroundSection transitMode={TransitMode.Drive} onTransitModeChange={vi.fn()} />);

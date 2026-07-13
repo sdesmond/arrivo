@@ -4,7 +4,7 @@ baseline_commit: d2db7c924c2fd2f227cf2e8adc5148184f3bf416
 
 # Story 1.3: Set Trip Transit Default via Getting Around section
 
-Status: review
+Status: done
 
 ## Story
 
@@ -230,6 +230,30 @@ None — no blocking failures encountered. All tests passed on first or second i
 - `tests/e2e/features/trips.feature`
 - `tests/e2e/steps/trips.steps.ts`
 - `tests/e2e/feature-map.mjs`
+
+## Review Findings
+
+### Second Review — 2026-07-13
+
+**Patch (3):**
+- [x] [Review][Patch] Auth check before input validation [transit-actions.ts:13-14] — `assertTripAccess` (DB query) runs before `isTransitMode` (in-memory check). Move validation before DB call to avoid wasted query on invalid input.
+- [x] [Review][Patch] No reactivity test for disabled — test only checks initial `disabled={true}` render; does not verify component re-applies disabled state when prop toggles.
+- [x] [Review][Patch] E2E step selector too broad [trips.steps.ts:142] — `getByRole("button")` inside dialog lacks `within()` scoping to Getting Around section; could hit wrong element if other controls share the same accessible name.
+
+**Deferred (8):**
+- [x] [Review][Defer] `user.id!` non-null assertion [transit-actions.ts:14] — pre-existing pattern throughout codebase (actions.ts:345)
+- [x] [Review][Defer] Redundant `aria-label` on ToggleGroup [getting-around-section.tsx:29] — follows existing pattern from preferences-section.tsx:354
+- [x] [Review][Defer] Inconsistent error contract [actions.ts:71 vs transit-actions.ts:20] — two different action surfaces; both correctly prevent invalid data
+- [x] [Review][Defer] Mock `trips` is `{}` [transit-actions.test.ts:12] — pre-existing test pattern
+- [x] [Review][Defer] Brittle class-name assertions [getting-around-section.test.tsx:56-67] — className-based assertions verify correct Tailwind classes
+- [x] [Review][Defer] db.update throws (connection error) [transit-actions.ts:21-23] — no try/catch, consistent with all server actions
+- [x] [Review][Defer] TOCTOU — trip deleted between assertTripAccess and db.update [transit-actions.ts:21-24] — pre-existing pattern across all mutations
+- [x] [Review][Defer] ToggleGroup fires onValueChange with empty/multiple values [getting-around-section.tsx:28-33] — guard already handles empty/falsy; Base UI fires only valid values
+
+**Dismissed (3):**
+- ToggleGroup value is `[transitMode]` (array) — follows established Base UI pattern (preferences-section.tsx:355)
+- `toggle-group` component not included in diff — pre-existing from prior stories
+- `isTransitMode` not included in diff — pre-existing export from db-mappers.ts (Story 1.1)
 
 ## Change Log
 

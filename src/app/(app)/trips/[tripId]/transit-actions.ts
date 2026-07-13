@@ -13,11 +13,12 @@ export async function updateTripTransitMode(
   transitMode: TransitMode
 ): Promise<{ success: true } | { error: string }> {
   const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
 
   if (!isTransitMode(transitMode)) {
     return { error: "Invalid transit mode." };
   }
+
+  await assertTripAccess(tripId, user.id!, "editor");
 
   await db.update(trips).set({ transitMode }).where(eq(trips.id, tripId));
   revalidatePath(`/trips/${tripId}`);
