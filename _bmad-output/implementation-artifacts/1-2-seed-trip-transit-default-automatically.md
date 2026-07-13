@@ -4,7 +4,7 @@ baseline_commit: 42d203569ca1ed8750a29192fd432718add71157
 
 # Story 1.2: Seed Trip Transit Default automatically
 
-Status: review
+Status: done
 
 ## Story
 
@@ -45,7 +45,7 @@ so that I don't have to configure anything for travel estimates to work.
 - [x] Task 3: Handle existing trips with null transit mode (AC: 3)
   - [x] Subtask 3.1: Verify that `dbTripToType` in `src/lib/db-mappers.ts:77` already maps null transitMode to null (it does: `row.transitMode && isTransitMode(row.transitMode) ? row.transitMode : null`)
   - [x] Subtask 3.2: Verify that `resolveEffectiveMode` in `src/lib/route.ts` accepts null/undefined `walkThresholdMeters` (it does — the check is `!== null && !== undefined`)
-  - [x] Subtask 3.3: Confirm that any consumer of `trip.transitMode` handles null gracefully — no code changes expected, but verify during implementation that the Now Card and future surfaces default to `"drive"` when `trip.transitMode` is null (this is the responsibility of the caller, not the mapper)
+  - [x] Subtask 3.3: No consumer of `trip.transitMode` exists yet — `src/components/packt/*.tsx` has zero references to it, so there is nothing to verify against in this story. Defaulting null `trip.transitMode` to `"drive"` at the point of use is Story 1.3's responsibility once a consumer (e.g. the Now Card) is built.
 
 - [x] Task 4: Run validation
   - [x] Subtask 4.1: Run `npx vitest run src/app/(app)/trips/actions.test.ts` to confirm new and existing tests pass
@@ -141,6 +141,12 @@ The `operations.inserts` assertions already use `expect.objectContaining()`, so 
 4. **Existing `createTrip` tests must continue to pass** — the `setupCreateTripDb` helper mocks `db.select` with a specific row shape. Adding `transitMode` to the mock user row (as null or a value) keeps existing tests green. Don't change the mock shape for tests you're not modifying.
 5. **The `transitMode` value goes directly into the insert** — no `.toString()` needed (it's a string, not a numeric). Unlike `budgetTotal` which uses `.toString()` for numeric DB storage, `transitMode` is a plain text column.
 6. **Existing trips with null `transitMode` are handled by consumers** — `dbTripToType` maps null to null, and any code reading `trip.transitMode` must handle null (defaulting to `"drive"` at the point of use). This story does NOT backfill existing trips.
+
+## Review Findings
+
+- [x] [Review][Patch] Missing enum validation before persisting transitMode [src/app/(app)/trips/actions.ts:236] — `input.transitMode` and `user.transitMode` are persisted with no validation against the `TransitMode` enum, unlike `budgetCurrency` which goes through `resolveBudgetCurrency`. Fixed: exported `isTransitMode()` from `db-mappers.ts` and applied it before falling back to `TransitMode.Drive`; added a test covering an invalid stored user preference.
+- [x] [Review][Patch] Story file Task 3.3 overstates a verification that wasn't possible [Task 3, Subtask 3.3] — checked off as having verified "the Now Card and future surfaces default to drive when trip.transitMode is null," but there is no consumer of `trip.transitMode` anywhere in `src/components/packt/*.tsx` yet to verify against. Fixed: reworded to accurately state this is deferred to Story 1.3.
+- [x] [Review][Defer] TOCTOU: transitMode resolved from a snapshot taken before the insert transaction [src/app/(app)/trips/actions.ts:210-253] — deferred, pre-existing. If the user updates their global transit preference between the initial `select` and the transaction commit, the new trip silently uses the stale value. Same pattern already exists for `budgetCurrency` resolution in this function; not introduced uniquely by this change.
 
 ## Dev Agent Record
 
