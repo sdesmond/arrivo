@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Key Screen — Profile Preferences, Transit preferences (global default + walk-threshold)</title>
+<style>
+/*
+  Governing spine sections:
+  - EXPERIENCE.md: Information Architecture ("Profile — Preferences"), Component Patterns
+    ("Transit preferences (Profile page)"), State Patterns (walk-distance exception off/set).
+  - DESIGN.md: components (transit-preference-fields, getting-around-segmented-control reused),
+    Colors (accent-soft/accent-ink selected state), Shapes (rounded.md segmented, existing Select).
+  Shows the new Transit preferences fields added to the existing profile preferences-section.tsx,
+  directly below the existing Distance units field, ahead of the existing Budget section — matching
+  the real component's field order (date format, currency, distance units, transit preferences,
+  cover type, budget).
+  [ADDED 2026-07-13: closes the "no key-screen mock" residual gap from the implementation
+  readiness re-run — UX-DR9 / FR-8.]
+  Two states shown side by side: (A) walk-distance exception off (default), (B) set to a preset
+  distance — the Select's open menu is depicted to show the preset-list pattern mirrored from the
+  existing Budget Warning %/Danger % Select fields.
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #e9e9e6;
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 40px;
+}
+.card {
+  width: 360px;
+  background: #ffffff; /* --bg */
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.04); /* --shadow-3 */
+  padding: 20px;
+}
+.card-title { font-size: 16px; font-weight: 700; color: #131311; margin-bottom: 4px; }
+.card-state { font-size: 11px; font-weight: 600; color: #7a7a72; margin-bottom: 18px; text-transform: uppercase; letter-spacing: 0.04em; }
+.field-label { font-size: 12px; font-weight: 600; color: #4a4a45; margin-bottom: 8px; } /* --fg-2 */
+.field-block { margin-bottom: 20px; }
+.field-block.existing { opacity: 0.55; }
+.field-block.new { padding: 14px; margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; background: #f6f6f4; border-radius: 10px; border: 1px dashed #0e8b80; }
+.new-badge { display: inline-block; font-size: 10px; font-weight: 700; color: #0a4a44; background: #d6efec; border-radius: 999px; padding: 2px 8px; margin-bottom: 10px; }
+
+.toggle-group {
+  display: inline-flex;
+  gap: 4px;
+  background: #f6f6f4; /* --surface */
+  border-radius: 8px; /* rounded.md */
+  padding: 4px;
+}
+.toggle-item {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #7a7a72; /* --fg-3 */
+  cursor: pointer;
+}
+.toggle-item.selected {
+  background: #d6efec; /* --accent-soft */
+  color: #0a4a44; /* --accent-ink */
+  font-weight: 600;
+}
+
+.select-trigger {
+  height: 44px;
+  min-width: 160px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(20,20,18,0.14);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #131311;
+}
+.select-trigger .chevron { color: #7a7a72; font-size: 11px; }
+.select-menu {
+  margin-top: 6px;
+  border: 1px solid rgba(20,20,18,0.1);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  overflow: hidden;
+  width: 160px;
+}
+.select-option {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 13px;
+  color: #4a4a45;
+}
+.select-option.selected { background: #d6efec; color: #0a4a44; font-weight: 600; }
+.helper { font-size: 12px; color: #7a7a72; margin-top: 8px; line-height: 1.4; }
+.divider { height: 1px; background: rgba(20,20,18,0.08); margin: 18px 0; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-title">Preferences</div>
+  <div class="card-state">State A — Walk-distance exception: Off (default)</div>
+
+  <div class="field-block existing">
+    <div class="field-label">Distance units</div>
+    <div class="toggle-group">
+      <div class="toggle-item selected">Imperial</div>
+      <div class="toggle-item">Metric</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="field-block new">
+    <span class="new-badge">New — FR-8</span>
+    <div class="field-label">Default transit mode</div>
+    <div class="toggle-group" role="radiogroup" aria-label="Default transit mode" style="margin-bottom: 16px;">
+      <div class="toggle-item selected" role="radio" aria-checked="true" tabindex="0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="13" cy="4" r="2"/><path d="M15 22l-1-6-3-2 1-6M9 22l3-8M6 12l3-3 3 1 3-1"/></svg>
+        Walk
+      </div>
+      <div class="toggle-item" role="radio" aria-checked="false" tabindex="-1">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 17h14M5 17a2 2 0 1 0 4 0M15 17a2 2 0 1 0 4 0M5 17l1.5-6h11L19 17M6.5 11l1-4h9l1 4"/></svg>
+        Drive
+      </div>
+      <div class="toggle-item" role="radio" aria-checked="false" tabindex="-1">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="3" width="16" height="14" rx="2"/><circle cx="8" cy="20" r="1"/><circle cx="16" cy="20" r="1"/></svg>
+        Transit
+      </div>
+    </div>
+
+    <div class="field-label">Walk if closer than</div>
+    <div class="select-trigger">
+      <span>Off</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="helper">Seeds new trips' transit mode. Short hops under this distance always walk, no matter the trip's mode.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Preferences</div>
+  <div class="card-state">State B — Walk-distance exception: Set (menu open)</div>
+
+  <div class="field-block existing">
+    <div class="field-label">Distance units</div>
+    <div class="toggle-group">
+      <div class="toggle-item selected">Imperial</div>
+      <div class="toggle-item">Metric</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="field-block new">
+    <span class="new-badge">New — FR-8</span>
+    <div class="field-label">Default transit mode</div>
+    <div class="toggle-group" role="radiogroup" aria-label="Default transit mode" style="margin-bottom: 16px;">
+      <div class="toggle-item" role="radio" aria-checked="false" tabindex="-1">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="13" cy="4" r="2"/><path d="M15 22l-1-6-3-2 1-6M9 22l3-8M6 12l3-3 3 1 3-1"/></svg>
+        Walk
+      </div>
+      <div class="toggle-item selected" role="radio" aria-checked="true" tabindex="0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 17h14M5 17a2 2 0 1 0 4 0M15 17a2 2 0 1 0 4 0M5 17l1.5-6h11L19 17M6.5 11l1-4h9l1 4"/></svg>
+        Drive
+      </div>
+      <div class="toggle-item" role="radio" aria-checked="false" tabindex="-1">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="3" width="16" height="14" rx="2"/><circle cx="8" cy="20" r="1"/><circle cx="16" cy="20" r="1"/></svg>
+        Transit
+      </div>
+    </div>
+
+    <div class="field-label">Walk if closer than</div>
+    <div class="select-trigger">
+      <span>0.25 mi</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="select-menu">
+      <div class="select-option">Off</div>
+      <div class="select-option selected">0.25 mi</div>
+      <div class="select-option">0.5 mi</div>
+      <div class="select-option">1 mi</div>
+    </div>
+    <div class="helper">Any hop shorter than 0.25 mi always resolves to walk, overriding the trip's transit mode.</div>
+  </div>
+</div>
+
+</body>
+</html>
