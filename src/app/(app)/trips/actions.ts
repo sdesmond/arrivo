@@ -25,6 +25,7 @@ import type {
   TripDateConflictResolution,
   UpdateTripMetadataResult,
 } from "@/data/types";
+import { TransitMode } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/lib/utils";
@@ -207,7 +208,13 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   const sessionUser = await requireUser();
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
   const [user] = await db
-    .select({ id: users.id, email: users.email, name: users.name, currency: users.currency })
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      currency: users.currency,
+      transitMode: users.transitMode,
+    })
     .from(users)
     .where(eq(users.email, sessionUser.email!));
 
@@ -226,6 +233,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
   const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
+  const transitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
 
   let tripId = "";
   await db.transaction(async (tx) => {
@@ -242,6 +250,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
         destinationCountryCode: input.destinationCountryCode ?? null,
         notes: input.notes ?? null,
         budgetCurrency: budgetCurrency ?? null,
+        transitMode,
         budgetTotal: input.budgetTotal?.toString(),
         tags: input.tags ?? [],
       })
