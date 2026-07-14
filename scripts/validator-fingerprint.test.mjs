@@ -35,6 +35,11 @@ describe("validator-fingerprint helpers", async () => {
       expect(parseScope("FULL")).toBe("full");
     });
 
+    it("treats 'none' (any case) as the none scope", () => {
+      expect(parseScope("none")).toBe("none");
+      expect(parseScope("NONE")).toBe("none");
+    });
+
     it("splits comma or pipe separated tags, deduped and sorted", () => {
       expect(parseScope("@feat:b,@feat:a,@feat:b")).toEqual(["@feat:a", "@feat:b"]);
       expect(parseScope("@feat:b|@feat:a")).toEqual(["@feat:a", "@feat:b"]);
@@ -63,6 +68,17 @@ describe("validator-fingerprint helpers", async () => {
       expect(shouldSkip(marker, fingerprint, ["@feat:a"])).toBe(true);
       expect(shouldSkip(marker, fingerprint, ["@feat:a", "@feat:b"])).toBe(true);
       expect(shouldSkip(marker, fingerprint, ["@feat:c"])).toBe(false);
+    });
+
+    it("skips a none request (nothing to run) against any prior pass on the same tree", () => {
+      expect(shouldSkip({ fingerprint, scope: ["@feat:a"] }, fingerprint, "none")).toBe(true);
+      expect(shouldSkip({ fingerprint, scope: "none" }, fingerprint, "none")).toBe(true);
+      expect(shouldSkip({ fingerprint: "other", scope: "none" }, fingerprint, "none")).toBe(false);
+    });
+
+    it("does not let a prior none pass satisfy a later tag or full request", () => {
+      expect(shouldSkip({ fingerprint, scope: "none" }, fingerprint, ["@feat:a"])).toBe(false);
+      expect(shouldSkip({ fingerprint, scope: "none" }, fingerprint, "full")).toBe(false);
     });
   });
 });

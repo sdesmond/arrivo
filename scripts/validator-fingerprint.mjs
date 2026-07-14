@@ -9,6 +9,7 @@ const ROOT_DIR = join(SCRIPT_DIR, "..");
 const MARKER_PATH = join(ROOT_DIR, "node_modules", ".cache", "packt-build-validator", "last-pass.json");
 
 const FULL_SCOPE = "full";
+const NONE_SCOPE = "none";
 
 // Hash of HEAD + all uncommitted tracked changes + the contents of every untracked (non-ignored)
 // file. Identical on an unchanged working tree; changes the moment any source is edited, staged, or
@@ -22,10 +23,12 @@ export function computeFingerprint({ head, trackedDiff, untracked }) {
   return hash.digest("hex");
 }
 
-// "full" | comma/pipe-separated tag list → "full" | sorted tag array.
+// "full" | "none" | comma/pipe-separated tag list → "full" | "none" | sorted tag array.
+// Empty/garbage → "full" (safe default); an explicit "none" (no impacted features) stays "none".
 export function parseScope(raw) {
   const value = (raw ?? "").trim();
   if (!value || value.toLowerCase() === FULL_SCOPE) return FULL_SCOPE;
+  if (value.toLowerCase() === NONE_SCOPE) return NONE_SCOPE;
   const tags = value
     .split(/[,|]/)
     .map((tag) => tag.trim())
@@ -34,13 +37,16 @@ export function parseScope(raw) {
 }
 
 // Skip only when the tree is byte-identical to the last PASS AND that pass already covered the
-// requested scope. A "full" request is never satisfied by a prior affected-only pass.
+// requested scope. A "full" request is never satisfied by a prior affected-only pass. A "none"
+// request (nothing to run) is satisfied by any prior pass on the same tree.
 export function shouldSkip(marker, fingerprint, requestedScope) {
   if (!marker || marker.fingerprint !== fingerprint) return false;
   const recorded = marker.scope;
   if (recorded === FULL_SCOPE) return true;
+  if (requestedScope === NONE_SCOPE) return true;
   if (requestedScope === FULL_SCOPE) return false;
-  return requestedScope.every((tag) => recorded.includes(tag));
+  const recordedTags = Array.isArray(recorded) ? recorded : [];
+  return requestedScope.every((tag) => recordedTags.includes(tag));
 }
 
 function git(args) {

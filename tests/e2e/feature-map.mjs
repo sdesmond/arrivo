@@ -1,18 +1,24 @@
 // Single source of truth linking source paths to E2E feature tags.
 //
-// Each FEATURE_MAP entry maps a cluster of source globs to the `@feat:<stem>` tag carried by the
-// matching `tests/e2e/features/<stem>.feature` file. `scripts/affected-e2e.mjs` reads a change set
-// and unions the tags whose globs match, so the validator and `test:e2e:affected` run only the
-// relevant scenarios.
+// `scripts/affected-e2e.mjs` classifies each changed file through ordered tiers (see that file's
+// `mapChangedFilesToTags`):
+//   1. IGNORE_GLOBS  → dropped (docs, unit tests, agent config — can't affect E2E behavior).
+//   2. FEATURE_MAP   → union the `@feat:<stem>` tags whose globs match (checked before SHARED, so an
+//                      explicitly-mapped file runs just its feature even if it also sits under a
+//                      SHARED directory — e.g. `src/lib/spending.ts`).
+//   3. SHARED_GLOBS  → FULL suite (cross-cutting runtime that can move any feature).
+//   4. anything else → contributes nothing (unmapped runtime no longer forces FULL).
+// If every changed file is ignored the run is skipped entirely; if the raw change set is empty
+// (git unavailable) it falls back to FULL.
 //
-// SAFETY: affected detection falls back to the FULL suite whenever a changed file matches
-// SHARED_GLOBS or matches no feature glob at all. So under-mapping is safe (you just run more than
-// needed); the only thing to avoid is mapping a cross-cutting file to a single feature. Keep
-// feature globs to clearly-owned component clusters and feature-specific server actions; leave
-// orchestration (page clients, shared dialogs, broad action files) in SHARED_GLOBS.
+// SAFETY: unmapped runtime source now runs NOTHING in the inner loop rather than FULL, so the map
+// must stay complete. `scripts/feature-map.test.mjs` enforces that every `src/components/packt/*`
+// component and every `src/app/(app)/**` server action is mapped-or-shared — add new ones to a
+// feature entry (or SHARED_GLOBS if genuinely cross-cutting). The full suite (`npm run test:e2e`)
+// is the user-initiated backstop.
 //
 // When you add a feature file, tag it `@feat:<stem>` and add an entry here registering the source
-// it exercises — otherwise edits to that source fall back to FULL.
+// it exercises.
 
 const featureFile = (stem) => `tests/e2e/features/${stem}.feature`;
 const stepFile = (stem) => `tests/e2e/steps/${stem}.steps.ts`;
@@ -74,6 +80,9 @@ export const FEATURE_MAP = [
     "src/components/packt/now-card.tsx",
     "src/components/packt/distance-time-pill.tsx",
     "src/components/packt/use-route-for-event.ts",
+    "src/app/(app)/trips/[tripId]/route-actions.ts",
+    "src/lib/route.ts",
+    "src/lib/linked-events.ts",
   ]),
   entry("packing-tab", [
     "src/components/packt/packing-*",
@@ -156,6 +165,7 @@ export const FEATURE_MAP = [
     "src/components/packt/trip-card.tsx",
     "src/components/packt/trip-edit-*.tsx",
     "src/components/packt/getting-around-section.tsx",
+    "src/app/(app)/trips/[tripId]/transit-actions.ts",
     "src/components/packt/trip-hero.tsx",
     "src/components/packt/trip-date-change-confirmation-dialog.tsx",
     "src/components/packt/trip-currency-change-dialog.tsx",
@@ -173,6 +183,7 @@ export const FEATURE_MAP = [
 export const SHARED_GLOBS = [
   // Data + shared library + auth/runtime wiring
   "src/db/**",
+  "src/data/**",
   "src/lib/**",
   "src/middleware.ts",
   "src/auth*",
@@ -230,4 +241,29 @@ export const SHARED_GLOBS = [
   "eslint.config.mjs",
   "scripts/run-e2e.mjs",
   "scripts/affected-e2e.mjs",
+];
+
+// Files that can never change E2E-observable app behavior. Matched first and dropped from the
+// change set, so a docs-only or unit-test-only change runs NO E2E (rather than the full suite).
+// Note: `**/*.test.ts(x)` are colocated UNIT tests; the E2E `.feature`/`.steps.ts` files are NOT
+// here — they belong to their feature entry so editing a scenario re-runs it. Root-level names are
+// listed both bare and under `**/` because the glob matcher treats `**/` as requiring a slash.
+export const IGNORE_GLOBS = [
+  // Docs / planning / agent + tooling config
+  "*.md",
+  "**/*.md",
+  "*.mdx",
+  "**/*.mdx",
+  "_bmad-output/**",
+  "docs/**",
+  ".agents/**",
+  ".claude/**",
+  ".github/**",
+  ".vscode/**",
+  ".gitignore",
+  "LICENSE",
+  // Colocated unit tests (Vitest) — editing a unit test can't change runtime behavior
+  "**/*.test.ts",
+  "**/*.test.tsx",
+  "**/*.test.mjs",
 ];
