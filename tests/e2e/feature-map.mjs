@@ -78,6 +78,7 @@ export const FEATURE_MAP = [
     "src/components/packt/active-trip-summary-time.ts",
     "src/components/packt/linked-event-badge.tsx",
     "src/components/packt/now-card.tsx",
+    "src/components/packt/now-card-event-row.tsx",
     "src/components/packt/distance-time-pill.tsx",
     "src/components/packt/use-route-for-event.ts",
     "src/app/(app)/trips/[tripId]/route-actions.ts",

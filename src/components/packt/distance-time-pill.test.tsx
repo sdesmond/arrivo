@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DistanceTimePill } from "./distance-time-pill";
-import type { RouteResult } from "@/data/types";
+import type { GeoHintStatus, RouteResult } from "@/data/types";
 
 describe("DistanceTimePill", () => {
   it("renders a neutral skeleton fill and no text when loading", () => {
@@ -178,5 +178,148 @@ describe("DistanceTimePill", () => {
       screen.getByRole("status", { name: "Directions to Louvre Museum, 950 m · 12 min walk" })
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  describe("geo-hint state", () => {
+    const promptHint: GeoHintStatus = { state: "prompt", permissionState: "prompt" };
+    const deniedHint: GeoHintStatus = { state: "denied" };
+
+    it("renders a button with surface-2/fg-3 styling when geolocationHint is prompt and routeResult is null", () => {
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={promptHint}
+        />
+      );
+      const pill = screen.getByRole("button");
+      expect(pill).toHaveStyle({ background: "var(--surface-2)", color: "var(--fg-3)" });
+    });
+
+    it("shows the 'Enable location for directions' label in prompt state", () => {
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={promptHint}
+        />
+      );
+      expect(screen.getByText("Enable location for directions")).toBeInTheDocument();
+    });
+
+    it("has accessible name 'Enable location for directions to {event}' in prompt state", () => {
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={promptHint}
+        />
+      );
+      expect(
+        screen.getByRole("button", { name: "Enable location for directions to Louvre Museum" })
+      ).toBeInTheDocument();
+    });
+
+    it("renders a button with surface-2/fg-3 styling when geolocationHint is denied and routeResult is null", () => {
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={deniedHint}
+        />
+      );
+      const pill = screen.getByRole("button");
+      expect(pill).toHaveStyle({ background: "var(--surface-2)", color: "var(--fg-3)" });
+    });
+
+    it("shows the 'Location blocked' label in denied state", () => {
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={deniedHint}
+        />
+      );
+      expect(screen.getByText("Location blocked — enable it in your browser settings")).toBeInTheDocument();
+    });
+
+    it("includes the event name in the denied-state accessible name", () => {
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={deniedHint}
+        />
+      );
+      expect(screen.getByRole("button").getAttribute("aria-label")).toContain("Louvre Museum");
+    });
+
+    it("calls onRequestGeolocation when the geo-hint pill is clicked", async () => {
+      const user = userEvent.setup();
+      const onRequestGeolocation = vi.fn();
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={promptHint}
+          onRequestGeolocation={onRequestGeolocation}
+        />
+      );
+      await user.click(screen.getByRole("button"));
+      expect(onRequestGeolocation).toHaveBeenCalledTimes(1);
+    });
+
+    it("maintains the 44x44 pill footprint in geo-hint states", () => {
+      const hints: GeoHintStatus[] = [promptHint, deniedHint];
+      for (const geolocationHint of hints) {
+        const { unmount } = render(
+          <DistanceTimePill
+            eventName="Louvre Museum"
+            routeResult={null}
+            transitMode="walk"
+            geolocationHint={geolocationHint}
+          />
+        );
+        const pill = screen.getByRole("button");
+        expect(pill.className).toMatch(/\bh-11\b/);
+        expect(pill.className).toMatch(/\bmin-w-11\b/);
+        unmount();
+      }
+    });
+
+    it("does not render the geo-hint when routeResult is non-null, even if geolocationHint is provided", () => {
+      const routeResult: RouteResult = { status: "ready", distanceMeters: 950, durationSeconds: 720 };
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={routeResult}
+          transitMode="walk"
+          geolocationHint={promptHint}
+        />
+      );
+      expect(screen.queryByText("Enable location for directions")).not.toBeInTheDocument();
+      expect(screen.getByText("950 m · 12 min walk")).toBeInTheDocument();
+    });
+
+    it("renders nothing when routeResult is null and geolocationHint is null (Freeform event)", () => {
+      const { container } = render(
+        <DistanceTimePill eventName="Louvre Museum" routeResult={null} transitMode="walk" geolocationHint={null} />
+      );
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it("renders nothing when routeResult is null and geolocationHint is not provided (backward compat)", () => {
+      const { container } = render(
+        <DistanceTimePill eventName="Louvre Museum" routeResult={null} transitMode="walk" />
+      );
+      expect(container).toBeEmptyDOMElement();
+    });
   });
 });

@@ -1,18 +1,21 @@
 "use client";
 
 import { Navigation } from "lucide-react";
-import type { RouteResult, TransitMode } from "@/data/types";
+import type { GeoHintStatus, RouteResult, TransitMode } from "@/data/types";
 
 export interface DistanceTimePillProps {
   eventName: string;
-  routeResult: RouteResult;
+  routeResult: RouteResult | null;
   transitMode: TransitMode;
   onOpenMaps?: () => void;
+  geolocationHint?: GeoHintStatus | null;
+  onRequestGeolocation?: () => void;
 }
 
 const PILL_LAYOUT_CLASSNAME = "inline-flex items-center gap-1.5 h-11 min-w-11 px-3 rounded-full";
 const PILL_TEXT_STYLE = { fontSize: "calc(13px * var(--font-scale))" } as const;
 const PILL_ACTIVE_STYLE = { background: "var(--accent-soft)", color: "var(--accent-ink)" } as const;
+const PILL_NEUTRAL_STYLE = { background: "var(--surface-2)", color: "var(--fg-3)" } as const;
 
 function formatDistance(distanceMeters: number): string {
   if (distanceMeters < 1000) {
@@ -24,7 +27,39 @@ function formatDistance(distanceMeters: number): string {
   return `${distanceKilometers.toLocaleString(undefined, { maximumFractionDigits })} km`;
 }
 
-export function DistanceTimePill({ eventName, routeResult, transitMode, onOpenMaps }: DistanceTimePillProps) {
+export function DistanceTimePill({
+  eventName,
+  routeResult,
+  transitMode,
+  onOpenMaps,
+  geolocationHint,
+  onRequestGeolocation,
+}: DistanceTimePillProps) {
+  if (routeResult == null) {
+    if (!geolocationHint) {
+      return null;
+    }
+
+    const isDenied = geolocationHint.state === "denied";
+    const label = isDenied ? "Location blocked — enable it in your browser settings" : "Enable location for directions";
+    const ariaLabel = isDenied
+      ? `Location blocked for ${eventName} — enable in browser settings`
+      : `Enable location for directions to ${eventName}`;
+
+    return (
+      <button
+        type="button"
+        onClick={() => onRequestGeolocation?.()}
+        aria-label={ariaLabel}
+        className={PILL_LAYOUT_CLASSNAME}
+        style={PILL_NEUTRAL_STYLE}
+      >
+        <Navigation size={16} strokeWidth={1.5} aria-hidden="true" />
+        <span style={PILL_TEXT_STYLE}>{label}</span>
+      </button>
+    );
+  }
+
   if (routeResult.status === "loading") {
     // Loading is genuinely status information, not yet interactive — stays a
     // status region regardless of onOpenMaps.
@@ -33,7 +68,7 @@ export function DistanceTimePill({ eventName, routeResult, transitMode, onOpenMa
         role="status"
         aria-label={`Getting directions to ${eventName}`}
         className={PILL_LAYOUT_CLASSNAME}
-        style={{ background: "var(--surface-2)", color: "var(--fg-3)" }}
+        style={PILL_NEUTRAL_STYLE}
       >
         <Navigation size={16} strokeWidth={1.5} aria-hidden="true" />
       </div>

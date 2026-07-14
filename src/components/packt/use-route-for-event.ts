@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RouteResult, TransitMode, TripEvent } from "@/data/types";
+import type { GeoHintStatus, RouteResult, TransitMode, TripEvent } from "@/data/types";
 import { getRouteDistanceTime } from "@/app/(app)/trips/[tripId]/route-actions";
 
 const REFRESH_INTERVAL_MS = 60_000;
 const GEOLOCATION_TIMEOUT_MS = 3000;
 
+export interface UseRouteForEventResult {
+  routeResult: RouteResult | null;
+  geolocationStatus: GeoHintStatus | null;
+}
+
 interface RouteState {
   key: string;
   result: RouteResult | null;
 }
+
+type GeoPermissionState = PermissionState | "unknown";
 
 function getRouteKey(event: TripEvent | undefined, tripId: string, transitMode: TransitMode): string {
   return [event?.id ?? "none", event?.locationLat ?? "none", event?.locationLng ?? "none", tripId, transitMode].join(
@@ -26,23 +33,78 @@ function getInitialRouteResult(event: TripEvent | undefined): RouteResult | null
   return { status: "loading" };
 }
 
+function toGeoHintStatus(permissionState: GeoPermissionState): GeoHintStatus | null {
+  if (permissionState === "granted") {
+    return null;
+  }
+  if (permissionState === "denied") {
+    return { state: "denied" };
+  }
+  return { state: "prompt", permissionState: permissionState === "unknown" ? "unknown" : "prompt" };
+}
+
 export function useRouteForEvent(
   event: TripEvent | undefined,
   tripId: string,
   transitMode: TransitMode
-): RouteResult | null {
+): UseRouteForEventResult {
   const routeKey = getRouteKey(event, tripId, transitMode);
   const initialRouteResult = getInitialRouteResult(event);
   const [routeState, setRouteState] = useState<RouteState>(() => ({ key: routeKey, result: initialRouteResult }));
+  const [geoPermission, setGeoPermission] = useState<GeoPermissionState | null>(null);
   const latestRequestId = useRef(0);
-  const routeResult = routeState.key === routeKey ? routeState.result : initialRouteResult;
+  const rawRouteResult = routeState.key === routeKey ? routeState.result : initialRouteResult;
 
   const locationLat = event?.locationLat;
   const locationLng = event?.locationLng;
   const eventId = event?.id;
+  const hasCoordinates = locationLat != null && locationLng != null;
+
+  useEffect(() => {
+    if (!hasCoordinates) {
+      return;
+    }
+
+    let cancelled = false;
+    let permissionStatus: PermissionStatus | undefined;
+
+    function handleChange() {
+      if (cancelled || !permissionStatus) return;
+      setGeoPermission(permissionStatus.state);
+    }
+
+    if (typeof navigator === "undefined" || !navigator.permissions) {
+      // `navigator` is unavailable during SSR, so this branch can only be
+      // evaluated client-side after mount. Computing it at render time would
+      // make server/client output diverge and break hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGeoPermission("unknown");
+      return;
+    }
+
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((status) => {
+        if (cancelled) return;
+        permissionStatus = status;
+        setGeoPermission(status.state);
+        status.addEventListener("change", handleChange);
+      })
+      .catch(() => {
+        if (!cancelled) setGeoPermission("unknown");
+      });
+
+    return () => {
+      cancelled = true;
+      permissionStatus?.removeEventListener("change", handleChange);
+    };
+  }, [eventId, hasCoordinates]);
 
   useEffect(() => {
     if (locationLat == null || locationLng == null) {
+      return;
+    }
+    if (geoPermission !== "granted") {
       return;
     }
 
@@ -112,7 +174,19 @@ export function useRouteForEvent(
       stopInterval();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [eventId, locationLat, locationLng, routeKey, transitMode, tripId]);
+  }, [eventId, locationLat, locationLng, routeKey, transitMode, tripId, geoPermission]);
 
-  return routeResult;
+  if (!hasCoordinates) {
+    return { routeResult: null, geolocationStatus: null };
+  }
+
+  if (geoPermission === "granted") {
+    return { routeResult: rawRouteResult, geolocationStatus: null };
+  }
+
+  if (geoPermission == null) {
+    return { routeResult: initialRouteResult, geolocationStatus: null };
+  }
+
+  return { routeResult: null, geolocationStatus: toGeoHintStatus(geoPermission) };
 }

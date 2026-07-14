@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("./use-route-for-event", () => ({
-  useRouteForEvent: () => ({ status: "loading" }),
+  useRouteForEvent: () => ({ routeResult: { status: "loading" }, geolocationStatus: null }),
 }));
 
 vi.mock("next/link", () => ({

@@ -302,6 +302,8 @@ export type RouteResult =
   | { status: "ready"; distanceMeters: number; durationSeconds: number }
   | { status: "unavailable" };
 
+export type GeoHintStatus = { state: "prompt"; permissionState: "prompt" | "unknown" } | { state: "denied" };
+
 export interface CoverImageSearchResult {
   id: string;
   url: string;
