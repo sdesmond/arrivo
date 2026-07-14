@@ -274,7 +274,7 @@ describe("NowCard", () => {
       },
     ];
     render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    expect(screen.getByRole("status", { name: /Directions to Louvre Museum/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open directions to Louvre Museum/ })).toBeInTheDocument();
   });
 
   it("does not render a DistanceTimePill for a Freeform next event with no coordinates", () => {
@@ -299,10 +299,115 @@ describe("NowCard", () => {
       },
     ];
     render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    const pill = screen.getByRole("status", { name: /Directions to Louvre Museum/ });
+    const pill = screen.getByRole("button", { name: /Open directions to Louvre Museum/ });
     const eventLink = screen.getByText("Louvre Museum").closest("a");
     expect(pill.closest("a")).toBeNull();
     expect(eventLink).not.toContainElement(pill);
+  });
+
+  it("opens External Maps when the ready-state DistanceTimePill is clicked", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockUseRouteForEvent.mockReturnValue({ status: "ready", distanceMeters: 500, durationSeconds: 300 });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: /Open directions to Louvre Museum/ }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=48.8606,2.3376",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
+  });
+
+  it("opens External Maps when the unavailable-state DistanceTimePill is clicked", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockUseRouteForEvent.mockReturnValue({ status: "unavailable" });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: "Open maps for Louvre Museum" }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=48.8606,2.3376",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
+  });
+
+  it("prefers the located address over coordinates when opening External Maps", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockUseRouteForEvent.mockReturnValue({ status: "ready", distanceMeters: 500, durationSeconds: 300 });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationAddress: "Rue de Rivoli, 75001 Paris",
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: /Open directions to Louvre Museum/ }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=Rue%20de%20Rivoli%2C%2075001%20Paris",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
+  });
+
+  it("gives the ready-state DistanceTimePill an explicit 'Open directions' accessible name", () => {
+    mockUseRouteForEvent.mockReturnValue({ status: "ready", distanceMeters: 500, durationSeconds: 300 });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "Open directions to Louvre Museum, 5 min drive" })).toBeInTheDocument();
+  });
+
+  it("gives the unavailable-state DistanceTimePill an 'Open maps for' accessible name", () => {
+    mockUseRouteForEvent.mockReturnValue({ status: "unavailable" });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "Open maps for Louvre Museum" })).toBeInTheDocument();
   });
 
   it("uses one route lookup for the next event when both summary rows have coordinates", () => {
