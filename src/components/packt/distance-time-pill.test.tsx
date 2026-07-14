@@ -276,6 +276,34 @@ describe("DistanceTimePill", () => {
       expect(onRequestGeolocation).toHaveBeenCalledTimes(1);
     });
 
+    it("preserves the focused pill node while directions load after location is granted", () => {
+      const { rerender } = render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={null}
+          transitMode="walk"
+          geolocationHint={promptHint}
+          onRequestGeolocation={vi.fn()}
+          onOpenMaps={vi.fn()}
+        />
+      );
+      const pill = screen.getByRole("button");
+      pill.focus();
+
+      rerender(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={{ status: "loading" }}
+          transitMode="walk"
+          onRequestGeolocation={vi.fn()}
+          onOpenMaps={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole("button", { name: "Getting directions to Louvre Museum" })).toBe(pill);
+      expect(pill).toHaveFocus();
+    });
+
     it("maintains the 44x44 pill footprint in geo-hint states", () => {
       const hints: GeoHintStatus[] = [promptHint, deniedHint];
       for (const geolocationHint of hints) {

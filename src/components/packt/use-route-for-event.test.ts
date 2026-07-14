@@ -325,6 +325,21 @@ describe("useRouteForEvent", () => {
       expect(getCurrentPosition).not.toHaveBeenCalled();
     });
 
+    it("fetches directions after location is granted without the Permissions API", async () => {
+      mockGeolocation((success) => success(fakePosition));
+      removePermissionsApi();
+
+      const { result } = renderHook(() => useRouteForEvent(makeEvent(), "trip-1", "walk"));
+      await flushMicrotasks();
+      expect(result.current.geolocationStatus).toEqual({ state: "prompt", permissionState: "unknown" });
+
+      act(() => result.current.markGeolocationGranted());
+      await flushMicrotasks();
+
+      expect(result.current.geolocationStatus).toBeNull();
+      expect(result.current.routeResult).toEqual({ status: "ready", distanceMeters: 500, durationSeconds: 300 });
+    });
+
     it("defaults to prompt/unknown when navigator.permissions.query rejects", async () => {
       mockGeolocation(vi.fn());
       Object.defineProperty(navigator, "permissions", {

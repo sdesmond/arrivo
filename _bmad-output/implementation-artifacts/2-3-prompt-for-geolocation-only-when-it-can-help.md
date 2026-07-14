@@ -4,7 +4,7 @@ baseline_commit: 6fc96eb698506fdde29d587b8fdc2eeffe60777e
 
 # Story 2.3: Prompt for geolocation only when it can help
 
-Status: review
+Status: done
 
 ## Story
 
@@ -192,7 +192,12 @@ So that I can get directions without being nagged when there's nothing to naviga
   - [x] Subtask 6.1: Run `npx vitest run src/components/packt/use-route-for-event.test.ts` — must pass
   - [x] Subtask 6.2: Run `npx vitest run src/components/packt/distance-time-pill.test.tsx` — must pass
   - [x] Subtask 6.3: Run `npx vitest run src/components/packt/now-card.test.tsx` — must pass (existing + new tests)
-  - [x] Subtask 6.4: Run `packt-build-validator` — lint, TypeScript, coverage, build, affected E2E must pass
+- [x] Subtask 6.4: Run `packt-build-validator` — lint, TypeScript, coverage, build, affected E2E must pass
+
+### Review Findings
+
+- [x] [Review][Patch] Preserve focus through geo-hint → loading transition [src/components/packt/distance-time-pill.tsx:38]
+- [x] [Review][Patch] Start route fetch after granting location without Permissions API support [src/components/packt/now-card.tsx:80]
 
 ## Dev Notes
 

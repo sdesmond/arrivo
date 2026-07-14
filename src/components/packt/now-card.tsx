@@ -58,11 +58,11 @@ export function NowCard({
   const effectiveTransitMode = trip.transitMode ?? TransitMode.Drive;
   const nextEventForRoute =
     nextEvent && !nextEvent.linkedReservationId && !nextEvent.reservationType ? nextEvent : undefined;
-  const { routeResult: nextEventRouteResult, geolocationStatus } = useRouteForEvent(
-    nextEventForRoute,
-    trip.id,
-    effectiveTransitMode
-  );
+  const {
+    routeResult: nextEventRouteResult,
+    geolocationStatus,
+    markGeolocationGranted,
+  } = useRouteForEvent(nextEventForRoute, trip.id, effectiveTransitMode);
   const hasNextEventCoordinates = nextEventForRoute?.locationLat != null && nextEventForRoute.locationLng != null;
   const nextEventPillResult =
     nextEventRouteResult ?? (hasNextEventCoordinates && !geolocationStatus ? { status: "unavailable" } : null);
@@ -80,7 +80,9 @@ export function NowCard({
     navigator.geolocation.getCurrentPosition(
       () => {
         // Permission granted — the hook's permission listener detects the
-        // transition and begins route fetching automatically.
+        // transition when available; this also covers browsers without the
+        // Permissions API.
+        markGeolocationGranted?.();
       },
       () => {
         // Permission denied or error — the hook's permission listener
@@ -88,7 +90,7 @@ export function NowCard({
       },
       { timeout: 3000 }
     );
-  }, []);
+  }, [markGeolocationGranted]);
   const summaryRows = [
     currentEvent ? { event: currentEvent, label: "Now" } : null,
     nextEvent ? { event: nextEvent, label: "Next Event" } : null,

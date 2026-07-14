@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GeoHintStatus, RouteResult, TransitMode, TripEvent } from "@/data/types";
 import { getRouteDistanceTime } from "@/app/(app)/trips/[tripId]/route-actions";
 
@@ -10,6 +10,7 @@ const GEOLOCATION_TIMEOUT_MS = 3000;
 export interface UseRouteForEventResult {
   routeResult: RouteResult | null;
   geolocationStatus: GeoHintStatus | null;
+  markGeolocationGranted: () => void;
 }
 
 interface RouteState {
@@ -52,6 +53,9 @@ export function useRouteForEvent(
   const initialRouteResult = getInitialRouteResult(event);
   const [routeState, setRouteState] = useState<RouteState>(() => ({ key: routeKey, result: initialRouteResult }));
   const [geoPermission, setGeoPermission] = useState<GeoPermissionState | null>(null);
+  const markGeolocationGranted = useCallback(() => {
+    setGeoPermission("granted");
+  }, []);
   const latestRequestId = useRef(0);
   const rawRouteResult = routeState.key === routeKey ? routeState.result : initialRouteResult;
 
@@ -177,16 +181,16 @@ export function useRouteForEvent(
   }, [eventId, locationLat, locationLng, routeKey, transitMode, tripId, geoPermission]);
 
   if (!hasCoordinates) {
-    return { routeResult: null, geolocationStatus: null };
+    return { routeResult: null, geolocationStatus: null, markGeolocationGranted };
   }
 
   if (geoPermission === "granted") {
-    return { routeResult: rawRouteResult, geolocationStatus: null };
+    return { routeResult: rawRouteResult, geolocationStatus: null, markGeolocationGranted };
   }
 
   if (geoPermission == null) {
-    return { routeResult: initialRouteResult, geolocationStatus: null };
+    return { routeResult: initialRouteResult, geolocationStatus: null, markGeolocationGranted };
   }
 
-  return { routeResult: null, geolocationStatus: toGeoHintStatus(geoPermission) };
+  return { routeResult: null, geolocationStatus: toGeoHintStatus(geoPermission), markGeolocationGranted };
 }

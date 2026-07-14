@@ -61,6 +61,21 @@ export function DistanceTimePill({
   }
 
   if (routeResult.status === "loading") {
+    if (onRequestGeolocation) {
+      return (
+        <button
+          type="button"
+          aria-label={`Getting directions to ${eventName}`}
+          aria-busy="true"
+          aria-disabled="true"
+          className={PILL_LAYOUT_CLASSNAME}
+          style={PILL_NEUTRAL_STYLE}
+        >
+          <Navigation size={16} strokeWidth={1.5} aria-hidden="true" />
+        </button>
+      );
+    }
+
     // Loading is genuinely status information, not yet interactive — stays a
     // status region regardless of onOpenMaps.
     return (
