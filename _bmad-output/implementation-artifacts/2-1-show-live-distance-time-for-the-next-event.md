@@ -4,7 +4,7 @@ baseline_commit: b4e8be2635626c826908611c92bf419e065d9ee1
 
 # Story 2.1: Show live distance/time for the Next Event
 
-Status: review
+Status: done
 
 ## Story
 
@@ -154,6 +154,16 @@ so that I know how far I am without digging through the itinerary.
   - [x] Subtask 7.3: Run `npx vitest run src/components/packt/now-card.test.tsx` — must pass (existing tests must not break)
   - [x] Subtask 7.4: Run `npx vitest run src/lib/route.test.ts` — existing tests must still pass
   - [x] Subtask 7.5: Run `packt-build-validator` — lint, TypeScript, coverage, build, affected E2E must pass
+
+### Review Findings
+
+- [x] [Review][Patch] Show live distance and time in the ready pill [src/components/packt/distance-time-pill.tsx:47]
+- [x] [Review][Patch] Make the Story 2.1 pill display-only until Story 2.2 adds external-map behavior [src/components/packt/distance-time-pill.tsx:26]
+- [x] [Review][Patch] Restrict route refresh to one eligible Next Event per Now Card [src/components/packt/now-card.tsx:59]
+- [x] [Review][Patch] Reset and sequence route state for changed or overlapping requests [src/components/packt/use-route-for-event.ts:16]
+- [x] [Review][Patch] Do not request a route while the tab is hidden [src/components/packt/use-route-for-event.ts:75]
+- [x] [Review][Patch] Resolve denied or stalled geolocation without rendering a directions error pill [src/components/packt/use-route-for-event.ts:37]
+- [x] [Review][Patch] Convert route-cache read failures to unavailable results [src/lib/route.ts:27]
 
 ## Dev Notes
 

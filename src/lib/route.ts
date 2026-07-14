@@ -29,38 +29,38 @@ export async function getRouteDistanceTime(
   destination: GeoCoords,
   transitMode: TransitMode
 ): Promise<RouteResult> {
-  const cached = await db
-    .select()
-    .from(routeCache)
-    .where(
-      and(
-        eq(routeCache.originLat, origin.lat),
-        eq(routeCache.originLng, origin.lng),
-        eq(routeCache.destLat, destination.lat),
-        eq(routeCache.destLng, destination.lng),
-        eq(routeCache.transitMode, transitMode)
-      )
-    )
-    .limit(1);
-
-  const cachedEntry = cached[0];
-  if (cachedEntry && Date.now() - cachedEntry.fetchedAt.getTime() < CACHE_TTL_MS) {
-    return {
-      status: "ready",
-      distanceMeters: cachedEntry.distanceMeters,
-      durationSeconds: cachedEntry.durationSeconds,
-    };
-  }
-
-  const token = process.env.MAPBOX_ACCESS_TOKEN;
-  if (!token) {
-    return { status: "unavailable" };
-  }
-
-  const profile = MAPBOX_PROFILE[transitMode];
-  const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}`;
-
   try {
+    const cached = await db
+      .select()
+      .from(routeCache)
+      .where(
+        and(
+          eq(routeCache.originLat, origin.lat),
+          eq(routeCache.originLng, origin.lng),
+          eq(routeCache.destLat, destination.lat),
+          eq(routeCache.destLng, destination.lng),
+          eq(routeCache.transitMode, transitMode)
+        )
+      )
+      .limit(1);
+
+    const cachedEntry = cached[0];
+    if (cachedEntry && Date.now() - cachedEntry.fetchedAt.getTime() < CACHE_TTL_MS) {
+      return {
+        status: "ready",
+        distanceMeters: cachedEntry.distanceMeters,
+        durationSeconds: cachedEntry.durationSeconds,
+      };
+    }
+
+    const token = process.env.MAPBOX_ACCESS_TOKEN;
+    if (!token) {
+      return { status: "unavailable" };
+    }
+
+    const profile = MAPBOX_PROFILE[transitMode];
+    const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}`;
+
     const response = await fetch(url, { signal: AbortSignal.timeout(DIRECTIONS_TIMEOUT_MS) });
     if (!response.ok) {
       return { status: "unavailable" };

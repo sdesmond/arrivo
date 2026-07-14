@@ -106,6 +106,15 @@ describe("getRouteDistanceTime", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("returns unavailable when the cache lookup fails", async () => {
+    mockLimit.mockRejectedValue(new Error("database unavailable"));
+
+    const result = await getRouteDistanceTime(origin, destination, "walk");
+
+    expect(result).toEqual({ status: "unavailable" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("calls the API and stores the result on a cache miss", async () => {
     const result = await getRouteDistanceTime(origin, destination, "walk");
 

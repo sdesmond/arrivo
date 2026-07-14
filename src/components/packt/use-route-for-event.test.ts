@@ -86,7 +86,7 @@ describe("useRouteForEvent", () => {
     expect(result.current).toEqual({ status: "unavailable" });
   });
 
-  it("returns unavailable when geolocation permission is denied", async () => {
+  it("returns null when geolocation permission is denied", async () => {
     Object.defineProperty(navigator, "geolocation", {
       value: {
         getCurrentPosition: (_success: PositionCallback, error?: PositionErrorCallback) => {
@@ -99,26 +99,88 @@ describe("useRouteForEvent", () => {
 
     await flushMicrotasks();
 
-    expect(result.current).toEqual({ status: "unavailable" });
+    expect(result.current).toBeNull();
   });
 
-  it("returns unavailable when the browser has no geolocation API", async () => {
+  it("returns null when the browser has no geolocation API", async () => {
     Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
     const { result } = renderHook(() => useRouteForEvent(makeEvent(), "trip-1", "walk"));
 
     await flushMicrotasks();
 
-    expect(result.current).toEqual({ status: "unavailable" });
+    expect(result.current).toBeNull();
     expect(mockGetRouteDistanceTime).not.toHaveBeenCalled();
   });
 
-  it("returns unavailable immediately when the event has no coordinates", () => {
+  it("returns null immediately when the event has no coordinates", () => {
     mockGeolocation(vi.fn());
     const { result } = renderHook(() =>
       useRouteForEvent(makeEvent({ locationLat: undefined, locationLng: undefined }), "trip-1", "walk")
     );
-    expect(result.current).toEqual({ status: "unavailable" });
+    expect(result.current).toBeNull();
     expect(mockGetRouteDistanceTime).not.toHaveBeenCalled();
+  });
+
+  it("does not request geolocation when mounted in a hidden tab", () => {
+    const getCurrentPosition = vi.fn();
+    mockGeolocation(getCurrentPosition);
+    Object.defineProperty(document, "hidden", { value: true, configurable: true });
+
+    renderHook(() => useRouteForEvent(makeEvent(), "trip-1", "walk"));
+
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+  });
+
+  it("resets to loading when the destination changes", async () => {
+    let resolveRoute: (result: { status: "ready"; distanceMeters: number; durationSeconds: number }) => void = () => {};
+    mockGetRouteDistanceTime.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRoute = resolve;
+        })
+    );
+    mockGeolocation((success) => success(fakePosition));
+    const { result, rerender } = renderHook(({ event }) => useRouteForEvent(event, "trip-1", "walk"), {
+      initialProps: { event: makeEvent() },
+    });
+
+    await flushMicrotasks();
+    rerender({ event: makeEvent({ locationLat: 48.85, locationLng: 2.35 }) });
+
+    expect(result.current).toEqual({ status: "loading" });
+    resolveRoute({ status: "ready", distanceMeters: 500, durationSeconds: 300 });
+  });
+
+  it("ignores a stale request after a newer refresh resolves", async () => {
+    const resolvers: Array<(result: { status: "ready"; distanceMeters: number; durationSeconds: number }) => void> = [];
+    mockGetRouteDistanceTime.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        })
+    );
+    mockGeolocation((success) => success(fakePosition));
+    const { result } = renderHook(() => useRouteForEvent(makeEvent(), "trip-1", "walk"));
+
+    await flushMicrotasks();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    resolvers[1]({ status: "ready", distanceMeters: 800, durationSeconds: 600 });
+    await flushMicrotasks();
+    resolvers[0]({ status: "ready", distanceMeters: 100, durationSeconds: 60 });
+    await flushMicrotasks();
+
+    expect(result.current).toEqual({ status: "ready", distanceMeters: 800, durationSeconds: 600 });
+  });
+
+  it("uses a bounded geolocation request", () => {
+    const getCurrentPosition = vi.fn();
+    mockGeolocation(getCurrentPosition);
+
+    renderHook(() => useRouteForEvent(makeEvent(), "trip-1", "walk"));
+
+    expect(getCurrentPosition).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), { timeout: 3000 });
   });
 
   it("refreshes after 60 seconds", async () => {
@@ -165,7 +227,7 @@ describe("useRouteForEvent", () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
 
-    expect(mockGetRouteDistanceTime).toHaveBeenCalledTimes(2);
+    expect(mockGetRouteDistanceTime).toHaveBeenCalledTimes(3);
   });
 
   it("cleans up the interval and listener on unmount", async () => {

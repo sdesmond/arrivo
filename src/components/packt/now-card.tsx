@@ -16,7 +16,7 @@ import { LinkedEventBadge } from "./linked-event-badge";
 import { RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-badge";
 import { DistanceTimePill } from "./distance-time-pill";
 import { useRouteForEvent } from "./use-route-for-event";
-import { TransitMode, type Trip, type TripEvent } from "@/data/types";
+import { TransitMode, type RouteResult, type Trip, type TripEvent } from "@/data/types";
 import { cn, getTripStatus, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { getActiveTripSummarySelection } from "./active-trip-summary-events";
@@ -41,6 +41,7 @@ interface NowCardEventRowProps {
   rowClassName?: string;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   transitMode?: TransitMode | null;
+  routeResult?: RouteResult | null;
 }
 
 function NowCardEventRow({
@@ -52,11 +53,11 @@ function NowCardEventRow({
   rowClassName,
   onLinkedEventTap,
   transitMode,
+  routeResult,
 }: NowCardEventRowProps) {
   const isLinkedEvent = !!event.linkedReservationId && !!event.reservationType;
   const effectiveTransitMode = transitMode ?? TransitMode.Drive;
   const hasCoordinates = event.locationLat != null && event.locationLng != null;
-  const routeResult = useRouteForEvent(event, tripId, effectiveTransitMode);
   const LinkedIcon = event.reservationType ? RESERVATION_TYPE_META[event.reservationType]?.icon : undefined;
   const linkedSeparatorIndex = event.name.indexOf(" — ");
   const linkedAnchorLabel = linkedSeparatorIndex !== -1 ? event.name.slice(0, linkedSeparatorIndex) : "";
@@ -203,14 +204,9 @@ function NowCardEventRow({
         </div>
       </Link>
 
-      {hasCoordinates && (
+      {hasCoordinates && routeResult && (
         <div className="mt-2">
-          <DistanceTimePill
-            eventName={event.name}
-            routeResult={routeResult}
-            transitMode={effectiveTransitMode}
-            coordinates={{ lat: event.locationLat!, lng: event.locationLng! }}
-          />
+          <DistanceTimePill eventName={event.name} routeResult={routeResult} transitMode={effectiveTransitMode} />
         </div>
       )}
     </div>
@@ -242,6 +238,10 @@ export function NowCard({
     now,
     preferManualCurrent: true,
   });
+  const effectiveTransitMode = trip.transitMode ?? TransitMode.Drive;
+  const nextEventForRoute =
+    nextEvent && !nextEvent.linkedReservationId && !nextEvent.reservationType ? nextEvent : undefined;
+  const nextEventRouteResult = useRouteForEvent(nextEventForRoute, trip.id, effectiveTransitMode);
   const summaryRows = [
     currentEvent ? { event: currentEvent, label: "Now" } : null,
     nextEvent ? { event: nextEvent, label: "Next Event" } : null,
@@ -381,6 +381,7 @@ export function NowCard({
             rowClassName={index === 0 ? "mt-4" : "mt-3"}
             onLinkedEventTap={onLinkedEventTap}
             transitMode={trip.transitMode}
+            routeResult={row.label === "Next Event" ? nextEventRouteResult : undefined}
           />
         ))}
       </div>

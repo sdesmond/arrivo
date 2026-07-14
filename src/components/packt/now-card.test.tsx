@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { RouteResult } from "@/data/types";
 
 const { mockUseRouteForEvent, mockRouterPush } = vi.hoisted(() => ({
-  mockUseRouteForEvent: vi.fn<() => RouteResult>(() => ({ status: "loading" })),
+  mockUseRouteForEvent: vi.fn<() => RouteResult | null>(() => ({ status: "loading" })),
   mockRouterPush: vi.fn(),
 }));
 
@@ -274,7 +274,7 @@ describe("NowCard", () => {
       },
     ];
     render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    expect(screen.getByRole("button", { name: /Open directions to Louvre Museum/ })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /Directions to Louvre Museum/ })).toBeInTheDocument();
   });
 
   it("does not render a DistanceTimePill for a Freeform next event with no coordinates", () => {
@@ -283,7 +283,7 @@ describe("NowCard", () => {
     ];
     render(<NowCard trip={activeTrip} todayEvents={freeformEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByText("Shopping")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /directions/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: /directions/i })).not.toBeInTheDocument();
   });
 
   it("renders the DistanceTimePill as a DOM sibling of the event Link, never nested inside it", () => {
@@ -299,10 +299,53 @@ describe("NowCard", () => {
       },
     ];
     render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
-    const pill = screen.getByRole("button", { name: /Open directions to Louvre Museum/ });
+    const pill = screen.getByRole("status", { name: /Directions to Louvre Museum/ });
     const eventLink = screen.getByText("Louvre Museum").closest("a");
     expect(pill.closest("a")).toBeNull();
     expect(eventLink).not.toContainElement(pill);
+  });
+
+  it("uses one route lookup for the next event when both summary rows have coordinates", () => {
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-current",
+        name: "Museum Visit",
+        startAt: "2026-05-13T10:00:00Z",
+        endAt: "2026-05-13T12:30:00Z",
+        position: 0,
+        locationLat: 48.86,
+        locationLng: 2.34,
+      },
+      {
+        id: "ev-next",
+        name: "Dinner",
+        startAt: "2026-05-13T19:00:00Z",
+        position: 1,
+        locationLat: 48.85,
+        locationLng: 2.35,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+
+    expect(mockUseRouteForEvent).toHaveBeenCalledTimes(1);
+    expect(mockUseRouteForEvent).toHaveBeenCalledWith(locatedEvents[1], activeTrip.id, "drive");
+  });
+
+  it("hides the distance pill when geolocation is unavailable", () => {
+    mockUseRouteForEvent.mockReturnValue(null);
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+
+    expect(screen.queryByRole("status", { name: /Directions to Louvre Museum/ })).not.toBeInTheDocument();
   });
 
   it("uses the trip's configured transit mode for the DistanceTimePill label", () => {
@@ -321,7 +364,7 @@ describe("NowCard", () => {
       <NowCard trip={{ ...activeTrip, transitMode: "transit" }} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />,
       { wrapper: Wrapper }
     );
-    expect(screen.getByText("5 min transit")).toBeInTheDocument();
+    expect(screen.getByText("500 m · 5 min transit")).toBeInTheDocument();
   });
 
   it("navigates to the trip detail page when the card background is clicked", async () => {
