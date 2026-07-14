@@ -83,6 +83,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/route-actions.ts",
     "src/lib/route.ts",
     "src/lib/linked-events.ts",
+    "src/lib/open-external-maps.ts",
   ]),
   entry("packing-tab", [
     "src/components/packt/packing-*",

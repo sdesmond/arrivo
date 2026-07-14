@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
@@ -16,6 +17,7 @@ import { LinkedEventBadge } from "./linked-event-badge";
 import { RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-badge";
 import { DistanceTimePill } from "./distance-time-pill";
 import { useRouteForEvent } from "./use-route-for-event";
+import { openExternalMaps } from "@/lib/open-external-maps";
 import { TransitMode, type RouteResult, type Trip, type TripEvent } from "@/data/types";
 import { cn, getTripStatus, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
@@ -42,6 +44,7 @@ interface NowCardEventRowProps {
   onLinkedEventTap?: (linkedReservationId: string) => void;
   transitMode?: TransitMode | null;
   routeResult?: RouteResult | null;
+  onOpenMaps?: () => void;
 }
 
 function NowCardEventRow({
@@ -54,6 +57,7 @@ function NowCardEventRow({
   onLinkedEventTap,
   transitMode,
   routeResult,
+  onOpenMaps,
 }: NowCardEventRowProps) {
   const isLinkedEvent = !!event.linkedReservationId && !!event.reservationType;
   const effectiveTransitMode = transitMode ?? TransitMode.Drive;
@@ -206,7 +210,12 @@ function NowCardEventRow({
 
       {hasCoordinates && routeResult && (
         <div className="mt-2">
-          <DistanceTimePill eventName={event.name} routeResult={routeResult} transitMode={effectiveTransitMode} />
+          <DistanceTimePill
+            eventName={event.name}
+            routeResult={routeResult}
+            transitMode={effectiveTransitMode}
+            onOpenMaps={onOpenMaps}
+          />
         </div>
       )}
     </div>
@@ -242,6 +251,20 @@ export function NowCard({
   const nextEventForRoute =
     nextEvent && !nextEvent.linkedReservationId && !nextEvent.reservationType ? nextEvent : undefined;
   const nextEventRouteResult = useRouteForEvent(nextEventForRoute, trip.id, effectiveTransitMode);
+  const nextEventPillResult =
+    nextEventRouteResult ??
+    (nextEventForRoute?.locationLat != null && nextEventForRoute.locationLng != null
+      ? { status: "unavailable" }
+      : null);
+  const handleOpenMaps = useCallback(() => {
+    if (!nextEventForRoute) return;
+    openExternalMaps({
+      address: nextEventForRoute.locationAddress,
+      lat: nextEventForRoute.locationLat,
+      lng: nextEventForRoute.locationLng,
+      label: nextEventForRoute.locationName,
+    });
+  }, [nextEventForRoute]);
   const summaryRows = [
     currentEvent ? { event: currentEvent, label: "Now" } : null,
     nextEvent ? { event: nextEvent, label: "Next Event" } : null,
@@ -381,7 +404,8 @@ export function NowCard({
             rowClassName={index === 0 ? "mt-4" : "mt-3"}
             onLinkedEventTap={onLinkedEventTap}
             transitMode={trip.transitMode}
-            routeResult={row.label === "Next Event" ? nextEventRouteResult : undefined}
+            routeResult={row.label === "Next Event" ? nextEventPillResult : undefined}
+            onOpenMaps={row.label === "Next Event" ? handleOpenMaps : undefined}
           />
         ))}
       </div>
