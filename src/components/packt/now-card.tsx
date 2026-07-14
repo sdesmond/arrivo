@@ -14,7 +14,9 @@ import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
 import { LinkedEventBadge } from "./linked-event-badge";
 import { RESERVATION_TYPE_META, formatAnchorDateTime } from "./reservation-type-badge";
-import { type Trip, type TripEvent } from "@/data/types";
+import { DistanceTimePill } from "./distance-time-pill";
+import { useRouteForEvent } from "./use-route-for-event";
+import { TransitMode, type Trip, type TripEvent } from "@/data/types";
 import { cn, getTripStatus, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { getActiveTripSummarySelection } from "./active-trip-summary-events";
@@ -38,6 +40,7 @@ interface NowCardEventRowProps {
   useEndTime?: boolean;
   rowClassName?: string;
   onLinkedEventTap?: (linkedReservationId: string) => void;
+  transitMode?: TransitMode | null;
 }
 
 function NowCardEventRow({
@@ -48,8 +51,12 @@ function NowCardEventRow({
   useEndTime = false,
   rowClassName,
   onLinkedEventTap,
+  transitMode,
 }: NowCardEventRowProps) {
   const isLinkedEvent = !!event.linkedReservationId && !!event.reservationType;
+  const effectiveTransitMode = transitMode ?? TransitMode.Drive;
+  const hasCoordinates = event.locationLat != null && event.locationLng != null;
+  const routeResult = useRouteForEvent(event, tripId, effectiveTransitMode);
   const LinkedIcon = event.reservationType ? RESERVATION_TYPE_META[event.reservationType]?.icon : undefined;
   const linkedSeparatorIndex = event.name.indexOf(" — ");
   const linkedAnchorLabel = linkedSeparatorIndex !== -1 ? event.name.slice(0, linkedSeparatorIndex) : "";
@@ -141,62 +148,72 @@ function NowCardEventRow({
   }
 
   return (
-    <Link
-      href={`/trips/${tripId}?focus=${event.id}`}
-      className={cn("block rounded-[8px] group", rowClassName)}
-      onClick={(clickEvent) => clickEvent.stopPropagation()}
-      style={{
-        background: "var(--accent-soft)",
-        border: "1px solid var(--line)",
-        padding: "14px 16px",
-      }}
-    >
-      <div
+    <div className={rowClassName} onClick={(clickEvent) => clickEvent.stopPropagation()}>
+      <Link
+        href={`/trips/${tripId}?focus=${event.id}`}
+        className="block rounded-[8px] group"
         style={{
-          fontFamily: "var(--font-mono-family, ui-monospace)",
-          fontSize: "calc(10.5px * var(--font-scale))",
-          fontWeight: 500,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          color: "var(--accent-brand)",
+          background: "var(--accent-soft)",
+          border: "1px solid var(--line)",
+          padding: "14px 16px",
         }}
       >
-        {eventLabel}
-      </div>
-
-      <div className="flex items-center justify-between mt-1">
-        <span
+        <div
           style={{
-            fontFamily: "var(--font-heading-family, ui-sans-serif)",
-            fontSize: "calc(20px * var(--font-scale))",
-            fontWeight: 700,
-            color: "var(--fg)",
-            letterSpacing: "-0.01em",
+            fontFamily: "var(--font-mono-family, ui-monospace)",
+            fontSize: "calc(10.5px * var(--font-scale))",
+            fontWeight: 500,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--accent-brand)",
           }}
         >
-          {event.name}
-        </span>
-        <ChevronRight
-          size={18}
-          strokeWidth={1.5}
-          style={{ color: "var(--fg-3)" }}
-          className="group-hover:translate-x-0.5 transition-transform"
-        />
-      </div>
+          {eventLabel}
+        </div>
 
-      <div
-        style={{
-          fontFamily: "var(--font-body, ui-sans-serif)",
-          fontSize: "calc(13px * var(--font-scale))",
-          color: "var(--fg-3)",
-          marginTop: 4,
-        }}
-      >
-        {eventTimeLabel}
-        <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>—
-        <span style={{ margin: "0 6px", color: "var(--line)" }}>·</span>— km
-      </div>
-    </Link>
+        <div className="flex items-center justify-between mt-1">
+          <span
+            style={{
+              fontFamily: "var(--font-heading-family, ui-sans-serif)",
+              fontSize: "calc(20px * var(--font-scale))",
+              fontWeight: 700,
+              color: "var(--fg)",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {event.name}
+          </span>
+          <ChevronRight
+            size={18}
+            strokeWidth={1.5}
+            style={{ color: "var(--fg-3)" }}
+            className="group-hover:translate-x-0.5 transition-transform"
+          />
+        </div>
+
+        <div
+          style={{
+            fontFamily: "var(--font-body, ui-sans-serif)",
+            fontSize: "calc(13px * var(--font-scale))",
+            color: "var(--fg-3)",
+            marginTop: 4,
+          }}
+        >
+          {eventTimeLabel}
+        </div>
+      </Link>
+
+      {hasCoordinates && (
+        <div className="mt-2">
+          <DistanceTimePill
+            eventName={event.name}
+            routeResult={routeResult}
+            transitMode={effectiveTransitMode}
+            coordinates={{ lat: event.locationLat!, lng: event.locationLng! }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -363,6 +380,7 @@ export function NowCard({
             useEndTime={row.label === "Now"}
             rowClassName={index === 0 ? "mt-4" : "mt-3"}
             onLinkedEventTap={onLinkedEventTap}
+            transitMode={trip.transitMode}
           />
         ))}
       </div>
