@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 describe("run-e2e helpers", async () => {
-  const { buildRunE2EPlan, buildPlaywrightArgs, isManagedPacktServer } = await import("./run-e2e.mjs");
+  const { buildRunE2EPlan, buildPlaywrightArgs, isManagedPacktServer, interpretAffectedOutput } =
+    await import("./run-e2e.mjs");
 
   it("defaults to kill mode on port 3001", () => {
     expect(buildRunE2EPlan([])).toEqual({
@@ -34,6 +35,18 @@ describe("run-e2e helpers", async () => {
 
   it("rejects unknown flags", () => {
     expect(() => buildRunE2EPlan(["--nope"])).toThrow('Unsupported argument "--nope"');
+  });
+
+  it("interprets affected-e2e output into full, skip, or grep", () => {
+    expect(interpretAffectedOutput("FULL")).toEqual({ mode: "full" });
+    expect(interpretAffectedOutput("")).toEqual({ mode: "full" });
+    expect(interpretAffectedOutput("   ")).toEqual({ mode: "full" });
+    expect(interpretAffectedOutput("NONE")).toEqual({ mode: "skip" });
+    expect(interpretAffectedOutput("@feat:trips|@feat:auth")).toEqual({
+      mode: "grep",
+      grep: "@feat:trips|@feat:auth",
+    });
+    expect(interpretAffectedOutput("  @feat:spending  ")).toEqual({ mode: "grep", grep: "@feat:spending" });
   });
 
   it("threads grep into the playwright args only when present", () => {
