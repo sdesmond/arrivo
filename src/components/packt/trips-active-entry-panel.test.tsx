@@ -8,6 +8,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush }),
 }));
 
+vi.mock("./use-route-for-event", () => ({
+  useRouteForEvent: () => ({ status: "loading" }),
+}));
+
 vi.mock("next/link", () => ({
   default: ({
     children,

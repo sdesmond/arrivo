@@ -297,6 +297,11 @@ export interface GeoCoords {
   lng: number;
 }
 
+export type RouteResult =
+  | { status: "loading" }
+  | { status: "ready"; distanceMeters: number; durationSeconds: number }
+  | { status: "unavailable" };
+
 export interface CoverImageSearchResult {
   id: string;
   url: string;
