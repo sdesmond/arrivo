@@ -436,7 +436,9 @@ describe("NowCard", () => {
     expect(mockUseRouteForEvent).toHaveBeenCalledWith(locatedEvents[1], activeTrip.id, "drive");
   });
 
-  it("hides the distance pill when geolocation is unavailable", () => {
+  it("keeps an External Maps action when geolocation is unavailable", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     mockUseRouteForEvent.mockReturnValue(null);
     const locatedEvents: TripEvent[] = [
       {
@@ -450,7 +452,13 @@ describe("NowCard", () => {
     ];
     render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
 
-    expect(screen.queryByRole("status", { name: /Directions to Louvre Museum/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open maps for Louvre Museum" }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=48.8606,2.3376",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
   });
 
   it("uses the trip's configured transit mode for the DistanceTimePill label", () => {

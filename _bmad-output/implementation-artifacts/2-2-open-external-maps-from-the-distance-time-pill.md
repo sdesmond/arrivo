@@ -4,7 +4,7 @@ baseline_commit: b7918d7c7ed8f801b933171a31d70e1e1037aa0f
 
 # Story 2.2: Open External Maps from the Distance/Time pill
 
-Status: review
+Status: done
 
 ## Story
 
@@ -119,6 +119,10 @@ So that I can navigate to my next stop in one tap.
   - [x] Subtask 5.2: Run `npx vitest run src/components/packt/distance-time-pill.test.tsx` — must pass
   - [x] Subtask 5.3: Run `npx vitest run src/components/packt/now-card.test.tsx` — must pass (existing + new tests)
   - [x] Subtask 5.4: Run `packt-build-validator` — lint, TypeScript, coverage, build, affected E2E must pass
+
+### Review Findings
+
+- [x] [Review][Patch] Maps action is missing when route lookup returns no result [`src/components/packt/now-card.tsx:211`]
 
 ## Dev Notes
 

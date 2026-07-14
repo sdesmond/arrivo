@@ -251,6 +251,11 @@ export function NowCard({
   const nextEventForRoute =
     nextEvent && !nextEvent.linkedReservationId && !nextEvent.reservationType ? nextEvent : undefined;
   const nextEventRouteResult = useRouteForEvent(nextEventForRoute, trip.id, effectiveTransitMode);
+  const nextEventPillResult =
+    nextEventRouteResult ??
+    (nextEventForRoute?.locationLat != null && nextEventForRoute.locationLng != null
+      ? { status: "unavailable" }
+      : null);
   const handleOpenMaps = useCallback(() => {
     if (!nextEventForRoute) return;
     openExternalMaps({
@@ -399,7 +404,7 @@ export function NowCard({
             rowClassName={index === 0 ? "mt-4" : "mt-3"}
             onLinkedEventTap={onLinkedEventTap}
             transitMode={trip.transitMode}
-            routeResult={row.label === "Next Event" ? nextEventRouteResult : undefined}
+            routeResult={row.label === "Next Event" ? nextEventPillResult : undefined}
             onOpenMaps={row.label === "Next Event" ? handleOpenMaps : undefined}
           />
         ))}
