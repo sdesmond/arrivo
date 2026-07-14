@@ -51,7 +51,7 @@ development_status:
   epic-2: in-progress
   2-1-show-live-distance-time-for-the-next-event: done
   2-2-open-external-maps-from-the-distance-time-pill: done
-  2-3-prompt-for-geolocation-only-when-it-can-help: review
+  2-3-prompt-for-geolocation-only-when-it-can-help: done
   epic-2-retrospective: optional
 
   epic-3: backlog
