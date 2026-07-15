@@ -12,3 +12,7 @@
 ## Deferred from: code review of 3-2-resize-action-bar-chips-to-meet-interactive-sizing-minimum (2026-07-15)
 
 - jsdom class-string assertions don't measure real rendered geometry [src/components/packt/place-row-action-bar.test.tsx] — all new 44px-minimum assertions check for the literal `h-11` substring in `className`, not computed layout. Pre-existing testing pattern already used throughout this test file (prior `toHaveStyle`/`toMatch` checks); not introduced by this diff.
+
+## Deferred from: story planning of 4-1-show-day-route-strip-for-days-with-2-plus-located-items (2026-07-15)
+
+- Dead code removal: `mini-map-rail.tsx` + `mini-map-rail.test.tsx` + `rail-panel.tsx` + `rail-panel.test.tsx` confirmed dead by epics.md addendum. `rail-panel.tsx` is in `SHARED_GLOBS` in `feature-map.mjs` line 217 — remove glob entry when deleting. Safe to remove all four files in a separate chore task.
