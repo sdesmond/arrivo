@@ -137,9 +137,13 @@ export function DayCardBody({
   useEffect(() => {
     if (locatedEvents.length < 2 || !tripId || !tripTransitMode) return;
     let active = true;
-    void getDayRouteSummary(tripId, locatedEvents, tripTransitMode, walkThresholdMeters).then((summary) => {
-      if (active) setRouteSummaryState({ key: routeSummaryKey, summary });
-    });
+    void getDayRouteSummary(tripId, locatedEvents, tripTransitMode, walkThresholdMeters)
+      .then((summary) => {
+        if (active) setRouteSummaryState({ key: routeSummaryKey, summary });
+      })
+      .catch(() => {
+        if (active) setRouteSummaryState({ key: routeSummaryKey, summary: { status: "unavailable" } });
+      });
     return () => {
       active = false;
     };
@@ -216,6 +220,7 @@ export function DayCardBody({
           tripId={tripId}
           dayNumber={day.dayNumber}
           tripTransitMode={tripTransitMode}
+          totalHopCount={locatedEvents.length - 1}
         />
       )}
       <DayCardDnd

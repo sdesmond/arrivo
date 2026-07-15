@@ -2,17 +2,14 @@
 
 import type { ReactElement } from "react";
 import type { DayRouteSummary, TransitMode } from "@/data/types";
-import { cn } from "@/lib/utils";
+import { cn, formatDistance } from "@/lib/utils";
 
 export interface DayRouteStripProps {
   summary: DayRouteSummary;
   tripId: string;
   dayNumber: number;
   tripTransitMode: TransitMode;
-}
-
-function formatDistance(distanceMeters: number): string {
-  return distanceMeters >= 1000 ? `${(distanceMeters / 1000).toFixed(1)} km` : `${distanceMeters} m`;
+  totalHopCount: number;
 }
 
 function formatDuration(durationSeconds: number): string {
@@ -22,9 +19,16 @@ function formatDuration(durationSeconds: number): string {
   return hours > 0 ? `${hours} hr ${minutes} min` : `${totalMinutes} min`;
 }
 
-export function DayRouteStrip({ summary, tripId, dayNumber, tripTransitMode }: DayRouteStripProps): ReactElement {
+export function DayRouteStrip({
+  summary,
+  tripId,
+  dayNumber,
+  tripTransitMode,
+  totalHopCount,
+}: DayRouteStripProps): ReactElement {
   const isLoading = summary.status === "loading";
   const isUnavailable = summary.status === "unavailable";
+  const isPartial = summary.status === "ready" && summary.hopCount < totalHopCount;
   const thumbnailLabel = isLoading
     ? "Route loading"
     : isUnavailable
@@ -34,6 +38,7 @@ export function DayRouteStrip({ summary, tripId, dayNumber, tripTransitMode }: D
   return (
     <div
       className="my-3 flex items-center gap-3"
+      data-testid="day-route-strip"
       data-trip-id={tripId}
       style={{ border: "1px solid var(--line)", borderRadius: 14, background: "var(--bg)", padding: "12px 14px" }}
     >
@@ -56,7 +61,10 @@ export function DayRouteStrip({ summary, tripId, dayNumber, tripTransitMode }: D
       </div>
       {summary.status === "ready" && (
         <p style={{ color: "var(--fg-3)", fontSize: "calc(14px * var(--font-scale))" }}>
-          <span style={{ color: "var(--fg)", fontWeight: 600 }}>{formatDistance(summary.totalDistanceMeters)}</span>
+          <span style={{ color: "var(--fg)", fontWeight: 600 }}>
+            {isPartial ? "~" : ""}
+            {formatDistance(summary.totalDistanceMeters)}
+          </span>
           {` · ${formatDuration(summary.totalDurationSeconds)} · ${tripTransitMode}`}
         </p>
       )}
