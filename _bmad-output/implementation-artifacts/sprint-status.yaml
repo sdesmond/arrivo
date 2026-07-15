@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-07-13
-last_updated: 2026-07-15T12:00:00Z
+last_updated: 2026-07-15T13:38:00Z
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -60,7 +60,7 @@ development_status:
   epic-3-retrospective: optional
 
   epic-4: in-progress
-  4-1-show-day-route-strip-for-days-with-2-plus-located-items: review
+  4-1-show-day-route-strip-for-days-with-2-plus-located-items: done
   4-2-detect-and-surface-schedule-conflicts: backlog
   epic-4-retrospective: optional
 
