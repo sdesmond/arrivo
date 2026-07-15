@@ -4,7 +4,7 @@ baseline_commit: a81a2b706b3abaf6bb4d40162de63252600a25e7
 
 # Story 3.2: Resize action-bar chips to meet interactive-sizing minimum
 
-Status: review
+Status: done
 
 ## Story
 
@@ -53,6 +53,15 @@ So that I don't mis-tap adjacent controls.
   - [x] Subtask 4.2: Fix any issues flagged
   - [x] Subtask 4.3: Re-run until PASS
 
+### Review Findings
+
+- [x] [Review][Decision] Address ButtonGroup restyle + `gap-1`→`gap-2` exceed story's explicit "do not touch"/"do not increase" scope — RESOLVED: keep the follow-up. Dev Notes below updated to reflect the new scope; patches for the regressions it introduces are tracked below; desktop/mobile-reviewer must run before merge (not yet done — Debug Log still says "unavailable").
+- [x] [Review][Patch] Address pill hover state loses `accent-ink` text/icon color [src/components/packt/place-row-action-bar.tsx:76] — fixed: added `hover:text-inherit`
+- [x] [Review][Patch] Dark-mode hover fill on Address pill can leak ghost variant's `bg-muted/50` instead of `bg-surface-2` [src/components/packt/place-row-action-bar.tsx:78] — fixed: added `dark:hover:bg-surface-2`
+- [x] [Review][Patch] `overflow-hidden` on Address ButtonGroup clips the keyboard focus-visible ring [src/components/packt/place-row-action-bar.tsx:72] — fixed: added `focus-visible:ring-inset`
+- [x] [Review][Dismiss] ~~Missing `costChip` icon-width assertion in "preserves shape" test~~ — false positive: `place.expense` set renders `formatCurrencyChipAmount(...)` as text with no icon at all (place-row-action-bar.tsx:125-132), so there is no `<svg>` to assert on in that scenario.
+- [x] [Review][Defer] jsdom class-string assertions don't measure real rendered geometry [src/components/packt/place-row-action-bar.test.tsx] — deferred, pre-existing
+
 ## Dev Notes
 
 ### Previous Story Intelligence
@@ -72,8 +81,8 @@ So that I don't mis-tap adjacent controls.
 - **`rounded-full` shape preserved** — the pill shape is iconic to Packt's action bar; only the tap area grows
 - **`accent-soft`/`fg-4` fill logic unchanged** — filled state = accent-soft background, empty state = no background, fg-4 text
 - **`IconSize.actionChip` (12px) unchanged** — the icon stays the same size inside the larger button
-- **Address ButtonGroup is already 44×44px** — no changes needed there; this story targets the four remaining chips
-- **`gap-1` between chips unchanged** — adjacent chips stay visually separated; only their individual tap areas grow
+- **Address ButtonGroup was already 44×44px** — sizing needed no changes; a post-review follow-up additionally unified it into one rounded, accent-filled pill (`variant="ghost"` segments inside an `overflow-hidden rounded-full` group carrying the `accent-soft`/`accent-ink` fill) to match the other chips' visual language
+- **`gap-2` between chips** — follow-up widened the inter-chip gap from `gap-1` to `gap-2` (8px) to balance the taller pills
 
 ### Files to MODIFY
 
@@ -142,9 +151,9 @@ Changes: add `h-11` to className, change `px-2` to `px-3`.
 
 4. **Empty-Address single button.** The empty-Address state (lines 94-108 of the current file) is a plain `<button>`, not a `ButtonGroup`. It also needs `h-11` and `px-3` to match the other resized chips.
 
-5. **Do not change the Address ButtonGroup.** The Address segments already use shadcn Button `size="lg"` / `size="icon-lg"` which resolve to 44×44px. This story does not touch them.
+5. **Address ButtonGroup sizing didn't need changes, but was restyled as a follow-up.** The Address segments already use shadcn Button `size="lg"` / `size="icon-lg"` which resolve to 44×44px, so no sizing change was required. A post-review follow-up changed `variant="outline"` → `variant="ghost"` on both segments and moved the `accent-soft`/`accent-ink` fill onto a new `overflow-hidden rounded-full` wrapper, to unify it into one pill matching the other resized chips. This introduced regressions caught in code review (hover text-color loss, dark-mode hover fill leak, focus-ring clipping) — see Review Findings.
 
-6. **`gap-1` between chips stays.** The gap between chips in the flex container is `gap-1` (0.25rem = 4px). With taller chips, the gap may look tighter proportionally, but it stays visually clear. Do not increase it.
+6. **`gap-1` was widened to `gap-2` as a follow-up.** Originally the gap between chips was `gap-1` (4px); a post-review follow-up increased it to `gap-2` (8px) to give the taller pills more visual breathing room.
 
 ### Testing Requirements
 
