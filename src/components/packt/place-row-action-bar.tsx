@@ -75,7 +75,7 @@ export function PlaceRowActionBar({
           <Button
             variant="ghost"
             size="lg"
-            className="hover:bg-surface-2"
+            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
             onClick={() => (onOpenMaps ? onOpenMaps() : undefined)}
             aria-label={`Open directions to ${locationLabel}`}
           >
@@ -87,7 +87,7 @@ export function PlaceRowActionBar({
           <Button
             variant="ghost"
             size="icon-lg"
-            className="hover:bg-surface-2"
+            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
             onClick={onOpenLocation}
             aria-label="Edit location"
             title="Edit location"
