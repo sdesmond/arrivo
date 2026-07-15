@@ -20,6 +20,10 @@ vi.mock("sonner", () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
 
+const { openExternalMaps } = vi.hoisted(() => ({ openExternalMaps: vi.fn() }));
+
+vi.mock("@/lib/open-external-maps", () => ({ openExternalMaps }));
+
 vi.mock("lucide-react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("lucide-react")>();
   return {
@@ -393,6 +397,39 @@ describe("PlaceRow", () => {
     const place = { ...basePlace, locationAddress: "Shibuya, Tokyo" };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.getByText("Shibuya, Tokyo")).toBeInTheDocument();
+  });
+
+  // ── onOpenMaps threading (handleOpenMaps / openExternalMaps) ───────────────
+
+  it("clicking the location segment calls openExternalMaps with address, lat, lng, and label when Address is filled", async () => {
+    const user = userEvent.setup();
+    const place: TripEvent = {
+      ...basePlace,
+      locationName: "Tokyo Tower Entrance",
+      locationAddress: "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
+      locationLat: 35.6586,
+      locationLng: 139.7454,
+    };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /open directions to tokyo tower entrance/i }));
+
+    expect(openExternalMaps).toHaveBeenCalledWith({
+      address: "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
+      lat: 35.6586,
+      lng: 139.7454,
+      label: "Tokyo Tower Entrance",
+    });
+  });
+
+  it("does not call openExternalMaps when Address is empty (onOpenMaps not passed)", async () => {
+    const user = userEvent.setup();
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /add location/i }));
+
+    expect(openExternalMaps).not.toHaveBeenCalled();
+    expect(screen.getByTestId("location-dialog")).toBeInTheDocument();
   });
 
   it("clicking time button opens time dialog", async () => {
