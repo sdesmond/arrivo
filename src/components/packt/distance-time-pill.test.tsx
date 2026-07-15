@@ -19,6 +19,12 @@ describe("DistanceTimePill", () => {
     expect(screen.getByText("950 m · 12 min walk")).toBeInTheDocument();
   });
 
+  it("formats kilometer-scale distances via the shared formatDistance helper", () => {
+    const routeResult: RouteResult = { status: "ready", distanceMeters: 2350, durationSeconds: 720 };
+    render(<DistanceTimePill eventName="Louvre Museum" routeResult={routeResult} transitMode="drive" />);
+    expect(screen.getByText("2.4 km · 12 min drive")).toBeInTheDocument();
+  });
+
   it("renders error text as display-only status when unavailable", () => {
     render(<DistanceTimePill eventName="Louvre Museum" routeResult={{ status: "unavailable" }} transitMode="drive" />);
     expect(screen.getByText("Couldn't get directions — try again.")).toBeInTheDocument();
