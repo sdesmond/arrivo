@@ -1,10 +1,12 @@
 "use client";
 
-import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
+import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip, Pencil } from "lucide-react";
 import type { TripEvent } from "@/data/types";
 import { toHHMM, pluralize, getLocationDisplayLabel } from "@/lib/utils";
 import { IconSize } from "@/lib/size-tokens";
 import { formatCurrencyChipAmount } from "@/lib/currencies";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 
 function formatTime(timeStr: string): string {
   if (!timeStr) return "—";
@@ -23,6 +25,7 @@ export interface PlaceRowActionBarProps {
   onOpenLocation: () => void;
   onOpenCost: () => void;
   onOpenAddDoc: () => void;
+  onOpenMaps?: () => void;
 }
 
 export function PlaceRowActionBar({
@@ -33,6 +36,7 @@ export function PlaceRowActionBar({
   onOpenLocation,
   onOpenCost,
   onOpenAddDoc,
+  onOpenMaps,
 }: PlaceRowActionBarProps) {
   const docs = place.docs ?? [];
   const hasDocs = docs.length > 0;
@@ -62,20 +66,46 @@ export function PlaceRowActionBar({
       </button>
 
       {/* Location */}
-      <button
-        onClick={onOpenLocation}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-        style={{
-          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: place.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
-          background: place.locationAddress ? "var(--accent-soft)" : "none",
-          border: "1px solid transparent",
-          maxWidth: 160,
-        }}
-      >
-        <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-        <span className="truncate">{locationLabel || "Add location"}</span>
-      </button>
+      {place.locationAddress ? (
+        <ButtonGroup orientation="horizontal">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => (onOpenMaps ? onOpenMaps() : undefined)}
+            aria-label={`Open directions to ${locationLabel}`}
+            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
+          >
+            <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+            <span className="truncate" style={{ maxWidth: 160 }}>
+              {locationLabel}
+            </span>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            onClick={onOpenLocation}
+            aria-label="Edit location"
+            title="Edit location"
+            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
+          >
+            <Pencil size={IconSize.actionChip} strokeWidth={1.5} />
+          </Button>
+        </ButtonGroup>
+      ) : (
+        <button
+          onClick={onOpenLocation}
+          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+          style={{
+            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
+            color: "var(--fg-4)",
+            border: "1px solid transparent",
+            maxWidth: 160,
+          }}
+        >
+          <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+          <span className="truncate">{locationLabel || "Add location"}</span>
+        </button>
+      )}
 
       {/* Cost */}
       <button

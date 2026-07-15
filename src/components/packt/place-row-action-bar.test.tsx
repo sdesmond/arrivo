@@ -171,4 +171,130 @@ describe("PlaceRowActionBar", () => {
     render(<PlaceRowActionBar {...defaultProps} place={place} />);
     expect(screen.getByRole("button", { name: /jfk airport/i })).toBeInTheDocument();
   });
+
+  // ── Address ButtonGroup (filled Address) ────────────────────────────────
+
+  const filledPlace: TripEvent = {
+    ...basePlace,
+    locationName: "Senso-ji Temple",
+    locationAddress: "2 Chome-3-1 Asakusa, Taito City, Tokyo",
+  };
+
+  it("renders a ButtonGroup with two segments when Address is filled", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    expect(screen.getByRole("group")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /open directions to senso-ji temple/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit location" })).toBeInTheDocument();
+  });
+
+  it("segment 1 shows a map-pin icon and the location name", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const segment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
+    expect(segment.querySelector("svg")).toBeInTheDocument();
+    expect(segment).toHaveTextContent("Senso-ji Temple");
+  });
+
+  it("clicking segment 1 calls onOpenMaps", async () => {
+    const user = userEvent.setup();
+    const onOpenMaps = vi.fn();
+    const onOpenLocation = vi.fn();
+    render(
+      <PlaceRowActionBar
+        {...defaultProps}
+        place={filledPlace}
+        onOpenMaps={onOpenMaps}
+        onOpenLocation={onOpenLocation}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: /open directions to senso-ji temple/i }));
+    expect(onOpenMaps).toHaveBeenCalledOnce();
+    expect(onOpenLocation).not.toHaveBeenCalled();
+  });
+
+  it("segment 2 is icon-only (Pencil) with no visible text", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const segment = screen.getByRole("button", { name: "Edit location" });
+    expect(segment.querySelector("svg")).toBeInTheDocument();
+    expect(segment.textContent).toBe("");
+  });
+
+  it("clicking segment 2 calls onOpenLocation", async () => {
+    const user = userEvent.setup();
+    const onOpenLocation = vi.fn();
+    const onOpenMaps = vi.fn();
+    render(
+      <PlaceRowActionBar
+        {...defaultProps}
+        place={filledPlace}
+        onOpenLocation={onOpenLocation}
+        onOpenMaps={onOpenMaps}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Edit location" }));
+    expect(onOpenLocation).toHaveBeenCalledOnce();
+    expect(onOpenMaps).not.toHaveBeenCalled();
+  });
+
+  it("segment 1 aria-label is 'Open directions to {name}'", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Open directions to Senso-ji Temple" })).toBeInTheDocument();
+  });
+
+  it("segment 2 aria-label is 'Edit location'", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Edit location" })).toBeInTheDocument();
+  });
+
+  it("renders a single button (no group) when Address is empty", () => {
+    render(<PlaceRowActionBar {...defaultProps} onOpenMaps={vi.fn()} />);
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add location/i })).toBeInTheDocument();
+  });
+
+  it("keeps a saved location name visible when its Address is empty", () => {
+    const place: TripEvent = { ...basePlace, locationName: "Tokyo Tower" };
+    render(<PlaceRowActionBar {...defaultProps} place={place} />);
+    expect(screen.getByRole("button", { name: "Tokyo Tower" })).toBeInTheDocument();
+  });
+
+  it("empty-Address button still calls onOpenLocation", async () => {
+    const user = userEvent.setup();
+    const onOpenLocation = vi.fn();
+    render(<PlaceRowActionBar {...defaultProps} onOpenLocation={onOpenLocation} onOpenMaps={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: /add location/i }));
+    expect(onOpenLocation).toHaveBeenCalledOnce();
+  });
+
+  it("each segment meets the 44x44px minimum interactive target", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const locationSegment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
+    const editSegment = screen.getByRole("button", { name: "Edit location" });
+    expect(locationSegment.className).toMatch(/\bh-11\b/);
+    expect(editSegment.className).toMatch(/\bsize-11\b/);
+  });
+
+  it("backward compat: renders ButtonGroup segment 1 without throwing when onOpenMaps is not provided", async () => {
+    const user = userEvent.setup();
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} />);
+    const segment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
+    await expect(user.click(segment)).resolves.not.toThrow();
+  });
+
+  it("both segments carry the accent-soft/accent-ink filled styling, matching the other filled pills", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const locationSegment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
+    const editSegment = screen.getByRole("button", { name: "Edit location" });
+    expect(locationSegment).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+    expect(editSegment).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+  });
+
+  it("keeps the outline border on both filled-address segments", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const locationSegment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
+    const editSegment = screen.getByRole("button", { name: "Edit location" });
+    expect(locationSegment.className).toMatch(/border-border/);
+    expect(editSegment.className).toMatch(/border-border/);
+    expect(locationSegment).not.toHaveStyle({ borderColor: "transparent" });
+    expect(editSegment).not.toHaveStyle({ borderColor: "transparent" });
+  });
 });
