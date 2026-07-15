@@ -1,3 +1,7 @@
+---
+baseline_commit: b4d793ba5a16c482b15126e0554056c912407acc
+---
+
 # Story 4.2: Detect and surface Schedule Conflicts
 
 Status: ready-for-dev

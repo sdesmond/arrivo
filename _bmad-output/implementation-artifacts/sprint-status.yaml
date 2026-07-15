@@ -61,7 +61,7 @@ development_status:
 
   epic-4: in-progress
   4-1-show-day-route-strip-for-days-with-2-plus-located-items: done
-  4-2-detect-and-surface-schedule-conflicts: ready-for-dev
+  4-2-detect-and-surface-schedule-conflicts: in-progress
   epic-4-retrospective: optional
 
   epic-5: backlog
