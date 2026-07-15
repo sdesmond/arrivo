@@ -1,4 +1,4 @@
-import { ExpenseCategory } from "../../src/data/types";
+import { ExpenseCategory, TransitMode } from "../../src/data/types";
 import type { ReservationType } from "../../src/data/types";
 
 export interface UserSeed {
@@ -119,6 +119,7 @@ export interface TripSeed {
   destinationCountryCode?: string | null;
   budgetCurrency?: string | null;
   budgetTotal?: number | null;
+  transitMode?: TransitMode | null;
 }
 
 export interface TripMother {
@@ -232,6 +233,7 @@ export const THREE_DAY_TRIP_MOTHER: TripMother = {
     startDate: E2E_TRIP_START_DATE,
     endDate: E2E_TRIP_THIRD_DATE,
     coverImageUrl: "graphic:var(--accent-brand)/plane",
+    transitMode: TransitMode.Drive,
   },
   days: [
     { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
@@ -253,6 +255,7 @@ export const DATELESS_TRIP_MOTHER: TripMother = {
     startDate: null,
     endDate: null,
     coverImageUrl: "graphic:var(--accent-brand)/plane",
+    transitMode: TransitMode.Drive,
   },
   days: [{ dayNumber: 1, date: null, label: "Day 1" }],
   events: [],
@@ -269,6 +272,7 @@ export const DELETE_TRIP_MOTHER: TripMother = {
     name: "E2E Delete Trip",
     startDate: E2E_TRIP_START_DATE,
     endDate: E2E_TRIP_THIRD_DATE,
+    transitMode: TransitMode.Drive,
   },
   days: [
     { dayNumber: 1, date: E2E_TRIP_START_DATE, label: "Day 1" },
