@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { ItineraryItemType, type DayItinerary } from "@/data/types";
 import { DayCardBody } from "./day-card-body";
+import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
 
 interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
@@ -132,6 +133,29 @@ describe("DayCardBody", () => {
         onReorderDayItems={vi.fn()}
       />
     );
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+  });
+
+  it("falls back to unavailable when the route summary fetch rejects", async () => {
+    vi.mocked(getDayRouteSummary).mockRejectedValueOnce(new Error("network down"));
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
     await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
   });
 

@@ -208,10 +208,31 @@ describe("getRouteDistanceTime", () => {
 });
 
 describe("getDayRouteSummary", () => {
-  it("returns unavailable without two located items", async () => {
+  it("returns unavailable without any located items", async () => {
     await expect(getDayRouteSummary([{ id: "one", name: "One", position: 0 }], "drive", null)).resolves.toEqual({
       status: "unavailable",
     });
+  });
+
+  it("returns unavailable with exactly one located item", async () => {
+    const events = [{ id: "one", name: "One", position: 0, locationLat: 48.85, locationLng: 2.35 }];
+
+    await expect(getDayRouteSummary(events, "drive", null)).resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("aggregates all hops when every hop succeeds", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 120, fetchedAt: new Date() }]);
+
+    const result = await getDayRouteSummary(
+      [
+        { id: "first", name: "First", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "second", name: "Second", position: 1, locationLat: 48.855, locationLng: 2.355 },
+      ],
+      "drive",
+      null
+    );
+
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 500, totalDurationSeconds: 120, hopCount: 1 });
   });
 
   it("aggregates available hops in position order and skips unavailable hops", async () => {

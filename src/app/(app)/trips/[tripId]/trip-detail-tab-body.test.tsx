@@ -171,6 +171,12 @@ describe("TripDetailTabBody", () => {
     );
   });
 
+  it("falls back to drive when the trip has no transit mode set", () => {
+    render(<TripDetailTabBody {...buildProps({ trip: { ...trip, transitMode: null }, activeTab: "itin" })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ tripTransitMode: "drive" }));
+  });
+
   it("threads defaultExpenseCurrency into itinerary and reservations tabs", () => {
     const { rerender } = render(<TripDetailTabBody {...buildProps({ activeTab: "itin" })} />);
 
