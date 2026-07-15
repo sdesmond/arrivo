@@ -251,6 +251,12 @@ describe("PlaceRowActionBar", () => {
     expect(screen.getByRole("button", { name: /add location/i })).toBeInTheDocument();
   });
 
+  it("keeps a saved location name visible when its Address is empty", () => {
+    const place: TripEvent = { ...basePlace, locationName: "Tokyo Tower" };
+    render(<PlaceRowActionBar {...defaultProps} place={place} />);
+    expect(screen.getByRole("button", { name: "Tokyo Tower" })).toBeInTheDocument();
+  });
+
   it("empty-Address button still calls onOpenLocation", async () => {
     const user = userEvent.setup();
     const onOpenLocation = vi.fn();
@@ -280,5 +286,15 @@ describe("PlaceRowActionBar", () => {
     const editSegment = screen.getByRole("button", { name: "Edit location" });
     expect(locationSegment).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
     expect(editSegment).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+  });
+
+  it("keeps the outline border on both filled-address segments", () => {
+    render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const locationSegment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
+    const editSegment = screen.getByRole("button", { name: "Edit location" });
+    expect(locationSegment.className).toMatch(/border-border/);
+    expect(editSegment.className).toMatch(/border-border/);
+    expect(locationSegment).not.toHaveStyle({ borderColor: "transparent" });
+    expect(editSegment).not.toHaveStyle({ borderColor: "transparent" });
   });
 });

@@ -73,7 +73,7 @@ export function PlaceRowActionBar({
             size="lg"
             onClick={() => (onOpenMaps ? onOpenMaps() : undefined)}
             aria-label={`Open directions to ${locationLabel}`}
-            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)", borderColor: "transparent" }}
+            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
           >
             <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
             <span className="truncate" style={{ maxWidth: 160 }}>
@@ -86,7 +86,7 @@ export function PlaceRowActionBar({
             onClick={onOpenLocation}
             aria-label="Edit location"
             title="Edit location"
-            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)", borderColor: "transparent" }}
+            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
           >
             <Pencil size={IconSize.actionChip} strokeWidth={1.5} />
           </Button>
@@ -103,7 +103,7 @@ export function PlaceRowActionBar({
           }}
         >
           <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-          <span className="truncate">Add location</span>
+          <span className="truncate">{locationLabel || "Add location"}</span>
         </button>
       )}
 

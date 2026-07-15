@@ -4,7 +4,7 @@ baseline_commit: 209d6ebd1dd5f95d37fa789097687e1373b5093c
 
 # Story 3.1: Filled Address opens External Maps directly
 
-Status: review
+Status: done
 
 ## Story
 
@@ -107,6 +107,11 @@ So that I can navigate there without an extra step.
   - [x] Subtask 8.1: lint, TypeScript, coverage, build, affected E2E
   - [x] Subtask 8.2: Fix any issues flagged
   - [x] Subtask 8.3: Re-run until PASS
+
+### Review Findings
+
+- [x] [Review][Patch] Preserve saved location names without an address [src/components/packt/place-row-action-bar.tsx:106]
+- [x] [Review][Patch] Restore visible outline and shared divider for address ButtonGroup segments [src/components/packt/place-row-action-bar.tsx:76]
 
 ## Dev Notes
 
