@@ -41,7 +41,7 @@ vi.mock("@/db", () => ({
 
 vi.mock("@/db/schema", () => schemaTokens);
 
-import { resolveEffectiveMode, getRouteDistanceTime } from "./route";
+import { getDayRouteSummary, resolveEffectiveMode, getRouteDistanceTime } from "./route";
 
 describe("resolveEffectiveMode", () => {
   it("walks when a hop is below the configured threshold", () => {
@@ -204,5 +204,35 @@ describe("getRouteDistanceTime", () => {
       expect(Number.isInteger(result.distanceMeters)).toBe(true);
       expect(Number.isInteger(result.durationSeconds)).toBe(true);
     }
+  });
+});
+
+describe("getDayRouteSummary", () => {
+  it("returns unavailable without two located items", async () => {
+    await expect(getDayRouteSummary([{ id: "one", name: "One", position: 0 }], "drive", null)).resolves.toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("aggregates available hops in position order and skips unavailable hops", async () => {
+    mockLimit
+      .mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 120, fetchedAt: new Date() }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ distanceMeters: 700, durationSeconds: 300, fetchedAt: new Date() }]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: () => Promise.resolve({}) }));
+
+    const result = await getDayRouteSummary(
+      [
+        { id: "third", name: "Third", position: 2, locationLat: 48.86, locationLng: 2.36 },
+        { id: "first", name: "First", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "freeform", name: "Freeform", position: 1 },
+        { id: "second", name: "Second", position: 1, locationLat: 48.855, locationLng: 2.355 },
+        { id: "fourth", name: "Fourth", position: 3, locationLat: 48.865, locationLng: 2.365 },
+      ],
+      "drive",
+      null
+    );
+
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 1200, totalDurationSeconds: 420, hopCount: 2 });
   });
 });
