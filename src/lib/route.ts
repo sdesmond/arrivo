@@ -1,4 +1,4 @@
-import type { GeoCoords, RouteResult, TransitMode } from "@/data/types";
+import type { DayRouteSummary, GeoCoords, RouteResult, TransitMode, TripEvent } from "@/data/types";
 import { db } from "@/db";
 import { routeCache } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -101,4 +101,59 @@ export async function getRouteDistanceTime(
   } catch {
     return { status: "unavailable" };
   }
+}
+
+function getStraightLineDistanceMeters(origin: GeoCoords, destination: GeoCoords): number {
+  const earthRadiusMeters = 6_371_000;
+  const latitudeDeltaRadians = ((destination.lat - origin.lat) * Math.PI) / 180;
+  const longitudeDeltaRadians = ((destination.lng - origin.lng) * Math.PI) / 180;
+  const originLatitudeRadians = (origin.lat * Math.PI) / 180;
+  const destinationLatitudeRadians = (destination.lat * Math.PI) / 180;
+  const haversine =
+    Math.sin(latitudeDeltaRadians / 2) ** 2 +
+    Math.cos(originLatitudeRadians) * Math.cos(destinationLatitudeRadians) * Math.sin(longitudeDeltaRadians / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+export async function getDayRouteSummary(
+  events: TripEvent[],
+  tripTransitMode: TransitMode,
+  walkThresholdMeters: number | null | undefined
+): Promise<DayRouteSummary> {
+  const locatedEvents = events
+    .filter(
+      (event) =>
+        event.locationLat !== null &&
+        event.locationLat !== undefined &&
+        event.locationLng !== null &&
+        event.locationLng !== undefined
+    )
+    .sort((first, second) => first.position - second.position);
+
+  if (locatedEvents.length < 2) return { status: "unavailable" };
+
+  let totalDistanceMeters = 0;
+  let totalDurationSeconds = 0;
+  let hopCount = 0;
+
+  for (let index = 0; index < locatedEvents.length - 1; index += 1) {
+    const originEvent = locatedEvents[index];
+    const destinationEvent = locatedEvents[index + 1];
+    const origin = { lat: originEvent.locationLat!, lng: originEvent.locationLng! };
+    const destination = { lat: destinationEvent.locationLat!, lng: destinationEvent.locationLng! };
+    const transitMode = resolveEffectiveMode(
+      getStraightLineDistanceMeters(origin, destination),
+      tripTransitMode,
+      walkThresholdMeters
+    );
+    const route = await getRouteDistanceTime(origin, destination, transitMode);
+    if (route.status !== "ready") continue;
+    totalDistanceMeters += route.distanceMeters;
+    totalDurationSeconds += route.durationSeconds;
+    hopCount += 1;
+  }
+
+  return hopCount === 0
+    ? { status: "unavailable" }
+    : { status: "ready", totalDistanceMeters, totalDurationSeconds, hopCount };
 }

@@ -1,8 +1,8 @@
 "use server";
 
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
-import { getRouteDistanceTime as getRoute } from "@/lib/route";
-import type { GeoCoords, RouteResult, TransitMode } from "@/data/types";
+import { getDayRouteSummary as getDaySummary, getRouteDistanceTime as getRoute } from "@/lib/route";
+import type { DayRouteSummary, GeoCoords, RouteResult, TransitMode, TripEvent } from "@/data/types";
 
 export async function getRouteDistanceTime(
   tripId: string,
@@ -13,4 +13,15 @@ export async function getRouteDistanceTime(
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "viewer");
   return getRoute(origin, destination, transitMode);
+}
+
+export async function getDayRouteSummary(
+  tripId: string,
+  events: TripEvent[],
+  transitMode: TransitMode,
+  walkThresholdMeters: number | null | undefined
+): Promise<DayRouteSummary> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "viewer");
+  return getDaySummary(events, transitMode, walkThresholdMeters);
 }

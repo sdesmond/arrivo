@@ -7,6 +7,7 @@ import { TripDocsTab } from "@/components/packt/trip-docs-tab";
 import { TripBudgetTab } from "@/components/packt/trip-budget-tab";
 import { PackingListsView } from "@/components/packt/packing-lists-view";
 import { ReservationsTab } from "@/components/packt/reservations-tab";
+import { TransitMode } from "@/data/types";
 import type {
   DayItinerary,
   TripEvent,
@@ -168,6 +169,8 @@ export function TripDetailTabBody({
       {activeTab === "itin" && (
         <TripItineraryView
           days={days}
+          tripId={tripId}
+          tripTransitMode={trip.transitMode ?? TransitMode.Drive}
           unscheduledEvents={unscheduledEvents}
           defaultExpenseCurrency={defaultExpenseCurrency}
           dateFormat={dateFormat}

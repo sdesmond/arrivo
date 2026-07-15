@@ -6,10 +6,15 @@ import type { GapZoneProps } from "./gap-zone";
 import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
 import { DayCardBottomAdd } from "./day-card-bottom-add";
 import { ItineraryItemType } from "@/data/types";
-import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/types";
+import type { DayItinerary, TripEvent, DayItemType, Document, DayRouteSummary, TransitMode } from "@/data/types";
+import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
+import { DayRouteStrip } from "./day-route-strip";
 
 export interface DayCardBodyProps {
   day: DayItinerary;
+  tripId?: string;
+  tripTransitMode?: TransitMode | null;
+  walkThresholdMeters?: number | null;
   defaultExpenseCurrency?: string;
   tripDocs?: Document[];
   onUpdateEvent: (event: TripEvent) => void;
@@ -38,6 +43,11 @@ interface DraftState {
   gapKey: string;
 }
 
+interface RouteSummaryState {
+  key: string;
+  summary: DayRouteSummary;
+}
+
 export function DayCardBody({
   day,
   defaultExpenseCurrency,
@@ -60,11 +70,30 @@ export function DayCardBody({
   onUpdateChecklistItem,
   onDeleteChecklistItem,
   onToggleChecklistItem,
+  tripId,
+  tripTransitMode,
+  walkThresholdMeters,
 }: DayCardBodyProps): ReactElement {
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
   const pendingCommitBaselineRef = useRef<number | null>(null);
+  const locatedEvents = useMemo(
+    () => day.events.filter((event) => event.locationLat != null && event.locationLng != null),
+    [day.events]
+  );
+  const routeSummaryKey = [
+    tripId ?? "none",
+    tripTransitMode ?? "none",
+    walkThresholdMeters ?? "none",
+    ...locatedEvents.map((event) => `${event.id}:${event.locationLat}:${event.locationLng}:${event.position}`),
+  ].join("|");
+  const [routeSummaryState, setRouteSummaryState] = useState<RouteSummaryState>(() => ({
+    key: routeSummaryKey,
+    summary: { status: "loading" },
+  }));
+  const routeSummary: DayRouteSummary =
+    routeSummaryState.key === routeSummaryKey ? routeSummaryState.summary : { status: "loading" };
 
   const propTimelineItems: TimelineItem[] = [
     ...day.events.map((event) => ({ kind: "event" as const, data: event, position: event.position })),
@@ -104,6 +133,21 @@ export function DayCardBody({
       setDraft(null);
     }
   }, [propTimelineItems]);
+
+  useEffect(() => {
+    if (locatedEvents.length < 2 || !tripId || !tripTransitMode) return;
+    let active = true;
+    void getDayRouteSummary(tripId, locatedEvents, tripTransitMode, walkThresholdMeters)
+      .then((summary) => {
+        if (active) setRouteSummaryState({ key: routeSummaryKey, summary });
+      })
+      .catch(() => {
+        if (active) setRouteSummaryState({ key: routeSummaryKey, summary: { status: "unavailable" } });
+      });
+    return () => {
+      active = false;
+    };
+  }, [locatedEvents, routeSummaryKey, tripId, tripTransitMode, walkThresholdMeters]);
 
   const persistedTimelineItems = timelineItems.filter(
     (item) => item.kind !== "event" || !item.data.linkedReservationId
@@ -170,6 +214,15 @@ export function DayCardBody({
 
   return (
     <div className="p-3 flex flex-col">
+      {locatedEvents.length >= 2 && tripId && tripTransitMode && (
+        <DayRouteStrip
+          summary={routeSummary}
+          tripId={tripId}
+          dayNumber={day.dayNumber}
+          tripTransitMode={tripTransitMode}
+          totalHopCount={locatedEvents.length - 1}
+        />
+      )}
       <DayCardDnd
         dayNumber={day.dayNumber}
         dayId={day.id}

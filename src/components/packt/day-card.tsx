@@ -5,10 +5,13 @@ import type { ReactElement } from "react";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DayCardBody } from "./day-card-body";
 import { DayCardHeader } from "./day-card-header";
-import type { DayItinerary, TripEvent, DayItemType, Document } from "@/data/types";
+import type { DayItinerary, TripEvent, DayItemType, Document, TransitMode } from "@/data/types";
 
 interface DayCardProps {
   day: DayItinerary;
+  tripId?: string;
+  tripTransitMode?: TransitMode | null;
+  walkThresholdMeters?: number | null;
   defaultExpenseCurrency?: string;
   dateFormat?: string;
   tripDocs?: Document[];
@@ -63,6 +66,9 @@ export function DayCard({
   onRemove,
   removeDisabled,
   onOpenPackingListPicker,
+  tripId,
+  tripTransitMode,
+  walkThresholdMeters,
 }: DayCardProps): ReactElement {
   const now = useNow();
   const isToday = day.date
@@ -112,6 +118,9 @@ export function DayCard({
       {open && (
         <DayCardBody
           day={day}
+          tripId={tripId}
+          tripTransitMode={tripTransitMode}
+          walkThresholdMeters={walkThresholdMeters}
           defaultExpenseCurrency={defaultExpenseCurrency}
           tripDocs={tripDocs}
           newlyCreatedChecklistId={newlyCreatedChecklistId}

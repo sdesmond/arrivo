@@ -1,12 +1,13 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockAssertTripAccess, mockRequireUser, mockGetRouteDistanceTime } = vi.hoisted(() => {
+const { mockAssertTripAccess, mockRequireUser, mockGetDayRouteSummary, mockGetRouteDistanceTime } = vi.hoisted(() => {
   const mockAssertTripAccess = vi.fn();
   const mockRequireUser = vi.fn();
   const mockGetRouteDistanceTime = vi.fn();
+  const mockGetDayRouteSummary = vi.fn();
 
-  return { mockAssertTripAccess, mockRequireUser, mockGetRouteDistanceTime };
+  return { mockAssertTripAccess, mockRequireUser, mockGetDayRouteSummary, mockGetRouteDistanceTime };
 });
 
 vi.mock("@/lib/auth-helpers", () => ({
@@ -15,10 +16,11 @@ vi.mock("@/lib/auth-helpers", () => ({
 }));
 
 vi.mock("@/lib/route", () => ({
+  getDayRouteSummary: mockGetDayRouteSummary,
   getRouteDistanceTime: mockGetRouteDistanceTime,
 }));
 
-import { getRouteDistanceTime } from "./route-actions";
+import { getDayRouteSummary, getRouteDistanceTime } from "./route-actions";
 
 describe("getRouteDistanceTime (server action)", () => {
   const origin = { lat: 48.8566, lng: 2.3522 };
@@ -58,5 +60,31 @@ describe("getRouteDistanceTime (server action)", () => {
 
     await expect(getRouteDistanceTime("trip-1", origin, destination, "walk")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mockGetRouteDistanceTime).not.toHaveBeenCalled();
+  });
+});
+
+describe("getDayRouteSummary (server action)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("requires viewer access before delegating route aggregation", async () => {
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockGetDayRouteSummary.mockResolvedValue({ status: "unavailable" });
+    const events = [{ id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 }];
+
+    await expect(getDayRouteSummary("trip-1", events, "drive", 400)).resolves.toEqual({ status: "unavailable" });
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "viewer");
+    expect(mockGetDayRouteSummary).toHaveBeenCalledWith(events, "drive", 400);
+  });
+
+  it("rejects when the user does not have viewer access", async () => {
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    const events = [{ id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 }];
+
+    await expect(getDayRouteSummary("trip-1", events, "drive", 400)).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(mockGetDayRouteSummary).not.toHaveBeenCalled();
   });
 });

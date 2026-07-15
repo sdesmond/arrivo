@@ -60,6 +60,11 @@ export const TransitMode = {
 } as const;
 export type TransitMode = (typeof TransitMode)[keyof typeof TransitMode];
 
+export type DayRouteSummary =
+  | { status: "loading" }
+  | { status: "ready"; totalDistanceMeters: number; totalDurationSeconds: number; hopCount: number }
+  | { status: "unavailable" };
+
 export const ExpenseCategory = {
   Food: "food",
   Lodging: "lodging",

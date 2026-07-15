@@ -27,6 +27,7 @@ import {
   GRAPHIC_COVER_COLORS,
   GRAPHIC_COVER_ICONS,
   formatCurrency,
+  formatDistance,
 } from "@/lib/utils";
 
 const NOW = new Date("2026-05-13T12:00:00"); // local noon — for date-based functions
@@ -318,6 +319,20 @@ describe("formatCurrency", () => {
 
   it("handles unknown currency codes with fallback", () => {
     expect(formatCurrency(10, "XXXX")).toBe("XXXX 10.00");
+  });
+});
+
+describe("formatDistance", () => {
+  it("shows meters below 1 km", () => {
+    expect(formatDistance(650)).toBe("650 m");
+  });
+
+  it("shows one decimal place below 10 km", () => {
+    expect(formatDistance(1250)).toBe("1.3 km");
+  });
+
+  it("shows no decimal places at or above 10 km", () => {
+    expect(formatDistance(12340)).toBe("12 km");
   });
 });
 

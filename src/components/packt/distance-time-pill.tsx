@@ -2,6 +2,7 @@
 
 import { Navigation } from "lucide-react";
 import type { GeoHintStatus, RouteResult, TransitMode } from "@/data/types";
+import { formatDistance } from "@/lib/utils";
 
 export interface DistanceTimePillProps {
   eventName: string;
@@ -16,16 +17,6 @@ const PILL_LAYOUT_CLASSNAME = "inline-flex items-center gap-1.5 h-11 min-w-11 px
 const PILL_TEXT_STYLE = { fontSize: "calc(13px * var(--font-scale))" } as const;
 const PILL_ACTIVE_STYLE = { background: "var(--accent-soft)", color: "var(--accent-ink)" } as const;
 const PILL_NEUTRAL_STYLE = { background: "var(--surface-2)", color: "var(--fg-3)" } as const;
-
-function formatDistance(distanceMeters: number): string {
-  if (distanceMeters < 1000) {
-    return `${distanceMeters} m`;
-  }
-
-  const distanceKilometers = distanceMeters / 1000;
-  const maximumFractionDigits = distanceKilometers < 10 ? 1 : 0;
-  return `${distanceKilometers.toLocaleString(undefined, { maximumFractionDigits })} km`;
-}
 
 export function DistanceTimePill({
   eventName,

@@ -85,6 +85,10 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }));
 
+vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
+  getDayRouteSummary: vi.fn().mockResolvedValue({ status: "unavailable" }),
+}));
+
 vi.mock("./checklist-item", () => ({
   ChecklistItem: ({ checklist, isDraft, onCommitDraft, onCancelDraft }: MockChecklistItemProps) => {
     if (isDraft) {
