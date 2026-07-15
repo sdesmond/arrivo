@@ -41,6 +41,71 @@ describe("PlaceRowActionBar", () => {
     expect(screen.getByTitle("Attach document")).toBeInTheDocument();
   });
 
+  it("keeps 8px between action pills", () => {
+    render(<PlaceRowActionBar {...defaultProps} />);
+    const timeChip = screen.getByRole("button", { name: /add time/i });
+    expect(timeChip.parentElement?.className).toMatch(/\bgap-2\b/);
+  });
+
+  it("keeps every non-address action chip at the 44px interactive minimum", () => {
+    const place: TripEvent = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
+    };
+    render(<PlaceRowActionBar {...defaultProps} place={place} />);
+
+    for (const chip of [
+      screen.getByRole("button", { name: /add time/i }),
+      screen.getByRole("button", { name: /add location/i }),
+      screen.getByRole("button", { name: /add cost/i }),
+      screen.getByRole("button", { name: /doc/i }),
+    ]) {
+      expect(chip.className).toMatch(/\bh-11\b/);
+    }
+  });
+
+  it("keeps the Attach chip at the 44px interactive minimum", () => {
+    render(<PlaceRowActionBar {...defaultProps} />);
+    expect(screen.getByTitle("Attach document").className).toMatch(/\bh-11\b/);
+  });
+
+  it("preserves the rounded chip shape, fill logic, and action icon scale", () => {
+    const place: TripEvent = {
+      ...basePlace,
+      startAt: "2026-08-01T09:00:00Z",
+      expense: {
+        id: "expense-1",
+        tripId: "trip-1",
+        category: "shopping",
+        amount: 25,
+        currency: "USD",
+        date: "2026-08-01",
+      },
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
+    };
+    const { unmount } = render(<PlaceRowActionBar {...defaultProps} place={place} />);
+
+    const timeChip = screen.getByRole("button", { name: /9:00 am/i });
+    const costChip = screen.getByRole("button", { name: "$25.00" });
+    const docsChip = screen.getByRole("button", { name: /doc/i });
+
+    for (const chip of [timeChip, costChip, docsChip]) {
+      expect(chip.className).toMatch(/\brounded-full\b/);
+    }
+    expect(timeChip).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+    expect(costChip).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+    expect(docsChip).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+    expect(timeChip.querySelector("svg")).toHaveAttribute("width", "12");
+    expect(docsChip.querySelector("svg")).toHaveAttribute("width", "12");
+
+    unmount();
+    render(<PlaceRowActionBar {...defaultProps} />);
+    const attachChip = screen.getByTitle("Attach document");
+    expect(attachChip.className).toMatch(/\brounded-full\b/);
+    expect(attachChip).toHaveStyle({ color: "var(--fg-4)" });
+    expect(attachChip.querySelector("svg")).toHaveAttribute("width", "12");
+  });
+
   it("shows doc count button when hasDocs", () => {
     const place: TripEvent = {
       ...basePlace,
@@ -280,21 +345,24 @@ describe("PlaceRowActionBar", () => {
     await expect(user.click(segment)).resolves.not.toThrow();
   });
 
-  it("both segments carry the accent-soft/accent-ink filled styling, matching the other filled pills", () => {
+  it("both filled Address actions inherit the group fill and use the standard pill hover treatment", () => {
     render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const locationGroup = screen.getByRole("group");
     const locationSegment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
     const editSegment = screen.getByRole("button", { name: "Edit location" });
-    expect(locationSegment).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
-    expect(editSegment).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+    expect(locationGroup).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+    expect(locationSegment.className).toMatch(/hover:bg-surface-2/);
+    expect(editSegment.className).toMatch(/hover:bg-surface-2/);
   });
 
-  it("keeps the outline border on both filled-address segments", () => {
+  it("renders filled Address actions as one rounded, accent-filled pill", () => {
     render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
+    const locationGroup = screen.getByRole("group");
     const locationSegment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
     const editSegment = screen.getByRole("button", { name: "Edit location" });
-    expect(locationSegment.className).toMatch(/border-border/);
-    expect(editSegment.className).toMatch(/border-border/);
-    expect(locationSegment).not.toHaveStyle({ borderColor: "transparent" });
-    expect(editSegment).not.toHaveStyle({ borderColor: "transparent" });
+    expect(locationGroup.className).toMatch(/\brounded-full\b/);
+    expect(locationGroup).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
+    expect(locationSegment.className).not.toMatch(/border-border/);
+    expect(editSegment.className).not.toMatch(/border-border/);
   });
 });

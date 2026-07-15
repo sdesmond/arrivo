@@ -49,11 +49,11 @@ export function PlaceRowActionBar({
   const locationLabel = getLocationDisplayLabel(place.locationName, place.locationAddress);
 
   return (
-    <div className="flex items-center gap-1 flex-wrap mt-2">
+    <div className="flex items-center gap-2 flex-wrap mt-2">
       {/* Time */}
       <button
         onClick={onOpenTime}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+        className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
           color: place.startAt ? "var(--accent-ink)" : "var(--fg-4)",
@@ -67,13 +67,17 @@ export function PlaceRowActionBar({
 
       {/* Location */}
       {place.locationAddress ? (
-        <ButtonGroup orientation="horizontal">
+        <ButtonGroup
+          orientation="horizontal"
+          className="overflow-hidden rounded-full"
+          style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
+        >
           <Button
-            variant="outline"
+            variant="ghost"
             size="lg"
+            className="hover:bg-surface-2"
             onClick={() => (onOpenMaps ? onOpenMaps() : undefined)}
             aria-label={`Open directions to ${locationLabel}`}
-            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
           >
             <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
             <span className="truncate" style={{ maxWidth: 160 }}>
@@ -81,12 +85,12 @@ export function PlaceRowActionBar({
             </span>
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon-lg"
+            className="hover:bg-surface-2"
             onClick={onOpenLocation}
             aria-label="Edit location"
             title="Edit location"
-            style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
           >
             <Pencil size={IconSize.actionChip} strokeWidth={1.5} />
           </Button>
@@ -94,7 +98,7 @@ export function PlaceRowActionBar({
       ) : (
         <button
           onClick={onOpenLocation}
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--fg-4)",
@@ -110,7 +114,7 @@ export function PlaceRowActionBar({
       {/* Cost */}
       <button
         onClick={onOpenCost}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+        className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
           color: place.expense ? "var(--accent-ink)" : "var(--fg-4)",
@@ -134,7 +138,7 @@ export function PlaceRowActionBar({
           onClick={onToggleDocs}
           aria-expanded={showDocs}
           title="Show attached documents"
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--accent-ink)",
@@ -158,7 +162,7 @@ export function PlaceRowActionBar({
       {!hasDocs && (
         <button
           onClick={onOpenAddDoc}
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--fg-4)",
