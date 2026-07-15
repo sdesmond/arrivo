@@ -30,6 +30,14 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("day-route-strip", [
+    "src/components/packt/day-route-strip.tsx",
+    "src/components/packt/day-card.tsx",
+    "src/components/packt/day-card-body.tsx",
+    "src/app/(app)/trips/[tripId]/route-actions.ts",
+    "src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx",
+    "src/lib/route.ts",
+  ]),
   entry("auth", [
     "src/components/packt/auth-forms.tsx",
     "src/app/(auth)/sign-in/**",

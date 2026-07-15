@@ -168,6 +168,8 @@ export function TripDetailTabBody({
       {activeTab === "itin" && (
         <TripItineraryView
           days={days}
+          tripId={tripId}
+          tripTransitMode={trip.transitMode}
           unscheduledEvents={unscheduledEvents}
           defaultExpenseCurrency={defaultExpenseCurrency}
           dateFormat={dateFormat}

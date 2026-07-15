@@ -19,6 +19,10 @@ interface MockDayCardBottomAddProps {
   activateDraft: (type: ItineraryItemType, insertAtPosition: number, gapKey: string) => void;
 }
 
+interface MockDayRouteStripProps {
+  summary: { status: string };
+}
+
 vi.mock("./day-card-dnd", () => ({
   DayCardDnd: ({
     timelineItems,
@@ -63,6 +67,14 @@ vi.mock("./day-card-bottom-add", () => ({
   ),
 }));
 
+vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
+  getDayRouteSummary: vi.fn().mockResolvedValue({ status: "unavailable" }),
+}));
+
+vi.mock("./day-route-strip", () => ({
+  DayRouteStrip: ({ summary }: MockDayRouteStripProps) => <div data-testid="day-route-strip">{summary.status}</div>,
+}));
+
 const day: DayItinerary = {
   id: "day-1",
   dayNumber: 1,
@@ -90,6 +102,39 @@ const linkedOnlyDay: DayItinerary = {
 };
 
 describe("DayCardBody", () => {
+  it("renders the route strip only for days with two located items", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+    const { rerender } = render(
+      <DayCardBody
+        day={day}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByTestId("day-route-strip")).not.toBeInTheDocument();
+    rerender(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+  });
+
   it("passes the mixed itinerary timeline to the extracted renderer", () => {
     render(<DayCardBody day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />);
 
