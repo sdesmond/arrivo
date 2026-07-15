@@ -8,3 +8,7 @@
 ## Deferred from: code review of 1-2-seed-trip-transit-default-automatically (2026-07-13)
 
 - TOCTOU: transitMode resolved from a snapshot taken before the insert transaction [src/app/(app)/trips/actions.ts:210-253] — if the user updates their global transit preference between the initial `select` and the transaction commit, the new trip silently uses the stale value. Same pattern already exists for `budgetCurrency` resolution in this function; not introduced uniquely by this change.
+
+## Deferred from: code review of 3-2-resize-action-bar-chips-to-meet-interactive-sizing-minimum (2026-07-15)
+
+- jsdom class-string assertions don't measure real rendered geometry [src/components/packt/place-row-action-bar.test.tsx] — all new 44px-minimum assertions check for the literal `h-11` substring in `className`, not computed layout. Pre-existing testing pattern already used throughout this test file (prior `toHaveStyle`/`toMatch` checks); not introduced by this diff.
