@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { GapZoneProps } from "./gap-zone";
 import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
 import { DayCardBottomAdd } from "./day-card-bottom-add";
@@ -10,7 +11,6 @@ import type { DayItinerary, TripEvent, DayItemType, Document, DayRouteSummary, T
 import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
 import { DayRouteStrip } from "./day-route-strip";
 import { useScheduleConflicts } from "./use-schedule-conflicts";
-import { ScheduleConflictBadge } from "./schedule-conflict-badge";
 
 export interface DayCardBodyProps {
   day: DayItinerary;
@@ -76,10 +76,14 @@ export function DayCardBody({
   tripTransitMode,
   walkThresholdMeters,
 }: DayCardBodyProps): ReactElement {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
   const pendingCommitBaselineRef = useRef<number | null>(null);
+  const pendingRefocusEventIdRef = useRef<string | null>(null);
   const locatedEvents = useMemo(
     () => day.events.filter((event) => event.locationLat != null && event.locationLng != null),
     [day.events]
@@ -185,6 +189,35 @@ export function DayCardBody({
     return conflicts.map((conflict) => eventsById.get(conflict.currentEventId)?.name ?? "stop");
   }, [conflicts, day.events]);
 
+  useEffect(() => {
+    if (pendingRefocusEventIdRef.current && searchParams.get("focus") === null) {
+      const targetEventId = pendingRefocusEventIdRef.current;
+      pendingRefocusEventIdRef.current = null;
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("focus", targetEventId);
+      router.push(`${pathname}?${nextParams.toString()}`, { scroll: false });
+    }
+  }, [searchParams, pathname, router]);
+
+  function handleConflictClick(): void {
+    const targetEventId = conflicts[0]?.currentEventId;
+    if (!targetEventId) return;
+    if (searchParams.get("focus") === targetEventId) {
+      // The URL already points at this event (e.g. a repeat click after the first
+      // highlight faded) — pushing an identical URL is a no-op, so clear the param
+      // first; the effect above re-applies it once the clear is actually observed,
+      // forcing useFocusScroll's effect to re-fire.
+      pendingRefocusEventIdRef.current = targetEventId;
+      const clearedParams = new URLSearchParams(searchParams.toString());
+      clearedParams.delete("focus");
+      router.replace(`${pathname}?${clearedParams.toString()}`, { scroll: false });
+      return;
+    }
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("focus", targetEventId);
+    router.push(`${pathname}?${nextParams.toString()}`, { scroll: false });
+  }
+
   const persistedTimelineItems = timelineItems.filter(
     (item) => item.kind !== "event" || !item.data.linkedReservationId
   );
@@ -257,9 +290,11 @@ export function DayCardBody({
           dayNumber={day.dayNumber}
           tripTransitMode={tripTransitMode}
           totalHopCount={locatedEvents.length - 1}
+          conflictCount={conflicts.length}
+          conflictingEventNames={conflictingEventNames}
+          onConflictClick={handleConflictClick}
         />
       )}
-      <ScheduleConflictBadge count={conflicts.length} conflictingEventNames={conflictingEventNames} />
       <DayCardDnd
         dayNumber={day.dayNumber}
         dayId={day.id}

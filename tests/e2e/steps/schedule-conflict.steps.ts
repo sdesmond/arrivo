@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { routeCache } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { e2eTripDateTime } from "../e2e-seed-data";
-import { Before, Then } from "../fixtures";
+import { Before, Then, When } from "../fixtures";
 
 interface Coords {
   lat: number;
@@ -161,6 +161,14 @@ Before({ tags: "@trip-with-freeform-between-located-items" }, async ({ scenario 
 
 Then("the schedule conflict badge is visible", async ({ page }) => {
   await expect(page.getByText(/tight connections? today/)).toBeVisible();
+});
+
+When("I click the day-level schedule conflict button", async ({ page }) => {
+  await page.getByRole("button", { name: /tight connections? today/ }).click();
+});
+
+Then("the URL gains a focus param", async ({ page }) => {
+  await expect(page).toHaveURL(/focus=/);
 });
 
 Then("the schedule conflict badge is not visible", async ({ page }) => {

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { DayRouteStrip } from "./day-route-strip";
 
 describe("DayRouteStrip", () => {
@@ -61,5 +62,69 @@ describe("DayRouteStrip", () => {
 
     expect(screen.getByText("Route unavailable")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Route unavailable for day 1" })).toBeInTheDocument();
+  });
+
+  it("renders the conflict badge when conflictCount is greater than zero", () => {
+    render(
+      <DayRouteStrip
+        summary={{ status: "ready", totalDistanceMeters: 1250, totalDurationSeconds: 3900, hopCount: 2 }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={2}
+        conflictCount={1}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "1 tight connection today" })).toBeInTheDocument();
+  });
+
+  it("hides the conflict badge when conflictCount is zero or undefined", () => {
+    const { container, rerender } = render(
+      <DayRouteStrip
+        summary={{ status: "ready", totalDistanceMeters: 1250, totalDurationSeconds: 3900, hopCount: 2 }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={2}
+      />
+    );
+
+    expect(screen.queryByText(/tight connection/)).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-live="polite"]')).not.toBeInTheDocument();
+
+    rerender(
+      <DayRouteStrip
+        summary={{ status: "ready", totalDistanceMeters: 1250, totalDurationSeconds: 3900, hopCount: 2 }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={2}
+        conflictCount={0}
+      />
+    );
+
+    expect(screen.queryByText(/tight connection/)).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-live="polite"]')).toBeInTheDocument();
+  });
+
+  it("calls onConflictClick when the conflict badge is clicked", async () => {
+    const user = userEvent.setup();
+    const onConflictClick = vi.fn();
+    render(
+      <DayRouteStrip
+        summary={{ status: "ready", totalDistanceMeters: 1250, totalDurationSeconds: 3900, hopCount: 2 }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={2}
+        conflictCount={2}
+        onConflictClick={onConflictClick}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "2 tight connections today" }));
+
+    expect(onConflictClick).toHaveBeenCalledTimes(1);
   });
 });

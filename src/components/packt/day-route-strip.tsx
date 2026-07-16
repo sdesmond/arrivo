@@ -3,6 +3,7 @@
 import type { ReactElement } from "react";
 import type { DayRouteSummary, TransitMode } from "@/data/types";
 import { cn, formatDistance } from "@/lib/utils";
+import { ScheduleConflictBadge } from "./schedule-conflict-badge";
 
 export interface DayRouteStripProps {
   summary: DayRouteSummary;
@@ -10,6 +11,9 @@ export interface DayRouteStripProps {
   dayNumber: number;
   tripTransitMode: TransitMode;
   totalHopCount: number;
+  conflictCount?: number;
+  conflictingEventNames?: string[];
+  onConflictClick?: () => void;
 }
 
 function formatDuration(durationSeconds: number): string {
@@ -25,6 +29,9 @@ export function DayRouteStrip({
   dayNumber,
   tripTransitMode,
   totalHopCount,
+  conflictCount,
+  conflictingEventNames,
+  onConflictClick,
 }: DayRouteStripProps): ReactElement {
   const isLoading = summary.status === "loading";
   const isUnavailable = summary.status === "unavailable";
@@ -60,7 +67,10 @@ export function DayRouteStrip({
         )}
       </div>
       {summary.status === "ready" && (
-        <p style={{ color: "var(--fg-3)", fontSize: "calc(14px * var(--font-scale))" }}>
+        <p
+          className="min-w-0 flex-1 truncate"
+          style={{ color: "var(--fg-3)", fontSize: "calc(14px * var(--font-scale))" }}
+        >
           <span style={{ color: "var(--fg)", fontWeight: 600 }}>
             {isPartial ? "~" : ""}
             {formatDistance(summary.totalDistanceMeters)}
@@ -69,7 +79,21 @@ export function DayRouteStrip({
         </p>
       )}
       {isUnavailable && (
-        <p style={{ color: "var(--fg-3)", fontSize: "calc(14px * var(--font-scale))" }}>Route unavailable</p>
+        <p
+          className="min-w-0 flex-1 truncate"
+          style={{ color: "var(--fg-3)", fontSize: "calc(14px * var(--font-scale))" }}
+        >
+          Route unavailable
+        </p>
+      )}
+      {conflictCount != null && (
+        <div className="ml-auto shrink-0">
+          <ScheduleConflictBadge
+            count={conflictCount}
+            conflictingEventNames={conflictingEventNames}
+            onClick={onConflictClick ?? (() => {})}
+          />
+        </div>
       )}
     </div>
   );

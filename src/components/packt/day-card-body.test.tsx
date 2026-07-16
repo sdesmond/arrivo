@@ -5,6 +5,18 @@ import { ItineraryItemType, type DayItinerary } from "@/data/types";
 import { DayCardBody } from "./day-card-body";
 import { getDayRouteSummary, getDayScheduleConflicts } from "@/app/(app)/trips/[tripId]/route-actions";
 
+const { mockRouterPush, mockPathname, mockSearchParams } = vi.hoisted(() => ({
+  mockRouterPush: vi.fn(),
+  mockPathname: vi.fn(() => "/trips/trip-1"),
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname(),
+  useSearchParams: () => mockSearchParams(),
+  useRouter: () => ({ push: mockRouterPush }),
+}));
+
 interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
   renderEntries: { type: string }[];
@@ -24,6 +36,9 @@ interface MockDayCardBottomAddProps {
 
 interface MockDayRouteStripProps {
   summary: { status: string };
+  conflictCount?: number;
+  conflictingEventNames?: string[];
+  onConflictClick?: () => void;
 }
 
 vi.mock("./day-card-dnd", () => ({
@@ -82,7 +97,19 @@ vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
 }));
 
 vi.mock("./day-route-strip", () => ({
-  DayRouteStrip: ({ summary }: MockDayRouteStripProps) => <div data-testid="day-route-strip">{summary.status}</div>,
+  DayRouteStrip: ({ summary, conflictCount, conflictingEventNames, onConflictClick }: MockDayRouteStripProps) => (
+    <div data-testid="day-route-strip">
+      {summary.status}
+      <div aria-live="polite">
+        {conflictCount != null && conflictCount > 0 && (
+          <button onClick={onConflictClick}>
+            {conflictCount === 1 ? "1 tight connection today" : `${conflictCount} tight connections today`}
+          </button>
+        )}
+      </div>
+      <span data-testid="conflicting-event-names">{(conflictingEventNames ?? []).join(",")}</span>
+    </div>
+  ),
 }));
 
 const day: DayItinerary = {
@@ -201,6 +228,41 @@ describe("DayCardBody", () => {
     expect(screen.getByTestId("conflicting-event-ids")).toHaveTextContent("event-2");
   });
 
+  it("navigates with a focus param for the first conflicting event when the day-level conflict button is clicked", async () => {
+    vi.mocked(getDayScheduleConflicts).mockResolvedValueOnce([
+      {
+        eventIndex: 1,
+        previousEventId: "event-1",
+        currentEventId: "event-2",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    const conflictButton = await screen.findByRole("button", { name: "1 tight connection today" });
+    conflictButton.click();
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?focus=event-2", { scroll: false });
+  });
+
   it("recalculates conflicts with the optimistic event order", async () => {
     const locatedDay: DayItinerary = {
       ...day,
@@ -264,11 +326,27 @@ describe("DayCardBody", () => {
     expect(screen.getByTestId("conflicting-event-ids")).toHaveTextContent("");
   });
 
-  it('wraps the schedule conflict badge in an aria-live="polite" region', () => {
+  it('wraps the schedule conflict badge in an aria-live="polite" region', async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
     const { container } = render(
-      <DayCardBody day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
     );
 
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
     expect(container.querySelector('[aria-live="polite"]')).toBeInTheDocument();
   });
 
