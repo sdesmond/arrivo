@@ -9,6 +9,8 @@ import { ItineraryItemType } from "@/data/types";
 import type { DayItinerary, TripEvent, DayItemType, Document, DayRouteSummary, TransitMode } from "@/data/types";
 import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
 import { DayRouteStrip } from "./day-route-strip";
+import { useScheduleConflicts } from "./use-schedule-conflicts";
+import { ScheduleConflictBadge } from "./schedule-conflict-badge";
 
 export interface DayCardBodyProps {
   day: DayItinerary;
@@ -149,6 +151,15 @@ export function DayCardBody({
     };
   }, [locatedEvents, routeSummaryKey, tripId, tripTransitMode, walkThresholdMeters]);
 
+  const conflicts = useScheduleConflicts(
+    day.events,
+    locatedEvents.length,
+    tripId,
+    tripTransitMode,
+    walkThresholdMeters
+  );
+  const conflictingEventIds = useMemo(() => new Set(conflicts.map((conflict) => conflict.currentEventId)), [conflicts]);
+
   const persistedTimelineItems = timelineItems.filter(
     (item) => item.kind !== "event" || !item.data.linkedReservationId
   );
@@ -223,6 +234,7 @@ export function DayCardBody({
           totalHopCount={locatedEvents.length - 1}
         />
       )}
+      <ScheduleConflictBadge count={conflicts.length} />
       <DayCardDnd
         dayNumber={day.dayNumber}
         dayId={day.id}
@@ -250,6 +262,7 @@ export function DayCardBody({
         onUpdateChecklistItem={onUpdateChecklistItem}
         onDeleteChecklistItem={onDeleteChecklistItem}
         onToggleChecklistItem={onToggleChecklistItem}
+        conflictingEventIds={conflictingEventIds}
       />
       <DayCardBottomAdd
         dayNumber={day.dayNumber}

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { ItineraryItemType, type DayItinerary } from "@/data/types";
 import { DayCardBody } from "./day-card-body";
-import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
+import { getDayRouteSummary, getDayScheduleConflicts } from "@/app/(app)/trips/[tripId]/route-actions";
 
 interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
@@ -11,6 +11,7 @@ interface MockDayCardDndProps {
   commitDraft: (content: string) => Promise<void>;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   highlightedEventId?: string | null;
+  conflictingEventIds?: Set<string>;
 }
 
 interface MockDayCardBottomAddProps {
@@ -31,8 +32,10 @@ vi.mock("./day-card-dnd", () => ({
     commitDraft,
     onLinkedEventTap,
     highlightedEventId,
+    conflictingEventIds,
   }: MockDayCardDndProps) => (
     <div data-highlighted-event-id={highlightedEventId ?? ""}>
+      <span data-testid="conflicting-event-ids">{[...(conflictingEventIds ?? [])].join(",")}</span>
       {timelineItems.map((item) => (
         <span key={item.data.id}>{item.data.id}</span>
       ))}
@@ -70,6 +73,7 @@ vi.mock("./day-card-bottom-add", () => ({
 
 vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
   getDayRouteSummary: vi.fn().mockResolvedValue({ status: "unavailable" }),
+  getDayScheduleConflicts: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./day-route-strip", () => ({
@@ -157,6 +161,72 @@ describe("DayCardBody", () => {
     );
 
     await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+  });
+
+  it("renders the schedule conflict badge and passes conflicting ids to DayCardDnd when conflicts exist", async () => {
+    vi.mocked(getDayScheduleConflicts).mockResolvedValueOnce([
+      {
+        eventIndex: 1,
+        previousEventId: "event-1",
+        currentEventId: "event-2",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText("1 tight connection today")).toBeInTheDocument());
+    expect(screen.getByTestId("conflicting-event-ids")).toHaveTextContent("event-2");
+  });
+
+  it("does not render the schedule conflict badge when there are zero conflicts", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+    expect(screen.queryByText(/tight connection/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("conflicting-event-ids")).toHaveTextContent("");
+  });
+
+  it('wraps the schedule conflict badge in an aria-live="polite" region', () => {
+    const { container } = render(
+      <DayCardBody day={day} onUpdateEvent={vi.fn()} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />
+    );
+
+    expect(container.querySelector('[aria-live="polite"]')).toBeInTheDocument();
   });
 
   it("passes the mixed itinerary timeline to the extracted renderer", () => {
