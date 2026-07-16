@@ -41,7 +41,7 @@ vi.mock("@/db", () => ({
 
 vi.mock("@/db/schema", () => schemaTokens);
 
-import { getDayRouteSummary, resolveEffectiveMode, getRouteDistanceTime } from "./route";
+import { getDayRouteSummary, getDayScheduleConflicts, resolveEffectiveMode, getRouteDistanceTime } from "./route";
 
 describe("resolveEffectiveMode", () => {
   it("walks when a hop is below the configured threshold", () => {
@@ -255,5 +255,163 @@ describe("getDayRouteSummary", () => {
     );
 
     expect(result).toEqual({ status: "ready", totalDistanceMeters: 1200, totalDurationSeconds: 420, hopCount: 2 });
+  });
+});
+
+describe("getDayScheduleConflicts", () => {
+  const located = (id: string, position: number, startAt: string, endAt: string, lat = 48.85, lng = 2.35) => ({
+    id,
+    name: id,
+    position,
+    locationLat: lat,
+    locationLng: lng,
+    startAt,
+    endAt,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns no conflicts with no events", async () => {
+    await expect(getDayScheduleConflicts([], "trip-1", "drive", null)).resolves.toEqual([]);
+  });
+
+  it("returns no conflicts with a single timed located item", async () => {
+    const events = [located("one", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z")];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([]);
+  });
+
+  it("flags a conflict when travel time plus the buffer exceeds the scheduled gap", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 700, fetchedAt: new Date() }]);
+
+    const events = [
+      located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z"),
+      located("museum", 1, "2026-07-15T09:35:00Z", "2026-07-15T10:30:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("does not flag a conflict when the scheduled gap comfortably fits travel time", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 300, fetchedAt: new Date() }]);
+
+    const events = [
+      located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z"),
+      located("museum", 1, "2026-07-15T10:30:00Z", "2026-07-15T11:00:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([]);
+  });
+
+  it("skips a Freeform Item between two Located Items and evaluates the bounding hop directly", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 1000, fetchedAt: new Date() }]);
+
+    const events = [
+      located("cafe", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z"),
+      { id: "note", name: "note", position: 1 },
+      located("landmark", 2, "2026-07-15T09:20:00Z", "2026-07-15T09:40:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "cafe",
+        currentEventId: "landmark",
+        travelTimeSeconds: 1000,
+        scheduledGapSeconds: 1200,
+      },
+    ]);
+    expect(mockLimit).toHaveBeenCalledTimes(1);
+  });
+
+  it("excludes events missing startAt or endAt from evaluation", async () => {
+    const events = [
+      { id: "one", name: "one", position: 0, locationLat: 48.85, locationLng: 2.35, startAt: "2026-07-15T09:00:00Z" },
+      located("two", 1, "2026-07-15T09:05:00Z", "2026-07-15T09:30:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([]);
+    expect(mockLimit).not.toHaveBeenCalled();
+  });
+
+  it("produces no conflict when route data is unavailable for a hop", async () => {
+    mockLimit.mockResolvedValueOnce([]);
+
+    const events = [
+      located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z"),
+      located("museum", 1, "2026-07-15T09:01:00Z", "2026-07-15T09:30:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([]);
+  });
+
+  it("evaluates every adjacent pair even when one hop's route is unavailable", async () => {
+    mockLimit
+      .mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 700, fetchedAt: new Date() }])
+      .mockResolvedValueOnce([]);
+
+    const events = [
+      located("a", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z"),
+      located("b", 1, "2026-07-15T09:35:00Z", "2026-07-15T10:00:00Z"),
+      located("c", 2, "2026-07-15T10:05:00Z", "2026-07-15T10:30:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "a",
+        currentEventId: "b",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("does not flag a conflict exactly at the 10-minute buffer boundary", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 300, fetchedAt: new Date() }]);
+
+    const events = [
+      located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z"),
+      located("museum", 1, "2026-07-15T09:15:00Z", "2026-07-15T09:30:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([]);
+  });
+
+  it("flags a conflict one second past the 10-minute buffer boundary", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 301, fetchedAt: new Date() }]);
+
+    const events = [
+      located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z"),
+      located("museum", 1, "2026-07-15T09:15:00Z", "2026-07-15T09:30:00Z"),
+    ];
+
+    await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 301,
+        scheduledGapSeconds: 900,
+      },
+    ]);
   });
 });

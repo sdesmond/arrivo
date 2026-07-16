@@ -65,6 +65,14 @@ export type DayRouteSummary =
   | { status: "ready"; totalDistanceMeters: number; totalDurationSeconds: number; hopCount: number }
   | { status: "unavailable" };
 
+export interface ScheduleConflict {
+  eventIndex: number;
+  previousEventId: string;
+  currentEventId: string;
+  travelTimeSeconds: number;
+  scheduledGapSeconds: number;
+}
+
 export const ExpenseCategory = {
   Food: "food",
   Lodging: "lodging",
