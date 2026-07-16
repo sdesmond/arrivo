@@ -29,4 +29,12 @@ describe("ScheduleConflictBadge", () => {
     expect(liveRegion).toBeInTheDocument();
     expect(liveRegion).toHaveTextContent("2 tight connections today");
   });
+
+  it("announces affected stops when the conflict count does not change", () => {
+    const { rerender } = render(<ScheduleConflictBadge count={1} conflictingEventNames={["Museum"]} />);
+
+    rerender(<ScheduleConflictBadge count={1} conflictingEventNames={["Cafe"]} />);
+
+    expect(screen.getByText("Schedule conflict at Cafe")).toBeInTheDocument();
+  });
 });

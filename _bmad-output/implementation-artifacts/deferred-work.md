@@ -25,3 +25,6 @@
 - New `getStraightLineDistanceMeters` haversine helper estimates hop distance before the real route is known, to pick a per-hop transit mode [src/lib/route.ts] — reasonable proxy, but can misassign mode when road distance diverges from straight-line distance. Currently moot since `walkThresholdMeters` is always undefined (see above); revisit once that's wired.
 - Inconsistent null-check style in the same file — located-item filtering uses `!= null`, the strip's render gate uses plain truthy `&&` [src/components/packt/day-card-body.tsx]. Cosmetic; no functional difference given current prop types.
 - The route-summary `useEffect`'s dependency array includes both the derived `routeSummaryKey` string and the `locatedEvents` array reference [src/components/packt/day-card-body.tsx:643] — a parent re-render producing a new but content-identical `day.events` reference re-fires the fetch even though nothing meaningful changed. No visible symptom, just a wasted background request.
+## Deferred from: code review of 4-2-detect-and-surface-schedule-conflicts (2026-07-16)
+
+- Validate client-supplied event coordinates against the stored trip before resolving route data. `getDayScheduleConflicts` continues the existing route-summary server-action pattern: it validates trip access but not that supplied events belong to that trip.

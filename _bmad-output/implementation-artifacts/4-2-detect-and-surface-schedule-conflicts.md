@@ -4,7 +4,7 @@ baseline_commit: b4d793ba5a16c482b15126e0554056c912407acc
 
 # Story 4.2: Detect and surface Schedule Conflicts
 
-Status: review
+Status: done
 
 ## Story
 
@@ -24,7 +24,7 @@ so that I can catch unrealistic plans before I'm on the ground.
 
 3. **Given** a flagged conflict
    **When** the affected `PlaceRow` renders
-   **Then** a row-level triangle-alert icon appears after the Time chip, `aria-hidden`, with a visually-hidden span carrying the text so the row's accessible name becomes e.g. "Time, Schedule conflict"
+   **Then** a row-level triangle-alert control appears after the Time chip as a second segment in its ButtonGroup; it is keyboard-focusable, exposes the accessible name "Schedule conflict", and shows an explanatory warning toast when activated
 
 4. **Given** a Freeform Item (no Coordinates) adjacent to a Located Item
    **When** conflicts are evaluated
@@ -59,9 +59,9 @@ so that I can catch unrealistic plans before I'm on the ground.
 - [x] Task 4: Add row-level triangle-alert icon to `PlaceRow` (AC: 3)
   - [x] Subtask 4.1: Add `hasScheduleConflict?: boolean` prop to `PlaceRowProps` in `place-row.tsx`
   - [x] Subtask 4.2: Pass `hasScheduleConflict` to `PlaceRowActionBar` as a new prop
-  - [x] Subtask 4.3: In `PlaceRowActionBar`, render the triangle-alert icon after the Time chip when `hasScheduleConflict` is true — `TriangleAlert` from lucide, `size={IconSize.actionChip}` (12px), `strokeWidth={1.5}`, `color="var(--warning)"`, `aria-hidden="true"`, followed by a visually-hidden `<span className="sr-only">Schedule conflict</span>` — mirroring the `TabStatusIcon` pattern from `tab-status-icon.tsx`
-  - [x] Subtask 4.4: The icon renders inline within the action bar flex row, immediately after the Time `<button>` element, before any gap to the Location chip
-  - [x] Subtask 4.5: Add unit tests in `place-row-action-bar.test.tsx` — conflict icon renders when `hasScheduleConflict` is true, icon hidden when false, `aria-hidden` attribute present, sr-only span text present
+  - [x] Subtask 4.3: In `PlaceRowActionBar`, render the triangle-alert control after the Time chip when `hasScheduleConflict` is true — `TriangleAlert` from lucide, `size={IconSize.actionChip}` (12px), `strokeWidth={1.5}`, within a second ButtonGroup segment labelled "Schedule conflict" that shows an explanatory warning toast when activated
+  - [x] Subtask 4.4: The control renders inline within the action bar ButtonGroup immediately after the Time button, before any gap to the Location chip
+  - [x] Subtask 4.5: Add unit tests in `place-row-action-bar.test.tsx` — conflict control renders when `hasScheduleConflict` is true, is absent when false, and exposes its accessible name
   - [x] Subtask 4.6: Add unit tests in `place-row.test.tsx` — `hasScheduleConflict` prop passes through to action bar
 
 - [x] Task 5: Wire conflict data from `TripItineraryView` to `DayCardBody` (AC: 1, 2, 3)
@@ -337,3 +337,11 @@ Claude Sonnet 5
 
 - 2026-07-15: Implemented schedule conflict detection with per-hop route lookups, day-level badge, row-level icon, and full test coverage (unit + E2E).
 - 2026-07-15: Revised the row-level conflict indicator to a two-segment Time/Schedule-conflict `ButtonGroup` (matching the Address/Edit split-button pattern) per live user design feedback, with the conflict segment showing an explanatory `toast.warning()` on click.
+
+### Review Findings
+
+- [x] [Review][Decision] Amend AC 3 for the interactive conflict control — resolved: AC 3 and its implementation tasks now specify the ButtonGroup warning control. [src/components/packt/place-row-action-bar.tsx:60]
+- [x] [Review][Patch] Keep conflict calculations aligned with optimistic drag order [src/components/packt/day-card-body.tsx:110]
+- [x] [Review][Patch] Announce row-conflict changes when total count is unchanged [src/components/packt/schedule-conflict-badge.tsx:12]
+- [x] [Review][Patch] Deduplicate concurrent per-hop route lookups on a cold cache [src/components/packt/day-card-body.tsx:139]
+- [x] [Review][Defer] Validate server-action events against the stored trip [src/app/(app)/trips/[tripId]/route-actions.ts:40] — deferred, pre-existing

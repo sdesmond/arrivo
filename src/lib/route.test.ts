@@ -124,6 +124,16 @@ describe("getRouteDistanceTime", () => {
     expect(result).toEqual({ status: "ready", distanceMeters: 1235, durationSeconds: 567 });
   });
 
+  it("deduplicates concurrent cache-miss lookups for the same hop", async () => {
+    const [firstResult, secondResult] = await Promise.all([
+      getRouteDistanceTime(origin, destination, "walk"),
+      getRouteDistanceTime(origin, destination, "walk"),
+    ]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(firstResult).toEqual(secondResult);
+  });
+
   it("triggers a fresh API call when the cached entry is older than 24 hours", async () => {
     const staleDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
     mockLimit.mockResolvedValue([{ distanceMeters: 999, durationSeconds: 999, fetchedAt: staleDate }]);

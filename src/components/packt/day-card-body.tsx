@@ -117,6 +117,27 @@ export function DayCardBody({
     return ordered.length === propTimelineItems.length ? ordered : propTimelineItems;
   }, [propTimelineItems, optimisticOrder]);
 
+  const conflictEvents = useMemo(() => {
+    const allItems = [
+      ...day.events.map((event) => ({ kind: "event" as const, data: event, position: event.position })),
+      ...(day.notes ?? []).map((note) => ({ kind: "note" as const, data: note, position: note.position })),
+      ...(day.checklists ?? []).map((checklist) => ({
+        kind: "checklist" as const,
+        data: checklist,
+        position: checklist.position,
+      })),
+    ].sort((first, second) => first.position - second.position);
+    const itemById = new Map(allItems.map((item) => [item.data.id, item]));
+    const orderedItems = optimisticOrder
+      ? optimisticOrder.flatMap((id) => {
+          const item = itemById.get(id);
+          return item ? [item] : [];
+        })
+      : allItems;
+
+    return orderedItems.filter((item) => item.kind === "event").map((item, position) => ({ ...item.data, position }));
+  }, [day.events, day.notes, day.checklists, optimisticOrder]);
+
   useEffect(() => {
     if (optimisticOrder === null) return;
     const propIds = propTimelineItems.map((item) => item.data.id).join("\u0001");
@@ -152,13 +173,17 @@ export function DayCardBody({
   }, [locatedEvents, routeSummaryKey, tripId, tripTransitMode, walkThresholdMeters]);
 
   const conflicts = useScheduleConflicts(
-    day.events,
-    locatedEvents.length,
+    conflictEvents,
+    conflictEvents.filter((event) => event.locationLat != null && event.locationLng != null).length,
     tripId,
     tripTransitMode,
     walkThresholdMeters
   );
   const conflictingEventIds = useMemo(() => new Set(conflicts.map((conflict) => conflict.currentEventId)), [conflicts]);
+  const conflictingEventNames = useMemo(() => {
+    const eventsById = new Map(day.events.map((event) => [event.id, event]));
+    return conflicts.map((conflict) => eventsById.get(conflict.currentEventId)?.name ?? "stop");
+  }, [conflicts, day.events]);
 
   const persistedTimelineItems = timelineItems.filter(
     (item) => item.kind !== "event" || !item.data.linkedReservationId
@@ -234,7 +259,7 @@ export function DayCardBody({
           totalHopCount={locatedEvents.length - 1}
         />
       )}
-      <ScheduleConflictBadge count={conflicts.length} />
+      <ScheduleConflictBadge count={conflicts.length} conflictingEventNames={conflictingEventNames} />
       <DayCardDnd
         dayNumber={day.dayNumber}
         dayId={day.id}

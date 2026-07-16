@@ -9,6 +9,7 @@ interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
   renderEntries: { type: string }[];
   commitDraft: (content: string) => Promise<void>;
+  setOptimisticOrder: (order: string[]) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   highlightedEventId?: string | null;
   conflictingEventIds?: Set<string>;
@@ -30,6 +31,7 @@ vi.mock("./day-card-dnd", () => ({
     timelineItems,
     renderEntries,
     commitDraft,
+    setOptimisticOrder,
     onLinkedEventTap,
     highlightedEventId,
     conflictingEventIds,
@@ -43,6 +45,9 @@ vi.mock("./day-card-dnd", () => ({
         {renderEntries.some((entry) => entry.type === "draft") ? "draft-present" : "draft-absent"}
       </span>
       <button onClick={() => commitDraft("typed content")}>Commit draft</button>
+      <button onClick={() => setOptimisticOrder([...timelineItems].reverse().map((item) => item.data.id))}>
+        Reverse timeline
+      </button>
       {onLinkedEventTap && <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap</button>}
     </div>
   ),
@@ -194,6 +199,44 @@ describe("DayCardBody", () => {
 
     await waitFor(() => expect(screen.getByText("1 tight connection today")).toBeInTheDocument());
     expect(screen.getByTestId("conflicting-event-ids")).toHaveTextContent("event-2");
+  });
+
+  it("recalculates conflicts with the optimistic event order", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() =>
+      expect(getDayScheduleConflicts).toHaveBeenCalledWith("trip-1", locatedDay.events, "drive", undefined)
+    );
+    screen.getByRole("button", { name: "Reverse timeline" }).click();
+
+    await waitFor(() =>
+      expect(getDayScheduleConflicts).toHaveBeenLastCalledWith(
+        "trip-1",
+        [
+          expect.objectContaining({ id: "event-2", position: 0 }),
+          expect.objectContaining({ id: "event-1", position: 1 }),
+        ],
+        "drive",
+        undefined
+      )
+    );
   });
 
   it("does not render the schedule conflict badge when there are zero conflicts", async () => {

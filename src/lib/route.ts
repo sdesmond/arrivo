@@ -17,6 +17,7 @@ export function resolveEffectiveMode(
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DIRECTIONS_TIMEOUT_MS = 3000;
+const inFlightRouteRequests = new Map<string, Promise<RouteResult>>();
 
 const MAPBOX_PROFILE: Record<TransitMode, string> = {
   walk: "walking",
@@ -25,6 +26,25 @@ const MAPBOX_PROFILE: Record<TransitMode, string> = {
 };
 
 export async function getRouteDistanceTime(
+  origin: GeoCoords,
+  destination: GeoCoords,
+  transitMode: TransitMode
+): Promise<RouteResult> {
+  const requestKey = `${origin.lat}:${origin.lng}:${destination.lat}:${destination.lng}:${transitMode}`;
+  const existingRequest = inFlightRouteRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const request = lookupRouteDistanceTime(origin, destination, transitMode);
+  inFlightRouteRequests.set(requestKey, request);
+
+  try {
+    return await request;
+  } finally {
+    if (inFlightRouteRequests.get(requestKey) === request) inFlightRouteRequests.delete(requestKey);
+  }
+}
+
+async function lookupRouteDistanceTime(
   origin: GeoCoords,
   destination: GeoCoords,
   transitMode: TransitMode
