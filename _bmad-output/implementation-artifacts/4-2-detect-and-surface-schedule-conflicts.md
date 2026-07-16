@@ -4,7 +4,7 @@ baseline_commit: b4d793ba5a16c482b15126e0554056c912407acc
 
 # Story 4.2: Detect and surface Schedule Conflicts
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -34,59 +34,59 @@ so that I can catch unrealistic plans before I'm on the ground.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add `ScheduleConflict` type and detection utility (AC: 1, 4)
-  - [ ] Subtask 1.1: Add `ScheduleConflict` interface to `src/data/types.ts`: `{ eventIndex: number; previousEventId: string; currentEventId: string; travelTimeSeconds: number; scheduledGapSeconds: number }`
-  - [ ] Subtask 1.2: Add `getDayScheduleConflicts(events: TripEvent[], tripId: string, tripTransitMode: TransitMode, walkThresholdMeters?: number | null): Promise<ScheduleConflict[]>` to `src/lib/route.ts` — iterates adjacent timed Located Items (those with both `startAt`/`endAt` set), fetches per-hop travel time via `getRouteDistanceTime`, computes `scheduledGap = (currentEvent.startAt - previousEvent.endAt)` in seconds, flags conflict when `travelTimeSeconds + 600 > scheduledGapSeconds`
-  - [ ] Subtask 1.3: Filter out Freeform Items (no `locationLat`/`locationLng`) from conflict evaluation — they never trigger a conflict (AC: 4). When a Freeform Item sits between two Located Items, skip it and evaluate travel time between the two Located Items that bound it, using their positions
-  - [ ] Subtask 1.4: Handle missing `startAt`/`endAt` — events without both times are excluded from conflict evaluation entirely
-  - [ ] Subtask 1.5: Handle route failures gracefully — when `getRouteDistanceTime` returns `"unavailable"` for a hop, that hop produces no conflict (unknown travel time cannot trigger a flag); the function still evaluates all other adjacent pairs
-  - [ ] Subtask 1.6: Add unit tests in `src/lib/route.test.ts` for `getDayScheduleConflicts` — cover: no events, 1 event, 2 adjacent timed Located Items with conflict, 2 adjacent timed Located Items without conflict, Freeform Item between Located Items (no conflict triggered), missing route data (no conflict), mixed available/unavailable hops, the 10-minute buffer boundary (travel_time + 600 == scheduled_gap → no conflict; travel_time + 601 == scheduled_gap → conflict)
+- [x] Task 1: Add `ScheduleConflict` type and detection utility (AC: 1, 4)
+  - [x] Subtask 1.1: Add `ScheduleConflict` interface to `src/data/types.ts`: `{ eventIndex: number; previousEventId: string; currentEventId: string; travelTimeSeconds: number; scheduledGapSeconds: number }`
+  - [x] Subtask 1.2: Add `getDayScheduleConflicts(events: TripEvent[], tripId: string, tripTransitMode: TransitMode, walkThresholdMeters?: number | null): Promise<ScheduleConflict[]>` to `src/lib/route.ts` — iterates adjacent timed Located Items (those with both `startAt`/`endAt` set), fetches per-hop travel time via `getRouteDistanceTime`, computes `scheduledGap = (currentEvent.startAt - previousEvent.endAt)` in seconds, flags conflict when `travelTimeSeconds + 600 > scheduledGapSeconds`
+  - [x] Subtask 1.3: Filter out Freeform Items (no `locationLat`/`locationLng`) from conflict evaluation — they never trigger a conflict (AC: 4). When a Freeform Item sits between two Located Items, skip it and evaluate travel time between the two Located Items that bound it, using their positions
+  - [x] Subtask 1.4: Handle missing `startAt`/`endAt` — events without both times are excluded from conflict evaluation entirely
+  - [x] Subtask 1.5: Handle route failures gracefully — when `getRouteDistanceTime` returns `"unavailable"` for a hop, that hop produces no conflict (unknown travel time cannot trigger a flag); the function still evaluates all other adjacent pairs
+  - [x] Subtask 1.6: Add unit tests in `src/lib/route.test.ts` for `getDayScheduleConflicts` — cover: no events, 1 event, 2 adjacent timed Located Items with conflict, 2 adjacent timed Located Items without conflict, Freeform Item between Located Items (no conflict triggered), missing route data (no conflict), mixed available/unavailable hops, the 10-minute buffer boundary (travel_time + 600 == scheduled_gap → no conflict; travel_time + 601 == scheduled_gap → conflict)
 
-- [ ] Task 2: Add day-level Schedule Conflict badge to `DayCardBody` (AC: 2, 5)
-  - [ ] Subtask 2.1: Add `ScheduleConflict[]` state to `DayCardBody` (similar to `routeSummaryState` pattern)
-  - [ ] Subtask 2.2: Call `getDayScheduleConflicts` in a `useEffect` after route summary resolves, or independently when `locatedEvents.length >= 2 && tripId && tripTransitMode` are available — reuse the same early-return guard pattern as the route summary effect
-  - [ ] Subtask 2.3: Compute `conflictingEventIds: Set<string>` from the conflicts array (union of all `currentEventId` values) — this set is passed to `DayCardDnd` to flag individual rows
-  - [ ] Subtask 2.4: Render a day-level badge when `conflicts.length > 0`: a `<span>` with `warning-soft` background, `warning-ink` text, `rounded-full` styling, containing a `TriangleAlert` icon (aria-hidden, strokeWidth 1.5) + count text (e.g. "1 tight connection" or "2 tight connections"). Place it between the `DayRouteStrip` and `DayCardDnd`, inside an `aria-live="polite"` wrapper so badge appearance/disappearance is announced on in-page edits (AC: 5)
-  - [ ] Subtask 2.5: Never render the badge when `conflicts.length === 0` — silence is the neutral signal
-  - [ ] Subtask 2.6: Match the `StatusBadge` visual pattern from `status-badge.tsx`: `px-2 py-0.5 rounded-full` with `var(--warning-soft)` bg and `var(--warning-ink)` fg, font-size `calc(12px * var(--font-scale))`, weight 600
-  - [ ] Subtask 2.7: Add unit tests in `day-card-body.test.tsx` — conflict badge renders when conflicts exist, badge hidden when zero conflicts, `aria-live="polite"` wrapper present on badge
+- [x] Task 2: Add day-level Schedule Conflict badge to `DayCardBody` (AC: 2, 5)
+  - [x] Subtask 2.1: Add `ScheduleConflict[]` state to `DayCardBody` (similar to `routeSummaryState` pattern) — extracted into `useScheduleConflicts` hook
+  - [x] Subtask 2.2: Call `getDayScheduleConflicts` in a `useEffect` after route summary resolves, or independently when `locatedEvents.length >= 2 && tripId && tripTransitMode` are available — reuse the same early-return guard pattern as the route summary effect
+  - [x] Subtask 2.3: Compute `conflictingEventIds: Set<string>` from the conflicts array (union of all `currentEventId` values) — this set is passed to `DayCardDnd` to flag individual rows
+  - [x] Subtask 2.4: Render a day-level badge when `conflicts.length > 0`: a `<span>` with `warning-soft` background, `warning-ink` text, `rounded-full` styling, containing a `TriangleAlert` icon (aria-hidden, strokeWidth 1.5) + count text (e.g. "1 tight connection" or "2 tight connections"). Place it between the `DayRouteStrip` and `DayCardDnd`, inside an `aria-live="polite"` wrapper so badge appearance/disappearance is announced on in-page edits (AC: 5) — extracted into `ScheduleConflictBadge` component
+  - [x] Subtask 2.5: Never render the badge when `conflicts.length === 0` — silence is the neutral signal
+  - [x] Subtask 2.6: Match the `StatusBadge` visual pattern from `status-badge.tsx`: `px-2 py-0.5 rounded-full` with `var(--warning-soft)` bg and `var(--warning-ink)` fg, font-size `calc(12px * var(--font-scale))`, weight 600
+  - [x] Subtask 2.7: Add unit tests in `day-card-body.test.tsx` — conflict badge renders when conflicts exist, badge hidden when zero conflicts, `aria-live="polite"` wrapper present on badge
 
-- [ ] Task 3: Thread conflict data through `DayCardDnd` to `PlaceRow` (AC: 3)
-  - [ ] Subtask 3.1: Add `conflictingEventIds?: Set<string>` prop to `DayCardDndProps` in `day-card-dnd.tsx`
-  - [ ] Subtask 3.2: Pass `hasScheduleConflict={conflictingEventIds?.has(entry.item.data.id) ?? false}` to each `PlaceRow` / `SortablePlaceRow` in the render loop (both the non-sortable linked-event path and the sortable path — but only for non-draft entries)
-  - [ ] Subtask 3.3: Do NOT pass conflict flag to draft PlaceRows or DragOverlay PlaceRows (drafts have no schedule, drag overlay is visual only)
+- [x] Task 3: Thread conflict data through `DayCardDnd` to `PlaceRow` (AC: 3)
+  - [x] Subtask 3.1: Add `conflictingEventIds?: Set<string>` prop to `DayCardDndProps` in `day-card-dnd.tsx`
+  - [x] Subtask 3.2: Pass `hasScheduleConflict={conflictingEventIds?.has(entry.item.data.id) ?? false}` to each `PlaceRow` / `SortablePlaceRow` in the render loop (both the non-sortable linked-event path and the sortable path — but only for non-draft entries)
+  - [x] Subtask 3.3: Do NOT pass conflict flag to draft PlaceRows or DragOverlay PlaceRows (drafts have no schedule, drag overlay is visual only)
 
-- [ ] Task 4: Add row-level triangle-alert icon to `PlaceRow` (AC: 3)
-  - [ ] Subtask 4.1: Add `hasScheduleConflict?: boolean` prop to `PlaceRowProps` in `place-row.tsx`
-  - [ ] Subtask 4.2: Pass `hasScheduleConflict` to `PlaceRowActionBar` as a new prop
-  - [ ] Subtask 4.3: In `PlaceRowActionBar`, render the triangle-alert icon after the Time chip when `hasScheduleConflict` is true — `TriangleAlert` from lucide, `size={IconSize.actionChip}` (12px), `strokeWidth={1.5}`, `color="var(--warning)"`, `aria-hidden="true"`, followed by a visually-hidden `<span className="sr-only">Schedule conflict</span>` — mirroring the `TabStatusIcon` pattern from `tab-status-icon.tsx`
-  - [ ] Subtask 4.4: The icon renders inline within the action bar flex row, immediately after the Time `<button>` element, before any gap to the Location chip
-  - [ ] Subtask 4.5: Add unit tests in `place-row-action-bar.test.tsx` — conflict icon renders when `hasScheduleConflict` is true, icon hidden when false, `aria-hidden` attribute present, sr-only span text present
-  - [ ] Subtask 4.6: Add unit tests in `place-row.test.tsx` — `hasScheduleConflict` prop passes through to action bar
+- [x] Task 4: Add row-level triangle-alert icon to `PlaceRow` (AC: 3)
+  - [x] Subtask 4.1: Add `hasScheduleConflict?: boolean` prop to `PlaceRowProps` in `place-row.tsx`
+  - [x] Subtask 4.2: Pass `hasScheduleConflict` to `PlaceRowActionBar` as a new prop
+  - [x] Subtask 4.3: In `PlaceRowActionBar`, render the triangle-alert icon after the Time chip when `hasScheduleConflict` is true — `TriangleAlert` from lucide, `size={IconSize.actionChip}` (12px), `strokeWidth={1.5}`, `color="var(--warning)"`, `aria-hidden="true"`, followed by a visually-hidden `<span className="sr-only">Schedule conflict</span>` — mirroring the `TabStatusIcon` pattern from `tab-status-icon.tsx`
+  - [x] Subtask 4.4: The icon renders inline within the action bar flex row, immediately after the Time `<button>` element, before any gap to the Location chip
+  - [x] Subtask 4.5: Add unit tests in `place-row-action-bar.test.tsx` — conflict icon renders when `hasScheduleConflict` is true, icon hidden when false, `aria-hidden` attribute present, sr-only span text present
+  - [x] Subtask 4.6: Add unit tests in `place-row.test.tsx` — `hasScheduleConflict` prop passes through to action bar
 
-- [ ] Task 5: Wire conflict data from `TripItineraryView` to `DayCardBody` (AC: 1, 2, 3)
-  - [ ] Subtask 5.1: Conflict detection is self-contained within `DayCardBody` — no additional prop threading from `TripItineraryView` or `TripDetailTabBody` is needed. `DayCardBody` already has `day.events`, `tripId`, `tripTransitMode`, and `walkThresholdMeters` — everything required for conflict detection
-  - [ ] Subtask 5.2: Verify `walkThresholdMeters` is available in the prop chain (currently not passed from `TripDetailTabBody` — see 4.1 review defer item). If unavailable, conflict detection uses raw `tripTransitMode` without the walk override. This is a pre-existing gap, not a regression from this story
+- [x] Task 5: Wire conflict data from `TripItineraryView` to `DayCardBody` (AC: 1, 2, 3)
+  - [x] Subtask 5.1: Conflict detection is self-contained within `DayCardBody` — no additional prop threading from `TripItineraryView` or `TripDetailTabBody` is needed. `DayCardBody` already has `day.events`, `tripId`, `tripTransitMode`, and `walkThresholdMeters` — everything required for conflict detection
+  - [x] Subtask 5.2: Verify `walkThresholdMeters` is available in the prop chain (currently not passed from `TripDetailTabBody` — see 4.1 review defer item). If unavailable, conflict detection uses raw `tripTransitMode` without the walk override. This is a pre-existing gap, not a regression from this story — confirmed: `trip-detail-tab-body.tsx` passes `tripId`/`tripTransitMode` to `TripItineraryView` but not `walkThresholdMeters`; gap unchanged by this story
 
-- [ ] Task 6: Add E2E coverage for schedule conflicts (AC: 1, 2, 3)
-  - [ ] Subtask 6.1: Add `schedule-conflict` entry to `FEATURE_MAP` in `tests/e2e/feature-map.mjs` with glob `src/components/packt/day-card-body.tsx` (conflict detection/computation lives here)
-  - [ ] Subtask 6.2: Create `tests/e2e/features/schedule-conflict.feature` with `@feat:schedule-conflict` tag — scenarios:
+- [x] Task 6: Add E2E coverage for schedule conflicts (AC: 1, 2, 3)
+  - [x] Subtask 6.1: Add `schedule-conflict` entry to `FEATURE_MAP` in `tests/e2e/feature-map.mjs` with glob `src/components/packt/day-card-body.tsx` (conflict detection/computation lives here) — also covers `use-schedule-conflicts.ts` and `schedule-conflict-badge.tsx`, extracted during implementation (see Dev Agent Record)
+  - [x] Subtask 6.2: Create `tests/e2e/features/schedule-conflict.feature` with `@feat:schedule-conflict` tag — scenarios:
     - Day with 2 timed Located Items where travel time exceeds gap → conflict badge visible + row icon visible
     - Day with 2 timed Located Items where travel time fits gap → no conflict badge, no row icon
     - Day with a Freeform Item between Located Items → Freeform row has no conflict icon
-  - [ ] Subtask 6.3: Create `tests/e2e/steps/schedule-conflict.steps.ts` with step definitions using the existing Object Mother pattern — create trips with timed located events and tight schedules
+  - [x] Subtask 6.3: Create `tests/e2e/steps/schedule-conflict.steps.ts` with step definitions using the existing Object Mother pattern — create trips with timed located events and tight schedules; seeds deterministic `route_cache` rows via `withE2EDb` so conflict outcomes never depend on a live Mapbox lookup
 
-- [ ] Task 7: Run targeted tests (AC: 1-5)
-  - [ ] Subtask 7.1: `npx vitest run src/lib/route.test.ts` — schedule conflict detection tests pass
-  - [ ] Subtask 7.2: `npx vitest run src/components/packt/day-card-body.test.tsx` — badge integration tests pass, no regressions
-  - [ ] Subtask 7.3: `npx vitest run src/components/packt/place-row-action-bar.test.tsx` — conflict icon tests pass
-  - [ ] Subtask 7.4: `npx vitest run src/components/packt/place-row.test.tsx` — prop passthrough tests pass, no regressions
-  - [ ] Subtask 7.5: `npx vitest run src/components/packt/day-card-dnd.test.tsx` — no regressions
+- [x] Task 7: Run targeted tests (AC: 1-5)
+  - [x] Subtask 7.1: `npx vitest run src/lib/route.test.ts` — schedule conflict detection tests pass
+  - [x] Subtask 7.2: `npx vitest run src/components/packt/day-card-body.test.tsx` — badge integration tests pass, no regressions
+  - [x] Subtask 7.3: `npx vitest run src/components/packt/place-row-action-bar.test.tsx` — conflict icon tests pass
+  - [x] Subtask 7.4: `npx vitest run src/components/packt/place-row.test.tsx` — prop passthrough tests pass, no regressions
+  - [x] Subtask 7.5: `npx vitest run src/components/packt/day-card-dnd.test.tsx` — no regressions; also ran full Vitest suite (3059 tests, 204 files, all pass) and the affected Playwright E2E suite (all 3 new schedule-conflict scenarios pass; one pre-existing unrelated packing-tab flake confirmed by isolated re-run)
 
-- [ ] Task 8: Run `packt-build-validator` (AC: 1-5)
-  - [ ] Subtask 8.1: lint, TypeScript, coverage, build, affected E2E
-  - [ ] Subtask 8.2: Fix any issues flagged
-  - [ ] Subtask 8.3: Re-run until PASS
+- [x] Task 8: Run `packt-build-validator` (AC: 1-5)
+  - [x] Subtask 8.1: lint, TypeScript, coverage, build, affected E2E
+  - [x] Subtask 8.2: Fix any issues flagged — none needed, all five checks passed on first run
+  - [x] Subtask 8.3: Re-run until PASS — LINT PASS, TSC PASS, COVERAGE PASS (3059 tests; lines 96.29%, functions 96.45%, branches 90.32%), E2E PASS (175 scenarios — full suite ran because `src/data/types.ts` is a SHARED_GLOB), BUILD PASS
 
 ## Dev Notes
 
@@ -286,9 +286,54 @@ async function getDayScheduleConflicts(
 
 ### Agent Model Used
 
+Claude Sonnet 5
 
 ### Debug Log References
 
+- `npx vitest run src/lib/route.test.ts src/components/packt/day-card-body.test.tsx src/components/packt/place-row-action-bar.test.tsx src/components/packt/place-row.test.tsx src/components/packt/day-card-dnd.test.tsx`
+- `npx vitest run src/components/packt/use-schedule-conflicts.test.ts src/components/packt/schedule-conflict-badge.test.tsx`
+- `npx vitest run "src/app/(app)/trips/[tripId]/route-actions.test.ts"`
+- `npx vitest run scripts/feature-map.test.mjs`
+- `npm run test:e2e:affected` (full suite ran — `src/data/types.ts` is a SHARED_GLOB)
+- `npm run lint`; `npx tsc --noEmit`; `npm run test:coverage`; `npm run test:e2e:affected`; `NEXT_DISTDIR=.next-validate npm run build`
+
 ### Completion Notes List
 
+- Added `ScheduleConflict` type and `getDayScheduleConflicts()` detection utility in `route.ts` (10-minute buffer, Freeform Items excluded but not blocking their bounding hop, unavailable hops skipped, buffer-boundary tested).
+- Architecture gap found during implementation: the story's "Files NOT to touch" list excluded `route-actions.ts`, but `getDayScheduleConflicts` needs DB access and `DayCardBody` (a client component) can't call it directly — the same reason `getDayRouteSummary` already has a server-action wrapper there. Confirmed with the user before proceeding; added a matching `getDayScheduleConflicts` wrapper to `route-actions.ts`.
+- `DayCardBody` was already at the story's stated 265-line size limit, so the conflict state/effect and badge JSX were extracted into a new `useScheduleConflicts` hook and `ScheduleConflictBadge` component (sibling files) rather than inlined, keeping `day-card-body.tsx` at 278 lines. Both new files ship with their own colocated tests.
+- Threaded `conflictingEventIds` through `DayCardDnd` to `PlaceRow`/`SortablePlaceRow` (non-draft, non-drag-overlay entries only) and added the row-level conflict indicator in `PlaceRowActionBar` after the Time chip.
+- Row-level indicator design was revised live with the user after initial implementation, deviating from the story's original aria-hidden-icon-plus-sr-only-span spec (AC3): the Time chip and conflict indicator now render as a single two-segment `ButtonGroup` (matching the existing Address/Edit split-button pattern), both warning-colored — segment 1 is the existing Time button (opens the Time dialog), segment 2 is an icon-only, `aria-label`'d "Schedule conflict" button that shows a `toast.warning()` explaining the conflict instead of opening a dialog. This is now a real interactive/focusable control rather than a decorative aria-hidden icon.
+- Verified the pre-existing `walkThresholdMeters` prop-chain gap (not passed from `TripDetailTabBody`) is unchanged by this story, per the story's own note.
+- Added `schedule-conflict` E2E feature with 3 scenarios; seeded deterministic `route_cache` rows directly via `withE2EDb` in `Before` hooks so conflict outcomes never depend on a live Mapbox API call.
+- Full validation passed: lint, TypeScript, coverage (3059 tests; lines 96.29%, functions 96.45%, branches 90.32%), full E2E (175 scenarios), and production build.
+
 ### File List
+
+- _bmad-output/implementation-artifacts/4-2-detect-and-surface-schedule-conflicts.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/data/types.ts
+- src/lib/route.ts
+- src/lib/route.test.ts
+- src/app/(app)/trips/[tripId]/route-actions.ts
+- src/app/(app)/trips/[tripId]/route-actions.test.ts
+- src/components/packt/day-card-body.tsx
+- src/components/packt/day-card-body.test.tsx
+- src/components/packt/use-schedule-conflicts.ts
+- src/components/packt/use-schedule-conflicts.test.ts
+- src/components/packt/schedule-conflict-badge.tsx
+- src/components/packt/schedule-conflict-badge.test.tsx
+- src/components/packt/day-card-dnd.tsx
+- src/components/packt/day-card-dnd.test.tsx
+- src/components/packt/place-row.tsx
+- src/components/packt/place-row.test.tsx
+- src/components/packt/place-row-action-bar.tsx
+- src/components/packt/place-row-action-bar.test.tsx
+- tests/e2e/feature-map.mjs
+- tests/e2e/features/schedule-conflict.feature
+- tests/e2e/steps/schedule-conflict.steps.ts
+
+### Change Log
+
+- 2026-07-15: Implemented schedule conflict detection with per-hop route lookups, day-level badge, row-level icon, and full test coverage (unit + E2E).
+- 2026-07-15: Revised the row-level conflict indicator to a two-segment Time/Schedule-conflict `ButtonGroup` (matching the Address/Edit split-button pattern) per live user design feedback, with the conflict segment showing an explanatory `toast.warning()` on click.
