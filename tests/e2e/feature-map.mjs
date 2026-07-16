@@ -117,6 +117,16 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/reservations/**",
   ]),
   entry("save-trip-as-template", ["src/components/packt/save-as-template-dialog.tsx"]),
+  entry("schedule-conflict", [
+    "src/components/packt/day-card-body.tsx",
+    "src/components/packt/use-schedule-conflicts.ts",
+    "src/components/packt/schedule-conflict-badge.tsx",
+    "src/components/packt/day-card-dnd.tsx",
+    "src/components/packt/place-row.tsx",
+    "src/components/packt/place-row-action-bar.tsx",
+    "src/lib/route.ts",
+    "src/app/(app)/trips/[tripId]/route-actions.ts",
+  ]),
   entry("spending", [
     "src/components/packt/spending-view.tsx",
     "src/components/packt/spending-date-filter.tsx",
