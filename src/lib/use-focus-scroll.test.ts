@@ -124,4 +124,35 @@ describe("useFocusScroll", () => {
     expect(result.current).toBeNull();
     vi.useRealTimers();
   });
+
+  it("re-highlights the same event id after it clears and is re-set (e.g. a repeat click)", () => {
+    vi.useFakeTimers();
+    mockGet.mockReturnValue("ev-123");
+
+    const { result, rerender } = renderHook(() => useFocusScroll());
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(result.current).toBe("ev-123");
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(result.current).toBeNull();
+
+    // Simulate the URL clearing the focus param, then re-setting it to the same id —
+    // the pattern day-card-body.tsx uses to force a re-trigger on a repeat click.
+    mockGet.mockReturnValue(null);
+    rerender();
+    mockGet.mockReturnValue("ev-123");
+    rerender();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(result.current).toBe("ev-123");
+    vi.useRealTimers();
+  });
 });
