@@ -186,7 +186,7 @@ export function TripDetailClient({
   }
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col h-full">
       <div aria-live="polite" className="sr-only">
         <span key={announcementId}>{reservationsAnnouncement}</span>
       </div>
