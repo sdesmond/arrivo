@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { GapZoneProps } from "./gap-zone";
 import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
 import { DayCardBottomAdd } from "./day-card-bottom-add";
@@ -9,6 +10,7 @@ import { ItineraryItemType } from "@/data/types";
 import type { DayItinerary, TripEvent, DayItemType, Document, DayRouteSummary, TransitMode } from "@/data/types";
 import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
 import { DayRouteStrip } from "./day-route-strip";
+import { useScheduleConflicts } from "./use-schedule-conflicts";
 
 export interface DayCardBodyProps {
   day: DayItinerary;
@@ -74,10 +76,14 @@ export function DayCardBody({
   tripTransitMode,
   walkThresholdMeters,
 }: DayCardBodyProps): ReactElement {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
   const pendingCommitBaselineRef = useRef<number | null>(null);
+  const pendingRefocusEventIdRef = useRef<string | null>(null);
   const locatedEvents = useMemo(
     () => day.events.filter((event) => event.locationLat != null && event.locationLng != null),
     [day.events]
@@ -115,6 +121,27 @@ export function DayCardBody({
     return ordered.length === propTimelineItems.length ? ordered : propTimelineItems;
   }, [propTimelineItems, optimisticOrder]);
 
+  const conflictEvents = useMemo(() => {
+    const allItems = [
+      ...day.events.map((event) => ({ kind: "event" as const, data: event, position: event.position })),
+      ...(day.notes ?? []).map((note) => ({ kind: "note" as const, data: note, position: note.position })),
+      ...(day.checklists ?? []).map((checklist) => ({
+        kind: "checklist" as const,
+        data: checklist,
+        position: checklist.position,
+      })),
+    ].sort((first, second) => first.position - second.position);
+    const itemById = new Map(allItems.map((item) => [item.data.id, item]));
+    const orderedItems = optimisticOrder
+      ? optimisticOrder.flatMap((id) => {
+          const item = itemById.get(id);
+          return item ? [item] : [];
+        })
+      : allItems;
+
+    return orderedItems.filter((item) => item.kind === "event").map((item, position) => ({ ...item.data, position }));
+  }, [day.events, day.notes, day.checklists, optimisticOrder]);
+
   useEffect(() => {
     if (optimisticOrder === null) return;
     const propIds = propTimelineItems.map((item) => item.data.id).join("\u0001");
@@ -148,6 +175,48 @@ export function DayCardBody({
       active = false;
     };
   }, [locatedEvents, routeSummaryKey, tripId, tripTransitMode, walkThresholdMeters]);
+
+  const conflicts = useScheduleConflicts(
+    conflictEvents,
+    conflictEvents.filter((event) => event.locationLat != null && event.locationLng != null).length,
+    tripId,
+    tripTransitMode,
+    walkThresholdMeters
+  );
+  const conflictingEventIds = useMemo(() => new Set(conflicts.map((conflict) => conflict.currentEventId)), [conflicts]);
+  const conflictingEventNames = useMemo(() => {
+    const eventsById = new Map(day.events.map((event) => [event.id, event]));
+    return conflicts.map((conflict) => eventsById.get(conflict.currentEventId)?.name ?? "stop");
+  }, [conflicts, day.events]);
+
+  useEffect(() => {
+    if (pendingRefocusEventIdRef.current && searchParams.get("focus") === null) {
+      const targetEventId = pendingRefocusEventIdRef.current;
+      pendingRefocusEventIdRef.current = null;
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("focus", targetEventId);
+      router.push(`${pathname}?${nextParams.toString()}`, { scroll: false });
+    }
+  }, [searchParams, pathname, router]);
+
+  function handleConflictClick(): void {
+    const targetEventId = conflicts[0]?.currentEventId;
+    if (!targetEventId) return;
+    if (searchParams.get("focus") === targetEventId) {
+      // The URL already points at this event (e.g. a repeat click after the first
+      // highlight faded) — pushing an identical URL is a no-op, so clear the param
+      // first; the effect above re-applies it once the clear is actually observed,
+      // forcing useFocusScroll's effect to re-fire.
+      pendingRefocusEventIdRef.current = targetEventId;
+      const clearedParams = new URLSearchParams(searchParams.toString());
+      clearedParams.delete("focus");
+      router.replace(`${pathname}?${clearedParams.toString()}`, { scroll: false });
+      return;
+    }
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("focus", targetEventId);
+    router.push(`${pathname}?${nextParams.toString()}`, { scroll: false });
+  }
 
   const persistedTimelineItems = timelineItems.filter(
     (item) => item.kind !== "event" || !item.data.linkedReservationId
@@ -221,6 +290,9 @@ export function DayCardBody({
           dayNumber={day.dayNumber}
           tripTransitMode={tripTransitMode}
           totalHopCount={locatedEvents.length - 1}
+          conflictCount={conflicts.length}
+          conflictingEventNames={conflictingEventNames}
+          onConflictClick={handleConflictClick}
         />
       )}
       <DayCardDnd
@@ -250,6 +322,7 @@ export function DayCardBody({
         onUpdateChecklistItem={onUpdateChecklistItem}
         onDeleteChecklistItem={onDeleteChecklistItem}
         onToggleChecklistItem={onToggleChecklistItem}
+        conflictingEventIds={conflictingEventIds}
       />
       <DayCardBottomAdd
         dayNumber={day.dayNumber}

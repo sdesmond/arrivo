@@ -46,6 +46,7 @@ export interface DayCardDndProps {
   newlyCreatedChecklistId?: string;
   highlightedEventId?: string | null;
   draftInsertAtPosition?: number;
+  conflictingEventIds?: Set<string>;
   makeGapProps: (gapKey: string, insertAtPosition: number) => GapZoneProps;
   commitDraft: (content: string) => Promise<void>;
   cancelDraft: () => void;
@@ -75,6 +76,7 @@ export function DayCardDnd({
   newlyCreatedChecklistId,
   highlightedEventId,
   draftInsertAtPosition,
+  conflictingEventIds,
   makeGapProps,
   commitDraft,
   cancelDraft,
@@ -206,6 +208,7 @@ export function DayCardDnd({
                     onDelete={onDeleteEvent}
                     tripDocs={tripDocs}
                     onLinkedEventTap={onLinkedEventTap}
+                    hasScheduleConflict={conflictingEventIds?.has(entry.item.data.id) ?? false}
                   />
                 ) : (
                   <SortablePlaceRow
@@ -218,6 +221,7 @@ export function DayCardDnd({
                     onDelete={onDeleteEvent}
                     tripDocs={tripDocs}
                     isHighlighted={entry.item.data.id === highlightedEventId}
+                    hasScheduleConflict={conflictingEventIds?.has(entry.item.data.id) ?? false}
                   />
                 )
               ) : (

@@ -20,11 +20,13 @@ interface SortableContextProps {
 interface MockPlaceRowProps {
   place: { id: string; name: string; linkedReservationId?: string };
   onLinkedEventTap?: (linkedReservationId: string) => void;
+  hasScheduleConflict?: boolean;
 }
 
 interface MockSortablePlaceRowProps {
   place: { id: string; name: string };
   isHighlighted?: boolean;
+  hasScheduleConflict?: boolean;
 }
 
 const sortableContextCapture = vi.hoisted<SortableContextCapture>(() => ({ lastItems: [] }));
@@ -66,16 +68,23 @@ vi.mock("@dnd-kit/sortable", () => ({
 }));
 
 vi.mock("./place-row", () => ({
-  PlaceRow: ({ place, onLinkedEventTap }: MockPlaceRowProps) => (
-    <button onClick={() => place.linkedReservationId && onLinkedEventTap?.(place.linkedReservationId)}>
+  PlaceRow: ({ place, onLinkedEventTap, hasScheduleConflict }: MockPlaceRowProps) => (
+    <button
+      data-has-conflict={String(!!hasScheduleConflict)}
+      onClick={() => place.linkedReservationId && onLinkedEventTap?.(place.linkedReservationId)}
+    >
       direct-place-row-{place.id}
     </button>
   ),
 }));
 
 vi.mock("./day-card-sortables", () => ({
-  SortablePlaceRow: ({ place, isHighlighted }: MockSortablePlaceRowProps) => (
-    <div data-testid={`sortable-place-row-${place.id}`} data-highlighted={String(!!isHighlighted)}>
+  SortablePlaceRow: ({ place, isHighlighted, hasScheduleConflict }: MockSortablePlaceRowProps) => (
+    <div
+      data-testid={`sortable-place-row-${place.id}`}
+      data-highlighted={String(!!isHighlighted)}
+      data-has-conflict={String(!!hasScheduleConflict)}
+    >
       sortable-place-row-{place.id}
     </div>
   ),
@@ -651,5 +660,159 @@ describe("DayCardDnd", () => {
     await user.click(screen.getByRole("button", { name: "commit-empty-checklist-draft" }));
 
     expect(commitDraft).toHaveBeenCalledWith("");
+  });
+
+  it("passes hasScheduleConflict to the SortablePlaceRow for a manual event listed in conflictingEventIds", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        conflictingEventIds={new Set(["manual-event-1"])}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("sortable-place-row-manual-event-1")).toHaveAttribute("data-has-conflict", "true");
+  });
+
+  it("passes hasScheduleConflict to the direct PlaceRow for a linked event listed in conflictingEventIds", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        conflictingEventIds={new Set(["linked-event-1"])}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "direct-place-row-linked-event-1" })).toHaveAttribute(
+      "data-has-conflict",
+      "true"
+    );
+  });
+
+  it("does not mark rows as conflicting when conflictingEventIds is not provided", () => {
+    render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("sortable-place-row-manual-event-1")).toHaveAttribute("data-has-conflict", "false");
+    expect(screen.getByRole("button", { name: "direct-place-row-linked-event-1" })).toHaveAttribute(
+      "data-has-conflict",
+      "false"
+    );
+  });
+
+  it("never passes a conflict flag to draft or drag-overlay PlaceRows, even when their id is listed", () => {
+    const { rerender } = render(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        conflictingEventIds={new Set(["manual-event-1"])}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    act(() => {
+      dndHandlerCapture.onDragStart?.({ active: { id: "manual-event-1" } });
+    });
+
+    expect(screen.getByRole("button", { name: "direct-place-row-manual-event-1" })).toHaveAttribute(
+      "data-has-conflict",
+      "false"
+    );
+
+    rerender(
+      <DayCardDnd
+        dayNumber={1}
+        dayDate="2030-06-16"
+        timelineItems={[]}
+        renderEntries={[{ type: "draft", draftKind: "event" }]}
+        conflictingEventIds={new Set(["draft"])}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onLinkedEventTap={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "direct-place-row-draft" })).toHaveAttribute(
+      "data-has-conflict",
+      "false"
+    );
   });
 });

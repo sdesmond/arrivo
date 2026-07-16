@@ -1,4 +1,4 @@
-import type { DayRouteSummary, GeoCoords, RouteResult, TransitMode, TripEvent } from "@/data/types";
+import type { DayRouteSummary, GeoCoords, RouteResult, ScheduleConflict, TransitMode, TripEvent } from "@/data/types";
 import { db } from "@/db";
 import { routeCache } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -17,6 +17,7 @@ export function resolveEffectiveMode(
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DIRECTIONS_TIMEOUT_MS = 3000;
+const inFlightRouteRequests = new Map<string, Promise<RouteResult>>();
 
 const MAPBOX_PROFILE: Record<TransitMode, string> = {
   walk: "walking",
@@ -25,6 +26,25 @@ const MAPBOX_PROFILE: Record<TransitMode, string> = {
 };
 
 export async function getRouteDistanceTime(
+  origin: GeoCoords,
+  destination: GeoCoords,
+  transitMode: TransitMode
+): Promise<RouteResult> {
+  const requestKey = `${origin.lat}:${origin.lng}:${destination.lat}:${destination.lng}:${transitMode}`;
+  const existingRequest = inFlightRouteRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const request = lookupRouteDistanceTime(origin, destination, transitMode);
+  inFlightRouteRequests.set(requestKey, request);
+
+  try {
+    return await request;
+  } finally {
+    if (inFlightRouteRequests.get(requestKey) === request) inFlightRouteRequests.delete(requestKey);
+  }
+}
+
+async function lookupRouteDistanceTime(
   origin: GeoCoords,
   destination: GeoCoords,
   transitMode: TransitMode
@@ -156,4 +176,58 @@ export async function getDayRouteSummary(
   return hopCount === 0
     ? { status: "unavailable" }
     : { status: "ready", totalDistanceMeters, totalDurationSeconds, hopCount };
+}
+
+const SCHEDULE_CONFLICT_BUFFER_SECONDS = 600;
+
+export async function getDayScheduleConflicts(
+  events: TripEvent[],
+  tripId: string,
+  tripTransitMode: TransitMode,
+  walkThresholdMeters?: number | null
+): Promise<ScheduleConflict[]> {
+  const timedLocatedEvents = events
+    .filter(
+      (event) =>
+        event.locationLat !== null &&
+        event.locationLat !== undefined &&
+        event.locationLng !== null &&
+        event.locationLng !== undefined &&
+        event.startAt !== null &&
+        event.startAt !== undefined &&
+        event.endAt !== null &&
+        event.endAt !== undefined
+    )
+    .sort((first, second) => first.position - second.position);
+
+  const conflicts: ScheduleConflict[] = [];
+
+  for (let index = 1; index < timedLocatedEvents.length; index += 1) {
+    const previousEvent = timedLocatedEvents[index - 1];
+    const currentEvent = timedLocatedEvents[index];
+    const origin = { lat: previousEvent.locationLat!, lng: previousEvent.locationLng! };
+    const destination = { lat: currentEvent.locationLat!, lng: currentEvent.locationLng! };
+    const transitMode = resolveEffectiveMode(
+      getStraightLineDistanceMeters(origin, destination),
+      tripTransitMode,
+      walkThresholdMeters
+    );
+    const route = await getRouteDistanceTime(origin, destination, transitMode);
+    if (route.status !== "ready") continue;
+
+    const scheduledGapSeconds =
+      (new Date(currentEvent.startAt!).getTime() - new Date(previousEvent.endAt!).getTime()) / 1000;
+
+    if (route.durationSeconds + SCHEDULE_CONFLICT_BUFFER_SECONDS > scheduledGapSeconds) {
+      conflicts.push({
+        eventIndex: index,
+        previousEventId: previousEvent.id,
+        currentEventId: currentEvent.id,
+        travelTimeSeconds: route.durationSeconds,
+        scheduledGapSeconds,
+      });
+    }
+  }
+
+  return conflicts;
 }

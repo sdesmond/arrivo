@@ -3,14 +3,28 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { ItineraryItemType, type DayItinerary } from "@/data/types";
 import { DayCardBody } from "./day-card-body";
-import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
+import { getDayRouteSummary, getDayScheduleConflicts } from "@/app/(app)/trips/[tripId]/route-actions";
+
+const { mockRouterPush, mockPathname, mockSearchParams } = vi.hoisted(() => ({
+  mockRouterPush: vi.fn(),
+  mockPathname: vi.fn(() => "/trips/trip-1"),
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname(),
+  useSearchParams: () => mockSearchParams(),
+  useRouter: () => ({ push: mockRouterPush }),
+}));
 
 interface MockDayCardDndProps {
   timelineItems: { data: { id: string } }[];
   renderEntries: { type: string }[];
   commitDraft: (content: string) => Promise<void>;
+  setOptimisticOrder: (order: string[]) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   highlightedEventId?: string | null;
+  conflictingEventIds?: Set<string>;
 }
 
 interface MockDayCardBottomAddProps {
@@ -22,6 +36,9 @@ interface MockDayCardBottomAddProps {
 
 interface MockDayRouteStripProps {
   summary: { status: string };
+  conflictCount?: number;
+  conflictingEventNames?: string[];
+  onConflictClick?: () => void;
 }
 
 vi.mock("./day-card-dnd", () => ({
@@ -29,10 +46,13 @@ vi.mock("./day-card-dnd", () => ({
     timelineItems,
     renderEntries,
     commitDraft,
+    setOptimisticOrder,
     onLinkedEventTap,
     highlightedEventId,
+    conflictingEventIds,
   }: MockDayCardDndProps) => (
     <div data-highlighted-event-id={highlightedEventId ?? ""}>
+      <span data-testid="conflicting-event-ids">{[...(conflictingEventIds ?? [])].join(",")}</span>
       {timelineItems.map((item) => (
         <span key={item.data.id}>{item.data.id}</span>
       ))}
@@ -40,6 +60,9 @@ vi.mock("./day-card-dnd", () => ({
         {renderEntries.some((entry) => entry.type === "draft") ? "draft-present" : "draft-absent"}
       </span>
       <button onClick={() => commitDraft("typed content")}>Commit draft</button>
+      <button onClick={() => setOptimisticOrder([...timelineItems].reverse().map((item) => item.data.id))}>
+        Reverse timeline
+      </button>
       {onLinkedEventTap && <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap</button>}
     </div>
   ),
@@ -70,10 +93,23 @@ vi.mock("./day-card-bottom-add", () => ({
 
 vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
   getDayRouteSummary: vi.fn().mockResolvedValue({ status: "unavailable" }),
+  getDayScheduleConflicts: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./day-route-strip", () => ({
-  DayRouteStrip: ({ summary }: MockDayRouteStripProps) => <div data-testid="day-route-strip">{summary.status}</div>,
+  DayRouteStrip: ({ summary, conflictCount, conflictingEventNames, onConflictClick }: MockDayRouteStripProps) => (
+    <div data-testid="day-route-strip">
+      {summary.status}
+      <div aria-live="polite">
+        {conflictCount != null && conflictCount > 0 && (
+          <button onClick={onConflictClick}>
+            {conflictCount === 1 ? "1 tight connection today" : `${conflictCount} tight connections today`}
+          </button>
+        )}
+      </div>
+      <span data-testid="conflicting-event-names">{(conflictingEventNames ?? []).join(",")}</span>
+    </div>
+  ),
 }));
 
 const day: DayItinerary = {
@@ -157,6 +193,161 @@ describe("DayCardBody", () => {
     );
 
     await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+  });
+
+  it("renders the schedule conflict badge and passes conflicting ids to DayCardDnd when conflicts exist", async () => {
+    vi.mocked(getDayScheduleConflicts).mockResolvedValueOnce([
+      {
+        eventIndex: 1,
+        previousEventId: "event-1",
+        currentEventId: "event-2",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText("1 tight connection today")).toBeInTheDocument());
+    expect(screen.getByTestId("conflicting-event-ids")).toHaveTextContent("event-2");
+  });
+
+  it("navigates with a focus param for the first conflicting event when the day-level conflict button is clicked", async () => {
+    vi.mocked(getDayScheduleConflicts).mockResolvedValueOnce([
+      {
+        eventIndex: 1,
+        previousEventId: "event-1",
+        currentEventId: "event-2",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    const conflictButton = await screen.findByRole("button", { name: "1 tight connection today" });
+    conflictButton.click();
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1?focus=event-2", { scroll: false });
+  });
+
+  it("recalculates conflicts with the optimistic event order", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() =>
+      expect(getDayScheduleConflicts).toHaveBeenCalledWith("trip-1", locatedDay.events, "drive", undefined)
+    );
+    screen.getByRole("button", { name: "Reverse timeline" }).click();
+
+    await waitFor(() =>
+      expect(getDayScheduleConflicts).toHaveBeenLastCalledWith(
+        "trip-1",
+        [
+          expect.objectContaining({ id: "event-2", position: 0 }),
+          expect.objectContaining({ id: "event-1", position: 1 }),
+        ],
+        "drive",
+        undefined
+      )
+    );
+  });
+
+  it("does not render the schedule conflict badge when there are zero conflicts", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+    expect(screen.queryByText(/tight connection/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("conflicting-event-ids")).toHaveTextContent("");
+  });
+
+  it('wraps the schedule conflict badge in an aria-live="polite" region', async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    const { container } = render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+    expect(container.querySelector('[aria-live="polite"]')).toBeInTheDocument();
   });
 
   it("passes the mixed itinerary timeline to the extracted renderer", () => {

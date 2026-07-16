@@ -13,6 +13,17 @@ export function useFocusScroll(): string | null {
   const focusId = searchParams.get("focus");
   const [highlightedFocusId, setHighlightedFocusId] = useState<string | null>(null);
   const [dismissedFocusId, setDismissedFocusId] = useState<string | null>(null);
+  const [trackedFocusId, setTrackedFocusId] = useState<string | null>(focusId);
+
+  // Reset the highlight/dismiss cycle whenever focusId changes — even to a value seen
+  // earlier this session (e.g. clicking the same target twice) — so it re-runs the settle/
+  // pulse cycle instead of being suppressed by React's bailout on an unchanged state value.
+  // Adjusting state during render (rather than in an effect) avoids an extra commit.
+  if (focusId !== trackedFocusId) {
+    setTrackedFocusId(focusId);
+    setHighlightedFocusId(null);
+    setDismissedFocusId(null);
+  }
 
   useEffect(() => {
     if (!focusId) return;
