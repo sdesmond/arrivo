@@ -40,6 +40,7 @@ export interface PlaceRowProps {
   onCancelDraft?: () => void;
   tripDocs?: Document[];
   isHighlighted?: boolean;
+  hasScheduleConflict?: boolean;
 }
 
 export function PlaceRow({
@@ -57,6 +58,7 @@ export function PlaceRow({
   onCancelDraft,
   tripDocs,
   isHighlighted,
+  hasScheduleConflict,
 }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -305,6 +307,7 @@ export function PlaceRow({
                 onOpenCost={() => setShowCostDialog(true)}
                 onOpenAddDoc={() => setShowAddDocDialog(true)}
                 onOpenMaps={place.locationAddress ? handleOpenMaps : undefined}
+                hasScheduleConflict={hasScheduleConflict}
               />
 
               {showDocs && hasDocs && <DocsBlock docs={place.docs!} onAdd={() => setShowAddDocDialog(true)} />}

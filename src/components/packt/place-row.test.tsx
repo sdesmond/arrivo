@@ -17,7 +17,7 @@ vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
 
 vi.mock("sonner", () => ({
-  toast: { error: toastError, success: vi.fn() },
+  toast: { error: toastError, success: vi.fn(), warning: vi.fn() },
 }));
 
 const { openExternalMaps } = vi.hoisted(() => ({ openExternalMaps: vi.fn() }));
@@ -1119,5 +1119,24 @@ describe("PlaceRow", () => {
     await user.click(screen.getByRole("button", { name: "cost-remove" }));
 
     expect(toastError).toHaveBeenCalledWith("remove boom");
+  });
+
+  it("passes hasScheduleConflict through to the action bar's conflict icon", () => {
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} hasScheduleConflict />, {
+      wrapper: Wrapper,
+    });
+
+    expect(screen.getByRole("button", { name: "Schedule conflict" })).toBeInTheDocument();
+  });
+
+  it("does not show a conflict icon when hasScheduleConflict is false or omitted", () => {
+    const { rerender } = render(
+      <PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} hasScheduleConflict={false} />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.queryByRole("button", { name: "Schedule conflict" })).not.toBeInTheDocument();
+
+    rerender(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Schedule conflict" })).not.toBeInTheDocument();
   });
 });

@@ -1,8 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PlaceRowActionBar } from "./place-row-action-bar";
 import type { TripEvent } from "@/data/types";
+
+const { toastWarning } = vi.hoisted(() => ({ toastWarning: vi.fn() }));
+
+vi.mock("sonner", () => ({
+  toast: { warning: toastWarning },
+}));
+
+import { PlaceRowActionBar } from "./place-row-action-bar";
 
 const basePlace: TripEvent = {
   id: "ev-1",
@@ -364,5 +371,71 @@ describe("PlaceRowActionBar", () => {
     expect(locationGroup).toHaveStyle({ background: "var(--accent-soft)", color: "var(--accent-ink)" });
     expect(locationSegment.className).not.toMatch(/border-border/);
     expect(editSegment.className).not.toMatch(/border-border/);
+  });
+
+  // ── Schedule conflict button group (Time + Schedule conflict) ───────────
+
+  it("renders a plain Time button with no group when hasScheduleConflict is false or omitted", () => {
+    const { rerender } = render(<PlaceRowActionBar {...defaultProps} hasScheduleConflict={false} />);
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.queryByText("Schedule conflict")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add time/i })).toBeInTheDocument();
+
+    rerender(<PlaceRowActionBar {...defaultProps} />);
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.queryByText("Schedule conflict")).not.toBeInTheDocument();
+  });
+
+  it("renders Time and Schedule conflict as a two-segment button group when hasScheduleConflict is true", () => {
+    render(<PlaceRowActionBar {...defaultProps} hasScheduleConflict={true} />);
+    const group = screen.getByRole("group");
+    const timeSegment = screen.getByRole("button", { name: /add time/i });
+    const conflictSegment = screen.getByRole("button", { name: "Schedule conflict" });
+    expect(group).toContainElement(timeSegment);
+    expect(group).toContainElement(conflictSegment);
+    expect(timeSegment.compareDocumentPosition(conflictSegment)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("renders the Schedule conflict segment as icon-only, with no visible text", () => {
+    render(<PlaceRowActionBar {...defaultProps} hasScheduleConflict={true} />);
+    const segment = screen.getByRole("button", { name: "Schedule conflict" });
+    expect(segment.querySelector("svg")).toBeInTheDocument();
+    expect(segment.textContent).toBe("");
+  });
+
+  it("styles the button group with the warning color scheme when a conflict is present", () => {
+    render(<PlaceRowActionBar {...defaultProps} hasScheduleConflict={true} />);
+    const group = screen.getByRole("group");
+    expect(group.className).toMatch(/\brounded-full\b/);
+    expect(group).toHaveStyle({ background: "var(--warning-soft)", color: "var(--warning-ink)" });
+  });
+
+  it("clicking the Time segment calls onOpenTime", async () => {
+    const user = userEvent.setup();
+    const onOpenTime = vi.fn();
+    render(<PlaceRowActionBar {...defaultProps} hasScheduleConflict={true} onOpenTime={onOpenTime} />);
+
+    await user.click(screen.getByRole("button", { name: /add time/i }));
+    expect(onOpenTime).toHaveBeenCalledTimes(1);
+  });
+
+  it("clicking the Schedule conflict segment shows an explanatory toast instead of opening the Time dialog", async () => {
+    const user = userEvent.setup();
+    const onOpenTime = vi.fn();
+    toastWarning.mockClear();
+    render(<PlaceRowActionBar {...defaultProps} hasScheduleConflict={true} onOpenTime={onOpenTime} />);
+
+    await user.click(screen.getByRole("button", { name: "Schedule conflict" }));
+
+    expect(onOpenTime).not.toHaveBeenCalled();
+    expect(toastWarning).toHaveBeenCalledWith(
+      "Not enough travel time between the end of the previous stop and the start of this one."
+    );
+  });
+
+  it("shows the formatted time label inside the group when startAt/endAt are set", () => {
+    const place: TripEvent = { ...basePlace, startAt: "2026-08-01T09:00:00Z", endAt: "2026-08-01T09:30:00Z" };
+    render(<PlaceRowActionBar {...defaultProps} place={place} hasScheduleConflict={true} />);
+    expect(screen.getByRole("button", { name: /9:00 am.*9:30 am/i })).toBeInTheDocument();
   });
 });
