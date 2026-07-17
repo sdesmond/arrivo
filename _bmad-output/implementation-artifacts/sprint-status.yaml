@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-07-13
-last_updated: 2026-07-15T13:38:00Z
+last_updated: 2026-07-17T00:00:00Z
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -55,17 +55,17 @@ development_status:
   epic-2-retrospective: optional
 
   epic-3: in-progress
-  3-1-filled-address-opens-external-maps-directly: review
+  3-1-filled-address-opens-external-maps-directly: done
   3-2-resize-action-bar-chips-to-meet-interactive-sizing-minimum: done
   epic-3-retrospective: optional
 
   epic-4: in-progress
   4-1-show-day-route-strip-for-days-with-2-plus-located-items: done
-  4-2-detect-and-surface-schedule-conflicts: review
+  4-2-detect-and-surface-schedule-conflicts: done
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-show-whole-trip-map: backlog
+  epic-5: in-progress
+  5-1-show-whole-trip-map: review
   5-2-filter-map-tab-by-day: backlog
   5-3-deep-link-from-day-route-strip-to-map-tab: backlog
   epic-5-retrospective: optional
