@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { useSearchParams } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapPin, X } from "lucide-react";
@@ -53,6 +52,18 @@ function parseDayNumber(value: string | null): number | null {
   return Number.isFinite(dayNumber) ? dayNumber : null;
 }
 
+function noopSubscribe(): () => void {
+  return () => {};
+}
+
+function readDayParam(): string | null {
+  return new URLSearchParams(window.location.search).get("day");
+}
+
+function readServerDayParam(): string | null {
+  return null;
+}
+
 export function MapTab({
   events,
   reservations = [],
@@ -61,20 +72,30 @@ export function MapTab({
   unscheduledEvents = [],
   dayFilter,
 }: MapTabProps): ReactElement {
-  const searchParams = useSearchParams();
   const pins = useMemo(() => getLocatedItemPins(events, reservations), [events, reservations]);
-  const [selectedDayNumber, setSelectedDayNumber] = useState<number | null>(
-    () => parseDayNumber(searchParams.get("day")) ?? dayFilter ?? null
-  );
+  const dayParamFromUrl = useSyncExternalStore(noopSubscribe, readDayParam, readServerDayParam);
+  // `undefined` = no user selection yet (derive from the URL day param, then dayFilter, then Whole Trip).
+  // `null` = user explicitly chose Whole Trip. A number = user explicitly chose that day.
+  const [selectedDayOverride, setSelectedDayOverride] = useState<number | null | undefined>(undefined);
+  const selectedDayNumber =
+    selectedDayOverride !== undefined ? selectedDayOverride : (parseDayNumber(dayParamFromUrl) ?? dayFilter ?? null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const selectorRef = useRef<HTMLDivElement>(null);
+  const resultsRegionId = useId();
   const [selectedPin, setSelectedPin] = useState<LocatedItemPin | null>(null);
-  const filteredPins = useMemo(() => {
-    if (selectedDayNumber === null || !days) return pins;
 
-    const selectedDay = days.find((day) => day.dayNumber === selectedDayNumber);
+  const validSelectedDayNumber = useMemo(() => {
+    if (selectedDayNumber === null) return null;
+    const hasMatchingDay = (days ?? []).some((day) => day.dayNumber === selectedDayNumber);
+    return hasMatchingDay ? selectedDayNumber : null;
+  }, [days, selectedDayNumber]);
+
+  const filteredPins = useMemo(() => {
+    if (validSelectedDayNumber === null || !days) return pins;
+
+    const selectedDay = days.find((day) => day.dayNumber === validSelectedDayNumber);
     const selectedEventIds = new Set(selectedDay?.events.map((event) => event.id));
     const scheduledEventIds = new Set(days.flatMap((day) => day.events.map((event) => event.id)));
     const unscheduledEventIds = new Set(unscheduledEvents.map((event) => event.id));
@@ -84,18 +105,21 @@ export function MapTab({
       if (unscheduledEventIds.has(pin.id)) return false;
       return true;
     });
-  }, [days, pins, selectedDayNumber, unscheduledEvents]);
+  }, [days, pins, validSelectedDayNumber, unscheduledEvents]);
 
   const scopeOptions = useMemo(
     () => [
       { dayNumber: null, label: "Whole Trip" },
-      ...(days ?? []).map((day) => ({ dayNumber: day.dayNumber, label: day.label ?? `Day ${day.dayNumber}` })),
+      ...(days ?? []).map((day) => ({
+        dayNumber: day.dayNumber,
+        label: day.label.trim() ? day.label : `Day ${day.dayNumber}`,
+      })),
     ],
     [days]
   );
 
   function selectScope(dayNumber: number | null): void {
-    setSelectedDayNumber(dayNumber);
+    setSelectedDayOverride(dayNumber);
     setSelectedPin(null);
 
     const nextUrl = new URL(window.location.href);
@@ -105,7 +129,7 @@ export function MapTab({
   }
 
   function handleScopeKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-    const selectedIndex = scopeOptions.findIndex((option) => option.dayNumber === selectedDayNumber);
+    const selectedIndex = scopeOptions.findIndex((option) => option.dayNumber === validSelectedDayNumber);
     let nextIndex = selectedIndex;
 
     if (event.key === "ArrowRight") nextIndex = (selectedIndex + 1) % scopeOptions.length;
@@ -123,18 +147,32 @@ export function MapTab({
   }
 
   useEffect(() => {
-    if (filteredPins.length === 0 || !mapContainerRef.current || mapRef.current) return;
+    if (filteredPins.length === 0) {
+      if (mapRef.current) {
+        markersRef.current.forEach((marker) => marker.remove());
+        markersRef.current = [];
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+      return;
+    }
 
-    const accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: `${MAP_STYLE_URL}?access_token=${accessToken}`,
-      center: [filteredPins[0].lng, filteredPins[0].lat],
-      zoom: SINGLE_PIN_ZOOM,
-      transformRequest: (url, resourceType) => transformMapboxUrl(url, resourceType, accessToken),
-    });
-    mapRef.current = map;
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+    if (!mapContainerRef.current) return;
+
+    if (!mapRef.current) {
+      const accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+      const map = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: `${MAP_STYLE_URL}?access_token=${accessToken}`,
+        center: [filteredPins[0].lng, filteredPins[0].lat],
+        zoom: SINGLE_PIN_ZOOM,
+        transformRequest: (url, resourceType) => transformMapboxUrl(url, resourceType, accessToken),
+      });
+      mapRef.current = map;
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+    }
+
+    const map = mapRef.current;
 
     if (filteredPins.length === 1) {
       map.jumpTo({ center: [filteredPins[0].lng, filteredPins[0].lat], zoom: SINGLE_PIN_ZOOM });
@@ -151,19 +189,22 @@ export function MapTab({
       map.fitBounds(bounds, { padding: FIT_BOUNDS_PADDING_PX, animate: !prefersReducedMotion() });
     }
 
+    markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = separateNearbyPins(filteredPins).map(({ pin, offset }) =>
       new maplibregl.Marker({ element: createMarkerElement(pin, setSelectedPin), offset })
         .setLngLat([pin.lng, pin.lat])
         .addTo(map)
     );
+  }, [filteredPins]);
 
+  useEffect(() => {
     return () => {
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
-      map.remove();
+      mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [filteredPins]);
+  }, []);
 
   const daySelector = days && (
     <div
@@ -174,13 +215,14 @@ export function MapTab({
       onKeyDown={handleScopeKeyDown}
     >
       {scopeOptions.map((option) => {
-        const isSelected = selectedDayNumber === option.dayNumber;
+        const isSelected = validSelectedDayNumber === option.dayNumber;
         return (
           <button
             key={option.dayNumber ?? "whole-trip"}
             type="button"
             role="tab"
             aria-selected={isSelected}
+            aria-controls={resultsRegionId}
             tabIndex={isSelected ? 0 : -1}
             data-day-number={option.dayNumber ?? "whole-trip"}
             className="shrink-0 inline-flex items-center px-3.5 transition-colors"
@@ -204,11 +246,17 @@ export function MapTab({
     </div>
   );
 
+  const resultsAnnouncementText =
+    filteredPins.length === 1 ? "1 located stop shown" : `${filteredPins.length} located stops shown`;
+
   if (filteredPins.length === 0) {
     return (
       <div data-testid="map-tab" data-trip-id={tripId}>
         {daySelector}
-        <div data-testid="map-tab-empty" style={{ textAlign: "center", padding: "48px 24px" }}>
+        <span aria-live="polite" className="sr-only">
+          {resultsAnnouncementText}
+        </span>
+        <div id={resultsRegionId} data-testid="map-tab-empty" style={{ textAlign: "center", padding: "48px 24px" }}>
           <p style={{ color: "var(--fg-3)", fontSize: "calc(14px * var(--font-scale))" }}>No located stops yet</p>
         </div>
       </div>
@@ -218,63 +266,70 @@ export function MapTab({
   return (
     <div data-testid="map-tab" data-trip-id={tripId}>
       {daySelector}
-      <div
-        ref={mapContainerRef}
-        role="application"
-        aria-label="Trip map showing located stops"
-        tabIndex={0}
-        data-testid="map-tab-container"
-        style={{ width: "100%", height: 420, borderRadius: 14, overflow: "hidden", border: "1px solid var(--line)" }}
-      />
-      <ul aria-label="Located stops" className="mt-3 flex flex-col gap-1" style={{ listStyle: "none", padding: 0 }}>
-        {filteredPins.map((pin) => (
-          <li key={pin.id}>
-            <Button
-              variant="ghost"
-              size="lg"
-              className="w-full justify-start gap-2"
-              onClick={() => setSelectedPin(pin)}
-            >
-              <MapPin size={16} strokeWidth={1.5} aria-hidden="true" />
-              {pin.name}
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {selectedPin && (
+      <span aria-live="polite" className="sr-only">
+        {resultsAnnouncementText}
+      </span>
+      <div id={resultsRegionId}>
         <div
-          data-testid="map-tab-pin-detail"
-          className="mt-3 flex items-start justify-between gap-3"
-          style={{ border: "1px solid var(--line)", borderRadius: 14, background: "var(--bg)", padding: "12px 14px" }}
-        >
-          <div>
-            <p style={{ color: "var(--fg)", fontWeight: 600, fontSize: "calc(14px * var(--font-scale))" }}>
-              {selectedPin.name}
-            </p>
-            {selectedPin.address && (
-              <p style={{ color: "var(--fg-3)", fontSize: "calc(13px * var(--font-scale))" }}>{selectedPin.address}</p>
-            )}
-            <Button
-              variant="outline"
-              size="lg"
-              className="mt-2"
-              onClick={() =>
-                openExternalMaps({
-                  address: selectedPin.address,
-                  lat: selectedPin.lat,
-                  lng: selectedPin.lng,
-                  label: selectedPin.name,
-                })
-              }
-            >
-              Open External Maps
+          ref={mapContainerRef}
+          role="application"
+          aria-label="Trip map showing located stops"
+          tabIndex={0}
+          data-testid="map-tab-container"
+          style={{ width: "100%", height: 420, borderRadius: 14, overflow: "hidden", border: "1px solid var(--line)" }}
+        />
+        <ul aria-label="Located stops" className="mt-3 flex flex-col gap-1" style={{ listStyle: "none", padding: 0 }}>
+          {filteredPins.map((pin) => (
+            <li key={pin.id}>
+              <Button
+                variant="ghost"
+                size="lg"
+                className="w-full justify-start gap-2"
+                onClick={() => setSelectedPin(pin)}
+              >
+                <MapPin size={16} strokeWidth={1.5} aria-hidden="true" />
+                {pin.name}
+              </Button>
+            </li>
+          ))}
+        </ul>
+        {selectedPin && (
+          <div
+            data-testid="map-tab-pin-detail"
+            className="mt-3 flex items-start justify-between gap-3"
+            style={{ border: "1px solid var(--line)", borderRadius: 14, background: "var(--bg)", padding: "12px 14px" }}
+          >
+            <div>
+              <p style={{ color: "var(--fg)", fontWeight: 600, fontSize: "calc(14px * var(--font-scale))" }}>
+                {selectedPin.name}
+              </p>
+              {selectedPin.address && (
+                <p style={{ color: "var(--fg-3)", fontSize: "calc(13px * var(--font-scale))" }}>
+                  {selectedPin.address}
+                </p>
+              )}
+              <Button
+                variant="outline"
+                size="lg"
+                className="mt-2"
+                onClick={() =>
+                  openExternalMaps({
+                    address: selectedPin.address,
+                    lat: selectedPin.lat,
+                    lng: selectedPin.lng,
+                    label: selectedPin.name,
+                  })
+                }
+              >
+                Open External Maps
+              </Button>
+            </div>
+            <Button variant="ghost" size="icon-lg" title="Close pin detail" onClick={() => setSelectedPin(null)}>
+              <X size={16} strokeWidth={1.5} aria-hidden="true" />
             </Button>
           </div>
-          <Button variant="ghost" size="icon-lg" title="Close pin detail" onClick={() => setSelectedPin(null)}>
-            <X size={16} strokeWidth={1.5} aria-hidden="true" />
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
