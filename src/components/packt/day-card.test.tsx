@@ -87,6 +87,7 @@ vi.mock("@dnd-kit/utilities", () => ({
 
 vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
   getDayRouteSummary: vi.fn().mockResolvedValue({ status: "unavailable" }),
+  getDayScheduleConflicts: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./checklist-item", () => ({
@@ -977,6 +978,37 @@ describe("DayCard", () => {
     expect(screen.getByTitle("Add event")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTitle("Add event")).not.toBeInTheDocument();
+  });
+
+  it("threads onOpenMapTab through DayCard so tapping the route strip thumbnail opens the map tab for that day", async () => {
+    const user = userEvent.setup();
+    const onOpenMapTab = vi.fn();
+    const locatedDay: DayItinerary = {
+      ...baseDay,
+      dayNumber: 2,
+      events: [
+        { id: "ev-loc-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "ev-loc-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    render(
+      <DayCard
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onOpenMapTab={onOpenMapTab}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    const thumbnailButton = await screen.findByRole("button", { name: /route (overview|unavailable) for day 2/i });
+    await user.click(thumbnailButton);
+
+    expect(onOpenMapTab).toHaveBeenCalledWith(2);
   });
 
   it("threads onLinkedEventTap through DayCard to linked event rows", async () => {

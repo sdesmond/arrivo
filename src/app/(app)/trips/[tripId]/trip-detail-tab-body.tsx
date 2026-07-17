@@ -92,6 +92,7 @@ export interface TripDetailTabBodyProps {
   onOpenEditBudget: () => void;
   onActivateReservationsCta: () => void;
   onLinkedEventTap: (linkedReservationId: string) => void;
+  onOpenMapTab?: (dayNumber: number) => void;
   onEditExpense?: (expense: Expense) => void;
   onAddDay: () => void;
   onRemoveLastDay: (
@@ -154,6 +155,7 @@ export function TripDetailTabBody({
   onOpenEditBudget,
   onActivateReservationsCta,
   onLinkedEventTap,
+  onOpenMapTab,
   onEditExpense,
   onAddDay,
   onRemoveLastDay,
@@ -203,6 +205,7 @@ export function TripDetailTabBody({
           reservationCount={reservations.length}
           onActivateReservationsCta={onActivateReservationsCta}
           onLinkedEventTap={onLinkedEventTap}
+          onOpenMapTab={onOpenMapTab}
           onAddDay={onAddDay}
           onRemoveLastDay={onRemoveLastDay}
           addingDay={addingDay}

@@ -14,6 +14,7 @@ export interface DayRouteStripProps {
   conflictCount?: number;
   conflictingEventNames?: string[];
   onConflictClick?: () => void;
+  onThumbnailClick?: () => void;
 }
 
 function formatDuration(durationSeconds: number): string {
@@ -32,6 +33,7 @@ export function DayRouteStrip({
   conflictCount,
   conflictingEventNames,
   onConflictClick,
+  onThumbnailClick,
 }: DayRouteStripProps): ReactElement {
   const isLoading = summary.status === "loading";
   const isUnavailable = summary.status === "unavailable";
@@ -41,6 +43,16 @@ export function DayRouteStrip({
     : isUnavailable
       ? `Route unavailable for day ${dayNumber}`
       : `Route overview for day ${dayNumber}`;
+  const thumbnailClassName = cn("min-h-11 min-w-11 shrink-0 overflow-hidden", isLoading && "animate-pulse");
+  const thumbnailStyle = { width: 44, height: 44, borderRadius: 8, background: "var(--surface-2)" };
+  const thumbnailContent = !isLoading && (
+    <svg aria-hidden="true" className="h-full w-full" viewBox="0 0 44 44">
+      {!isUnavailable && <path d="M7 11 L17 27 L35 15" fill="none" stroke="var(--accent-brand)" strokeWidth="2" />}
+      <circle cx="7" cy="11" r="3" fill="var(--surface-3)" stroke="var(--line-strong)" strokeWidth="1.5" />
+      <circle cx="17" cy="27" r="3" fill="var(--accent-brand)" stroke="var(--accent-brand)" strokeWidth="1.5" />
+      <circle cx="35" cy="15" r="3" fill="var(--surface-3)" stroke="var(--line-strong)" strokeWidth="1.5" />
+    </svg>
+  );
 
   return (
     <div
@@ -49,23 +61,21 @@ export function DayRouteStrip({
       data-trip-id={tripId}
       style={{ border: "1px solid var(--line)", borderRadius: 14, background: "var(--bg)", padding: "12px 14px" }}
     >
-      <div
-        aria-label={thumbnailLabel}
-        className={cn("min-h-11 min-w-11 shrink-0 overflow-hidden", isLoading && "animate-pulse")}
-        role="img"
-        style={{ width: 44, height: 44, borderRadius: 8, background: "var(--surface-2)" }}
-      >
-        {!isLoading && (
-          <svg aria-hidden="true" className="h-full w-full" viewBox="0 0 44 44">
-            {!isUnavailable && (
-              <path d="M7 11 L17 27 L35 15" fill="none" stroke="var(--accent-brand)" strokeWidth="2" />
-            )}
-            <circle cx="7" cy="11" r="3" fill="var(--surface-3)" stroke="var(--line-strong)" strokeWidth="1.5" />
-            <circle cx="17" cy="27" r="3" fill="var(--accent-brand)" stroke="var(--accent-brand)" strokeWidth="1.5" />
-            <circle cx="35" cy="15" r="3" fill="var(--surface-3)" stroke="var(--line-strong)" strokeWidth="1.5" />
-          </svg>
-        )}
-      </div>
+      {onThumbnailClick && !isLoading ? (
+        <button
+          type="button"
+          aria-label={thumbnailLabel}
+          className={cn(thumbnailClassName, "cursor-pointer")}
+          style={{ ...thumbnailStyle, border: "none", padding: 0 }}
+          onClick={onThumbnailClick}
+        >
+          {thumbnailContent}
+        </button>
+      ) : (
+        <div aria-label={thumbnailLabel} className={thumbnailClassName} role="img" style={thumbnailStyle}>
+          {thumbnailContent}
+        </div>
+      )}
       {summary.status === "ready" && (
         <p
           className="min-w-0 flex-1 truncate"

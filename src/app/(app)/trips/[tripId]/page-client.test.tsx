@@ -86,18 +86,21 @@ vi.mock("./trip-detail-tab-body", () => ({
     onActivateReservationsCta,
     onLinkedEventTap,
     onOpenEditDates,
+    onOpenMapTab,
   }: {
     activeTab: string;
     highlightedEventId?: string | null;
     onActivateReservationsCta: () => void;
     onLinkedEventTap: (reservationId: string) => void;
     onOpenEditDates: () => void;
+    onOpenMapTab?: (dayNumber: number) => void;
   }) => (
     <div data-testid="trip-detail-tab-body" data-highlighted-event-id={highlightedEventId ?? ""}>
       {activeTab}
       <button onClick={onActivateReservationsCta}>Activate CTA</button>
       <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
       <button onClick={onOpenEditDates}>Open edit dates</button>
+      {onOpenMapTab && <button onClick={() => onOpenMapTab(3)}>Open map tab for day 3</button>}
     </div>
   ),
 }));
@@ -346,6 +349,40 @@ describe("TripDetailClient", () => {
 
     expect(pushStateSpy).toHaveBeenCalledWith(null, "", "/trips/trip-1?focus=event-1");
     expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
+  });
+
+  it("opens the Map tab scoped to the deep-linked day in a single URL update", async () => {
+    const user = userEvent.setup();
+    // A prior test in this file may leave window.history.pushState/replaceState permanently
+    // spied (vi.clearAllMocks() clears call history but not custom implementations), which
+    // would make the beforeEach reset above a silent no-op — restore to native first.
+    vi.spyOn(window.history, "pushState").mockRestore();
+    vi.spyOn(window.history, "replaceState").mockRestore();
+    window.history.replaceState(null, "", "/trips/trip-1");
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Open map tab for day 3" }));
+
+    expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/trips/trip-1?tab=map&day=3");
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("map");
+    replaceStateSpy.mockRestore();
+  });
+
+  it("preserves unrelated query params when deep-linking to the Map tab", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window.history, "pushState").mockRestore();
+    vi.spyOn(window.history, "replaceState").mockRestore();
+    window.history.pushState(null, "", "/trips/trip-1?focus=event-1");
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
+
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    await user.click(screen.getByRole("button", { name: "Open map tab for day 3" }));
+
+    expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/trips/trip-1?focus=event-1&tab=map&day=3");
+    replaceStateSpy.mockRestore();
   });
 
   it("syncs activeTab when the tab search param changes outside of a tab-button click", () => {

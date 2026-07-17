@@ -37,6 +37,7 @@ interface DayCardProps {
   onRemove?: () => void;
   removeDisabled?: boolean;
   onOpenPackingListPicker?: (insertAtPosition: number) => void;
+  onOpenMapTab?: (dayNumber: number) => void;
 }
 
 export function DayCard({
@@ -66,6 +67,7 @@ export function DayCard({
   onRemove,
   removeDisabled,
   onOpenPackingListPicker,
+  onOpenMapTab,
   tripId,
   tripTransitMode,
   walkThresholdMeters,
@@ -141,6 +143,7 @@ export function DayCard({
           onDeleteChecklistItem={onDeleteChecklistItem}
           onToggleChecklistItem={onToggleChecklistItem}
           onOpenPackingListPicker={onOpenPackingListPicker}
+          onOpenMapTab={onOpenMapTab}
         />
       )}
     </div>
