@@ -4,7 +4,7 @@ baseline_commit: 07d775e2ad96f20b554f677f9e9e9357beee32cb
 
 # Story 5.1: Show whole-trip map
 
-Status: review
+Status: done
 
 ## Story
 
@@ -99,6 +99,13 @@ so that I can understand the geographic spread of my trip.
   - [x] Subtask 8.1: lint, TypeScript, coverage, build, affected E2E
   - [x] Subtask 8.2: Fix any issues flagged
   - [x] Subtask 8.3: Re-run until PASS
+
+### Review Findings
+
+- [x] [Review][Patch] Located reservations are omitted from Map Tab pins [src/components/packt/map-tab.tsx:13]
+- [x] [Review][Patch] Nearby and duplicate pins remain indistinguishable at map zoom [src/lib/map-helpers.ts:19]
+- [x] [Review][Patch] Declustering sends External Maps requests to synthetic coordinates [src/components/packt/map-tab.tsx:78]
+- [x] [Review][Patch] Map marker hit targets are below 44x44px [src/components/packt/map-tab.tsx:34]
 
 ## Dev Notes
 
