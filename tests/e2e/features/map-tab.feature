@@ -19,3 +19,24 @@ Feature: Map tab
     Given I have an existing trip with days
     When I open the Map tab
     Then no map is rendered and the located stops empty state is shown
+
+  @map-day-selector
+  Scenario: Selecting a day shows only that day's located stops
+    Given I have a trip with located stops on two days
+    When I open the Map tab
+    And I select map scope "Day 1"
+    Then only Day 1 located stops are shown on the map
+
+  @map-day-selector
+  Scenario: Selecting Whole Trip returns to every located stop
+    Given I have a trip with located stops on two days
+    When I open the Map tab
+    And I select map scope "Day 1"
+    And I select map scope "Whole Trip"
+    Then every located stop is shown on the map
+
+  @map-day-selector-overflow
+  Scenario: Day selector scrolls horizontally with many days
+    Given I have a trip with many days
+    When I open the Map tab on a narrow viewport
+    Then the map day selector is horizontally scrollable
