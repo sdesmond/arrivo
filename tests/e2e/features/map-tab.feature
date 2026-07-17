@@ -40,3 +40,11 @@ Feature: Map tab
     Given I have a trip with many days
     When I open the Map tab on a narrow viewport
     Then the map day selector is horizontally scrollable
+
+  @map-deep-link
+  Scenario: Tapping the Day Route Strip thumbnail deep-links into the Map tab scoped to that day
+    Given I have a trip with a routed day and another located stop
+    When I tap the day 1 route strip thumbnail
+    Then the Map tab is open with day 1 selected
+    When I select map scope "Whole Trip"
+    Then the Whole Trip scope is selected
