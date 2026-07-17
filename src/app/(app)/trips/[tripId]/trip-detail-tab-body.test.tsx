@@ -208,7 +208,7 @@ describe("TripDetailTabBody", () => {
     );
   });
 
-  it("renders the Map tab with all flattened events and the trip id when activeTab is map", () => {
+  it("renders the Map tab with all flattened events, reservations, and the trip id when activeTab is map", () => {
     render(<TripDetailTabBody {...buildProps({ activeTab: "map" })} />);
 
     expect(screen.getByText("Map tab")).toBeInTheDocument();
@@ -216,6 +216,7 @@ describe("TripDetailTabBody", () => {
       expect.objectContaining({
         tripId: "trip-1",
         events: [days[0].events[0], unscheduledEvents[0]],
+        reservations,
       })
     );
   });

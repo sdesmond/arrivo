@@ -1,7 +1,7 @@
-import type { LocatedItemPin, TripEvent } from "@/data/types";
+import type { LocatedItemPin, Reservation, TripEvent } from "@/data/types";
 
-export function getLocatedItemPins(events: TripEvent[]): LocatedItemPin[] {
-  return events
+export function getLocatedItemPins(events: TripEvent[], reservations: Reservation[] = []): LocatedItemPin[] {
+  const eventPins = events
     .filter((event) => event.locationLat != null && event.locationLng != null)
     .map((event) => ({
       id: event.id,
@@ -10,24 +10,70 @@ export function getLocatedItemPins(events: TripEvent[]): LocatedItemPin[] {
       lat: event.locationLat!,
       lng: event.locationLng!,
     }));
+
+  const reservationPins = reservations.flatMap((reservation) => {
+    const pins: LocatedItemPin[] = [];
+    if (reservation.startLocationLat != null && reservation.startLocationLng != null) {
+      pins.push({
+        id: `${reservation.id}-start`,
+        name: reservation.startLocationName ?? reservation.provider,
+        address: reservation.startAddress,
+        lat: reservation.startLocationLat,
+        lng: reservation.startLocationLng,
+      });
+    }
+    if (reservation.endLocationLat != null && reservation.endLocationLng != null) {
+      pins.push({
+        id: `${reservation.id}-end`,
+        name: reservation.endLocationName ?? reservation.provider,
+        address: reservation.endAddress,
+        lat: reservation.endLocationLat,
+        lng: reservation.endLocationLng,
+      });
+    }
+    return pins;
+  });
+
+  return [...eventPins, ...reservationPins];
 }
 
-// ~6-7m at the equator — enough to split stacked markers into distinct tap targets.
-const DECLUSTER_OFFSET_DEGREES = 0.00006;
+const NEARBY_PIN_DISTANCE_DEGREES = 0.0003;
+const MARKER_OFFSET_PIXELS = 28;
 
-export function declusterPins(pins: LocatedItemPin[]): LocatedItemPin[] {
-  const occurrencesByCoordinate = new Map<string, number>();
+export interface SeparatedMapPin {
+  pin: LocatedItemPin;
+  offset: [number, number];
+}
 
-  return pins.map((pin) => {
-    const coordinateKey = `${pin.lat},${pin.lng}`;
-    const occurrence = occurrencesByCoordinate.get(coordinateKey) ?? 0;
-    occurrencesByCoordinate.set(coordinateKey, occurrence + 1);
+export function separateNearbyPins(pins: LocatedItemPin[]): SeparatedMapPin[] {
+  const pinGroups: LocatedItemPin[][] = [];
+  const offsetsByPinId = new Map<string, [number, number]>();
 
-    if (occurrence === 0) return pin;
+  for (const pin of pins) {
+    const nearbyGroup = pinGroups.find((group) =>
+      group.some(
+        (groupedPin) =>
+          Math.abs(groupedPin.lat - pin.lat) <= NEARBY_PIN_DISTANCE_DEGREES &&
+          Math.abs(groupedPin.lng - pin.lng) <= NEARBY_PIN_DISTANCE_DEGREES
+      )
+    );
+    if (nearbyGroup) nearbyGroup.push(pin);
+    else pinGroups.push([pin]);
+  }
 
-    const offset = occurrence * DECLUSTER_OFFSET_DEGREES;
-    return { ...pin, lat: pin.lat + offset, lng: pin.lng + offset };
-  });
+  for (const group of pinGroups) {
+    if (group.length === 1) {
+      offsetsByPinId.set(group[0].id, [0, 0]);
+      continue;
+    }
+
+    group.forEach((pin, index) => {
+      const angle = (2 * Math.PI * index) / group.length;
+      offsetsByPinId.set(pin.id, [Math.cos(angle) * MARKER_OFFSET_PIXELS, Math.sin(angle) * MARKER_OFFSET_PIXELS]);
+    });
+  }
+
+  return pins.map((pin) => ({ pin, offset: offsetsByPinId.get(pin.id) ?? [0, 0] }));
 }
 
 const MAPBOX_API_BASE = "https://api.mapbox.com";

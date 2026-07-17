@@ -6,12 +6,13 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapPin, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { LocatedItemPin, TripEvent } from "@/data/types";
-import { declusterPins, getLocatedItemPins, transformMapboxUrl } from "@/lib/map-helpers";
+import type { LocatedItemPin, Reservation, TripEvent } from "@/data/types";
+import { getLocatedItemPins, separateNearbyPins, transformMapboxUrl } from "@/lib/map-helpers";
 import { openExternalMaps } from "@/lib/open-external-maps";
 
 export interface MapTabProps {
   events: TripEvent[];
+  reservations?: Reservation[];
   tripId: string;
   dayFilter?: number | null;
 }
@@ -31,19 +32,19 @@ function createMarkerElement(pin: LocatedItemPin, onSelect: (pin: LocatedItemPin
   element.type = "button";
   element.setAttribute("aria-label", pin.name);
   element.title = pin.name;
-  element.style.width = "16px";
-  element.style.height = "16px";
+  element.style.width = "44px";
+  element.style.height = "44px";
   element.style.borderRadius = "50%";
-  element.style.border = "2px solid var(--bg)";
-  element.style.background = "var(--accent-brand)";
+  element.style.border = "0";
+  element.style.background = "radial-gradient(circle, var(--accent-brand) 0 7px, transparent 8px)";
   element.style.cursor = "pointer";
   element.style.padding = "0";
   element.addEventListener("click", () => onSelect(pin));
   return element;
 }
 
-export function MapTab({ events, tripId }: MapTabProps): ReactElement {
-  const pins = useMemo(() => getLocatedItemPins(events), [events]);
+export function MapTab({ events, reservations = [], tripId }: MapTabProps): ReactElement {
+  const pins = useMemo(() => getLocatedItemPins(events, reservations), [events, reservations]);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -75,8 +76,8 @@ export function MapTab({ events, tripId }: MapTabProps): ReactElement {
       map.fitBounds(bounds, { padding: FIT_BOUNDS_PADDING_PX, animate: !prefersReducedMotion() });
     }
 
-    markersRef.current = declusterPins(pins).map((pin) =>
-      new maplibregl.Marker({ element: createMarkerElement(pin, setSelectedPin) })
+    markersRef.current = separateNearbyPins(pins).map(({ pin, offset }) =>
+      new maplibregl.Marker({ element: createMarkerElement(pin, setSelectedPin), offset })
         .setLngLat([pin.lng, pin.lat])
         .addTo(map)
     );

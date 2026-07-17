@@ -227,7 +227,7 @@ export function TripDetailTabBody({
           onEditExpense={onEditExpense}
         />
       )}
-      {activeTab === "map" && <MapTab events={allEvents} tripId={tripId} />}
+      {activeTab === "map" && <MapTab events={allEvents} reservations={reservations} tripId={tripId} />}
       {activeTab === "pack" && (
         <PackingListsView
           tripId={tripId}

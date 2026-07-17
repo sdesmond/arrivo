@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { TripEvent } from "@/data/types";
+import type { Reservation, TripEvent } from "@/data/types";
 
 const { mapConstructorSpy, markerConstructorSpy, mapInstances, markerInstances } = vi.hoisted(() => {
   return {
@@ -70,6 +70,10 @@ function makeEvent(overrides: Partial<TripEvent> = {}): TripEvent {
   };
 }
 
+function makeReservation(overrides: Partial<Reservation> = {}): Reservation {
+  return { id: "reservation-1", tripId: "trip-1", type: "lodging", provider: "Hotel Lutetia", ...overrides };
+}
+
 describe("MapTab", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -130,6 +134,25 @@ describe("MapTab", () => {
     expect(screen.getByRole("button", { name: /Eiffel Tower/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Louvre/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Shopping/ })).not.toBeInTheDocument();
+  });
+
+  it("creates pins for located reservation endpoints", () => {
+    render(
+      <MapTab
+        events={[]}
+        reservations={[
+          makeReservation({
+            startLocationName: "Gare du Nord",
+            startLocationLat: 48.8809,
+            startLocationLng: 2.3553,
+          }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(markerConstructorSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /Gare du Nord/ })).toBeInTheDocument();
   });
 
   it("uses jumpTo instead of fitBounds when only a single located item exists", () => {
@@ -263,6 +286,36 @@ describe("MapTab", () => {
     fireEvent.click(markerInstances[0].element);
 
     expect(screen.getByTestId("map-tab-pin-detail")).toHaveTextContent("Eiffel Tower");
+  });
+
+  it("keeps a declustered marker's External Maps coordinates at its stored location", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "located-1", name: "First stop", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "located-2", name: "Second stop", locationLat: 48.8584, locationLng: 2.2945 }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(markerInstances[1].element);
+    fireEvent.click(screen.getByRole("button", { name: "Open External Maps" }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`${encodeURIComponent("48.8584")},${encodeURIComponent("2.2945")}`),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  });
+
+  it("uses a 44px marker hit target", () => {
+    render(
+      <MapTab events={[makeEvent({ id: "located-1", locationLat: 48.8584, locationLng: 2.2945 })]} tripId="trip-1" />
+    );
+
+    expect(markerInstances[0].element).toHaveStyle({ width: "44px", height: "44px" });
   });
 
   it("removes markers and the map instance on unmount", () => {

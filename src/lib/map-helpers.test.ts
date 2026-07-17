@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
-import type { LocatedItemPin, TripEvent } from "@/data/types";
-import { declusterPins, getLocatedItemPins, transformMapboxUrl } from "./map-helpers";
+import type { LocatedItemPin, Reservation, TripEvent } from "@/data/types";
+import { getLocatedItemPins, separateNearbyPins, transformMapboxUrl } from "./map-helpers";
 
 function makeEvent(overrides: Partial<TripEvent> = {}): TripEvent {
   return {
     id: "event-1",
     name: "Louvre Museum",
     position: 0,
+    ...overrides,
+  };
+}
+
+function makeReservation(overrides: Partial<Reservation> = {}): Reservation {
+  return {
+    id: "reservation-1",
+    tripId: "trip-1",
+    type: "lodging",
+    provider: "Hotel Lutetia",
     ...overrides,
   };
 }
@@ -60,48 +70,85 @@ describe("getLocatedItemPins", () => {
       { id: "located-2", name: "Hotel Check-out", address: undefined, lat: 48.8606, lng: 2.3376 },
     ]);
   });
+
+  it("returns pins for each located reservation endpoint alongside located events", () => {
+    const pins = getLocatedItemPins(
+      [makeEvent({ id: "event-1", locationLat: 48.8584, locationLng: 2.2945 })],
+      [
+        makeReservation({
+          id: "reservation-1",
+          startLocationName: "Gare du Nord",
+          startAddress: "18 Rue de Dunkerque, Paris",
+          startLocationLat: 48.8809,
+          startLocationLng: 2.3553,
+          endLocationName: "Gare de Lyon",
+          endAddress: "Place Louis-Armand, Paris",
+          endLocationLat: 48.8443,
+          endLocationLng: 2.3738,
+        }),
+      ]
+    );
+
+    expect(pins).toEqual([
+      expect.objectContaining({ id: "event-1", lat: 48.8584, lng: 2.2945 }),
+      {
+        id: "reservation-1-start",
+        name: "Gare du Nord",
+        address: "18 Rue de Dunkerque, Paris",
+        lat: 48.8809,
+        lng: 2.3553,
+      },
+      {
+        id: "reservation-1-end",
+        name: "Gare de Lyon",
+        address: "Place Louis-Armand, Paris",
+        lat: 48.8443,
+        lng: 2.3738,
+      },
+    ]);
+  });
 });
 
 function makePin(overrides: Partial<LocatedItemPin> = {}): LocatedItemPin {
   return { id: "pin-1", name: "Pin", lat: 48.8606, lng: 2.3376, ...overrides };
 }
 
-describe("declusterPins", () => {
-  it("leaves pins with unique coordinates unchanged", () => {
+describe("separateNearbyPins", () => {
+  it("leaves pins with unique coordinates at their source coordinates without marker offsets", () => {
     const pins = [makePin({ id: "pin-1", lat: 48.8606, lng: 2.3376 }), makePin({ id: "pin-2", lat: 35.0, lng: 139.0 })];
-    expect(declusterPins(pins)).toEqual(pins);
+    expect(separateNearbyPins(pins)).toEqual(pins.map((pin) => ({ pin, offset: [0, 0] })));
   });
 
-  it("offsets the second and later pins that share exact coordinates", () => {
+  it("separates exact-coordinate pins using screen-space offsets while preserving their source coordinates", () => {
     const pins = [
       makePin({ id: "pin-1", lat: 48.8606, lng: 2.3376 }),
       makePin({ id: "pin-2", lat: 48.8606, lng: 2.3376 }),
       makePin({ id: "pin-3", lat: 48.8606, lng: 2.3376 }),
     ];
 
-    const result = declusterPins(pins);
+    const result = separateNearbyPins(pins);
 
-    expect(result[0]).toEqual(pins[0]);
-    expect(result[1].lat).toBeGreaterThan(pins[1].lat);
-    expect(result[1].lng).toBeGreaterThan(pins[1].lng);
-    expect(result[2].lat).toBeGreaterThan(result[1].lat);
-    expect(result[2].lng).toBeGreaterThan(result[1].lng);
-    const uniqueCoordinates = new Set(result.map((pin) => `${pin.lat},${pin.lng}`));
-    expect(uniqueCoordinates.size).toBe(3);
+    expect(result.map(({ pin }) => pin)).toEqual(pins);
+    expect(result.map(({ offset }) => offset)).not.toEqual([
+      [0, 0],
+      [0, 0],
+      [0, 0],
+    ]);
+    expect(new Set(result.map(({ offset }) => offset.join(","))).size).toBe(3);
   });
 
-  it("only offsets pins that collide, leaving distinct coordinates in a mixed list untouched", () => {
+  it("separates pins that are close enough to overlap at map zoom", () => {
     const pins = [
       makePin({ id: "pin-1", lat: 48.8606, lng: 2.3376 }),
-      makePin({ id: "pin-2", lat: 35.0, lng: 139.0 }),
-      makePin({ id: "pin-3", lat: 48.8606, lng: 2.3376 }),
+      makePin({ id: "pin-2", lat: 48.8607, lng: 2.3377 }),
+      makePin({ id: "pin-3", lat: 35.0, lng: 139.0 }),
     ];
 
-    const result = declusterPins(pins);
+    const result = separateNearbyPins(pins);
 
-    expect(result[0]).toEqual(pins[0]);
-    expect(result[1]).toEqual(pins[1]);
-    expect(result[2]).not.toEqual(pins[2]);
+    expect(result[0].offset).not.toEqual([0, 0]);
+    expect(result[1].offset).not.toEqual([0, 0]);
+    expect(result[2]).toEqual({ pin: pins[2], offset: [0, 0] });
   });
 });
 
