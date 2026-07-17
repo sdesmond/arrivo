@@ -67,5 +67,5 @@ development_status:
   epic-5: in-progress
   5-1-show-whole-trip-map: done
   5-2-filter-map-tab-by-day: done
-  5-3-deep-link-from-day-route-strip-to-map-tab: backlog
+  5-3-deep-link-from-day-route-strip-to-map-tab: review
   epic-5-retrospective: optional
