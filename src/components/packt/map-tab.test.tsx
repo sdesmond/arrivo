@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { Reservation, TripEvent } from "@/data/types";
+import type { DayItinerary, Reservation, TripEvent } from "@/data/types";
 
 const { mapConstructorSpy, markerConstructorSpy, mapInstances, markerInstances } = vi.hoisted(() => {
   return {
@@ -74,6 +74,16 @@ function makeReservation(overrides: Partial<Reservation> = {}): Reservation {
   return { id: "reservation-1", tripId: "trip-1", type: "lodging", provider: "Hotel Lutetia", ...overrides };
 }
 
+function makeDay(dayNumber: number, events: TripEvent[], label?: string): DayItinerary {
+  return {
+    id: `day-${dayNumber}`,
+    dayNumber,
+    date: `2026-07-0${dayNumber}`,
+    label: label ?? `Day ${dayNumber}`,
+    events,
+  };
+}
+
 describe("MapTab", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -81,6 +91,7 @@ describe("MapTab", () => {
     markerConstructorSpy.mockClear();
     mapInstances.length = 0;
     markerInstances.length = 0;
+    window.history.replaceState(null, "", "/");
   });
 
   it("renders the neutral empty state and no map when there are zero located items", () => {
@@ -134,6 +145,226 @@ describe("MapTab", () => {
     expect(screen.getByRole("button", { name: /Eiffel Tower/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Louvre/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Shopping/ })).not.toBeInTheDocument();
+  });
+
+  it("renders a whole-trip segment and one segment per provided day", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        days={[
+          makeDay(1, [makeEvent({ id: "day-1-event" })], "Paris Day 1"),
+          makeDay(2, [makeEvent({ id: "day-2-event" })]),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(screen.getByRole("tab", { name: "Whole Trip" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Paris Day 1" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Day 2" })).toBeInTheDocument();
+  });
+
+  it("filters located events to the selected day and restores the whole trip", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", name: "Louvre", locationLat: 48.8606, locationLng: 2.3376 }),
+          makeEvent({ id: "freeform", name: "Shopping" }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [makeEvent({ id: "day-2-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Day 1" }));
+    expect(screen.getByRole("button", { name: "Eiffel Tower" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Louvre" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Shopping" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Whole Trip" }));
+    expect(screen.getByRole("button", { name: "Eiffel Tower" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Louvre" })).toBeInTheDocument();
+  });
+
+  it("does not render a day selector when days are not provided", () => {
+    render(<MapTab events={[makeEvent({ locationLat: 48.8584, locationLng: 2.2945 })]} tripId="trip-1" />);
+
+    expect(screen.queryByRole("tablist", { name: "Map scope" })).not.toBeInTheDocument();
+  });
+
+  it("updates the URL while preserving the Map tab when selecting a day", () => {
+    window.history.replaceState(null, "", "/trips/trip-1?tab=map");
+    render(
+      <MapTab
+        events={[makeEvent({ id: "day-1-event", locationLat: 48.8584, locationLng: 2.2945 })]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Day 1" }));
+    expect(window.location.search).toBe("?tab=map&day=1");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Whole Trip" }));
+    expect(window.location.search).toBe("?tab=map");
+  });
+
+  it("updates markers to match the selected day without recreating the map", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", name: "Louvre", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [makeEvent({ id: "day-2-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(mapConstructorSpy).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Day 2" }));
+
+    expect(mapConstructorSpy).toHaveBeenCalledTimes(1);
+    expect(mapInstances[0].remove).not.toHaveBeenCalled();
+    expect(markerInstances[markerInstances.length - 1].element).toHaveAttribute("aria-label", "Louvre");
+  });
+
+  it("seeds the selected day from the dayFilter prop when no URL day param is present", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [makeEvent({ id: "day-2-event" })])]}
+        dayFilter={2}
+        tripId="trip-1"
+      />
+    );
+
+    expect(screen.getByRole("tab", { name: "Day 2" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("seeds the selected day from the URL day param on mount", () => {
+    window.history.replaceState(null, "", "/trips/trip-1?tab=map&day=2");
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [makeEvent({ id: "day-2-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(screen.getByRole("tab", { name: "Day 2" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("falls back to Whole Trip when dayFilter does not match any day", () => {
+    render(
+      <MapTab
+        events={[makeEvent({ id: "day-1-event", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 })]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })])]}
+        dayFilter={99}
+        tripId="trip-1"
+      />
+    );
+
+    expect(screen.getByRole("tab", { name: "Whole Trip" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Eiffel Tower" })).toBeInTheDocument();
+  });
+
+  it("falls back to a default label when a day's label is an empty string", () => {
+    render(
+      <MapTab
+        events={[makeEvent({ id: "day-1-event", locationLat: 48.8584, locationLng: 2.2945 })]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })], "")]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(screen.getByRole("tab", { name: "Day 1" })).toBeInTheDocument();
+  });
+
+  it("keeps reservation pins visible regardless of the selected day", () => {
+    render(
+      <MapTab
+        events={[makeEvent({ id: "day-1-event", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 })]}
+        reservations={[
+          makeReservation({
+            startLocationName: "Gare du Nord",
+            startLocationLat: 48.8809,
+            startLocationLng: 2.3553,
+          }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [])]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Day 2" }));
+
+    expect(screen.getByRole("button", { name: /Gare du Nord/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Eiffel Tower" })).not.toBeInTheDocument();
+  });
+
+  it("links day-selector tabs to the results region and announces the visible stop count", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", name: "Louvre", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [makeEvent({ id: "day-2-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    const wholeTripTab = screen.getByRole("tab", { name: "Whole Trip" });
+    const controlsId = wholeTripTab.getAttribute("aria-controls");
+    expect(controlsId).toBeTruthy();
+    expect(document.getElementById(controlsId as string)).toBeInTheDocument();
+    expect(screen.getByText("2 located stops shown")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Day 1" }));
+    expect(screen.getByText("1 located stop shown")).toBeInTheDocument();
+  });
+
+  it("supports roving keyboard selection with arrow keys and Home/End", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [makeEvent({ id: "day-2-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Map scope" });
+    const wholeTrip = screen.getByRole("tab", { name: "Whole Trip" });
+    const dayOne = screen.getByRole("tab", { name: "Day 1" });
+    const dayTwo = screen.getByRole("tab", { name: "Day 2" });
+
+    wholeTrip.focus();
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    expect(dayOne).toHaveFocus();
+    expect(dayOne).toHaveAttribute("tabindex", "0");
+    expect(wholeTrip).toHaveAttribute("tabindex", "-1");
+
+    fireEvent.keyDown(tablist, { key: "End" });
+    expect(dayTwo).toHaveFocus();
+    fireEvent.keyDown(tablist, { key: "Home" });
+    expect(wholeTrip).toHaveFocus();
+    fireEvent.keyDown(tablist, { key: "ArrowLeft" });
+    expect(dayTwo).toHaveFocus();
   });
 
   it("creates pins for located reservation endpoints", () => {

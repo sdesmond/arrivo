@@ -216,6 +216,8 @@ describe("TripDetailTabBody", () => {
       expect.objectContaining({
         tripId: "trip-1",
         events: [days[0].events[0], unscheduledEvents[0]],
+        days,
+        unscheduledEvents,
         reservations,
       })
     );
