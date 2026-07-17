@@ -73,6 +73,14 @@ export interface ScheduleConflict {
   scheduledGapSeconds: number;
 }
 
+export interface LocatedItemPin {
+  id: string;
+  name: string;
+  address?: string;
+  lat: number;
+  lng: number;
+}
+
 export const ExpenseCategory = {
   Food: "food",
   Lodging: "lodging",

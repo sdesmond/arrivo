@@ -12,10 +12,11 @@ import type {
 } from "@/data/types";
 import { TripDetailTabBody, type TripDetailTabBodyProps } from "./trip-detail-tab-body";
 
-const { tripBudgetTabSpy, reservationsTabSpy, tripItineraryViewSpy } = vi.hoisted(() => ({
+const { tripBudgetTabSpy, reservationsTabSpy, tripItineraryViewSpy, mapTabSpy } = vi.hoisted(() => ({
   tripBudgetTabSpy: vi.fn(),
   reservationsTabSpy: vi.fn(),
   tripItineraryViewSpy: vi.fn(),
+  mapTabSpy: vi.fn(),
 }));
 
 vi.mock("./trip-itinerary-view", () => ({
@@ -44,6 +45,13 @@ vi.mock("@/components/packt/reservations-tab", () => ({
   ReservationsTab: (props: unknown) => {
     reservationsTabSpy(props);
     return <div>Reservations tab</div>;
+  },
+}));
+
+vi.mock("@/components/packt/map-tab", () => ({
+  MapTab: (props: unknown) => {
+    mapTabSpy(props);
+    return <div>Map tab</div>;
   },
 }));
 
@@ -196,6 +204,18 @@ describe("TripDetailTabBody", () => {
         reservations,
         defaultExpenseCurrency: "EUR",
         tripDocs: [docs[0]],
+      })
+    );
+  });
+
+  it("renders the Map tab with all flattened events and the trip id when activeTab is map", () => {
+    render(<TripDetailTabBody {...buildProps({ activeTab: "map" })} />);
+
+    expect(screen.getByText("Map tab")).toBeInTheDocument();
+    expect(mapTabSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: "trip-1",
+        events: [days[0].events[0], unscheduledEvents[0]],
       })
     );
   });

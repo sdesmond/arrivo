@@ -7,6 +7,7 @@ import { TripDocsTab } from "@/components/packt/trip-docs-tab";
 import { TripBudgetTab } from "@/components/packt/trip-budget-tab";
 import { PackingListsView } from "@/components/packt/packing-lists-view";
 import { ReservationsTab } from "@/components/packt/reservations-tab";
+import { MapTab } from "@/components/packt/map-tab";
 import { TransitMode } from "@/data/types";
 import type {
   DayItinerary,
@@ -226,9 +227,7 @@ export function TripDetailTabBody({
           onEditExpense={onEditExpense}
         />
       )}
-      {activeTab === "map" && (
-        <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
-      )}
+      {activeTab === "map" && <MapTab events={allEvents} tripId={tripId} />}
       {activeTab === "pack" && (
         <PackingListsView
           tripId={tripId}
