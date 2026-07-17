@@ -34,7 +34,7 @@ async function expectTabContent(page: Page, label: string): Promise<void> {
       await expect(page.getByRole("button", { name: "New List" })).toBeVisible({ timeout: 10_000 });
       return;
     case "Map":
-      await expect(page.getByText("Map view coming soon.")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("No located stops yet")).toBeVisible({ timeout: 10_000 });
       return;
     case "Notes":
       await expect(page.getByText("Notes coming soon.")).toBeVisible({ timeout: 10_000 });
