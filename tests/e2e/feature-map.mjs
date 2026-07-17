@@ -94,6 +94,7 @@ export const FEATURE_MAP = [
     "src/lib/linked-events.ts",
     "src/lib/open-external-maps.ts",
   ]),
+  entry("map-tab", ["src/components/packt/map-tab.tsx", "src/lib/map-helpers.ts"]),
   entry("packing-tab", [
     "src/components/packt/packing-*",
     "src/components/packt/droppable-packing-section.tsx",
