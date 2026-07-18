@@ -41,7 +41,13 @@ vi.mock("@/db", () => ({
 
 vi.mock("@/db/schema", () => schemaTokens);
 
-import { getDayRouteSummary, getDayScheduleConflicts, resolveEffectiveMode, getRouteDistanceTime } from "./route";
+import {
+  getDayRouteSummary,
+  getDayScheduleConflicts,
+  resolveEffectiveMode,
+  getRouteDistanceTime,
+  quantizeCoord,
+} from "./route";
 
 describe("resolveEffectiveMode", () => {
   it("walks when a hop is below the configured threshold", () => {
@@ -63,6 +69,28 @@ describe("resolveEffectiveMode", () => {
 
   it("uses the trip mode when a hop equals the threshold", () => {
     expect(resolveEffectiveMode(400, "transit", 400)).toBe("transit");
+  });
+
+  it("uses the trip mode when the hop distance is NaN", () => {
+    expect(resolveEffectiveMode(NaN, "drive", 400)).toBe("drive");
+  });
+
+  it("uses the trip mode when the hop distance is negative", () => {
+    expect(resolveEffectiveMode(-10, "transit", 400)).toBe("transit");
+  });
+});
+
+describe("quantizeCoord", () => {
+  it("rounds to 6 decimal places", () => {
+    expect(quantizeCoord(48.856599999999996)).toBe(48.8566);
+  });
+
+  it("leaves already-precise coordinates unchanged", () => {
+    expect(quantizeCoord(48.8566)).toBe(48.8566);
+  });
+
+  it("collapses epsilon-different coordinates to the same value", () => {
+    expect(quantizeCoord(2.352200000000001)).toBe(quantizeCoord(2.3522));
   });
 });
 
@@ -122,6 +150,22 @@ describe("getRouteDistanceTime", () => {
     expect(mockInsert).toHaveBeenCalled();
     expect(mockValues).toHaveBeenCalledWith(expect.objectContaining({ distanceMeters: 1235, durationSeconds: 567 }));
     expect(result).toEqual({ status: "ready", distanceMeters: 1235, durationSeconds: 567 });
+  });
+
+  it("quantizes coordinates before writing the cache row so float-epsilon jitter can't create duplicate rows", async () => {
+    const jitteredOrigin = { lat: 48.856599999999996, lng: 2.352200000000001 };
+    const jitteredDestination = { lat: 48.858399999999996, lng: 2.294500000000001 };
+
+    await getRouteDistanceTime(jitteredOrigin, jitteredDestination, "walk");
+
+    expect(mockValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        originLat: 48.8566,
+        originLng: 2.3522,
+        destLat: 48.8584,
+        destLng: 2.2945,
+      })
+    );
   });
 
   it("deduplicates concurrent cache-miss lookups for the same hop", async () => {
