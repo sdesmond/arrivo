@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { DayItinerary, Reservation, TripEvent } from "@/data/types";
 
 const { mapConstructorSpy, markerConstructorSpy, mapInstances, markerInstances } = vi.hoisted(() => {
@@ -211,6 +211,45 @@ describe("MapTab", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Whole Trip" }));
     expect(window.location.search).toBe("?tab=map");
+  });
+
+  it("updates the selected scope after browser navigation changes the day parameter", async () => {
+    window.history.replaceState(null, "", "/trips/trip-1?tab=map&day=1");
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "day-2-event", name: "Louvre", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })]), makeDay(2, [makeEvent({ id: "day-2-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Day 1" }));
+    window.history.pushState(null, "", "/trips/trip-1?tab=map&day=2");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Day 2" })).toHaveAttribute("aria-selected", "true"));
+    expect(screen.getByRole("button", { name: "Louvre" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Eiffel Tower" })).not.toBeInTheDocument();
+  });
+
+  it("clears pin detail when its pin disappears after a data refresh", () => {
+    const dayOneEvent = makeEvent({
+      id: "day-1-event",
+      name: "Eiffel Tower",
+      locationLat: 48.8584,
+      locationLng: 2.2945,
+    });
+    const { rerender } = render(<MapTab events={[dayOneEvent]} tripId="trip-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Eiffel Tower" }));
+    expect(screen.getByTestId("map-tab-pin-detail")).toBeInTheDocument();
+
+    rerender(<MapTab events={[]} tripId="trip-1" />);
+
+    expect(screen.queryByTestId("map-tab-pin-detail")).not.toBeInTheDocument();
   });
 
   it("updates markers to match the selected day without recreating the map", () => {

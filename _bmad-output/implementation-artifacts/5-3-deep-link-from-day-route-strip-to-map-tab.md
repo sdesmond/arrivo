@@ -4,7 +4,7 @@ baseline_commit: b7f197e1025908bebedfafec2a26fd20f78c1266
 
 # Story 5.3: Deep-link from Day Route Strip to Map Tab
 
-Status: review
+Status: done
 
 ## Story
 
@@ -94,6 +94,11 @@ so that I can go straight from a day's plan to seeing it geographically.
   - [x] Subtask 11.1: lint, TypeScript, coverage, build, affected E2E
   - [x] Subtask 11.2: Fix any issues flagged
   - [x] Subtask 11.3: Re-run until PASS
+
+### Review Findings
+
+- [x] [Review][Patch] Keep Map scope synchronized with URL navigation [src/components/packt/map-tab.tsx:80] — fixed by subscribing to browser navigation and discarding local scope state when its URL parameter no longer matches.
+- [x] [Review][Patch] Clear pin detail when filtered data no longer contains selected pin [src/components/packt/map-tab.tsx:105] — fixed by clearing invalid selection after refreshed pins remove it.
 
 ## Dev Notes
 
