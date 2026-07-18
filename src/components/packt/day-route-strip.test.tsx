@@ -127,4 +127,70 @@ describe("DayRouteStrip", () => {
 
     expect(onConflictClick).toHaveBeenCalledTimes(1);
   });
+
+  it("renders the thumbnail as a button when onThumbnailClick is provided and data is ready", () => {
+    render(
+      <DayRouteStrip
+        summary={{ status: "ready", totalDistanceMeters: 1250, totalDurationSeconds: 3900, hopCount: 2 }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={2}
+        onThumbnailClick={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Route overview for day 1" })).toHaveClass("min-h-11", "min-w-11");
+    expect(screen.queryByRole("img", { name: "Route overview for day 1" })).not.toBeInTheDocument();
+  });
+
+  it("renders the thumbnail as a non-interactive div when onThumbnailClick is not provided", () => {
+    render(
+      <DayRouteStrip
+        summary={{ status: "ready", totalDistanceMeters: 1250, totalDurationSeconds: 3900, hopCount: 2 }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={2}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: "Route overview for day 1" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Route overview for day 1" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the thumbnail non-interactive while loading, even when onThumbnailClick is provided", () => {
+    render(
+      <DayRouteStrip
+        summary={{ status: "loading" }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={1}
+        onThumbnailClick={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: "Route loading" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Route loading" })).not.toBeInTheDocument();
+  });
+
+  it("calls onThumbnailClick when the thumbnail button is clicked", async () => {
+    const user = userEvent.setup();
+    const onThumbnailClick = vi.fn();
+    render(
+      <DayRouteStrip
+        summary={{ status: "ready", totalDistanceMeters: 1250, totalDurationSeconds: 3900, hopCount: 2 }}
+        tripId="trip-1"
+        dayNumber={1}
+        tripTransitMode="drive"
+        totalHopCount={2}
+        onThumbnailClick={onThumbnailClick}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Route overview for day 1" }));
+
+    expect(onThumbnailClick).toHaveBeenCalledTimes(1);
+  });
 });

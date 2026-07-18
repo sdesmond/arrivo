@@ -64,6 +64,7 @@ export const FEATURE_MAP = [
     "src/components/packt/location-dialog.tsx",
     "src/components/packt/location-lookup-input.tsx",
     "src/components/packt/use-location-autocomplete.ts",
+    "src/components/packt/use-day-draft.ts",
     "src/components/packt/unscheduled-section.tsx",
     "src/components/packt/type-picker.tsx",
     "src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx",
@@ -94,7 +95,14 @@ export const FEATURE_MAP = [
     "src/lib/linked-events.ts",
     "src/lib/open-external-maps.ts",
   ]),
-  entry("map-tab", ["src/components/packt/map-tab.tsx", "src/lib/map-helpers.ts"]),
+  entry("map-tab", [
+    "src/components/packt/map-tab.tsx",
+    "src/lib/map-helpers.ts",
+    "src/components/packt/day-route-strip.tsx",
+    "src/components/packt/day-card.tsx",
+    "src/components/packt/day-card-body.tsx",
+    "src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx",
+  ]),
   entry("packing-tab", [
     "src/components/packt/packing-*",
     "src/components/packt/droppable-packing-section.tsx",

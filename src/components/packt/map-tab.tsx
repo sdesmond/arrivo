@@ -20,6 +20,11 @@ export interface MapTabProps {
   dayFilter?: number | null;
 }
 
+interface SelectedDayOverride {
+  dayNumber: number | null;
+  dayParam: string | null;
+}
+
 // v11, not v12 — Mapbox's v12+ hosted styles use proprietary style-spec extensions (e.g. layer
 // "slot" properties) that MapLibre GL JS's stricter open-spec validator rejects at runtime.
 const MAP_STYLE_URL = "https://api.mapbox.com/styles/v1/mapbox/streets-v11";
@@ -52,8 +57,9 @@ function parseDayNumber(value: string | null): number | null {
   return Number.isFinite(dayNumber) ? dayNumber : null;
 }
 
-function noopSubscribe(): () => void {
-  return () => {};
+function subscribeToDayParam(onStoreChange: () => void): () => void {
+  window.addEventListener("popstate", onStoreChange);
+  return () => window.removeEventListener("popstate", onStoreChange);
 }
 
 function readDayParam(): string | null {
@@ -73,12 +79,14 @@ export function MapTab({
   dayFilter,
 }: MapTabProps): ReactElement {
   const pins = useMemo(() => getLocatedItemPins(events, reservations), [events, reservations]);
-  const dayParamFromUrl = useSyncExternalStore(noopSubscribe, readDayParam, readServerDayParam);
+  const dayParamFromUrl = useSyncExternalStore(subscribeToDayParam, readDayParam, readServerDayParam);
   // `undefined` = no user selection yet (derive from the URL day param, then dayFilter, then Whole Trip).
   // `null` = user explicitly chose Whole Trip. A number = user explicitly chose that day.
-  const [selectedDayOverride, setSelectedDayOverride] = useState<number | null | undefined>(undefined);
-  const selectedDayNumber =
-    selectedDayOverride !== undefined ? selectedDayOverride : (parseDayNumber(dayParamFromUrl) ?? dayFilter ?? null);
+  const [selectedDayOverride, setSelectedDayOverride] = useState<SelectedDayOverride | null>(null);
+  const hasCurrentDayOverride = selectedDayOverride?.dayParam === dayParamFromUrl;
+  const selectedDayNumber = hasCurrentDayOverride
+    ? selectedDayOverride.dayNumber
+    : (parseDayNumber(dayParamFromUrl) ?? dayFilter ?? null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -107,6 +115,13 @@ export function MapTab({
     });
   }, [days, pins, validSelectedDayNumber, unscheduledEvents]);
 
+  useEffect(() => {
+    if (selectedPin && !filteredPins.some((pin) => pin.id === selectedPin.id)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- selection is invalid after refreshed pins remove it.
+      setSelectedPin(null);
+    }
+  }, [filteredPins, selectedPin]);
+
   const scopeOptions = useMemo(
     () => [
       { dayNumber: null, label: "Whole Trip" },
@@ -119,12 +134,13 @@ export function MapTab({
   );
 
   function selectScope(dayNumber: number | null): void {
-    setSelectedDayOverride(dayNumber);
+    const dayParam = dayNumber === null ? null : String(dayNumber);
+    setSelectedDayOverride({ dayNumber, dayParam });
     setSelectedPin(null);
 
     const nextUrl = new URL(window.location.href);
-    if (dayNumber === null) nextUrl.searchParams.delete("day");
-    else nextUrl.searchParams.set("day", String(dayNumber));
+    if (dayParam === null) nextUrl.searchParams.delete("day");
+    else nextUrl.searchParams.set("day", dayParam);
     window.history.replaceState(null, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
   }
 

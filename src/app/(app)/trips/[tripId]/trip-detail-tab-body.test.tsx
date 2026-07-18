@@ -179,6 +179,13 @@ describe("TripDetailTabBody", () => {
     );
   });
 
+  it("threads onOpenMapTab into the Itinerary tab", () => {
+    const onOpenMapTab = vi.fn();
+    render(<TripDetailTabBody {...buildProps({ activeTab: "itin", onOpenMapTab })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ onOpenMapTab }));
+  });
+
   it("falls back to drive when the trip has no transit mode set", () => {
     render(<TripDetailTabBody {...buildProps({ trip: { ...trip, transitMode: null }, activeTab: "itin" })} />);
 

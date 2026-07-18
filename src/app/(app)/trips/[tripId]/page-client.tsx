@@ -185,6 +185,15 @@ export function TripDetailClient({
     window.history.pushState(null, "", nextUrl);
   }
 
+  function handleOpenMapTab(dayNumber: number): void {
+    setActiveTab(TripDetailTab.Map);
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.set("tab", TripDetailTab.Map);
+    nextParams.set("day", String(dayNumber));
+    const nextQueryString = nextParams.toString();
+    window.history.replaceState(null, "", nextQueryString ? `${pathname}?${nextQueryString}` : pathname);
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div aria-live="polite" className="sr-only">
@@ -285,6 +294,7 @@ export function TripDetailClient({
             }}
             onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
             onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
+            onOpenMapTab={handleOpenMapTab}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

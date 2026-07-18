@@ -40,6 +40,7 @@ export interface TripItineraryViewProps {
   reservationCount: number;
   onActivateReservationsCta: () => void;
   onLinkedEventTap: (linkedReservationId: string) => void;
+  onOpenMapTab?: (dayNumber: number) => void;
   dateFormat?: string;
   initialExpandedDayNumber?: number;
   highlightedEventId?: string | null;
@@ -96,6 +97,7 @@ export function TripItineraryView({
   reservationCount,
   onActivateReservationsCta,
   onLinkedEventTap,
+  onOpenMapTab,
   dateFormat,
   initialExpandedDayNumber,
   highlightedEventId,
@@ -208,6 +210,7 @@ export function TripItineraryView({
               onUpdateEvent={onUpdateEvent}
               onDeleteEvent={onDeleteEvent}
               onLinkedEventTap={onLinkedEventTap}
+              onOpenMapTab={onOpenMapTab}
               onReorderDayItems={onReorderDayItems}
               onUpdateDay={onUpdateDay}
               onAddEvent={onAddEvent}

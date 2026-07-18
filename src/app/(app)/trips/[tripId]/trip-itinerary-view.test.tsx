@@ -13,6 +13,7 @@ interface MockDayCardProps {
   highlightedEventId?: string | null;
   onRemove?: () => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
+  onOpenMapTab?: (dayNumber: number) => void;
 }
 
 interface MockPlaceRowProps {
@@ -29,6 +30,7 @@ vi.mock("@/components/packt/day-card", () => ({
     highlightedEventId,
     onRemove,
     onLinkedEventTap,
+    onOpenMapTab,
   }: MockDayCardProps) => (
     <section
       data-testid={`day-card-${day.dayNumber}`}
@@ -43,6 +45,7 @@ vi.mock("@/components/packt/day-card", () => ({
       {onLinkedEventTap && (
         <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap on {day.label}</button>
       )}
+      {onOpenMapTab && <button onClick={() => onOpenMapTab(day.dayNumber)}>Open map tab from {day.label}</button>}
     </section>
   ),
 }));
@@ -281,6 +284,16 @@ describe("TripItineraryView", () => {
 
     await user.click(screen.getByRole("button", { name: /opens the Reservations tab/i }));
     expect(onActivateReservationsCta).toHaveBeenCalledOnce();
+  });
+
+  it("threads onOpenMapTab to DayCard instead of a dead no-op", async () => {
+    const user = userEvent.setup();
+    const onOpenMapTab = vi.fn();
+    const props = buildProps([dayOne], { onOpenMapTab });
+    render(<TripItineraryView {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Open map tab from Day 1" }));
+    expect(onOpenMapTab).toHaveBeenCalledWith(1);
   });
 
   it("threads onLinkedEventTap to DayCard instead of a dead no-op", async () => {

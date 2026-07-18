@@ -58,6 +58,35 @@ Given("I have a trip with located stops on two days", async ({ page, scenario })
   await scenario.gotoCurrentTrip(page);
 });
 
+Before({ tags: "@map-deep-link" }, async ({ scenario }) => {
+  await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        events: [
+          { name: "Museum", position: 0, dayNumber: 1, locationLat: 48.8566, locationLng: 2.3522 },
+          { name: "Cafe", position: 1, dayNumber: 1, locationLat: 48.8606, locationLng: 2.3376 },
+          { name: "Louvre Museum", position: 0, dayNumber: 2, locationLat: 48.861, locationLng: 2.338 },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+});
+
+Given("I have a trip with a routed day and another located stop", async ({ page, scenario }) => {
+  await scenario.signIn(page);
+  await scenario.gotoCurrentTrip(page);
+  const dayToggle = page
+    .locator("button")
+    .filter({ hasText: /\d+ stops/ })
+    .first();
+  if ((await dayToggle.getAttribute("aria-expanded")) === "false") {
+    await dayToggle.click();
+  }
+});
+
 Given("I have a trip with many days", async ({ page, scenario }) => {
   await scenario.materialize({
     user: { setCurrent: true },
@@ -80,6 +109,10 @@ Given("I have a trip with many days", async ({ page, scenario }) => {
 
 When("I open the Map tab", async ({ page }) => {
   await page.getByRole("button", { name: "Map" }).click();
+});
+
+When("I tap the day 1 route strip thumbnail", async ({ page }) => {
+  await page.getByRole("button", { name: /route (overview|unavailable) for day 1/i }).click();
 });
 
 When("I select map scope {string}", async ({ page }, scope: string) => {
@@ -128,4 +161,14 @@ Then("the map day selector is horizontally scrollable", async ({ page }) => {
   });
 
   expect(isScrollable).toBe(true);
+});
+
+Then("the Map tab is open with day 1 selected", async ({ page }) => {
+  await expect(page).toHaveURL(/[?&]tab=map/);
+  await expect(page).toHaveURL(/[?&]day=1/);
+  await expect(page.getByRole("tab", { name: "Day 1", selected: true })).toBeVisible();
+});
+
+Then("the Whole Trip scope is selected", async ({ page }) => {
+  await expect(page.getByRole("tab", { name: "Whole Trip", selected: true })).toBeVisible();
 });
