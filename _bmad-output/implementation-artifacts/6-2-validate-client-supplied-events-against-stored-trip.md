@@ -1,6 +1,10 @@
+---
+baseline_commit: 13bb6e01e72ad094843f6cce295136041c3bdac5
+---
+
 # Story 6.2: Validate client-supplied events against stored trip
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -19,22 +23,22 @@ so that a client can't request route/conflict data for arbitrary event coordinat
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Add trip-ownership validation for supplied events** (AC: #1, #3, #4)
+- [x] **Task 1: Add trip-ownership validation for supplied events** (AC: #1, #3, #4)
   - Current state — read `src/app/(app)/trips/[tripId]/route-actions.ts` in full before starting (it's short, 43 lines). All three actions call `requireUser()` then `assertTripAccess(tripId, user.id!, "viewer")`, which proves the caller can see *Trip A*, but never checks that the `events` array they also supplied actually belongs to *Trip A* — a caller with legitimate viewer access to any trip can pass event objects with coordinates from a different trip (or fabricated ones) and get route/conflict data computed from them.
   - The established pattern for this exact problem already exists in this codebase: `getEventTripId(eventId)` in `src/app/(app)/trips/[tripId]/actions.ts:69-73` derives the *true* owning trip of a single event from the DB (`db.select({ tripId: events.tripId }).from(events).where(eq(events.id, eventId))`) rather than trusting a client-supplied pairing. This story needs the batch equivalent: given `tripId` and an array of event IDs, confirm every ID actually belongs to that trip.
-  - [ ] Add a local helper in `route-actions.ts` (not exported, not in `route.ts` — trip-ownership validation is a server-action/auth-boundary concern per epics.md's "Architectural boundaries" note: `route.ts` does route/distance calculation only) that takes `tripId` and the supplied `events: TripEvent[]`, and verifies every event ID belongs to that trip in one query: `db.select({ id: events.id }).from(events).where(and(eq(events.tripId, tripId), inArray(events.id, eventIds)))`, then compare the returned ID set against the supplied IDs. `route-actions.ts` currently imports neither `db`, the `events` schema table, nor any `drizzle-orm` operators — this story adds all three: `import { db } from "@/db"`, `import { events } from "@/db/schema"`, `import { and, eq, inArray } from "drizzle-orm"` (mirror the exact import style used in `src/lib/route.ts`, which already imports `and`/`eq` from `drizzle-orm` and `routeCache` from `@/db/schema` the same way).
-  - [ ] On mismatch, throw (matching the existing pattern of `getEventTripId` throwing `new Error("Event not found")` for an analogous violation — pick a similarly clear message, e.g. `"Event(s) do not belong to trip"`). Do not silently filter and continue — the caller supplied bad data, surface it rather than degrading gracefully (this differs from `route.ts`'s `RouteResult.unavailable` pattern, which is for *provider* failures, not for a client integrity violation).
-  - [ ] Wire this helper into `getDayRouteSummary` and `getDayScheduleConflicts`, called after `assertTripAccess` succeeds and before delegating to `route.ts`. Skip the check entirely when `events.length === 0` (nothing to validate, and the underlying `route.ts` functions already handle empty/under-2-located-item inputs as `unavailable`/`[]`).
-- [ ] **Task 2: Decide `getRouteDistanceTime`'s treatment** (AC: #2)
+  - [x] Add a local helper in `route-actions.ts` (not exported, not in `route.ts` — trip-ownership validation is a server-action/auth-boundary concern per epics.md's "Architectural boundaries" note: `route.ts` does route/distance calculation only) that takes `tripId` and the supplied `events: TripEvent[]`, and verifies every event ID belongs to that trip in one query: `db.select({ id: events.id }).from(events).where(and(eq(events.tripId, tripId), inArray(events.id, eventIds)))`, then compare the returned ID set against the supplied IDs. `route-actions.ts` currently imports neither `db`, the `events` schema table, nor any `drizzle-orm` operators — this story adds all three: `import { db } from "@/db"`, `import { events } from "@/db/schema"`, `import { and, eq, inArray } from "drizzle-orm"` (mirror the exact import style used in `src/lib/route.ts`, which already imports `and`/`eq` from `drizzle-orm` and `routeCache` from `@/db/schema` the same way).
+  - [x] On mismatch, throw (matching the existing pattern of `getEventTripId` throwing `new Error("Event not found")` for an analogous violation — pick a similarly clear message, e.g. `"Event(s) do not belong to trip"`). Do not silently filter and continue — the caller supplied bad data, surface it rather than degrading gracefully (this differs from `route.ts`'s `RouteResult.unavailable` pattern, which is for *provider* failures, not for a client integrity violation).
+  - [x] Wire this helper into `getDayRouteSummary` and `getDayScheduleConflicts`, called after `assertTripAccess` succeeds and before delegating to `route.ts`. Skip the check entirely when `events.length === 0` (nothing to validate, and the underlying `route.ts` functions already handle empty/under-2-located-item inputs as `unavailable`/`[]`).
+- [x] **Task 2: Decide `getRouteDistanceTime`'s treatment** (AC: #2)
   - `getRouteDistanceTime(tripId, origin, destination, transitMode)` takes raw lat/lng pairs, not event IDs — there is no event to validate against. The Epic 4.1/4.2 code reviews' "mirrors the exact pre-existing pattern in the sibling `getRouteDistanceTime` action" language was about the *shape* of the gap (trusting client-supplied coordinates), not a literal call to the same validation helper — you cannot look up "does this lat/lng belong to trip X" the way you can for an event ID.
-  - [ ] Document in Dev Notes / Completion Notes that this action is intentionally out of scope for the event-ownership check (there's no event ID to check), and that the coordinate-trust risk it carries is materially lower: it returns only aggregate distance/duration for a route between two points, the same shape of information External Maps or any mapping service would give any user for any two coordinates — not could not access otherwise. Do not add speculative rate-limiting or coordinate-plausibility checks; that's a different, unrequested feature.
-- [ ] **Task 3: Tests** (AC: #1, #3, #4)
-  - [ ] `src/app/(app)/trips/[tripId]/route-actions.test.ts` (exists, 131 lines — extend, don't rewrite): add a `db` mock (see `src/lib/route.test.ts` for the `vi.mock("@/db", ...)` + `vi.mock("@/db/schema", ...)` pattern used to mock drizzle's `select().from().where()` chain) and add cases to `getDayRouteSummary` and `getDayScheduleConflicts` describe blocks:
+  - [x] Document in Dev Notes / Completion Notes that this action is intentionally out of scope for the event-ownership check (there's no event ID to check), and that the coordinate-trust risk it carries is materially lower: it returns only aggregate distance/duration for a route between two points, the same shape of information External Maps or any mapping service would give any user for any two coordinates — not could not access otherwise. Do not add speculative rate-limiting or coordinate-plausibility checks; that's a different, unrequested feature.
+- [x] **Task 3: Tests** (AC: #1, #3, #4)
+  - [x] `src/app/(app)/trips/[tripId]/route-actions.test.ts` (exists, 131 lines — extend, don't rewrite): add a `db` mock (see `src/lib/route.test.ts` for the `vi.mock("@/db", ...)` + `vi.mock("@/db/schema", ...)` pattern used to mock drizzle's `select().from().where()` chain) and add cases to `getDayRouteSummary` and `getDayScheduleConflicts` describe blocks:
     - supplied events that all belong to the trip → validation passes, `route.ts` delegate is still called with those events (no regression on the legitimate path)
     - supplied events including at least one foreign/mismatched ID → the action throws before `route.ts`'s `getDayRouteSummary`/`getDayScheduleConflicts` mock is ever called (assert `mockGetDayRouteSummary`/`mockGetDayScheduleConflicts` was NOT called, mirroring the existing "rejects when the user does not have viewer access" test's assertion style at lines 96-103 and 122-129)
     - empty `events` array → validation is skipped, no DB call made, existing "unavailable"/`[]` behavior preserved
-  - [ ] No changes needed to `src/lib/route.test.ts` — `route.ts` itself is untouched by this story.
-  - [ ] No changes needed to `src/app/(app)/trips/[tripId]/actions.test.ts` — `getEventTripId` there is reused as a *reference pattern*, not modified or imported cross-file.
+  - [x] No changes needed to `src/lib/route.test.ts` — `route.ts` itself is untouched by this story.
+  - [x] No changes needed to `src/app/(app)/trips/[tripId]/actions.test.ts` — `getEventTripId` there is reused as a *reference pattern*, not modified or imported cross-file.
 
 ## Dev Notes
 
@@ -64,8 +68,26 @@ so that a client can't request route/conflict data for arbitrary event coordinat
 
 ### Agent Model Used
 
+GPT-5
+
 ### Debug Log References
+
+`npx vitest run 'src/app/(app)/trips/[tripId]/route-actions.test.ts'` — 12 passed
 
 ### Completion Notes List
 
+- Added one-query event ownership validation after viewer access checks for route summaries and schedule-conflict reads.
+- Rejected foreign or fabricated event IDs before route delegates receive client-supplied coordinates; empty event lists bypass the DB check.
+- Kept `getRouteDistanceTime` out of the ownership check: it has no event IDs and returns only aggregate route data available from any mapping service.
+- Validation: lint, TypeScript, 3151 coverage tests, production build, and 15 affected Playwright scenarios passed. `npm run test:e2e:affected` wrapper failed only because Windows `cmd.exe` interpreted its unquoted grep pipes; the identical quoted direct Playwright command passed.
+
 ### File List
+
+- src/app/(app)/trips/[tripId]/route-actions.ts
+- src/app/(app)/trips/[tripId]/route-actions.test.ts
+- _bmad-output/implementation-artifacts/6-2-validate-client-supplied-events-against-stored-trip.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+
+## Change Log
+
+- 2026-07-19: Validated client-supplied route and conflict events against stored trip ownership.

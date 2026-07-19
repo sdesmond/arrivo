@@ -7,12 +7,18 @@ const {
   mockGetDayRouteSummary,
   mockGetRouteDistanceTime,
   mockGetDayScheduleConflicts,
+  mockSelect,
+  mockFrom,
+  mockWhere,
 } = vi.hoisted(() => {
   const mockAssertTripAccess = vi.fn();
   const mockRequireUser = vi.fn();
   const mockGetRouteDistanceTime = vi.fn();
   const mockGetDayRouteSummary = vi.fn();
   const mockGetDayScheduleConflicts = vi.fn();
+  const mockSelect = vi.fn();
+  const mockFrom = vi.fn();
+  const mockWhere = vi.fn();
 
   return {
     mockAssertTripAccess,
@@ -20,6 +26,9 @@ const {
     mockGetDayRouteSummary,
     mockGetRouteDistanceTime,
     mockGetDayScheduleConflicts,
+    mockSelect,
+    mockFrom,
+    mockWhere,
   };
 });
 
@@ -32,6 +41,20 @@ vi.mock("@/lib/route", () => ({
   getDayRouteSummary: mockGetDayRouteSummary,
   getRouteDistanceTime: mockGetRouteDistanceTime,
   getDayScheduleConflicts: mockGetDayScheduleConflicts,
+}));
+
+vi.mock("@/db", () => ({
+  db: { select: mockSelect },
+}));
+
+vi.mock("@/db/schema", () => ({
+  events: { id: "id", tripId: "tripId" },
+}));
+
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+  inArray: vi.fn(),
 }));
 
 import { getDayRouteSummary, getRouteDistanceTime, getDayScheduleConflicts } from "./route-actions";
@@ -80,17 +103,40 @@ describe("getRouteDistanceTime (server action)", () => {
 describe("getDayRouteSummary (server action)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("requires viewer access before delegating route aggregation", async () => {
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockAssertTripAccess.mockResolvedValue(undefined);
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ where: mockWhere });
+  });
+
+  it("validates same-trip events before delegating route aggregation", async () => {
     mockGetDayRouteSummary.mockResolvedValue({ status: "unavailable" });
     const events = [{ id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 }];
+    mockWhere.mockResolvedValue([{ id: "event-1" }]);
 
     await expect(getDayRouteSummary("trip-1", events, "drive", 400)).resolves.toEqual({ status: "unavailable" });
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "viewer");
+    expect(mockSelect).toHaveBeenCalledOnce();
     expect(mockGetDayRouteSummary).toHaveBeenCalledWith(events, "drive", 400);
+  });
+
+  it("rejects foreign events before delegating route aggregation", async () => {
+    const events = [
+      { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+      { id: "event-2", name: "Foreign", position: 1, locationLat: 40.71, locationLng: -74.01 },
+    ];
+    mockWhere.mockResolvedValue([{ id: "event-1" }]);
+
+    await expect(getDayRouteSummary("trip-1", events, "drive", 400)).rejects.toThrow("Event(s) do not belong to trip");
+    expect(mockGetDayRouteSummary).not.toHaveBeenCalled();
+  });
+
+  it("skips validation for an empty event list", async () => {
+    mockGetDayRouteSummary.mockResolvedValue({ status: "unavailable" });
+
+    await expect(getDayRouteSummary("trip-1", [], "drive", 400)).resolves.toEqual({ status: "unavailable" });
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockGetDayRouteSummary).toHaveBeenCalledWith([], "drive", 400);
   });
 
   it("rejects when the user does not have viewer access", async () => {
@@ -106,17 +152,42 @@ describe("getDayRouteSummary (server action)", () => {
 describe("getDayScheduleConflicts (server action)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("requires viewer access before delegating conflict detection", async () => {
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockAssertTripAccess.mockResolvedValue(undefined);
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ where: mockWhere });
+  });
+
+  it("validates same-trip events before delegating conflict detection", async () => {
     mockGetDayScheduleConflicts.mockResolvedValue([]);
     const events = [{ id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 }];
+    mockWhere.mockResolvedValue([{ id: "event-1" }]);
 
     await expect(getDayScheduleConflicts("trip-1", events, "drive", 400)).resolves.toEqual([]);
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "viewer");
+    expect(mockSelect).toHaveBeenCalledOnce();
     expect(mockGetDayScheduleConflicts).toHaveBeenCalledWith(events, "trip-1", "drive", 400);
+  });
+
+  it("rejects foreign events before delegating conflict detection", async () => {
+    const events = [
+      { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+      { id: "event-2", name: "Foreign", position: 1, locationLat: 40.71, locationLng: -74.01 },
+    ];
+    mockWhere.mockResolvedValue([{ id: "event-1" }]);
+
+    await expect(getDayScheduleConflicts("trip-1", events, "drive", 400)).rejects.toThrow(
+      "Event(s) do not belong to trip"
+    );
+    expect(mockGetDayScheduleConflicts).not.toHaveBeenCalled();
+  });
+
+  it("skips validation for an empty event list", async () => {
+    mockGetDayScheduleConflicts.mockResolvedValue([]);
+
+    await expect(getDayScheduleConflicts("trip-1", [], "drive", 400)).resolves.toEqual([]);
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockGetDayScheduleConflicts).toHaveBeenCalledWith([], "trip-1", "drive", 400);
   });
 
   it("rejects when the user does not have viewer access", async () => {
