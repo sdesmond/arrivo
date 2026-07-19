@@ -58,6 +58,7 @@ interface TripDetailClientProps {
   templates?: PackingTemplate[];
   warningThreshold?: number;
   dangerThreshold?: number;
+  walkThresholdMeters?: number | null;
 }
 
 export function TripDetailClient({
@@ -72,6 +73,7 @@ export function TripDetailClient({
   templates = [],
   warningThreshold = DEFAULT_WARNING_THRESHOLD,
   dangerThreshold = DEFAULT_DANGER_THRESHOLD,
+  walkThresholdMeters,
 }: TripDetailClientProps): ReactElement {
   const highlightedEventId = useFocusScroll();
 
@@ -241,6 +243,7 @@ export function TripDetailClient({
             defaultExpenseCurrency={defaultExpenseCurrency}
             warningThreshold={warningThreshold}
             dangerThreshold={dangerThreshold}
+            walkThresholdMeters={walkThresholdMeters}
             activeTab={activeTab}
             days={days}
             unscheduledEvents={unscheduledEvents}

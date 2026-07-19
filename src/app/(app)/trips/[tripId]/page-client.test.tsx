@@ -83,6 +83,7 @@ vi.mock("./trip-detail-tab-body", () => ({
   TripDetailTabBody: ({
     activeTab,
     highlightedEventId,
+    walkThresholdMeters,
     onActivateReservationsCta,
     onLinkedEventTap,
     onOpenEditDates,
@@ -90,12 +91,17 @@ vi.mock("./trip-detail-tab-body", () => ({
   }: {
     activeTab: string;
     highlightedEventId?: string | null;
+    walkThresholdMeters?: number | null;
     onActivateReservationsCta: () => void;
     onLinkedEventTap: (reservationId: string) => void;
     onOpenEditDates: () => void;
     onOpenMapTab?: (dayNumber: number) => void;
   }) => (
-    <div data-testid="trip-detail-tab-body" data-highlighted-event-id={highlightedEventId ?? ""}>
+    <div
+      data-testid="trip-detail-tab-body"
+      data-highlighted-event-id={highlightedEventId ?? ""}
+      data-walk-threshold-meters={walkThresholdMeters ?? ""}
+    >
       {activeTab}
       <button onClick={onActivateReservationsCta}>Activate CTA</button>
       <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
@@ -289,6 +295,25 @@ describe("TripDetailClient", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(screen.getByTestId("trip-detail-tab-body")).toHaveAttribute("data-highlighted-event-id", "event-1");
+  });
+
+  it("forwards walkThresholdMeters to the tab body", () => {
+    render(
+      <TripDetailClient
+        detail={baseDetail}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        walkThresholdMeters={400}
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveAttribute("data-walk-threshold-meters", "400");
+  });
+
+  it("leaves walkThresholdMeters unset on the tab body when not provided", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveAttribute("data-walk-threshold-meters", "");
   });
 
   it("renders the tab from the initial deep-link state", () => {

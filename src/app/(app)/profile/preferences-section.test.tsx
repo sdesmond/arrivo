@@ -164,6 +164,13 @@ describe("ProfilePreferencesSection", () => {
     expect(screen.getByRole("button", { name: "Transit" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("renders with saved Walk transit preference selected", () => {
+    render(<ProfilePreferencesSection user={{ ...mockUser, transitMode: "walk" }} />);
+    expect(screen.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Drive" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Transit" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("saves changed transit mode", async () => {
     render(<ProfilePreferencesSection user={mockUser} />);
     await userEvent.click(screen.getByRole("button", { name: "Walk" }));
