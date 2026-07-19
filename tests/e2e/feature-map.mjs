@@ -241,7 +241,6 @@ export const SHARED_GLOBS = [
   "src/components/packt/trips-mobile-layout.tsx",
   "src/components/packt/trips-mobile-tabs.tsx",
   "src/components/packt/world-map.tsx",
-  "src/components/packt/mini-map-rail.tsx",
   "src/components/packt/theme-*",
   "src/components/packt/font-size-select.tsx",
   "src/components/packt/dev-date-picker.tsx",

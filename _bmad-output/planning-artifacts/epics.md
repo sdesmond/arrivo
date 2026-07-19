@@ -132,7 +132,7 @@ FR-4: Epic 2 - Freeform Items stay first-class (no placeholders/warnings), reinf
 FR-5: Epic 2 - No silent geocoding from item title text
 FR-6: Epic 1 - Trip Transit Default in "Getting Around" section (walk/drive/transit)
 FR-7: Epic 1 - Deterministic seeded default for new and existing trips
-FR-8: Epic 1 - Account-level default + walk-distance-threshold exception (amended into MVP)
+FR-8: Epic 1 - Account-level default + walk-distance-threshold exception (amended into MVP); **end-to-end wiring completed by Epic 6** — the preference existed but never reached route/mode selection until Story 6.1
 FR-9: Epic 1 - Per-Hop Override documented as deferred (not built)
 FR-10: Epic 4 - Day Route Strip for days with 2+ Located Items
 FR-11: Epic 4 - Route thumbnail as map-availability affordance
@@ -163,6 +163,10 @@ Users planning a day with 2+ located stops see a route summary and get warned (d
 ### Epic 5: Map Tab with Whole-Trip and Day Views
 Users can open a Map tab to see every located stop across a trip, narrow to a single day, and deep-link in from a Day Route Strip thumbnail.
 **FRs covered:** FR-14, FR-15, FR-16
+
+### Epic 6: Route Reliability & Data Integrity
+Closes technical-debt gaps surfaced during Epic 1-5 code reviews: the walk-distance-threshold preference never reached the route/mode-selection pipeline it was built for, two server actions trust client-supplied event data without validating trip ownership, and the Schedule Conflict badge has no tested overflow behavior on narrow viewports.
+**FRs covered:** FR-8 (completes wiring); strengthens NFR-1, NFR-6
 
 ## Epic 1: Trip-Level Transit Mode & Getting Around Preferences
 
@@ -533,3 +537,81 @@ So that I can go straight from a day's plan to seeing it geographically.
 **Then** the day selector still allows returning to whole-trip scope
 
 **And** the Day Route Strip thumbnail (non-clickable/hidden as of Epic 4 Story 4.1) becomes a live tap target now that Map Tab exists
+
+## Epic 6: Route Reliability & Data Integrity
+
+Closes technical-debt gaps surfaced during Epic 1-5 code reviews: the walk-distance-threshold preference never reached the route/mode-selection pipeline it was built for, two server actions trust client-supplied event data without validating trip ownership, and the Schedule Conflict badge has no tested overflow behavior on narrow viewports.
+
+**FRs covered:** FR-8 (completes wiring); strengthens NFR-1, NFR-6
+
+**Source:** all three stories originate from deferred-work items logged during Epic 1/4/spec-4-2 code reviews, not new PRD scope. See `_bmad-output/implementation-artifacts/deferred-work.md` for the original findings and dates.
+
+### Story 6.1: Wire walkThresholdMeters end-to-end into route/mode selection
+
+As a traveler who set a walk-distance threshold in my profile,
+I want that threshold to actually influence which transit mode is used for nearby hops,
+So that the preference I configured has a real effect on Day Route Strip, Schedule Conflict, and Map Tab route calculations.
+
+**Acceptance Criteria:**
+
+**Given** a user with `walkThresholdMeters` set on their profile
+**When** any route/mode calculation runs for their trips (Day Route Strip, Schedule Conflict, Now Card)
+**Then** `resolveEffectiveMode` receives the user's real `walkThresholdMeters` value instead of `undefined`
+
+**Given** `trip-detail-tab-body.tsx` renders `TripItineraryView`
+**When** the page loads
+**Then** the current user's `walkThresholdMeters` is fetched and threaded through as a prop, not silently dropped — `TripDetailTabBodyProps` currently has no such field
+
+**Given** a hop distance below the configured threshold
+**When** mode is resolved
+**Then** the hop uses "walk" regardless of the trip's default transit mode — matching the already-tested `resolveEffectiveMode` behavior in `route.test.ts`
+
+**Given** `getStraightLineDistanceMeters`'s haversine proxy estimates hop distance ahead of the real route
+**When** the threshold goes live
+**Then** the previously-moot mode-misassignment risk (road distance diverging from straight-line distance) is either accepted with a stated rationale in dev notes, or bounded
+
+**And** no existing route/mode test regresses — `walkThresholdMeters` was previously always `undefined` in every test fixture; fixtures must now cover both `null`/`undefined` (no threshold) and a real numeric threshold
+
+### Story 6.2: Validate client-supplied events against stored trip
+
+As a trip collaborator,
+I want route and schedule-conflict server actions to only operate on events that actually belong to the trip I have access to,
+So that a client can't request route/conflict data for arbitrary event coordinates under cover of a trip I can view.
+
+**Acceptance Criteria:**
+
+**Given** `getDayRouteSummary` or `getDayScheduleConflicts` in `src/app/(app)/trips/[tripId]/route-actions.ts` is called with `tripId` and a client-supplied `events` array
+**When** the action runs
+**Then** it validates that every supplied event actually belongs to that trip before computing routes — mismatched/foreign events are rejected or filtered out, not silently trusted
+
+**Given** the existing `getRouteDistanceTime` action in the same file has the identical gap
+**When** the fix lands
+**Then** the same validation approach is applied consistently across all three route-actions.ts server actions, not just the two flagged in review
+
+**Given** a viewer-level collaborator with access to Trip A
+**When** they call one of these actions with `tripId: A` but supply events belonging to Trip B
+**Then** the action does not return route/conflict data computed from Trip B's coordinates
+
+**And** existing valid same-trip calls continue to work unchanged — no behavior change for the legitimate path, and existing `requireUser()`/`assertTripAccess()` checks are preserved
+
+### Story 6.3: Schedule Conflict badge overflow guard, viewport-tested
+
+As a traveler with an unusually high number of schedule conflicts in one day,
+I want the Schedule Conflict badge to stay readable on narrow viewports,
+So that a pathological conflict count doesn't visually break the day card layout.
+
+**Acceptance Criteria:**
+
+**Given** the Schedule Conflict badge at its ordinary count range (e.g. "2 tight connections today")
+**When** rendered on any supported viewport width
+**Then** the full text remains visible, untruncated — the prior `maxWidth`+`truncate` attempt (reverted after live testing showed it clipped this exact case) must not regress
+
+**Given** a real browser at a narrow viewport (≤390px), not a guessed pixel budget
+**When** measuring the badge's natural rendered width across a range of conflict counts
+**Then** an actual overflow threshold is determined from observed geometry, not assumption
+
+**Given** a pathological conflict count that would exceed available width
+**When** rendered
+**Then** the badge degrades gracefully (wraps, truncates with an accessible full-text alternative, or switches to a compact numeral form) without clipping mid-word or breaking the day card's layout
+
+**And** the fix is verified with real viewport-width browser testing (e.g. Playwright resize), not jsdom class-string assertions alone — the verification method is recorded in the story's dev notes

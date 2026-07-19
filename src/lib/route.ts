@@ -8,7 +8,13 @@ export function resolveEffectiveMode(
   tripTransitMode: TransitMode,
   walkThresholdMeters: number | null | undefined
 ): TransitMode {
-  if (walkThresholdMeters !== null && walkThresholdMeters !== undefined && hopDistanceMeters < walkThresholdMeters) {
+  if (
+    walkThresholdMeters !== null &&
+    walkThresholdMeters !== undefined &&
+    Number.isFinite(hopDistanceMeters) &&
+    hopDistanceMeters >= 0 &&
+    hopDistanceMeters < walkThresholdMeters
+  ) {
     return "walk";
   }
 
@@ -17,6 +23,11 @@ export function resolveEffectiveMode(
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DIRECTIONS_TIMEOUT_MS = 3000;
+const ROUTE_CACHE_COORD_PRECISION = 6;
+
+export function quantizeCoord(value: number): number {
+  return Number(value.toFixed(ROUTE_CACHE_COORD_PRECISION));
+}
 const inFlightRouteRequests = new Map<string, Promise<RouteResult>>();
 
 const MAPBOX_PROFILE: Record<TransitMode, string> = {
@@ -49,16 +60,21 @@ async function lookupRouteDistanceTime(
   destination: GeoCoords,
   transitMode: TransitMode
 ): Promise<RouteResult> {
+  const originLat = quantizeCoord(origin.lat);
+  const originLng = quantizeCoord(origin.lng);
+  const destLat = quantizeCoord(destination.lat);
+  const destLng = quantizeCoord(destination.lng);
+
   try {
     const cached = await db
       .select()
       .from(routeCache)
       .where(
         and(
-          eq(routeCache.originLat, origin.lat),
-          eq(routeCache.originLng, origin.lng),
-          eq(routeCache.destLat, destination.lat),
-          eq(routeCache.destLng, destination.lng),
+          eq(routeCache.originLat, originLat),
+          eq(routeCache.originLng, originLng),
+          eq(routeCache.destLat, destLat),
+          eq(routeCache.destLng, destLng),
           eq(routeCache.transitMode, transitMode)
         )
       )
@@ -98,10 +114,10 @@ async function lookupRouteDistanceTime(
     await db
       .insert(routeCache)
       .values({
-        originLat: origin.lat,
-        originLng: origin.lng,
-        destLat: destination.lat,
-        destLng: destination.lng,
+        originLat,
+        originLng,
+        destLat,
+        destLng,
         transitMode,
         distanceMeters,
         durationSeconds,
