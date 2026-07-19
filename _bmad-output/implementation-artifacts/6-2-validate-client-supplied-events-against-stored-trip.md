@@ -4,7 +4,7 @@ baseline_commit: 13bb6e01e72ad094843f6cce295136041c3bdac5
 
 # Story 6.2: Validate client-supplied events against stored trip
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
