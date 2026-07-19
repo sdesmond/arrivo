@@ -31,6 +31,7 @@ export interface TripDetailTabBodyProps {
   defaultExpenseCurrency?: string;
   warningThreshold?: number;
   dangerThreshold?: number;
+  walkThresholdMeters?: number | null;
   activeTab: TripDetailTab;
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
@@ -109,6 +110,7 @@ export function TripDetailTabBody({
   defaultExpenseCurrency,
   warningThreshold,
   dangerThreshold,
+  walkThresholdMeters,
   activeTab,
   days,
   unscheduledEvents,
@@ -174,6 +176,7 @@ export function TripDetailTabBody({
           days={days}
           tripId={tripId}
           tripTransitMode={trip.transitMode ?? TransitMode.Drive}
+          walkThresholdMeters={walkThresholdMeters}
           unscheduledEvents={unscheduledEvents}
           defaultExpenseCurrency={defaultExpenseCurrency}
           dateFormat={dateFormat}

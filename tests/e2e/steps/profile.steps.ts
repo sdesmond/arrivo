@@ -63,6 +63,23 @@ Then("the currency preference should persist after reload", async ({ page }) => 
   await expect(page.getByRole("button", { name: /Currency: Euro EUR/i })).toBeVisible();
 });
 
+When("I set the default transit mode to {string}", async ({ page }, mode: string) => {
+  await page.getByRole("button", { name: mode, exact: true }).click();
+});
+
+When("I set the walk threshold to {string}", async ({ page }, threshold: string) => {
+  await page.getByRole("combobox", { name: "Walk if closer than" }).click();
+  await page.getByRole("option", { name: threshold }).click();
+});
+
+Then("the transit mode should show {string}", async ({ page }, mode: string) => {
+  await expect(page.getByRole("button", { name: mode, exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+Then("the walk threshold should show {string}", async ({ page }, threshold: string) => {
+  await expect(page.getByRole("combobox", { name: "Walk if closer than" })).toContainText(threshold);
+});
+
 Then("the Identity section should be active", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Identity" })).toHaveAttribute("aria-selected", "true");
 });

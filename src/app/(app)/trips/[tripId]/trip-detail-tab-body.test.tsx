@@ -186,6 +186,18 @@ describe("TripDetailTabBody", () => {
     expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ onOpenMapTab }));
   });
 
+  it("threads walkThresholdMeters into the Itinerary tab", () => {
+    render(<TripDetailTabBody {...buildProps({ activeTab: "itin", walkThresholdMeters: 400 })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ walkThresholdMeters: 400 }));
+  });
+
+  it("leaves walkThresholdMeters unset in the Itinerary tab when not provided", () => {
+    render(<TripDetailTabBody {...buildProps({ activeTab: "itin" })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ walkThresholdMeters: undefined }));
+  });
+
   it("falls back to drive when the trip has no transit mode set", () => {
     render(<TripDetailTabBody {...buildProps({ trip: { ...trip, transitMode: null }, activeTab: "itin" })} />);
 
