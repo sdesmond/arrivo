@@ -73,5 +73,5 @@ development_status:
   epic-6: in-progress
   6-1-wire-walk-threshold-meters-end-to-end: done
   6-2-validate-client-supplied-events-against-stored-trip: done
-  6-3-schedule-conflict-badge-overflow-guard: ready-for-dev
+  6-3-schedule-conflict-badge-overflow-guard: review
   epic-6-retrospective: optional

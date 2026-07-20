@@ -1,6 +1,10 @@
+---
+baseline_commit: 7166d3865349396b4ad2e299784d393d0177cbdf
+---
+
 # Story 6.3: Schedule Conflict badge overflow guard, viewport-tested
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -19,21 +23,21 @@ so that a pathological conflict count doesn't visually break the day card layout
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Measure real geometry before writing any fix code** (AC: #2) — do this first, the rest of the story depends on the answer
+- [x] **Task 1: Measure real geometry before writing any fix code** (AC: #2) — do this first, the rest of the story depends on the answer
   - Read `src/components/packt/schedule-conflict-badge.tsx` (47 lines) and `src/components/packt/day-route-strip.tsx` (110 lines) in full first. The badge renders inside `DayRouteStrip`'s flex row: `<div className="ml-auto shrink-0"><ScheduleConflictBadge .../></div>` (day-route-strip.tsx:99-107) — the badge wrapper is `shrink-0` (never compressed by flexbox) while the route-summary text next to it is `flex-1 truncate` (lines 79-90, 91-98), meaning the *summary text* absorbs width pressure first, not the badge. This matters: the badge may not actually be at risk of flex-driven clipping the way the reverted `maxWidth` attempt assumed — the real question is whether the badge's own natural width can ever exceed the row's total available width even after the summary text truncates to near-zero.
-  - [ ] Use Playwright (this repo has `mcp__playwright__*` browser tools available, or use the project's E2E Playwright setup directly) to render a trip day with a Day Route Strip and a Schedule Conflict badge at realistic-to-pathological conflict counts — at minimum: 1, 2 ("2 tight connections today" — the reference case, ~187px natural width per the deferred note), 5, 10, and 20 (there is no enforced max-events-per-day cap in this codebase, so a day with 20+ located items and every adjacent pair conflicting is a real, if extreme, reachable state — not a fabricated scenario).
-  - [ ] Resize the browser to 375px and 390px width (the two narrowest widths this project explicitly targets — see `packt-plan-reviewer`'s 44×44px mobile floor and this codebase's `≤390px` convention from the Epic 5/spec-4-2 mobile verification work) and measure: the badge's actual rendered width at each count, the row's total available width at that viewport, and whether the badge visually overflows the day card's right edge or wraps awkwardly.
-  - [ ] Record the measured numbers in this story's Completion Notes before proceeding to Task 2 — do not guess a pixel threshold the way the reverted attempt did. If measurement shows no realistic count actually overflows the row (e.g., because the summary text's `truncate` reliably yields enough room), that is a valid finding — document it and skip to Task 4 with a "no code change needed, verified via measurement" note, matching how the mobile-layout deferred item in Story 4.2's review was resolved (verified, no regression, no fix required).
-- [ ] **Task 2: Implement the degradation strategy the measurement calls for** (AC: #1, #3) — only if Task 1 found a real overflow case
-  - [ ] Do not reintroduce the reverted `maxWidth` + `truncate` combination without a measured, count-aware threshold — the prior attempt's failure mode was a single static cap applied uniformly regardless of actual count, which clipped the common 2-conflict case. Any new threshold must be derived from Task 1's measurements and must not regress AC #1's reference case.
-  - [ ] Consider options in this order of preference, informed by what Task 1 actually found: (a) allow the badge to wrap to a second line within its `ml-auto shrink-0` wrapper rather than clipping — simplest, no information loss; (b) switch to a compact numeral form ("12 conflicts" or similar) only past a measured count threshold, keeping the full phrase for ordinary counts; (c) truncate with an accessible full-text alternative (the component already has an `sr-only` announcement span for screen readers at lines 18-23,42 — extend that pattern rather than inventing a new one) only as a last resort, since AC #1 explicitly forbids truncating the ordinary case.
-  - [ ] `ScheduleConflictBadgeProps` and the component's accessibility behavior (aria-live, sr-only announcement) are otherwise correct and already tested — do not change the `count`/`conflictingEventNames`/`onClick` prop shape unless the chosen degradation strategy genuinely requires it.
-- [ ] **Task 3: Confirm the fix against the flex context, not the badge in isolation** (AC: #1, #3)
-  - [ ] Re-run the same Playwright measurement from Task 1 against the fixed component, inside `DayRouteStrip`'s real flex layout (not the badge alone) at 375px/390px — the reverted attempt's mistake was validated against a pixel budget, not the actual sibling-element context. Confirm the ordinary "2 tight connections today" case still renders at full width, and the pathological case (Task 1's chosen worst-case count) no longer clips or breaks the row.
-- [ ] **Task 4: Tests** (AC: #1, #3, #4)
-  - [ ] `src/components/packt/schedule-conflict-badge.test.tsx` (53 lines, exists — extend): add cases for whatever degradation behavior Task 2 implements (e.g., a high count renders the compact form / wraps / truncates-with-sr-only-text per the chosen strategy), plus a regression case asserting the ordinary low-count case still renders full, untruncated text. jsdom class-string assertions are acceptable *here* for logic/prop-branch coverage (e.g., "renders compact form when count > threshold") — they are not a substitute for Task 1/3's real-browser geometry verification, only a complement to it.
-  - [ ] `src/components/packt/day-route-strip.test.tsx` (exists, has existing conflict-badge tests at lines 67-129 — extend if the fix changes how `DayRouteStrip` passes props to `ScheduleConflictBadge`, otherwise no change needed here).
-  - [ ] Record in Completion Notes: the Task 1/3 measured numbers, which degradation strategy was chosen and why, and confirmation that AC #1's reference case was re-verified post-fix.
+  - [x] Use Playwright (this repo has `mcp__playwright__*` browser tools available, or use the project's E2E Playwright setup directly) to render a trip day with a Day Route Strip and a Schedule Conflict badge at realistic-to-pathological conflict counts — at minimum: 1, 2 ("2 tight connections today" — the reference case, ~187px natural width per the deferred note), 5, 10, and 20 (there is no enforced max-events-per-day cap in this codebase, so a day with 20+ located items and every adjacent pair conflicting is a real, if extreme, reachable state — not a fabricated scenario).
+  - [x] Resize the browser to 375px and 390px width (the two narrowest widths this project explicitly targets — see `packt-plan-reviewer`'s 44×44px mobile floor and this codebase's `≤390px` convention from the Epic 5/spec-4-2 mobile verification work) and measure: the badge's actual rendered width at each count, the row's total available width at that viewport, and whether the badge visually overflows the day card's right edge or wraps awkwardly.
+  - [x] Record the measured numbers in this story's Completion Notes before proceeding to Task 2 — do not guess a pixel threshold the way the reverted attempt did. If measurement shows no realistic count actually overflows the row (e.g., because the summary text's `truncate` reliably yields enough room), that is a valid finding — document it and skip to Task 4 with a "no code change needed, verified via measurement" note, matching how the mobile-layout deferred item in Story 4.2's review was resolved (verified, no regression, no fix required).
+- [x] **Task 2: Implement the degradation strategy the measurement calls for** (AC: #1, #3) — only if Task 1 found a real overflow case
+  - [x] N/A — Task 1's measurement found no real overflow case at any reachable conflict count (see Completion Notes). Do not reintroduce the reverted `maxWidth` + `truncate` combination without a measured, count-aware threshold — the prior attempt's failure mode was a single static cap applied uniformly regardless of actual count, which clipped the common 2-conflict case.
+  - [x] N/A — no degradation strategy needed; `ScheduleConflictBadge` is unchanged.
+  - [x] Confirmed: `ScheduleConflictBadgeProps` and prop shape (`count`/`conflictingEventNames`/`onClick`) are unchanged.
+- [x] **Task 3: Confirm the fix against the flex context, not the badge in isolation** (AC: #1, #3)
+  - [x] Task 1's measurement was already run inside the real flex context (day-card border → `DayCardBody`'s `p-3` → `DayRouteStrip`'s `my-3 flex items-center gap-3` row → `ml-auto shrink-0` badge wrapper), not the badge in isolation, at both 375px and 390px. The ordinary "2 tight connections today" case rendered at full width (187px, matching the deferred note's cited number exactly), and even a 6-digit pathological count (999,999 — far beyond any reachable event count) never crossed the day card's outer border. No further confirmation pass was needed since no code changed.
+- [x] **Task 4: Tests** (AC: #1, #3, #4)
+  - [x] `src/components/packt/schedule-conflict-badge.test.tsx` (extended): added a regression test asserting the full, untruncated phrase renders even at a pathological count (999,999), locking in that no truncation/compact-form logic exists by design. Existing low-count tests (singular/plural copy) already cover AC #1's reference case.
+  - [x] `src/components/packt/day-route-strip.test.tsx` — no change; the fix did not alter how `DayRouteStrip` passes props to `ScheduleConflictBadge` (no fix was needed).
+  - [x] Recorded in Completion Notes: the Task 1/3 measured numbers, the "no code change needed" verdict and why, and confirmation that AC #1's reference case was verified.
 
 ## Dev Notes
 
@@ -63,8 +67,42 @@ so that a pathological conflict count doesn't visually break the day card layout
 
 ### Agent Model Used
 
+Claude Sonnet 5 (claude-sonnet-5)
+
 ### Debug Log References
+
+- Real-browser measurement via `mcp__playwright__*` tools against a temporary, non-routed-in-production harness (`src/app/dev-measure-harness/page.tsx`, created and deleted within this session — not in the final diff) that rendered `DayRouteStrip` inside the exact production DOM chain: day-card border wrapper → `DayCardBody`'s `p-3` → `DayRouteStrip`'s `my-3 flex items-center gap-3` row → `ml-auto shrink-0` badge wrapper.
+- Verified against the running dev server on `http://localhost:3000` (an already-running `next dev` instance, PID 12768).
 
 ### Completion Notes List
 
+- **Verification method**: Playwright `browser_resize` + `browser_evaluate` (`getBoundingClientRect`) against the real component tree described above, not jsdom class-string assertions. Measured at viewport widths 375px and 390px.
+- **Measured numbers (375px viewport, badge natural width via `getBoundingClientRect`)**:
+  | Conflict count | Badge width (px) | Crosses day-card border? | Slack before border (px) |
+  |---|---|---|---|
+  | 1 | 178 | No | 27.6 |
+  | 2 (AC #1 reference case) | **187** (matches the deferred note's cited ~187px exactly) | No | 27.6 |
+  | 5 | 187 | No | 27.6 |
+  | 10 | 192 | No | 27.6 |
+  | 20 | 195 | No | 27.6 |
+  | 50 | 196 | No | 27.6 |
+  | 99 | 195 | No | 27.6 |
+  | 150 | 200 | No | 27.6 |
+  | 999 | 202 | No | 27.6 |
+  | 9,999 | 210 | No | 22.33 |
+  | 99,999 | 218 | No | 14.74 |
+  | 999,999 | 225 | No | 7.15 |
+
+  At 390px, the same range showed strictly more slack at every count (e.g. still 22.35px of slack remaining even at 999,999).
+- **Finding**: the badge (`ml-auto shrink-0`) never overflows the day card's outer border at any tested count, including six-digit counts that are not reachable through real user behavior (there is no realistic path to hundreds of thousands of same-day schedule conflicts). This is because the adjacent route-summary text (`flex-1 truncate`, `min-w-0`) absorbs width pressure first and can compress arbitrarily close to zero, so the badge — which never shrinks — only ever eats into that text's space and the row's own internal padding, never the card's border. Screenshot confirmation at 375px showed the summary text truncating progressively (e.g. `"1.3..."` → `"1..."`) while the full badge phrase (`"N tight connections today"`) always rendered untruncated.
+- **Verdict: no code change needed.** `schedule-conflict-badge.tsx` and `day-route-strip.tsx` are unmodified. This matches the story's explicitly-sanctioned outcome (Dev Notes: "if Task 1's real numbers show no fix is needed, that is a complete and successful outcome"), consistent with how the Story 4.2 mobile-layout deferred item was resolved.
+- **AC #1 reference case** ("2 tight connections today") re-confirmed at both 375px and 390px: renders at full width (187px), untruncated, no regression from the reverted `maxWidth`+`truncate` attempt (which is absent from the current codebase).
+- Added one regression test (`schedule-conflict-badge.test.tsx`) locking in that the full, untruncated phrase renders even at a pathological count, so a future change can't silently reintroduce truncation without a test failure.
+
 ### File List
+
+- `src/components/packt/schedule-conflict-badge.test.tsx` (MODIFY) — added pathological-count regression test
+
+## Change Log
+
+- 2026-07-19: Measured real badge geometry via Playwright at 375px/390px across conflict counts 1–999,999 inside the actual `DayCardBody`/`DayRouteStrip` flex context; found the badge never crosses the day card's border at any reachable count, so no production code change was required. Added a regression test to lock in the untruncated-text behavior.
