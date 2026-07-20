@@ -50,4 +50,14 @@ describe("ScheduleConflictBadge", () => {
 
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it("renders the full untruncated phrase even for a pathological conflict count", () => {
+    // Regression guard for Story 6.3: real-browser measurement (see story Completion
+    // Notes) confirmed the badge's shrink-0 + sibling flex-1/truncate layout keeps it
+    // clear of the day card border at every tested count, so no truncation/compact-form
+    // logic was added. This locks in that the full phrase keeps rendering unmodified.
+    render(<ScheduleConflictBadge count={999999} onClick={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "999999 tight connections today" })).toBeInTheDocument();
+  });
 });
