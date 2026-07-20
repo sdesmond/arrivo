@@ -96,6 +96,35 @@ describe("DistanceTimePill", () => {
       expect(screen.getByText("Couldn't get directions — try again.")).toBeInTheDocument();
     });
 
+    it("renders the ready-state pill with a white background and accent-brand border", () => {
+      render(
+        <DistanceTimePill eventName="Louvre Museum" routeResult={readyRoute} transitMode="walk" onOpenMaps={vi.fn()} />
+      );
+      const pill = screen.getByRole("button");
+      expect(pill).toHaveStyle({
+        background: "var(--bg)",
+        color: "var(--accent-ink)",
+        border: "1px solid var(--accent-brand)",
+      });
+    });
+
+    it("renders the unavailable-state pill with the same white background and accent-brand border", () => {
+      render(
+        <DistanceTimePill
+          eventName="Louvre Museum"
+          routeResult={{ status: "unavailable" }}
+          transitMode="drive"
+          onOpenMaps={vi.fn()}
+        />
+      );
+      const pill = screen.getByRole("button");
+      expect(pill).toHaveStyle({
+        background: "var(--bg)",
+        color: "var(--accent-ink)",
+        border: "1px solid var(--accent-brand)",
+      });
+    });
+
     it("stays a status (not a button) while loading, even with onOpenMaps", () => {
       render(
         <DistanceTimePill

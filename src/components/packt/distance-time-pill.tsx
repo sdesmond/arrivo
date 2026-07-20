@@ -15,7 +15,11 @@ export interface DistanceTimePillProps {
 
 const PILL_LAYOUT_CLASSNAME = "inline-flex items-center gap-1.5 h-11 min-w-11 px-3 rounded-full";
 const PILL_TEXT_STYLE = { fontSize: "calc(13px * var(--font-scale))" } as const;
-const PILL_ACTIVE_STYLE = { background: "var(--accent-soft)", color: "var(--accent-ink)" } as const;
+const PILL_ACTIVE_STYLE = {
+  background: "var(--bg)",
+  color: "var(--accent-ink)",
+  border: "1px solid var(--accent-brand)",
+} as const;
 const PILL_NEUTRAL_STYLE = { background: "var(--surface-2)", color: "var(--fg-3)" } as const;
 
 export function DistanceTimePill({
