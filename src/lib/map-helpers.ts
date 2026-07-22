@@ -20,6 +20,7 @@ export function getLocatedItemPins(events: TripEvent[], reservations: Reservatio
         address: reservation.startAddress,
         lat: reservation.startLocationLat,
         lng: reservation.startLocationLng,
+        reservationType: reservation.type,
       });
     }
     if (reservation.endLocationLat != null && reservation.endLocationLng != null) {
@@ -29,6 +30,7 @@ export function getLocatedItemPins(events: TripEvent[], reservations: Reservatio
         address: reservation.endAddress,
         lat: reservation.endLocationLat,
         lng: reservation.endLocationLng,
+        reservationType: reservation.type,
       });
     }
     return pins;

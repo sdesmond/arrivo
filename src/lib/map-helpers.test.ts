@@ -97,6 +97,7 @@ describe("getLocatedItemPins", () => {
         address: "18 Rue de Dunkerque, Paris",
         lat: 48.8809,
         lng: 2.3553,
+        reservationType: "lodging",
       },
       {
         id: "reservation-1-end",
@@ -104,6 +105,7 @@ describe("getLocatedItemPins", () => {
         address: "Place Louis-Armand, Paris",
         lat: 48.8443,
         lng: 2.3738,
+        reservationType: "lodging",
       },
     ]);
   });
