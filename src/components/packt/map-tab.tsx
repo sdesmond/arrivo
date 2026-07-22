@@ -3,6 +3,7 @@
 import { createElement, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { X } from "lucide-react";
@@ -163,6 +164,7 @@ export function MapTab({
   const selectorRef = useRef<HTMLDivElement>(null);
   const resultsRegionId = useId();
   const [selectedPin, setSelectedPin] = useState<LocatedItemPin | null>(null);
+  const router = useRouter();
 
   const validSelectedDayNumber = useMemo(() => {
     if (selectedDayNumber === null) return null;
@@ -229,6 +231,10 @@ export function MapTab({
       offset: [0, -SELECTED_PIN_VERTICAL_OFFSET_PX],
       duration: prefersReducedMotion() ? 0 : SELECTED_PIN_EASE_DURATION_MS,
     });
+  }
+
+  function handleViewInItinerary(eventId: string): void {
+    router.push(`?tab=itin&focus=${eventId}`, { scroll: false });
   }
 
   function selectScope(dayNumber: number | null): void {
@@ -435,21 +441,27 @@ export function MapTab({
                   {selectedPin.address}
                 </p>
               )}
-              <Button
-                variant="outline"
-                size="lg"
-                className="mt-2"
-                onClick={() =>
-                  openExternalMaps({
-                    address: selectedPin.address,
-                    lat: selectedPin.lat,
-                    lng: selectedPin.lng,
-                    label: selectedPin.name,
-                  })
-                }
-              >
-                Open External Maps
-              </Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() =>
+                    openExternalMaps({
+                      address: selectedPin.address,
+                      lat: selectedPin.lat,
+                      lng: selectedPin.lng,
+                      label: selectedPin.name,
+                    })
+                  }
+                >
+                  Open External Maps
+                </Button>
+                {!selectedPin.reservationType && (
+                  <Button variant="outline" size="lg" onClick={() => handleViewInItinerary(selectedPin.id)}>
+                    View in Itinerary
+                  </Button>
+                )}
+              </div>
             </div>
             <Button variant="ghost" size="icon-lg" title="Close pin detail" onClick={() => setSelectedPin(null)}>
               <X size={16} strokeWidth={1.5} aria-hidden="true" />

@@ -189,6 +189,22 @@ Then("the map detail card is not shown", async ({ page }) => {
   await expect(page.getByTestId("map-tab-pin-detail")).toHaveCount(0);
 });
 
+When("I tap the View in Itinerary action in the map detail card", async ({ page }) => {
+  await page.getByTestId("map-tab-pin-detail").getByRole("button", { name: "View in Itinerary" }).click();
+});
+
+Then("I land on the Itinerary tab with {string} focused", async ({ page }, eventName: string) => {
+  await expect(page).toHaveURL(/[?&]tab=itin/);
+  await expect(page).toHaveURL(/[?&]focus=/);
+  await expect(page.getByText(eventName, { exact: true })).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the map detail card has no View in Itinerary action", async ({ page }) => {
+  await expect(page.getByTestId("map-tab-pin-detail").getByRole("button", { name: "View in Itinerary" })).toHaveCount(
+    0
+  );
+});
+
 Then("the map day selector is horizontally scrollable", async ({ page }) => {
   const isScrollable = await page.getByRole("tablist", { name: "Map scope" }).evaluate((element) => {
     return element.scrollWidth > element.clientWidth;

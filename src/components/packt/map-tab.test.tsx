@@ -18,6 +18,12 @@ const { mapConstructorSpy, markerConstructorSpy, mapInstances, markerInstances }
   };
 });
 
+const { mockRouterPush } = vi.hoisted(() => ({ mockRouterPush: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
+
 vi.mock("maplibre-gl", () => {
   class MockMap {
     addControl = vi.fn();
@@ -104,6 +110,7 @@ describe("MapTab", () => {
     vi.restoreAllMocks();
     mapConstructorSpy.mockClear();
     markerConstructorSpy.mockClear();
+    mockRouterPush.mockClear();
     mapInstances.length = 0;
     markerInstances.length = 0;
     window.history.replaceState(null, "", "/");
@@ -693,6 +700,41 @@ describe("MapTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Close pin detail" }));
     expect(screen.queryByTestId("map-tab-pin-detail")).not.toBeInTheDocument();
+  });
+
+  it("navigates to the itinerary tab and focuses the event when View in Itinerary is clicked", () => {
+    render(
+      <MapTab
+        events={[makeEvent({ id: "located-1", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 })]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(markerInstances[0].element);
+    fireEvent.click(screen.getByRole("button", { name: "View in Itinerary" }));
+
+    expect(mockRouterPush).toHaveBeenCalledWith("?tab=itin&focus=located-1", { scroll: false });
+  });
+
+  it("does not show a View in Itinerary action for a reservation stop", () => {
+    render(
+      <MapTab
+        events={[]}
+        reservations={[
+          makeReservation({
+            startLocationName: "Gare du Nord",
+            startLocationLat: 48.8809,
+            startLocationLng: 2.3553,
+          }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(markerInstances[0].element);
+
+    expect(screen.getByTestId("map-tab-pin-detail")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View in Itinerary" })).not.toBeInTheDocument();
   });
 
   it("keeps a declustered marker's External Maps coordinates at its stored location", () => {
