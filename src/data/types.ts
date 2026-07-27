@@ -79,6 +79,7 @@ export interface LocatedItemPin {
   address?: string;
   lat: number;
   lng: number;
+  reservationType?: ReservationType;
 }
 
 export const ExpenseCategory = {

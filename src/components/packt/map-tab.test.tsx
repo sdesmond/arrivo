@@ -10,17 +10,27 @@ const { mapConstructorSpy, markerConstructorSpy, mapInstances, markerInstances }
       addControl: ReturnType<typeof vi.fn>;
       jumpTo: ReturnType<typeof vi.fn>;
       fitBounds: ReturnType<typeof vi.fn>;
+      easeTo: ReturnType<typeof vi.fn>;
+      getZoom: ReturnType<typeof vi.fn>;
       remove: ReturnType<typeof vi.fn>;
     }[],
     markerInstances: [] as { element: HTMLElement; remove: ReturnType<typeof vi.fn> }[],
   };
 });
 
+const { mockRouterPush } = vi.hoisted(() => ({ mockRouterPush: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
+
 vi.mock("maplibre-gl", () => {
   class MockMap {
     addControl = vi.fn();
     jumpTo = vi.fn();
     fitBounds = vi.fn();
+    easeTo = vi.fn();
+    getZoom = vi.fn(() => 10);
     remove = vi.fn();
     on = vi.fn();
     addSource = vi.fn();
@@ -39,7 +49,14 @@ vi.mock("maplibre-gl", () => {
     }
     setLngLat = vi.fn(() => this);
     addTo = vi.fn(() => this);
-    remove = vi.fn();
+    getElement = vi.fn(() => this.element);
+    // Mirrors real MapLibre behavior: once removed, a marker is no longer tracked as active —
+    // this lets tests assert "only these pins are currently shown" without stale entries from
+    // markers a prior render already tore down.
+    remove = vi.fn(() => {
+      const index = markerInstances.indexOf(this);
+      if (index !== -1) markerInstances.splice(index, 1);
+    });
   }
   class MockNavigationControl {}
   class MockLngLatBounds {
@@ -84,11 +101,16 @@ function makeDay(dayNumber: number, events: TripEvent[], label?: string): DayIti
   };
 }
 
+function markerLabels(): (string | null)[] {
+  return markerInstances.map((marker) => marker.element.getAttribute("aria-label"));
+}
+
 describe("MapTab", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     mapConstructorSpy.mockClear();
     markerConstructorSpy.mockClear();
+    mockRouterPush.mockClear();
     mapInstances.length = 0;
     markerInstances.length = 0;
     window.history.replaceState(null, "", "/");
@@ -142,9 +164,10 @@ describe("MapTab", () => {
     );
 
     expect(markerConstructorSpy).toHaveBeenCalledTimes(2);
-    expect(screen.getByRole("button", { name: /Eiffel Tower/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Louvre/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Shopping/ })).not.toBeInTheDocument();
+    const labels = markerLabels();
+    expect(labels.some((label) => label?.includes("Eiffel Tower"))).toBe(true);
+    expect(labels.some((label) => label?.includes("Louvre"))).toBe(true);
+    expect(labels.some((label) => label?.includes("Shopping"))).toBe(false);
   });
 
   it("renders a whole-trip segment and one segment per provided day", () => {
@@ -181,13 +204,10 @@ describe("MapTab", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Day 1" }));
-    expect(screen.getByRole("button", { name: "Eiffel Tower" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Louvre" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Shopping" })).not.toBeInTheDocument();
+    expect(markerLabels()).toEqual(["1. Eiffel Tower"]);
 
     fireEvent.click(screen.getByRole("tab", { name: "Whole Trip" }));
-    expect(screen.getByRole("button", { name: "Eiffel Tower" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Louvre" })).toBeInTheDocument();
+    expect(markerLabels().sort()).toEqual(["1. Eiffel Tower", "2. Louvre"].sort());
   });
 
   it("does not render a day selector when days are not provided", () => {
@@ -231,8 +251,7 @@ describe("MapTab", () => {
     window.dispatchEvent(new PopStateEvent("popstate"));
 
     await waitFor(() => expect(screen.getByRole("tab", { name: "Day 2" })).toHaveAttribute("aria-selected", "true"));
-    expect(screen.getByRole("button", { name: "Louvre" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Eiffel Tower" })).not.toBeInTheDocument();
+    expect(markerLabels()).toEqual(["1. Louvre"]);
   });
 
   it("clears pin detail when its pin disappears after a data refresh", () => {
@@ -244,7 +263,7 @@ describe("MapTab", () => {
     });
     const { rerender } = render(<MapTab events={[dayOneEvent]} tripId="trip-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Eiffel Tower" }));
+    fireEvent.click(markerInstances[0].element);
     expect(screen.getByTestId("map-tab-pin-detail")).toBeInTheDocument();
 
     rerender(<MapTab events={[]} tripId="trip-1" />);
@@ -270,7 +289,7 @@ describe("MapTab", () => {
 
     expect(mapConstructorSpy).toHaveBeenCalledTimes(1);
     expect(mapInstances[0].remove).not.toHaveBeenCalled();
-    expect(markerInstances[markerInstances.length - 1].element).toHaveAttribute("aria-label", "Louvre");
+    expect(markerInstances[markerInstances.length - 1].element).toHaveAttribute("aria-label", "1. Louvre");
   });
 
   it("seeds the selected day from the dayFilter prop when no URL day param is present", () => {
@@ -316,7 +335,7 @@ describe("MapTab", () => {
     );
 
     expect(screen.getByRole("tab", { name: "Whole Trip" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("button", { name: "Eiffel Tower" })).toBeInTheDocument();
+    expect(markerLabels()).toEqual(["1. Eiffel Tower"]);
   });
 
   it("falls back to a default label when a day's label is an empty string", () => {
@@ -349,8 +368,146 @@ describe("MapTab", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Day 2" }));
 
-    expect(screen.getByRole("button", { name: /Gare du Nord/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Eiffel Tower" })).not.toBeInTheDocument();
+    const labels = markerLabels();
+    expect(labels.some((label) => label?.includes("Gare du Nord"))).toBe(true);
+    expect(labels.some((label) => label?.includes("Eiffel Tower"))).toBe(false);
+  });
+
+  it("numbers scheduled events continuously across days in Whole Trip view, restarting per day when scoped", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({
+            id: "day-1-event-a",
+            name: "Eiffel Tower",
+            position: 0,
+            locationLat: 48.8584,
+            locationLng: 2.2945,
+          }),
+          makeEvent({ id: "day-1-event-b", name: "Louvre", position: 1, locationLat: 48.8606, locationLng: 2.3376 }),
+          makeEvent({
+            id: "day-2-event",
+            name: "Notre Dame",
+            position: 0,
+            locationLat: 48.853,
+            locationLng: 2.3499,
+          }),
+        ]}
+        days={[
+          makeDay(1, [
+            makeEvent({ id: "day-1-event-a", position: 0 }),
+            makeEvent({ id: "day-1-event-b", position: 1 }),
+          ]),
+          makeDay(2, [makeEvent({ id: "day-2-event", position: 0 })]),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(markerLabels()).toEqual(expect.arrayContaining(["1. Eiffel Tower", "2. Louvre", "3. Notre Dame"]));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Day 2" }));
+    expect(markerLabels()).toEqual(["1. Notre Dame"]);
+  });
+
+  it("does not number a located event that is not scheduled to any day", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "day-1-event", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "unscheduled-event", name: "Someday Museum", locationLat: 48.86, locationLng: 2.35 }),
+        ]}
+        unscheduledEvents={[makeEvent({ id: "unscheduled-event", name: "Someday Museum" })]}
+        days={[makeDay(1, [makeEvent({ id: "day-1-event" })])]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(markerLabels()).toEqual(expect.arrayContaining(["1. Eiffel Tower", "Someday Museum"]));
+  });
+
+  it("numbers every location pin in event order when no days prop is provided at all", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "located-1", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "located-2", name: "Louvre", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(markerLabels()).toEqual(["1. Eiffel Tower", "2. Louvre"]);
+  });
+
+  it("numbers no pins when days is provided but empty", () => {
+    render(
+      <MapTab
+        events={[makeEvent({ id: "located-1", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 })]}
+        days={[]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(markerLabels()).toEqual(["Eiffel Tower"]);
+  });
+
+  it("keeps sequence numbers matched to their original pin order after decluttering", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "located-1", name: "First stop", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "located-2", name: "Second stop", locationLat: 48.8584, locationLng: 2.2945 }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(markerInstances[0].element).toHaveAttribute("aria-label", "1. First stop");
+    expect(markerInstances[1].element).toHaveAttribute("aria-label", "2. Second stop");
+  });
+
+  it("renders a reservation stop as a neutral icon badge instead of a number", () => {
+    render(
+      <MapTab
+        events={[]}
+        reservations={[
+          makeReservation({
+            type: "flight",
+            startLocationName: "Charles de Gaulle Airport",
+            startLocationLat: 49.0097,
+            startLocationLng: 2.5479,
+          }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    const marker = markerInstances[0].element;
+    expect(marker).toHaveAttribute("aria-label", "Flight · Charles de Gaulle Airport");
+    expect(marker.querySelector("span")).toHaveStyle({ background: "var(--surface-2)" });
+    // The marker's `element` is a detached DOM node (MapLibre's mocked `addTo` never appends it
+    // to `document`), so `toBeInTheDocument()` can't be used here — check presence directly.
+    expect(marker.querySelector(".lucide-plane")).not.toBeNull();
+  });
+
+  it("uses a different icon for a different reservation type", () => {
+    render(
+      <MapTab
+        events={[]}
+        reservations={[
+          makeReservation({
+            type: "lodging",
+            startLocationName: "Hotel Lutetia",
+            startLocationLat: 48.851,
+            startLocationLng: 2.3265,
+          }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    expect(markerInstances[0].element.querySelector(".lucide-hotel")).not.toBeNull();
   });
 
   it("links day-selector tabs to the results region and announces the visible stop count", () => {
@@ -422,7 +579,7 @@ describe("MapTab", () => {
     );
 
     expect(markerConstructorSpy).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: /Gare du Nord/ })).toBeInTheDocument();
+    expect(markerInstances[0].element.getAttribute("aria-label")).toContain("Gare du Nord");
   });
 
   it("uses jumpTo instead of fitBounds when only a single located item exists", () => {
@@ -479,7 +636,7 @@ describe("MapTab", () => {
     expect(mapContainer).toHaveAttribute("tabindex", "0");
   });
 
-  it("opens a pin's detail with name, address, and an Open External Maps action when its list button is clicked", () => {
+  it("opens a pin's detail with name, address, and an Open External Maps action when its map pin is clicked", () => {
     render(
       <MapTab
         events={[
@@ -495,7 +652,7 @@ describe("MapTab", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Eiffel Tower/ }));
+    fireEvent.click(markerInstances[0].element);
 
     const detail = screen.getByTestId("map-tab-pin-detail");
     expect(detail).toHaveTextContent("Eiffel Tower");
@@ -520,7 +677,7 @@ describe("MapTab", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Eiffel Tower/ }));
+    fireEvent.click(markerInstances[0].element);
     fireEvent.click(screen.getByRole("button", { name: "Open External Maps" }));
 
     expect(openSpy).toHaveBeenCalledWith(
@@ -538,14 +695,14 @@ describe("MapTab", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Eiffel Tower/ }));
+    fireEvent.click(markerInstances[0].element);
     expect(screen.getByTestId("map-tab-pin-detail")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close pin detail" }));
     expect(screen.queryByTestId("map-tab-pin-detail")).not.toBeInTheDocument();
   });
 
-  it("opens a pin's detail when its map marker is clicked directly", () => {
+  it("navigates to the itinerary tab and focuses the event when View in Itinerary is clicked", () => {
     render(
       <MapTab
         events={[makeEvent({ id: "located-1", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 })]}
@@ -554,8 +711,30 @@ describe("MapTab", () => {
     );
 
     fireEvent.click(markerInstances[0].element);
+    fireEvent.click(screen.getByRole("button", { name: "View in Itinerary" }));
 
-    expect(screen.getByTestId("map-tab-pin-detail")).toHaveTextContent("Eiffel Tower");
+    expect(mockRouterPush).toHaveBeenCalledWith("?tab=itin&focus=located-1", { scroll: false });
+  });
+
+  it("does not show a View in Itinerary action for a reservation stop", () => {
+    render(
+      <MapTab
+        events={[]}
+        reservations={[
+          makeReservation({
+            startLocationName: "Gare du Nord",
+            startLocationLat: 48.8809,
+            startLocationLng: 2.3553,
+          }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(markerInstances[0].element);
+
+    expect(screen.getByTestId("map-tab-pin-detail")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View in Itinerary" })).not.toBeInTheDocument();
   });
 
   it("keeps a declustered marker's External Maps coordinates at its stored location", () => {
@@ -599,5 +778,63 @@ describe("MapTab", () => {
 
     expect(marker.remove).toHaveBeenCalledTimes(1);
     expect(map.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("nudges the map camera toward the tapped pin when a marker is selected", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "located-1", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "located-2", name: "Louvre", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    fireEvent.click(markerInstances[1].element);
+
+    expect(mapInstances[0].easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [2.3376, 48.8606], zoom: 14 })
+    );
+  });
+
+  it("skips the camera-nudge animation when prefers-reduced-motion is set", () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({
+      matches: true,
+      media: "(prefers-reduced-motion: reduce)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList);
+
+    render(
+      <MapTab events={[makeEvent({ id: "located-1", locationLat: 48.8584, locationLng: 2.2945 })]} tripId="trip-1" />
+    );
+
+    fireEvent.click(markerInstances[0].element);
+
+    expect(mapInstances[0].easeTo).toHaveBeenCalledWith(expect.objectContaining({ duration: 0 }));
+  });
+
+  it("highlights the selected marker and clears the highlight when a different marker is selected", () => {
+    render(
+      <MapTab
+        events={[
+          makeEvent({ id: "located-1", name: "Eiffel Tower", locationLat: 48.8584, locationLng: 2.2945 }),
+          makeEvent({ id: "located-2", name: "Louvre", locationLat: 48.8606, locationLng: 2.3376 }),
+        ]}
+        tripId="trip-1"
+      />
+    );
+
+    const [firstMarker, secondMarker] = markerInstances;
+    const firstVisual = firstMarker.element.querySelector<HTMLElement>("[data-marker-visual]")!;
+    const secondVisual = secondMarker.element.querySelector<HTMLElement>("[data-marker-visual]")!;
+
+    fireEvent.click(firstMarker.element);
+    expect(firstVisual.style.boxShadow).toBe("0 0 0 3px var(--bg), 0 0 0 6px var(--accent-brand)");
+
+    fireEvent.click(secondMarker.element);
+    expect(firstVisual.style.boxShadow).toBe("");
+    expect(secondVisual.style.boxShadow).toBe("0 0 0 3px var(--bg), 0 0 0 6px var(--accent-brand)");
   });
 });

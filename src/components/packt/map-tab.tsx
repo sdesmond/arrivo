@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createElement, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { MapPin, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { DayItinerary, LocatedItemPin, Reservation, TripEvent } from "@/data/types";
 import { getLocatedItemPins, separateNearbyPins, transformMapboxUrl } from "@/lib/map-helpers";
 import { openExternalMaps } from "@/lib/open-external-maps";
+import { RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
 
 export interface MapTabProps {
   events: TripEvent[];
@@ -30,23 +33,91 @@ interface SelectedDayOverride {
 const MAP_STYLE_URL = "https://api.mapbox.com/styles/v1/mapbox/streets-v11";
 const SINGLE_PIN_ZOOM = 14;
 const FIT_BOUNDS_PADDING_PX = 56;
+// Half the docked detail card's height, so the camera nudge on selection keeps the tapped pin
+// visible above the card instead of centering it behind that card.
+const SELECTED_PIN_VERTICAL_OFFSET_PX = 60;
+const SELECTED_PIN_EASE_DURATION_MS = 300;
+
+// Stable references for the optional-prop defaults below: `= []` in a default parameter creates a
+// brand-new array on every render, which would make `pins`/`filteredPins` change identity on every
+// render and force the marker-build effect to tear down and recreate every marker on every
+// selection change, not just on real data changes.
+const EMPTY_RESERVATIONS: Reservation[] = [];
+const EMPTY_UNSCHEDULED_EVENTS: TripEvent[] = [];
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function createMarkerElement(pin: LocatedItemPin, onSelect: (pin: LocatedItemPin) => void): HTMLButtonElement {
+function createMarkerElement(
+  pin: LocatedItemPin,
+  onSelect: (pin: LocatedItemPin) => void,
+  sequenceNumber: number | null
+): HTMLButtonElement {
   const element = document.createElement("button");
   element.type = "button";
-  element.setAttribute("aria-label", pin.name);
-  element.title = pin.name;
+  element.dataset.pinId = pin.id;
+  const reservationMeta = pin.reservationType ? RESERVATION_TYPE_META[pin.reservationType] : null;
+  const accessibleName =
+    sequenceNumber !== null
+      ? `${sequenceNumber}. ${pin.name}`
+      : reservationMeta
+        ? `${reservationMeta.label} · ${pin.name}`
+        : pin.name;
+  element.setAttribute("aria-label", accessibleName);
+  element.title = accessibleName;
   element.style.width = "44px";
   element.style.height = "44px";
-  element.style.borderRadius = "50%";
   element.style.border = "0";
-  element.style.background = "radial-gradient(circle, var(--accent-brand) 0 7px, transparent 8px)";
-  element.style.cursor = "pointer";
   element.style.padding = "0";
+  element.style.cursor = "pointer";
+  element.style.display = "flex";
+  element.style.alignItems = "center";
+  element.style.justifyContent = "center";
+
+  if (sequenceNumber !== null) {
+    element.style.background = "transparent";
+    const badge = document.createElement("span");
+    badge.dataset.markerVisual = "true";
+    badge.setAttribute("aria-hidden", "true");
+    badge.textContent = String(sequenceNumber);
+    badge.style.width = "28px";
+    badge.style.height = "28px";
+    badge.style.borderRadius = "50%";
+    badge.style.background = "var(--accent-brand)";
+    badge.style.color = "var(--accent-fg)";
+    badge.style.display = "flex";
+    badge.style.alignItems = "center";
+    badge.style.justifyContent = "center";
+    badge.style.fontWeight = "700";
+    badge.style.fontSize = "calc(12px * var(--font-scale))";
+    badge.style.lineHeight = "1";
+    element.appendChild(badge);
+  } else if (reservationMeta) {
+    element.style.background = "transparent";
+    const badge = document.createElement("span");
+    badge.dataset.markerVisual = "true";
+    badge.style.width = "28px";
+    badge.style.height = "28px";
+    badge.style.borderRadius = "50%";
+    badge.style.background = "var(--surface-2)";
+    badge.style.color = "var(--fg-3)";
+    badge.style.display = "flex";
+    badge.style.alignItems = "center";
+    badge.style.justifyContent = "center";
+    badge.innerHTML = renderToStaticMarkup(createElement(reservationMeta.icon, { size: 14, strokeWidth: 1.5 }));
+    element.appendChild(badge);
+  } else {
+    element.style.background = "transparent";
+    const dot = document.createElement("span");
+    dot.dataset.markerVisual = "true";
+    dot.style.width = "14px";
+    dot.style.height = "14px";
+    dot.style.borderRadius = "50%";
+    dot.style.background = "var(--accent-brand)";
+    element.appendChild(dot);
+  }
+
   element.addEventListener("click", () => onSelect(pin));
   return element;
 }
@@ -72,10 +143,10 @@ function readServerDayParam(): string | null {
 
 export function MapTab({
   events,
-  reservations = [],
+  reservations = EMPTY_RESERVATIONS,
   tripId,
   days,
-  unscheduledEvents = [],
+  unscheduledEvents = EMPTY_UNSCHEDULED_EVENTS,
   dayFilter,
 }: MapTabProps): ReactElement {
   const pins = useMemo(() => getLocatedItemPins(events, reservations), [events, reservations]);
@@ -93,6 +164,7 @@ export function MapTab({
   const selectorRef = useRef<HTMLDivElement>(null);
   const resultsRegionId = useId();
   const [selectedPin, setSelectedPin] = useState<LocatedItemPin | null>(null);
+  const router = useRouter();
 
   const validSelectedDayNumber = useMemo(() => {
     if (selectedDayNumber === null) return null;
@@ -122,6 +194,22 @@ export function MapTab({
     }
   }, [filteredPins, selectedPin]);
 
+  const scheduledEventIds = useMemo(
+    () => (days ? new Set(days.flatMap((day) => day.events.map((event) => event.id))) : null),
+    [days]
+  );
+
+  const pinSequenceNumbers = useMemo(() => {
+    const numbers = new Map<string, number>();
+    let nextNumber = 1;
+    for (const pin of filteredPins) {
+      if (pin.reservationType !== undefined) continue;
+      const isScheduled = scheduledEventIds === null || scheduledEventIds.has(pin.id);
+      if (isScheduled) numbers.set(pin.id, nextNumber++);
+    }
+    return numbers;
+  }, [filteredPins, scheduledEventIds]);
+
   const scopeOptions = useMemo(
     () => [
       { dayNumber: null, label: "Whole Trip" },
@@ -132,6 +220,22 @@ export function MapTab({
     ],
     [days]
   );
+
+  function handleSelectPin(pin: LocatedItemPin): void {
+    setSelectedPin(pin);
+    const map = mapRef.current;
+    if (!map) return;
+    map.easeTo({
+      center: [pin.lng, pin.lat],
+      zoom: Math.max(map.getZoom(), SINGLE_PIN_ZOOM),
+      offset: [0, -SELECTED_PIN_VERTICAL_OFFSET_PX],
+      duration: prefersReducedMotion() ? 0 : SELECTED_PIN_EASE_DURATION_MS,
+    });
+  }
+
+  function handleViewInItinerary(eventId: string): void {
+    router.push(`?tab=itin&focus=${eventId}`, { scroll: false });
+  }
 
   function selectScope(dayNumber: number | null): void {
     const dayParam = dayNumber === null ? null : String(dayNumber);
@@ -207,11 +311,29 @@ export function MapTab({
 
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = separateNearbyPins(filteredPins).map(({ pin, offset }) =>
-      new maplibregl.Marker({ element: createMarkerElement(pin, setSelectedPin), offset })
+      new maplibregl.Marker({
+        element: createMarkerElement(pin, handleSelectPin, pinSequenceNumbers.get(pin.id) ?? null),
+        offset,
+      })
         .setLngLat([pin.lng, pin.lat])
         .addTo(map)
     );
-  }, [filteredPins]);
+  }, [filteredPins, pinSequenceNumbers]);
+
+  // Runs whenever the selection changes *or* markers get rebuilt (day-scope change), so a
+  // still-selected pin's ring survives a marker rebuild instead of only applying once.
+  useEffect(() => {
+    markersRef.current.forEach((marker) => {
+      const markerElement = marker.getElement();
+      const visualElement = markerElement.querySelector<HTMLElement>("[data-marker-visual]") ?? markerElement;
+      const isSelected = markerElement.dataset.pinId === selectedPin?.id;
+      // A same-color ring around an accent-brand-filled badge (the numbered/dot pins) would be
+      // invisible against its own fill, so the ring is a two-tone halo: a `--bg` gap separates it
+      // from the badge, then an accent-brand outer ring stays visible against the map tiles.
+      visualElement.style.boxShadow = isSelected ? "0 0 0 3px var(--bg), 0 0 0 6px var(--accent-brand)" : "";
+      visualElement.style.transform = isSelected ? "scale(1.15)" : "";
+    });
+  }, [selectedPin, filteredPins, pinSequenceNumbers]);
 
   useEffect(() => {
     return () => {
@@ -285,7 +407,7 @@ export function MapTab({
       <span aria-live="polite" className="sr-only">
         {resultsAnnouncementText}
       </span>
-      <div id={resultsRegionId}>
+      <div id={resultsRegionId} style={{ position: "relative" }}>
         <div
           ref={mapContainerRef}
           role="application"
@@ -294,26 +416,21 @@ export function MapTab({
           data-testid="map-tab-container"
           style={{ width: "100%", height: 420, borderRadius: 14, overflow: "hidden", border: "1px solid var(--line)" }}
         />
-        <ul aria-label="Located stops" className="mt-3 flex flex-col gap-1" style={{ listStyle: "none", padding: 0 }}>
-          {filteredPins.map((pin) => (
-            <li key={pin.id}>
-              <Button
-                variant="ghost"
-                size="lg"
-                className="w-full justify-start gap-2"
-                onClick={() => setSelectedPin(pin)}
-              >
-                <MapPin size={16} strokeWidth={1.5} aria-hidden="true" />
-                {pin.name}
-              </Button>
-            </li>
-          ))}
-        </ul>
         {selectedPin && (
           <div
             data-testid="map-tab-pin-detail"
-            className="mt-3 flex items-start justify-between gap-3"
-            style={{ border: "1px solid var(--line)", borderRadius: 14, background: "var(--bg)", padding: "12px 14px" }}
+            className="flex items-start justify-between gap-3"
+            style={{
+              position: "absolute",
+              left: 10,
+              right: 10,
+              bottom: 10,
+              border: "1px solid var(--line)",
+              borderRadius: 14,
+              background: "var(--bg)",
+              padding: "12px 14px",
+              boxShadow: "0 8px 20px rgba(0, 0, 0, 0.18)",
+            }}
           >
             <div>
               <p style={{ color: "var(--fg)", fontWeight: 600, fontSize: "calc(14px * var(--font-scale))" }}>
@@ -324,21 +441,27 @@ export function MapTab({
                   {selectedPin.address}
                 </p>
               )}
-              <Button
-                variant="outline"
-                size="lg"
-                className="mt-2"
-                onClick={() =>
-                  openExternalMaps({
-                    address: selectedPin.address,
-                    lat: selectedPin.lat,
-                    lng: selectedPin.lng,
-                    label: selectedPin.name,
-                  })
-                }
-              >
-                Open External Maps
-              </Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() =>
+                    openExternalMaps({
+                      address: selectedPin.address,
+                      lat: selectedPin.lat,
+                      lng: selectedPin.lng,
+                      label: selectedPin.name,
+                    })
+                  }
+                >
+                  Open External Maps
+                </Button>
+                {!selectedPin.reservationType && (
+                  <Button variant="outline" size="lg" onClick={() => handleViewInItinerary(selectedPin.id)}>
+                    View in Itinerary
+                  </Button>
+                )}
+              </div>
             </div>
             <Button variant="ghost" size="icon-lg" title="Close pin detail" onClick={() => setSelectedPin(null)}>
               <X size={16} strokeWidth={1.5} aria-hidden="true" />

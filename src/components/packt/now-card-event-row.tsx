@@ -131,17 +131,19 @@ export function NowCardEventRow({
     );
   }
 
+  const shouldShowPill = hasCoordinates && !!(routeResult || geolocationHint);
+
   return (
-    <div className={rowClassName} onClick={(clickEvent) => clickEvent.stopPropagation()}>
-      <Link
-        href={`/trips/${tripId}?focus=${event.id}`}
-        className="block rounded-[8px] group"
-        style={{
-          background: "var(--accent-soft)",
-          border: "1px solid var(--line)",
-          padding: "14px 16px",
-        }}
-      >
+    <div
+      className={cn("flex items-start gap-2 rounded-[8px] group", rowClassName)}
+      onClick={(clickEvent) => clickEvent.stopPropagation()}
+      style={{
+        background: "var(--accent-soft)",
+        border: "1px solid var(--line)",
+        padding: "14px 16px",
+      }}
+    >
+      <Link href={`/trips/${tripId}?focus=${event.id}`} className="block flex-1 min-w-0">
         <div
           style={{
             fontFamily: "var(--font-mono-family, ui-monospace)",
@@ -155,24 +157,17 @@ export function NowCardEventRow({
           {eventLabel}
         </div>
 
-        <div className="flex items-center justify-between mt-1">
-          <span
-            style={{
-              fontFamily: "var(--font-heading-family, ui-sans-serif)",
-              fontSize: "calc(20px * var(--font-scale))",
-              fontWeight: 700,
-              color: "var(--fg)",
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {event.name}
-          </span>
-          <ChevronRight
-            size={18}
-            strokeWidth={1.5}
-            style={{ color: "var(--fg-3)" }}
-            className="group-hover:translate-x-0.5 transition-transform"
-          />
+        <div
+          className="mt-1"
+          style={{
+            fontFamily: "var(--font-heading-family, ui-sans-serif)",
+            fontSize: "calc(20px * var(--font-scale))",
+            fontWeight: 700,
+            color: "var(--fg)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {event.name}
         </div>
 
         <div
@@ -187,8 +182,8 @@ export function NowCardEventRow({
         </div>
       </Link>
 
-      {hasCoordinates && (routeResult || geolocationHint) && (
-        <div className="mt-2">
+      <span className="shrink-0 self-center">
+        {shouldShowPill ? (
           <DistanceTimePill
             eventName={event.name}
             routeResult={routeResult ?? null}
@@ -197,8 +192,16 @@ export function NowCardEventRow({
             geolocationHint={geolocationHint}
             onRequestGeolocation={onRequestGeolocation}
           />
-        </div>
-      )}
+        ) : (
+          <ChevronRight
+            data-testid="now-card-row-chevron"
+            size={18}
+            strokeWidth={1.5}
+            style={{ color: "var(--fg-3)" }}
+            className="group-hover:translate-x-0.5 transition-transform"
+          />
+        )}
+      </span>
     </div>
   );
 }

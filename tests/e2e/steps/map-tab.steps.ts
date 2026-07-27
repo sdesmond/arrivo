@@ -1,5 +1,9 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { Before, Given, Then, When } from "../fixtures";
+
+function mapRegion(page: Page) {
+  return page.getByRole("application", { name: /trip map/i });
+}
 
 Before({ tags: "@trip-with-map-pins" }, async ({ scenario }) => {
   await scenario.materialize({
@@ -126,16 +130,13 @@ When("I open the Map tab on a narrow viewport", async ({ page }) => {
 
 Then("the map is visible with located stops", async ({ page }) => {
   await expect(page.getByTestId("map-tab-container")).toBeVisible({ timeout: 10_000 });
-  const locatedStopsList = page.getByRole("list", { name: "Located stops" });
-  await expect(locatedStopsList.getByRole("button", { name: "Eiffel Tower" })).toBeVisible();
-  await expect(locatedStopsList.getByRole("button", { name: "Louvre Museum" })).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: /Eiffel Tower/ })).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: /Louvre Museum/ })).toBeVisible();
 });
 
 Then("the map is visible with the reservation stop", async ({ page }) => {
   await expect(page.getByTestId("map-tab-container")).toBeVisible({ timeout: 10_000 });
-  await expect(
-    page.getByRole("list", { name: "Located stops" }).getByRole("button", { name: "Gare du Nord" })
-  ).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: /Gare du Nord/ })).toBeVisible();
 });
 
 Then("no map is rendered and the located stops empty state is shown", async ({ page }) => {
@@ -144,15 +145,64 @@ Then("no map is rendered and the located stops empty state is shown", async ({ p
 });
 
 Then("only Day 1 located stops are shown on the map", async ({ page }) => {
-  const locatedStopsList = page.getByRole("list", { name: "Located stops" });
-  await expect(locatedStopsList.getByRole("button", { name: "Eiffel Tower" })).toBeVisible();
-  await expect(locatedStopsList.getByRole("button", { name: "Louvre Museum" })).toHaveCount(0);
+  await expect(mapRegion(page).getByRole("button", { name: /Eiffel Tower/ })).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: /Louvre Museum/ })).toHaveCount(0);
 });
 
 Then("every located stop is shown on the map", async ({ page }) => {
-  const locatedStopsList = page.getByRole("list", { name: "Located stops" });
-  await expect(locatedStopsList.getByRole("button", { name: "Eiffel Tower" })).toBeVisible();
-  await expect(locatedStopsList.getByRole("button", { name: "Louvre Museum" })).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: /Eiffel Tower/ })).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: /Louvre Museum/ })).toBeVisible();
+});
+
+Then("the map shows the stop {string}", async ({ page }, expectedName: string) => {
+  await expect(mapRegion(page).getByRole("button", { name: expectedName, exact: true })).toBeVisible();
+});
+
+Then("the map shows the stops {string} and {string}", async ({ page }, firstName: string, secondName: string) => {
+  await expect(mapRegion(page).getByRole("button", { name: firstName, exact: true })).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: secondName, exact: true })).toBeVisible();
+});
+
+Then("the reservation stop is not numbered on the map", async ({ page }) => {
+  await expect(mapRegion(page).getByRole("button", { name: /Gare du Nord/ })).toBeVisible();
+  await expect(mapRegion(page).getByRole("button", { name: /^\d+\.\s/ })).toHaveCount(0);
+});
+
+When("I tap the map pin for {string}", async ({ page }, stopName: string) => {
+  await mapRegion(page)
+    .getByRole("button", { name: new RegExp(stopName) })
+    .click();
+});
+
+Then("the map detail card shows {string} with an Open External Maps action", async ({ page }, stopName: string) => {
+  const detailCard = page.getByTestId("map-tab-pin-detail");
+  await expect(detailCard).toBeVisible();
+  await expect(detailCard).toContainText(stopName);
+  await expect(detailCard.getByRole("button", { name: "Open External Maps" })).toBeVisible();
+});
+
+When("I close the map detail card", async ({ page }) => {
+  await page.getByRole("button", { name: "Close pin detail" }).click();
+});
+
+Then("the map detail card is not shown", async ({ page }) => {
+  await expect(page.getByTestId("map-tab-pin-detail")).toHaveCount(0);
+});
+
+When("I tap the View in Itinerary action in the map detail card", async ({ page }) => {
+  await page.getByTestId("map-tab-pin-detail").getByRole("button", { name: "View in Itinerary" }).click();
+});
+
+Then("I land on the Itinerary tab with {string} focused", async ({ page }, eventName: string) => {
+  await expect(page).toHaveURL(/[?&]tab=itin/);
+  await expect(page).toHaveURL(/[?&]focus=/);
+  await expect(page.getByText(eventName, { exact: true })).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the map detail card has no View in Itinerary action", async ({ page }) => {
+  await expect(page.getByTestId("map-tab-pin-detail").getByRole("button", { name: "View in Itinerary" })).toHaveCount(
+    0
+  );
 });
 
 Then("the map day selector is horizontally scrollable", async ({ page }) => {

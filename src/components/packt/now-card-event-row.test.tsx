@@ -140,6 +140,28 @@ describe("NowCardEventRow", () => {
     expect(eventLink).not.toContainElement(pill);
   });
 
+  it("renders the chevron when no DistanceTimePill is shown", () => {
+    render(
+      <NowCardEventRow tripId="trip-1" event={nonLinkedEvent} eventLabel="Next Event" floatingNow={floatingNow} />
+    );
+    expect(screen.getByTestId("now-card-row-chevron")).toBeInTheDocument();
+  });
+
+  it("hides the chevron in favor of the DistanceTimePill when a route result is available", () => {
+    const routeResult: RouteResult = { status: "ready", distanceMeters: 500, durationSeconds: 300 };
+    render(
+      <NowCardEventRow
+        tripId="trip-1"
+        event={locatedEvent}
+        eventLabel="Next Event"
+        floatingNow={floatingNow}
+        routeResult={routeResult}
+      />
+    );
+    expect(screen.queryByTestId("now-card-row-chevron")).not.toBeInTheDocument();
+    expect(screen.getByText("500 m · 5 min drive")).toBeInTheDocument();
+  });
+
   it("wires onOpenMaps through to the DistanceTimePill", async () => {
     const user = userEvent.setup();
     const onOpenMaps = vi.fn();
