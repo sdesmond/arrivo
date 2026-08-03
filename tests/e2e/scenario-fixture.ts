@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { and, eq } from "drizzle-orm";
 import type { Page, TestInfo } from "@playwright/test";
+import { TransitMode } from "../../src/data/types";
 import {
   checklistItems,
   collaborators,
@@ -256,6 +257,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           destinationName: seed.trip.destinationName ?? null,
           destinationCountry: seed.trip.destinationCountry ?? null,
           destinationCountryCode: seed.trip.destinationCountryCode ?? null,
+          transitMode: seed.trip.transitMode ?? TransitMode.Drive,
           budgetCurrency: seed.trip.budgetCurrency ?? null,
           budgetTotal: seed.trip.budgetTotal != null ? seed.trip.budgetTotal.toString() : null,
         })

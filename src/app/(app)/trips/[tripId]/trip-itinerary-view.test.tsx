@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { DayItinerary } from "@/data/types";
+import type { DayItinerary, TransitMode } from "@/data/types";
 import { TripItineraryView, type TripItineraryViewProps } from "./trip-itinerary-view";
 
 interface MockDayCardProps {
   day: DayItinerary;
+  tripId?: string;
+  tripTransitMode?: TransitMode | null;
+  walkThresholdMeters?: number | null;
   initialOpen?: boolean;
   highlightedEventId?: string | null;
   onRemove?: () => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
+  onOpenMapTab?: (dayNumber: number) => void;
 }
 
 interface MockPlaceRowProps {
@@ -17,17 +21,31 @@ interface MockPlaceRowProps {
 }
 
 vi.mock("@/components/packt/day-card", () => ({
-  DayCard: ({ day, initialOpen, highlightedEventId, onRemove, onLinkedEventTap }: MockDayCardProps) => (
+  DayCard: ({
+    day,
+    tripId,
+    tripTransitMode,
+    walkThresholdMeters,
+    initialOpen,
+    highlightedEventId,
+    onRemove,
+    onLinkedEventTap,
+    onOpenMapTab,
+  }: MockDayCardProps) => (
     <section
       data-testid={`day-card-${day.dayNumber}`}
       data-initial-open={String(!!initialOpen)}
       data-highlighted-event-id={highlightedEventId ?? ""}
+      data-trip-id={tripId ?? ""}
+      data-trip-transit-mode={tripTransitMode ?? ""}
+      data-walk-threshold-meters={walkThresholdMeters ?? ""}
     >
       <span>{day.label}</span>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
       {onLinkedEventTap && (
         <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap on {day.label}</button>
       )}
+      {onOpenMapTab && <button onClick={() => onOpenMapTab(day.dayNumber)}>Open map tab from {day.label}</button>}
     </section>
   ),
 }));
@@ -268,6 +286,16 @@ describe("TripItineraryView", () => {
     expect(onActivateReservationsCta).toHaveBeenCalledOnce();
   });
 
+  it("threads onOpenMapTab to DayCard instead of a dead no-op", async () => {
+    const user = userEvent.setup();
+    const onOpenMapTab = vi.fn();
+    const props = buildProps([dayOne], { onOpenMapTab });
+    render(<TripItineraryView {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Open map tab from Day 1" }));
+    expect(onOpenMapTab).toHaveBeenCalledWith(1);
+  });
+
   it("threads onLinkedEventTap to DayCard instead of a dead no-op", async () => {
     const user = userEvent.setup();
     const onLinkedEventTap = vi.fn();
@@ -276,5 +304,31 @@ describe("TripItineraryView", () => {
 
     await user.click(screen.getByRole("button", { name: "Trigger linked tap on Day 1" }));
     expect(onLinkedEventTap).toHaveBeenCalledWith("linked-reservation-1");
+  });
+
+  it("forwards tripId, tripTransitMode, and walkThresholdMeters to every day card", () => {
+    const props = buildProps([dayOne, dayTwo], {
+      tripId: "trip-1",
+      tripTransitMode: "walk",
+      walkThresholdMeters: 800,
+    });
+    render(<TripItineraryView {...props} />);
+
+    for (const testId of ["day-card-1", "day-card-2"]) {
+      const dayCard = screen.getByTestId(testId);
+      expect(dayCard).toHaveAttribute("data-trip-id", "trip-1");
+      expect(dayCard).toHaveAttribute("data-trip-transit-mode", "walk");
+      expect(dayCard).toHaveAttribute("data-walk-threshold-meters", "800");
+    }
+  });
+
+  it("leaves tripId, tripTransitMode, and walkThresholdMeters unset on day cards when not provided", () => {
+    const props = buildProps([dayOne]);
+    render(<TripItineraryView {...props} />);
+
+    const dayCard = screen.getByTestId("day-card-1");
+    expect(dayCard).toHaveAttribute("data-trip-id", "");
+    expect(dayCard).toHaveAttribute("data-trip-transit-mode", "");
+    expect(dayCard).toHaveAttribute("data-walk-threshold-meters", "");
   });
 });

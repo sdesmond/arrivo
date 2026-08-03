@@ -31,6 +31,19 @@ Feature: User profile page
     Then the Traveler content should be visible
     And the Identity content should not be visible
 
+  Scenario: Getting Around preference persists across reload
+    Given I am on the profile page
+    When I navigate to the Preferences section
+    And I set the default transit mode to "Walk"
+    And I set the walk threshold to "200 ft"
+    And I save the Preferences section
+    Then the transit mode should show "Walk"
+    And the walk threshold should show "200 ft"
+    When I reload the page
+    And I navigate to the Preferences section
+    Then the transit mode should show "Walk"
+    And the walk threshold should show "200 ft"
+
   Scenario: Font size preference persists across reload
     Given I am on the profile page
     When I navigate to the Appearance section

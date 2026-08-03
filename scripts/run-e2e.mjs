@@ -255,28 +255,39 @@ export function buildPlaywrightArgs(ui, grep) {
   return ["playwright", "test", ...(ui ? ["--ui"] : []), ...(grep ? ["--grep", grep] : [])];
 }
 
+// Interprets affected-e2e.mjs stdout into an action. "FULL" (or empty/garbage, defensively) runs
+// everything; "NONE" skips Playwright entirely; anything else is a Playwright `--grep` filter.
+export function interpretAffectedOutput(rawStdout) {
+  const filter = (rawStdout ?? "").trim();
+  if (!filter || filter === "FULL") return { mode: "full" };
+  if (filter === "NONE") return { mode: "skip" };
+  return { mode: "grep", grep: filter };
+}
+
 // Explicit `--grep` wins; otherwise `--affected` (unless overridden by `--full`) asks
-// affected-e2e.mjs which feature tags the change set touches. "FULL" means run everything.
-function resolveGrep(plan) {
-  if (plan.grep) return plan.grep;
-  if (!plan.affected || plan.full) return undefined;
+// affected-e2e.mjs which feature tags the change set touches.
+function resolveScope(plan) {
+  if (plan.grep) return { mode: "grep", grep: plan.grep };
+  if (!plan.affected || plan.full) return { mode: "full" };
 
   const { stdout } = runCommand(process.execPath, [AFFECTED_SCRIPT], { captureOutput: true });
-  const filter = stdout.trim();
-  if (!filter || filter === "FULL") {
-    log("Affected detection selected the full suite.");
-    return undefined;
-  }
-
-  log(`Affected detection selected: ${filter}`);
-  return filter;
+  const result = interpretAffectedOutput(stdout);
+  if (result.mode === "full") log("Affected detection selected the full suite.");
+  else if (result.mode === "skip") log("Affected detection found no impacted E2E features.");
+  else log(`Affected detection selected: ${result.grep}`);
+  return result;
 }
 
 export async function main(argv = process.argv.slice(2)) {
   const __filename = fileURLToPath(import.meta.url);
   const rootDir = join(dirname(__filename), "..");
   const plan = buildRunE2EPlan(argv);
-  const grep = resolveGrep(plan);
+  const scope = resolveScope(plan);
+
+  if (scope.mode === "skip") {
+    log("No affected E2E features — skipping Playwright.");
+    return;
+  }
 
   prepareServerPort({
     serverMode: plan.serverMode,
@@ -292,7 +303,10 @@ export async function main(argv = process.argv.slice(2)) {
   runPackageCommand("npm", ["run", "db:reset:e2e"], { cwd: rootDir, env });
   runPackageCommand("npm", ["run", "db:migrate:e2e"], { cwd: rootDir, env });
   runPackageCommand("npx", ["bddgen"], { cwd: rootDir, env });
-  runPackageCommand("npx", buildPlaywrightArgs(plan.ui, grep), { cwd: rootDir, env });
+  runPackageCommand("npx", buildPlaywrightArgs(plan.ui, scope.mode === "grep" ? scope.grep : undefined), {
+    cwd: rootDir,
+    env,
+  });
 }
 
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

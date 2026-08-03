@@ -117,7 +117,7 @@ import {
   updateTripMetadata,
 } from "./actions";
 import { searchCoverImages } from "./cover-image-search-actions";
-import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
+import { TransitMode, TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
 import { deriveGraphicCover } from "@/lib/utils";
 
 interface TransactionFixture {
@@ -278,6 +278,45 @@ describe("updateTripMetadata", () => {
   it("rejects unsupported budget currencies before mutating", async () => {
     await expect(updateTripMetadata("trip-1", { budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
     expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("persists a valid transit mode", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [{ id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { transitMode: TransitMode.Transit });
+
+    expect(result).toEqual({ status: "saved" });
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ transitMode: TransitMode.Transit }));
+  });
+
+  it("rejects an invalid transit mode before mutating", async () => {
+    await expect(updateTripMetadata("trip-1", { transitMode: "flying" as TransitMode })).rejects.toThrow(
+      "Invalid transit mode"
+    );
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("clears the transit mode when the patch sets it to null", async () => {
+    const { operations, transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [{ id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { transitMode: null });
+
+    expect(result).toEqual({ status: "saved" });
+    const tripUpdate = operations.updates.find((entry) => entry.table === trips);
+    expect(tripUpdate?.values).toEqual(expect.objectContaining({ transitMode: null }));
   });
 
   it("returns confirmation-required before mutating when removed days contain events", async () => {
@@ -678,23 +717,30 @@ describe("createTrip", () => {
   });
 
   it("rejects unsupported budget currencies before inserting a trip", async () => {
-    db.select.mockReturnValue({
-      from: () => ({
-        where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: "USD" }],
-      }),
-    });
+    const operations = setupCreateTripDb(null);
 
     await expect(createTrip({ name: "Tokyo", budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
-    expect(db.transaction).not.toHaveBeenCalled();
+    expect(operations.inserts).toHaveLength(0);
   });
 
-  function setupCreateTripDb(defaultCoverType: string | null) {
+  function setupCreateTripDb(
+    defaultCoverType: string | null,
+    transitMode: string | null = null,
+    currency: string | null = "USD"
+  ) {
     const operations = {
       inserts: [] as Array<{ table: unknown; values: unknown }>,
       updates: [] as Array<{ table: unknown; values: unknown }>,
     };
     const createdTrip = { id: "trip-1" };
     const transaction = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            for: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency, transitMode }],
+          }),
+        }),
+      }),
       insert: (table: unknown) => ({
         values: (values: unknown) => {
           operations.inserts.push({ table, values });
@@ -711,17 +757,11 @@ describe("createTrip", () => {
     db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
       callback(transaction)
     );
-    db.select
-      .mockReturnValueOnce({
-        from: () => ({
-          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: "USD" }],
-        }),
-      })
-      .mockReturnValueOnce({
-        from: () => ({
-          where: async () => [{ defaultCoverType }],
-        }),
-      });
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ defaultCoverType }],
+      }),
+    });
     db.update.mockImplementation((table: unknown) => ({
       set: (values: unknown) => ({
         where: async () => {
@@ -732,6 +772,97 @@ describe("createTrip", () => {
 
     return operations;
   }
+
+  it("seeds trip transit mode from the user's global preference when input does not specify one", async () => {
+    const operations = setupCreateTripDb(null, "walk");
+
+    await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({ transitMode: "walk" }),
+    });
+  });
+
+  it("defaults to drive when both input and user preference are null", async () => {
+    const operations = setupCreateTripDb(null);
+
+    await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({ transitMode: "drive" }),
+    });
+  });
+
+  it("reads transit mode and currency from inside the transaction, not from a pre-transaction snapshot", async () => {
+    const lockPreferenceRowSpy = vi.fn(async () => [
+      { id: "user-1", email: "test@example.com", name: "Test User", currency: "EUR", transitMode: "transit" },
+    ]);
+    const transactionSelectSpy = vi.fn(() => ({
+      from: () => ({
+        where: () => ({ for: lockPreferenceRowSpy }),
+      }),
+    }));
+    const createdTrip = { id: "trip-1" };
+    const insertedRows: Array<{ table: unknown; values: unknown }> = [];
+    const transaction = {
+      select: transactionSelectSpy,
+      insert: (table: unknown) => ({
+        values: (values: unknown) => {
+          insertedRows.push({ table, values });
+          if (table === trips) {
+            return { returning: async () => [createdTrip] };
+          }
+          return undefined;
+        },
+      }),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+    db.select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [{ defaultCoverType: null }],
+      }),
+    });
+    db.update.mockImplementation(() => ({
+      set: () => ({
+        where: async () => {},
+      }),
+    }));
+
+    await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(transactionSelectSpy).toHaveBeenCalledTimes(1);
+    expect(lockPreferenceRowSpy).toHaveBeenCalledWith("update");
+    expect(insertedRows).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({ transitMode: "transit", budgetCurrency: "EUR" }),
+    });
+  });
+
+  it("uses input transit mode over the user preference when explicitly provided", async () => {
+    const operations = setupCreateTripDb(null, "walk");
+
+    await expect(createTrip({ name: "Test", transitMode: "transit" })).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({ transitMode: "transit" }),
+    });
+  });
+
+  it("falls back to drive when the user's stored transit mode is not a valid TransitMode value", async () => {
+    const operations = setupCreateTripDb(null, "bicycle");
+
+    await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+
+    expect(operations.inserts).toContainEqual({
+      table: trips,
+      values: expect.objectContaining({ transitMode: "drive" }),
+    });
+  });
 
   it("defaults trip budget currency from the user's preferred currency", async () => {
     const operations = setupCreateTripDb(null);
@@ -754,19 +885,7 @@ describe("createTrip", () => {
 
   it("falls back to locale-derived currency when the user preference is null", async () => {
     vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
-    const operations = setupCreateTripDb(null);
-    db.select.mockReset();
-    db.select
-      .mockReturnValueOnce({
-        from: () => ({
-          where: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency: null }],
-        }),
-      })
-      .mockReturnValueOnce({
-        from: () => ({
-          where: async () => [{ defaultCoverType: null }],
-        }),
-      });
+    const operations = setupCreateTripDb(null, null, null);
 
     await expect(
       createTrip({
@@ -936,7 +1055,7 @@ describe("createTrip", () => {
       })
     ).resolves.toEqual({ tripId: "trip-1" });
 
-    expect(db.select).toHaveBeenCalledOnce();
+    expect(db.select).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(operations.updates).toEqual([
       { table: trips, values: { coverImageUrl: deriveGraphicCover("No Destination Trip") } },
@@ -953,7 +1072,7 @@ describe("createTrip", () => {
       })
     ).resolves.toEqual({ tripId: "trip-1" });
 
-    expect(db.select).toHaveBeenCalledTimes(2);
+    expect(db.select).toHaveBeenCalledOnce();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(operations.updates).toEqual([
       { table: trips, values: { coverImageUrl: deriveGraphicCover("Coordinates Trip") } },

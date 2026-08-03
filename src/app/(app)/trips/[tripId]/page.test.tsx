@@ -144,6 +144,35 @@ describe("TripDetailPage", () => {
     );
   });
 
+  it("passes the profile's walkThresholdMeters through to the trip detail client", async () => {
+    mockGetUserById.mockResolvedValue({
+      id: "user-1",
+      email: "user@test.com",
+      dateFormat: "DD/MM/YYYY",
+      walkThresholdMeters: 400,
+    });
+
+    const page = await TripDetailPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+
+    render(page);
+
+    expect(tripDetailClientSpy).toHaveBeenCalledWith(expect.objectContaining({ walkThresholdMeters: 400 }));
+  });
+
+  it("passes undefined walkThresholdMeters through when the profile has no threshold set", async () => {
+    const page = await TripDetailPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+
+    render(page);
+
+    expect(tripDetailClientSpy).toHaveBeenCalledWith(expect.objectContaining({ walkThresholdMeters: undefined }));
+  });
+
   it("falls back to the itinerary tab when the tab query is invalid", async () => {
     const page = await TripDetailPage({
       params: Promise.resolve({ tripId: "trip-1" }),

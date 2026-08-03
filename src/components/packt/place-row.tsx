@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronRight, MapPin, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { MapPin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
 import { IconSize } from "@/lib/size-tokens";
 import { type CreateExpenseInput, type Document, type Expense, type TripEvent } from "@/data/types";
 import { cn, isEventNow } from "@/lib/utils";
+import { openExternalMaps } from "@/lib/open-external-maps";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
 import { PlaceRowNameField } from "./place-row-name-field";
 import { PlaceRowActionBar } from "./place-row-action-bar";
 import { PlaceRowDialogs } from "./place-row-dialogs";
-import { LinkedEventBadge } from "./linked-event-badge";
+import { PlaceRowLinkedEvent } from "./place-row-linked-event";
 import { PlaceRowNoteEditor } from "./place-row-note-editor";
 import { RESERVATION_TYPE_META, formatAnchorDateTime, formatAnchorDateTimeRange } from "./reservation-type-badge";
 
@@ -39,6 +40,7 @@ export interface PlaceRowProps {
   onCancelDraft?: () => void;
   tripDocs?: Document[];
   isHighlighted?: boolean;
+  hasScheduleConflict?: boolean;
 }
 
 export function PlaceRow({
@@ -56,6 +58,7 @@ export function PlaceRow({
   onCancelDraft,
   tripDocs,
   isHighlighted,
+  hasScheduleConflict,
 }: PlaceRowProps) {
   const [showDocs, setShowDocs] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -196,6 +199,15 @@ export function PlaceRow({
     }
   }
 
+  const handleOpenMaps = useCallback(() => {
+    openExternalMaps({
+      address: place.locationAddress,
+      lat: place.locationLat,
+      lng: place.locationLng,
+      label: place.locationName,
+    });
+  }, [place.locationAddress, place.locationLat, place.locationLng, place.locationName]);
+
   return (
     <div
       id={id}
@@ -232,47 +244,14 @@ export function PlaceRow({
         {/* Content */}
         <div className="flex-1 min-w-0">
           {isLinkedEvent ? (
-            <button
-              type="button"
-              onClick={() => place.linkedReservationId && onLinkedEventTap?.(place.linkedReservationId)}
-              aria-label={linkedAriaLabel}
-              className="flex w-full items-start justify-between gap-3 rounded-[8px] text-left"
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    style={{
-                      fontSize: "calc(14px * var(--font-scale))",
-                      fontWeight: 600,
-                      color: "var(--fg)",
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {place.name}
-                  </span>
-                  <LinkedEventBadge />
-                </div>
-                {linkedMetaLabel && (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
-                      color: "var(--fg-2)",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {linkedMetaLabel}
-                  </div>
-                )}
-              </div>
-              <ChevronRight
-                aria-hidden="true"
-                size={16}
-                strokeWidth={1.5}
-                style={{ color: "var(--fg-4)", flexShrink: 0 }}
-              />
-            </button>
+            <PlaceRowLinkedEvent
+              place={place}
+              onLinkedEventTap={onLinkedEventTap}
+              linkedAriaLabel={linkedAriaLabel}
+              linkedMetaLabel={linkedMetaLabel}
+              LinkedIcon={LinkedIcon}
+              isCombinedLinkedEvent={isCombinedLinkedEvent}
+            />
           ) : (
             <>
               <PlaceRowNameField
@@ -327,6 +306,8 @@ export function PlaceRow({
                 onOpenLocation={() => setShowLocationDialog(true)}
                 onOpenCost={() => setShowCostDialog(true)}
                 onOpenAddDoc={() => setShowAddDocDialog(true)}
+                onOpenMaps={place.locationAddress ? handleOpenMaps : undefined}
+                hasScheduleConflict={hasScheduleConflict}
               />
 
               {showDocs && hasDocs && <DocsBlock docs={place.docs!} onAdd={() => setShowAddDocDialog(true)} />}

@@ -12,10 +12,11 @@ import type {
 } from "@/data/types";
 import { TripDetailTabBody, type TripDetailTabBodyProps } from "./trip-detail-tab-body";
 
-const { tripBudgetTabSpy, reservationsTabSpy, tripItineraryViewSpy } = vi.hoisted(() => ({
+const { tripBudgetTabSpy, reservationsTabSpy, tripItineraryViewSpy, mapTabSpy } = vi.hoisted(() => ({
   tripBudgetTabSpy: vi.fn(),
   reservationsTabSpy: vi.fn(),
   tripItineraryViewSpy: vi.fn(),
+  mapTabSpy: vi.fn(),
 }));
 
 vi.mock("./trip-itinerary-view", () => ({
@@ -44,6 +45,13 @@ vi.mock("@/components/packt/reservations-tab", () => ({
   ReservationsTab: (props: unknown) => {
     reservationsTabSpy(props);
     return <div>Reservations tab</div>;
+  },
+}));
+
+vi.mock("@/components/packt/map-tab", () => ({
+  MapTab: (props: unknown) => {
+    mapTabSpy(props);
+    return <div>Map tab</div>;
   },
 }));
 
@@ -171,6 +179,31 @@ describe("TripDetailTabBody", () => {
     );
   });
 
+  it("threads onOpenMapTab into the Itinerary tab", () => {
+    const onOpenMapTab = vi.fn();
+    render(<TripDetailTabBody {...buildProps({ activeTab: "itin", onOpenMapTab })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ onOpenMapTab }));
+  });
+
+  it("threads walkThresholdMeters into the Itinerary tab", () => {
+    render(<TripDetailTabBody {...buildProps({ activeTab: "itin", walkThresholdMeters: 400 })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ walkThresholdMeters: 400 }));
+  });
+
+  it("leaves walkThresholdMeters unset in the Itinerary tab when not provided", () => {
+    render(<TripDetailTabBody {...buildProps({ activeTab: "itin" })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ walkThresholdMeters: undefined }));
+  });
+
+  it("falls back to drive when the trip has no transit mode set", () => {
+    render(<TripDetailTabBody {...buildProps({ trip: { ...trip, transitMode: null }, activeTab: "itin" })} />);
+
+    expect(tripItineraryViewSpy).toHaveBeenCalledWith(expect.objectContaining({ tripTransitMode: "drive" }));
+  });
+
   it("threads defaultExpenseCurrency into itinerary and reservations tabs", () => {
     const { rerender } = render(<TripDetailTabBody {...buildProps({ activeTab: "itin" })} />);
 
@@ -190,6 +223,21 @@ describe("TripDetailTabBody", () => {
         reservations,
         defaultExpenseCurrency: "EUR",
         tripDocs: [docs[0]],
+      })
+    );
+  });
+
+  it("renders the Map tab with all flattened events, reservations, and the trip id when activeTab is map", () => {
+    render(<TripDetailTabBody {...buildProps({ activeTab: "map" })} />);
+
+    expect(screen.getByText("Map tab")).toBeInTheDocument();
+    expect(mapTabSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: "trip-1",
+        events: [days[0].events[0], unscheduledEvents[0]],
+        days,
+        unscheduledEvents,
+        reservations,
       })
     );
   });

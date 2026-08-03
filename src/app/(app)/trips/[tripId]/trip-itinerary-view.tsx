@@ -17,11 +17,22 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PackingListPickerDialog } from "@/components/packt/packing-list-picker-dialog";
 import { ItineraryCta } from "@/components/packt/itinerary-cta";
-import type { DayItinerary, TripEvent, DayItemType, Document, TripPackingList, PackingTemplate } from "@/data/types";
+import type {
+  DayItinerary,
+  TripEvent,
+  DayItemType,
+  Document,
+  TripPackingList,
+  PackingTemplate,
+  TransitMode,
+} from "@/data/types";
 import { UnscheduledEventsSection } from "./unscheduled-events-section";
 
 export interface TripItineraryViewProps {
   days: DayItinerary[];
+  tripId?: string;
+  tripTransitMode?: TransitMode | null;
+  walkThresholdMeters?: number | null;
   unscheduledEvents: TripEvent[];
   defaultExpenseCurrency?: string;
   isDateless: boolean;
@@ -29,6 +40,7 @@ export interface TripItineraryViewProps {
   reservationCount: number;
   onActivateReservationsCta: () => void;
   onLinkedEventTap: (linkedReservationId: string) => void;
+  onOpenMapTab?: (dayNumber: number) => void;
   dateFormat?: string;
   initialExpandedDayNumber?: number;
   highlightedEventId?: string | null;
@@ -85,6 +97,7 @@ export function TripItineraryView({
   reservationCount,
   onActivateReservationsCta,
   onLinkedEventTap,
+  onOpenMapTab,
   dateFormat,
   initialExpandedDayNumber,
   highlightedEventId,
@@ -113,6 +126,9 @@ export function TripItineraryView({
   onRemoveLastDay,
   addingDay,
   removingDay,
+  tripId,
+  tripTransitMode,
+  walkThresholdMeters,
 }: TripItineraryViewProps): ReactElement {
   const [removalConfirmation, setRemovalConfirmation] = useState<RemovalConfirmation | null>(null);
   const [initialRenderDayCount] = useState(() => days.length);
@@ -183,6 +199,9 @@ export function TripItineraryView({
             <DayCard
               key={day.dayNumber}
               day={day}
+              tripId={tripId}
+              tripTransitMode={tripTransitMode}
+              walkThresholdMeters={walkThresholdMeters}
               defaultExpenseCurrency={defaultExpenseCurrency}
               dateFormat={dateFormat}
               initialOpen={initialExpandedDayNumber === day.dayNumber}
@@ -191,6 +210,7 @@ export function TripItineraryView({
               onUpdateEvent={onUpdateEvent}
               onDeleteEvent={onDeleteEvent}
               onLinkedEventTap={onLinkedEventTap}
+              onOpenMapTab={onOpenMapTab}
               onReorderDayItems={onReorderDayItems}
               onUpdateDay={onUpdateDay}
               onAddEvent={onAddEvent}

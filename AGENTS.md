@@ -48,30 +48,41 @@ Packt is a travel itinerary planning app built with Next.js (App Router), TypeSc
 
 ## Test Commands
 
-| Command                     | What it runs                                                                        |
-| --------------------------- | ----------------------------------------------------------------------------------- |
-| `npm test`                  | Vitest unit tests (watch mode)                                                      |
-| `npm run test:coverage`     | Vitest with Istanbul coverage report                                                |
-| `npm run test:e2e`          | Full Playwright BDD E2E suite (headless) — use for the pre-merge gate               |
-| `npm run test:e2e:affected` | Only the E2E features the current change set touches (auto, full on shared changes) |
-| `npm run test:e2e:ui`       | Playwright E2E with interactive UI                                                  |
-| `npm run db:migrate:e2e`    | Push schema to the E2E database (run once after schema changes)                     |
+| Command                     | What it runs                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| `npm test`                  | Vitest unit tests (watch mode)                                                              |
+| `npm run test:coverage`     | Vitest with Istanbul coverage report                                                        |
+| `npm run test:e2e`          | Full Playwright BDD E2E suite (headless) — user-initiated; run manually for a complete pass |
+| `npm run test:e2e:affected` | Only the E2E features the current change set impacts — what agents always run               |
+| `npm run test:e2e:ui`       | Playwright E2E with interactive UI                                                          |
+| `npm run db:migrate:e2e`    | Push schema to the E2E database (run once after schema changes)                             |
 
 Coverage thresholds: 95% lines/functions, 90% branches (enforced in CI).
 
 ### E2E Segmentation
 
 E2E scenarios are segmented by a `@feat:<stem>` Gherkin tag on each `tests/e2e/features/<stem>.feature`.
-`tests/e2e/feature-map.mjs` maps source globs to those tags; `scripts/affected-e2e.mjs` reads the
-git change set and runs only the matching features (falling back to the full suite when a shared file
-in `SHARED_GLOBS` changes or a change maps to no feature). When you add a feature file, tag it
-`@feat:<stem>` and register the source it exercises in `feature-map.mjs` — otherwise edits to that
-source fall back to the full suite.
+`scripts/affected-e2e.mjs` reads the current change set — uncommitted work (staged + unstaged +
+untracked), or the last commit when the tree is clean — and classifies each file via
+`tests/e2e/feature-map.mjs` through ordered tiers:
 
-`scripts/feature-map.test.mjs` enforces this contract (it runs in the coverage worker): adding a
-`tests/e2e/features/*.feature` without its `@feat:` tag, leaving a dead path in the map, or adding a
-`src/components/packt/*` component that no glob covers all turn the build red until you register it in
-`feature-map.mjs` (under a feature, or in `SHARED_GLOBS` if it's cross-cutting).
+- **`IGNORE_GLOBS`** → dropped (docs, `_bmad-output/**`, `.agents/**`, colocated `*.test.ts(x)` unit
+  tests). A change touching only these runs **no** E2E (`NONE`).
+- **`FEATURE_MAP`** → union the matching `@feat:` tags. Checked before `SHARED_GLOBS`, so an
+  explicitly-mapped file runs just its feature even when it also sits under a shared directory.
+- **`SHARED_GLOBS`** → the **full** suite (cross-cutting runtime that can move any feature).
+- **anything else** (unmapped runtime source) → contributes nothing; it does **not** force the full
+  suite. Map it to its feature instead.
+
+When you add a feature file, tag it `@feat:<stem>` and register the source it exercises in
+`feature-map.mjs`. Because unmapped runtime source now runs nothing (not the full suite), the map
+must stay complete — the full suite (`npm run test:e2e`) is the user-initiated backstop.
+
+`scripts/feature-map.test.mjs` enforces this contract (it runs in the coverage worker): a
+`tests/e2e/features/*.feature` without its `@feat:` tag, a dead path in the map, a
+`src/components/packt/*` component that no glob covers, or an `src/app/(app)/**` server action that
+no glob covers all turn the build red until you register it in `feature-map.mjs` (under a feature, or
+in `SHARED_GLOBS` if it's cross-cutting).
 
 ### E2E Database Setup
 
@@ -171,7 +182,7 @@ Before starting any new development task, you MUST ask the user whether they wan
    - For user-facing flow changes, run affected Playwright coverage first when practical
    - Do not treat `packt-build-validator` as first signal that tests were missing
 5. Run `packt-build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (dev-story, quick-dev, story-automator, etc.) must **not** invoke it themselves
-6. If the validator flags issues, fix them and run `packt-build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. For the final pre-merge/PR check, run the full E2E suite (`npm run test:e2e`) rather than the affected subset
+6. If the validator flags issues, fix them and run `packt-build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. Agents always run the affected subset (via the validator) and never the full suite as a gate; running the full E2E suite (`npm run test:e2e`) is the user's call — do not launch it automatically before commit/push/PR
 
 ## Key Conventions
 

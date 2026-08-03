@@ -58,6 +58,7 @@ interface TripDetailClientProps {
   templates?: PackingTemplate[];
   warningThreshold?: number;
   dangerThreshold?: number;
+  walkThresholdMeters?: number | null;
 }
 
 export function TripDetailClient({
@@ -72,6 +73,7 @@ export function TripDetailClient({
   templates = [],
   warningThreshold = DEFAULT_WARNING_THRESHOLD,
   dangerThreshold = DEFAULT_DANGER_THRESHOLD,
+  walkThresholdMeters,
 }: TripDetailClientProps): ReactElement {
   const highlightedEventId = useFocusScroll();
 
@@ -185,8 +187,17 @@ export function TripDetailClient({
     window.history.pushState(null, "", nextUrl);
   }
 
+  function handleOpenMapTab(dayNumber: number): void {
+    setActiveTab(TripDetailTab.Map);
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.set("tab", TripDetailTab.Map);
+    nextParams.set("day", String(dayNumber));
+    const nextQueryString = nextParams.toString();
+    window.history.replaceState(null, "", nextQueryString ? `${pathname}?${nextQueryString}` : pathname);
+  }
+
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col h-full">
       <div aria-live="polite" className="sr-only">
         <span key={announcementId}>{reservationsAnnouncement}</span>
       </div>
@@ -232,6 +243,7 @@ export function TripDetailClient({
             defaultExpenseCurrency={defaultExpenseCurrency}
             warningThreshold={warningThreshold}
             dangerThreshold={dangerThreshold}
+            walkThresholdMeters={walkThresholdMeters}
             activeTab={activeTab}
             days={days}
             unscheduledEvents={unscheduledEvents}
@@ -285,6 +297,7 @@ export function TripDetailClient({
             }}
             onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
             onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
+            onOpenMapTab={handleOpenMapTab}
             onAddDay={handlers.handleAddDay}
             onRemoveLastDay={handlers.handleRemoveLastDay}
             addingDay={handlers.addingDay}

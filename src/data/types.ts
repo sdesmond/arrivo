@@ -53,6 +53,35 @@ export const CoverType = {
 } as const;
 export type CoverType = (typeof CoverType)[keyof typeof CoverType];
 
+export const TransitMode = {
+  Walk: "walk",
+  Drive: "drive",
+  Transit: "transit",
+} as const;
+export type TransitMode = (typeof TransitMode)[keyof typeof TransitMode];
+
+export type DayRouteSummary =
+  | { status: "loading" }
+  | { status: "ready"; totalDistanceMeters: number; totalDurationSeconds: number; hopCount: number }
+  | { status: "unavailable" };
+
+export interface ScheduleConflict {
+  eventIndex: number;
+  previousEventId: string;
+  currentEventId: string;
+  travelTimeSeconds: number;
+  scheduledGapSeconds: number;
+}
+
+export interface LocatedItemPin {
+  id: string;
+  name: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  reservationType?: ReservationType;
+}
+
 export const ExpenseCategory = {
   Food: "food",
   Lodging: "lodging",
@@ -131,6 +160,8 @@ export interface UserProfile {
   dateFormat: string | null;
   currency: string | null;
   distanceUnit: string | null;
+  transitMode?: TransitMode | null;
+  walkThresholdMeters?: number | null;
   passportNumber: string | null;
   passportExpiry: string | null;
   passportNationality: string | null;
@@ -148,6 +179,8 @@ export interface UpdateUserProfilePatch {
   dateFormat?: string;
   currency?: string;
   distanceUnit?: string;
+  transitMode?: TransitMode | null;
+  walkThresholdMeters?: number | null;
   defaultCoverType?: CoverType;
   passportNumber?: string | null;
   passportExpiry?: string;
@@ -285,6 +318,13 @@ export interface GeoCoords {
   lat: number;
   lng: number;
 }
+
+export type RouteResult =
+  | { status: "loading" }
+  | { status: "ready"; distanceMeters: number; durationSeconds: number }
+  | { status: "unavailable" };
+
+export type GeoHintStatus = { state: "prompt"; permissionState: "prompt" | "unknown" } | { state: "denied" };
 
 export interface CoverImageSearchResult {
   id: string;
@@ -483,6 +523,7 @@ export interface Trip {
   status: TripStatus;
   name: string;
   tags?: string[];
+  transitMode?: TransitMode | null;
   packingProgress?: PackingProgress;
 
   // Canonical ISO dates. Prototype data still stores display strings
@@ -648,6 +689,7 @@ export interface CreateTripInput {
   budgetCurrency?: string;
   budgetTotal?: number;
   tags?: string[];
+  transitMode?: TransitMode | null;
 }
 
 export interface UpdateTripPatch {
@@ -662,6 +704,7 @@ export interface UpdateTripPatch {
   budgetCurrency?: string;
   budgetTotal?: number;
   tags?: string[];
+  transitMode?: TransitMode | null;
 }
 
 export const TripDateConflictResolution = {

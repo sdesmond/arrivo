@@ -53,6 +53,7 @@ export default async function TripDetailPage({
       currencyOptions={currencyOptions}
       warningThreshold={profile?.warningThreshold}
       dangerThreshold={profile?.dangerThreshold}
+      walkThresholdMeters={profile?.walkThresholdMeters}
     />
   );
 }

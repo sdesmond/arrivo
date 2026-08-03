@@ -20,7 +20,7 @@ redundant work.
 
 1. Determine the E2E scope for this run:
    `SCOPE=$(node scripts/affected-e2e.mjs --format=scope)`
-   (`full`, or a comma-separated list of `@feat:` tags for the changed features.)
+   (`full`; `none` when no impacted features; or a comma-separated list of `@feat:` tags.)
 2. Ask the fingerprint marker whether this exact tree already passed at that scope:
    `node scripts/validator-fingerprint.mjs check --scope="$SCOPE"`
 3. If the JSON response has `"skip": true`, print exactly:
@@ -50,9 +50,12 @@ You must split the validation workflow into five distinct tasks. Execute them **
 
 4. **Worker 4 (Playwright E2E):**
    - Command: `npm run test:e2e:affected 2>&1`
-   - Runs only the E2E features the change set touches (per `tests/e2e/feature-map.mjs`); falls back
-     to the full suite automatically when a shared file changed or a change is unmapped.
-   - For a deliberate full pre-merge/PR gate, run `npm run test:e2e 2>&1` instead (full suite).
+   - Runs only the E2E features impacted by the current change set (uncommitted work, or the last
+     commit when the tree is clean), per `tests/e2e/feature-map.mjs`. Docs/unit-test-only changes
+     skip E2E entirely (`No affected E2E features — skipping.` → report `E2E: SKIPPED`); a
+     cross-cutting/shared change runs the full suite automatically.
+   - Always run the affected subset here. Do **not** run the full `npm run test:e2e` — a complete
+     pass is the user's call, not part of this gate.
    - Capture overall scenario status, failing scenario names, and any setup or browser errors.
 
 5. **Worker 5 (Next.js Build Profile):**
@@ -71,7 +74,7 @@ Synthesize the data and print exactly this layout block for the user:
 LINT:      PASS / FAIL
 TSC:       PASS / FAIL
 COVERAGE:  PASS / FAIL  (N passed, N failed — coverage: lines X%, functions X%, branches X%)
-E2E:       PASS / FAIL  (N scenarios passed, N failed)
+E2E:       PASS / FAIL / SKIPPED  (N scenarios passed, N failed — SKIPPED when no impacted features)
 BUILD:     PASS / FAIL
 ```
 

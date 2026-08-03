@@ -300,6 +300,16 @@ export function formatCurrency(amount: number, currency: string): string {
   }
 }
 
+export function formatDistance(distanceMeters: number): string {
+  if (distanceMeters < 1000) {
+    return `${distanceMeters} m`;
+  }
+
+  const distanceKilometers = distanceMeters / 1000;
+  const maximumFractionDigits = distanceKilometers < 10 ? 1 : 0;
+  return `${distanceKilometers.toLocaleString(undefined, { maximumFractionDigits })} km`;
+}
+
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, (_key, val) =>
     val !== null && typeof val === "object" && !Array.isArray(val)

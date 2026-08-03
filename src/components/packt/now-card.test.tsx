@@ -1,6 +1,25 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { GeoHintStatus, RouteResult } from "@/data/types";
+
+const { mockUseRouteForEvent, mockRouterPush } = vi.hoisted(() => ({
+  mockUseRouteForEvent: vi.fn<() => { routeResult: RouteResult | null; geolocationStatus: GeoHintStatus | null }>(
+    () => ({
+      routeResult: { status: "loading" },
+      geolocationStatus: null,
+    })
+  ),
+  mockRouterPush: vi.fn(),
+}));
+
+vi.mock("./use-route-for-event", () => ({
+  useRouteForEvent: mockUseRouteForEvent,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
 
 vi.mock("lucide-react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("lucide-react")>();
@@ -114,6 +133,9 @@ describe("NowCard", () => {
 
   beforeEach(() => {
     process.env.TZ = "UTC";
+    mockUseRouteForEvent.mockReset();
+    mockUseRouteForEvent.mockReturnValue({ routeResult: { status: "loading" }, geolocationStatus: null });
+    mockRouterPush.mockReset();
   });
 
   afterEach(() => {
@@ -242,6 +264,257 @@ describe("NowCard", () => {
     render(<NowCard trip={activeTrip} todayEvents={futureEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.getByText("Next Event")).toBeInTheDocument();
     expect(screen.getByText("Future Event")).toBeInTheDocument();
+  });
+
+  it("renders a DistanceTimePill for a next event that has coordinates", () => {
+    mockUseRouteForEvent.mockReturnValue({
+      routeResult: { status: "ready", distanceMeters: 500, durationSeconds: 300 },
+      geolocationStatus: null,
+    });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: /Open directions to Louvre Museum/ })).toBeInTheDocument();
+  });
+
+  it("does not render a DistanceTimePill for a Freeform next event with no coordinates", () => {
+    const freeformEvents: TripEvent[] = [
+      { id: "ev-freeform", name: "Shopping", startAt: "2026-05-13T14:00:00Z", position: 0 },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={freeformEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByText("Shopping")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: /directions/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the DistanceTimePill as a DOM sibling of the event Link, never nested inside it", () => {
+    mockUseRouteForEvent.mockReturnValue({
+      routeResult: { status: "ready", distanceMeters: 500, durationSeconds: 300 },
+      geolocationStatus: null,
+    });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    const pill = screen.getByRole("button", { name: /Open directions to Louvre Museum/ });
+    const eventLink = screen.getByText("Louvre Museum").closest("a");
+    expect(pill.closest("a")).toBeNull();
+    expect(eventLink).not.toContainElement(pill);
+  });
+
+  it("opens External Maps when the ready-state DistanceTimePill is clicked", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockUseRouteForEvent.mockReturnValue({
+      routeResult: { status: "ready", distanceMeters: 500, durationSeconds: 300 },
+      geolocationStatus: null,
+    });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: /Open directions to Louvre Museum/ }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=48.8606,2.3376",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
+  });
+
+  it("opens External Maps when the unavailable-state DistanceTimePill is clicked", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockUseRouteForEvent.mockReturnValue({ routeResult: { status: "unavailable" }, geolocationStatus: null });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: "Open maps for Louvre Museum" }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=48.8606,2.3376",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
+  });
+
+  it("prefers the located address over coordinates when opening External Maps", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockUseRouteForEvent.mockReturnValue({
+      routeResult: { status: "ready", distanceMeters: 500, durationSeconds: 300 },
+      geolocationStatus: null,
+    });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationAddress: "Rue de Rivoli, 75001 Paris",
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: /Open directions to Louvre Museum/ }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=Rue%20de%20Rivoli%2C%2075001%20Paris",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
+  });
+
+  it("gives the ready-state DistanceTimePill an explicit 'Open directions' accessible name", () => {
+    mockUseRouteForEvent.mockReturnValue({
+      routeResult: { status: "ready", distanceMeters: 500, durationSeconds: 300 },
+      geolocationStatus: null,
+    });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "Open directions to Louvre Museum, 5 min drive" })).toBeInTheDocument();
+  });
+
+  it("gives the unavailable-state DistanceTimePill an 'Open maps for' accessible name", () => {
+    mockUseRouteForEvent.mockReturnValue({ routeResult: { status: "unavailable" }, geolocationStatus: null });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "Open maps for Louvre Museum" })).toBeInTheDocument();
+  });
+
+  it("uses one route lookup for the next event when both summary rows have coordinates", () => {
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-current",
+        name: "Museum Visit",
+        startAt: "2026-05-13T10:00:00Z",
+        endAt: "2026-05-13T12:30:00Z",
+        position: 0,
+        locationLat: 48.86,
+        locationLng: 2.34,
+      },
+      {
+        id: "ev-next",
+        name: "Dinner",
+        startAt: "2026-05-13T19:00:00Z",
+        position: 1,
+        locationLat: 48.85,
+        locationLng: 2.35,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+
+    expect(mockUseRouteForEvent).toHaveBeenCalledTimes(1);
+    expect(mockUseRouteForEvent).toHaveBeenCalledWith(locatedEvents[1], activeTrip.id, "drive");
+  });
+
+  it("keeps an External Maps action when geolocation is unavailable", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockUseRouteForEvent.mockReturnValue({ routeResult: null, geolocationStatus: null });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: "Open maps for Louvre Museum" }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&destination=48.8606,2.3376",
+      "_blank",
+      "noopener,noreferrer"
+    );
+    openSpy.mockRestore();
+  });
+
+  it("uses the trip's configured transit mode for the DistanceTimePill label", () => {
+    mockUseRouteForEvent.mockReturnValue({
+      routeResult: { status: "ready", distanceMeters: 500, durationSeconds: 300 },
+      geolocationStatus: null,
+    });
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+    render(
+      <NowCard trip={{ ...activeTrip, transitMode: "transit" }} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByText("500 m · 5 min transit")).toBeInTheDocument();
+  });
+
+  it("navigates to the trip detail page when the card background is clicked", async () => {
+    const user = userEvent.setup();
+    render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByTestId("now-card"));
+    expect(mockRouterPush).toHaveBeenCalledWith(`/trips/${activeTrip.id}`);
+  });
+
+  it("does not navigate to the trip detail page when the event row is clicked", async () => {
+    const user = userEvent.setup();
+    render(<NowCard trip={activeTrip} todayEvents={todayEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    await user.click(screen.getByText("Museum Visit"));
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 
   it("renders weekday and time for a next event on a future day", () => {
@@ -427,5 +700,82 @@ describe("NowCard", () => {
     );
     await user.click(screen.getByText("Linked"));
     expect(onLinkedEventTap).toHaveBeenCalledWith("res-1");
+  });
+
+  describe("geo-hint pill", () => {
+    const locatedEvents: TripEvent[] = [
+      {
+        id: "ev-located",
+        name: "Louvre Museum",
+        startAt: "2026-05-13T14:00:00Z",
+        position: 0,
+        locationLat: 48.8606,
+        locationLng: 2.3376,
+      },
+    ];
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("renders the geo-hint pill when geolocationStatus is prompt", () => {
+      mockUseRouteForEvent.mockReturnValue({
+        routeResult: null,
+        geolocationStatus: { state: "prompt", permissionState: "prompt" },
+      });
+      render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+      expect(
+        screen.getByRole("button", { name: "Enable location for directions to Louvre Museum" })
+      ).toBeInTheDocument();
+    });
+
+    it("calls navigator.geolocation.getCurrentPosition when the geo-hint pill is tapped", async () => {
+      const user = userEvent.setup();
+      const getCurrentPosition = vi.fn();
+      vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition } });
+      mockUseRouteForEvent.mockReturnValue({
+        routeResult: null,
+        geolocationStatus: { state: "prompt", permissionState: "prompt" },
+      });
+      render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+      await user.click(screen.getByRole("button", { name: "Enable location for directions to Louvre Museum" }));
+      expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders the distance/time pill instead of the geo-hint when permission is granted", () => {
+      mockUseRouteForEvent.mockReturnValue({
+        routeResult: { status: "ready", distanceMeters: 500, durationSeconds: 300 },
+        geolocationStatus: null,
+      });
+      render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+      expect(screen.queryByText("Enable location for directions")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Open directions to Louvre Museum/ })).toBeInTheDocument();
+    });
+
+    it("shows the blocked label when permission is denied", () => {
+      mockUseRouteForEvent.mockReturnValue({
+        routeResult: null,
+        geolocationStatus: { state: "denied" },
+      });
+      render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+      expect(
+        screen.getByRole("button", { name: "Location blocked for Louvre Museum — enable in browser settings" })
+      ).toBeInTheDocument();
+    });
+
+    it("re-attempts geolocation when the denied-state pill is tapped again", async () => {
+      const user = userEvent.setup();
+      const getCurrentPosition = vi.fn();
+      vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition } });
+      mockUseRouteForEvent.mockReturnValue({
+        routeResult: null,
+        geolocationStatus: { state: "denied" },
+      });
+      render(<NowCard trip={activeTrip} todayEvents={locatedEvents} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+      await user.click(
+        screen.getByRole("button", { name: "Location blocked for Louvre Museum — enable in browser settings" })
+      );
+      expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+    });
   });
 });

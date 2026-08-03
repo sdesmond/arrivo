@@ -10,9 +10,12 @@ describe("feature-map consistency", async () => {
   const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
   const FEATURES_DIR = join(ROOT, "tests", "e2e", "features");
   const PACKT_DIR = join(ROOT, "src", "components", "packt");
+  const APP_DIR = join(ROOT, "src", "app", "(app)");
 
   const { matchesAnyGlob } = await import("./affected-e2e.mjs");
-  const { FEATURE_MAP, SHARED_GLOBS } = await import("../tests/e2e/feature-map.mjs");
+  const { FEATURE_MAP, SHARED_GLOBS, IGNORE_GLOBS } = await import("../tests/e2e/feature-map.mjs");
+  const featureGlobs = FEATURE_MAP.flatMap((feature) => feature.sourceGlobs);
+  const mappedOrSharedGlobs = [...SHARED_GLOBS, ...featureGlobs];
 
   const featureStems = readdirSync(FEATURES_DIR)
     .filter((name) => name.endsWith(".feature"))
@@ -39,13 +42,38 @@ describe("feature-map consistency", async () => {
   });
 
   it("no packt component is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
-    const allGlobs = [...SHARED_GLOBS, ...FEATURE_MAP.flatMap((feature) => feature.sourceGlobs)];
     const orphans = readdirSync(PACKT_DIR)
       .filter((name) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name))
-      .filter((name) => !matchesAnyGlob(`src/components/packt/${name}`, allGlobs));
+      .filter((name) => !matchesAnyGlob(`src/components/packt/${name}`, mappedOrSharedGlobs));
     expect(
       orphans,
       `Unmapped packt components — add each to a feature entry or SHARED_GLOBS in tests/e2e/feature-map.mjs: ${orphans.join(", ")}`
     ).toEqual([]);
+  });
+
+  // Unmapped runtime source now runs NO E2E (not the full suite), so server actions — the runtime
+  // files most likely to be added unmapped — must be classified. Every `(-)actions.ts` under the app
+  // routes must match a feature glob or SHARED_GLOBS.
+  it("no app server action is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
+    const orphans = readdirSync(APP_DIR, { recursive: true })
+      .map((name) => String(name).replace(/\\/g, "/"))
+      .filter((name) => /actions\.ts$/.test(name) && !/\.test\.ts$/.test(name))
+      .map((name) => `src/app/(app)/${name}`)
+      .filter((path) => !matchesAnyGlob(path, mappedOrSharedGlobs));
+    expect(
+      orphans,
+      `Unmapped app server actions — add each to a feature entry or SHARED_GLOBS in tests/e2e/feature-map.mjs: ${orphans.join(", ")}`
+    ).toEqual([]);
+  });
+
+  // Footgun guard: IGNORE_GLOBS must only swallow non-runtime files (docs, unit tests). If an ignore
+  // pattern ever matched a real mapped component, that component's edits would silently skip E2E.
+  it("IGNORE_GLOBS never swallows a mapped (non-test) packt component", () => {
+    const swallowed = readdirSync(PACKT_DIR)
+      .filter((name) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name))
+      .filter((name) => matchesAnyGlob(`src/components/packt/${name}`, IGNORE_GLOBS));
+    expect(swallowed, `IGNORE_GLOBS matches runtime components (they would skip E2E): ${swallowed.join(", ")}`).toEqual(
+      []
+    );
   });
 });

@@ -1,10 +1,16 @@
 "use client";
 
-import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
+import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip, Pencil, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
 import type { TripEvent } from "@/data/types";
 import { toHHMM, pluralize, getLocationDisplayLabel } from "@/lib/utils";
 import { IconSize } from "@/lib/size-tokens";
 import { formatCurrencyChipAmount } from "@/lib/currencies";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+
+const SCHEDULE_CONFLICT_MESSAGE =
+  "Not enough travel time between the end of the previous stop and the start of this one.";
 
 function formatTime(timeStr: string): string {
   if (!timeStr) return "—";
@@ -23,6 +29,8 @@ export interface PlaceRowActionBarProps {
   onOpenLocation: () => void;
   onOpenCost: () => void;
   onOpenAddDoc: () => void;
+  onOpenMaps?: () => void;
+  hasScheduleConflict?: boolean;
 }
 
 export function PlaceRowActionBar({
@@ -33,6 +41,8 @@ export function PlaceRowActionBar({
   onOpenLocation,
   onOpenCost,
   onOpenAddDoc,
+  onOpenMaps,
+  hasScheduleConflict,
 }: PlaceRowActionBarProps) {
   const docs = place.docs ?? [];
   const hasDocs = docs.length > 0;
@@ -45,42 +55,100 @@ export function PlaceRowActionBar({
   const locationLabel = getLocationDisplayLabel(place.locationName, place.locationAddress);
 
   return (
-    <div className="flex items-center gap-1 flex-wrap mt-2">
+    <div className="flex items-center gap-2 flex-wrap mt-2">
       {/* Time */}
-      <button
-        onClick={onOpenTime}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-        style={{
-          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: place.startAt ? "var(--accent-ink)" : "var(--fg-4)",
-          background: place.startAt ? "var(--accent-soft)" : "none",
-          border: "1px solid transparent",
-        }}
-      >
-        <Clock size={IconSize.actionChip} strokeWidth={1.5} />
-        {timeLabel ?? "Add time"}
-      </button>
+      {hasScheduleConflict ? (
+        <ButtonGroup
+          orientation="horizontal"
+          className="overflow-hidden rounded-full"
+          style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}
+        >
+          <Button
+            variant="ghost"
+            size="lg"
+            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
+            onClick={onOpenTime}
+          >
+            <Clock size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+            {timeLabel ?? "Add time"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
+            onClick={() => toast.warning(SCHEDULE_CONFLICT_MESSAGE)}
+            aria-label="Schedule conflict"
+            title="Schedule conflict"
+          >
+            <TriangleAlert size={IconSize.actionChip} strokeWidth={1.5} />
+          </Button>
+        </ButtonGroup>
+      ) : (
+        <button
+          onClick={onOpenTime}
+          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
+          style={{
+            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
+            color: place.startAt ? "var(--accent-ink)" : "var(--fg-4)",
+            background: place.startAt ? "var(--accent-soft)" : "none",
+            border: "1px solid transparent",
+          }}
+        >
+          <Clock size={IconSize.actionChip} strokeWidth={1.5} />
+          {timeLabel ?? "Add time"}
+        </button>
+      )}
 
       {/* Location */}
-      <button
-        onClick={onOpenLocation}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-        style={{
-          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: place.locationAddress ? "var(--accent-ink)" : "var(--fg-4)",
-          background: place.locationAddress ? "var(--accent-soft)" : "none",
-          border: "1px solid transparent",
-          maxWidth: 160,
-        }}
-      >
-        <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-        <span className="truncate">{locationLabel || "Add location"}</span>
-      </button>
+      {place.locationAddress ? (
+        <ButtonGroup
+          orientation="horizontal"
+          className="overflow-hidden rounded-full"
+          style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
+        >
+          <Button
+            variant="ghost"
+            size="lg"
+            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
+            onClick={() => (onOpenMaps ? onOpenMaps() : undefined)}
+            aria-label={`Open directions to ${locationLabel}`}
+          >
+            <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+            <span className="truncate" style={{ maxWidth: 160 }}>
+              {locationLabel}
+            </span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
+            onClick={onOpenLocation}
+            aria-label="Edit location"
+            title="Edit location"
+          >
+            <Pencil size={IconSize.actionChip} strokeWidth={1.5} />
+          </Button>
+        </ButtonGroup>
+      ) : (
+        <button
+          onClick={onOpenLocation}
+          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
+          style={{
+            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
+            color: "var(--fg-4)",
+            border: "1px solid transparent",
+            maxWidth: 160,
+          }}
+        >
+          <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+          <span className="truncate">{locationLabel || "Add location"}</span>
+        </button>
+      )}
 
       {/* Cost */}
       <button
         onClick={onOpenCost}
-        className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+        className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
         style={{
           fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
           color: place.expense ? "var(--accent-ink)" : "var(--fg-4)",
@@ -104,7 +172,7 @@ export function PlaceRowActionBar({
           onClick={onToggleDocs}
           aria-expanded={showDocs}
           title="Show attached documents"
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--accent-ink)",
@@ -128,7 +196,7 @@ export function PlaceRowActionBar({
       {!hasDocs && (
         <button
           onClick={onOpenAddDoc}
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
+          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--fg-4)",

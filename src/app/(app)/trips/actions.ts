@@ -25,12 +25,13 @@ import type {
   TripDateConflictResolution,
   UpdateTripMetadataResult,
 } from "@/data/types";
+import { TransitMode } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/lib/utils";
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
 import { recalculateAll } from "@/lib/currency";
-import { dbExpenseToType } from "@/lib/db-mappers";
+import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
@@ -60,6 +61,18 @@ function resolveBudgetCurrency(code?: string): string | undefined {
   }
 
   return normalizedCode;
+}
+
+function resolveTripTransitMode(transitMode: TransitMode | null | undefined): TransitMode | null | undefined {
+  if (transitMode === undefined || transitMode === null) {
+    return transitMode;
+  }
+
+  if (!isTransitMode(transitMode)) {
+    throw new Error(`Invalid transit mode: ${transitMode}`);
+  }
+
+  return transitMode;
 }
 
 /**
@@ -206,18 +219,6 @@ async function summarizeRemovedDayContent(
 export async function createTrip(input: CreateTripInput): Promise<{ tripId: string }> {
   const sessionUser = await requireUser();
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
-  const [user] = await db
-    .select({ id: users.id, email: users.email, name: users.name, currency: users.currency })
-    .from(users)
-    .where(eq(users.email, sessionUser.email!));
-
-  if (!user?.id || !user.email) {
-    throw new Error("Signed-in user could not be resolved before trip creation.");
-  }
-  const userId = user.id;
-  const userEmail = user.email;
-  const userName = user.name ?? userEmail;
-  const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
 
   if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
     throw new Error("Invalid start date format. Expected YYYY-MM-DD.");
@@ -225,10 +226,33 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
-  const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
 
   let tripId = "";
+  let userId = "";
   await db.transaction(async (tx) => {
+    const [user] = await tx
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        currency: users.currency,
+        transitMode: users.transitMode,
+      })
+      .from(users)
+      .where(eq(users.email, sessionUser.email!))
+      .for("update");
+
+    if (!user?.id || !user.email) {
+      throw new Error("Signed-in user could not be resolved before trip creation.");
+    }
+    userId = user.id;
+    const userEmail = user.email;
+    const userName = user.name ?? userEmail;
+    const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
+    const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
+    const resolvedTransitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
+    const transitMode = isTransitMode(resolvedTransitMode) ? resolvedTransitMode : TransitMode.Drive;
+
     const [trip] = await tx
       .insert(trips)
       .values({
@@ -242,6 +266,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
         destinationCountryCode: input.destinationCountryCode ?? null,
         notes: input.notes ?? null,
         budgetCurrency: budgetCurrency ?? null,
+        transitMode,
         budgetTotal: input.budgetTotal?.toString(),
         tags: input.tags ?? [],
       })
@@ -333,6 +358,7 @@ export async function updateTripMetadata(
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
   const budgetCurrency = resolveBudgetCurrency(patch.budgetCurrency);
+  const resolvedTransitMode = resolveTripTransitMode(patch.transitMode);
   const shouldConvertCurrency = !!convertCurrency && !!budgetCurrency;
 
   let eventDocumentUrlsToCleanup: string[] = [];
@@ -381,6 +407,7 @@ export async function updateTripMetadata(
         budgetCurrency,
         budgetTotal: patch.budgetTotal?.toString(),
         tags: patch.tags,
+        transitMode: resolvedTransitMode,
         updatedAt: new Date(),
       };
     }

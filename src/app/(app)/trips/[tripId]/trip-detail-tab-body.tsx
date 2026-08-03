@@ -7,6 +7,8 @@ import { TripDocsTab } from "@/components/packt/trip-docs-tab";
 import { TripBudgetTab } from "@/components/packt/trip-budget-tab";
 import { PackingListsView } from "@/components/packt/packing-lists-view";
 import { ReservationsTab } from "@/components/packt/reservations-tab";
+import { MapTab } from "@/components/packt/map-tab";
+import { TransitMode } from "@/data/types";
 import type {
   DayItinerary,
   TripEvent,
@@ -29,6 +31,7 @@ export interface TripDetailTabBodyProps {
   defaultExpenseCurrency?: string;
   warningThreshold?: number;
   dangerThreshold?: number;
+  walkThresholdMeters?: number | null;
   activeTab: TripDetailTab;
   days: DayItinerary[];
   unscheduledEvents: TripEvent[];
@@ -90,6 +93,7 @@ export interface TripDetailTabBodyProps {
   onOpenEditBudget: () => void;
   onActivateReservationsCta: () => void;
   onLinkedEventTap: (linkedReservationId: string) => void;
+  onOpenMapTab?: (dayNumber: number) => void;
   onEditExpense?: (expense: Expense) => void;
   onAddDay: () => void;
   onRemoveLastDay: (
@@ -106,6 +110,7 @@ export function TripDetailTabBody({
   defaultExpenseCurrency,
   warningThreshold,
   dangerThreshold,
+  walkThresholdMeters,
   activeTab,
   days,
   unscheduledEvents,
@@ -152,6 +157,7 @@ export function TripDetailTabBody({
   onOpenEditBudget,
   onActivateReservationsCta,
   onLinkedEventTap,
+  onOpenMapTab,
   onEditExpense,
   onAddDay,
   onRemoveLastDay,
@@ -168,6 +174,9 @@ export function TripDetailTabBody({
       {activeTab === "itin" && (
         <TripItineraryView
           days={days}
+          tripId={tripId}
+          tripTransitMode={trip.transitMode ?? TransitMode.Drive}
+          walkThresholdMeters={walkThresholdMeters}
           unscheduledEvents={unscheduledEvents}
           defaultExpenseCurrency={defaultExpenseCurrency}
           dateFormat={dateFormat}
@@ -199,6 +208,7 @@ export function TripDetailTabBody({
           reservationCount={reservations.length}
           onActivateReservationsCta={onActivateReservationsCta}
           onLinkedEventTap={onLinkedEventTap}
+          onOpenMapTab={onOpenMapTab}
           onAddDay={onAddDay}
           onRemoveLastDay={onRemoveLastDay}
           addingDay={addingDay}
@@ -224,7 +234,13 @@ export function TripDetailTabBody({
         />
       )}
       {activeTab === "map" && (
-        <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Map view coming soon.</div>
+        <MapTab
+          events={allEvents}
+          reservations={reservations}
+          tripId={tripId}
+          days={days}
+          unscheduledEvents={unscheduledEvents}
+        />
       )}
       {activeTab === "pack" && (
         <PackingListsView
