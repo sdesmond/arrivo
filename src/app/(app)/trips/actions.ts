@@ -219,24 +219,6 @@ async function summarizeRemovedDayContent(
 export async function createTrip(input: CreateTripInput): Promise<{ tripId: string }> {
   const sessionUser = await requireUser();
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
-  const [user] = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      currency: users.currency,
-      transitMode: users.transitMode,
-    })
-    .from(users)
-    .where(eq(users.email, sessionUser.email!));
-
-  if (!user?.id || !user.email) {
-    throw new Error("Signed-in user could not be resolved before trip creation.");
-  }
-  const userId = user.id;
-  const userEmail = user.email;
-  const userName = user.name ?? userEmail;
-  const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
 
   if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
     throw new Error("Invalid start date format. Expected YYYY-MM-DD.");
@@ -244,12 +226,33 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
-  const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
-  const resolvedTransitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
-  const transitMode = isTransitMode(resolvedTransitMode) ? resolvedTransitMode : TransitMode.Drive;
 
   let tripId = "";
+  let userId = "";
   await db.transaction(async (tx) => {
+    const [user] = await tx
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        currency: users.currency,
+        transitMode: users.transitMode,
+      })
+      .from(users)
+      .where(eq(users.email, sessionUser.email!))
+      .for("update");
+
+    if (!user?.id || !user.email) {
+      throw new Error("Signed-in user could not be resolved before trip creation.");
+    }
+    userId = user.id;
+    const userEmail = user.email;
+    const userName = user.name ?? userEmail;
+    const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
+    const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
+    const resolvedTransitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
+    const transitMode = isTransitMode(resolvedTransitMode) ? resolvedTransitMode : TransitMode.Drive;
+
     const [trip] = await tx
       .insert(trips)
       .values({

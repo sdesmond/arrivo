@@ -168,6 +168,10 @@ Users can open a Map tab to see every located stop across a trip, narrow to a si
 Closes technical-debt gaps surfaced during Epic 1-5 code reviews: the walk-distance-threshold preference never reached the route/mode-selection pipeline it was built for, two server actions trust client-supplied event data without validating trip ownership, and the Schedule Conflict badge has no tested overflow behavior on narrow viewports.
 **FRs covered:** FR-8 (completes wiring); strengthens NFR-1, NFR-6
 
+### Epic 7: Deferred-Work Hardening — Route Correctness, Effect Stability & Measured Sizing
+Closes the five remaining runtime-correctness and test-hardening items carried in `deferred-work.md` from Epic 1-6 code reviews (a sixth, a line-count refactor, stays out of scope). Includes the haversine mode-proxy risk accepted in Story 6.1, which became live and user-facing once `walkThresholdMeters` was wired end-to-end.
+**FRs covered:** strengthens FR-8, FR-10, FR-11, FR-12, FR-13; NFR-1, NFR-6
+
 ## Epic 1: Trip-Level Transit Mode & Getting Around Preferences
 
 Users can set a trip's transit mode (walk/drive/transit) via a new "Getting Around" section in trip edit, back it with an account-level global default and walk-distance-threshold override, and every trip (new or existing) shows a valid seeded default from day one.
@@ -615,3 +619,115 @@ So that a pathological conflict count doesn't visually break the day card layout
 **Then** the badge degrades gracefully (wraps, truncates with an accessible full-text alternative, or switches to a compact numeral form) without clipping mid-word or breaking the day card's layout
 
 **And** the fix is verified with real viewport-width browser testing (e.g. Playwright resize), not jsdom class-string assertions alone — the verification method is recorded in the story's dev notes
+
+## Epic 7: Deferred-Work Hardening — Route Correctness, Effect Stability & Measured Sizing
+
+Closes the five remaining runtime-correctness and test-hardening items carried in `deferred-work.md` from Epic 1-6 code reviews (a sixth, a line-count refactor, stays out of scope). One item — the haversine mode-proxy accepted as a risk in Story 6.1 — became live and user-facing once Story 6.1 wired `walkThresholdMeters` end-to-end, so it now needs a real fix rather than a documented risk.
+
+**FRs covered:** strengthens FR-8, FR-10, FR-11, FR-12, FR-13; NFR-1, NFR-6
+
+**Source:** all five stories originate from deferred-work items logged during Epic 1/4 code reviews and the Story 6.1 dev notes, not new PRD scope. See `_bmad-output/implementation-artifacts/deferred-work.md` and `deferred-work-plan.md` for the original findings and planning rationale.
+
+### Story 7.1: Close the createTrip preference TOCTOU
+
+As a traveler creating a new trip right after changing my global transit-mode or currency preference,
+I want my new trip to use the preference values as they are at the moment the trip is actually committed,
+So that a race between reading my preferences and committing the insert can't silently seed the trip with stale values.
+
+**Acceptance Criteria:**
+
+**Given** `createTrip` in `src/app/(app)/trips/actions.ts` selects the user's `transitMode` and `currency` before the insert transaction opens
+**When** the trip insert commits
+**Then** the persisted `transitMode` and `budgetCurrency` are read from inside the same `db.transaction` callback as the insert, not from a pre-transaction snapshot
+
+**Given** a user updates their global `transitMode` or `currency` preference in the window between the pre-fix select and the insert commit
+**When** `createTrip` runs with the fix applied
+**Then** the new trip persists the in-transaction (current) preference value, not the stale pre-transaction value
+
+**And** the existing `transitMode` seeding precedence (`input ?? user ?? "drive"`) continues to hold — an explicit `transitMode` argument to `createTrip` still wins over the in-transaction user default
+
+**And** `requireUser()` and the non-DB-dependent `headers()`/`detectPreferredCurrency` calls remain where they are today — only the DB-sourced preference reads move inside the transaction
+
+### Story 7.2: Resolve per-hop mode from actual route distance
+
+As a traveler with a walk-distance threshold set,
+I want mode selection to use each hop's actual routed distance rather than a straight-line estimate,
+So that hops near the threshold get the correct duration, walk/drive decision, and Schedule Conflict classification.
+
+**Acceptance Criteria:**
+
+**Given** a hop whose straight-line distance is below `walkThresholdMeters`
+**When** `getDayRouteSummary`/`getDayScheduleConflicts` resolve its mode
+**Then** the route is first fetched with the trip's default mode, and if the mode resolved from the actual `distanceMeters` differs from the fetched mode, it is refetched with `"walk"`
+
+**Given** a hop whose straight-line distance is at or above `walkThresholdMeters`
+**When** mode is resolved
+**Then** only the single default-mode fetch happens — no walk-refetch is attempted, since road distance is always ≥ straight-line distance
+
+**Given** the first route fetch is unavailable
+**When** mode resolution runs
+**Then** the hop is skipped/falls through exactly as it does today — no crash, no second fetch attempted
+
+**And** all existing `resolveEffectiveMode` unit tests and behavior are unchanged — this story only changes what distance value feeds the decision, not the decision function itself
+
+### Story 7.3: Parallelize day hops with in-process dedup
+
+As a traveler with a many-stop day,
+I want the day's hop route lookups to run concurrently and avoid duplicate identical requests,
+So that Day Route Strip and Schedule Conflict load quickly and don't waste Directions API calls on redundant lookups.
+
+**Acceptance Criteria:**
+
+**Given** a day with N located stops (N-1 hops)
+**When** `getDayRouteSummary` or `getDayScheduleConflicts` compute hop routes
+**Then** all hops are requested concurrently (not awaited sequentially), with per-hop `unavailable` failures isolated so one failed hop doesn't block the others, and result/conflict ordering stays event-ordered
+
+**Given** `hopCount === 0` (no hops resolve successfully)
+**When** the day result is computed
+**Then** the day still reports `{ status: "unavailable" }` as it does today
+
+**Given** Day Route Strip and Schedule Conflict request the same hop (same origin/destination/mode) concurrently on the same server process
+**When** both requests are in flight
+**Then** only one underlying Directions call is made — the second caller shares the first call's in-flight promise, keyed by quantized coordinates + transit mode
+
+**And** existing route/conflict test results and ordering are unchanged — this story only changes concurrency and dedup, not outcomes
+
+### Story 7.4: Stabilize DayCardBody route-summary effect + unify null-checks
+
+As a traveler viewing a day card,
+I want the route-summary fetch to only re-run when the day's actual content changes,
+So that a parent re-render with a content-identical event list doesn't trigger a wasted refetch, and stops at 0°/0° coordinates are still treated as located.
+
+**Acceptance Criteria:**
+
+**Given** `day-card-body.tsx`'s route-summary effect currently depends on the `locatedEvents` array reference and `routeSummaryKey`
+**When** a parent re-render produces a new but content-identical `day.events` array
+**Then** the effect does not refetch — it depends on a stable content key derived from `day.events`, not the array reference
+
+**Given** a real change to a coordinate or an event's position within the day
+**When** that change occurs
+**Then** the route-summary effect does refetch
+
+**Given** an event has `locationLat: 0` or `locationLng: 0` (valid coordinates at the equator/prime meridian)
+**When** located-event filtering and the route-strip render gate evaluate it
+**Then** it is treated as located — using explicit `!== null && !== undefined` checks, not truthiness
+
+**And** the route-summary fetching/state is extracted into a colocated `use-day-route-summary.ts` hook (mirroring `use-schedule-conflicts.ts`/`use-day-draft.ts`), keeping `day-card-body.tsx` under the ~250-line guideline
+
+### Story 7.5: Measured 44px interactive sizing for PlaceRowActionBar
+
+As a traveler using the day-planning action bar on a mobile device,
+I want every action-bar chip and Address ButtonGroup segment to actually measure at least 44×44px in a real browser,
+So that the WCAG 2.5.8 sizing guarantee is verified by rendered geometry, not by asserting a class-name string in jsdom.
+
+**Acceptance Criteria:**
+
+**Given** the Time, Cost, Docs, and Attach chips and both filled-Address ButtonGroup segments in `PlaceRowActionBar`
+**When** measured via `getBoundingClientRect` in a real Playwright browser at a 375px viewport
+**Then** every one of them reports `height >= 44 && width >= 44`
+
+**Given** the existing jsdom tests asserting `h-11`/`size-11` class-name substrings
+**When** this story lands
+**Then** those tests are kept as class-contract regression guards but are renamed/annotated to make clear they are not the measured verification
+
+**And** the new scenario lives in `tests/e2e/features/day-planning.feature` (already mapped to `@feat:day-planning`, no feature-map change needed) and uses scenario-owned Object-Mother fixture creation for a day with a located event carrying a time, expense, and doc
