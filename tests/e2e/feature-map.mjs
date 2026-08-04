@@ -34,6 +34,7 @@ export const FEATURE_MAP = [
     "src/components/packt/day-route-strip.tsx",
     "src/components/packt/day-card.tsx",
     "src/components/packt/day-card-body.tsx",
+    "src/components/packt/use-day-route-summary.ts",
     "src/app/(app)/trips/[tripId]/route-actions.ts",
     "src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx",
     "src/lib/route.ts",

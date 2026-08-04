@@ -5,11 +5,11 @@ import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
 import { DayCardBottomAdd } from "./day-card-bottom-add";
-import type { DayItinerary, TripEvent, DayItemType, Document, DayRouteSummary, TransitMode } from "@/data/types";
-import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
+import type { DayItinerary, TripEvent, DayItemType, Document, TransitMode } from "@/data/types";
 import { DayRouteStrip } from "./day-route-strip";
 import { useScheduleConflicts } from "./use-schedule-conflicts";
 import { useDayDraft } from "./use-day-draft";
+import { useDayRouteSummary } from "./use-day-route-summary";
 
 export interface DayCardBodyProps {
   day: DayItinerary;
@@ -37,11 +37,6 @@ export interface DayCardBodyProps {
   onDeleteChecklistItem?: (itemId: string) => void;
   onToggleChecklistItem?: (itemId: string) => void;
   onOpenMapTab?: (dayNumber: number) => void;
-}
-
-interface RouteSummaryState {
-  key: string;
-  summary: DayRouteSummary;
 }
 
 export function DayCardBody({
@@ -76,22 +71,7 @@ export function DayCardBody({
   const searchParams = useSearchParams();
   const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
   const pendingRefocusEventIdRef = useRef<string | null>(null);
-  const locatedEvents = useMemo(
-    () => day.events.filter((event) => event.locationLat != null && event.locationLng != null),
-    [day.events]
-  );
-  const routeSummaryKey = [
-    tripId ?? "none",
-    tripTransitMode ?? "none",
-    walkThresholdMeters ?? "none",
-    ...locatedEvents.map((event) => `${event.id}:${event.locationLat}:${event.locationLng}:${event.position}`),
-  ].join("|");
-  const [routeSummaryState, setRouteSummaryState] = useState<RouteSummaryState>(() => ({
-    key: routeSummaryKey,
-    summary: { status: "loading" },
-  }));
-  const routeSummary: DayRouteSummary =
-    routeSummaryState.key === routeSummaryKey ? routeSummaryState.summary : { status: "loading" };
+  const { routeSummary, locatedEvents } = useDayRouteSummary(day.events, tripId, tripTransitMode, walkThresholdMeters);
 
   const propTimelineItems: TimelineItem[] = [
     ...day.events.map((event) => ({ kind: "event" as const, data: event, position: event.position })),
@@ -152,21 +132,6 @@ export function DayCardBody({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- clear optimistic state when refreshed props catch up
     if (propIds === optimisticIds) setOptimisticOrder(null);
   }, [propTimelineItems, optimisticOrder]);
-
-  useEffect(() => {
-    if (locatedEvents.length < 2 || !tripId || !tripTransitMode) return;
-    let active = true;
-    void getDayRouteSummary(tripId, locatedEvents, tripTransitMode, walkThresholdMeters)
-      .then((summary) => {
-        if (active) setRouteSummaryState({ key: routeSummaryKey, summary });
-      })
-      .catch(() => {
-        if (active) setRouteSummaryState({ key: routeSummaryKey, summary: { status: "unavailable" } });
-      });
-    return () => {
-      active = false;
-    };
-  }, [locatedEvents, routeSummaryKey, tripId, tripTransitMode, walkThresholdMeters]);
 
   const conflicts = useScheduleConflicts(
     conflictEvents,
