@@ -261,6 +261,103 @@ describe("getRouteDistanceTime", () => {
   });
 });
 
+function stubFetchByProfile(responses: Record<string, { distance: number; duration: number }>) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string) => {
+      const entry = Object.entries(responses).find(([profile]) => url.includes(`/directions/v5/mapbox/${profile}/`));
+      if (!entry) return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
+      const [, { distance, duration }] = entry;
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ routes: [{ distance, duration }] }) });
+    })
+  );
+}
+
+const NEAR_ORIGIN = { lat: 48.8566, lng: 2.3522 };
+const NEAR_DESTINATION = { lat: 48.8586, lng: 2.3522 }; // ~222m from NEAR_ORIGIN, below a 400m threshold
+const FAR_DESTINATION = { lat: 48.8666, lng: 2.3522 }; // ~1112m from NEAR_ORIGIN, at/over a 400m threshold
+
+describe("getDayRouteSummary — two-phase mode resolution", () => {
+  const nearEvents = [
+    { id: "first", name: "First", position: 0, locationLat: NEAR_ORIGIN.lat, locationLng: NEAR_ORIGIN.lng },
+    { id: "second", name: "Second", position: 1, locationLat: NEAR_DESTINATION.lat, locationLng: NEAR_DESTINATION.lng },
+  ];
+  const farEvents = [
+    { id: "first", name: "First", position: 0, locationLat: NEAR_ORIGIN.lat, locationLng: NEAR_ORIGIN.lng },
+    { id: "second", name: "Second", position: 1, locationLat: FAR_DESTINATION.lat, locationLng: FAR_DESTINATION.lng },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  it("refetches with walk when the default-mode route resolves to a different effective mode, and uses the walk route's distance and duration", async () => {
+    stubFetchByProfile({
+      driving: { distance: 350, duration: 90 },
+      walking: { distance: 300, duration: 240 },
+    });
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 300, totalDurationSeconds: 240, hopCount: 1 });
+  });
+
+  it("does not refetch when the default-mode route's distance keeps the trip default mode", async () => {
+    stubFetchByProfile({ driving: { distance: 450, duration: 120 } });
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 450, totalDurationSeconds: 120, hopCount: 1 });
+  });
+
+  it("skips mode evaluation when straight-line distance is at or over the threshold, even if the route would appear walkable", async () => {
+    stubFetchByProfile({ driving: { distance: 50, duration: 30 } });
+
+    const result = await getDayRouteSummary(farEvents, "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 50, totalDurationSeconds: 30, hopCount: 1 });
+  });
+
+  it("never issues a duplicate walk request when the trip default mode is already walk", async () => {
+    stubFetchByProfile({ walking: { distance: 150, duration: 200 } });
+
+    const result = await getDayRouteSummary(nearEvents, "walk", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 150, totalDurationSeconds: 200, hopCount: 1 });
+  });
+
+  it("skips a hop without a walk refetch when the default-mode route is unavailable", async () => {
+    stubFetchByProfile({});
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual({ status: "unavailable" });
+  });
+});
+
 describe("getDayRouteSummary", () => {
   it("returns unavailable without any located items", async () => {
     await expect(getDayRouteSummary([{ id: "one", name: "One", position: 0 }], "drive", null)).resolves.toEqual({
@@ -309,6 +406,127 @@ describe("getDayRouteSummary", () => {
     );
 
     expect(result).toEqual({ status: "ready", totalDistanceMeters: 1200, totalDurationSeconds: 420, hopCount: 2 });
+  });
+});
+
+describe("getDayScheduleConflicts — two-phase mode resolution", () => {
+  const located = (id: string, position: number, startAt: string, endAt: string, lat: number, lng: number) => ({
+    id,
+    name: id,
+    position,
+    locationLat: lat,
+    locationLng: lng,
+    startAt,
+    endAt,
+  });
+
+  const nearConflictEvents = [
+    located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z", NEAR_ORIGIN.lat, NEAR_ORIGIN.lng),
+    located("museum", 1, "2026-07-15T09:05:00Z", "2026-07-15T09:20:00Z", NEAR_DESTINATION.lat, NEAR_DESTINATION.lng),
+  ];
+  const farConflictEvents = [
+    located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z", NEAR_ORIGIN.lat, NEAR_ORIGIN.lng),
+    located("museum", 1, "2026-07-15T09:05:00Z", "2026-07-15T09:20:00Z", FAR_DESTINATION.lat, FAR_DESTINATION.lng),
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  it("classifies a conflict using the walk route's duration when the default-mode route resolves to walk", async () => {
+    stubFetchByProfile({
+      driving: { distance: 350, duration: 100 },
+      walking: { distance: 300, duration: 250 },
+    });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 250,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("does not refetch when the default-mode route's distance keeps the trip default mode", async () => {
+    stubFetchByProfile({ driving: { distance: 450, duration: 100 } });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 100,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("skips mode evaluation when straight-line distance is at or over the threshold", async () => {
+    stubFetchByProfile({ driving: { distance: 50, duration: 30 } });
+
+    const result = await getDayScheduleConflicts(farConflictEvents, "trip-1", "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 30,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("never issues a duplicate walk request when the trip default mode is already walk", async () => {
+    stubFetchByProfile({ walking: { distance: 150, duration: 200 } });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "walk", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 200,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("skips a hop without a walk refetch when the default-mode route is unavailable", async () => {
+    stubFetchByProfile({});
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([]);
   });
 });
 

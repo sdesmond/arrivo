@@ -151,6 +151,23 @@ function getStraightLineDistanceMeters(origin: GeoCoords, destination: GeoCoords
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
+async function resolveHopRoute(
+  origin: GeoCoords,
+  destination: GeoCoords,
+  tripTransitMode: TransitMode,
+  walkThresholdMeters: number | null | undefined
+): Promise<RouteResult> {
+  const firstRoute = await getRouteDistanceTime(origin, destination, tripTransitMode);
+  if (firstRoute.status !== "ready") return firstRoute;
+  if (walkThresholdMeters === null || walkThresholdMeters === undefined) return firstRoute;
+  if (getStraightLineDistanceMeters(origin, destination) >= walkThresholdMeters) return firstRoute;
+
+  const effectiveMode = resolveEffectiveMode(firstRoute.distanceMeters, tripTransitMode, walkThresholdMeters);
+  if (effectiveMode === tripTransitMode) return firstRoute;
+
+  return getRouteDistanceTime(origin, destination, effectiveMode);
+}
+
 export async function getDayRouteSummary(
   events: TripEvent[],
   tripTransitMode: TransitMode,
@@ -177,12 +194,7 @@ export async function getDayRouteSummary(
     const destinationEvent = locatedEvents[index + 1];
     const origin = { lat: originEvent.locationLat!, lng: originEvent.locationLng! };
     const destination = { lat: destinationEvent.locationLat!, lng: destinationEvent.locationLng! };
-    const transitMode = resolveEffectiveMode(
-      getStraightLineDistanceMeters(origin, destination),
-      tripTransitMode,
-      walkThresholdMeters
-    );
-    const route = await getRouteDistanceTime(origin, destination, transitMode);
+    const route = await resolveHopRoute(origin, destination, tripTransitMode, walkThresholdMeters);
     if (route.status !== "ready") continue;
     totalDistanceMeters += route.distanceMeters;
     totalDurationSeconds += route.durationSeconds;
@@ -223,12 +235,7 @@ export async function getDayScheduleConflicts(
     const currentEvent = timedLocatedEvents[index];
     const origin = { lat: previousEvent.locationLat!, lng: previousEvent.locationLng! };
     const destination = { lat: currentEvent.locationLat!, lng: currentEvent.locationLng! };
-    const transitMode = resolveEffectiveMode(
-      getStraightLineDistanceMeters(origin, destination),
-      tripTransitMode,
-      walkThresholdMeters
-    );
-    const route = await getRouteDistanceTime(origin, destination, transitMode);
+    const route = await resolveHopRoute(origin, destination, tripTransitMode, walkThresholdMeters);
     if (route.status !== "ready") continue;
 
     const scheduledGapSeconds =
