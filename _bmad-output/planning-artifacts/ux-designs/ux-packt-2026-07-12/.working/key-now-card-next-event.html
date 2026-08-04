@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Key Screen — Now Card, Next Event row (two-zone)</title>
+<style>
+/*
+  Governing spine sections:
+  - EXPERIENCE.md: Component Patterns ("Next Event row (restructured)", "Distance/Time pill",
+    "Geo-hint pill"), State Patterns (geolocation granted / not-yet-asked / previously denied /
+    calculating), Interaction Primitives (44x44 minimum, pill focus continuity), Key Flows
+    (Flow 1 — Maya).
+  - DESIGN.md: components (distance-time-pill, geo-hint-pill), Colors (accent-soft/accent-ink,
+    surface-2/fg-3), Shapes (rounded.full on pills).
+  Shows three states of the same row, side by side: (A) distance/time granted, (B) geo-hint
+  not-yet-asked, (C) geo-hint previously denied. All three preserve the identical two-zone
+  structure — name/time Link (zone 1) is untouched; the pill (zone 2) is a sibling, never
+  nested inside the Link.
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #e9e9e6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  justify-content: center;
+  padding: 32px;
+}
+.col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.caption { font-size: 12px; color: #4a4a45; max-width: 300px; text-align: center; line-height: 1.4; }
+.phone {
+  width: 320px;
+  background: #ffffff; /* --bg */
+  border-radius: 22px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.04); /* --shadow-3 */
+  overflow: hidden;
+  border: 8px solid #131311;
+}
+.cover {
+  height: 96px;
+  background: linear-gradient(135deg, #0e8b80, #0a4a44);
+  position: relative;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-end;
+}
+.cover span {
+  color: #ffffff; /* --cover-text */
+  font-weight: 700;
+  font-size: 17px;
+}
+.body { padding: 16px; }
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7a7a72; /* --fg-3 */
+  margin-bottom: 6px;
+}
+.dot { width: 6px; height: 6px; border-radius: 999px; background: #0e8b80; } /* --accent-brand */
+.trip-name { font-size: 20px; font-weight: 700; color: #131311; letter-spacing: -0.01em; margin-bottom: 12px; } /* --fg */
+
+/* Next Event row — two-zone container (non-link) */
+.next-event-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* Zone 1 — existing name/time Link, unchanged */
+.zone-link {
+  display: block;
+  border-radius: 8px;
+  background: #d6efec; /* --accent-soft */
+  border: 1px solid rgba(20,20,18,0.08); /* --line */
+  padding: 14px 16px;
+  text-decoration: none;
+}
+.zone-link .eyebrow {
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0e8b80; /* --accent-brand */
+  margin-bottom: 4px;
+}
+.zone-link .name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.zone-link .name { font-size: 20px; font-weight: 700; color: #131311; letter-spacing: -0.01em; } /* --fg */
+.zone-link .time { font-size: 13px; color: #7a7a72; margin-top: 4px; } /* --fg-3 */
+.chevron { color: #7a7a72; font-size: 16px; }
+
+/* Zone 2 — new pill, sibling of zone-link, never nested inside it */
+.pill-row { display: flex; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border-radius: 9999px; /* rounded.full */
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+.pill.data {
+  background: #d6efec; /* --accent-soft */
+  color: #0a4a44; /* --accent-ink */
+}
+.pill.hint {
+  background: #efefec; /* --surface-2 */
+  color: #7a7a72; /* --fg-3 */
+}
+.pill svg { flex-shrink: 0; }
+.nested-warning {
+  font-size: 10px;
+  color: #a0a098;
+  text-align: center;
+  margin-top: 4px;
+}
+</style>
+</head>
+<body>
+
+<div class="col">
+  <div class="phone">
+    <div class="cover"><span>Tokyo, Autumn</span></div>
+    <div class="body">
+      <div class="status-row"><span class="dot"></span>ACTIVE TRIP</div>
+      <div class="trip-name">Tokyo, Autumn</div>
+
+      <div class="next-event-row">
+        <a class="zone-link" href="#">
+          <div class="eyebrow">Next Event</div>
+          <div class="name-row">
+            <span class="name">Senso-ji Temple</span>
+            <span class="chevron">›</span>
+          </div>
+          <div class="time">2:30 PM</div>
+        </a>
+        <div class="pill-row">
+          <button class="pill data" aria-label="Open directions to Senso-ji Temple, 12 minutes">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+            12 min walk
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">(A) Geolocation granted — Distance/Time pill shows live data. Tapping it opens External Maps.</div>
+</div>
+
+<div class="col">
+  <div class="phone">
+    <div class="cover"><span>Tokyo, Autumn</span></div>
+    <div class="body">
+      <div class="status-row"><span class="dot"></span>ACTIVE TRIP</div>
+      <div class="trip-name">Tokyo, Autumn</div>
+
+      <div class="next-event-row">
+        <a class="zone-link" href="#">
+          <div class="eyebrow">Next Event</div>
+          <div class="name-row">
+            <span class="name">Senso-ji Temple</span>
+            <span class="chevron">›</span>
+          </div>
+          <div class="time">2:30 PM</div>
+        </a>
+        <div class="pill-row">
+          <button class="pill hint" aria-label="Enable location for directions to Senso-ji Temple">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+            Enable location for directions
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">(B) Coordinates exist, geolocation not yet asked — geo-hint pill occupies the exact same slot/size. Tap triggers the native permission prompt.</div>
+</div>
+
+<div class="col">
+  <div class="phone">
+    <div class="cover"><span>Tokyo, Autumn</span></div>
+    <div class="body">
+      <div class="status-row"><span class="dot"></span>ACTIVE TRIP</div>
+      <div class="trip-name">Tokyo, Autumn</div>
+
+      <div class="next-event-row">
+        <a class="zone-link" href="#">
+          <div class="eyebrow">Next Event</div>
+          <div class="name-row">
+            <span class="name">Senso-ji Temple</span>
+            <span class="chevron">›</span>
+          </div>
+          <div class="time">2:30 PM</div>
+        </a>
+        <div class="pill-row">
+          <button class="pill hint" aria-label="Location blocked, enable it in your browser settings">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+            Location blocked — enable in settings
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">(C) Previously denied — distinct label from (B), no repeated native prompt. Same slot, same size.</div>
+</div>
+
+</body>
+</html>
