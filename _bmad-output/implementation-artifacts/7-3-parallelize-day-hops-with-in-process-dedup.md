@@ -4,7 +4,7 @@ baseline_commit: eebad0823d3f2661f1c437700a8f4eebf1735572
 
 # Story 7.3: Parallelize Day Hops With In-Process Dedup
 
-Status: review
+Status: done
 
 ## Story
 
@@ -46,6 +46,10 @@ so that Day Route Strip and Schedule Conflict results arrive promptly without wa
 - [x] Verify focused behavior, then project validation. (AC: 1-4)
   - [x] Run `npx vitest run src/lib/route.test.ts` before broad validation.
   - [x] Run `packt-build-validator` once after targeted tests pass. `src/lib/**` is shared runtime, so its affected-E2E stage exercises the full mapped suite; do not add duplicate E2E coverage for this domain-only change.
+
+### Review Findings
+
+- [x] [Review][Patch] Module-size constraint regressed [src/lib/route.ts:171]
 
 ## Dev Notes
 

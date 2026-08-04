@@ -168,21 +168,33 @@ async function resolveHopRoute(
   return getRouteDistanceTime(origin, destination, effectiveMode);
 }
 
+function hasLocation(event: TripEvent): boolean {
+  return (
+    event.locationLat !== null &&
+    event.locationLat !== undefined &&
+    event.locationLng !== null &&
+    event.locationLng !== undefined
+  );
+}
+function hasSchedule(event: TripEvent): boolean {
+  return event.startAt !== null && event.startAt !== undefined && event.endAt !== null && event.endAt !== undefined;
+}
 async function resolveDayHopRoutes(
   sortedLocatedEvents: TripEvent[],
   tripTransitMode: TransitMode,
   walkThresholdMeters: number | null | undefined
 ): Promise<RouteResult[]> {
   const settledHops = await Promise.allSettled(
-    sortedLocatedEvents.slice(1).map((destinationEvent, index) => {
-      const originEvent = sortedLocatedEvents[index];
-      return resolveHopRoute(
-        { lat: originEvent.locationLat!, lng: originEvent.locationLng! },
-        { lat: destinationEvent.locationLat!, lng: destinationEvent.locationLng! },
-        tripTransitMode,
-        walkThresholdMeters
-      );
-    })
+    sortedLocatedEvents
+      .slice(1)
+      .map((destinationEvent, index) =>
+        resolveHopRoute(
+          { lat: sortedLocatedEvents[index].locationLat!, lng: sortedLocatedEvents[index].locationLng! },
+          { lat: destinationEvent.locationLat!, lng: destinationEvent.locationLng! },
+          tripTransitMode,
+          walkThresholdMeters
+        )
+      )
   );
   return settledHops.map((settledHop) =>
     settledHop.status === "fulfilled" ? settledHop.value : { status: "unavailable" }
@@ -194,15 +206,7 @@ export async function getDayRouteSummary(
   tripTransitMode: TransitMode,
   walkThresholdMeters: number | null | undefined
 ): Promise<DayRouteSummary> {
-  const locatedEvents = events
-    .filter(
-      (event) =>
-        event.locationLat !== null &&
-        event.locationLat !== undefined &&
-        event.locationLng !== null &&
-        event.locationLng !== undefined
-    )
-    .sort((first, second) => first.position - second.position);
+  const locatedEvents = events.filter(hasLocation).sort((first, second) => first.position - second.position);
 
   if (locatedEvents.length < 2) return { status: "unavailable" };
 
@@ -233,17 +237,8 @@ export async function getDayScheduleConflicts(
   walkThresholdMeters?: number | null
 ): Promise<ScheduleConflict[]> {
   const timedLocatedEvents = events
-    .filter(
-      (event) =>
-        event.locationLat !== null &&
-        event.locationLat !== undefined &&
-        event.locationLng !== null &&
-        event.locationLng !== undefined &&
-        event.startAt !== null &&
-        event.startAt !== undefined &&
-        event.endAt !== null &&
-        event.endAt !== undefined
-    )
+    .filter(hasLocation)
+    .filter(hasSchedule)
     .sort((first, second) => first.position - second.position);
 
   const routes = await resolveDayHopRoutes(timedLocatedEvents, tripTransitMode, walkThresholdMeters);

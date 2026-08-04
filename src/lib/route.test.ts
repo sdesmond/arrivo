@@ -497,6 +497,21 @@ describe("getDayRouteSummary", () => {
     await expect(getDayRouteSummary(events, "drive", null)).resolves.toEqual({ status: "unavailable" });
   });
 
+  it("treats zero coordinates as located stops", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 120, fetchedAt: new Date() }]);
+
+    await expect(
+      getDayRouteSummary(
+        [
+          { id: "origin", name: "Origin", position: 0, locationLat: 0, locationLng: 0 },
+          { id: "destination", name: "Destination", position: 1, locationLat: 0.01, locationLng: 0.01 },
+        ],
+        "drive",
+        null
+      )
+    ).resolves.toEqual({ status: "ready", totalDistanceMeters: 500, totalDurationSeconds: 120, hopCount: 1 });
+  });
+
   it("aggregates all hops when every hop succeeds", async () => {
     mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 120, fetchedAt: new Date() }]);
 
