@@ -356,6 +356,18 @@ describe("getDayRouteSummary — two-phase mode resolution", () => {
     expect(fetch).toHaveBeenCalledOnce();
     expect(result).toEqual({ status: "unavailable" });
   });
+
+  it("skips a hop when the walk refetch is unavailable instead of falling back to the default-mode route", async () => {
+    stubFetchByProfile({ driving: { distance: 350, duration: 90 } });
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual({ status: "unavailable" });
+  });
 });
 
 describe("getDayRouteSummary", () => {
@@ -526,6 +538,18 @@ describe("getDayScheduleConflicts — two-phase mode resolution", () => {
     const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
 
     expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([]);
+  });
+
+  it("skips a hop when the walk refetch is unavailable instead of classifying it with the default-mode route", async () => {
+    stubFetchByProfile({ driving: { distance: 350, duration: 100 } });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
     expect(result).toEqual([]);
   });
 });

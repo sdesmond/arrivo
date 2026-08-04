@@ -4,7 +4,7 @@ baseline_commit: a01ed7b6cf604e97f80af52f43da143d991d1cfe
 
 # Story 7.2: Resolve Per-Hop Mode From Actual Route Distance
 
-Status: review
+Status: done
 
 ## Story
 
@@ -51,6 +51,10 @@ Story 6.1 made `walkThresholdMeters` live end-to-end. Both daily route summaries
 - [x] Verify focused behavior, then run project validation. (AC: 1–4)
   - [x] Run the colocated `route.test.ts` suite first.
   - [x] Run `packt-build-validator` once after implementation; `src/lib/**` is shared runtime, so its affected-E2E gate runs the full E2E suite.
+
+### Review Findings
+
+- [x] [Review][Patch] Cover unavailable walk refetches [src/lib/route.test.ts:351] — Add summary and schedule-conflict tests where a ready near-threshold default-mode route resolves to walk but the walk response is unavailable; assert each hop is skipped without falling back to the default route.
 
 ## Dev Notes
 
