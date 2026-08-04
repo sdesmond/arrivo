@@ -4,7 +4,7 @@ baseline_commit: 55dcfe0
 
 # Story 7.4: Stabilize DayCardBody Route-Summary Effect + Unify Null-Checks
 
-Status: review
+Status: done
 
 ## Story
 
@@ -173,3 +173,8 @@ GPT-5 Codex
 - 2026-08-04: Extracted `useDayRouteSummary` hook so the route-summary fetch depends on a stable
   primitive key instead of the raw `day.events` array reference; unified located-event coordinate
   checks to explicit `!== null && !== undefined`; registered the new hook in `feature-map.mjs`.
+
+### Review Findings
+
+- [x] [Review][Patch] Cover immediate loading after route-input changes [src/components/packt/use-day-route-summary.test.ts:98] — use a deferred second request and assert `{ status: "loading" }` before it settles for coordinate and position changes.
+- [x] [Review][Patch] Cover stale request rejection [src/components/packt/use-day-route-summary.test.ts:143] — reject a superseded deferred request after a key change and assert that the current ready summary remains unchanged.
