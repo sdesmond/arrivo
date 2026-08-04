@@ -80,6 +80,6 @@ development_status:
   7-1-close-createtrip-preference-toctou: done
   7-2-resolve-per-hop-mode-from-actual-route-distance: done
   7-3-parallelize-day-hops-with-in-process-dedup: done
-  7-4-stabilize-daycardbody-route-summary-effect: backlog
+  7-4-stabilize-daycardbody-route-summary-effect: review
   7-5-measured-44px-interactive-sizing-for-place-row-action-bar: backlog
   epic-7-retrospective: optional
