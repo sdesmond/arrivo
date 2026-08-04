@@ -178,6 +178,19 @@ describe("getRouteDistanceTime", () => {
     expect(firstResult).toEqual(secondResult);
   });
 
+  it("deduplicates concurrent requests for epsilon-different coordinates that quantize to the same key", async () => {
+    const jitteredOrigin = { lat: 48.856599999999996, lng: 2.352200000000001 };
+    const jitteredDestination = { lat: 48.858399999999996, lng: 2.294500000000001 };
+
+    const [firstResult, secondResult] = await Promise.all([
+      getRouteDistanceTime(origin, destination, "walk"),
+      getRouteDistanceTime(jitteredOrigin, jitteredDestination, "walk"),
+    ]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(firstResult).toEqual(secondResult);
+  });
+
   it("triggers a fresh API call when the cached entry is older than 24 hours", async () => {
     const staleDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
     mockLimit.mockResolvedValue([{ distanceMeters: 999, durationSeconds: 999, fetchedAt: staleDate }]);
@@ -370,6 +383,107 @@ describe("getDayRouteSummary — two-phase mode resolution", () => {
   });
 });
 
+function createDeferredFetch() {
+  const resolvers: ((value: { ok: boolean; json: () => Promise<unknown> }) => void)[] = [];
+  const fetchMock = vi.fn(
+    () =>
+      new Promise<{ ok: boolean; json: () => Promise<unknown> }>((resolve) => {
+        resolvers.push(resolve);
+      })
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return { fetchMock, resolvers };
+}
+
+async function flushMicrotasks(times = 6) {
+  for (let iteration = 0; iteration < times; iteration += 1) {
+    await Promise.resolve();
+  }
+}
+
+function jsonResponse(distance: number, duration: number) {
+  return { ok: true, json: () => Promise.resolve({ routes: [{ distance, duration }] }) };
+}
+
+const unavailableResponse = { ok: false, json: () => Promise.resolve({}) };
+
+describe("getDayRouteSummary — concurrent hop resolution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  const threeStopEvents = [
+    { id: "a", name: "A", position: 0, locationLat: 48.85, locationLng: 2.35 },
+    { id: "b", name: "B", position: 1, locationLat: 48.855, locationLng: 2.355 },
+    { id: "c", name: "C", position: 2, locationLat: 48.86, locationLng: 2.36 },
+  ];
+
+  it("starts both hops before either settles, and aggregates correctly when they resolve out of order", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const summaryPromise = getDayRouteSummary(threeStopEvents, "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[1](jsonResponse(700, 300));
+    resolvers[0](jsonResponse(500, 120));
+
+    await expect(summaryPromise).resolves.toEqual({
+      status: "ready",
+      totalDistanceMeters: 1200,
+      totalDurationSeconds: 420,
+      hopCount: 2,
+    });
+  });
+
+  it("isolates an unavailable hop during concurrent settlement without blocking the ready hop", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const summaryPromise = getDayRouteSummary(threeStopEvents, "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[0](unavailableResponse);
+    resolvers[1](jsonResponse(700, 300));
+
+    await expect(summaryPromise).resolves.toEqual({
+      status: "ready",
+      totalDistanceMeters: 700,
+      totalDurationSeconds: 300,
+      hopCount: 1,
+    });
+  });
+
+  it("returns unavailable when every hop fails during concurrent settlement", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const summaryPromise = getDayRouteSummary(threeStopEvents, "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[1](unavailableResponse);
+    resolvers[0](unavailableResponse);
+
+    await expect(summaryPromise).resolves.toEqual({ status: "unavailable" });
+  });
+});
+
 describe("getDayRouteSummary", () => {
   it("returns unavailable without any located items", async () => {
     await expect(getDayRouteSummary([{ id: "one", name: "One", position: 0 }], "drive", null)).resolves.toEqual({
@@ -381,6 +495,21 @@ describe("getDayRouteSummary", () => {
     const events = [{ id: "one", name: "One", position: 0, locationLat: 48.85, locationLng: 2.35 }];
 
     await expect(getDayRouteSummary(events, "drive", null)).resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("treats zero coordinates as located stops", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 120, fetchedAt: new Date() }]);
+
+    await expect(
+      getDayRouteSummary(
+        [
+          { id: "origin", name: "Origin", position: 0, locationLat: 0, locationLng: 0 },
+          { id: "destination", name: "Destination", position: 1, locationLat: 0.01, locationLng: 0.01 },
+        ],
+        "drive",
+        null
+      )
+    ).resolves.toEqual({ status: "ready", totalDistanceMeters: 500, totalDurationSeconds: 120, hopCount: 1 });
   });
 
   it("aggregates all hops when every hop succeeds", async () => {
@@ -554,6 +683,93 @@ describe("getDayScheduleConflicts — two-phase mode resolution", () => {
   });
 });
 
+describe("getDayScheduleConflicts — concurrent hop resolution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  const located = (id: string, position: number, startAt: string, endAt: string, lat: number, lng: number) => ({
+    id,
+    name: id,
+    position,
+    locationLat: lat,
+    locationLng: lng,
+    startAt,
+    endAt,
+  });
+
+  const threeStopConflictEvents = [
+    located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z", 48.85, 2.35),
+    located("museum", 1, "2026-07-15T09:05:00Z", "2026-07-15T09:20:00Z", 48.855, 2.355),
+    located("cafe", 2, "2026-07-15T09:25:00Z", "2026-07-15T09:40:00Z", 48.86, 2.36),
+  ];
+
+  it("starts both hops before either settles, and keeps conflicts ordered by event index when they resolve out of order", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const conflictsPromise = getDayScheduleConflicts(threeStopConflictEvents, "trip-1", "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Resolve the second hop (later event index) first to prove output order tracks input index, not settle order.
+    resolvers[1](jsonResponse(500, 700));
+    resolvers[0](jsonResponse(500, 700));
+
+    await expect(conflictsPromise).resolves.toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+      {
+        eventIndex: 2,
+        previousEventId: "museum",
+        currentEventId: "cafe",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("skips an unavailable hop during concurrent settlement while still classifying the ready hop", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const conflictsPromise = getDayScheduleConflicts(threeStopConflictEvents, "trip-1", "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[0](unavailableResponse);
+    resolvers[1](jsonResponse(500, 700));
+
+    await expect(conflictsPromise).resolves.toEqual([
+      {
+        eventIndex: 2,
+        previousEventId: "museum",
+        currentEventId: "cafe",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+});
+
 describe("getDayScheduleConflicts", () => {
   const located = (id: string, position: number, startAt: string, endAt: string, lat = 48.85, lng = 2.35) => ({
     id,
@@ -665,9 +881,9 @@ describe("getDayScheduleConflicts", () => {
       .mockResolvedValueOnce([]);
 
     const events = [
-      located("a", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z"),
-      located("b", 1, "2026-07-15T09:35:00Z", "2026-07-15T10:00:00Z"),
-      located("c", 2, "2026-07-15T10:05:00Z", "2026-07-15T10:30:00Z"),
+      located("a", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z", 48.85, 2.35),
+      located("b", 1, "2026-07-15T09:35:00Z", "2026-07-15T10:00:00Z", 48.86, 2.36),
+      located("c", 2, "2026-07-15T10:05:00Z", "2026-07-15T10:30:00Z", 48.87, 2.37),
     ];
 
     await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([
