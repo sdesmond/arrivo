@@ -97,7 +97,7 @@ describe("useDayRouteSummary", () => {
 
   it("re-fetches when a located event's coordinates change", async () => {
     const events = makeEvents();
-    const { rerender } = renderHook(
+    const { result, rerender } = renderHook(
       ({ eventsArg }: { eventsArg: TripEvent[] }) => useDayRouteSummary(eventsArg, "trip-1", "drive", null),
       { initialProps: { eventsArg: events } }
     );
@@ -105,16 +105,27 @@ describe("useDayRouteSummary", () => {
     await waitFor(() => expect(mockGetDayRouteSummary).toHaveBeenCalledTimes(1));
 
     const movedEvents = [events[0], { ...events[1], locationLat: 48.9 }];
-    mockGetDayRouteSummary.mockResolvedValueOnce({ ...readySummary, totalDistanceMeters: 900 });
+    const movedSummary: DayRouteSummary = { ...readySummary, totalDistanceMeters: 900 };
+    let resolveMovedRequest: ((value: DayRouteSummary) => void) | undefined;
+    mockGetDayRouteSummary.mockImplementationOnce(
+      () =>
+        new Promise<DayRouteSummary>((resolve) => {
+          resolveMovedRequest = resolve;
+        })
+    );
     rerender({ eventsArg: movedEvents });
 
     await waitFor(() => expect(mockGetDayRouteSummary).toHaveBeenCalledTimes(2));
+    expect(result.current.routeSummary).toEqual({ status: "loading" });
     expect(mockGetDayRouteSummary).toHaveBeenLastCalledWith("trip-1", movedEvents, "drive", null);
+
+    resolveMovedRequest?.(movedSummary);
+    await waitFor(() => expect(result.current.routeSummary).toEqual(movedSummary));
   });
 
   it("re-fetches when a located event's position changes", async () => {
     const events = makeEvents();
-    const { rerender } = renderHook(
+    const { result, rerender } = renderHook(
       ({ eventsArg }: { eventsArg: TripEvent[] }) => useDayRouteSummary(eventsArg, "trip-1", "drive", null),
       { initialProps: { eventsArg: events } }
     );
@@ -125,10 +136,22 @@ describe("useDayRouteSummary", () => {
       { ...events[1], position: 0 },
       { ...events[0], position: 1 },
     ];
+    const reorderedSummary: DayRouteSummary = { ...readySummary, totalDistanceMeters: 900 };
+    let resolveReorderedRequest: ((value: DayRouteSummary) => void) | undefined;
+    mockGetDayRouteSummary.mockImplementationOnce(
+      () =>
+        new Promise<DayRouteSummary>((resolve) => {
+          resolveReorderedRequest = resolve;
+        })
+    );
     rerender({ eventsArg: reorderedEvents });
 
     await waitFor(() => expect(mockGetDayRouteSummary).toHaveBeenCalledTimes(2));
+    expect(result.current.routeSummary).toEqual({ status: "loading" });
     expect(mockGetDayRouteSummary).toHaveBeenLastCalledWith("trip-1", reorderedEvents, "drive", null);
+
+    resolveReorderedRequest?.(reorderedSummary);
+    await waitFor(() => expect(result.current.routeSummary).toEqual(reorderedSummary));
   });
 
   it("treats zero latitude and longitude as located, not merely present in the key", async () => {
@@ -163,6 +186,34 @@ describe("useDayRouteSummary", () => {
     await waitFor(() => expect(result.current.routeSummary).toEqual(changedSummary));
 
     resolveFirst?.(readySummary);
+    await Promise.resolve();
+
+    expect(result.current.routeSummary).toEqual(changedSummary);
+  });
+
+  it("ignores a late rejection from a stale request after the key changes before it settles", async () => {
+    const events = makeEvents();
+    let rejectFirstRequest: ((reason?: unknown) => void) | undefined;
+    mockGetDayRouteSummary.mockImplementationOnce(
+      () =>
+        new Promise<DayRouteSummary>((resolve, reject) => {
+          rejectFirstRequest = reject;
+        })
+    );
+
+    const { result, rerender } = renderHook(
+      ({ eventsArg }: { eventsArg: TripEvent[] }) => useDayRouteSummary(eventsArg, "trip-1", "drive", null),
+      { initialProps: { eventsArg: events } }
+    );
+
+    const changedEvents = [events[0], { ...events[1], locationLat: 48.95 }];
+    const changedSummary: DayRouteSummary = { ...readySummary, totalDistanceMeters: 111 };
+    mockGetDayRouteSummary.mockResolvedValueOnce(changedSummary);
+    rerender({ eventsArg: changedEvents });
+
+    await waitFor(() => expect(result.current.routeSummary).toEqual(changedSummary));
+
+    rejectFirstRequest?.(new Error("stale request failed"));
     await Promise.resolve();
 
     expect(result.current.routeSummary).toEqual(changedSummary);
