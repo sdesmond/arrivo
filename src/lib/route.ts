@@ -41,7 +41,7 @@ export async function getRouteDistanceTime(
   destination: GeoCoords,
   transitMode: TransitMode
 ): Promise<RouteResult> {
-  const requestKey = `${origin.lat}:${origin.lng}:${destination.lat}:${destination.lng}:${transitMode}`;
+  const requestKey = `${quantizeCoord(origin.lat)}:${quantizeCoord(origin.lng)}:${quantizeCoord(destination.lat)}:${quantizeCoord(destination.lng)}:${transitMode}`;
   const existingRequest = inFlightRouteRequests.get(requestKey);
   if (existingRequest) return existingRequest;
 
@@ -168,6 +168,27 @@ async function resolveHopRoute(
   return getRouteDistanceTime(origin, destination, effectiveMode);
 }
 
+async function resolveDayHopRoutes(
+  sortedLocatedEvents: TripEvent[],
+  tripTransitMode: TransitMode,
+  walkThresholdMeters: number | null | undefined
+): Promise<RouteResult[]> {
+  const settledHops = await Promise.allSettled(
+    sortedLocatedEvents.slice(1).map((destinationEvent, index) => {
+      const originEvent = sortedLocatedEvents[index];
+      return resolveHopRoute(
+        { lat: originEvent.locationLat!, lng: originEvent.locationLng! },
+        { lat: destinationEvent.locationLat!, lng: destinationEvent.locationLng! },
+        tripTransitMode,
+        walkThresholdMeters
+      );
+    })
+  );
+  return settledHops.map((settledHop) =>
+    settledHop.status === "fulfilled" ? settledHop.value : { status: "unavailable" }
+  );
+}
+
 export async function getDayRouteSummary(
   events: TripEvent[],
   tripTransitMode: TransitMode,
@@ -185,16 +206,13 @@ export async function getDayRouteSummary(
 
   if (locatedEvents.length < 2) return { status: "unavailable" };
 
+  const routes = await resolveDayHopRoutes(locatedEvents, tripTransitMode, walkThresholdMeters);
+
   let totalDistanceMeters = 0;
   let totalDurationSeconds = 0;
   let hopCount = 0;
 
-  for (let index = 0; index < locatedEvents.length - 1; index += 1) {
-    const originEvent = locatedEvents[index];
-    const destinationEvent = locatedEvents[index + 1];
-    const origin = { lat: originEvent.locationLat!, lng: originEvent.locationLng! };
-    const destination = { lat: destinationEvent.locationLat!, lng: destinationEvent.locationLng! };
-    const route = await resolveHopRoute(origin, destination, tripTransitMode, walkThresholdMeters);
+  for (const route of routes) {
     if (route.status !== "ready") continue;
     totalDistanceMeters += route.distanceMeters;
     totalDurationSeconds += route.durationSeconds;
@@ -228,29 +246,28 @@ export async function getDayScheduleConflicts(
     )
     .sort((first, second) => first.position - second.position);
 
+  const routes = await resolveDayHopRoutes(timedLocatedEvents, tripTransitMode, walkThresholdMeters);
+
   const conflicts: ScheduleConflict[] = [];
 
-  for (let index = 1; index < timedLocatedEvents.length; index += 1) {
-    const previousEvent = timedLocatedEvents[index - 1];
-    const currentEvent = timedLocatedEvents[index];
-    const origin = { lat: previousEvent.locationLat!, lng: previousEvent.locationLng! };
-    const destination = { lat: currentEvent.locationLat!, lng: currentEvent.locationLng! };
-    const route = await resolveHopRoute(origin, destination, tripTransitMode, walkThresholdMeters);
-    if (route.status !== "ready") continue;
+  routes.forEach((route, hopIndex) => {
+    if (route.status !== "ready") return;
 
+    const previousEvent = timedLocatedEvents[hopIndex];
+    const currentEvent = timedLocatedEvents[hopIndex + 1];
     const scheduledGapSeconds =
       (new Date(currentEvent.startAt!).getTime() - new Date(previousEvent.endAt!).getTime()) / 1000;
 
     if (route.durationSeconds + SCHEDULE_CONFLICT_BUFFER_SECONDS > scheduledGapSeconds) {
       conflicts.push({
-        eventIndex: index,
+        eventIndex: hopIndex + 1,
         previousEventId: previousEvent.id,
         currentEventId: currentEvent.id,
         travelTimeSeconds: route.durationSeconds,
         scheduledGapSeconds,
       });
     }
-  }
+  });
 
   return conflicts;
 }
