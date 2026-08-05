@@ -847,7 +847,7 @@ Then(
     const row = actionBarGeometryRow(page, eventName);
     await expect(row).toBeVisible();
 
-    await expectControlAtLeast44px(row.getByTitle("Attach document"));
+    await expectControlAtLeast44px(row.getByRole("button", { name: "Attach", exact: true }));
     await expectControlAtLeast44px(row.getByRole("button", { name: /add location/i }));
   }
 );

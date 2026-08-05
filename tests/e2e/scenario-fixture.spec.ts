@@ -115,50 +115,101 @@ test.describe("E2E scenario fixtures", () => {
   test("links documents and expenses to a named event via eventName, while an unlinked expense stays trip-level", async () => {
     const context = createScenarioFixtureContext(test.info());
 
-    const result = await context.materialize({
-      user: { setCurrent: true },
-      trip: {
-        mother: "threeDayTrip",
-        overrides: {
-          trip: { name: "Event Linkage Fixture Trip" },
-          events: [{ name: "Linked Event", position: 0, dayNumber: 1 }],
-          documents: [
-            { name: "Linked Doc", kind: "pdf", url: "https://example.com/linked-doc.pdf", eventName: "Linked Event" },
-          ],
-          expenses: [
-            {
-              category: "activity",
-              amount: 10,
-              currency: "USD",
-              date: E2E_TRIP_START_DATE,
-              eventName: "Linked Event",
-            },
-            { category: "activity", amount: 20, currency: "USD", date: E2E_TRIP_START_DATE },
-          ],
+    try {
+      const result = await context.materialize({
+        user: { setCurrent: true },
+        trip: {
+          mother: "threeDayTrip",
+          overrides: {
+            trip: { name: "Event Linkage Fixture Trip" },
+            events: [{ name: "Linked Event", position: 0, dayNumber: 1 }],
+            documents: [
+              { name: "Linked Doc", kind: "pdf", url: "https://example.com/linked-doc.pdf", eventName: "Linked Event" },
+            ],
+            expenses: [
+              {
+                category: "activity",
+                amount: 10,
+                currency: "USD",
+                date: E2E_TRIP_START_DATE,
+                eventName: "Linked Event",
+              },
+              { category: "activity", amount: 20, currency: "USD", date: E2E_TRIP_START_DATE },
+            ],
+          },
+          setCurrent: true,
         },
-        setCurrent: true,
-      },
-    });
+      });
 
-    expect(result.trip?.id).toBeTruthy();
+      expect(result.trip?.id).toBeTruthy();
 
-    await withE2EDb(async (db) => {
-      const [linkedEvent] = await db.select({ id: events.id }).from(events).where(eq(events.tripId, result.trip!.id));
-      expect(linkedEvent).toBeTruthy();
+      await withE2EDb(async (db) => {
+        const [linkedEvent] = await db.select({ id: events.id }).from(events).where(eq(events.tripId, result.trip!.id));
+        expect(linkedEvent).toBeTruthy();
 
-      const tripDocuments = await db.select().from(documents).where(eq(documents.eventId, linkedEvent.id));
-      expect(tripDocuments).toHaveLength(1);
-      expect(tripDocuments[0].name).toBe("Linked Doc");
-      expect(tripDocuments[0].eventId).toBe(linkedEvent.id);
+        const tripDocuments = await db.select().from(documents).where(eq(documents.eventId, linkedEvent.id));
+        expect(tripDocuments).toHaveLength(1);
+        expect(tripDocuments[0].name).toBe("Linked Doc");
+        expect(tripDocuments[0].eventId).toBe(linkedEvent.id);
 
-      const tripExpenses = await db.select().from(expenses).where(eq(expenses.tripId, result.trip!.id));
-      expect(tripExpenses).toHaveLength(2);
-      const linkedExpense = tripExpenses.find((expense) => expense.amount === "10.00");
-      const unlinkedExpense = tripExpenses.find((expense) => expense.amount === "20.00");
-      expect(linkedExpense?.eventId).toBe(linkedEvent.id);
-      expect(unlinkedExpense?.eventId).toBeNull();
-    });
+        const tripExpenses = await db.select().from(expenses).where(eq(expenses.tripId, result.trip!.id));
+        expect(tripExpenses).toHaveLength(2);
+        const linkedExpense = tripExpenses.find((expense) => expense.amount === "10.00");
+        const unlinkedExpense = tripExpenses.find((expense) => expense.amount === "20.00");
+        expect(linkedExpense?.eventId).toBe(linkedEvent.id);
+        expect(unlinkedExpense?.eventId).toBeNull();
+      });
+    } finally {
+      await cleanupScenarioFixtureContext(context);
+    }
+  });
 
-    await cleanupScenarioFixtureContext(context);
+  test("rejects event-linked rows without exactly one matching event", async () => {
+    const context = createScenarioFixtureContext(test.info());
+
+    try {
+      await expect(
+        context.materialize({
+          trip: {
+            mother: "threeDayTrip",
+            overrides: {
+              documents: [
+                {
+                  name: "Missing Event Doc",
+                  kind: "pdf",
+                  url: "https://example.com/missing-event.pdf",
+                  eventName: "Missing Event",
+                },
+              ],
+            },
+          },
+        })
+      ).rejects.toThrow('Cannot seed document for missing event "Missing Event".');
+
+      await expect(
+        context.materialize({
+          trip: {
+            mother: "threeDayTrip",
+            overrides: {
+              events: [
+                { name: "Duplicate Event", position: 0, dayNumber: 1 },
+                { name: "Duplicate Event", position: 1, dayNumber: 1 },
+              ],
+              expenses: [
+                {
+                  category: "activity",
+                  amount: 10,
+                  currency: "USD",
+                  date: E2E_TRIP_START_DATE,
+                  eventName: "Duplicate Event",
+                },
+              ],
+            },
+          },
+        })
+      ).rejects.toThrow('Cannot seed expense for duplicate event name "Duplicate Event".');
+    } finally {
+      await cleanupScenarioFixtureContext(context);
+    }
   });
 });
