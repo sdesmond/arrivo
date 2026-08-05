@@ -54,7 +54,7 @@ describe("PlaceRowActionBar", () => {
     expect(timeChip.parentElement?.className).toMatch(/\bgap-2\b/);
   });
 
-  it("keeps every non-address action chip at the 44px interactive minimum", () => {
+  it("class-contract guard: non-address action chips carry h-11 (measured pixel proof lives in the Day Planning E2E @action-bar-geometry scenario)", () => {
     const place: TripEvent = {
       ...basePlace,
       docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
@@ -71,7 +71,7 @@ describe("PlaceRowActionBar", () => {
     }
   });
 
-  it("keeps the Attach chip at the 44px interactive minimum", () => {
+  it("class-contract guard: Attach chip carries h-11 (measured pixel proof lives in the Day Planning E2E @action-bar-geometry scenario)", () => {
     render(<PlaceRowActionBar {...defaultProps} />);
     expect(screen.getByTitle("Attach document").className).toMatch(/\bh-11\b/);
   });
@@ -337,7 +337,7 @@ describe("PlaceRowActionBar", () => {
     expect(onOpenLocation).toHaveBeenCalledOnce();
   });
 
-  it("each segment meets the 44x44px minimum interactive target", () => {
+  it("class-contract guard: filled-Address ButtonGroup segments carry h-11/size-11 (measured pixel proof lives in the Day Planning E2E @action-bar-geometry scenario)", () => {
     render(<PlaceRowActionBar {...defaultProps} place={filledPlace} onOpenMaps={vi.fn()} />);
     const locationSegment = screen.getByRole("button", { name: /open directions to senso-ji temple/i });
     const editSegment = screen.getByRole("button", { name: "Edit location" });

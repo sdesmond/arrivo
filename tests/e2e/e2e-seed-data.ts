@@ -90,6 +90,7 @@ export interface ExpenseSeed {
   currency: string;
   date: string;
   convertedAmountProfile?: number;
+  eventName?: string;
 }
 
 export interface ReservationSeed {

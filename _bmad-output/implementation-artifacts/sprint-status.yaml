@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-07-13
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -81,5 +81,5 @@ development_status:
   7-2-resolve-per-hop-mode-from-actual-route-distance: done
   7-3-parallelize-day-hops-with-in-process-dedup: done
   7-4-stabilize-daycardbody-route-summary-effect: review
-  7-5-measured-44px-interactive-sizing-for-place-row-action-bar: backlog
+  7-5-measured-44px-interactive-sizing-for-place-row-action-bar: done
   epic-7-retrospective: optional
