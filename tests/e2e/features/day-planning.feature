@@ -130,3 +130,9 @@ Feature: Day Planning
     Then the trip edit warning explains the removed trip dates
     When I delete the displaced events
     Then the removed day's events are deleted after the date change
+
+  @action-bar-geometry
+  Scenario: Action bar controls measure at least 44x44px on a mobile viewport
+    Given the viewport is 375 by 812
+    Then the "Measured action bar" row's Time, Cost, and Docs chips and Address segments each measure at least 44 by 44 pixels
+    And the "Attach geometry row" row's Attach chip and empty Address button each measure at least 44 by 44 pixels
