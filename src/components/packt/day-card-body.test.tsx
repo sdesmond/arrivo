@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { ItineraryItemType, type DayItinerary } from "@/data/types";
@@ -139,6 +139,11 @@ const linkedOnlyDay: DayItinerary = {
 };
 
 describe("DayCardBody", () => {
+  beforeEach(() => {
+    vi.mocked(getDayRouteSummary).mockClear();
+    vi.mocked(getDayScheduleConflicts).mockClear();
+  });
+
   it("renders the route strip only for days with two located items", async () => {
     const locatedDay: DayItinerary = {
       ...day,
@@ -193,6 +198,156 @@ describe("DayCardBody", () => {
     );
 
     await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+  });
+
+  it("does not call getDayRouteSummary again when a rerender supplies a content-identical events array", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    const { rerender } = render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(getDayRouteSummary).toHaveBeenCalledTimes(1));
+
+    const contentIdenticalDay: DayItinerary = {
+      ...locatedDay,
+      events: locatedDay.events.map((event) => ({ ...event })),
+    };
+    rerender(
+      <DayCardBody
+        day={contentIdenticalDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+    expect(getDayRouteSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("issues a new route-summary request when a located event's coordinates change", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    const { rerender } = render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(getDayRouteSummary).toHaveBeenCalledTimes(1));
+
+    const movedDay: DayItinerary = {
+      ...locatedDay,
+      events: [locatedDay.events[0], { ...locatedDay.events[1], locationLat: 48.9 }],
+    };
+    rerender(
+      <DayCardBody
+        day={movedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(getDayRouteSummary).toHaveBeenCalledTimes(2));
+    expect(getDayRouteSummary).toHaveBeenLastCalledWith("trip-1", movedDay.events, "drive", undefined);
+  });
+
+  it("issues a new route-summary request when a located event's position changes", async () => {
+    const locatedDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 },
+        { id: "event-2", name: "Cafe", position: 1, locationLat: 48.86, locationLng: 2.36 },
+      ],
+    };
+
+    const { rerender } = render(
+      <DayCardBody
+        day={locatedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(getDayRouteSummary).toHaveBeenCalledTimes(1));
+
+    const reorderedDay: DayItinerary = {
+      ...locatedDay,
+      events: [
+        { ...locatedDay.events[1], position: 0 },
+        { ...locatedDay.events[0], position: 1 },
+      ],
+    };
+    rerender(
+      <DayCardBody
+        day={reorderedDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(getDayRouteSummary).toHaveBeenCalledTimes(2));
+    expect(getDayRouteSummary).toHaveBeenLastCalledWith("trip-1", reorderedDay.events, "drive", undefined);
+  });
+
+  it("renders the Day Route Strip when two events share zero latitude and longitude", async () => {
+    const zeroCoordDay: DayItinerary = {
+      ...day,
+      events: [
+        { id: "event-1", name: "Origin", position: 0, locationLat: 0, locationLng: 0 },
+        { id: "event-2", name: "Destination", position: 1, locationLat: 0, locationLng: 1 },
+      ],
+    };
+
+    render(
+      <DayCardBody
+        day={zeroCoordDay}
+        tripId="trip-1"
+        tripTransitMode="drive"
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onReorderDayItems={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId("day-route-strip")).toHaveTextContent("unavailable"));
+    expect(getDayRouteSummary).toHaveBeenCalledWith("trip-1", zeroCoordDay.events, "drive", undefined);
   });
 
   it("renders the schedule conflict badge and passes conflicting ids to DayCardDnd when conflicts exist", async () => {

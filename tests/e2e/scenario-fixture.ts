@@ -29,6 +29,7 @@ import {
   cloneUserMother,
   type TemplateMotherName,
   type TemplateMotherOverrides,
+  type TripMother,
   type TripMotherName,
   type TripMotherOverrides,
   type UserMotherName,
@@ -136,6 +137,50 @@ function createScenarioSeed(testInfo: TestInfo): string {
   return createHash("sha1").update(testInfo.testId).digest("hex").slice(0, 8);
 }
 
+function assertEventLinkIsUnique(
+  eventName: string | undefined,
+  rowType: "document" | "expense",
+  eventCountsByName: Map<string, number>
+): void {
+  if (!eventName) return;
+
+  const matchingEventCount = eventCountsByName.get(eventName) ?? 0;
+  if (matchingEventCount === 0) {
+    throw new Error(`Cannot seed ${rowType} for missing event "${eventName}".`);
+  }
+  if (matchingEventCount > 1) {
+    throw new Error(`Cannot seed ${rowType} for duplicate event name "${eventName}".`);
+  }
+}
+
+function validateEventLinks(seed: Pick<TripMother, "events" | "documents" | "expenses">): void {
+  const eventCountsByName = new Map<string, number>();
+  for (const eventSeed of seed.events) {
+    eventCountsByName.set(eventSeed.name, (eventCountsByName.get(eventSeed.name) ?? 0) + 1);
+  }
+
+  for (const documentSeed of seed.documents) {
+    assertEventLinkIsUnique(documentSeed.eventName, "document", eventCountsByName);
+  }
+  for (const expenseSeed of seed.expenses) {
+    assertEventLinkIsUnique(expenseSeed.eventName, "expense", eventCountsByName);
+  }
+}
+
+function resolveEventId(
+  eventName: string | undefined,
+  rowType: "document" | "expense",
+  eventIdsByName: Map<string, string>
+): string | null {
+  if (!eventName) return null;
+
+  const eventId = eventIdsByName.get(eventName);
+  if (!eventId) {
+    throw new Error(`Cannot seed ${rowType} for missing event "${eventName}".`);
+  }
+  return eventId;
+}
+
 export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtureContext {
   const scenarioSeed = createScenarioSeed(testInfo);
   const state: MutableScenarioState = {
@@ -235,6 +280,9 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     overrides: TripMotherOverrides = {},
     ownerId?: string
   ): Promise<ScenarioTripRecord> {
+    const seed = cloneTripMother(mother, overrides);
+    validateEventLinks(seed);
+
     const owner = ownerId ? undefined : await context.ensureCurrentUser();
     const ownerUserId = ownerId ?? owner?.id;
 
@@ -243,7 +291,6 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     }
 
     const ownerUser = owner ?? state.currentUser;
-    const seed = cloneTripMother(mother, overrides);
 
     return withE2EDb(async (db) => {
       const [trip] = await db
@@ -385,7 +432,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
       }
 
       for (const documentSeed of seed.documents) {
-        const eventId = documentSeed.eventName ? (eventIdsByName.get(documentSeed.eventName) ?? null) : null;
+        const eventId = resolveEventId(documentSeed.eventName, "document", eventIdsByName);
         const reservationId = documentSeed.reservationProvider
           ? (reservationIdsByProvider.get(documentSeed.reservationProvider) ?? null)
           : null;
@@ -404,6 +451,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         await db.insert(expenses).values(
           seed.expenses.map((item) => ({
             tripId: trip.id,
+            eventId: resolveEventId(item.eventName, "expense", eventIdsByName),
             category: item.category,
             amount: item.amount.toString(),
             currency: item.currency,

@@ -1,6 +1,7 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { days, events, trips } from "../../../src/db/schema";
+import { formatCurrencyChipAmount } from "../../../src/lib/currencies";
 import { withE2EDb } from "../e2e-db";
 import {
   E2E_EVENT_DELETE,
@@ -11,6 +12,7 @@ import {
   E2E_TRIP_SECOND_DATE,
   E2E_TRIP_START_DATE,
   E2E_TRIP_THIRD_DATE,
+  e2eTripDateTime,
 } from "../e2e-seed-data";
 import { Given, When, Then, Before } from "../fixtures";
 
@@ -82,6 +84,22 @@ function formatRangeDate(isoDate: string): string {
 
 function formatRangeLabel(startDate: string, endDate: string): string {
   return `${formatRangeDate(startDate)} — ${formatRangeDate(endDate)}`;
+}
+
+const ACTION_BAR_GEOMETRY_MEASURED_EVENT = "Measured action bar";
+const ACTION_BAR_GEOMETRY_ATTACH_EVENT = "Attach geometry row";
+const ACTION_BAR_GEOMETRY_EXPENSE_AMOUNT = 15;
+const ACTION_BAR_GEOMETRY_EXPENSE_CURRENCY = "USD";
+
+function actionBarGeometryRow(page: Page, eventName: string): Locator {
+  return page.locator('[id^="event-"]').filter({ hasText: eventName }).first();
+}
+
+async function expectControlAtLeast44px(control: Locator): Promise<void> {
+  await expect(control).toBeVisible();
+  const rect = await control.evaluate((element) => element.getBoundingClientRect());
+  expect(rect.width).toBeGreaterThanOrEqual(44);
+  expect(rect.height).toBeGreaterThanOrEqual(44);
 }
 
 async function changeTripDateRange(page: Page, startDate: string, endDate: string): Promise<void> {
@@ -275,6 +293,53 @@ Before({ tags: "@date-edit-delete-events" }, async ({ scenario }) => {
           { dayNumber: 2, date: E2E_TRIP_SECOND_DATE, label: "Day 2" },
         ],
         events: [{ name: "Final day booking", position: 0, dayNumber: 2 }],
+      },
+      setCurrent: true,
+    },
+  });
+});
+
+Before({ tags: "@action-bar-geometry" }, async ({ scenario }) => {
+  await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        events: [
+          {
+            name: ACTION_BAR_GEOMETRY_MEASURED_EVENT,
+            position: 0,
+            dayNumber: 1,
+            startAt: e2eTripDateTime(0, "09:00:00"),
+            endAt: e2eTripDateTime(0, "10:00:00"),
+            locationName: "Senso-ji Temple",
+            locationAddress: "2 Chome-3-1 Asakusa, Taito City, Tokyo",
+            locationLat: 35.7148,
+            locationLng: 139.7967,
+          },
+          {
+            name: ACTION_BAR_GEOMETRY_ATTACH_EVENT,
+            position: 1,
+            dayNumber: 1,
+          },
+        ],
+        documents: [
+          {
+            name: "Measured Doc",
+            kind: "pdf",
+            url: "https://example.com/measured-doc.pdf",
+            eventName: ACTION_BAR_GEOMETRY_MEASURED_EVENT,
+          },
+        ],
+        expenses: [
+          {
+            category: "activity",
+            amount: ACTION_BAR_GEOMETRY_EXPENSE_AMOUNT,
+            currency: ACTION_BAR_GEOMETRY_EXPENSE_CURRENCY,
+            date: E2E_TRIP_START_DATE,
+            eventName: ACTION_BAR_GEOMETRY_MEASURED_EVENT,
+          },
+        ],
       },
       setCurrent: true,
     },
@@ -753,3 +818,36 @@ Then("the removed day's events are deleted after the date change", async ({ page
     expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
 });
+
+Given("the viewport is 375 by 812", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+});
+
+Then(
+  "the {string} row's Time, Cost, and Docs chips and Address segments each measure at least 44 by 44 pixels",
+  async ({ page }, eventName: string) => {
+    const row = actionBarGeometryRow(page, eventName);
+    await expect(row).toBeVisible();
+
+    await expectControlAtLeast44px(row.getByRole("button", { name: /9:00\s*AM/i }));
+    await expectControlAtLeast44px(
+      row.getByRole("button", {
+        name: formatCurrencyChipAmount(ACTION_BAR_GEOMETRY_EXPENSE_AMOUNT, ACTION_BAR_GEOMETRY_EXPENSE_CURRENCY),
+      })
+    );
+    await expectControlAtLeast44px(row.getByRole("button", { name: /doc/i }));
+    await expectControlAtLeast44px(row.getByRole("button", { name: /open directions to/i }));
+    await expectControlAtLeast44px(row.getByRole("button", { name: "Edit location" }));
+  }
+);
+
+Then(
+  "the {string} row's Attach chip and empty Address button each measure at least 44 by 44 pixels",
+  async ({ page }, eventName: string) => {
+    const row = actionBarGeometryRow(page, eventName);
+    await expect(row).toBeVisible();
+
+    await expectControlAtLeast44px(row.getByRole("button", { name: "Attach", exact: true }));
+    await expectControlAtLeast44px(row.getByRole("button", { name: /add location/i }));
+  }
+);

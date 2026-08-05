@@ -178,6 +178,19 @@ describe("getRouteDistanceTime", () => {
     expect(firstResult).toEqual(secondResult);
   });
 
+  it("deduplicates concurrent requests for epsilon-different coordinates that quantize to the same key", async () => {
+    const jitteredOrigin = { lat: 48.856599999999996, lng: 2.352200000000001 };
+    const jitteredDestination = { lat: 48.858399999999996, lng: 2.294500000000001 };
+
+    const [firstResult, secondResult] = await Promise.all([
+      getRouteDistanceTime(origin, destination, "walk"),
+      getRouteDistanceTime(jitteredOrigin, jitteredDestination, "walk"),
+    ]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(firstResult).toEqual(secondResult);
+  });
+
   it("triggers a fresh API call when the cached entry is older than 24 hours", async () => {
     const staleDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
     mockLimit.mockResolvedValue([{ distanceMeters: 999, durationSeconds: 999, fetchedAt: staleDate }]);
@@ -261,6 +274,216 @@ describe("getRouteDistanceTime", () => {
   });
 });
 
+function stubFetchByProfile(responses: Record<string, { distance: number; duration: number }>) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string) => {
+      const entry = Object.entries(responses).find(([profile]) => url.includes(`/directions/v5/mapbox/${profile}/`));
+      if (!entry) return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
+      const [, { distance, duration }] = entry;
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ routes: [{ distance, duration }] }) });
+    })
+  );
+}
+
+const NEAR_ORIGIN = { lat: 48.8566, lng: 2.3522 };
+const NEAR_DESTINATION = { lat: 48.8586, lng: 2.3522 }; // ~222m from NEAR_ORIGIN, below a 400m threshold
+const FAR_DESTINATION = { lat: 48.8666, lng: 2.3522 }; // ~1112m from NEAR_ORIGIN, at/over a 400m threshold
+
+describe("getDayRouteSummary — two-phase mode resolution", () => {
+  const nearEvents = [
+    { id: "first", name: "First", position: 0, locationLat: NEAR_ORIGIN.lat, locationLng: NEAR_ORIGIN.lng },
+    { id: "second", name: "Second", position: 1, locationLat: NEAR_DESTINATION.lat, locationLng: NEAR_DESTINATION.lng },
+  ];
+  const farEvents = [
+    { id: "first", name: "First", position: 0, locationLat: NEAR_ORIGIN.lat, locationLng: NEAR_ORIGIN.lng },
+    { id: "second", name: "Second", position: 1, locationLat: FAR_DESTINATION.lat, locationLng: FAR_DESTINATION.lng },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  it("refetches with walk when the default-mode route resolves to a different effective mode, and uses the walk route's distance and duration", async () => {
+    stubFetchByProfile({
+      driving: { distance: 350, duration: 90 },
+      walking: { distance: 300, duration: 240 },
+    });
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 300, totalDurationSeconds: 240, hopCount: 1 });
+  });
+
+  it("does not refetch when the default-mode route's distance keeps the trip default mode", async () => {
+    stubFetchByProfile({ driving: { distance: 450, duration: 120 } });
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 450, totalDurationSeconds: 120, hopCount: 1 });
+  });
+
+  it("skips mode evaluation when straight-line distance is at or over the threshold, even if the route would appear walkable", async () => {
+    stubFetchByProfile({ driving: { distance: 50, duration: 30 } });
+
+    const result = await getDayRouteSummary(farEvents, "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 50, totalDurationSeconds: 30, hopCount: 1 });
+  });
+
+  it("never issues a duplicate walk request when the trip default mode is already walk", async () => {
+    stubFetchByProfile({ walking: { distance: 150, duration: 200 } });
+
+    const result = await getDayRouteSummary(nearEvents, "walk", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual({ status: "ready", totalDistanceMeters: 150, totalDurationSeconds: 200, hopCount: 1 });
+  });
+
+  it("skips a hop without a walk refetch when the default-mode route is unavailable", async () => {
+    stubFetchByProfile({});
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual({ status: "unavailable" });
+  });
+
+  it("skips a hop when the walk refetch is unavailable instead of falling back to the default-mode route", async () => {
+    stubFetchByProfile({ driving: { distance: 350, duration: 90 } });
+
+    const result = await getDayRouteSummary(nearEvents, "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual({ status: "unavailable" });
+  });
+});
+
+function createDeferredFetch() {
+  const resolvers: ((value: { ok: boolean; json: () => Promise<unknown> }) => void)[] = [];
+  const fetchMock = vi.fn(
+    () =>
+      new Promise<{ ok: boolean; json: () => Promise<unknown> }>((resolve) => {
+        resolvers.push(resolve);
+      })
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return { fetchMock, resolvers };
+}
+
+async function flushMicrotasks(times = 6) {
+  for (let iteration = 0; iteration < times; iteration += 1) {
+    await Promise.resolve();
+  }
+}
+
+function jsonResponse(distance: number, duration: number) {
+  return { ok: true, json: () => Promise.resolve({ routes: [{ distance, duration }] }) };
+}
+
+const unavailableResponse = { ok: false, json: () => Promise.resolve({}) };
+
+describe("getDayRouteSummary — concurrent hop resolution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  const threeStopEvents = [
+    { id: "a", name: "A", position: 0, locationLat: 48.85, locationLng: 2.35 },
+    { id: "b", name: "B", position: 1, locationLat: 48.855, locationLng: 2.355 },
+    { id: "c", name: "C", position: 2, locationLat: 48.86, locationLng: 2.36 },
+  ];
+
+  it("starts both hops before either settles, and aggregates correctly when they resolve out of order", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const summaryPromise = getDayRouteSummary(threeStopEvents, "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[1](jsonResponse(700, 300));
+    resolvers[0](jsonResponse(500, 120));
+
+    await expect(summaryPromise).resolves.toEqual({
+      status: "ready",
+      totalDistanceMeters: 1200,
+      totalDurationSeconds: 420,
+      hopCount: 2,
+    });
+  });
+
+  it("isolates an unavailable hop during concurrent settlement without blocking the ready hop", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const summaryPromise = getDayRouteSummary(threeStopEvents, "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[0](unavailableResponse);
+    resolvers[1](jsonResponse(700, 300));
+
+    await expect(summaryPromise).resolves.toEqual({
+      status: "ready",
+      totalDistanceMeters: 700,
+      totalDurationSeconds: 300,
+      hopCount: 1,
+    });
+  });
+
+  it("returns unavailable when every hop fails during concurrent settlement", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const summaryPromise = getDayRouteSummary(threeStopEvents, "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[1](unavailableResponse);
+    resolvers[0](unavailableResponse);
+
+    await expect(summaryPromise).resolves.toEqual({ status: "unavailable" });
+  });
+});
+
 describe("getDayRouteSummary", () => {
   it("returns unavailable without any located items", async () => {
     await expect(getDayRouteSummary([{ id: "one", name: "One", position: 0 }], "drive", null)).resolves.toEqual({
@@ -272,6 +495,21 @@ describe("getDayRouteSummary", () => {
     const events = [{ id: "one", name: "One", position: 0, locationLat: 48.85, locationLng: 2.35 }];
 
     await expect(getDayRouteSummary(events, "drive", null)).resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("treats zero coordinates as located stops", async () => {
+    mockLimit.mockResolvedValueOnce([{ distanceMeters: 500, durationSeconds: 120, fetchedAt: new Date() }]);
+
+    await expect(
+      getDayRouteSummary(
+        [
+          { id: "origin", name: "Origin", position: 0, locationLat: 0, locationLng: 0 },
+          { id: "destination", name: "Destination", position: 1, locationLat: 0.01, locationLng: 0.01 },
+        ],
+        "drive",
+        null
+      )
+    ).resolves.toEqual({ status: "ready", totalDistanceMeters: 500, totalDurationSeconds: 120, hopCount: 1 });
   });
 
   it("aggregates all hops when every hop succeeds", async () => {
@@ -309,6 +547,226 @@ describe("getDayRouteSummary", () => {
     );
 
     expect(result).toEqual({ status: "ready", totalDistanceMeters: 1200, totalDurationSeconds: 420, hopCount: 2 });
+  });
+});
+
+describe("getDayScheduleConflicts — two-phase mode resolution", () => {
+  const located = (id: string, position: number, startAt: string, endAt: string, lat: number, lng: number) => ({
+    id,
+    name: id,
+    position,
+    locationLat: lat,
+    locationLng: lng,
+    startAt,
+    endAt,
+  });
+
+  const nearConflictEvents = [
+    located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z", NEAR_ORIGIN.lat, NEAR_ORIGIN.lng),
+    located("museum", 1, "2026-07-15T09:05:00Z", "2026-07-15T09:20:00Z", NEAR_DESTINATION.lat, NEAR_DESTINATION.lng),
+  ];
+  const farConflictEvents = [
+    located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z", NEAR_ORIGIN.lat, NEAR_ORIGIN.lng),
+    located("museum", 1, "2026-07-15T09:05:00Z", "2026-07-15T09:20:00Z", FAR_DESTINATION.lat, FAR_DESTINATION.lng),
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  it("classifies a conflict using the walk route's duration when the default-mode route resolves to walk", async () => {
+    stubFetchByProfile({
+      driving: { distance: 350, duration: 100 },
+      walking: { distance: 300, duration: 250 },
+    });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 250,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("does not refetch when the default-mode route's distance keeps the trip default mode", async () => {
+    stubFetchByProfile({ driving: { distance: 450, duration: 100 } });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 100,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("skips mode evaluation when straight-line distance is at or over the threshold", async () => {
+    stubFetchByProfile({ driving: { distance: 50, duration: 30 } });
+
+    const result = await getDayScheduleConflicts(farConflictEvents, "trip-1", "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 30,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("never issues a duplicate walk request when the trip default mode is already walk", async () => {
+    stubFetchByProfile({ walking: { distance: 150, duration: 200 } });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "walk", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 200,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("skips a hop without a walk refetch when the default-mode route is unavailable", async () => {
+    stubFetchByProfile({});
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toEqual([]);
+  });
+
+  it("skips a hop when the walk refetch is unavailable instead of classifying it with the default-mode route", async () => {
+    stubFetchByProfile({ driving: { distance: 350, duration: 100 } });
+
+    const result = await getDayScheduleConflicts(nearConflictEvents, "trip-1", "drive", 400);
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/directions/v5/mapbox/driving/");
+    expect(calls[1][0]).toContain("/directions/v5/mapbox/walking/");
+    expect(result).toEqual([]);
+  });
+});
+
+describe("getDayScheduleConflicts — concurrent hop resolution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.MAPBOX_ACCESS_TOKEN = "test-token";
+    mockLimit.mockResolvedValue([]);
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockOnConflictDoUpdate.mockResolvedValue(undefined);
+    mockValues.mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
+    mockInsert.mockReturnValue({ values: mockValues });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+  });
+
+  const located = (id: string, position: number, startAt: string, endAt: string, lat: number, lng: number) => ({
+    id,
+    name: id,
+    position,
+    locationLat: lat,
+    locationLng: lng,
+    startAt,
+    endAt,
+  });
+
+  const threeStopConflictEvents = [
+    located("hotel", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:00:00Z", 48.85, 2.35),
+    located("museum", 1, "2026-07-15T09:05:00Z", "2026-07-15T09:20:00Z", 48.855, 2.355),
+    located("cafe", 2, "2026-07-15T09:25:00Z", "2026-07-15T09:40:00Z", 48.86, 2.36),
+  ];
+
+  it("starts both hops before either settles, and keeps conflicts ordered by event index when they resolve out of order", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const conflictsPromise = getDayScheduleConflicts(threeStopConflictEvents, "trip-1", "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Resolve the second hop (later event index) first to prove output order tracks input index, not settle order.
+    resolvers[1](jsonResponse(500, 700));
+    resolvers[0](jsonResponse(500, 700));
+
+    await expect(conflictsPromise).resolves.toEqual([
+      {
+        eventIndex: 1,
+        previousEventId: "hotel",
+        currentEventId: "museum",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+      {
+        eventIndex: 2,
+        previousEventId: "museum",
+        currentEventId: "cafe",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
+  });
+
+  it("skips an unavailable hop during concurrent settlement while still classifying the ready hop", async () => {
+    const { fetchMock, resolvers } = createDeferredFetch();
+
+    const conflictsPromise = getDayScheduleConflicts(threeStopConflictEvents, "trip-1", "drive", null);
+
+    await flushMicrotasks();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolvers[0](unavailableResponse);
+    resolvers[1](jsonResponse(500, 700));
+
+    await expect(conflictsPromise).resolves.toEqual([
+      {
+        eventIndex: 2,
+        previousEventId: "museum",
+        currentEventId: "cafe",
+        travelTimeSeconds: 700,
+        scheduledGapSeconds: 300,
+      },
+    ]);
   });
 });
 
@@ -423,9 +881,9 @@ describe("getDayScheduleConflicts", () => {
       .mockResolvedValueOnce([]);
 
     const events = [
-      located("a", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z"),
-      located("b", 1, "2026-07-15T09:35:00Z", "2026-07-15T10:00:00Z"),
-      located("c", 2, "2026-07-15T10:05:00Z", "2026-07-15T10:30:00Z"),
+      located("a", 0, "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z", 48.85, 2.35),
+      located("b", 1, "2026-07-15T09:35:00Z", "2026-07-15T10:00:00Z", 48.86, 2.36),
+      located("c", 2, "2026-07-15T10:05:00Z", "2026-07-15T10:30:00Z", 48.87, 2.37),
     ];
 
     await expect(getDayScheduleConflicts(events, "trip-1", "drive", null)).resolves.toEqual([
