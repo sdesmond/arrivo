@@ -4,7 +4,7 @@ baseline_commit: ea5e2f3b637d67a0fe97fe132ae611ea3d4d8385
 
 # Story 7.5: Measured 44px Interactive Sizing for PlaceRowActionBar
 
-Status: review
+Status: done
 
 ## Story
 
@@ -165,3 +165,10 @@ GPT-5 Codex (story creation); Claude Sonnet 5 (implementation)
 
 - 2026-08-04: Created implementation-ready Story 7.5 with real-browser measurement, fixture-linkage, and regression-scope guidance.
 - 2026-08-04: Implemented Story 7.5 — relabeled class-contract unit tests, added event-linked `ExpenseSeed` fixture support with self-test coverage, added the `@action-bar-geometry` real-browser E2E scenario, verified production markup already meets the 44px minimum (no production change needed), and passed `packt-build-validator` in full.
+
+### Review Findings
+
+- [x] [Review][Patch] Reject an unknown `ExpenseSeed.eventName` instead of silently creating a trip-level expense [tests/e2e/scenario-fixture.ts:407] — an explicit event link that does not resolve currently becomes `null`, producing fixture state different from its seed.
+- [x] [Review][Patch] Reject duplicate seeded event names before resolving event-linked fixture rows [tests/e2e/scenario-fixture.ts:304] — duplicate map keys make a document or expense link to whichever event was inserted last.
+- [x] [Review][Patch] Clean up scenario-fixture self-test rows when an assertion fails [tests/e2e/scenario-fixture.spec.ts:118] — wrap materialization and assertions in `try`/`finally` so a failing test cannot leave owned rows behind.
+- [x] [Review][Patch] Measure Attach through its accessible button role and name [tests/e2e/steps/day-planning.steps.ts:850] — replace the title locator with the role/name locator required by the story.
