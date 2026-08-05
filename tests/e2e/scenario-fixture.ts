@@ -404,6 +404,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         await db.insert(expenses).values(
           seed.expenses.map((item) => ({
             tripId: trip.id,
+            eventId: item.eventName ? (eventIdsByName.get(item.eventName) ?? null) : null,
             category: item.category,
             amount: item.amount.toString(),
             currency: item.currency,
