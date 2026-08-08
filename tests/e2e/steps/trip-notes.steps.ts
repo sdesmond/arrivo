@@ -1,6 +1,10 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
 
+function decodeStepValue(value: string): string {
+  return value.replace(/\\n/g, "\n");
+}
+
 Given("I have a trip for trip notes", async ({ scenario }) => {
   await scenario.ensureCurrentTrip();
 });
@@ -16,11 +20,32 @@ When("I activate New Note", async ({ page }) => {
 });
 
 When("I enter {string} as the note title", async ({ page }, value: string) => {
-  await page.getByLabel("Note title").fill(value);
+  await page.getByLabel("Note title").fill(decodeStepValue(value));
 });
 
 When("I enter {string} as the note body", async ({ page }, value: string) => {
-  await page.getByLabel("Note body").fill(value);
+  await page.getByLabel("Note body").fill(decodeStepValue(value));
+});
+
+When("I expand the note titled {string}", async ({ page }, title: string) => {
+  const row = page.locator("ol > li").filter({ hasText: title });
+  const disclosure = row.locator('button[aria-expanded="false"]');
+  await disclosure.click();
+  await expect(row.locator('button[aria-expanded="true"]')).toBeVisible();
+  await expect(row.getByRole("region")).toBeVisible();
+});
+
+When("I replace the note title with {string}", async ({ page }, value: string) => {
+  await page.getByLabel("Note title").fill(decodeStepValue(value));
+});
+
+When("I replace the note body with {string}", async ({ page }, value: string) => {
+  await page.getByLabel("Note body").fill(decodeStepValue(value));
+});
+
+When("I collapse the expanded note", async ({ page }) => {
+  await page.locator('button[aria-expanded="true"]').click();
+  await expect(page.locator('[id^="trip-note-region-"][role="region"]')).toHaveCount(0, { timeout: 10_000 });
 });
 
 When("I close the note editor", async ({ page }) => {
@@ -46,6 +71,24 @@ Then("the Notes empty state is visible", async ({ page }) => {
 
 Then("no note capture bar is visible", async ({ page }) => {
   await expect(page.getByLabel("Note title")).toHaveCount(0);
+});
+
+Then(
+  "the note editor shows title {string} and body {string} in place",
+  async ({ page }, title: string, body: string) => {
+    await expect(page.getByLabel("Note title")).toHaveValue(decodeStepValue(title));
+    await expect(page.getByLabel("Note body")).toHaveValue(decodeStepValue(body));
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/trips\/[^/]+$/);
+  }
+);
+
+Then("only the note titled {string} is expanded", async ({ page }, title: string) => {
+  const row = page.locator("ol > li").filter({ hasText: title });
+  await expect(page.locator('button[aria-expanded="true"]')).toHaveCount(1);
+  await expect(page.locator('[id^="trip-note-region-"][role="region"]')).toHaveCount(1);
+  await expect(row.locator('button[aria-expanded="true"]')).toBeVisible();
+  await expect(page.getByLabel("Note title")).toHaveValue(title);
 });
 
 Then("the Notes tab and New Note controls measure at least 44 by 44 pixels", async ({ page }) => {

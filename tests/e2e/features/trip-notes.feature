@@ -40,6 +40,54 @@ Feature: Trip Notes
     And I close the note editor
     Then the Notes empty state is visible
 
+  Scenario: Expanding a note reveals its full body in place
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "Packing" as the note title
+    And I enter "Sunscreen\nHats" as the note body
+    And I close the note editor
+    And I expand the note titled "Packing"
+    Then the note editor shows title "Packing" and body "Sunscreen\nHats" in place
+
+  Scenario: Expanding a second note collapses the first
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "First note" as the note title
+    And I enter "First body" as the note body
+    And I close the note editor
+    And I activate New Note
+    And I enter "Second note" as the note title
+    And I enter "Second body" as the note body
+    And I close the note editor
+    And I expand the note titled "First note"
+    And I expand the note titled "Second note"
+    Then only the note titled "Second note" is expanded
+
+  Scenario: Editing and collapsing a note updates its collapsed wording
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "Packing" as the note title
+    And I enter "Sunscreen" as the note body
+    And I close the note editor
+    And I expand the note titled "Packing"
+    And I replace the note title with "Beach packing"
+    And I replace the note body with "Hats and towels"
+    And I collapse the expanded note
+    Then a note row titled "Beach packing" with preview "Hats and towels" is at the top of the notes list
+
+  Scenario: Editing a note preserves its list position
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "First note" as the note title
+    And I close the note editor
+    And I activate New Note
+    And I enter "Second note" as the note title
+    And I close the note editor
+    And I expand the note titled "First note"
+    And I replace the note title with "Updated first"
+    And I collapse the expanded note
+    Then the notes list shows, in order, "Second note", "Updated first"
+
   Scenario: Notes reflow at 320 CSS pixels and 200 percent text size
     When I open the Notes tab
     And I activate New Note

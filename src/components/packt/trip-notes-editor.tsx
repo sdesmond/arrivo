@@ -1,27 +1,61 @@
 "use client";
 
-import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type FocusEvent,
+  type ForwardedRef,
+  type KeyboardEvent,
+} from "react";
 import { toast } from "sonner";
-import { createTripNote } from "@/app/(app)/trips/[tripId]/actions";
+import { createTripNote, updateTripNote } from "@/app/(app)/trips/[tripId]/actions";
+
+export type TripNotesEditorCommitResult = "saved" | "failed" | "clean";
+
+export interface TripNotesEditorHandle {
+  commit: () => Promise<TripNotesEditorCommitResult>;
+}
 
 export interface TripNotesEditorProps {
   tripId: string;
   onClose: () => void;
   onSaved: () => void;
+  mode?: "create" | "edit";
+  noteId?: string;
+  initialTitle?: string;
+  initialBody?: string;
+}
+
+interface EditorValues {
+  title: string;
+  body: string;
 }
 
 const SAVING_ANNOUNCE_DELAY_MS = 400;
 const SAVE_ERROR_MESSAGE = "Couldn't save note. Try again.";
 
-export function TripNotesEditor({ tripId, onClose, onSaved }: TripNotesEditorProps) {
+function normalizeValues({ title, body }: EditorValues): EditorValues {
+  return { title: title.trim(), body: body.trim() };
+}
+
+function TripNotesEditorComponent(
+  { tripId, onClose, onSaved, mode = "create", noteId, initialTitle = "", initialBody = "" }: TripNotesEditorProps,
+  forwardedRef: ForwardedRef<TripNotesEditorHandle>
+) {
+  const initialValues = normalizeValues({ title: initialTitle, body: initialBody });
   const containerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const retryRef = useRef<HTMLButtonElement>(null);
   const savingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const isSavingRef = useRef(false);
+  const inFlightCommitRef = useRef<Promise<TripNotesEditorCommitResult> | null>(null);
+  const baselineRef = useRef<EditorValues>(initialValues);
+  const valuesRef = useRef<EditorValues>(initialValues);
 
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [title, setTitle] = useState(initialValues.title);
+  const [body, setBody] = useState(initialValues.body);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -41,54 +75,109 @@ export function TripNotesEditor({ tripId, onClose, onSaved }: TripNotesEditorPro
 
   function announce(message: string): void {
     setAnnouncement(message);
-    setAnnouncementId((id) => id + 1);
+    setAnnouncementId((currentId) => currentId + 1);
   }
 
-  async function commit(titleValue: string, bodyValue: string): Promise<void> {
-    if (isSavingRef.current) return;
-
-    const trimmedTitle = titleValue.trim();
-    const trimmedBody = bodyValue.trim();
-    if (!trimmedTitle && !trimmedBody) {
-      onClose();
-      return;
-    }
-
-    isSavingRef.current = true;
-    setIsSaving(true);
+  function restoreBaseline(): void {
+    const baseline = baselineRef.current;
+    valuesRef.current = baseline;
+    setTitle(baseline.title);
+    setBody(baseline.body);
     setError(null);
-    savingTimeoutRef.current = setTimeout(() => announce("Saving note"), SAVING_ANNOUNCE_DELAY_MS);
-
-    try {
-      await createTripNote(tripId, { title: trimmedTitle || undefined, body: trimmedBody || undefined });
-      clearTimeout(savingTimeoutRef.current);
-      isSavingRef.current = false;
-      setIsSaving(false);
-      onSaved();
-      onClose();
-    } catch {
-      clearTimeout(savingTimeoutRef.current);
-      isSavingRef.current = false;
-      setIsSaving(false);
-      setError(SAVE_ERROR_MESSAGE);
-      toast.error(SAVE_ERROR_MESSAGE);
-    }
   }
+
+  function commit(): Promise<TripNotesEditorCommitResult> {
+    if (inFlightCommitRef.current) return inFlightCommitRef.current;
+
+    const values = normalizeValues(valuesRef.current);
+    const baseline = baselineRef.current;
+
+    if (!values.title && !values.body) {
+      if (mode === "edit") {
+        restoreBaseline();
+      } else {
+        onClose();
+      }
+      return Promise.resolve("clean");
+    }
+
+    if (mode === "edit" && values.title === baseline.title && values.body === baseline.body) {
+      return Promise.resolve("clean");
+    }
+
+    const request = (async (): Promise<TripNotesEditorCommitResult> => {
+      setIsSaving(true);
+      setError(null);
+      savingTimeoutRef.current = setTimeout(() => announce("Saving note"), SAVING_ANNOUNCE_DELAY_MS);
+
+      try {
+        if (mode === "edit") {
+          if (!noteId) throw new Error("Edit mode requires a note ID");
+          await updateTripNote(noteId, {
+            title: values.title || undefined,
+            body: values.body || undefined,
+          });
+          baselineRef.current = values;
+          valuesRef.current = values;
+          setTitle(values.title);
+          setBody(values.body);
+        } else {
+          await createTripNote(tripId, {
+            title: values.title || undefined,
+            body: values.body || undefined,
+          });
+        }
+
+        clearTimeout(savingTimeoutRef.current);
+        setAnnouncement("");
+        setIsSaving(false);
+        onSaved();
+        if (mode === "create") {
+          onClose();
+        }
+        return "saved";
+      } catch {
+        clearTimeout(savingTimeoutRef.current);
+        setAnnouncement("");
+        setIsSaving(false);
+        setError(SAVE_ERROR_MESSAGE);
+        toast.error(SAVE_ERROR_MESSAGE);
+        return "failed";
+      } finally {
+        inFlightCommitRef.current = null;
+      }
+    })();
+
+    inFlightCommitRef.current = request;
+    return request;
+  }
+
+  useImperativeHandle(forwardedRef, () => ({ commit }));
 
   function handleBlur(event: FocusEvent<HTMLDivElement>): void {
-    const next = event.relatedTarget as Node | null;
-    if (next && containerRef.current?.contains(next)) return;
-    void commit(title, body);
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && containerRef.current?.contains(nextTarget)) return;
+    void commit();
   }
 
   function handleRetry(): void {
-    void commit(title, body);
+    void commit();
+  }
+
+  function handleTitleChange(value: string): void {
+    valuesRef.current = { ...valuesRef.current, title: value };
+    setTitle(value);
+  }
+
+  function handleBodyChange(value: string): void {
+    valuesRef.current = { ...valuesRef.current, body: value };
+    setBody(value);
   }
 
   function handleTitleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
     if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    void commit(title, body);
+    void commit();
   }
 
   const inputBaseStyle = {
@@ -114,7 +203,7 @@ export function TripNotesEditor({ tripId, onClose, onSaved }: TripNotesEditorPro
         aria-describedby={error ? "trip-note-editor-error" : undefined}
         disabled={isSaving}
         value={title}
-        onChange={(event) => setTitle(event.target.value)}
+        onChange={(event) => handleTitleChange(event.target.value)}
         onKeyDown={handleTitleKeyDown}
         placeholder="Title"
         style={{ ...inputBaseStyle, minHeight: 44, fontSize: "calc(14px * var(--font-scale))", fontWeight: 500 }}
@@ -124,7 +213,7 @@ export function TripNotesEditor({ tripId, onClose, onSaved }: TripNotesEditorPro
         aria-describedby={error ? "trip-note-editor-error" : undefined}
         disabled={isSaving}
         value={body}
-        onChange={(event) => setBody(event.target.value)}
+        onChange={(event) => handleBodyChange(event.target.value)}
         placeholder="Write a note…"
         rows={2}
         style={{
@@ -169,3 +258,6 @@ export function TripNotesEditor({ tripId, onClose, onSaved }: TripNotesEditorPro
     </div>
   );
 }
+
+export const TripNotesEditor = forwardRef<TripNotesEditorHandle, TripNotesEditorProps>(TripNotesEditorComponent);
+TripNotesEditor.displayName = "TripNotesEditor";

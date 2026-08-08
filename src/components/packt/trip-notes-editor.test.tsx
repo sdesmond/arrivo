@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TripNotesEditor } from "./trip-notes-editor";
-import { createTripNote } from "@/app/(app)/trips/[tripId]/actions";
+import { createRef } from "react";
+import { TripNotesEditor, type TripNotesEditorHandle } from "./trip-notes-editor";
+import { createTripNote, updateTripNote } from "@/app/(app)/trips/[tripId]/actions";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({
@@ -12,9 +13,11 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   createTripNote: vi.fn(),
+  updateTripNote: vi.fn(),
 }));
 
 const mockCreateTripNote = vi.mocked(createTripNote);
+const mockUpdateTripNote = vi.mocked(updateTripNote);
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void;
@@ -253,5 +256,196 @@ describe("TripNotesEditor", () => {
 
     resolve(undefined);
     await promise;
+  });
+
+  it("prefills edit mode and focuses the title field", () => {
+    render(
+      <TripNotesEditor
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText("Note title")).toHaveValue("Pack sunscreen");
+    expect(screen.getByLabelText("Note body")).toHaveValue("Reef-safe only");
+    expect(screen.getByLabelText("Note title")).toHaveFocus();
+  });
+
+  it("autosaves changed edit values on composite blur and keeps the editor open", async () => {
+    mockUpdateTripNote.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    render(
+      <TripNotesEditor
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={onClose}
+        onSaved={vi.fn()}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "  Pack hats  " } });
+    fireEvent.change(screen.getByLabelText("Note body"), { target: { value: "  Two each  " } });
+    fireEvent.blur(screen.getByLabelText("Note body"), { relatedTarget: null });
+
+    await waitFor(() =>
+      expect(mockUpdateTripNote).toHaveBeenCalledWith("note-1", { title: "Pack hats", body: "Two each" })
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Note title")).toBeInTheDocument();
+  });
+
+  it("returns clean without saving when edit values match the baseline", async () => {
+    const editorRef = createRef<TripNotesEditorHandle>();
+    render(
+      <TripNotesEditor
+        ref={editorRef}
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+
+    await expect(editorRef.current?.commit()).resolves.toBe("clean");
+    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+  });
+
+  it("discards a blank edit by restoring saved content without a server call", async () => {
+    render(
+      <TripNotesEditor
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "   " } });
+    fireEvent.change(screen.getByLabelText("Note body"), { target: { value: "" } });
+    fireEvent.blur(screen.getByLabelText("Note body"), { relatedTarget: null });
+
+    await waitFor(() => expect(screen.getByLabelText("Note title")).toHaveValue("Pack sunscreen"));
+    expect(screen.getByLabelText("Note body")).toHaveValue("Reef-safe only");
+    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+  });
+
+  it("returns failed and preserves dirty edit values with linked error, focused Retry, and toast", async () => {
+    mockUpdateTripNote.mockRejectedValue(new Error("network down"));
+    const editorRef = createRef<TripNotesEditorHandle>();
+    render(
+      <TripNotesEditor
+        ref={editorRef}
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Pack hats" } });
+
+    let commitResult: string | undefined;
+    await act(async () => {
+      commitResult = await editorRef.current?.commit();
+    });
+
+    expect(commitResult).toBe("failed");
+    expect(screen.getByLabelText("Note title")).toHaveValue("Pack hats");
+    expect(screen.getByLabelText("Note title")).toHaveAttribute("aria-describedby", "trip-note-editor-error");
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't save note. Try again.");
+    expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus();
+    expect(toast.error).toHaveBeenCalledWith("Couldn't save note. Try again.");
+  });
+
+  it("retries a failed edit with the preserved values", async () => {
+    mockUpdateTripNote.mockRejectedValueOnce(new Error("network down")).mockResolvedValueOnce(undefined);
+    render(
+      <TripNotesEditor
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Pack hats" } });
+    fireEvent.blur(screen.getByLabelText("Note title"), { relatedTarget: null });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus());
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(mockUpdateTripNote).toHaveBeenCalledTimes(2));
+    expect(mockUpdateTripNote).toHaveBeenLastCalledWith("note-1", {
+      title: "Pack hats",
+      body: "Reef-safe only",
+    });
+  });
+
+  it("shares one in-flight edit request across overlapping imperative commits", async () => {
+    const { promise, resolve } = deferred<void>();
+    mockUpdateTripNote.mockReturnValue(promise);
+    const editorRef = createRef<TripNotesEditorHandle>();
+    render(
+      <TripNotesEditor
+        ref={editorRef}
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Pack hats" } });
+
+    const firstCommit = editorRef.current!.commit();
+    const secondCommit = editorRef.current!.commit();
+
+    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
+    resolve(undefined);
+    await expect(Promise.all([firstCommit, secondCommit])).resolves.toEqual(["saved", "saved"]);
+  });
+
+  it("returns saved once, announces once, and resets the edit baseline", async () => {
+    mockUpdateTripNote.mockResolvedValue(undefined);
+    const editorRef = createRef<TripNotesEditorHandle>();
+    const onSaved = vi.fn();
+    render(
+      <TripNotesEditor
+        ref={editorRef}
+        tripId="trip-1"
+        mode="edit"
+        noteId="note-1"
+        initialTitle="Pack sunscreen"
+        initialBody="Reef-safe only"
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "  Pack hats  " } });
+
+    await expect(editorRef.current?.commit()).resolves.toBe("saved");
+    expect(onSaved).toHaveBeenCalledTimes(1);
+    await expect(editorRef.current?.commit()).resolves.toBe("clean");
+    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
   });
 });
