@@ -7,6 +7,7 @@ import {
   days,
   documents,
   itineraryNotes,
+  notes,
   itineraryChecklists,
   checklistItems,
   trips,
@@ -32,6 +33,7 @@ import type {
   UpdateDayPatch,
   AddDocumentInput,
   RemoveLastDayResult,
+  CreateTripNoteInput,
 } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
@@ -517,6 +519,28 @@ export async function deleteNote(noteId: string): Promise<void> {
   const tripId = await getDayTripId(note.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function createTripNote(tripId: string, input: CreateTripNoteInput): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const title = input.title?.trim() || undefined;
+  const body = input.body?.trim() || undefined;
+  if (!title && !body) {
+    throw new Error("Note is blank");
+  }
+
+  await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+    await transaction
+      .update(notes)
+      .set({ position: sql`${notes.position} + 1` })
+      .where(eq(notes.tripId, tripId));
+    await transaction.insert(notes).values({ tripId, position: 0, title, body });
+  });
+
   revalidatePath(`/trips/${tripId}`);
 }
 

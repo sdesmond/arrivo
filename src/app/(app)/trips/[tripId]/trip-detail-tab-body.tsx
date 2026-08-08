@@ -8,6 +8,7 @@ import { TripBudgetTab } from "@/components/packt/trip-budget-tab";
 import { PackingListsView } from "@/components/packt/packing-lists-view";
 import { ReservationsTab } from "@/components/packt/reservations-tab";
 import { MapTab } from "@/components/packt/map-tab";
+import { TripNotesTab } from "@/components/packt/trip-notes-tab";
 import { TransitMode } from "@/data/types";
 import type {
   DayItinerary,
@@ -22,6 +23,7 @@ import type {
   Reservation,
   TripDetailTab,
   Trip,
+  TripNote,
   TripPackingList,
 } from "@/data/types";
 
@@ -40,6 +42,7 @@ export interface TripDetailTabBodyProps {
   packingLists: TripPackingList[];
   reservations: Reservation[];
   expenses: Expense[];
+  notes: TripNote[];
   templates: PackingTemplate[];
   dateFormat: string;
   initialExpandedDayNumber?: number;
@@ -119,6 +122,7 @@ export function TripDetailTabBody({
   packingLists,
   reservations,
   expenses,
+  notes,
   templates,
   dateFormat,
   initialExpandedDayNumber,
@@ -263,9 +267,7 @@ export function TripDetailTabBody({
           onDeleteList={onDeletePackingList}
         />
       )}
-      {activeTab === "notes" && (
-        <div style={{ fontSize: "calc(14px * var(--font-scale))", color: "var(--fg-2)" }}>Notes coming soon.</div>
-      )}
+      {activeTab === "notes" && <TripNotesTab tripId={tripId} notes={notes} />}
       {activeTab === "res" && (
         <ReservationsTab
           tripId={tripId}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
-import { TabStatusIcon } from "@/components/packt/tab-status-icon";
+import { TripDetailTabBar } from "./trip-detail-tab-bar";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
@@ -92,7 +92,7 @@ export function TripDetailClient({
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses } = detail;
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes } = detail;
 
   const hasBudget = !!trip.budget && (trip.budget.total ?? 0) > 0 && !!trip.budget.currency;
   const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
@@ -204,35 +204,14 @@ export function TripDetailClient({
 
       <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
 
-      {/* Tab bar */}
-      <div
-        className="flex items-center gap-0 px-4 lg:px-6 shrink-0"
-        style={{ borderBottom: "1px solid var(--line)", background: "var(--bg)" }}
-      >
-        <div className="flex items-center flex-1 gap-0 overflow-x-auto overflow-y-hidden scroll-thin">
-          {TABS.map((tabItem) => (
-            <button
-              key={tabItem.id}
-              className="shrink-0 inline-flex flex-row-reverse items-center gap-1 px-3.5 py-3 transition-colors relative"
-              style={{
-                fontSize: "calc(13px * var(--font-scale))",
-                fontWeight: activeTab === tabItem.id ? 600 : 400,
-                color: activeTab === tabItem.id ? "var(--fg)" : "var(--fg-3)",
-                background: "none",
-                border: "none",
-                borderBottom: activeTab === tabItem.id ? "2px solid var(--accent-brand)" : "2px solid transparent",
-                marginBottom: -1,
-              }}
-              onClick={() => handleTabChange(tabItem.id)}
-            >
-              {tabItem.label}
-              {tabItem.id === TripDetailTab.Budget ? (
-                <TabStatusIcon status={budgetStatus} actual={budgetActual} budgetTotal={budgetTotalAmount} />
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </div>
+      <TripDetailTabBar
+        tabs={TABS}
+        activeTab={activeTab}
+        budgetStatus={budgetStatus}
+        budgetActual={budgetActual}
+        budgetTotalAmount={budgetTotalAmount}
+        onTabChange={handleTabChange}
+      />
 
       {/* Body */}
       <div className="flex-1 flex min-h-0">
@@ -252,6 +231,7 @@ export function TripDetailClient({
             packingLists={packingLists}
             reservations={reservations}
             expenses={expenses}
+            notes={notes}
             templates={templates}
             dateFormat={dateFormat}
             initialExpandedDayNumber={initialExpandedDayNumber}

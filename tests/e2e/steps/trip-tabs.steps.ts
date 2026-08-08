@@ -37,7 +37,7 @@ async function expectTabContent(page: Page, label: string): Promise<void> {
       await expect(page.getByText("No located stops yet")).toBeVisible({ timeout: 10_000 });
       return;
     case "Notes":
-      await expect(page.getByText("Notes coming soon.")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByRole("button", { name: "New Note" })).toBeVisible({ timeout: 10_000 });
       return;
     default:
       throw new Error(`Unsupported trip tab label "${label}".`);

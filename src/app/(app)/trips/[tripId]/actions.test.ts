@@ -35,6 +35,7 @@ const {
     events: {},
     itineraryChecklists: {},
     itineraryNotes: {},
+    notes: {},
     trips: {},
   };
 
@@ -109,13 +110,14 @@ import {
   addChecklistFromPackingSource,
   addDay,
   createEvent,
+  createTripNote,
   removeLastDay,
   removeTripCover,
   reorderDayItems,
   setTripCoverWithAttribution,
   uploadCoverImage,
 } from "./actions";
-import { days, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
 
 interface ReorderTransactionFixture {
   currentChecklists?: Array<{ id: string }>;
@@ -227,6 +229,96 @@ describe("createEvent", () => {
 
     expect(transaction.insert).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("createTripNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  function createTripNoteTransactionMock() {
+    const insertedValues: Array<Record<string, unknown>> = [];
+    const shiftedTables: unknown[] = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn((table: unknown) => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          expect(table).toBe(notes);
+          insertedValues.push(values);
+        }),
+      })),
+      update: vi.fn((table: unknown) => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => {
+            shiftedTables.push(table);
+          }),
+        })),
+      })),
+    };
+    return { transaction, insertedValues, shiftedTables };
+  }
+
+  it("asserts editor access before writing", async () => {
+    const { transaction } = createTripNoteTransactionMock();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createTripNote("trip-1", { title: "Pack sunscreen" });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("rejects a fully-blank note without touching the transaction", async () => {
+    await expect(createTripNote("trip-1", { title: "   ", body: "" })).rejects.toThrow("Note is blank");
+
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("locks the trip, shifts existing notes, and inserts the new note at position 0", async () => {
+    const { transaction, insertedValues, shiftedTables } = createTripNoteTransactionMock();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createTripNote("trip-1", { title: "  Pack sunscreen  ", body: "  Reef-safe only  " });
+
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(transaction.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.update.mock.invocationCallOrder[0]
+    );
+    expect(shiftedTables).toEqual([notes]);
+    expect(insertedValues).toEqual([
+      {
+        tripId: "trip-1",
+        position: 0,
+        title: "Pack sunscreen",
+        body: "Reef-safe only",
+      },
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("trims whitespace-only body to undefined while keeping a non-blank title", async () => {
+    const { transaction, insertedValues } = createTripNoteTransactionMock();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createTripNote("trip-1", { title: "Pack sunscreen", body: "   " });
+
+    expect(insertedValues).toEqual([
+      {
+        tripId: "trip-1",
+        position: 0,
+        title: "Pack sunscreen",
+        body: undefined,
+      },
+    ]);
   });
 });
 
