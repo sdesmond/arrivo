@@ -9,6 +9,7 @@ import {
   itineraryChecklists,
   checklistItems,
   itineraryNotes,
+  notes,
   packingItems,
   packingTemplates,
   packingTemplateItems,
@@ -32,6 +33,7 @@ import type {
   Checklist,
   ChecklistItem,
   Note,
+  TripNote,
   LoyaltyNumber,
   WishlistDestination,
   Companion,
@@ -302,6 +304,18 @@ export function dbNoteToType(row: typeof itineraryNotes.$inferSelect): Note {
     tripDayId: row.dayId,
     position: row.position,
     content: row.content,
+    createdAt: row.createdAt?.toISOString() ?? undefined,
+    updatedAt: row.updatedAt?.toISOString() ?? undefined,
+  };
+}
+
+export function dbTripNoteToType(row: typeof notes.$inferSelect): TripNote {
+  return {
+    id: row.id,
+    tripId: row.tripId,
+    position: row.position,
+    title: row.title ?? undefined,
+    body: row.body ?? undefined,
     createdAt: row.createdAt?.toISOString() ?? undefined,
     updatedAt: row.updatedAt?.toISOString() ?? undefined,
   };

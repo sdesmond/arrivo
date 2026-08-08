@@ -375,6 +375,24 @@ export const itineraryNotes = pgTable(
   (table) => [index().on(table.dayId, table.position)]
 );
 
+export const notes = pgTable(
+  "notes",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    tripId: uuid("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    title: text("title"),
+    body: text("body"),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`),
+  },
+  (table) => [index().on(table.tripId, table.position)]
+);
+
 export const userCompanions = pgTable(
   "user_companions",
   {

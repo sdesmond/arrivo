@@ -11,6 +11,7 @@ import {
   packingItems,
   tripPackingLists,
   itineraryNotes,
+  notes,
   itineraryChecklists,
   checklistItems,
   users,
@@ -31,6 +32,7 @@ import {
   dbExpenseToType,
   dbCollabToType,
   dbChecklistToType,
+  dbTripNoteToType,
   dbLoyaltyToType,
   dbWishlistToType,
   dbCompanionToType,
@@ -354,6 +356,8 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(tripPackingLists.tripId, tripId))
     .orderBy(asc(tripPackingLists.position));
 
+  const tripNotes = await db.select().from(notes).where(eq(notes.tripId, tripId)).orderBy(notes.position);
+
   const tripReservations = await db.select().from(reservations).where(eq(reservations.tripId, tripId));
   const tripExpenses = await db.select().from(expenses).where(eq(expenses.tripId, tripId));
 
@@ -522,5 +526,6 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     packingLists: tripPackingListRows.map(dbPackingListToType),
     reservations: reservationsDomain,
     expenses: tripExpenses.map(dbExpenseToType),
+    notes: tripNotes.map(dbTripNoteToType),
   };
 }
