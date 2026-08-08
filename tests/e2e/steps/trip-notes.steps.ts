@@ -25,6 +25,18 @@ When("I enter {string} as the note body", async ({ page }, value: string) => {
 
 When("I close the note editor", async ({ page }) => {
   await page.getByRole("button", { name: "Notes" }).click();
+  await expect(page.getByLabel("Note title")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "New Note", exact: true })).toBeVisible({ timeout: 10_000 });
+});
+
+When("I set the Notes viewport to 320 CSS pixels wide", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+});
+
+When("I resize Notes text to 200 percent", async ({ page }) => {
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--font-scale", "2");
+  });
 });
 
 Then("the Notes empty state is visible", async ({ page }) => {
@@ -34,6 +46,38 @@ Then("the Notes empty state is visible", async ({ page }) => {
 
 Then("no note capture bar is visible", async ({ page }) => {
   await expect(page.getByLabel("Note title")).toHaveCount(0);
+});
+
+Then("the Notes tab and New Note controls measure at least 44 by 44 pixels", async ({ page }) => {
+  const controls = [
+    page.getByRole("button", { name: "Notes", exact: true }),
+    page.getByRole("button", { name: "New Note", exact: true }),
+  ];
+
+  for (const control of controls) {
+    await control.scrollIntoViewIfNeeded();
+    await expect(control).toBeVisible({ timeout: 10_000 });
+    const bounds = await control.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width).toBeGreaterThanOrEqual(44);
+    expect(bounds!.height).toBeGreaterThanOrEqual(44);
+  }
+});
+
+Then("the Notes panel has no horizontal scrolling", async ({ page }) => {
+  const notesList = page.locator("ol");
+  await expect(notesList).toBeVisible();
+  const widths = await notesList.evaluate((element) => {
+    const panel = element.parentElement;
+    return {
+      listClientWidth: element.clientWidth,
+      listScrollWidth: element.scrollWidth,
+      panelClientWidth: panel?.clientWidth ?? 0,
+      panelScrollWidth: panel?.scrollWidth ?? 0,
+    };
+  });
+  expect(widths.listScrollWidth).toBeLessThanOrEqual(widths.listClientWidth);
+  expect(widths.panelScrollWidth).toBeLessThanOrEqual(widths.panelClientWidth);
 });
 
 Then(

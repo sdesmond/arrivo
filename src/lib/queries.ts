@@ -356,10 +356,14 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .where(eq(tripPackingLists.tripId, tripId))
     .orderBy(asc(tripPackingLists.position));
 
-  const tripNotes = await db.select().from(notes).where(eq(notes.tripId, tripId)).orderBy(notes.position);
-
-  const tripReservations = await db.select().from(reservations).where(eq(reservations.tripId, tripId));
-  const tripExpenses = await db.select().from(expenses).where(eq(expenses.tripId, tripId));
+  const tripNotesPromise = db.select().from(notes).where(eq(notes.tripId, tripId)).orderBy(notes.position);
+  const tripReservationsPromise = db.select().from(reservations).where(eq(reservations.tripId, tripId));
+  const tripExpensesPromise = db.select().from(expenses).where(eq(expenses.tripId, tripId));
+  const [tripNotes, tripReservations, tripExpenses] = await Promise.all([
+    tripNotesPromise,
+    tripReservationsPromise,
+    tripExpensesPromise,
+  ]);
 
   const reservationIds = tripReservations.map((row) => row.id);
   const reservationDocRows =

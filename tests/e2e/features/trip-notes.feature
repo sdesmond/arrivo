@@ -39,3 +39,14 @@ Feature: Trip Notes
     And I activate New Note
     And I close the note editor
     Then the Notes empty state is visible
+
+  Scenario: Notes reflow at 320 CSS pixels and 200 percent text size
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "Layout check" as the note title
+    And I enter "A long note preview that must remain inside the narrow viewport without horizontal page scrolling" as the note body
+    And I close the note editor
+    And I set the Notes viewport to 320 CSS pixels wide
+    Then the Notes tab and New Note controls measure at least 44 by 44 pixels
+    When I resize Notes text to 200 percent
+    Then the Notes panel has no horizontal scrolling

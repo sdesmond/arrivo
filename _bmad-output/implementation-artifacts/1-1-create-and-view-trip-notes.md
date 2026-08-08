@@ -4,7 +4,7 @@ baseline_commit: ecfe9df19219272eae5ff6f3ce99836ada71f2dc
 
 # Story 1.1: Create and view Trip Notes
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -53,6 +53,18 @@ From `_bmad-output/planning-artifacts/epics.md` (Story 1.1) — implement verbat
   - [x] Register `entry("trip-notes", ...)` in `tests/e2e/feature-map.mjs`
   - [x] Update `trip-tabs.steps.ts` Notes case from `"Notes coming soon."` to the real panel marker
 - [x] Unit tests: colocated tests for every new/changed file (see Testing Requirements)
+
+### Review Findings
+
+- [x] [Review][Patch] Commit from title on Enter while preserving Enter as newline in body [src/components/packt/trip-notes-editor.tsx:97]
+- [x] [Review][Patch] Keep successful-save announcement mounted after editor closes [src/components/packt/trip-notes-editor.tsx:61]
+- [x] [Review][Patch] Block overlapping save interactions that can duplicate notes or discard edits made after request snapshot [src/components/packt/trip-notes-editor.tsx:45]
+- [x] [Review][Patch] Enforce 44px minimum height on extracted trip-tab buttons [src/app/(app)/trips/[tripId]/trip-detail-tab-bar.tsx:31]
+- [x] [Review][Patch] Start trip-notes query in parallel with independent trip-detail reads [src/lib/queries.ts:359]
+- [x] [Review][Patch] Exercise non-empty trip-note mapping and payload order in query tests [src/lib/queries.test.ts:75]
+- [x] [Review][Patch] Add real-browser coverage for 320px width, 200% text resize, reflow, and 44px targets [tests/e2e/features/trip-notes.feature:1]
+- [x] [Review][Patch] Correct completion evidence claiming six Trip Notes scenarios when feature defines five [1-1-create-and-view-trip-notes.md:259]
+- [x] [Review][Defer] Trip-detail header Edit/Share row causes page-level horizontal overflow at 320px with 200% text [src/app/(app)/trips/[tripId]/trip-detail-hero.tsx:145] — deferred, pre-existing
 
 ## Dev Notes
 
@@ -257,6 +269,7 @@ Claude Sonnet 5 (claude-sonnet-5), via the `bmad-dev-story` workflow.
 
 - `packt-build-validator` full run: LINT PASS, TSC PASS, COVERAGE PASS (3254 tests, lines 96.36% / functions 96.64% / branches 90.56%), E2E PASS (198 passed; 1 initial flake in `@feat:auth` "User signs out" — `Error: write UNKNOWN` / `Test ended` mid-navigation, unrelated file, confirmed environmental by an isolated re-run of `@feat:auth` alone: 5/5 passed), BUILD PASS.
 - E2E `@feat:trip-notes` (6 scenarios) and `@feat:trip-tabs` (2 scenarios) verified independently before the full validator run.
+- Code-review patch validation: LINT PASS, TSC PASS, COVERAGE PASS (3258 tests, lines 96.37% / functions 96.65% / branches 90.58%), E2E PASS (199 passed), BUILD PASS; desktop review passed and mobile review confirmed Notes-panel reflow and 44px control geometry.
 
 ### Completion Notes List
 
@@ -264,7 +277,7 @@ Claude Sonnet 5 (claude-sonnet-5), via the `bmad-dev-story` workflow.
 - Status set to: ready-for-dev.
 - Implemented the full vertical slice: `notes` DB table + position index, `TripNote`/`CreateTripNoteInput` types, `dbTripNoteToType` mapper, `getTripDetail` query fetch, pure `note-preview.ts` title/preview helpers, `createTripNote` server action (lock → shift → insert-at-0 → revalidate), and the `trip-notes-tab` / `trip-notes-editor` / `trip-notes-row` component trio replacing the "Notes coming soon." placeholder.
 - Extracted `trip-detail-tab-bar.tsx` out of `page-client.tsx` (332 → 311 lines) before threading the `notes` prop, per the Wire-up task.
-- Editor is blur-commit only (no Enter-to-commit) — scoped to exactly the AC-2/AC-3/AC-9 behaviors and the named unit tests; kept intentionally reusable (plain `tripId`/`onClose` props) for Story 1.2's edit-mode extension without adding unused hooks now.
+- Editor commits when focus leaves the composite or Enter is pressed in the title; Enter remains newline input in the body. Save completion is reported through `onSaved` so the parent-owned live region remains mounted after the editor closes.
 - All new/changed unit test files hit 100% line/branch/function coverage individually; project-wide coverage after the change is 96.36% lines / 90.56% branches / 96.64% functions (thresholds: 95/90/95).
 - Added `entry("trip-notes", ["src/components/packt/trip-notes-*.tsx", "src/lib/note-preview.ts"])` to `feature-map.mjs` — `note-preview.ts` is exclusively consumed by `trip-notes-row.tsx`, so it is feature-mapped rather than left to force the full suite via `SHARED_GLOBS`, matching the existing `spending.ts` precedent.
 - Updated `trip-tabs.steps.ts`'s Notes-tab assertion from the removed placeholder text to the empty-state `New Note` button.
@@ -312,3 +325,4 @@ Claude Sonnet 5 (claude-sonnet-5), via the `bmad-dev-story` workflow.
 | Date       | Change                                                                                   |
 | ---------- | ----------------------------------------------------------------------------------------- |
 | 2026-08-08 | Implemented Story 1.1 end-to-end (schema, types, mapper, query, action, UI, E2E); build validator passed; status set to review. |
+| 2026-08-08 | Applied all code-review patches, added responsive browser coverage, passed validation, and set status to done. |

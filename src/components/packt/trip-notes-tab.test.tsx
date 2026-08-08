@@ -95,6 +95,8 @@ describe("TripNotesTab", () => {
 
     await waitFor(() => expect(screen.queryByLabelText("Note title")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "New Note" })).toHaveFocus());
+    expect(screen.getByText("Note saved")).toBeInTheDocument();
+    expect(screen.getAllByText("Note saved")).toHaveLength(1);
   });
 
   it("closes the draft and returns focus to New Note when a blank draft is discarded", async () => {

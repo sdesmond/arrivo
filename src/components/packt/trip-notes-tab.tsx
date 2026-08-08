@@ -15,6 +15,8 @@ export interface TripNotesTabProps {
 
 export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   const [isDraftOpen, setIsDraftOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [announcementId, setAnnouncementId] = useState(0);
   const newNoteButtonRef = useRef<HTMLButtonElement>(null);
   const isFirstRenderRef = useRef(true);
 
@@ -36,9 +38,21 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     setIsDraftOpen(false);
   }
 
+  function announceSaved(): void {
+    setAnnouncement("Note saved");
+    setAnnouncementId((currentId) => currentId + 1);
+  }
+
+  const liveRegion = (
+    <div aria-live="polite" className="sr-only">
+      <span key={announcementId}>{announcement}</span>
+    </div>
+  );
+
   if (notes.length === 0 && !isDraftOpen) {
     return (
       <Empty>
+        {liveRegion}
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <StickyNote strokeWidth={1.5} />
@@ -65,6 +79,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
 
   return (
     <div>
+      {liveRegion}
       {!isDraftOpen && (
         <div className="flex items-center mb-3">
           <Button
@@ -83,7 +98,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
       <ol>
         {isDraftOpen && (
           <li>
-            <TripNotesEditor tripId={tripId} onClose={closeDraft} />
+            <TripNotesEditor tripId={tripId} onClose={closeDraft} onSaved={announceSaved} />
           </li>
         )}
         {notes.map((note) => (

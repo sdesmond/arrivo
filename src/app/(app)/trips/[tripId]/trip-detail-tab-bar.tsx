@@ -29,7 +29,7 @@ export function TripDetailTabBar({
         {tabs.map((tabItem) => (
           <button
             key={tabItem.id}
-            className="shrink-0 inline-flex flex-row-reverse items-center gap-1 px-3.5 py-3 transition-colors relative"
+            className="h-11 shrink-0 inline-flex flex-row-reverse items-center gap-1 px-3.5 py-3 transition-colors relative"
             style={{
               fontSize: "calc(13px * var(--font-scale))",
               fontWeight: activeTab === tabItem.id ? 600 : 400,
