@@ -94,34 +94,36 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
 
   if (notes.length === 0 && !isDraftOpen) {
     return (
-      <Empty>
-        {liveRegion}
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <StickyNote strokeWidth={1.5} />
-          </EmptyMedia>
-          <EmptyTitle>No notes yet</EmptyTitle>
-          <EmptyDescription>
-            Add quick trip-wide reminders — thoughts that don&apos;t belong in a Day Note or Document.
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button
-            ref={newNoteButtonRef}
-            variant="outline"
-            size="sm"
-            style={{ minHeight: 44, minWidth: 44 }}
-            onClick={() => void openDraft()}
-          >
-            New Note
-          </Button>
-        </EmptyContent>
-      </Empty>
+      <div className="mx-auto w-full max-w-3xl">
+        <Empty>
+          {liveRegion}
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <StickyNote strokeWidth={1.5} />
+            </EmptyMedia>
+            <EmptyTitle>No notes yet</EmptyTitle>
+            <EmptyDescription>
+              Add quick trip-wide reminders — thoughts that don&apos;t belong in a Day Note or Document.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button
+              ref={newNoteButtonRef}
+              variant="outline"
+              size="sm"
+              style={{ minHeight: 44, minWidth: 44 }}
+              onClick={() => void openDraft()}
+            >
+              New Note
+            </Button>
+          </EmptyContent>
+        </Empty>
+      </div>
     );
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-3xl">
       {liveRegion}
       {!isDraftOpen && (
         <div className="flex items-center mb-3">
@@ -138,7 +140,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
           </Button>
         </div>
       )}
-      <ol>
+      <ol className="flex flex-col gap-1">
         {isDraftOpen && (
           <li>
             <TripNotesEditor ref={editorRef} tripId={tripId} onClose={closeDraft} onSaved={announceSaved} />

@@ -59,6 +59,14 @@ describe("TripNotesTab", () => {
     expect(screen.getByRole("button", { name: "New Note" })).toBeInTheDocument();
   });
 
+  it("bounds the notes layout to the same desktop width as packing lists", () => {
+    render(<TripNotesTab tripId="trip-1" notes={[buildNote({ title: "Pack sunscreen" })]} />);
+
+    const list = screen.getByRole("list");
+    expect(list).toHaveClass("flex", "flex-col", "gap-1");
+    expect(list.parentElement).toHaveClass("mx-auto", "w-full", "max-w-3xl");
+  });
+
   it("applies a 44x44px minimum target to the New Note action", () => {
     render(<TripNotesTab tripId="trip-1" notes={[]} />);
     const button = screen.getByRole("button", { name: "New Note" });

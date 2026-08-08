@@ -20,7 +20,13 @@ export function TripNotesRow({ note, isExpanded, onToggle, editor }: TripNotesRo
   const regionId = `trip-note-region-${note.id}`;
 
   return (
-    <li className="flex items-start gap-3 px-3 py-2.5">
+    <li
+      className="flex items-start gap-3 rounded-xl px-3 py-2.5"
+      style={{
+        border: "1px solid var(--line)",
+        background: "var(--bg)",
+      }}
+    >
       <span
         aria-hidden
         className="flex shrink-0 items-center justify-center"

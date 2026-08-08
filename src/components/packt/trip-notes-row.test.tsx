@@ -55,6 +55,17 @@ describe("TripNotesRow", () => {
     expect(previewElement.style.overflowWrap).toBe("anywhere");
   });
 
+  it("renders each note as a bordered card", () => {
+    renderRow(buildNote({ title: "Pack sunscreen" }));
+
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveClass("rounded-xl");
+    expect(row).toHaveStyle({
+      border: "1px solid var(--line)",
+      background: "var(--bg)",
+    });
+  });
+
   it("renders a collapsed disclosure button and omits the expanded region", () => {
     renderRow(buildNote({ title: "Pack sunscreen", body: "Reef-safe only" }));
 
