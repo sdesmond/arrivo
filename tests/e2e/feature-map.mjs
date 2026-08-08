@@ -176,6 +176,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/cover-image-search-actions.ts",
   ]),
   entry("trip-delete", ["src/components/packt/delete-trip-alert-dialog.tsx"]),
+  entry("trip-notes", ["src/components/packt/trip-notes-*.tsx", "src/lib/note-preview.ts"]),
   entry("trip-tabs", [
     "src/components/packt/active-trip-summary-events.ts",
     "src/components/packt/active-trip-summary-time.ts",
