@@ -116,6 +116,7 @@ import {
   reorderDayItems,
   setTripCoverWithAttribution,
   uploadCoverImage,
+  updateTripNote,
 } from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
 
@@ -319,6 +320,74 @@ describe("createTripNote", () => {
         body: undefined,
       },
     ]);
+  });
+});
+
+describe("updateTripNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("resolves the trip from the note, asserts editor access, trims content, and revalidates without reordering", async () => {
+    const updatedValues: Array<Record<string, unknown>> = [];
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbUpdate.mockReturnValue({
+      set: vi.fn((values: Record<string, unknown>) => {
+        updatedValues.push(values);
+        return { where: vi.fn(async () => undefined) };
+      }),
+    });
+
+    await updateTripNote("note-1", { title: "  Pack sunscreen  ", body: "  Reef-safe only  " });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbUpdate).toHaveBeenCalledWith(notes);
+    expect(updatedValues).toEqual([
+      {
+        title: "Pack sunscreen",
+        body: "Reef-safe only",
+        updatedAt: expect.any(Date),
+      },
+    ]);
+    expect(updatedValues[0]).not.toHaveProperty("position");
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("converts whitespace-only fields to undefined while preserving non-blank content", async () => {
+    const set = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbUpdate.mockReturnValue({ set });
+
+    await updateTripNote("note-1", { title: "  Pack sunscreen  ", body: "   " });
+
+    expect(set).toHaveBeenCalledWith({
+      title: "Pack sunscreen",
+      body: undefined,
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it("rejects a fully blank update after authorization without writing", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+
+    await expect(updateTripNote("note-1", { title: "   ", body: "" })).rejects.toThrow("Note is blank");
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("silently no-ops when the note does not exist", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([]));
+
+    await updateTripNote("missing-note", { title: "Pack sunscreen" });
+
+    expect(mockAssertTripAccess).not.toHaveBeenCalled();
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });
 

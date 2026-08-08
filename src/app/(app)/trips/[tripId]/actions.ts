@@ -34,6 +34,7 @@ import type {
   AddDocumentInput,
   RemoveLastDayResult,
   CreateTripNoteInput,
+  UpdateTripNoteInput,
 } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
@@ -541,6 +542,24 @@ export async function createTripNote(tripId: string, input: CreateTripNoteInput)
     await transaction.insert(notes).values({ tripId, position: 0, title, body });
   });
 
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function updateTripNote(noteId: string, input: UpdateTripNoteInput): Promise<void> {
+  const user = await requireUser();
+  const [note] = await db.select({ tripId: notes.tripId }).from(notes).where(eq(notes.id, noteId));
+  if (!note) return;
+
+  const tripId = note.tripId;
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const title = input.title?.trim() || undefined;
+  const body = input.body?.trim() || undefined;
+  if (!title && !body) {
+    throw new Error("Note is blank");
+  }
+
+  await db.update(notes).set({ title, body, updatedAt: new Date() }).where(eq(notes.id, noteId));
   revalidatePath(`/trips/${tripId}`);
 }
 
