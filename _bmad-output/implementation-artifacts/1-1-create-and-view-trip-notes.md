@@ -1,6 +1,10 @@
+---
+baseline_commit: ecfe9df19219272eae5ff6f3ce99836ada71f2dc
+---
+
 # Story 1.1: Create and view Trip Notes
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,27 +32,27 @@ From `_bmad-output/planning-artifacts/epics.md` (Story 1.1) — implement verbat
 
 ## Tasks / Subtasks
 
-- [ ] DB schema: add `notes` table + `position` index (AC-8)
-  - [ ] `src/db/schema.ts`: `notes` pgTable (trip-scoped, mirrors `itinerary_notes` but keyed on `tripId`)
-  - [ ] Apply schema: `npm run db:push` (dev DB) and `npm run db:migrate:e2e` (E2E DB)
-- [ ] Types: add `TripNote`, `CreateTripNoteInput` to `src/data/types.ts` (AC-3, AC-8)
-- [ ] Mapper: add `dbTripNoteToType()` to `src/lib/db-mappers.ts` + tests (AC-8)
-- [ ] Query: fetch notes in `getTripDetail` (`src/lib/queries.ts`) + `notes` on `TripDetailPayload` (AC-3, AC-6)
-- [ ] Preview logic: `src/lib/note-preview.ts` pure helpers + tests (AC-4, AC-5)
-- [ ] Server action: `createTripNote(tripId, input)` in `src/app/(app)/trips/[tripId]/actions.ts` (AC-3, AC-8, AC-9)
-  - [ ] `requireUser()` → `assertTripAccess(tripId, user.id!, "editor")` → transaction (`lockTripForUpdate`) → shift positions → insert at top → `revalidatePath`
-- [ ] Client components under `src/components/packt/` (prefixed `trip-notes-` so one feature-map glob covers them):
-  - [ ] `trip-notes-tab.tsx` — empty state / populated header action / ordered list / create-draft management (AC-1–AC-7)
-  - [ ] `trip-notes-editor.tsx` — reusable title+body editor composite with blur-commit, blank-discard, `aria-busy`, inline error + Retry (AC-2, AC-3, AC-9)
-  - [ ] `trip-notes-row.tsx` — collapsed row: glyph + title/implicit-title + one-line preview (AC-4, AC-5, AC-7)
-- [ ] Wire-up:
-  - [ ] Split `page-client.tsx` (currently 332 lines, over the ~250 JSX guideline — component-review gate): extract the tab bar (lines ~207-235) into a new `src/app/(app)/trips/[tripId]/trip-detail-tab-bar.tsx` client component (`TripDetailTabBarProps` interface, `"use client"`, 44px targets) BEFORE threading the notes prop. E2E: `trip-detail-tab*` is a SHARED_GLOBS path, so the new file already forces the full suite; `src/app/**` is excluded from coverage, so no colocated unit test is required for the extracted file (keep `trip-detail-tab-body.test.tsx`/`page-client.test.tsx` passing).
-  - [ ] `page.tsx` / `page-client.tsx` — destructure + pass `notes` (AC-1)
-  - [ ] `trip-detail-tab-body.tsx` — replace placeholder branch with `<TripNotesTab>` (AC-1)
-- [ ] E2E: `tests/e2e/features/trip-notes.feature` (`@feat:trip-notes`) + `trip-notes.steps.ts` (AC-1–AC-5)
-  - [ ] Register `entry("trip-notes", ...)` in `tests/e2e/feature-map.mjs`
-  - [ ] Update `trip-tabs.steps.ts` Notes case from `"Notes coming soon."` to the real panel marker
-- [ ] Unit tests: colocated tests for every new/changed file (see Testing Requirements)
+- [x] DB schema: add `notes` table + `position` index (AC-8)
+  - [x] `src/db/schema.ts`: `notes` pgTable (trip-scoped, mirrors `itinerary_notes` but keyed on `tripId`)
+  - [x] Apply schema: `npm run db:push` (dev DB) and `npm run db:migrate:e2e` (E2E DB)
+- [x] Types: add `TripNote`, `CreateTripNoteInput` to `src/data/types.ts` (AC-3, AC-8)
+- [x] Mapper: add `dbTripNoteToType()` to `src/lib/db-mappers.ts` + tests (AC-8)
+- [x] Query: fetch notes in `getTripDetail` (`src/lib/queries.ts`) + `notes` on `TripDetailPayload` (AC-3, AC-6)
+- [x] Preview logic: `src/lib/note-preview.ts` pure helpers + tests (AC-4, AC-5)
+- [x] Server action: `createTripNote(tripId, input)` in `src/app/(app)/trips/[tripId]/actions.ts` (AC-3, AC-8, AC-9)
+  - [x] `requireUser()` → `assertTripAccess(tripId, user.id!, "editor")` → transaction (`lockTripForUpdate`) → shift positions → insert at top → `revalidatePath`
+- [x] Client components under `src/components/packt/` (prefixed `trip-notes-` so one feature-map glob covers them):
+  - [x] `trip-notes-tab.tsx` — empty state / populated header action / ordered list / create-draft management (AC-1–AC-7)
+  - [x] `trip-notes-editor.tsx` — reusable title+body editor composite with blur-commit, blank-discard, `aria-busy`, inline error + Retry (AC-2, AC-3, AC-9)
+  - [x] `trip-notes-row.tsx` — collapsed row: glyph + title/implicit-title + one-line preview (AC-4, AC-5, AC-7)
+- [x] Wire-up:
+  - [x] Split `page-client.tsx` (currently 332 lines, over the ~250 JSX guideline — component-review gate): extract the tab bar (lines ~207-235) into a new `src/app/(app)/trips/[tripId]/trip-detail-tab-bar.tsx` client component (`TripDetailTabBarProps` interface, `"use client"`, 44px targets) BEFORE threading the notes prop. E2E: `trip-detail-tab*` is a SHARED_GLOBS path, so the new file already forces the full suite; `src/app/**` is excluded from coverage, so no colocated unit test is required for the extracted file (keep `trip-detail-tab-body.test.tsx`/`page-client.test.tsx` passing).
+  - [x] `page.tsx` / `page-client.tsx` — destructure + pass `notes` (AC-1)
+  - [x] `trip-detail-tab-body.tsx` — replace placeholder branch with `<TripNotesTab>` (AC-1)
+- [x] E2E: `tests/e2e/features/trip-notes.feature` (`@feat:trip-notes`) + `trip-notes.steps.ts` (AC-1–AC-5)
+  - [x] Register `entry("trip-notes", ...)` in `tests/e2e/feature-map.mjs`
+  - [x] Update `trip-tabs.steps.ts` Notes case from `"Notes coming soon."` to the real panel marker
+- [x] Unit tests: colocated tests for every new/changed file (see Testing Requirements)
 
 ## Dev Notes
 
@@ -247,17 +251,64 @@ Editing `page-client.tsx`, `trip-detail-tab-body.tsx`, `src/data/**`, `src/db/**
 
 ### Agent Model Used
 
-_To be filled by dev agent._
+Claude Sonnet 5 (claude-sonnet-5), via the `bmad-dev-story` workflow.
 
 ### Debug Log References
 
-_To be filled by dev agent._
+- `packt-build-validator` full run: LINT PASS, TSC PASS, COVERAGE PASS (3254 tests, lines 96.36% / functions 96.64% / branches 90.56%), E2E PASS (198 passed; 1 initial flake in `@feat:auth` "User signs out" — `Error: write UNKNOWN` / `Test ended` mid-navigation, unrelated file, confirmed environmental by an isolated re-run of `@feat:auth` alone: 5/5 passed), BUILD PASS.
+- E2E `@feat:trip-notes` (6 scenarios) and `@feat:trip-tabs` (2 scenarios) verified independently before the full validator run.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed — comprehensive developer guide created.
 - Status set to: ready-for-dev.
+- Implemented the full vertical slice: `notes` DB table + position index, `TripNote`/`CreateTripNoteInput` types, `dbTripNoteToType` mapper, `getTripDetail` query fetch, pure `note-preview.ts` title/preview helpers, `createTripNote` server action (lock → shift → insert-at-0 → revalidate), and the `trip-notes-tab` / `trip-notes-editor` / `trip-notes-row` component trio replacing the "Notes coming soon." placeholder.
+- Extracted `trip-detail-tab-bar.tsx` out of `page-client.tsx` (332 → 311 lines) before threading the `notes` prop, per the Wire-up task.
+- Editor is blur-commit only (no Enter-to-commit) — scoped to exactly the AC-2/AC-3/AC-9 behaviors and the named unit tests; kept intentionally reusable (plain `tripId`/`onClose` props) for Story 1.2's edit-mode extension without adding unused hooks now.
+- All new/changed unit test files hit 100% line/branch/function coverage individually; project-wide coverage after the change is 96.36% lines / 90.56% branches / 96.64% functions (thresholds: 95/90/95).
+- Added `entry("trip-notes", ["src/components/packt/trip-notes-*.tsx", "src/lib/note-preview.ts"])` to `feature-map.mjs` — `note-preview.ts` is exclusively consumed by `trip-notes-row.tsx`, so it is feature-mapped rather than left to force the full suite via `SHARED_GLOBS`, matching the existing `spending.ts` precedent.
+- Updated `trip-tabs.steps.ts`'s Notes-tab assertion from the removed placeholder text to the empty-state `New Note` button.
+- Ran `packt-build-validator` once after implementation was complete; all five checks passed (see Debug Log References).
 
 ### File List
 
-_To be filled by dev agent._
+**New files**
+- `src/lib/note-preview.ts`
+- `src/lib/note-preview.test.ts`
+- `src/components/packt/trip-notes-tab.tsx`
+- `src/components/packt/trip-notes-tab.test.tsx`
+- `src/components/packt/trip-notes-editor.tsx`
+- `src/components/packt/trip-notes-editor.test.tsx`
+- `src/components/packt/trip-notes-row.tsx`
+- `src/components/packt/trip-notes-row.test.tsx`
+- `src/app/(app)/trips/[tripId]/trip-detail-tab-bar.tsx`
+- `tests/e2e/features/trip-notes.feature`
+- `tests/e2e/steps/trip-notes.steps.ts`
+
+**Modified files**
+- `src/db/schema.ts` — added `notes` pgTable + position index
+- `src/data/types.ts` — added `TripNote`, `CreateTripNoteInput`; added `notes: TripNote[]` to `TripDetailPayload`
+- `src/lib/db-mappers.ts` — added `dbTripNoteToType()`
+- `src/lib/db-mappers.test.ts` — added `dbTripNoteToType` test suite
+- `src/lib/queries.ts` — fetch + map trip notes in `getTripDetail`
+- `src/lib/queries.test.ts` — added notes fixture to the `getTripDetail` mock select sequence
+- `src/app/(app)/trips/[tripId]/actions.ts` — added `createTripNote`
+- `src/app/(app)/trips/[tripId]/actions.test.ts` — added `createTripNote` test suite
+- `src/app/(app)/trips/[tripId]/page-client.tsx` — extracted tab bar into `TripDetailTabBar`; threaded `notes`
+- `src/app/(app)/trips/[tripId]/page-client.test.tsx` — added `notes: []` to `baseDetail`
+- `src/app/(app)/trips/[tripId]/page.test.tsx` — added `notes: []` to `baseDetail`
+- `src/app/(app)/trips/[tripId]/trip-detail-tab-body.tsx` — added `notes` prop; replaced placeholder with `<TripNotesTab>`
+- `src/app/(app)/trips/[tripId]/trip-detail-tab-body.test.tsx` — added `notes` fixture, `TripNotesTab` mock, and a Notes-tab render test
+- `src/app/(app)/trips/[tripId]/trip-detail-hero.test.tsx` — added `notes: []` to `buildDetail`
+- `src/app/(app)/trips/[tripId]/use-trip-detail-handlers.test.tsx` — added `notes: []` to fixture detail
+- `tests/e2e/feature-map.mjs` — registered `trip-notes` entry
+- `tests/e2e/steps/trip-tabs.steps.ts` — updated Notes-tab content assertion
+
+**Database**
+- `notes` table pushed to both the dev database (`npm run db:push`) and the E2E database (`npm run db:migrate:e2e`)
+
+## Change Log
+
+| Date       | Change                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| 2026-08-08 | Implemented Story 1.1 end-to-end (schema, types, mapper, query, action, UI, E2E); build validator passed; status set to review. |
