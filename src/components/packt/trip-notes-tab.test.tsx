@@ -170,7 +170,7 @@ describe("TripNotesTab", () => {
     );
     await waitFor(() => expect(screen.getByLabelText("Note title")).toHaveValue("Second note"));
     expect(screen.getByRole("button", { name: /First note First body/ })).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("button", { name: /Second note Second body/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Collapse Second note" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getAllByRole("region")).toHaveLength(1);
   });
 
@@ -193,7 +193,7 @@ describe("TripNotesTab", () => {
     await user.click(screen.getByRole("button", { name: /Second note Second body/ }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus());
-    expect(screen.getByRole("button", { name: /First note First body/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Collapse First note" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: /Second note Second body/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByLabelText("Note title")).toHaveValue("Updated first");
   });
@@ -247,7 +247,7 @@ describe("TripNotesTab", () => {
         notes={[buildNote({ id: "note-1", title: "Updated first", body: "Updated body", position: 0 }), notes[1]]}
       />
     );
-    await user.click(screen.getByRole("button", { name: /Updated first Updated body/ }));
+    await user.click(screen.getByRole("button", { name: "Collapse Updated first" }));
 
     await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
     const items = screen.getAllByRole("listitem");

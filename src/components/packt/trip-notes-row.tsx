@@ -47,32 +47,39 @@ export function TripNotesRow({ note, isExpanded, onToggle, editor }: TripNotesRo
           type="button"
           aria-expanded={isExpanded}
           aria-controls={regionId}
-          className="flex w-full items-center gap-2 border-0 bg-transparent p-0 text-left"
+          className={cn(
+            "flex items-center gap-2 border-0 bg-transparent p-0 text-left",
+            isExpanded ? "justify-end" : "w-full"
+          )}
           style={{ minHeight: 44, minWidth: 44, color: "var(--fg)", cursor: "pointer" }}
           onClick={() => void onToggle(note.id)}
         >
-          <span className="min-w-0 flex-1">
-            <span
-              className="line-clamp-1 block"
-              style={{
-                fontSize: "calc(13px * var(--font-scale))",
-                color: "var(--fg)",
-                overflowWrap: "anywhere",
-              }}
-            >
-              {title}
+          {isExpanded ? (
+            <span className="sr-only">Collapse {title}</span>
+          ) : (
+            <span className="min-w-0 flex-1">
+              <span
+                className="line-clamp-1 block"
+                style={{
+                  fontSize: "calc(13px * var(--font-scale))",
+                  color: "var(--fg)",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {title}
+              </span>
+              <span
+                className="line-clamp-1 block"
+                style={{
+                  fontSize: "calc(12px * var(--font-scale))",
+                  color: "var(--fg-2)",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {previewLine}
+              </span>
             </span>
-            <span
-              className="line-clamp-1 block"
-              style={{
-                fontSize: "calc(12px * var(--font-scale))",
-                color: "var(--fg-2)",
-                overflowWrap: "anywhere",
-              }}
-            >
-              {previewLine}
-            </span>
-          </span>
+          )}
           <ChevronDown
             aria-hidden
             size={16}
