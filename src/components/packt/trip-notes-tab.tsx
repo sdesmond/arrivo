@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, StickyNote } from "lucide-react";
 import type { TripNote } from "@/data/types";
 import { TripNotesRow } from "./trip-notes-row";
-import { TripNotesEditor } from "./trip-notes-editor";
+import { TripNotesEditor, type TripNotesEditorCommitResult, type TripNotesEditorHandle } from "./trip-notes-editor";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
@@ -15,9 +15,13 @@ export interface TripNotesTabProps {
 
 export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   const [isDraftOpen, setIsDraftOpen] = useState(false);
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
   const newNoteButtonRef = useRef<HTMLButtonElement>(null);
+  const editorRef = useRef<TripNotesEditorHandle>(null);
+  const focusReturnNoteIdRef = useRef<string | null>(null);
+  const expandedNoteIdRef = useRef<string | null>(null);
   const isFirstRenderRef = useRef(true);
 
   useEffect(() => {
@@ -25,12 +29,32 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
       isFirstRenderRef.current = false;
       return;
     }
-    if (!isDraftOpen) {
+    if (!isDraftOpen && !expandedNoteId) {
       newNoteButtonRef.current?.focus();
     }
-  }, [isDraftOpen]);
+  }, [expandedNoteId, isDraftOpen]);
 
-  function openDraft(): void {
+  useEffect(() => {
+    if (expandedNoteId || !focusReturnNoteIdRef.current) return;
+    document.getElementById(`trip-note-disclosure-${focusReturnNoteIdRef.current}`)?.focus();
+    focusReturnNoteIdRef.current = null;
+  }, [expandedNoteId]);
+
+  function setExpanded(noteId: string | null): void {
+    expandedNoteIdRef.current = noteId;
+    setExpandedNoteId(noteId);
+  }
+
+  async function commitCurrentEditor(): Promise<TripNotesEditorCommitResult> {
+    return editorRef.current?.commit() ?? "clean";
+  }
+
+  async function openDraft(): Promise<void> {
+    if (expandedNoteIdRef.current) {
+      const result = await commitCurrentEditor();
+      if (result === "failed") return;
+      setExpanded(null);
+    }
     setIsDraftOpen(true);
   }
 
@@ -43,6 +67,35 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     setAnnouncementId((currentId) => currentId + 1);
   }
 
+  async function handleToggle(noteId: string): Promise<void> {
+    if (isDraftOpen) {
+      const result = await commitCurrentEditor();
+      if (result === "failed") return;
+      setIsDraftOpen(false);
+      setExpanded(noteId);
+      return;
+    }
+
+    const currentExpanded = expandedNoteIdRef.current;
+
+    if (currentExpanded === noteId) {
+      const result = await commitCurrentEditor();
+      if (result === "failed" || expandedNoteIdRef.current !== noteId) return;
+      focusReturnNoteIdRef.current = noteId;
+      setExpanded(null);
+      return;
+    }
+
+    if (currentExpanded) {
+      const result = await commitCurrentEditor();
+      if (result === "failed") return;
+    }
+
+    if (expandedNoteIdRef.current !== noteId) {
+      setExpanded(noteId);
+    }
+  }
+
   const liveRegion = (
     <div aria-live="polite" className="sr-only">
       <span key={announcementId}>{announcement}</span>
@@ -51,34 +104,36 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
 
   if (notes.length === 0 && !isDraftOpen) {
     return (
-      <Empty>
-        {liveRegion}
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <StickyNote strokeWidth={1.5} />
-          </EmptyMedia>
-          <EmptyTitle>No notes yet</EmptyTitle>
-          <EmptyDescription>
-            Add quick trip-wide reminders — thoughts that don&apos;t belong in a Day Note or Document.
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button
-            ref={newNoteButtonRef}
-            variant="outline"
-            size="sm"
-            style={{ minHeight: 44, minWidth: 44 }}
-            onClick={openDraft}
-          >
-            New Note
-          </Button>
-        </EmptyContent>
-      </Empty>
+      <div className="mx-auto w-full max-w-3xl">
+        <Empty>
+          {liveRegion}
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <StickyNote strokeWidth={1.5} />
+            </EmptyMedia>
+            <EmptyTitle>No notes yet</EmptyTitle>
+            <EmptyDescription>
+              Add quick trip-wide reminders — thoughts that don&apos;t belong in a Day Note or Document.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button
+              ref={newNoteButtonRef}
+              variant="outline"
+              size="sm"
+              style={{ minHeight: 44, minWidth: 44 }}
+              onClick={() => void openDraft()}
+            >
+              New Note
+            </Button>
+          </EmptyContent>
+        </Empty>
+      </div>
     );
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-3xl">
       {liveRegion}
       {!isDraftOpen && (
         <div className="flex items-center mb-3">
@@ -88,21 +143,40 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
             size="sm"
             className="ml-auto"
             style={{ minHeight: 44, minWidth: 44 }}
-            onClick={openDraft}
+            onClick={() => void openDraft()}
           >
             <Plus strokeWidth={1.5} />
             New Note
           </Button>
         </div>
       )}
-      <ol>
+      <ol className="flex flex-col gap-1">
         {isDraftOpen && (
           <li>
-            <TripNotesEditor tripId={tripId} onClose={closeDraft} onSaved={announceSaved} />
+            <TripNotesEditor ref={editorRef} tripId={tripId} onClose={closeDraft} onSaved={announceSaved} />
           </li>
         )}
         {notes.map((note) => (
-          <TripNotesRow key={note.id} note={note} />
+          <TripNotesRow
+            key={note.id}
+            note={note}
+            isExpanded={expandedNoteId === note.id}
+            onToggle={handleToggle}
+            editor={
+              expandedNoteId === note.id ? (
+                <TripNotesEditor
+                  ref={editorRef}
+                  tripId={tripId}
+                  mode="edit"
+                  noteId={note.id}
+                  initialTitle={note.title}
+                  initialBody={note.body}
+                  onClose={() => undefined}
+                  onSaved={announceSaved}
+                />
+              ) : undefined
+            }
+          />
         ))}
       </ol>
     </div>

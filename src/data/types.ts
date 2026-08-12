@@ -823,6 +823,11 @@ export interface CreateTripNoteInput {
   body?: string;
 }
 
+export interface UpdateTripNoteInput {
+  title?: string;
+  body?: string;
+}
+
 export interface CreateReservationInput {
   type: ReservationType;
   provider: string;
