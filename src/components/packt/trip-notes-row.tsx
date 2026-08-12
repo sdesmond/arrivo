@@ -18,6 +18,7 @@ export function TripNotesRow({ note, isExpanded, onToggle, editor }: TripNotesRo
   const previewLine = getNotePreviewLine(note);
   const triggerId = `trip-note-disclosure-${note.id}`;
   const regionId = `trip-note-region-${note.id}`;
+  const regionLabelId = `trip-note-region-label-${note.id}`;
 
   return (
     <li
@@ -88,7 +89,10 @@ export function TripNotesRow({ note, isExpanded, onToggle, editor }: TripNotesRo
           />
         </button>
         {isExpanded ? (
-          <div id={regionId} role="region" aria-labelledby={triggerId}>
+          <div id={regionId} role="region" aria-labelledby={regionLabelId}>
+            <span id={regionLabelId} className="sr-only">
+              {title}
+            </span>
             {editor}
           </div>
         ) : null}

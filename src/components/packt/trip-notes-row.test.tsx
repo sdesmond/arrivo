@@ -83,15 +83,16 @@ describe("TripNotesRow", () => {
     const region = screen.getByRole("region");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(region).toHaveAttribute("id", "trip-note-region-note-1");
-    expect(region).toHaveAttribute("aria-labelledby", trigger.id);
+    expect(region).toHaveAttribute("aria-labelledby", "trip-note-region-label-note-1");
+    expect(region).toHaveAccessibleName("Pack sunscreen");
     expect(region).toHaveTextContent("Full editor");
   });
 
   it("hides the collapsed title and preview text once expanded to avoid duplicating the editor's fields", () => {
     renderRow(buildNote({ title: "Pack sunscreen", body: "Reef-safe only" }), true);
 
-    expect(screen.queryByText("Pack sunscreen")).not.toBeInTheDocument();
     expect(screen.queryByText("Reef-safe only")).not.toBeInTheDocument();
+    expect(screen.getByText("Pack sunscreen")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Collapse Pack sunscreen" })).toBeInTheDocument();
   });
 

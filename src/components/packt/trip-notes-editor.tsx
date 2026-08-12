@@ -70,6 +70,10 @@ function TripNotesEditorComponent(
   useEffect(() => {
     return () => {
       clearTimeout(savingTimeoutRef.current);
+      const values = normalizeValues(valuesRef.current);
+      if (values.title || values.body) {
+        void commit();
+      }
     };
   }, []);
 
@@ -102,6 +106,7 @@ function TripNotesEditorComponent(
     }
 
     if (mode === "edit" && values.title === baseline.title && values.body === baseline.body) {
+      restoreBaseline();
       return Promise.resolve("clean");
     }
 
@@ -114,8 +119,8 @@ function TripNotesEditorComponent(
         if (mode === "edit") {
           if (!noteId) throw new Error("Edit mode requires a note ID");
           await updateTripNote(noteId, {
-            title: values.title || undefined,
-            body: values.body || undefined,
+            title: values.title,
+            body: values.body,
           });
           baselineRef.current = values;
           valuesRef.current = values;
@@ -128,6 +133,8 @@ function TripNotesEditorComponent(
           });
         }
 
+        baselineRef.current = values;
+        valuesRef.current = values;
         clearTimeout(savingTimeoutRef.current);
         setAnnouncement("");
         setIsSaving(false);
@@ -157,6 +164,7 @@ function TripNotesEditorComponent(
   function handleBlur(event: FocusEvent<HTMLDivElement>): void {
     const nextTarget = event.relatedTarget as Node | null;
     if (nextTarget && containerRef.current?.contains(nextTarget)) return;
+    if (error) return;
     void commit();
   }
 

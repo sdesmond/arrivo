@@ -21,6 +21,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   const newNoteButtonRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<TripNotesEditorHandle>(null);
   const focusReturnNoteIdRef = useRef<string | null>(null);
+  const expandedNoteIdRef = useRef<string | null>(null);
   const isFirstRenderRef = useRef(true);
 
   useEffect(() => {
@@ -39,15 +40,20 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     focusReturnNoteIdRef.current = null;
   }, [expandedNoteId]);
 
+  function setExpanded(noteId: string | null): void {
+    expandedNoteIdRef.current = noteId;
+    setExpandedNoteId(noteId);
+  }
+
   async function commitCurrentEditor(): Promise<TripNotesEditorCommitResult> {
     return editorRef.current?.commit() ?? "clean";
   }
 
   async function openDraft(): Promise<void> {
-    if (expandedNoteId) {
+    if (expandedNoteIdRef.current) {
       const result = await commitCurrentEditor();
       if (result === "failed") return;
-      setExpandedNoteId(null);
+      setExpanded(null);
     }
     setIsDraftOpen(true);
   }
@@ -66,24 +72,28 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
       const result = await commitCurrentEditor();
       if (result === "failed") return;
       setIsDraftOpen(false);
-      setExpandedNoteId(noteId);
+      setExpanded(noteId);
       return;
     }
 
-    if (expandedNoteId === noteId) {
+    const currentExpanded = expandedNoteIdRef.current;
+
+    if (currentExpanded === noteId) {
       const result = await commitCurrentEditor();
-      if (result === "failed") return;
+      if (result === "failed" || expandedNoteIdRef.current !== noteId) return;
       focusReturnNoteIdRef.current = noteId;
-      setExpandedNoteId(null);
+      setExpanded(null);
       return;
     }
 
-    if (expandedNoteId) {
+    if (currentExpanded) {
       const result = await commitCurrentEditor();
       if (result === "failed") return;
     }
 
-    setExpandedNoteId(noteId);
+    if (expandedNoteIdRef.current !== noteId) {
+      setExpanded(noteId);
+    }
   }
 
   const liveRegion = (

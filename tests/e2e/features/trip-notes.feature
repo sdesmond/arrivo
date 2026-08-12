@@ -40,14 +40,15 @@ Feature: Trip Notes
     And I close the note editor
     Then the Notes empty state is visible
 
-  Scenario: Expanding a note reveals its full body in place
+Scenario: Expanding a note reveals its full body in place
     When I open the Notes tab
     And I activate New Note
     And I enter "Packing" as the note title
     And I enter "Sunscreen\nHats" as the note body
     And I close the note editor
     And I expand the note titled "Packing"
-    Then the note editor shows title "Packing" and body "Sunscreen\nHats" in place
+    Then the expanded note disclosure measures at least 44 by 44 pixels
+    And the note editor shows title "Packing" and body "Sunscreen\nHats" in place
 
   Scenario: Expanding a second note collapses the first
     When I open the Notes tab

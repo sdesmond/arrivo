@@ -356,7 +356,7 @@ describe("updateTripNote", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
-  it("converts whitespace-only fields to undefined while preserving non-blank content", async () => {
+  it("persists an explicit clear as null while preserving non-blank content", async () => {
     const set = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
     mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
     mockDbUpdate.mockReturnValue({ set });
@@ -365,9 +365,36 @@ describe("updateTripNote", () => {
 
     expect(set).toHaveBeenCalledWith({
       title: "Pack sunscreen",
-      body: undefined,
+      body: null,
       updatedAt: expect.any(Date),
     });
+  });
+
+  it("leaves omitted fields untouched instead of clearing them", async () => {
+    const setValues: Array<Record<string, unknown>> = [];
+    const set = vi.fn((values: Record<string, unknown>) => {
+      setValues.push(values);
+      return { where: vi.fn(async () => undefined) };
+    });
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbUpdate.mockReturnValue({ set });
+
+    await updateTripNote("note-1", { title: "Pack sunscreen" });
+
+    expect(set).toHaveBeenCalledWith({
+      title: "Pack sunscreen",
+      updatedAt: expect.any(Date),
+    });
+    expect(setValues[0]).not.toHaveProperty("body");
+  });
+
+  it("propagates denied access without writing", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("denied"));
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+
+    await expect(updateTripNote("note-1", { title: "Pack sunscreen" })).rejects.toThrow("denied");
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
   it("rejects a fully blank update after authorization without writing", async () => {

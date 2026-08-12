@@ -89,6 +89,17 @@ Then("only the note titled {string} is expanded", async ({ page }, title: string
   await expect(page.locator('[id^="trip-note-region-"][role="region"]')).toHaveCount(1);
   await expect(row.locator('button[aria-expanded="true"]')).toBeVisible();
   await expect(page.getByLabel("Note title")).toHaveValue(title);
+  await expect(page.getByLabel("Note title")).toBeFocused();
+});
+
+Then("the expanded note disclosure measures at least 44 by 44 pixels", async ({ page }) => {
+  const disclosure = page.locator('button[aria-expanded="true"]');
+  await disclosure.scrollIntoViewIfNeeded();
+  await expect(disclosure).toBeVisible({ timeout: 10_000 });
+  const bounds = await disclosure.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.width).toBeGreaterThanOrEqual(44);
+  expect(bounds!.height).toBeGreaterThanOrEqual(44);
 });
 
 Then("the Notes tab and New Note controls measure at least 44 by 44 pixels", async ({ page }) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripNotesTab } from "./trip-notes-tab";
 import type { TripNote } from "@/data/types";
@@ -269,5 +269,60 @@ describe("TripNotesTab", () => {
     await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
     expect(screen.getByLabelText("Note title")).toHaveValue("");
     expect(screen.getByLabelText("Note title")).toHaveFocus();
+  });
+
+  it("announces the confirmed save exactly once across a blur-then-collapse sequence", async () => {
+    mockUpdateTripNote.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<TripNotesTab tripId="trip-1" notes={[buildNote({ title: "Pack sunscreen" })]} />);
+    await user.click(screen.getByRole("button", { name: /Pack sunscreen/ }));
+    fireEvent.change(screen.getByLabelText("Note body"), { target: { value: "Reef-safe only" } });
+
+    fireEvent.blur(screen.getByLabelText("Note body"), { relatedTarget: null });
+    await waitFor(() => expect(mockUpdateTripNote).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getAllByText("Note saved")).toHaveLength(1));
+
+    await user.click(screen.getByRole("button", { name: "Collapse Pack sunscreen" }));
+
+    await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText("Note saved")).toHaveLength(1);
+  });
+
+  it("keeps the newer toggle intent when a second disclosure is clicked during an in-flight save", async () => {
+    let resolveSave!: () => void;
+    mockUpdateTripNote.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveSave = resolve;
+      })
+    );
+    const user = userEvent.setup();
+    render(
+      <TripNotesTab
+        tripId="trip-1"
+        notes={[
+          buildNote({ id: "note-1", title: "First note", body: "First body", position: 0 }),
+          buildNote({ id: "note-2", title: "Second note", body: "Second body", position: 1 }),
+        ]}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: /First note First body/ }));
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Updated first" } });
+
+    await user.click(screen.getByRole("button", { name: /Second note Second body/ }));
+    await waitFor(() => expect(mockUpdateTripNote).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "Collapse First note" }));
+
+    await act(async () => {
+      resolveSave();
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Collapse Second note" })).toHaveAttribute("aria-expanded", "true")
+    );
+    expect(screen.getByRole("button", { name: /First note First body/ })).toHaveAttribute("aria-expanded", "false");
+    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
   });
 });

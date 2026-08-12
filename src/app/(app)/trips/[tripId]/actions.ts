@@ -553,13 +553,19 @@ export async function updateTripNote(noteId: string, input: UpdateTripNoteInput)
   const tripId = note.tripId;
   await assertTripAccess(tripId, user.id!, "editor");
 
-  const title = input.title?.trim() || undefined;
-  const body = input.body?.trim() || undefined;
+  const title = typeof input.title === "string" ? input.title.trim() || null : undefined;
+  const body = typeof input.body === "string" ? input.body.trim() || null : undefined;
   if (!title && !body) {
     throw new Error("Note is blank");
   }
 
-  await db.update(notes).set({ title, body, updatedAt: new Date() }).where(eq(notes.id, noteId));
+  const updateValues: { title?: string | null; body?: string | null; updatedAt: Date } = {
+    updatedAt: new Date(),
+  };
+  if (title !== undefined) updateValues.title = title;
+  if (body !== undefined) updateValues.body = body;
+
+  await db.update(notes).set(updateValues).where(eq(notes.id, noteId));
   revalidatePath(`/trips/${tripId}`);
 }
 
