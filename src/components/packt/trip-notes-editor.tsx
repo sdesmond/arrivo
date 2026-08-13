@@ -131,10 +131,11 @@ function TripNotesEditorComponent(
             title: values.title || undefined,
             body: values.body || undefined,
           });
+          valuesRef.current = { title: "", body: "" };
         }
 
         baselineRef.current = values;
-        valuesRef.current = values;
+        if (mode === "edit") valuesRef.current = values;
         clearTimeout(savingTimeoutRef.current);
         setAnnouncement("");
         setIsSaving(false);
@@ -163,7 +164,8 @@ function TripNotesEditorComponent(
 
   function handleBlur(event: FocusEvent<HTMLDivElement>): void {
     const nextTarget = event.relatedTarget as Node | null;
-    if (nextTarget && containerRef.current?.contains(nextTarget)) return;
+    const row = containerRef.current?.closest("li");
+    if (nextTarget && (containerRef.current?.contains(nextTarget) || row?.contains(nextTarget))) return;
     if (error) return;
     void commit();
   }
