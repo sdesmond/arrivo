@@ -5,7 +5,7 @@ import { Plus, StickyNote } from "lucide-react";
 import type { TripNote } from "@/data/types";
 import { deleteTripNote } from "@/app/(app)/trips/[tripId]/actions";
 import { getNoteTitle } from "@/lib/note-preview";
-import { TripNotesRow } from "./trip-notes-row";
+import { TripNotesSortable } from "./trip-notes-sortable";
 import { TripNotesEditor, type TripNotesEditorCommitResult, type TripNotesEditorHandle } from "./trip-notes-editor";
 import { TripNotesDeleteDialog } from "./trip-notes-delete-dialog";
 import { Button } from "@/components/ui/button";
@@ -35,9 +35,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
       isFirstRenderRef.current = false;
       return;
     }
-    if (!isDraftOpen && !expandedNoteId) {
-      newNoteButtonRef.current?.focus();
-    }
+    if (!isDraftOpen && !expandedNoteId) newNoteButtonRef.current?.focus();
   }, [expandedNoteId, isDraftOpen]);
 
   useEffect(() => {
@@ -73,8 +71,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
 
   async function openDraft(): Promise<void> {
     if (expandedNoteIdRef.current) {
-      const result = await commitCurrentEditor();
-      if (result === "failed") return;
+      if ((await commitCurrentEditor()) === "failed") return;
       setExpanded(null);
     }
     setIsDraftOpen(true);
@@ -84,13 +81,8 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     setIsDraftOpen(false);
   }
 
-  function announceSaved(): void {
-    setAnnouncement("Note saved");
-    setAnnouncementId((currentId) => currentId + 1);
-  }
-
-  function announceDeleted(): void {
-    setAnnouncement("Note deleted");
+  function announce(message: string): void {
+    setAnnouncement(message);
     setAnnouncementId((currentId) => currentId + 1);
   }
 
@@ -106,9 +98,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     setDeleteError(null);
     setIsDeleting(false);
     window.setTimeout(() => {
-      const target = document.getElementById(`trip-note-delete-${noteId}`);
-      if (target) target.focus();
-      else newNoteButtonRef.current?.focus();
+      (document.getElementById(`trip-note-delete-${noteId}`) ?? newNoteButtonRef.current)?.focus();
     }, 0);
   }
 
@@ -117,7 +107,6 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     const noteId = deleteTargetNoteId;
     setIsDeleting(true);
     setDeleteError(null);
-
     try {
       await deleteTripNote(noteId);
       setDeleteTargetNoteId(null);
@@ -127,7 +116,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
         focusReturnNoteIdRef.current = focusTargetId;
         setExpanded(null);
       }
-      announceDeleted();
+      announce("Note deleted");
     } catch {
       setDeleteError("Couldn't delete note. Try again.");
     } finally {
@@ -137,27 +126,21 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
 
   async function handleToggle(noteId: string): Promise<void> {
     if (isDraftOpen) {
-      const result = await commitCurrentEditor();
-      if (result === "failed") return;
+      if ((await commitCurrentEditor()) === "failed") return;
       setIsDraftOpen(false);
       setExpanded(noteId);
       return;
     }
 
     const currentExpanded = expandedNoteIdRef.current;
-
     if (currentExpanded === noteId) {
-      const result = await commitCurrentEditor();
-      if (result === "failed" || expandedNoteIdRef.current !== noteId) return;
+      if ((await commitCurrentEditor()) === "failed" || expandedNoteIdRef.current !== noteId) return;
       focusReturnNoteIdRef.current = noteId;
       setExpanded(null);
       return;
     }
 
-    if (currentExpanded) {
-      const result = await commitCurrentEditor();
-      if (result === "failed") return;
-    }
+    if (currentExpanded && (await commitCurrentEditor()) === "failed") return;
 
     if (expandedNoteIdRef.current !== noteId) {
       setExpanded(noteId);
@@ -230,34 +213,36 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
       <ol className="flex flex-col gap-1">
         {isDraftOpen && (
           <li>
-            <TripNotesEditor ref={editorRef} tripId={tripId} onClose={closeDraft} onSaved={announceSaved} />
+            <TripNotesEditor
+              ref={editorRef}
+              tripId={tripId}
+              onClose={closeDraft}
+              onSaved={() => announce("Note saved")}
+            />
           </li>
         )}
-        {notes.map((note) => (
-          <TripNotesRow
-            key={note.id}
-            note={note}
-            isExpanded={expandedNoteId === note.id}
-            onToggle={handleToggle}
-            onDeleteRequest={handleDeleteRequest}
-            editor={
-              expandedNoteId === note.id ? (
-                <TripNotesEditor
-                  ref={editorRef}
-                  tripId={tripId}
-                  mode="edit"
-                  noteId={note.id}
-                  initialTitle={note.title}
-                  initialBody={note.body}
-                  onClose={() => undefined}
-                  onSaved={() => {
-                    if (expandedNoteIdRef.current === note.id) announceSaved();
-                  }}
-                />
-              ) : undefined
-            }
-          />
-        ))}
+        <TripNotesSortable
+          tripId={tripId}
+          notes={notes}
+          expandedNoteId={expandedNoteId}
+          onToggle={handleToggle}
+          onDeleteRequest={handleDeleteRequest}
+          onAnnounce={announce}
+          renderEditor={(note) => (
+            <TripNotesEditor
+              ref={editorRef}
+              tripId={tripId}
+              mode="edit"
+              noteId={note.id}
+              initialTitle={note.title}
+              initialBody={note.body}
+              onClose={() => undefined}
+              onSaved={() => {
+                if (expandedNoteIdRef.current === note.id) announce("Note saved");
+              }}
+            />
+          )}
+        />
       </ol>
     </div>
   );
