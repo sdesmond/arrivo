@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripNotesRow } from "./trip-notes-row";
 import type { TripNote } from "@/data/types";
@@ -117,7 +117,7 @@ describe("TripNotesRow", () => {
     expect(onToggle).toHaveBeenCalledWith("note-1");
   });
 
-  it("applies the 44px target floor and omits future reorder controls", () => {
+  it("applies the 44px target floor and omits a reorder handle when none is provided", () => {
     renderRow(buildNote({ title: "Pack sunscreen" }));
     const trigger = screen.getByRole("button", { name: /^Pack sunscreen/ });
     const deleteButton = screen.getByRole("button", { name: "Delete Pack sunscreen" });
@@ -127,6 +127,51 @@ describe("TripNotesRow", () => {
     expect(deleteButton.style.minHeight).toBe("44px");
     expect(deleteButton.style.minWidth).toBe("44px");
     expect(screen.queryByRole("button", { name: /reorder/i })).not.toBeInTheDocument();
+  });
+
+  it("renders a provided drag handle as a sibling of disclosure and Trash, not nested inside either", () => {
+    const onToggle = vi.fn();
+    const onDeleteRequest = vi.fn();
+    render(
+      <TripNotesRow
+        note={buildNote({ title: "Pack sunscreen" })}
+        isExpanded={false}
+        onToggle={onToggle}
+        onDeleteRequest={onDeleteRequest}
+        editor={<div>Full editor</div>}
+        dragHandle={<span role="button" aria-label="Reorder Pack sunscreen, position 1 of 2" tabIndex={0} />}
+      />
+    );
+
+    const handle = screen.getByRole("button", { name: "Reorder Pack sunscreen, position 1 of 2" });
+    const trigger = screen.getByRole("button", { name: /^Pack sunscreen/ });
+    const deleteButton = screen.getByRole("button", { name: "Delete Pack sunscreen" });
+    expect(handle).toBeInTheDocument();
+    expect(trigger).not.toContainElement(handle);
+    expect(deleteButton).not.toContainElement(handle);
+
+    fireEvent.click(handle);
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(onDeleteRequest).not.toHaveBeenCalled();
+  });
+
+  it("applies a supplied rootRef and rootStyle to the list item for sortable positioning", () => {
+    const rootRef = { current: null } as { current: HTMLLIElement | null };
+    render(
+      <TripNotesRow
+        note={buildNote({ title: "Pack sunscreen" })}
+        isExpanded={false}
+        onToggle={vi.fn()}
+        onDeleteRequest={vi.fn()}
+        editor={<div>Full editor</div>}
+        rootRef={rootRef}
+        rootStyle={{ opacity: 0 }}
+      />
+    );
+
+    const row = screen.getByRole("listitem");
+    expect(rootRef.current).toBe(row);
+    expect(row).toHaveStyle({ opacity: "0" });
   });
 
   it("renders a Trash action in both states without toggling the disclosure", async () => {
