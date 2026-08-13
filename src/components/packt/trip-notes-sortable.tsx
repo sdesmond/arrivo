@@ -24,11 +24,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import type { TripNote } from "@/data/types";
 import { reorderTripNotes } from "@/app/(app)/trips/[tripId]/actions";
-import { getNoteTitle } from "@/lib/note-preview";
+import { getNoteTitle, getNotePreviewLine } from "@/lib/note-preview";
 import { TripNotesRow } from "./trip-notes-row";
 
 export interface TripNotesSortableProps {
@@ -83,9 +83,11 @@ interface SortableTripNoteRowProps {
   total: number;
   isExpanded: boolean;
   isDisabled: boolean;
+  isDragInert: boolean;
   onToggle: (noteId: string) => void | Promise<void>;
   onDeleteRequest: (noteId: string) => void;
   onHandleKeyDown: (event: ReactKeyboardEvent, note: TripNote) => void;
+  onHandleBlur: (noteId: string) => void;
   editor?: ReactNode;
 }
 
@@ -95,9 +97,11 @@ function SortableTripNoteRow({
   total,
   isExpanded,
   isDisabled,
+  isDragInert,
   onToggle,
   onDeleteRequest,
   onHandleKeyDown,
+  onHandleBlur,
   editor,
 }: SortableTripNoteRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -133,6 +137,7 @@ function SortableTripNoteRow({
         listeners?.onKeyDown?.(event);
         onHandleKeyDown(event, note);
       }}
+      onBlur={() => onHandleBlur(note.id)}
     >
       <GripVertical size={16} strokeWidth={1.5} />
     </span>
@@ -142,6 +147,7 @@ function SortableTripNoteRow({
     <TripNotesRow
       note={note}
       isExpanded={isExpanded}
+      isDragInert={isDragInert}
       onToggle={onToggle}
       onDeleteRequest={onDeleteRequest}
       editor={editor}
@@ -168,6 +174,7 @@ export function TripNotesSortable({
   const [localOrder, setLocalOrder] = useState<TripNote[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
+  const [isKeyboardDrag, setIsKeyboardDrag] = useState(false);
   const isKeyboardDragRef = useRef(false);
   const preDragOrderRef = useRef<TripNote[]>(notes);
   const focusHandleIdRef = useRef<string | null>(null);
@@ -177,12 +184,22 @@ export function TripNotesSortable({
   // alongside every `setLocalOrder` call, so those handlers always read the true current value
   // regardless of whether React has re-rendered (and dnd-kit's effect has resynced) yet.
   const localOrderRef = useRef<TripNote[] | null>(null);
+  // Freshest `notes` prop for event handlers (which may run against a stale render closure).
+  const notesRef = useRef<TripNote[]>(notes);
 
-  // Once the persisted `notes` prop catches up with an optimistic `localOrder`, fall back to
-  // `notes` as the render source — deriving this at render time (rather than clearing
-  // `localOrder` from an effect) avoids the extra cascading render an effect-driven reset would
-  // cause; `localOrder` itself is only ever reassigned by the drag handlers.
-  const workingNotes = localOrder && !sameNoteOrder(localOrder, notes) ? localOrder : notes;
+  // `localOrder` is authoritative only while a drag or persistence round-trip is in flight. Once
+  // the parent delivers a refreshed `notes` prop after a settled drag — equal or divergent — that
+  // is server truth and the optimistic order must not shadow it (a new Note created at top, or a
+  // concurrent delete, has to render immediately). While a drag/persist is still active, a
+  // concurrent refresh must not disturb the in-flight candidate order.
+  useEffect(() => {
+    notesRef.current = notes;
+    if (!localOrder || activeId !== null || isPersisting) return;
+    if (notes === preDragOrderRef.current) return;
+    setLocalOrder(null);
+  }, [notes, localOrder, activeId, isPersisting]);
+
+  const workingNotes = localOrder ?? notes;
 
   function setWorkingOrder(order: TripNote[] | null): void {
     localOrderRef.current = order;
@@ -191,7 +208,7 @@ export function TripNotesSortable({
 
   function getWorkingNotes(): TripNote[] {
     const order = localOrderRef.current;
-    return order && !sameNoteOrder(order, notes) ? order : notes;
+    return order ?? notes;
   }
 
   useEffect(() => {
@@ -211,9 +228,15 @@ export function TripNotesSortable({
   }
 
   function handleDragStart({ active, activatorEvent }: DragStartEvent): void {
+    // A drag always starts from the freshly persisted order: clear any optimistic order left
+    // over from a previous drag (it may be stale against a newer `notes` prop) so the working
+    // baseline and the drag payload can never be built from an outdated set.
+    setWorkingOrder(null);
     preDragOrderRef.current = notes;
     setActiveId(String(active.id));
-    isKeyboardDragRef.current = activatorEvent instanceof KeyboardEvent;
+    const keyboardDrag = activatorEvent instanceof KeyboardEvent;
+    isKeyboardDragRef.current = keyboardDrag;
+    setIsKeyboardDrag(keyboardDrag);
 
     if (isKeyboardDragRef.current) {
       const note = notes.find((entry) => entry.id === active.id);
@@ -250,6 +273,7 @@ export function TripNotesSortable({
     setWorkingOrder(null);
     setActiveId(null);
     isKeyboardDragRef.current = false;
+    setIsKeyboardDrag(false);
 
     if (wasKeyboard && originalIndex !== -1) {
       const note = persistedOrder[originalIndex];
@@ -262,6 +286,7 @@ export function TripNotesSortable({
 
   async function handleDragEnd({ active }: DragEndEvent): Promise<void> {
     isKeyboardDragRef.current = false;
+    setIsKeyboardDrag(false);
     setActiveId(null);
 
     const activeIdString = String(active.id);
@@ -279,17 +304,30 @@ export function TripNotesSortable({
     try {
       await reorderTripNotes({ tripId, orderedNoteIds: finalOrder.map((note) => note.id) });
       const newIndex = finalOrder.findIndex((note) => note.id === activeIdString);
-      const note = finalOrder[newIndex];
-      onAnnounce(`Reordered. ${getNoteTitle(note)} now at position ${newIndex + 1} of ${finalOrder.length}`);
+      if (newIndex !== -1) {
+        const note = finalOrder[newIndex];
+        onAnnounce(`Reordered. ${getNoteTitle(note)} now at position ${newIndex + 1} of ${finalOrder.length}`);
+      }
       focusHandleIdRef.current = activeIdString;
+      // Focus the dragged handle immediately rather than waiting for the effect, which only
+      // re-runs when `workingNotes` changes identity (i.e. after the parent's refetch).
+      document.getElementById(reorderHandleId(activeIdString))?.focus();
     } catch {
       setWorkingOrder(null);
       toast.error(REORDER_ERROR_MESSAGE);
-      const restoredIndex = persistedOrder.findIndex((note) => note.id === activeIdString);
-      const note = persistedOrder[restoredIndex];
-      onAnnounce(
-        `${REORDER_ERROR_MESSAGE} ${getNoteTitle(note)} restored to position ${restoredIndex + 1} of ${persistedOrder.length}`
-      );
+      // Announce from whatever order is (or is about to be) rendered — `notesRef` is the
+      // freshest reference including any concurrent refresh during the failed flight, so the
+      // restored position matches the DOM instead of a stale pre-drag snapshot.
+      const currentNotes = notesRef.current;
+      const restoredIndex = currentNotes.findIndex((note) => note.id === activeIdString);
+      if (restoredIndex !== -1) {
+        const note = currentNotes[restoredIndex];
+        onAnnounce(
+          `${REORDER_ERROR_MESSAGE} ${getNoteTitle(note)} restored to position ${restoredIndex + 1} of ${currentNotes.length}`
+        );
+      } else {
+        onAnnounce(REORDER_ERROR_MESSAGE);
+      }
       focusHandleIdRef.current = activeIdString;
     } finally {
       setIsPersisting(false);
@@ -298,7 +336,11 @@ export function TripNotesSortable({
 
   function handleHandleKeyDown(event: ReactKeyboardEvent, note: TripNote): void {
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-    if (activeId !== note.id) return;
+    // Key auto-repeat would otherwise flood the live region with identical boundary messages.
+    if (event.repeat) return;
+    // Boundary messaging is a keyboard-drag concern only; a pointer drag that happens to have
+    // an arrow key pressed must not announce anything.
+    if (!isKeyboardDragRef.current || activeId !== note.id) return;
 
     const base = getWorkingNotes();
     const index = base.findIndex((entry) => entry.id === note.id);
@@ -309,6 +351,15 @@ export function TripNotesSortable({
     if ((event.key === "ArrowUp" && atTop) || (event.key === "ArrowDown" && atBottom)) {
       onAnnounce(`${getNoteTitle(note)} is already at position ${index + 1} of ${base.length}`);
     }
+  }
+
+  function handleHandleBlur(noteId: string): void {
+    if (activeId !== noteId || !isKeyboardDragRef.current) return;
+    // dnd-kit's KeyboardSensor binds its move/drop/cancel listeners to the whole document for
+    // the duration of a keyboard drag, so Tab away (or any focus change) would leave arrows,
+    // Enter/Space, and Escape hijacking whatever field now has focus. Cancel the drag through
+    // the same Escape path dnd-kit itself uses when the user presses Escape.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
   }
 
   const activeNote = activeId ? workingNotes.find((note) => note.id === activeId) : undefined;
@@ -332,16 +383,63 @@ export function TripNotesSortable({
             total={workingNotes.length}
             isExpanded={expandedNoteId === note.id}
             isDisabled={isPersisting}
+            isDragInert={activeId !== null && !isKeyboardDrag}
             onToggle={onToggle}
             onDeleteRequest={onDeleteRequest}
             onHandleKeyDown={handleHandleKeyDown}
+            onHandleBlur={handleHandleBlur}
             editor={expandedNoteId === note.id ? renderEditor(note) : undefined}
           />
         ))}
       </SortableContext>
       <DragOverlay dropAnimation={null}>
         {activeNote ? (
-          <TripNotesRow note={activeNote} isExpanded={false} onToggle={() => {}} onDeleteRequest={() => {}} />
+          <div
+            aria-hidden
+            className="flex items-start gap-3 rounded-xl px-3 py-2.5"
+            style={{
+              width: "min(100vw - 2rem, 46rem)",
+              border: "1px solid var(--line)",
+              background: "var(--bg)",
+              color: "var(--fg)",
+              pointerEvents: "none",
+            }}
+          >
+            <span
+              className="flex shrink-0 items-center justify-center rounded-2xl"
+              style={{ minHeight: 44, minWidth: 44, color: "var(--fg-3)", touchAction: "none" }}
+            >
+              <GripVertical size={16} strokeWidth={1.5} />
+            </span>
+            <span
+              aria-hidden
+              className="flex shrink-0 items-center justify-center"
+              style={{
+                width: 22,
+                height: 22,
+                marginTop: 11,
+                borderRadius: "50%",
+                background: "var(--surface-2)",
+                color: "var(--fg-3)",
+              }}
+            >
+              <StickyNote size={12} strokeWidth={1.5} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div
+                className="line-clamp-1"
+                style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg)", overflowWrap: "anywhere" }}
+              >
+                {getNoteTitle(activeNote)}
+              </div>
+              <div
+                className="line-clamp-1"
+                style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-2)", overflowWrap: "anywhere" }}
+              >
+                {getNotePreviewLine(activeNote)}
+              </div>
+            </div>
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>

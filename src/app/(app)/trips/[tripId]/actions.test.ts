@@ -616,6 +616,7 @@ describe("reorderTripNotes", () => {
     );
 
     expect(updates).toEqual([]);
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
   it("rejects a payload containing a foreign note id before applying any writes", async () => {

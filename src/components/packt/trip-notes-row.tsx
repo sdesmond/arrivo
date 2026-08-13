@@ -15,6 +15,9 @@ export interface TripNotesRowProps {
   dragHandle?: ReactNode;
   rootRef?: Ref<HTMLLIElement>;
   rootStyle?: CSSProperties;
+  /** While a (non-keyboard) drag is active the row is visually hidden under the overlay; make
+   *  it inert so its controls cannot be reached or activated at opacity 0. */
+  isDragInert?: boolean;
 }
 
 export function TripNotesRow({
@@ -26,6 +29,7 @@ export function TripNotesRow({
   dragHandle,
   rootRef,
   rootStyle,
+  isDragInert = false,
 }: TripNotesRowProps) {
   const title = getNoteTitle(note);
   const previewLine = getNotePreviewLine(note);
@@ -36,6 +40,7 @@ export function TripNotesRow({
   return (
     <li
       ref={rootRef}
+      inert={isDragInert}
       className="flex items-start gap-3 rounded-xl px-3 py-2.5"
       style={{
         border: "1px solid var(--line)",

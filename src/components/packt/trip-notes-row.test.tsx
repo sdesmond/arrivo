@@ -174,6 +174,22 @@ describe("TripNotesRow", () => {
     expect(row).toHaveStyle({ opacity: "0" });
   });
 
+  it("marks the list item inert while a pointer drag hides it under the overlay", () => {
+    const { rerender } = renderRow(buildNote({ title: "Pack sunscreen" }), false, vi.fn(), vi.fn());
+    expect(screen.getByRole("listitem").hasAttribute("inert")).toBe(false);
+
+    rerender(
+      <TripNotesRow
+        note={buildNote({ title: "Pack sunscreen" })}
+        isExpanded={false}
+        onToggle={vi.fn()}
+        onDeleteRequest={vi.fn()}
+        isDragInert
+      />
+    );
+    expect(screen.getByRole("listitem").hasAttribute("inert")).toBe(true);
+  });
+
   it("renders a Trash action in both states without toggling the disclosure", async () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();

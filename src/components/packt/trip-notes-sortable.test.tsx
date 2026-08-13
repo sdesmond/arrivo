@@ -146,6 +146,8 @@ describe("TripNotesSortable", () => {
     // Pointer drags stay silent on lift/every-candidate-position — only the confirmed outcome is announced.
     expect(onAnnounce).not.toHaveBeenCalledWith(expect.stringContaining("Reordering"));
     expect(onAnnounce).toHaveBeenCalledWith("Reordered. First note now at position 2 of 3");
+    // Focus returns to the dragged handle in its new position immediately after the save.
+    expect(screen.getByRole("button", { name: "Reorder First note, position 2 of 3" })).toHaveFocus();
   });
 
   it("announces lift instructions and every candidate position during a keyboard drag", () => {
@@ -283,6 +285,8 @@ describe("TripNotesSortable", () => {
     expect(onAnnounce).toHaveBeenCalledWith(
       "Couldn't reorder notes. Try again. First note restored to position 1 of 3"
     );
+    // Failure focus returns to the same handle at its restored position.
+    expect(screen.getByRole("button", { name: "Reorder First note, position 1 of 3" })).toHaveFocus();
   });
 
   it("treats a drop with no preview change as a no-op", async () => {
@@ -344,6 +348,121 @@ describe("TripNotesSortable", () => {
       resolvePersist();
       await dragEndPromise;
     });
+  });
+
+  it("renders a refreshed notes prop that diverges after a confirmed reorder instead of the stale optimistic order", async () => {
+    const { props, rerender } = renderSortable();
+
+    act(() => {
+      getDndProps<{ onDragStart?: (event: unknown) => void }>().onDragStart?.({
+        active: { id: "note-1" },
+        activatorEvent: new MouseEvent("mousedown"),
+      });
+    });
+    act(() => {
+      getDndProps<{ onDragOver?: (event: unknown) => void }>().onDragOver?.({
+        active: { id: "note-1" },
+        over: { id: "note-2" },
+      });
+    });
+    await act(async () => {
+      await getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>().onDragEnd?.({
+        active: { id: "note-1" },
+        over: { id: "note-2" },
+      });
+    });
+
+    rerender(
+      <TripNotesSortable
+        {...props}
+        notes={[
+          buildNote({ id: "note-4", title: "Brand new note" }),
+          buildNote({ id: "note-2", title: "Second note" }),
+          buildNote({ id: "note-1", title: "First note" }),
+        ]}
+      />
+    );
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent("Brand new note");
+    expect(items[1]).toHaveTextContent("Second note");
+    expect(items[2]).toHaveTextContent("First note");
+  });
+
+  it("does not announce boundary attempts during a pointer drag or on key auto-repeat", () => {
+    const onAnnounce = vi.fn();
+    renderSortable({ onAnnounce });
+
+    act(() => {
+      getDndProps<{ onDragStart?: (event: unknown) => void }>().onDragStart?.({
+        active: { id: "note-1" },
+        activatorEvent: new MouseEvent("mousedown"),
+      });
+    });
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder First note, position 1 of 3" }), {
+      key: "ArrowUp",
+    });
+    expect(onAnnounce).not.toHaveBeenCalledWith(expect.stringContaining("already at position"));
+
+    onAnnounce.mockClear();
+    act(() => {
+      getDndProps<{ onDragCancel?: (event: unknown) => void }>().onDragCancel?.({ active: { id: "note-1" } });
+    });
+    act(() => {
+      getDndProps<{ onDragStart?: (event: unknown) => void }>().onDragStart?.({
+        active: { id: "note-1" },
+        activatorEvent: new KeyboardEvent("keydown", { code: "Space" }),
+      });
+    });
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder First note, position 1 of 3" }), {
+      key: "ArrowUp",
+      repeat: true,
+    });
+    expect(onAnnounce).not.toHaveBeenCalledWith(expect.stringContaining("already at position"));
+  });
+
+  it("cancels a keyboard drag by dispatching Escape when focus leaves the handle", () => {
+    const dispatchEventSpy = vi.spyOn(document, "dispatchEvent");
+    renderSortable();
+
+    act(() => {
+      getDndProps<{ onDragStart?: (event: unknown) => void }>().onDragStart?.({
+        active: { id: "note-1" },
+        activatorEvent: new KeyboardEvent("keydown", { code: "Space" }),
+      });
+    });
+
+    fireEvent.blur(screen.getByRole("button", { name: "Reorder First note, position 1 of 3" }));
+
+    const escapeDispatched = dispatchEventSpy.mock.calls.some(([event]) => (event as KeyboardEvent).key === "Escape");
+    expect(escapeDispatched).toBe(true);
+    dispatchEventSpy.mockRestore();
+  });
+
+  it("leaves pointer-dragged rows inert but keeps keyboard-drag rows focusable", () => {
+    renderSortable();
+
+    act(() => {
+      getDndProps<{ onDragStart?: (event: unknown) => void }>().onDragStart?.({
+        active: { id: "note-1" },
+        activatorEvent: new MouseEvent("mousedown"),
+      });
+    });
+    expect(screen.getAllByRole("listitem")[0].hasAttribute("inert")).toBe(true);
+
+    act(() => {
+      getDndProps<{ onDragCancel?: (event: unknown) => void }>().onDragCancel?.({ active: { id: "note-1" } });
+    });
+    act(() => {
+      getDndProps<{ onDragStart?: (event: unknown) => void }>().onDragStart?.({
+        active: { id: "note-1" },
+        activatorEvent: new KeyboardEvent("keydown", { code: "Space" }),
+      });
+    });
+    expect(screen.getAllByRole("listitem")[0].hasAttribute("inert")).toBe(false);
   });
 
   it("wires a coordinateGetter that blocks Left/Right and delegates Up/Down to sortableKeyboardCoordinates", async () => {
