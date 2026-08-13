@@ -4,7 +4,7 @@ baseline_commit: eb68465328e0b2087b6748825cb520b44e572f05
 
 # Story 1.3: Delete a Note
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -45,6 +45,20 @@ From `_bmad-output/planning-artifacts/epics.md` (Story 1.3) — implement verbat
 - [x] E2E: extend `tests/e2e/features/trip-notes.feature` + `tests/e2e/steps/trip-notes.steps.ts` (AC-1, AC-2, AC-3)
 - [x] Unit tests: colocated updates for every new/changed file (see Testing Requirements)
 
+### Review Findings
+
+- [x] [Review][Decision] Trash action renders on collapsed rows, contradicting the story's explicit expanded-only spine directive — RESOLVED 2026-08-12: approved as an intentional deviation. Trash stays visible on both collapsed and expanded rows (mockup placement wins over the EXPERIENCE.md expanded-only default). Dev Notes and EXPERIENCE.md updated below to stop contradicting the shipped code; the row/E2E tests that already assert always-visible placement are correct and do not need reverting.
+- [x] [Review][Patch] `handleDeleteConfirm` unconditionally collapses/refocuses regardless of which note was deleted [src/components/packt/trip-notes-tab.tsx:101-120] — `setExpanded(null)` and `focusReturnNoteIdRef` are set from the deleted note's own index even when a *different* note is currently expanded. Deleting an unrelated note force-collapses/unmounts whatever editor is open (discarding in-flight edits), misdirects focus, and can suppress a legitimate "Note saved" announcement for the still-expanded note (guard at line 237-239 compares against `expandedNoteIdRef.current`, which this bug just nulled). Fix: only collapse/redirect focus when `noteId === expandedNoteIdRef.current`. Worth fixing regardless of the Trash-placement decision above, since it's a correct guard either way.
+- [x] [Review][Patch] Delete-confirmation warning text isn't wired for screen readers [src/components/packt/trip-notes-delete-dialog.tsx:52,57-59] — "This note will be permanently removed. This cannot be undone." is a plain `<p>` instead of the app's `DialogDescription` primitive (`src/components/ui/dialog.tsx`), so it's never associated via `aria-describedby`. The manual `aria-describedby` on `DialogContent` only ever points at the error message, never the warning. Screen reader users opening the dialog never hear the irreversibility warning central to UX-DR8's accessible-confirmation contract.
+- [x] [Review][Patch] No guard for the delete target vanishing while the confirm dialog is open [src/components/packt/trip-notes-tab.tsx:49-53] — an identical reconciliation effect exists for `expandedNoteId` but wasn't mirrored for `deleteTargetNoteId`. If the targeted note disappears from `notes` (e.g., concurrent delete by another collaborator), the dialog lingers with a generic "note" label and confirming re-invokes delete on a gone row.
+- [x] [Review][Patch] Cancel/Esc focus restoration silently no-ops if the Trash button has left the DOM [src/components/packt/trip-notes-tab.tsx:92-98] — `document.getElementById('trip-note-delete-${noteId}')?.focus()` drops focus to `<body>` with no fallback when the element is gone (e.g., concurrent deletion), violating AC-2's "focus returns to the invoking Trash action."
+- [x] [Review][Patch] Missing test for deleting the last note in a multi-note list [src/components/packt/trip-notes-tab.test.tsx] — the only scenario that exercises the `notes[deletedIndex - 1]` previous-disclosure fallback required by AC-3 / the story's own Testing Requirements is untested; only "next sibling exists" and "only note" are covered.
+- [x] [Review][Patch] E2E step doesn't verify focus lands on the specific *next* note [tests/e2e/steps/trip-notes.steps.ts:1284-1290] — `the note titled {string} is absent and the next available disclosure is focused` only asserts *some* `button[id^="trip-note-disclosure-"]` is focused, not that it belongs to the specific expected note, so it would pass even if focus landed on the wrong note.
+- [x] [Review][Patch] E2E step's row locator substring-matches note titles [tests/e2e/steps/trip-notes.steps.ts:56] — `.filter({ hasText: title })` would match multiple rows if one note's title is a substring of another's (e.g., "Pack" vs "Packing List"), throwing under Playwright strict mode. Scope by exact button name instead.
+- [x] [Review][Patch] Dead `onRetry` prop on the delete dialog [src/components/packt/trip-notes-delete-dialog.tsx:15,77] — declared and documented but never passed by its only caller; Retry always falls back to `onConfirm`. Remove the unused prop (or wire it up if actually intended) — untested, unreachable branch otherwise.
+- [x] [Review][Defer] No transaction around `deleteTripNote`'s select→access-check→delete sequence [src/app/(app)/trips/[tripId]/actions.ts:572-580] — deferred, pre-existing: identical unguarded pattern already used by `deleteEvent`, `deleteItineraryNote`, and others; the story's own Tasks/Subtasks explicitly called this out as "no transaction needed."
+- [x] [Review][Defer] `setTimeout(..., 0)` focus restoration races the dialog's ~200ms CSS exit transition [src/components/packt/trip-notes-tab.tsx:98, trip-notes-delete-dialog.tsx:38] — deferred, pre-existing: identical timer-based focus pattern is already used around dialogs in `add-doc-dialog.tsx`, `add-reservation-doc-dialog.tsx`, and `new-trip-dialog.tsx`.
+
 ## Dev Notes
 
 ### What already exists (from Stories 1.1 + 1.2) — reuse, don't rebuild
@@ -78,14 +92,14 @@ Body, mirroring `updateTripNote` (548-570) and `deleteNote` (516-524):
 
 `actions.ts` is excluded from coverage, but `actions.test.ts` covers the trip-note actions and must be extended.
 
-### Trash action placement (AC-1, AC-2) — spine over mockup
+### Trash action placement (AC-1, AC-2) — always-visible (approved deviation, 2026-08-12 review)
 
-- The mockup `mockups/key-notes-tab.html` shows a Trash icon button on every row; **EXPERIENCE.md is authoritative and overrides the mockup**: "Delete is available only from Note expanded state" (Interaction Primitives), "Delete control inside Note expanded state" (IA table). FR-5 and every AC precondition "Given an expanded Note".
-- **Render the Trash action only when the note is expanded** (right-aligned sibling of the disclosure button, inside the same `<li>`, after the `min-w-0 flex-1` content div). Collapsed rows keep their full-width disclosure. This also keeps UX-DR6's control group (title, body, Retry, Delete) coherent and avoids a destructive control on every row.
+- **RESOLVED 2026-08-12**: the Trash action renders on both collapsed and expanded rows, matching `mockups/key-notes-tab.html`. This was flagged in code review as a deviation from EXPERIENCE.md's "Delete is available only from Note expanded state" (Interaction Primitives) / "Delete control inside Note expanded state" (IA table) and from AC-1–AC-4's "Given an expanded Note" preconditions — the team accepted the always-visible placement as the intended behavior going forward. `EXPERIENCE.md` has been updated to match; treat future stories' references to "expanded-only" delete as superseded.
+- Right-aligned sibling of the disclosure button, inside the same `<li>`, after the `min-w-0 flex-1` content div, on both collapsed and expanded rows. This keeps UX-DR6's control group (title, body, Retry, Delete) coherent while the row is expanded.
 - Accessible name per the mockup: `aria-label="Delete {title}"` (use `getNoteTitle(note)` so untitled notes label from the implicit title), plus a `title="Delete note"` attribute. `Trash2` from lucide-react, `strokeWidth={1.5}` (AGENTS.md icon rule). `style={{ minHeight: 44, minWidth: 44 }}` (UX-DR12) — never ship a sub-44px target. Muted foreground (`var(--fg-3)`) matching the itinerary Event action treatment.
 - **Never trigger the disclosure** (UX-DR5): the Trash is a separate `<button type="button">` outside the disclosure button; its click handler opens the dialog and must not call `onToggle`.
 - Do NOT add the Reorder handle (`GripVertical`) — that is Story 1.4. Keep the `<ol>`/`<li>` + left-glyph + content flex layout so the handle slots in beside the Trash without restructuring.
-- If the team prefers the always-visible mockup placement, that is a scope question for review — the spine-accurate default is expanded-only.
+- Because Trash is now reachable while a *different* note is expanded, delete orchestration in `trip-notes-tab.tsx` must only collapse/refocus the note that was actually deleted — see the "Tab delete orchestration" review patch below.
 
 ### Editor blur / delete-dialog interaction (UX-DR6) — do not silently commit or discard
 
@@ -321,3 +335,4 @@ Editing `actions.ts` matches `SHARED_GLOBS` → `test:e2e:affected` runs the **f
 | 2026-08-12 | Story created from epics.md Story 1.3; full context analysis against Stories 1.1/1.2 implementation (including review-fix commit `2575f7e`), PRD, UX spine + mockup, deferred-work, and current source. |
 | 2026-08-12 | Implemented confirmed note deletion, editor focus/cleanup safeguards, and unit/E2E coverage; status moved to review. |
 | 2026-08-12 | Follow-up: made delete available in both note states and corrected the expanded disclosure alignment. |
+| 2026-08-12 | Code review: approved always-visible Trash as an intentional deviation (EXPERIENCE.md updated); applied 8 patches (delete-scoped collapse/focus guard, DialogDescription accessibility wiring, vanished-target reconciliation, focus-restore fallback, removed dead `onRetry` prop, added last-note-focus and unrelated-note-collapse regression tests, tightened E2E next-note and row-locator assertions); deferred 2 pre-existing issues (TOCTOU on delete, timer-based focus pattern) to deferred-work.md. Status moved to done. |
