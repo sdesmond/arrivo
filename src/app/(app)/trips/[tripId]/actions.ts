@@ -35,6 +35,7 @@ import type {
   RemoveLastDayResult,
   CreateTripNoteInput,
   UpdateTripNoteInput,
+  ReorderTripNotesInput,
 } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
@@ -577,6 +578,35 @@ export async function deleteTripNote(noteId: string): Promise<void> {
   await assertTripAccess(note.tripId, user.id!, "editor");
   await db.delete(notes).where(eq(notes.id, noteId));
   revalidatePath(`/trips/${note.tripId}`);
+}
+
+export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(input.tripId, user.id!, "editor");
+
+  await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, input.tripId);
+
+    const currentNotes = await tx.select({ id: notes.id }).from(notes).where(eq(notes.tripId, input.tripId));
+    const submittedIds = new Set(input.orderedNoteIds);
+    const isValid =
+      input.orderedNoteIds.length === currentNotes.length &&
+      submittedIds.size === input.orderedNoteIds.length &&
+      currentNotes.every((note) => submittedIds.has(note.id));
+
+    if (!isValid) {
+      throw new Error(CONCURRENT_MODIFICATION_ERROR);
+    }
+
+    for (let index = 0; index < input.orderedNoteIds.length; index++) {
+      await tx
+        .update(notes)
+        .set({ position: index })
+        .where(and(eq(notes.id, input.orderedNoteIds[index]), eq(notes.tripId, input.tripId)));
+    }
+  });
+
+  revalidatePath(`/trips/${input.tripId}`);
 }
 
 export async function createChecklist(dayId: string, insertAtPosition: number): Promise<void> {

@@ -828,6 +828,11 @@ export interface UpdateTripNoteInput {
   body?: string;
 }
 
+export interface ReorderTripNotesInput {
+  tripId: string;
+  orderedNoteIds: string[];
+}
+
 export interface CreateReservationInput {
   type: ReservationType;
   provider: string;
