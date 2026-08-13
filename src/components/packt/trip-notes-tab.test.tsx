@@ -14,6 +14,7 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   createTripNote: vi.fn(),
   deleteTripNote: vi.fn(),
   updateTripNote: vi.fn(),
+  reorderTripNotes: vi.fn(),
 }));
 
 const mockCreateTripNote = vi.mocked(createTripNote);
@@ -59,6 +60,21 @@ describe("TripNotesTab", () => {
     expect(items[0]).toHaveTextContent("First note");
     expect(items[1]).toHaveTextContent("Second note");
     expect(screen.getByRole("button", { name: "New Note" })).toBeInTheDocument();
+  });
+
+  it("delegates row rendering to TripNotesSortable, exposing one reorder handle per note", () => {
+    render(
+      <TripNotesTab
+        tripId="trip-1"
+        notes={[
+          buildNote({ id: "note-1", title: "First note", position: 0 }),
+          buildNote({ id: "note-2", title: "Second note", position: 1 }),
+        ]}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Reorder First note, position 1 of 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reorder Second note, position 2 of 2" })).toBeInTheDocument();
   });
 
   it("bounds the notes layout to the same desktop width as packing lists", () => {

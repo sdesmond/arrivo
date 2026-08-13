@@ -1,3 +1,7 @@
+## Deferred from: code review of 1-4-reorder-notes-manually (2026-08-13)
+
+- `deleteTripNote` bypasses the trip row lock (`src/app/(app)/trips/[tripId]/actions.ts:573-581`), so a delete interleaving the reorder's rewrite loop leaves position gaps (0, 2, 3) that persist until the next successful reorder. Pre-existing: delete has never locked or compacted positions, and this story explicitly scoped reorder as the sole position-normalizing operation.
+
 ## Deferred from: code review of 1-3-delete-a-note (2026-08-12)
 
 - No transaction around `deleteTripNote`'s select→access-check→delete sequence (`src/app/(app)/trips/[tripId]/actions.ts:572-580`) — a narrow TOCTOU window if trip access is revoked between the check and the delete. Pre-existing pattern shared with `deleteEvent`, `deleteItineraryNote`, and others; the story explicitly scoped this story's action to "no transaction needed."

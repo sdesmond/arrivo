@@ -84,6 +84,11 @@ export interface NoteSeed {
   content: string;
 }
 
+export interface TripNoteSeed {
+  title: string;
+  position: number;
+}
+
 export interface ExpenseSeed {
   category: ExpenseCategory;
   amount: number;
@@ -395,6 +400,12 @@ export const E2E_PACKING_REORDER_ITEMS: PackingItemSeed[] = [
   { name: "Item A", isLabel: false, done: false, position: 0 },
   { name: "Item B", isLabel: false, done: false, position: 1 },
   { name: "Item C", isLabel: false, done: false, position: 2 },
+];
+
+export const E2E_TRIP_NOTES_REORDER: TripNoteSeed[] = [
+  { title: "First note", position: 0 },
+  { title: "Second note", position: 1 },
+  { title: "Third note", position: 2 },
 ];
 
 export const E2E_PACKING_STRIKETHROUGH_ITEMS: PackingItemSeed[] = [

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, StickyNote, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode, Ref } from "react";
 import type { TripNote } from "@/data/types";
 import { getNoteTitle, getNotePreviewLine } from "@/lib/note-preview";
 import { cn } from "@/lib/utils";
@@ -12,9 +12,25 @@ export interface TripNotesRowProps {
   onToggle: (noteId: string) => void | Promise<void>;
   onDeleteRequest: (noteId: string) => void;
   editor?: ReactNode;
+  dragHandle?: ReactNode;
+  rootRef?: Ref<HTMLLIElement>;
+  rootStyle?: CSSProperties;
+  /** While a (non-keyboard) drag is active the row is visually hidden under the overlay; make
+   *  it inert so its controls cannot be reached or activated at opacity 0. */
+  isDragInert?: boolean;
 }
 
-export function TripNotesRow({ note, isExpanded, onToggle, onDeleteRequest, editor }: TripNotesRowProps) {
+export function TripNotesRow({
+  note,
+  isExpanded,
+  onToggle,
+  onDeleteRequest,
+  editor,
+  dragHandle,
+  rootRef,
+  rootStyle,
+  isDragInert = false,
+}: TripNotesRowProps) {
   const title = getNoteTitle(note);
   const previewLine = getNotePreviewLine(note);
   const triggerId = `trip-note-disclosure-${note.id}`;
@@ -23,12 +39,16 @@ export function TripNotesRow({ note, isExpanded, onToggle, onDeleteRequest, edit
 
   return (
     <li
+      ref={rootRef}
+      inert={isDragInert}
       className="flex items-start gap-3 rounded-xl px-3 py-2.5"
       style={{
         border: "1px solid var(--line)",
         background: "var(--bg)",
+        ...rootStyle,
       }}
     >
+      {dragHandle}
       <span
         aria-hidden
         className="flex shrink-0 items-center justify-center"

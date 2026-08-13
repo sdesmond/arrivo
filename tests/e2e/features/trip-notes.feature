@@ -141,3 +141,32 @@ Scenario: Expanding a note reveals its full body in place
     Then the Notes tab and New Note controls measure at least 44 by 44 pixels
     When I resize Notes text to 200 percent
     Then the Notes panel has no horizontal scrolling
+
+  Scenario: Dragging a note through its Reorder handle persists the new order after reload
+    Given I have pre-seeded reorder notes for the trip
+    When I open the Notes tab
+    Then the notes list shows, in order, "First note", "Second note", "Third note"
+    When I pointer-drag the note "First note" onto the note "Second note"
+    Then the notes list shows, in order, "Second note", "First note", "Third note"
+    When I reload the Notes tab
+    Then the notes list shows, in order, "Second note", "First note", "Third note"
+
+  Scenario: Keyboard-reordering a note moves it down one position and persists after reload
+    Given I have pre-seeded reorder notes for the trip
+    When I open the Notes tab
+    And I keyboard-move the note "First note" down one position
+    Then the notes list shows, in order, "Second note", "First note", "Third note"
+    When I reload the Notes tab
+    Then the notes list shows, in order, "Second note", "First note", "Third note"
+
+  Scenario: Cancelling a keyboard reorder with Escape leaves the note order unchanged
+    Given I have pre-seeded reorder notes for the trip
+    When I open the Notes tab
+    And I lift the note "First note" for keyboard reordering
+    And I press Escape to cancel the reorder
+    Then the notes list shows, in order, "First note", "Second note", "Third note"
+
+  Scenario: The Reorder handle measures at least 44 by 44 pixels
+    Given I have pre-seeded reorder notes for the trip
+    When I open the Notes tab
+    Then the reorder handle for "First note" measures at least 44 by 44 pixels

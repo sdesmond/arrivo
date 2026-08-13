@@ -119,6 +119,7 @@ import {
   removeLastDay,
   removeTripCover,
   reorderDayItems,
+  reorderTripNotes,
   setTripCoverWithAttribution,
   uploadCoverImage,
   updateTripNote,
@@ -532,6 +533,123 @@ describe("reorderDayItems", () => {
 
     expect(updates).toEqual([]);
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("reorderTripNotes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  function createNoteReorderTransactionMock(currentNotes: Array<{ id: string }>) {
+    const updates: Array<{ position: number; table: unknown }> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn(() => ({
+        from: vi.fn((table: unknown) => {
+          if (table !== notes) {
+            throw new Error("Unexpected table read.");
+          }
+          return { where: vi.fn(async () => currentNotes) };
+        }),
+      })),
+      update: vi.fn((table: unknown) => ({
+        set: ({ position }: { position: number }) => ({
+          where: vi.fn(async () => {
+            updates.push({ position, table });
+          }),
+        }),
+      })),
+    };
+    return { transaction, updates };
+  }
+
+  it("locks the trip, validates editor access, rewrites scoped positions, and revalidates", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([
+      { id: "note-1" },
+      { id: "note-2" },
+      { id: "note-3" },
+    ]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await reorderTripNotes({
+      tripId: "trip-1",
+      orderedNoteIds: ["note-3", "note-1", "note-2"],
+    });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(updates).toEqual([
+      { position: 0, table: notes },
+      { position: 1, table: notes },
+      { position: 2, table: notes },
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("rejects a stale payload missing a current note before applying any writes", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([{ id: "note-1" }, { id: "note-2" }]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: ["note-1"] })).rejects.toThrow(
+      "CONCURRENT_MODIFICATION"
+    );
+
+    expect(updates).toEqual([]);
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a payload with a duplicate note id before applying any writes", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([{ id: "note-1" }, { id: "note-2" }]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: ["note-1", "note-1"] })).rejects.toThrow(
+      "CONCURRENT_MODIFICATION"
+    );
+
+    expect(updates).toEqual([]);
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a payload containing a foreign note id before applying any writes", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([{ id: "note-1" }, { id: "note-2" }]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: ["note-1", "note-foreign"] })).rejects.toThrow(
+      "CONCURRENT_MODIFICATION"
+    );
+
+    expect(updates).toEqual([]);
+  });
+
+  it("propagates access denial before touching the transaction", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("Forbidden"));
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: [] })).rejects.toThrow("Forbidden");
+
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+  });
+
+  it("succeeds as a no-op when both the current and submitted note sets are empty", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await reorderTripNotes({ tripId: "trip-1", orderedNoteIds: [] });
+
+    expect(updates).toEqual([]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });
 
