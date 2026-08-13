@@ -8,15 +8,17 @@ import type {
   PackingTemplate,
   Reservation,
   Trip,
+  TripNote,
   TripPackingList,
 } from "@/data/types";
 import { TripDetailTabBody, type TripDetailTabBodyProps } from "./trip-detail-tab-body";
 
-const { tripBudgetTabSpy, reservationsTabSpy, tripItineraryViewSpy, mapTabSpy } = vi.hoisted(() => ({
+const { tripBudgetTabSpy, reservationsTabSpy, tripItineraryViewSpy, mapTabSpy, tripNotesTabSpy } = vi.hoisted(() => ({
   tripBudgetTabSpy: vi.fn(),
   reservationsTabSpy: vi.fn(),
   tripItineraryViewSpy: vi.fn(),
   mapTabSpy: vi.fn(),
+  tripNotesTabSpy: vi.fn(),
 }));
 
 vi.mock("./trip-itinerary-view", () => ({
@@ -45,6 +47,13 @@ vi.mock("@/components/packt/reservations-tab", () => ({
   ReservationsTab: (props: unknown) => {
     reservationsTabSpy(props);
     return <div>Reservations tab</div>;
+  },
+}));
+
+vi.mock("@/components/packt/trip-notes-tab", () => ({
+  TripNotesTab: (props: unknown) => {
+    tripNotesTabSpy(props);
+    return <div>Notes tab</div>;
   },
 }));
 
@@ -115,6 +124,7 @@ function buildProps(overrides: Partial<TripDetailTabBodyProps> = {}): TripDetail
     packingLists: [] as TripPackingList[],
     reservations,
     expenses,
+    notes: [],
     templates: [] as PackingTemplate[],
     dateFormat: "MM/DD/YYYY",
     onUpdateEvent: vi.fn(),
@@ -240,5 +250,13 @@ describe("TripDetailTabBody", () => {
         reservations,
       })
     );
+  });
+
+  it("renders the Notes tab with the trip id and notes when activeTab is notes", () => {
+    const notes: TripNote[] = [{ id: "note-1", tripId: "trip-1", position: 0, title: "Pack sunscreen" }];
+    render(<TripDetailTabBody {...buildProps({ activeTab: "notes", notes })} />);
+
+    expect(screen.getByText("Notes tab")).toBeInTheDocument();
+    expect(tripNotesTabSpy).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", notes }));
   });
 });

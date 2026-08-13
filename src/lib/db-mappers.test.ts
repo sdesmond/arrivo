@@ -8,6 +8,7 @@ import {
   dbReservationToType,
   dbCollabToType,
   dbNoteToType,
+  dbTripNoteToType,
   dbChecklistToType,
   dbLoyaltyToType,
   dbWishlistToType,
@@ -31,6 +32,7 @@ import type {
   packingTemplateItems,
   users,
   itineraryNotes,
+  notes,
   itineraryChecklists,
   checklistItems,
   userLoyaltyNumbers,
@@ -983,6 +985,64 @@ describe("dbNoteToType", () => {
   it("maps content string exactly", () => {
     const result = dbNoteToType({ ...BASE_NOTE, content: "Gate B22 – boarding at 14:30" });
     expect(result.content).toBe("Gate B22 – boarding at 14:30");
+  });
+});
+
+// ── dbTripNoteToType ──────────────────────────────────────────────────────────
+
+type TripNoteRow = typeof notes.$inferSelect;
+
+const BASE_TRIP_NOTE: TripNoteRow = {
+  id: "trip-note-1",
+  tripId: "trip-1",
+  position: 0,
+  title: "Pack sunscreen",
+  body: "Don't forget the reef-safe kind",
+  createdAt: null,
+  updatedAt: null,
+};
+
+describe("dbTripNoteToType", () => {
+  it("maps core fields correctly", () => {
+    const result = dbTripNoteToType(BASE_TRIP_NOTE);
+    expect(result.id).toBe("trip-note-1");
+    expect(result.tripId).toBe("trip-1");
+    expect(result.position).toBe(0);
+    expect(result.title).toBe("Pack sunscreen");
+    expect(result.body).toBe("Don't forget the reef-safe kind");
+  });
+
+  it("null title becomes undefined", () => {
+    const result = dbTripNoteToType({ ...BASE_TRIP_NOTE, title: null });
+    expect(result.title).toBeUndefined();
+  });
+
+  it("null body becomes undefined", () => {
+    const result = dbTripNoteToType({ ...BASE_TRIP_NOTE, body: null });
+    expect(result.body).toBeUndefined();
+  });
+
+  it("null timestamp fields become undefined", () => {
+    const result = dbTripNoteToType(BASE_TRIP_NOTE);
+    expect(result.createdAt).toBeUndefined();
+    expect(result.updatedAt).toBeUndefined();
+  });
+
+  it("converts createdAt Date to ISO string", () => {
+    const date = new Date("2026-05-14T10:00:00.000Z");
+    const result = dbTripNoteToType({ ...BASE_TRIP_NOTE, createdAt: date });
+    expect(result.createdAt).toBe(date.toISOString());
+  });
+
+  it("converts updatedAt Date to ISO string", () => {
+    const date = new Date("2026-05-14T11:00:00.000Z");
+    const result = dbTripNoteToType({ ...BASE_TRIP_NOTE, updatedAt: date });
+    expect(result.updatedAt).toBe(date.toISOString());
+  });
+
+  it("maps non-zero position", () => {
+    const result = dbTripNoteToType({ ...BASE_TRIP_NOTE, position: 3 });
+    expect(result.position).toBe(3);
   });
 });
 

@@ -8,6 +8,7 @@ const {
   mockDbTransaction,
   mockDbUpdate,
   mockDbExecute,
+  mockDbDelete,
   mockRequireUser,
   mockRevalidatePath,
   mockBlobDel,
@@ -22,6 +23,7 @@ const {
   const mockDbTransaction = vi.fn();
   const mockDbUpdate = vi.fn();
   const mockDbExecute = vi.fn();
+  const mockDbDelete = vi.fn();
   const mockRequireUser = vi.fn();
   const mockRevalidatePath = vi.fn();
   const mockBlobDel = vi.fn();
@@ -35,6 +37,7 @@ const {
     events: {},
     itineraryChecklists: {},
     itineraryNotes: {},
+    notes: {},
     trips: {},
   };
 
@@ -45,6 +48,7 @@ const {
     mockDbTransaction,
     mockDbUpdate,
     mockDbExecute,
+    mockDbDelete,
     mockRequireUser,
     mockRevalidatePath,
     mockBlobDel,
@@ -63,6 +67,7 @@ vi.mock("@/lib/auth-helpers", () => ({
 vi.mock("@/db", () => ({
   db: {
     execute: mockDbExecute,
+    delete: mockDbDelete,
     insert: mockDbInsert,
     select: mockDbSelect,
     transaction: mockDbTransaction,
@@ -109,13 +114,17 @@ import {
   addChecklistFromPackingSource,
   addDay,
   createEvent,
+  deleteTripNote,
+  createTripNote,
   removeLastDay,
   removeTripCover,
   reorderDayItems,
+  reorderTripNotes,
   setTripCoverWithAttribution,
   uploadCoverImage,
+  updateTripNote,
 } from "./actions";
-import { days, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
 
 interface ReorderTransactionFixture {
   currentChecklists?: Array<{ id: string }>;
@@ -230,6 +239,232 @@ describe("createEvent", () => {
   });
 });
 
+describe("createTripNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  function createTripNoteTransactionMock() {
+    const insertedValues: Array<Record<string, unknown>> = [];
+    const shiftedTables: unknown[] = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn((table: unknown) => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          expect(table).toBe(notes);
+          insertedValues.push(values);
+        }),
+      })),
+      update: vi.fn((table: unknown) => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => {
+            shiftedTables.push(table);
+          }),
+        })),
+      })),
+    };
+    return { transaction, insertedValues, shiftedTables };
+  }
+
+  it("asserts editor access before writing", async () => {
+    const { transaction } = createTripNoteTransactionMock();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createTripNote("trip-1", { title: "Pack sunscreen" });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+  });
+
+  it("rejects a fully-blank note without touching the transaction", async () => {
+    await expect(createTripNote("trip-1", { title: "   ", body: "" })).rejects.toThrow("Note is blank");
+
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("locks the trip, shifts existing notes, and inserts the new note at position 0", async () => {
+    const { transaction, insertedValues, shiftedTables } = createTripNoteTransactionMock();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createTripNote("trip-1", { title: "  Pack sunscreen  ", body: "  Reef-safe only  " });
+
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(transaction.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.update.mock.invocationCallOrder[0]
+    );
+    expect(shiftedTables).toEqual([notes]);
+    expect(insertedValues).toEqual([
+      {
+        tripId: "trip-1",
+        position: 0,
+        title: "Pack sunscreen",
+        body: "Reef-safe only",
+      },
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("trims whitespace-only body to undefined while keeping a non-blank title", async () => {
+    const { transaction, insertedValues } = createTripNoteTransactionMock();
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await createTripNote("trip-1", { title: "Pack sunscreen", body: "   " });
+
+    expect(insertedValues).toEqual([
+      {
+        tripId: "trip-1",
+        position: 0,
+        title: "Pack sunscreen",
+        body: undefined,
+      },
+    ]);
+  });
+});
+
+describe("updateTripNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("resolves the trip from the note, asserts editor access, trims content, and revalidates without reordering", async () => {
+    const updatedValues: Array<Record<string, unknown>> = [];
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbUpdate.mockReturnValue({
+      set: vi.fn((values: Record<string, unknown>) => {
+        updatedValues.push(values);
+        return { where: vi.fn(async () => undefined) };
+      }),
+    });
+
+    await updateTripNote("note-1", { title: "  Pack sunscreen  ", body: "  Reef-safe only  " });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbUpdate).toHaveBeenCalledWith(notes);
+    expect(updatedValues).toEqual([
+      {
+        title: "Pack sunscreen",
+        body: "Reef-safe only",
+        updatedAt: expect.any(Date),
+      },
+    ]);
+    expect(updatedValues[0]).not.toHaveProperty("position");
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("persists an explicit clear as null while preserving non-blank content", async () => {
+    const set = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbUpdate.mockReturnValue({ set });
+
+    await updateTripNote("note-1", { title: "  Pack sunscreen  ", body: "   " });
+
+    expect(set).toHaveBeenCalledWith({
+      title: "Pack sunscreen",
+      body: null,
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it("leaves omitted fields untouched instead of clearing them", async () => {
+    const setValues: Array<Record<string, unknown>> = [];
+    const set = vi.fn((values: Record<string, unknown>) => {
+      setValues.push(values);
+      return { where: vi.fn(async () => undefined) };
+    });
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbUpdate.mockReturnValue({ set });
+
+    await updateTripNote("note-1", { title: "Pack sunscreen" });
+
+    expect(set).toHaveBeenCalledWith({
+      title: "Pack sunscreen",
+      updatedAt: expect.any(Date),
+    });
+    expect(setValues[0]).not.toHaveProperty("body");
+  });
+
+  it("propagates denied access without writing", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("denied"));
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+
+    await expect(updateTripNote("note-1", { title: "Pack sunscreen" })).rejects.toThrow("denied");
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a fully blank update after authorization without writing", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+
+    await expect(updateTripNote("note-1", { title: "   ", body: "" })).rejects.toThrow("Note is blank");
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("silently no-ops when the note does not exist", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([]));
+
+    await updateTripNote("missing-note", { title: "Pack sunscreen" });
+
+    expect(mockAssertTripAccess).not.toHaveBeenCalled();
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteTripNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("resolves note trip access, deletes the note, and revalidates", async () => {
+    const where = vi.fn().mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbDelete.mockReturnValue({ where });
+
+    await deleteTripNote("note-1");
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbDelete).toHaveBeenCalledWith(notes);
+    expect(where).toHaveBeenCalledOnce();
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("silently no-ops when the note is missing", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([]));
+
+    await deleteTripNote("missing-note");
+
+    expect(mockAssertTripAccess).not.toHaveBeenCalled();
+    expect(mockDbDelete).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("propagates denied access without deleting", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockAssertTripAccess.mockRejectedValue(new Error("denied"));
+
+    await expect(deleteTripNote("note-1")).rejects.toThrow("denied");
+
+    expect(mockDbDelete).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
 describe("reorderDayItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -298,6 +533,123 @@ describe("reorderDayItems", () => {
 
     expect(updates).toEqual([]);
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("reorderTripNotes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  function createNoteReorderTransactionMock(currentNotes: Array<{ id: string }>) {
+    const updates: Array<{ position: number; table: unknown }> = [];
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn(() => ({
+        from: vi.fn((table: unknown) => {
+          if (table !== notes) {
+            throw new Error("Unexpected table read.");
+          }
+          return { where: vi.fn(async () => currentNotes) };
+        }),
+      })),
+      update: vi.fn((table: unknown) => ({
+        set: ({ position }: { position: number }) => ({
+          where: vi.fn(async () => {
+            updates.push({ position, table });
+          }),
+        }),
+      })),
+    };
+    return { transaction, updates };
+  }
+
+  it("locks the trip, validates editor access, rewrites scoped positions, and revalidates", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([
+      { id: "note-1" },
+      { id: "note-2" },
+      { id: "note-3" },
+    ]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await reorderTripNotes({
+      tripId: "trip-1",
+      orderedNoteIds: ["note-3", "note-1", "note-2"],
+    });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(updates).toEqual([
+      { position: 0, table: notes },
+      { position: 1, table: notes },
+      { position: 2, table: notes },
+    ]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("rejects a stale payload missing a current note before applying any writes", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([{ id: "note-1" }, { id: "note-2" }]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: ["note-1"] })).rejects.toThrow(
+      "CONCURRENT_MODIFICATION"
+    );
+
+    expect(updates).toEqual([]);
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a payload with a duplicate note id before applying any writes", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([{ id: "note-1" }, { id: "note-2" }]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: ["note-1", "note-1"] })).rejects.toThrow(
+      "CONCURRENT_MODIFICATION"
+    );
+
+    expect(updates).toEqual([]);
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a payload containing a foreign note id before applying any writes", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([{ id: "note-1" }, { id: "note-2" }]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: ["note-1", "note-foreign"] })).rejects.toThrow(
+      "CONCURRENT_MODIFICATION"
+    );
+
+    expect(updates).toEqual([]);
+  });
+
+  it("propagates access denial before touching the transaction", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("Forbidden"));
+
+    await expect(reorderTripNotes({ tripId: "trip-1", orderedNoteIds: [] })).rejects.toThrow("Forbidden");
+
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+  });
+
+  it("succeeds as a no-op when both the current and submitted note sets are empty", async () => {
+    const { transaction, updates } = createNoteReorderTransactionMock([]);
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await reorderTripNotes({ tripId: "trip-1", orderedNoteIds: [] });
+
+    expect(updates).toEqual([]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });
 

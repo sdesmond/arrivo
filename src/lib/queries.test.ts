@@ -1,9 +1,10 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockAssertTripAccess, mockDbSelect, schemaTokens } = vi.hoisted(() => ({
+const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, schemaTokens } = vi.hoisted(() => ({
   mockAssertTripAccess: vi.fn(),
   mockDbSelect: vi.fn(),
+  mockDbTripNoteToType: vi.fn((tripNote: { id: string; tripId: string; position: number }) => tripNote),
   schemaTokens: {
     trips: { id: "trips.id", name: "trips.name", startDate: "trips.startDate", endDate: "trips.endDate" },
     days: { tripId: "days.tripId" },
@@ -21,6 +22,7 @@ const { mockAssertTripAccess, mockDbSelect, schemaTokens } = vi.hoisted(() => ({
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
     tripPackingLists: {},
     itineraryNotes: {},
+    notes: { position: "notes.position" },
     itineraryChecklists: {},
     checklistItems: {},
     users: {},
@@ -71,6 +73,7 @@ vi.mock("@/lib/db-mappers", () => ({
   dbReservationToType: vi.fn((reservation: unknown) => reservation),
   dbExpenseToType: vi.fn((expense: { id: string }) => ({ id: expense.id })),
   dbChecklistToType: vi.fn(),
+  dbTripNoteToType: mockDbTripNoteToType,
   dbLoyaltyToType: vi.fn(),
   dbWishlistToType: vi.fn(),
   dbCompanionToType: vi.fn(),
@@ -376,6 +379,14 @@ describe("getTripDetail", () => {
           }),
         }),
       })
+      // notes
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
       .mockReturnValueOnce({
         from: () => ({
           where: async () => [
@@ -426,6 +437,8 @@ describe("getTripDetail", () => {
       .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
       // packing lists
       .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      // notes
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
       // reservations
       .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
       // expenses
@@ -461,6 +474,36 @@ describe("getTripDetail", () => {
     const result = await getTripDetail("trip-1", "user-1");
 
     expect(result?.expenses.map((expense) => expense.id)).toEqual(["expense-event", "expense-unlinked"]);
+  });
+
+  it("maps trip notes into the payload in persisted position order", async () => {
+    const noteRows = [
+      { id: "note-newest", tripId: "trip-1", position: 0 },
+      { id: "note-older", tripId: "trip-1", position: 1 },
+    ];
+    const noteOrderBy = vi.fn().mockResolvedValue(noteRows);
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: noteOrderBy }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(noteOrderBy).toHaveBeenCalledWith("notes.position");
+    expect(mockDbTripNoteToType).toHaveBeenCalledTimes(2);
+    expect(result?.notes.map((note) => note.id)).toEqual(["note-newest", "note-older"]);
   });
 });
 

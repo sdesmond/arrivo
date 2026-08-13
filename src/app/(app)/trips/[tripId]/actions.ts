@@ -7,6 +7,7 @@ import {
   days,
   documents,
   itineraryNotes,
+  notes,
   itineraryChecklists,
   checklistItems,
   trips,
@@ -32,6 +33,9 @@ import type {
   UpdateDayPatch,
   AddDocumentInput,
   RemoveLastDayResult,
+  CreateTripNoteInput,
+  UpdateTripNoteInput,
+  ReorderTripNotesInput,
 } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
@@ -518,6 +522,91 @@ export async function deleteNote(noteId: string): Promise<void> {
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
   revalidatePath(`/trips/${tripId}`);
+}
+
+export async function createTripNote(tripId: string, input: CreateTripNoteInput): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const title = input.title?.trim() || undefined;
+  const body = input.body?.trim() || undefined;
+  if (!title && !body) {
+    throw new Error("Note is blank");
+  }
+
+  await db.transaction(async (transaction) => {
+    await lockTripForUpdate(transaction, tripId);
+    await transaction
+      .update(notes)
+      .set({ position: sql`${notes.position} + 1` })
+      .where(eq(notes.tripId, tripId));
+    await transaction.insert(notes).values({ tripId, position: 0, title, body });
+  });
+
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function updateTripNote(noteId: string, input: UpdateTripNoteInput): Promise<void> {
+  const user = await requireUser();
+  const [note] = await db.select({ tripId: notes.tripId }).from(notes).where(eq(notes.id, noteId));
+  if (!note) return;
+
+  const tripId = note.tripId;
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const title = typeof input.title === "string" ? input.title.trim() || null : undefined;
+  const body = typeof input.body === "string" ? input.body.trim() || null : undefined;
+  if (!title && !body) {
+    throw new Error("Note is blank");
+  }
+
+  const updateValues: { title?: string | null; body?: string | null; updatedAt: Date } = {
+    updatedAt: new Date(),
+  };
+  if (title !== undefined) updateValues.title = title;
+  if (body !== undefined) updateValues.body = body;
+
+  await db.update(notes).set(updateValues).where(eq(notes.id, noteId));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function deleteTripNote(noteId: string): Promise<void> {
+  const user = await requireUser();
+  const [note] = await db.select({ tripId: notes.tripId }).from(notes).where(eq(notes.id, noteId));
+  if (!note) return;
+
+  await assertTripAccess(note.tripId, user.id!, "editor");
+  await db.delete(notes).where(eq(notes.id, noteId));
+  revalidatePath(`/trips/${note.tripId}`);
+}
+
+export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<void> {
+  const user = await requireUser();
+  await assertTripAccess(input.tripId, user.id!, "editor");
+
+  await db.transaction(async (tx) => {
+    await lockTripForUpdate(tx, input.tripId);
+
+    const currentNotes = await tx.select({ id: notes.id }).from(notes).where(eq(notes.tripId, input.tripId));
+    const submittedIds = new Set(input.orderedNoteIds);
+    const isValid =
+      input.orderedNoteIds.length === currentNotes.length &&
+      submittedIds.size === input.orderedNoteIds.length &&
+      currentNotes.every((note) => submittedIds.has(note.id));
+
+    if (!isValid) {
+      throw new Error(CONCURRENT_MODIFICATION_ERROR);
+    }
+
+    for (let index = 0; index < input.orderedNoteIds.length; index++) {
+      await tx
+        .update(notes)
+        .set({ position: index })
+        .where(and(eq(notes.id, input.orderedNoteIds[index]), eq(notes.tripId, input.tripId)));
+    }
+  });
+
+  revalidatePath(`/trips/${input.tripId}`);
 }
 
 export async function createChecklist(dayId: string, insertAtPosition: number): Promise<void> {

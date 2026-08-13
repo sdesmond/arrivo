@@ -110,6 +110,7 @@ function buildDetail(overrides: Partial<TripDetailPayload> = {}): TripDetailPayl
     packingLists: [],
     reservations: [],
     expenses: [],
+    notes: [],
     ...overrides,
   };
 }

@@ -461,6 +461,20 @@ export interface Note {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TRIP NOTE
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TripNote {
+  id: string;
+  tripId: string;
+  position: number;
+  title?: string;
+  body?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DAY ITINERARY
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -663,6 +677,7 @@ export interface TripDetailPayload {
   packingLists: TripPackingList[];
   reservations: Reservation[];
   expenses: Expense[];
+  notes: TripNote[];
 }
 
 export interface NewTripDraft {
@@ -801,6 +816,21 @@ export interface AddDocumentInput {
   kind: string;
   size?: string;
   url?: string;
+}
+
+export interface CreateTripNoteInput {
+  title?: string;
+  body?: string;
+}
+
+export interface UpdateTripNoteInput {
+  title?: string;
+  body?: string;
+}
+
+export interface ReorderTripNotesInput {
+  tripId: string;
+  orderedNoteIds: string[];
 }
 
 export interface CreateReservationInput {
