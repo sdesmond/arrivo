@@ -1,12 +1,37 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { eq } from "drizzle-orm";
+import { notes } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
+import { E2E_TRIP_NOTES_REORDER } from "../e2e-seed-data";
 import { Given, When, Then } from "../fixtures";
 
 function decodeStepValue(value: string): string {
   return value.replace(/\\n/g, "\n");
 }
 
+function reorderHandle(page: Page, name: string) {
+  return page.getByTitle(`Reorder ${name}`, { exact: false });
+}
+
 Given("I have a trip for trip notes", async ({ scenario }) => {
   await scenario.ensureCurrentTrip();
+});
+
+Given("I have pre-seeded reorder notes for the trip", async ({ page, scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  await withE2EDb(async (db) => {
+    await db.delete(notes).where(eq(notes.tripId, currentTrip.id));
+    await db.insert(notes).values(
+      E2E_TRIP_NOTES_REORDER.map((noteSeed) => ({
+        tripId: currentTrip.id,
+        title: noteSeed.title,
+        position: noteSeed.position,
+      }))
+    );
+  });
+  await page.goto(page.url());
+  await page.waitForURL(/\/trips/);
 });
 
 When("I open the Notes tab", async ({ page, scenario }) => {
@@ -188,4 +213,92 @@ Then("the notes list shows, in order, {string}, {string}", async ({ page }, firs
   await expect(rows).toHaveCount(2, { timeout: 10_000 });
   await expect(rows.nth(0)).toContainText(first);
   await expect(rows.nth(1)).toContainText(second);
+});
+
+Then(
+  "the notes list shows, in order, {string}, {string}, {string}",
+  async ({ page }, first: string, second: string, third: string) => {
+    const rows = page.locator("ol li");
+    await expect(rows).toHaveCount(3, { timeout: 10_000 });
+    await expect(rows.nth(0)).toContainText(first);
+    await expect(rows.nth(1)).toContainText(second);
+    await expect(rows.nth(2)).toContainText(third);
+  }
+);
+
+When(
+  "I pointer-drag the note {string} onto the note {string}",
+  async ({ page }, sourceName: string, targetName: string) => {
+    const handle = reorderHandle(page, sourceName);
+    const targetRow = page.locator("ol > li").filter({ hasText: targetName });
+    await expect(handle).toBeVisible({ timeout: 10_000 });
+    await handle.scrollIntoViewIfNeeded();
+
+    async function performDrag(): Promise<void> {
+      const source = await handle.boundingBox();
+      const dest = await targetRow.boundingBox();
+      if (!source || !dest) throw new Error(`Could not measure drag source/target for ${sourceName}`);
+
+      await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+      await page.mouse.down();
+      // PointerSensor needs a move past its 5px activation distance before tracking.
+      await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
+      await page.mouse.move(dest.x + dest.width / 2, dest.y + dest.height / 2, { steps: 12 });
+      await page.waitForTimeout(80);
+      await page.mouse.move(dest.x + dest.width / 2, dest.y + dest.height / 2, { steps: 4 });
+      await page.waitForTimeout(60);
+      await page.mouse.up();
+    }
+
+    await performDrag();
+  }
+);
+
+When("I keyboard-move the note {string} down one position", async ({ page }, name: string) => {
+  const handle = reorderHandle(page, name);
+  await expect(handle).toBeVisible({ timeout: 10_000 });
+  await handle.focus();
+  await expect(handle).toBeFocused();
+
+  await handle.press("Space");
+  await handle.press("ArrowDown");
+
+  // Enter drops the item, firing the reorder server action. Wait for that POST to resolve —
+  // the transaction commits and revalidatePath runs before the response returns — so a later
+  // reload cannot out-race persistence.
+  const reorderResponse = page
+    .waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/trips/"), {
+      timeout: 5_000,
+    })
+    .catch(() => null);
+  await handle.press("Enter");
+  await reorderResponse;
+});
+
+When("I lift the note {string} for keyboard reordering", async ({ page }, name: string) => {
+  const handle = reorderHandle(page, name);
+  await expect(handle).toBeVisible({ timeout: 10_000 });
+  await handle.focus();
+  await expect(handle).toBeFocused();
+  await handle.press("Space");
+});
+
+When("I press Escape to cancel the reorder", async ({ page }) => {
+  await page.keyboard.press("Escape");
+});
+
+When("I reload the Notes tab", async ({ page }) => {
+  await page.reload();
+  await page.waitForURL(/\/trips\/.+/);
+  await page.getByRole("button", { name: "Notes" }).click();
+});
+
+Then("the reorder handle for {string} measures at least 44 by 44 pixels", async ({ page }, name: string) => {
+  const handle = reorderHandle(page, name);
+  await handle.scrollIntoViewIfNeeded();
+  await expect(handle).toBeVisible({ timeout: 10_000 });
+  const bounds = await handle.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.width).toBeGreaterThanOrEqual(44);
+  expect(bounds!.height).toBeGreaterThanOrEqual(44);
 });
