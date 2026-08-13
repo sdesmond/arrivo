@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, StickyNote } from "lucide-react";
+import { ChevronDown, StickyNote, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { TripNote } from "@/data/types";
 import { getNoteTitle, getNotePreviewLine } from "@/lib/note-preview";
@@ -10,10 +10,11 @@ export interface TripNotesRowProps {
   note: TripNote;
   isExpanded: boolean;
   onToggle: (noteId: string) => void | Promise<void>;
+  onDeleteRequest: (noteId: string) => void;
   editor?: ReactNode;
 }
 
-export function TripNotesRow({ note, isExpanded, onToggle, editor }: TripNotesRowProps) {
+export function TripNotesRow({ note, isExpanded, onToggle, onDeleteRequest, editor }: TripNotesRowProps) {
   const title = getNoteTitle(note);
   const previewLine = getNotePreviewLine(note);
   const triggerId = `trip-note-disclosure-${note.id}`;
@@ -49,8 +50,8 @@ export function TripNotesRow({ note, isExpanded, onToggle, editor }: TripNotesRo
           aria-expanded={isExpanded}
           aria-controls={regionId}
           className={cn(
-            "flex items-center gap-2 border-0 bg-transparent p-0 text-left",
-            isExpanded ? "justify-end" : "w-full"
+            "flex w-full items-center gap-2 border-0 bg-transparent p-0 text-left",
+            isExpanded && "justify-end"
           )}
           style={{ minHeight: 44, minWidth: 44, color: "var(--fg)", cursor: "pointer" }}
           onClick={() => void onToggle(note.id)}
@@ -97,6 +98,17 @@ export function TripNotesRow({ note, isExpanded, onToggle, editor }: TripNotesRo
           </div>
         ) : null}
       </div>
+      <button
+        id={`trip-note-delete-${note.id}`}
+        type="button"
+        aria-label={`Delete ${title}`}
+        title="Delete note"
+        className="flex shrink-0 items-center justify-center border-0 bg-transparent"
+        style={{ minHeight: 44, minWidth: 44, color: "var(--fg-3)", cursor: "pointer" }}
+        onClick={() => onDeleteRequest(note.id)}
+      >
+        <Trash2 aria-hidden size={16} strokeWidth={1.5} />
+      </button>
     </li>
   );
 }

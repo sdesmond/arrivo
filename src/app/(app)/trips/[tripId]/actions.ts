@@ -569,6 +569,16 @@ export async function updateTripNote(noteId: string, input: UpdateTripNoteInput)
   revalidatePath(`/trips/${tripId}`);
 }
 
+export async function deleteTripNote(noteId: string): Promise<void> {
+  const user = await requireUser();
+  const [note] = await db.select({ tripId: notes.tripId }).from(notes).where(eq(notes.id, noteId));
+  if (!note) return;
+
+  await assertTripAccess(note.tripId, user.id!, "editor");
+  await db.delete(notes).where(eq(notes.id, noteId));
+  revalidatePath(`/trips/${note.tripId}`);
+}
+
 export async function createChecklist(dayId: string, insertAtPosition: number): Promise<void> {
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);

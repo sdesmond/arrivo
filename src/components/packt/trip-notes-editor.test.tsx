@@ -56,6 +56,30 @@ describe("TripNotesEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("does not commit when focus moves from the editor to a control in its row", () => {
+    mockUpdateTripNote.mockResolvedValue(undefined);
+    render(
+      <li>
+        <TripNotesEditor
+          tripId="trip-1"
+          mode="edit"
+          noteId="note-1"
+          initialTitle="Pack sunscreen"
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />
+        <button type="button">Delete Pack sunscreen</button>
+      </li>
+    );
+    const title = screen.getByLabelText("Note title");
+    const deleteButton = screen.getByRole("button", { name: "Delete Pack sunscreen" });
+    fireEvent.change(title, { target: { value: "Pack hats" } });
+
+    fireEvent.blur(title, { relatedTarget: deleteButton });
+
+    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+  });
+
   it("discards a blank draft on blur without calling the server action", async () => {
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
@@ -168,6 +192,18 @@ describe("TripNotesEditor", () => {
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(onSaved.mock.invocationCallOrder[0]).toBeLessThan(onClose.mock.invocationCallOrder[0]);
+  });
+
+  it("does not create a duplicate note when a successful create unmounts the editor", async () => {
+    mockCreateTripNote.mockResolvedValue(undefined);
+    const editorRef = createRef<TripNotesEditorHandle>();
+    const { unmount } = render(<TripNotesEditor ref={editorRef} tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Pack sunscreen" } });
+
+    await expect(editorRef.current?.commit()).resolves.toBe("saved");
+    unmount();
+
+    expect(mockCreateTripNote).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the editor open with the dirty value and shows an inline error plus Retry on failure", async () => {

@@ -25,7 +25,7 @@ Trip Notes is one trip-wide memory surface before, during, and after a trip. It 
 | Notes tab — empty | Existing `Notes` tab on trip detail, when trip has zero Notes | Packt `Empty` composition with `New Note`; begins first capture without an always-visible capture bar. |
 | Notes tab — populated | Existing `Notes` tab on trip detail, when one or more Notes exist | Upper-right compact outline add action plus newest-first or manually ordered vertical Note list. |
 | Note expanded state | Activating a collapsed Note row | Reveals full body and edit/delete controls in place; no route change, drawer, or dialog. |
-| Delete confirmation | Delete control inside Note expanded state | One lightweight confirmation using existing Delete Note confirmation dialog before permanent removal. |
+| Delete confirmation | Delete control on every Note row, collapsed or expanded (updated 2026-08-12 — see Story 1.3 review) | One lightweight confirmation using existing Delete Note confirmation dialog before permanent removal. |
 
 Collapsed Note row always contains title or implicit first-line title plus a one-line body preview. Title-only Notes repeat title as preview. Only one Note is expanded at a time. Expanding another Note waits for current Note save; only confirmed save collapses current Note and opens next. Manual order persists; new Notes enter at top.
 
@@ -90,7 +90,7 @@ Behavioral rules below pair exactly with `DESIGN.md.Components`.
 - Activating second disclosure requests save; only successful save collapses first and expands second. Failure keeps current editor open.
 - Focus leaving complete editor composite or requested collapse commits nonblank creation/edit. Fully blank creation discards; focus follows initiating destination, or returns to New Note when no target exists.
 - Pointer drag and keyboard reorder through Event-style handle share one persisted-order operation and recovery contract; no Move up/down buttons appear.
-- Delete is available only from Note expanded state and always crosses one Delete Note confirmation dialog.
+- Delete is available from every Note row, collapsed or expanded (updated 2026-08-12 — see Story 1.3 review), and always crosses one Delete Note confirmation dialog.
 - Banned: title-only collapse, explicit Save button, checkbox/task state, Notes search, always-visible capture bar, attachments/files, route change for expansion, dialog-based editing, date-dependent mode switch.
 
 ## Accessibility Floor

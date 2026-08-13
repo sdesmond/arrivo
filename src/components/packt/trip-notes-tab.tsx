@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus, StickyNote } from "lucide-react";
 import type { TripNote } from "@/data/types";
+import { deleteTripNote } from "@/app/(app)/trips/[tripId]/actions";
+import { getNoteTitle } from "@/lib/note-preview";
 import { TripNotesRow } from "./trip-notes-row";
 import { TripNotesEditor, type TripNotesEditorCommitResult, type TripNotesEditorHandle } from "./trip-notes-editor";
+import { TripNotesDeleteDialog } from "./trip-notes-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
@@ -18,6 +21,9 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
+  const [deleteTargetNoteId, setDeleteTargetNoteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const newNoteButtonRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<TripNotesEditorHandle>(null);
   const focusReturnNoteIdRef = useRef<string | null>(null);
@@ -39,6 +45,22 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     document.getElementById(`trip-note-disclosure-${focusReturnNoteIdRef.current}`)?.focus();
     focusReturnNoteIdRef.current = null;
   }, [expandedNoteId]);
+
+  useEffect(() => {
+    if (expandedNoteId && !notes.some((note) => note.id === expandedNoteId)) {
+      setExpanded(null);
+    }
+  }, [notes, expandedNoteId]);
+
+  useEffect(() => {
+    if (deleteTargetNoteId && !notes.some((note) => note.id === deleteTargetNoteId)) {
+      clearDeleteTarget();
+    }
+  }, [notes, deleteTargetNoteId]);
+
+  function clearDeleteTarget(): void {
+    setDeleteTargetNoteId(null);
+  }
 
   function setExpanded(noteId: string | null): void {
     expandedNoteIdRef.current = noteId;
@@ -65,6 +87,52 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   function announceSaved(): void {
     setAnnouncement("Note saved");
     setAnnouncementId((currentId) => currentId + 1);
+  }
+
+  function announceDeleted(): void {
+    setAnnouncement("Note deleted");
+    setAnnouncementId((currentId) => currentId + 1);
+  }
+
+  function handleDeleteRequest(noteId: string): void {
+    setDeleteTargetNoteId(noteId);
+    setDeleteError(null);
+  }
+
+  function handleDeleteOpenChange(open: boolean): void {
+    if (open || !deleteTargetNoteId) return;
+    const noteId = deleteTargetNoteId;
+    setDeleteTargetNoteId(null);
+    setDeleteError(null);
+    setIsDeleting(false);
+    window.setTimeout(() => {
+      const target = document.getElementById(`trip-note-delete-${noteId}`);
+      if (target) target.focus();
+      else newNoteButtonRef.current?.focus();
+    }, 0);
+  }
+
+  async function handleDeleteConfirm(): Promise<void> {
+    if (!deleteTargetNoteId) return;
+    const noteId = deleteTargetNoteId;
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await deleteTripNote(noteId);
+      setDeleteTargetNoteId(null);
+      if (noteId === expandedNoteIdRef.current) {
+        const deletedIndex = notes.findIndex((note) => note.id === noteId);
+        const focusTargetId = notes[deletedIndex + 1]?.id ?? notes[deletedIndex - 1]?.id ?? null;
+        focusReturnNoteIdRef.current = focusTargetId;
+        setExpanded(null);
+      }
+      announceDeleted();
+    } catch {
+      setDeleteError("Couldn't delete note. Try again.");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   async function handleToggle(noteId: string): Promise<void> {
@@ -101,6 +169,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
       <span key={announcementId}>{announcement}</span>
     </div>
   );
+  const deleteTargetNote = notes.find((note) => note.id === deleteTargetNoteId);
 
   if (notes.length === 0 && !isDraftOpen) {
     return (
@@ -135,6 +204,14 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   return (
     <div className="mx-auto w-full max-w-3xl">
       {liveRegion}
+      <TripNotesDeleteDialog
+        open={deleteTargetNoteId !== null}
+        noteLabel={deleteTargetNote ? getNoteTitle(deleteTargetNote) : "note"}
+        isDeleting={isDeleting}
+        error={deleteError}
+        onOpenChange={handleDeleteOpenChange}
+        onConfirm={handleDeleteConfirm}
+      />
       {!isDraftOpen && (
         <div className="flex items-center mb-3">
           <Button
@@ -162,6 +239,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
             note={note}
             isExpanded={expandedNoteId === note.id}
             onToggle={handleToggle}
+            onDeleteRequest={handleDeleteRequest}
             editor={
               expandedNoteId === note.id ? (
                 <TripNotesEditor
@@ -172,7 +250,9 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
                   initialTitle={note.title}
                   initialBody={note.body}
                   onClose={() => undefined}
-                  onSaved={announceSaved}
+                  onSaved={() => {
+                    if (expandedNoteIdRef.current === note.id) announceSaved();
+                  }}
                 />
               ) : undefined
             }

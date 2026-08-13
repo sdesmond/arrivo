@@ -48,6 +48,27 @@ When("I collapse the expanded note", async ({ page }) => {
   await expect(page.locator('[id^="trip-note-region-"][role="region"]')).toHaveCount(0, { timeout: 10_000 });
 });
 
+When("I request deletion of the expanded note titled {string}", async ({ page }, title: string) => {
+  await page.getByRole("button", { name: `Delete ${title}` }).click();
+});
+
+When("I request deletion of the collapsed note titled {string}", async ({ page }, title: string) => {
+  const deleteButton = page.getByRole("button", { name: `Delete ${title}`, exact: true });
+  const row = page.locator("ol > li").filter({ has: deleteButton });
+  await expect(row.locator('button[aria-expanded="false"]')).toBeVisible();
+  await deleteButton.click();
+});
+
+When("I confirm note deletion", async ({ page }) => {
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
+});
+
+When("I cancel note deletion", async ({ page }) => {
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
+});
+
 When("I close the note editor", async ({ page }) => {
   await page.getByRole("button", { name: "Notes" }).click();
   await expect(page.getByLabel("Note title")).toHaveCount(0, { timeout: 10_000 });
@@ -90,6 +111,25 @@ Then("only the note titled {string} is expanded", async ({ page }, title: string
   await expect(row.locator('button[aria-expanded="true"]')).toBeVisible();
   await expect(page.getByLabel("Note title")).toHaveValue(title);
   await expect(page.getByLabel("Note title")).toBeFocused();
+});
+
+Then("the note delete confirmation is visible with Cancel focused", async ({ page }) => {
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+});
+
+Then(
+  "the note titled {string} is absent and the disclosure for {string} is focused",
+  async ({ page }, removedTitle: string, expectedTitle: string) => {
+    await expect(page.locator("ol > li").filter({ hasText: removedTitle })).toHaveCount(0, { timeout: 10_000 });
+    const expectedRow = page.locator("ol > li").filter({ hasText: expectedTitle });
+    await expect(expectedRow.locator('button[id^="trip-note-disclosure-"]')).toBeFocused();
+  }
+);
+
+Then("the expanded note titled {string} remains and its Trash action is focused", async ({ page }, title: string) => {
+  await expect(page.getByRole("button", { name: `Collapse ${title}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Delete ${title}` })).toBeFocused();
 });
 
 Then("the expanded note disclosure measures at least 44 by 44 pixels", async ({ page }) => {
