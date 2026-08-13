@@ -101,7 +101,7 @@ Scenario: Expanding a note reveals its full body in place
     And I request deletion of the expanded note titled "Second note"
     Then the note delete confirmation is visible with Cancel focused
     When I confirm note deletion
-    Then the note titled "Second note" is absent and the next available disclosure is focused
+    Then the note titled "Second note" is absent and the disclosure for "First note" is focused
 
   Scenario: Cancelling note deletion leaves its expanded editor intact
     When I open the Notes tab

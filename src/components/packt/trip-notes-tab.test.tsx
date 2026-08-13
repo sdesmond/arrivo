@@ -355,6 +355,53 @@ describe("TripNotesTab", () => {
     expect(screen.getByText("Note deleted")).toBeInTheDocument();
   });
 
+  it("deletes the last note in a list and focuses the previous disclosure", async () => {
+    mockDeleteTripNote.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(
+      <TripNotesTab
+        tripId="trip-1"
+        notes={[
+          buildNote({ id: "note-1", title: "First note", body: "First body", position: 0 }),
+          buildNote({ id: "note-2", title: "Second note", body: "Second body", position: 1 }),
+          buildNote({ id: "note-3", title: "Third note", body: "Third body", position: 2 }),
+        ]}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: /Third note Third body/ }));
+
+    await user.click(screen.getByRole("button", { name: "Delete Third note" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(mockDeleteTripNote).toHaveBeenCalledWith("note-3"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Second note Second body/ })).toHaveFocus());
+  });
+
+  it("deletes a collapsed note without collapsing an unrelated expanded note", async () => {
+    mockDeleteTripNote.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(
+      <TripNotesTab
+        tripId="trip-1"
+        notes={[
+          buildNote({ id: "note-1", title: "First note", body: "First body", position: 0 }),
+          buildNote({ id: "note-2", title: "Second note", body: "Second body", position: 1 }),
+        ]}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: /First note First body/ }));
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Still editing" } });
+
+    await user.click(screen.getByRole("button", { name: "Delete Second note" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(mockDeleteTripNote).toHaveBeenCalledWith("note-2"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("region")).toBeInTheDocument();
+    expect(screen.getByLabelText("Note title")).toHaveValue("Still editing");
+  });
+
   it("opens deletion from a collapsed note", async () => {
     const user = userEvent.setup();
     render(<TripNotesTab tripId="trip-1" notes={[buildNote({ title: "First note", body: "First body" })]} />);
@@ -426,5 +473,18 @@ describe("TripNotesTab", () => {
 
     await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "New Note" })).toHaveFocus();
+  });
+
+  it("closes the delete dialog if its target note is removed by refreshed props", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <TripNotesTab tripId="trip-1" notes={[buildNote({ id: "note-1", title: "First note", body: "First body" })]} />
+    );
+    await user.click(screen.getByRole("button", { name: "Delete First note" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    rerender(<TripNotesTab tripId="trip-1" notes={[]} />);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });
