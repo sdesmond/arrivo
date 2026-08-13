@@ -52,6 +52,16 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     }
   }, [notes, expandedNoteId]);
 
+  useEffect(() => {
+    if (deleteTargetNoteId && !notes.some((note) => note.id === deleteTargetNoteId)) {
+      clearDeleteTarget();
+    }
+  }, [notes, deleteTargetNoteId]);
+
+  function clearDeleteTarget(): void {
+    setDeleteTargetNoteId(null);
+  }
+
   function setExpanded(noteId: string | null): void {
     expandedNoteIdRef.current = noteId;
     setExpandedNoteId(noteId);
@@ -95,7 +105,11 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
     setDeleteTargetNoteId(null);
     setDeleteError(null);
     setIsDeleting(false);
-    window.setTimeout(() => document.getElementById(`trip-note-delete-${noteId}`)?.focus(), 0);
+    window.setTimeout(() => {
+      const target = document.getElementById(`trip-note-delete-${noteId}`);
+      if (target) target.focus();
+      else newNoteButtonRef.current?.focus();
+    }, 0);
   }
 
   async function handleDeleteConfirm(): Promise<void> {
@@ -106,11 +120,13 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
 
     try {
       await deleteTripNote(noteId);
-      const deletedIndex = notes.findIndex((note) => note.id === noteId);
-      const focusTargetId = notes[deletedIndex + 1]?.id ?? notes[deletedIndex - 1]?.id ?? null;
-      focusReturnNoteIdRef.current = focusTargetId;
       setDeleteTargetNoteId(null);
-      setExpanded(null);
+      if (noteId === expandedNoteIdRef.current) {
+        const deletedIndex = notes.findIndex((note) => note.id === noteId);
+        const focusTargetId = notes[deletedIndex + 1]?.id ?? notes[deletedIndex - 1]?.id ?? null;
+        focusReturnNoteIdRef.current = focusTargetId;
+        setExpanded(null);
+      }
       announceDeleted();
     } catch {
       setDeleteError("Couldn't delete note. Try again.");

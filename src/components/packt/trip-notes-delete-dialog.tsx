@@ -3,7 +3,14 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export interface TripNotesDeleteDialogProps {
   open: boolean;
@@ -12,7 +19,6 @@ export interface TripNotesDeleteDialogProps {
   error: string | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void | Promise<void>;
-  onRetry?: () => void | Promise<void>;
 }
 
 export function TripNotesDeleteDialog({
@@ -22,7 +28,6 @@ export function TripNotesDeleteDialog({
   error,
   onOpenChange,
   onConfirm,
-  onRetry,
 }: TripNotesDeleteDialogProps) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const retryButtonRef = useRef<HTMLButtonElement>(null);
@@ -45,18 +50,13 @@ export function TripNotesDeleteDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        initialFocus={cancelButtonRef}
-        aria-busy={isDeleting}
-        aria-describedby={error ? "trip-note-delete-error" : undefined}
-      >
+      <DialogContent showCloseButton={false} initialFocus={cancelButtonRef} aria-busy={isDeleting}>
         <DialogHeader>
           <DialogTitle>Delete {noteLabel}?</DialogTitle>
         </DialogHeader>
-        <p style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>
+        <DialogDescription style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}>
           This note will be permanently removed. This cannot be undone.
-        </p>
+        </DialogDescription>
         <div ref={statusRef} role="status" tabIndex={-1}>
           {isDeleting ? "Deleting note" : ""}
         </div>
@@ -74,7 +74,7 @@ export function TripNotesDeleteDialog({
               ref={retryButtonRef}
               type="button"
               variant="outline"
-              onClick={() => void (onRetry ?? onConfirm)()}
+              onClick={() => void onConfirm()}
               disabled={isDeleting}
               style={{ minHeight: 44, minWidth: 44 }}
             >
