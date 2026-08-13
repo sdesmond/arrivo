@@ -13,9 +13,15 @@ function buildNote(overrides: Partial<TripNote> = {}): TripNote {
   };
 }
 
-function renderRow(note: TripNote, isExpanded = false, onToggle = vi.fn()) {
+function renderRow(note: TripNote, isExpanded = false, onToggle = vi.fn(), onDeleteRequest = vi.fn()) {
   return render(
-    <TripNotesRow note={note} isExpanded={isExpanded} onToggle={onToggle} editor={<div>Full editor</div>} />
+    <TripNotesRow
+      note={note}
+      isExpanded={isExpanded}
+      onToggle={onToggle}
+      onDeleteRequest={onDeleteRequest}
+      editor={<div>Full editor</div>}
+    />
   );
 }
 
@@ -100,7 +106,7 @@ describe("TripNotesRow", () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
     renderRow(buildNote({ title: "Pack sunscreen" }), false, onToggle);
-    const trigger = screen.getByRole("button", { name: /Pack sunscreen/ });
+    const trigger = screen.getByRole("button", { name: /^Pack sunscreen/ });
 
     await user.click(trigger);
     trigger.focus();
@@ -111,13 +117,53 @@ describe("TripNotesRow", () => {
     expect(onToggle).toHaveBeenCalledWith("note-1");
   });
 
-  it("applies the 44px target floor and omits future reorder and trash controls", () => {
+  it("applies the 44px target floor and omits future reorder controls", () => {
     renderRow(buildNote({ title: "Pack sunscreen" }));
-    const trigger = screen.getByRole("button", { name: /Pack sunscreen/ });
+    const trigger = screen.getByRole("button", { name: /^Pack sunscreen/ });
+    const deleteButton = screen.getByRole("button", { name: "Delete Pack sunscreen" });
 
     expect(trigger.style.minHeight).toBe("44px");
     expect(trigger.style.minWidth).toBe("44px");
+    expect(deleteButton.style.minHeight).toBe("44px");
+    expect(deleteButton.style.minWidth).toBe("44px");
     expect(screen.queryByRole("button", { name: /reorder/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /trash|delete/i })).not.toBeInTheDocument();
+  });
+
+  it("renders a Trash action in both states without toggling the disclosure", async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    const onDeleteRequest = vi.fn();
+    const { rerender } = renderRow(buildNote({ title: "Pack sunscreen" }), false, onToggle, onDeleteRequest);
+
+    const deleteButton = screen.getByRole("button", { name: "Delete Pack sunscreen" });
+    await user.click(deleteButton);
+
+    expect(deleteButton).toHaveAttribute("id", "trip-note-delete-note-1");
+    expect(deleteButton).toHaveAttribute("title", "Delete note");
+    expect(deleteButton.style.minHeight).toBe("44px");
+    expect(deleteButton.style.minWidth).toBe("44px");
+    expect(onDeleteRequest).toHaveBeenCalledWith("note-1");
+    expect(onToggle).not.toHaveBeenCalled();
+
+    rerender(
+      <TripNotesRow
+        note={buildNote({ title: "Pack sunscreen" })}
+        isExpanded
+        onToggle={onToggle}
+        onDeleteRequest={onDeleteRequest}
+        editor={<div>Full editor</div>}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Delete Pack sunscreen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse Pack sunscreen" })).not.toContainElement(
+      screen.getByRole("button", { name: "Delete Pack sunscreen" })
+    );
+  });
+
+  it("uses the implicit title in the Trash action label", () => {
+    renderRow(buildNote({ title: undefined, body: "Buy tickets" }), true);
+
+    expect(screen.getByRole("button", { name: "Delete Buy tickets" })).toBeInTheDocument();
   });
 });

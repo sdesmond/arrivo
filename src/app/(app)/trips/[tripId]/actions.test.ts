@@ -8,6 +8,7 @@ const {
   mockDbTransaction,
   mockDbUpdate,
   mockDbExecute,
+  mockDbDelete,
   mockRequireUser,
   mockRevalidatePath,
   mockBlobDel,
@@ -22,6 +23,7 @@ const {
   const mockDbTransaction = vi.fn();
   const mockDbUpdate = vi.fn();
   const mockDbExecute = vi.fn();
+  const mockDbDelete = vi.fn();
   const mockRequireUser = vi.fn();
   const mockRevalidatePath = vi.fn();
   const mockBlobDel = vi.fn();
@@ -46,6 +48,7 @@ const {
     mockDbTransaction,
     mockDbUpdate,
     mockDbExecute,
+    mockDbDelete,
     mockRequireUser,
     mockRevalidatePath,
     mockBlobDel,
@@ -64,6 +67,7 @@ vi.mock("@/lib/auth-helpers", () => ({
 vi.mock("@/db", () => ({
   db: {
     execute: mockDbExecute,
+    delete: mockDbDelete,
     insert: mockDbInsert,
     select: mockDbSelect,
     transaction: mockDbTransaction,
@@ -110,6 +114,7 @@ import {
   addChecklistFromPackingSource,
   addDay,
   createEvent,
+  deleteTripNote,
   createTripNote,
   removeLastDay,
   removeTripCover,
@@ -414,6 +419,47 @@ describe("updateTripNote", () => {
 
     expect(mockAssertTripAccess).not.toHaveBeenCalled();
     expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteTripNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("resolves note trip access, deletes the note, and revalidates", async () => {
+    const where = vi.fn().mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbDelete.mockReturnValue({ where });
+
+    await deleteTripNote("note-1");
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockDbDelete).toHaveBeenCalledWith(notes);
+    expect(where).toHaveBeenCalledOnce();
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("silently no-ops when the note is missing", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([]));
+
+    await deleteTripNote("missing-note");
+
+    expect(mockAssertTripAccess).not.toHaveBeenCalled();
+    expect(mockDbDelete).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("propagates denied access without deleting", async () => {
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockAssertTripAccess.mockRejectedValue(new Error("denied"));
+
+    await expect(deleteTripNote("note-1")).rejects.toThrow("denied");
+
+    expect(mockDbDelete).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });

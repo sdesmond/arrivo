@@ -89,6 +89,48 @@ Scenario: Expanding a note reveals its full body in place
     And I collapse the expanded note
     Then the notes list shows, in order, "Second note", "Updated first"
 
+  Scenario: Deleting an expanded note removes it and focuses the next disclosure
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "First note" as the note title
+    And I close the note editor
+    And I activate New Note
+    And I enter "Second note" as the note title
+    And I close the note editor
+    And I expand the note titled "Second note"
+    And I request deletion of the expanded note titled "Second note"
+    Then the note delete confirmation is visible with Cancel focused
+    When I confirm note deletion
+    Then the note titled "Second note" is absent and the next available disclosure is focused
+
+  Scenario: Cancelling note deletion leaves its expanded editor intact
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "Packing" as the note title
+    And I close the note editor
+    And I expand the note titled "Packing"
+    And I request deletion of the expanded note titled "Packing"
+    When I cancel note deletion
+    Then the expanded note titled "Packing" remains and its Trash action is focused
+
+  Scenario: A collapsed note still exposes its delete action
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "Packing" as the note title
+    And I close the note editor
+    And I request deletion of the collapsed note titled "Packing"
+    Then the note delete confirmation is visible with Cancel focused
+
+  Scenario: Deleting only note returns to the empty state
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "Packing" as the note title
+    And I close the note editor
+    And I expand the note titled "Packing"
+    And I request deletion of the expanded note titled "Packing"
+    And I confirm note deletion
+    Then the Notes empty state is visible
+
   Scenario: Notes reflow at 320 CSS pixels and 200 percent text size
     When I open the Notes tab
     And I activate New Note
