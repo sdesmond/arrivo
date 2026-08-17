@@ -120,4 +120,10 @@ describe("upload-policy", () => {
   it("parseUploadStorageName throws on an unrecognized scope prefix", () => {
     expect(() => parseUploadStorageName("not-a-scope/abc-123/uuid-456.jpg")).toThrow();
   });
+
+  it("parseUploadStorageName throws on path traversal segments", () => {
+    expect(() => parseUploadStorageName("event-documents/../etc/passwd/uuid.jpg")).toThrow();
+    expect(() => parseUploadStorageName("event-documents/abc-123/../../../etc/shadow")).toThrow();
+    expect(() => parseUploadStorageName("event-documents/abc-123/null\x00byte.jpg")).toThrow();
+  });
 });

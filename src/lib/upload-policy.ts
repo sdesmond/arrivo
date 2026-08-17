@@ -66,6 +66,12 @@ export interface ParsedUploadStorageName {
   filename: string;
 }
 
+function hasPathTraversal(segment: string): boolean {
+  return (
+    segment === ".." || segment === "." || segment.includes("/") || segment.includes("\\") || segment.includes("\0")
+  );
+}
+
 export function parseUploadStorageName(key: string): ParsedUploadStorageName {
   const segments = key.split("/");
 
@@ -77,6 +83,10 @@ export function parseUploadStorageName(key: string): ParsedUploadStorageName {
   const scope = UPLOAD_SCOPE_PREFIX_REVERSE[prefix];
 
   if (!scope || !ownerId || !filename) {
+    throw new Error(`Malformed upload storage name: ${key}`);
+  }
+
+  if (hasPathTraversal(ownerId) || hasPathTraversal(filename)) {
     throw new Error(`Malformed upload storage name: ${key}`);
   }
 

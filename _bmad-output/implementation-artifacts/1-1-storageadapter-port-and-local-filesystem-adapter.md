@@ -4,7 +4,7 @@ baseline_commit: 2ba24b81bd3af6ef3771f02967ed5468546e1b40
 
 # Story 1.1: StorageAdapter Port and Local Filesystem Adapter
 
-Status: review
+Status: done
 
 ## Story
 
@@ -239,3 +239,13 @@ None — implementation proceeded without needing a debug log; each task's tests
 ### Change Log
 
 - 2026-08-16: Implemented `StorageAdapter` port, local filesystem adapter, `resolveOwningTripId()`, `upload-policy.ts` key-parsing helpers, and the `node:fs` ESLint import restriction (Tasks 1-5).
+
+### Review Findings
+
+- [x] [Review][Patch] Path traversal via `..` in key segments escapes rootDir [`local-filesystem-adapter.ts:16,34,39,46`] — `join(rootDir, key)` normalizes `..` segments without sanitization. A key like `event-documents/../../etc/shadow/x` resolves outside `rootDir`. Fix: validate segments in `parseUploadStorageName` to reject `..`, `/`, null bytes, or OS-reserved names.
+- [x] [Review][Patch] `Readable.toWeb()` can return `null`, cast silences it [`local-filesystem-adapter.ts:57`] — `Readable.toWeb()` returns `ReadableStream | null`. The `as` cast silences the compiler but a `null` runtime value would cause `TypeError` downstream. Fix: guard the return value.
+- [x] [Review][Patch] `read()` TOCTOU race: `stat` then `createReadStream` [`local-filesystem-adapter.ts:48-57`] — If the file is deleted between `stat()` and `createReadStream()`, the ENOENT from `createReadStream` is not caught and propagates as a raw Node error, not `StorageNotFoundError`. Fix: wrap `createReadStream` in the same `try/catch` or remove the `stat` pre-check and catch ENOENT from the stream open.
+- [x] [Review][Patch] `parseUploadStorageName` doesn't validate segment content [`upload-policy.ts:69-83`] — No check for `..`, `/`, null bytes, or OS-reserved names in `ownerId` or `filename` segments. Root cause of path traversal finding. Fix: add segment content validation after split.
+- [x] [Review][Defer] `getStorageAdapter()` caches forever, ignores env changes [`storage-adapter.ts:40-50`] — deferred, mirrors existing `src/db/index.ts` singleton pattern exactly
+- [x] [Review][Defer] ESLint override references `local-upload.ts` (pre-existing) [`eslint.config.mjs:40-41`] — deferred, existing code to be cleaned up in Story 1.4
+- [x] [Review][Defer] `put()` buffers entire file into memory [`local-filesystem-adapter.ts:20`] — deferred, documented tradeoff; streaming is a future optimization, not an AC

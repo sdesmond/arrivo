@@ -54,7 +54,9 @@ export function createLocalFileSystemAdapter(rootDir: string): StorageAdapter {
         throw error;
       }
 
-      return Readable.toWeb(createReadStream(targetPath)) as ReadableStream<Uint8Array>;
+      const stream = Readable.toWeb(createReadStream(targetPath));
+      if (!stream) throw new Error("Failed to create readable stream");
+      return stream as ReadableStream<Uint8Array>;
     },
   };
 }
