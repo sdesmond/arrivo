@@ -45,53 +45,12 @@ const COVER_UPLOAD_TYPE_ERROR = "Unsupported cover image type. Choose JPG, PNG, 
 
 export type UploadScope = "trip-document" | "event-document" | "reservation-document" | "trip-cover";
 
-export const UPLOAD_SCOPE_PREFIXES: Record<UploadScope, string> = {
+const UPLOAD_SCOPE_PREFIXES: Record<UploadScope, string> = {
   "event-document": "event-documents",
   "reservation-document": "reservation-documents",
   "trip-cover": "trip-covers",
   "trip-document": "trip-documents",
 };
-
-export const UPLOAD_SCOPE_PREFIX_REVERSE: Record<string, UploadScope> = Object.fromEntries(
-  Object.entries(UPLOAD_SCOPE_PREFIXES).map(([scope, prefix]) => [prefix, scope as UploadScope])
-);
-
-export function getUploadScopePrefix(scope: UploadScope): string {
-  return UPLOAD_SCOPE_PREFIXES[scope];
-}
-
-export interface ParsedUploadStorageName {
-  scope: UploadScope;
-  ownerId: string;
-  filename: string;
-}
-
-function hasPathTraversal(segment: string): boolean {
-  return (
-    segment === ".." || segment === "." || segment.includes("/") || segment.includes("\\") || segment.includes("\0")
-  );
-}
-
-export function parseUploadStorageName(key: string): ParsedUploadStorageName {
-  const segments = key.split("/");
-
-  if (segments.length !== 3) {
-    throw new Error(`Malformed upload storage name: ${key}`);
-  }
-
-  const [prefix, ownerId, filename] = segments;
-  const scope = UPLOAD_SCOPE_PREFIX_REVERSE[prefix];
-
-  if (!scope || !ownerId || !filename) {
-    throw new Error(`Malformed upload storage name: ${key}`);
-  }
-
-  if (hasPathTraversal(ownerId) || hasPathTraversal(filename)) {
-    throw new Error(`Malformed upload storage name: ${key}`);
-  }
-
-  return { scope, ownerId, filename };
-}
 
 export function assertValidDocumentUpload(file: File): void {
   if (!DOCUMENT_UPLOAD_MIME_TYPE_SET.has(file.type)) {
