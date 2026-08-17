@@ -4,7 +4,7 @@ baseline_commit: 3d84594
 
 # Story 1.2: Authenticated Proxy Read Route
 
-Status: review
+Status: done
 
 ## Story
 
@@ -211,11 +211,31 @@ Claude Sonnet 5 (claude-sonnet-5)
 
 ### File List
 
-- `src/lib/upload-policy.ts` (modified)
+- `src/lib/upload-policy.ts` (modified — added MalformedKeyError, updated parseUploadStorageName)
 - `src/lib/upload-policy.test.ts` (modified)
-- `src/app/api/storage/[...path]/route.ts` (new)
-- `src/app/api/storage/[...path]/route.test.ts` (new)
+- `src/app/api/storage/[...path]/route.ts` (modified — auth-first, MalformedKeyError, nosniff, extension guard)
+- `src/app/api/storage/[...path]/route.test.ts` (modified — updated assertions, added 3 test cases)
+
+### Review Findings
+
+#### Patch
+
+- [x] [Review][Patch] DB errors in resolver caught as 404 [route.ts:13-16] — `resolveOwningTripId` DB failures (connection timeout, pool exhaustion) fall into the generic catch and return 404 instead of 500 because the error message won't start with "Malformed upload storage name". Re-throw non-malformed errors.
+- [x] [Review][Patch] `getMimeTypeForExtension` throw leaks 500 [route.ts:26] — unsupported extension (e.g. `.svg`, extensionless key) throws inside the try/catch that only handles `StorageNotFoundError`, propagating as unhandled 500. Catch and return 400/415.
+- [x] [Review][Patch] Missing `X-Content-Type-Options: nosniff` header [route.ts:28-33] — without nosniff, browsers may MIME-sniff the response and render it as a different type. Add header as defense-in-depth.
+- [x] [Review][Patch] Error classification via string matching [route.ts:15] — `message.startsWith("Malformed upload storage name")` is fragile; if `parseUploadStorageName` rewords the message, 400/404 discrimination silently breaks. Introduce `MalformedKeyError` class and use `instanceof`.
+- [x] [Review][Patch] Missing tests: unsupported ext, adapter non-StorageNotFound, extensionless key [route.test.ts] — no test covers `getMimeTypeForExtension` throwing in the route, no test for adapter throwing a non-StorageNotFoundError, no test for key with no file extension.
+- [x] [Review][Patch] `?? ""` on `split().pop()` is dead code [route.ts:25] — `pop()` never returns `undefined` on a non-empty array; `split(".")` always has at least one element. Remove the fallback.
+- [x] [Review][Patch] Auth-after-resolve leaks pre-auth DB query [route.ts:10-19] — `resolveOwningTripId` runs before `requireUser()`, allowing unauthenticated callers to distinguish malformed (400) vs valid-format-but-deleted (404) keys. Move `requireUser()` before `resolveOwningTripId()` per user decision.
+
+#### Defer
+
+- [x] [Review][Defer] `Content-Disposition: inline` posture [route.ts:31] — deferred, intentional for image/document preview; low practical risk with current extension allowlist
+- [x] [Review][Defer] `user.id!` non-null assertion [route.ts:20] — deferred, `requireUser()` guarantees presence; safe per existing project convention
+- [x] [Review][Defer] `as never` cast in test helpers [route.test.ts:48+] — deferred, pre-existing pattern; low risk since route signature is stable
+- [x] [Review][Defer] No `Cache-Control` header [route.ts:28-33] — deferred, content is images/documents not sensitive tokens; low practical risk
 
 ## Change Log
 
 - 2026-08-17: Implemented Story 1.2 — MIME extension reverse-lookup, authenticated proxy read route, and route/resolver test coverage. All 4 tasks complete.
+- 2026-08-17: Code review fixes — auth-first ordering, MalformedKeyError class, X-Content-Type-Options: nosniff, extension validation, additional test coverage.
