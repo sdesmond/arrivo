@@ -43,6 +43,13 @@ const MIME_TYPE_EXTENSIONS: Record<string, string> = {
 const DOCUMENT_UPLOAD_TYPE_ERROR = "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC.";
 const COVER_UPLOAD_TYPE_ERROR = "Unsupported cover image type. Choose JPG, PNG, WEBP, HEIC, GIF, or AVIF.";
 
+export class MalformedKeyError extends Error {
+  constructor(key: string) {
+    super(`Malformed upload storage name: ${key}`);
+    this.name = "MalformedKeyError";
+  }
+}
+
 export type UploadScope = "trip-document" | "event-document" | "reservation-document" | "trip-cover";
 
 export const UPLOAD_SCOPE_PREFIXES: Record<UploadScope, string> = {
@@ -76,18 +83,18 @@ export function parseUploadStorageName(key: string): ParsedUploadStorageName {
   const segments = key.split("/");
 
   if (segments.length !== 3) {
-    throw new Error(`Malformed upload storage name: ${key}`);
+    throw new MalformedKeyError(key);
   }
 
   const [prefix, ownerId, filename] = segments;
   const scope = UPLOAD_SCOPE_PREFIX_REVERSE[prefix];
 
   if (!scope || !ownerId || !filename) {
-    throw new Error(`Malformed upload storage name: ${key}`);
+    throw new MalformedKeyError(key);
   }
 
   if (hasPathTraversal(ownerId) || hasPathTraversal(filename)) {
-    throw new Error(`Malformed upload storage name: ${key}`);
+    throw new MalformedKeyError(key);
   }
 
   return { scope, ownerId, filename };

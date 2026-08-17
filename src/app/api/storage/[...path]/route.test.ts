@@ -26,6 +26,7 @@ vi.mock("@/lib/storage/storage-adapter", async () => {
 });
 
 import { StorageNotFoundError } from "@/lib/storage/storage-adapter";
+import { MalformedKeyError } from "@/lib/upload-policy";
 import { GET } from "./route";
 
 function makeParams(path: string[]) {
@@ -49,7 +50,7 @@ describe("GET /api/storage/[...path]", () => {
     resolveOwningTripId.mockResolvedValue("trip-1");
   });
 
-  it("resolves the trip, authorizes, and streams the file with derived Content-Type and inline disposition", async () => {
+  it("authenticates first, resolves the trip, authorizes, and streams the file with correct headers", async () => {
     const stream = makeStream();
     const read = vi.fn().mockResolvedValue(stream);
     getStorageAdapter.mockReturnValue({ read });
@@ -59,13 +60,14 @@ describe("GET /api/storage/[...path]", () => {
       makeParams(["event-documents", "event-1", "uuid.jpg"])
     );
 
-    expect(resolveOwningTripId).toHaveBeenCalledWith("event-documents/event-1/uuid.jpg");
     expect(requireUser).toHaveBeenCalled();
+    expect(resolveOwningTripId).toHaveBeenCalledWith("event-documents/event-1/uuid.jpg");
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1");
     expect(read).toHaveBeenCalledWith("event-documents/event-1/uuid.jpg");
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/jpeg");
     expect(response.headers.get("Content-Disposition")).toBe("inline");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(response.body).toBe(stream);
   });
 
@@ -81,6 +83,7 @@ describe("GET /api/storage/[...path]", () => {
       )
     ).rejects.toBe(redirectSignal);
 
+    expect(resolveOwningTripId).not.toHaveBeenCalled();
     expect(getStorageAdapter).not.toHaveBeenCalled();
   });
 
@@ -112,7 +115,7 @@ describe("GET /api/storage/[...path]", () => {
   });
 
   it("returns 400 for a malformed key", async () => {
-    resolveOwningTripId.mockRejectedValue(new Error("Malformed upload storage name: not-a-scope/foo/bar.jpg"));
+    resolveOwningTripId.mockRejectedValue(new MalformedKeyError("not-a-scope/foo/bar.jpg"));
 
     const response = await GET(
       new Request("http://localhost/api/storage/not-a-scope/foo/bar.jpg") as never,
@@ -120,19 +123,58 @@ describe("GET /api/storage/[...path]", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(requireUser).not.toHaveBeenCalled();
+    expect(requireUser).toHaveBeenCalled();
+    expect(assertTripAccess).not.toHaveBeenCalled();
   });
 
-  it("returns 404 when the resolver's owning record no longer exists", async () => {
+  it("propagates unexpected resolver errors as 500", async () => {
     resolveOwningTripId.mockRejectedValue(new Error("Event not found"));
 
+    await expect(
+      GET(
+        new Request("http://localhost/api/storage/event-documents/event-1/uuid.jpg") as never,
+        makeParams(["event-documents", "event-1", "uuid.jpg"])
+      )
+    ).rejects.toThrow("Event not found");
+  });
+
+  it("returns 400 when the file extension is unsupported", async () => {
+    const stream = makeStream();
+    const read = vi.fn().mockResolvedValue(stream);
+    getStorageAdapter.mockReturnValue({ read });
+
     const response = await GET(
-      new Request("http://localhost/api/storage/event-documents/event-1/uuid.jpg") as never,
-      makeParams(["event-documents", "event-1", "uuid.jpg"])
+      new Request("http://localhost/api/storage/trip-documents/trip-1/uuid.svg") as never,
+      makeParams(["trip-documents", "trip-1", "uuid.svg"])
     );
 
-    expect(response.status).toBe(404);
-    expect(requireUser).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    expect(read).toHaveBeenCalled();
+  });
+
+  it("propagates unexpected adapter errors", async () => {
+    const read = vi.fn().mockRejectedValue(new Error("disk failure"));
+    getStorageAdapter.mockReturnValue({ read });
+
+    await expect(
+      GET(
+        new Request("http://localhost/api/storage/trip-documents/trip-1/uuid.jpg") as never,
+        makeParams(["trip-documents", "trip-1", "uuid.jpg"])
+      )
+    ).rejects.toThrow("disk failure");
+  });
+
+  it("returns 400 when the key has no file extension", async () => {
+    const stream = makeStream();
+    const read = vi.fn().mockResolvedValue(stream);
+    getStorageAdapter.mockReturnValue({ read });
+
+    const response = await GET(
+      new Request("http://localhost/api/storage/trip-documents/trip-1/noext") as never,
+      makeParams(["trip-documents", "trip-1", "noext"])
+    );
+
+    expect(response.status).toBe(400);
   });
 
   it("reconstructs the exact key produced by put() from route params", async () => {
