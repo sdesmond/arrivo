@@ -5,7 +5,13 @@ import {
   COVER_UPLOAD_HINT,
   createUploadStorageName,
   DOCUMENT_UPLOAD_HINT,
+  EXTENSION_MIME_TYPES,
+  getMimeTypeForExtension,
   getUploadExtension,
+  getUploadScopePrefix,
+  parseUploadStorageName,
+  UPLOAD_SCOPE_PREFIX_REVERSE,
+  UPLOAD_SCOPE_PREFIXES,
 } from "./upload-policy";
 
 describe("upload-policy", () => {
@@ -80,5 +86,68 @@ describe("upload-policy", () => {
       "reservation-documents/res-1/uuid-1234.heic"
     );
     expect(createUploadStorageName("trip-cover", "trip-1", "image/avif")).toBe("trip-covers/trip-1/uuid-1234.avif");
+  });
+
+  it("exports UPLOAD_SCOPE_PREFIXES with a reverse map that round-trips every scope", () => {
+    for (const [scope, prefix] of Object.entries(UPLOAD_SCOPE_PREFIXES)) {
+      expect(UPLOAD_SCOPE_PREFIX_REVERSE[prefix]).toBe(scope);
+    }
+  });
+
+  it("getUploadScopePrefix returns the plural prefix for a scope", () => {
+    expect(getUploadScopePrefix("trip-document")).toBe("trip-documents");
+    expect(getUploadScopePrefix("event-document")).toBe("event-documents");
+    expect(getUploadScopePrefix("reservation-document")).toBe("reservation-documents");
+    expect(getUploadScopePrefix("trip-cover")).toBe("trip-covers");
+  });
+
+  it("parseUploadStorageName parses a valid key into scope, ownerId, and filename", () => {
+    expect(parseUploadStorageName("event-documents/abc-123/uuid-456.jpg")).toEqual({
+      scope: "event-document",
+      ownerId: "abc-123",
+      filename: "uuid-456.jpg",
+    });
+    expect(parseUploadStorageName("trip-covers/trip-1/uuid-9.png")).toEqual({
+      scope: "trip-cover",
+      ownerId: "trip-1",
+      filename: "uuid-9.png",
+    });
+  });
+
+  it("parseUploadStorageName throws on a key with the wrong number of segments", () => {
+    expect(() => parseUploadStorageName("event-documents/abc-123")).toThrow();
+    expect(() => parseUploadStorageName("event-documents/abc-123/uuid-456.jpg/extra")).toThrow();
+  });
+
+  it("parseUploadStorageName throws on an unrecognized scope prefix", () => {
+    expect(() => parseUploadStorageName("not-a-scope/abc-123/uuid-456.jpg")).toThrow();
+  });
+
+  it("parseUploadStorageName throws on path traversal segments", () => {
+    expect(() => parseUploadStorageName("event-documents/../etc/passwd/uuid.jpg")).toThrow();
+    expect(() => parseUploadStorageName("event-documents/abc-123/../../../etc/shadow")).toThrow();
+    expect(() => parseUploadStorageName("event-documents/abc-123/null\x00byte.jpg")).toThrow();
+  });
+
+  it("exports EXTENSION_MIME_TYPES as the reverse of the MIME→extension map, using canonical HEIC", () => {
+    expect(EXTENSION_MIME_TYPES).toEqual({
+      pdf: "application/pdf",
+      avif: "image/avif",
+      gif: "image/gif",
+      heic: "image/heic",
+      jpg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+    });
+  });
+
+  it("getMimeTypeForExtension returns the MIME type for a known extension", () => {
+    expect(getMimeTypeForExtension("pdf")).toBe("application/pdf");
+    expect(getMimeTypeForExtension("jpg")).toBe("image/jpeg");
+    expect(getMimeTypeForExtension("heic")).toBe("image/heic");
+  });
+
+  it("getMimeTypeForExtension throws for an unknown extension", () => {
+    expect(() => getMimeTypeForExtension("exe")).toThrow("Unsupported storage file extension: exe");
   });
 });
