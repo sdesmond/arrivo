@@ -113,6 +113,26 @@ export function assertValidCoverUpload(file: File): void {
   }
 }
 
+// Reverse of MIME_TYPE_EXTENSIONS. Both "image/heic" and "image/heif" map to the "heic" extension;
+// the first-seen (canonical) MIME type wins so the reverse lookup stays deterministic.
+export const EXTENSION_MIME_TYPES: Record<string, string> = Object.entries(MIME_TYPE_EXTENSIONS).reduce(
+  (reversed, [mimeType, extension]) => {
+    reversed[extension] ??= mimeType;
+    return reversed;
+  },
+  {} as Record<string, string>
+);
+
+export function getMimeTypeForExtension(extension: string): string {
+  const mimeType = EXTENSION_MIME_TYPES[extension];
+
+  if (!mimeType) {
+    throw new Error(`Unsupported storage file extension: ${extension}`);
+  }
+
+  return mimeType;
+}
+
 export function getUploadExtension(mimeType: string): string {
   const extension = MIME_TYPE_EXTENSIONS[mimeType];
 

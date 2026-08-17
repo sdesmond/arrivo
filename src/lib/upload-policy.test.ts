@@ -5,6 +5,8 @@ import {
   COVER_UPLOAD_HINT,
   createUploadStorageName,
   DOCUMENT_UPLOAD_HINT,
+  EXTENSION_MIME_TYPES,
+  getMimeTypeForExtension,
   getUploadExtension,
   getUploadScopePrefix,
   parseUploadStorageName,
@@ -125,5 +127,27 @@ describe("upload-policy", () => {
     expect(() => parseUploadStorageName("event-documents/../etc/passwd/uuid.jpg")).toThrow();
     expect(() => parseUploadStorageName("event-documents/abc-123/../../../etc/shadow")).toThrow();
     expect(() => parseUploadStorageName("event-documents/abc-123/null\x00byte.jpg")).toThrow();
+  });
+
+  it("exports EXTENSION_MIME_TYPES as the reverse of the MIME→extension map, using canonical HEIC", () => {
+    expect(EXTENSION_MIME_TYPES).toEqual({
+      pdf: "application/pdf",
+      avif: "image/avif",
+      gif: "image/gif",
+      heic: "image/heic",
+      jpg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+    });
+  });
+
+  it("getMimeTypeForExtension returns the MIME type for a known extension", () => {
+    expect(getMimeTypeForExtension("pdf")).toBe("application/pdf");
+    expect(getMimeTypeForExtension("jpg")).toBe("image/jpeg");
+    expect(getMimeTypeForExtension("heic")).toBe("image/heic");
+  });
+
+  it("getMimeTypeForExtension throws for an unknown extension", () => {
+    expect(() => getMimeTypeForExtension("exe")).toThrow("Unsupported storage file extension: exe");
   });
 });
