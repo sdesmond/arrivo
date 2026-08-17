@@ -1,53 +1,53 @@
 installation:
-  version: 6.10.0
+  version: 6.11.0
   installDate: 2026-05-14T12:24:09.652Z
-  lastUpdated: 2026-08-08T01:34:58.081Z
+  lastUpdated: 2026-08-17T23:07:57.794Z
 modules:
   - name: core
-    version: 6.10.0
+    version: 6.11.0
     installDate: 2026-05-14T12:24:08.000Z
-    lastUpdated: 2026-08-08T01:34:58.055Z
+    lastUpdated: 2026-08-17T23:07:57.774Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmm
-    version: 6.10.0
+    version: 6.11.0
     installDate: 2026-05-14T12:24:08.179Z
-    lastUpdated: 2026-08-08T01:34:58.057Z
+    lastUpdated: 2026-08-17T23:07:57.775Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: tea
-    version: v1.21.7
+    version: v1.23.2
     installDate: 2026-05-14T12:24:08.971Z
-    lastUpdated: 2026-08-08T01:34:58.059Z
+    lastUpdated: 2026-08-17T23:07:57.778Z
     source: external
     npmPackage: bmad-method-test-architecture-enterprise
     repoUrl: https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise
     channel: stable
-    sha: 2882e9c8972a94f48d5e848039eec435436f2459
+    sha: be4dc03242dd6b14b79fd62e5bbacf59d7572f34
   - name: bmb
     version: v1.8.1
     installDate: 2026-05-14T12:24:08.416Z
-    lastUpdated: 2026-08-08T01:34:58.064Z
+    lastUpdated: 2026-08-17T23:07:57.781Z
     source: external
     npmPackage: bmad-builder
     repoUrl: https://github.com/bmad-code-org/bmad-builder
     channel: pinned
     sha: 3410d952eafe621f31fcdf4dd5efb2b06690a306
   - name: cis
-    version: v0.2.1
+    version: v0.3.1
     installDate: 2026-05-14T12:24:09.266Z
-    lastUpdated: 2026-08-08T01:34:58.068Z
+    lastUpdated: 2026-08-17T23:07:57.784Z
     source: external
     npmPackage: bmad-creative-intelligence-suite
     repoUrl: https://github.com/bmad-code-org/bmad-module-creative-intelligence-suite
     channel: stable
-    sha: 07a8dd03d196a762f21c241d985293fe5b0f90e7
+    sha: 0e4ff9233a792db1a1cd00f22a482f338168cdc3
   - name: baut
     version: 1.14.2
     installDate: 2026-05-14T12:24:09.137Z
-    lastUpdated: 2026-08-08T01:34:58.081Z
+    lastUpdated: 2026-08-17T23:07:57.794Z
     source: unknown
     npmPackage: null
     repoUrl: null
