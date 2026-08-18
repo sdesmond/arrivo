@@ -5,8 +5,11 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { users } from "../../src/db/schema";
 import { BASELINE_E2E_USER } from "./e2e-seed-data";
+import { resetE2EStorage } from "../../scripts/e2e-storage.mjs";
 
 export default async function globalSetup() {
+  resetE2EStorage(process.cwd());
+
   const client = postgres(process.env.E2E_DATABASE_URL!);
   const db = drizzle(client);
 

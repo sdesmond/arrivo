@@ -34,17 +34,30 @@ describe("setup-dev helpers", async () => {
       "E2E_EMAIL=e2e@packt.local",
       "E2E_PASSWORD=e2e1234",
       "HIDE_OVERLAY=true",
-      "BLOB_READ_WRITE_TOKEN=",
+      "STORAGE_PROVIDER=local",
+      "STORAGE_LOCAL_ROOT_DIR=./.dev-storage",
       "",
     ].join("\n");
 
-    const merged = mergeEnvForSetup(baseExample, "NEXTAUTH_URL=http://localhost:4000\nALLOW_SIGNUP=false\n");
+    const merged = mergeEnvForSetup(
+      baseExample,
+      [
+        "NEXTAUTH_URL=http://localhost:4000",
+        "ALLOW_SIGNUP=false",
+        "UPLOAD_STUB=true",
+        "BLOB_READ_WRITE_TOKEN=legacy-token",
+        "",
+      ].join("\n")
+    );
 
     expect(merged).toContain("DATABASE_URL=postgres://packt:packt@localhost:5432/packt");
     expect(merged).toContain("E2E_DATABASE_URL=postgres://packt:packt@localhost:5432/packt_e2e");
     expect(merged).toContain("NEXTAUTH_URL=http://localhost:4000");
     expect(merged).toContain("ALLOW_SIGNUP=false");
-    expect(merged).toContain("UPLOAD_STUB=true");
+    expect(merged).toContain("STORAGE_PROVIDER=local");
+    expect(merged).toContain("STORAGE_LOCAL_ROOT_DIR=./.dev-storage");
+    expect(merged).not.toContain("UPLOAD_STUB=");
+    expect(merged).not.toContain("BLOB_READ_WRITE_TOKEN=");
 
     const secretLine = merged.split("\n").find((line) => line.startsWith("NEXTAUTH_SECRET="));
     const secret = secretLine?.slice("NEXTAUTH_SECRET=".length) ?? "";
@@ -52,12 +65,12 @@ describe("setup-dev helpers", async () => {
     expect(secret.length).toBeGreaterThanOrEqual(43);
   });
 
-  it("keeps a real blob token and disables stub uploads by default", () => {
-    const example = "BLOB_READ_WRITE_TOKEN=\n";
-    const merged = mergeEnvForSetup(example, "BLOB_READ_WRITE_TOKEN=token-123\n");
+  it("preserves an existing local storage root", () => {
+    const example = "STORAGE_PROVIDER=local\nSTORAGE_LOCAL_ROOT_DIR=./.dev-storage\n";
+    const merged = mergeEnvForSetup(example, "STORAGE_LOCAL_ROOT_DIR=/var/lib/packt-storage\n");
 
-    expect(merged).toContain("BLOB_READ_WRITE_TOKEN=token-123");
-    expect(merged).toContain("UPLOAD_STUB=false");
+    expect(merged).toContain("STORAGE_PROVIDER=local");
+    expect(merged).toContain("STORAGE_LOCAL_ROOT_DIR=/var/lib/packt-storage");
   });
 
   it("migrates claude memories into the shared agents directory", () => {
