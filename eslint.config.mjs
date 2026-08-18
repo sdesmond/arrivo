@@ -3,6 +3,34 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import eslintConfigPrettier from "eslint-config-prettier";
 
+const storagePortMessage =
+  "Use the StorageAdapter port from @/lib/storage instead of importing storage backends directly.";
+
+const blobImportRestrictions = {
+  paths: [
+    {
+      name: "@vercel/blob",
+      message: storagePortMessage,
+    },
+  ],
+  patterns: [
+    {
+      group: ["@vercel/blob/*"],
+      message: storagePortMessage,
+    },
+  ],
+};
+
+const filesystemImportRestrictions = ["fs", "fs/promises", "node:fs", "node:fs/promises"].map((name) => ({
+  name,
+  message: "Use the StorageAdapter port from @/lib/storage instead of importing filesystem APIs directly.",
+}));
+
+const applicationStorageImportRestrictions = {
+  paths: [...blobImportRestrictions.paths, ...filesystemImportRestrictions],
+  patterns: blobImportRestrictions.patterns,
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -17,9 +45,18 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "coverage/**",
     "test-results/**",
+    ".features-gen/**",
+    "_bmad/**",
+    "_bmad-output/**",
+    ".agents/**",
+    ".claude/**",
+    ".opencode/**",
+    ".playwright-mcp/**",
+    ".ui-review-screenshots/**",
   ]),
   {
     rules: {
+      "no-restricted-imports": ["error", blobImportRestrictions],
       "id-length": [
         "error",
         {
@@ -32,34 +69,15 @@ const eslintConfig = defineConfig([
   },
   {
     // Application source only — build/dev tooling under scripts/** legitimately needs direct fs access.
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{js,mjs,ts,tsx}"],
     rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "node:fs",
-              message: "Use the StorageAdapter port from @/lib/storage instead of importing node:fs directly.",
-            },
-            {
-              name: "node:fs/promises",
-              message: "Use the StorageAdapter port from @/lib/storage instead of importing node:fs/promises directly.",
-            },
-          ],
-        },
-      ],
+      "no-restricted-imports": ["error", applicationStorageImportRestrictions],
     },
   },
   {
-    files: [
-      "src/lib/storage/local-filesystem-adapter.ts",
-      "src/lib/storage/local-filesystem-adapter.test.ts",
-      "src/lib/local-upload.ts",
-      "src/lib/local-upload.test.ts",
-    ],
+    files: ["src/lib/storage/local-filesystem-adapter.ts", "src/lib/storage/local-filesystem-adapter.test.ts"],
     rules: {
-      "no-restricted-imports": "off",
+      "no-restricted-imports": ["error", blobImportRestrictions],
     },
   },
   eslintConfigPrettier,

@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import { defineBddConfig } from "playwright-bdd";
 import dotenv from "dotenv";
+import { E2E_STORAGE_DIRECTORY } from "./scripts/e2e-storage.mjs";
 
 dotenv.config();
 
@@ -32,9 +33,8 @@ export default defineConfig({
       PACKT_E2E: "true",
       E2E_MAPBOX_STUB: "true",
       E2E_UNSPLASH_STUB: "true",
-      UPLOAD_STUB: "true",
       STORAGE_PROVIDER: "local",
-      STORAGE_LOCAL_ROOT_DIR: ".e2e-storage",
+      STORAGE_LOCAL_ROOT_DIR: E2E_STORAGE_DIRECTORY,
     },
   },
   projects: [

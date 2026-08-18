@@ -82,20 +82,20 @@ The seed is idempotent — safe to run multiple times; exits early if the demo u
 
 `npm run setup:dev` creates `.env` from `.env.example`, preserves existing non-empty values, generates `NEXTAUTH_SECRET` when needed, and sets database URLs for the selected backend.
 
-| Variable                | Description                                      | Example default                                   |
-| ----------------------- | ------------------------------------------------ | ------------------------------------------------- |
-| `DATABASE_URL`          | PostgreSQL connection string                     | `postgres://packt:packt@localhost:5432/packt`     |
-| `E2E_DATABASE_URL`      | Dedicated PostgreSQL connection string for E2E   | `postgres://packt:packt@localhost:5432/packt_e2e` |
-| `NEXTAUTH_URL`          | Full URL of the app                              | `http://localhost:3000`                           |
-| `NEXTAUTH_SECRET`       | Random secret ≥ 32 bytes                         | generated automatically                           |
-| `ALLOW_SIGNUP`          | Expose the sign-up page                          | `true`                                            |
-| `E2E_EMAIL`             | E2E login email                                  | `e2e@packt.local`                                 |
-| `E2E_PASSWORD`          | E2E login password                               | `e2e1234`                                         |
-| `HIDE_OVERLAY`          | Hides the Next.js dev overlay indicator          | `true`                                            |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob token for real uploads               | blank                                             |
-| `UPLOAD_STUB`           | Local file upload fallback when blob token blank | `true`                                            |
+| Variable                 | Description                                    | Example default                                   |
+| ------------------------ | ---------------------------------------------- | ------------------------------------------------- |
+| `DATABASE_URL`           | PostgreSQL connection string                   | `postgres://packt:packt@localhost:5432/packt`     |
+| `E2E_DATABASE_URL`       | Dedicated PostgreSQL connection string for E2E | `postgres://packt:packt@localhost:5432/packt_e2e` |
+| `NEXTAUTH_URL`           | Full URL of the app                            | `http://localhost:3000`                           |
+| `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                       | generated automatically                           |
+| `ALLOW_SIGNUP`           | Expose the sign-up page                        | `true`                                            |
+| `E2E_EMAIL`              | E2E login email                                | `e2e@packt.local`                                 |
+| `E2E_PASSWORD`           | E2E login password                             | `e2e1234`                                         |
+| `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator        | `true`                                            |
+| `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                           |
+| `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                   | `./.dev-storage`                                  |
 
-If `BLOB_READ_WRITE_TOKEN` is blank, local uploads are written under `public/uploads`.
+Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`.
 
 ---
 
