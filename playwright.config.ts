@@ -33,6 +33,8 @@ export default defineConfig({
       E2E_MAPBOX_STUB: "true",
       E2E_UNSPLASH_STUB: "true",
       UPLOAD_STUB: "true",
+      STORAGE_PROVIDER: "local",
+      STORAGE_LOCAL_ROOT_DIR: ".e2e-storage",
     },
   },
   projects: [

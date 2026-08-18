@@ -127,7 +127,17 @@ Then("the cover picker defaults to the Custom tab", async ({ page }) => {
 
 Then("the uploaded cover image persists after reloading the page", async ({ page }) => {
   await page.reload();
-  await expect(page.locator('img[role="presentation"]').first()).toHaveAttribute("src", /\/uploads\//);
+  const coverImage = page.locator('img[role="presentation"]').first();
+  await expect(coverImage).toHaveAttribute("src", /\/api\/storage\/trip-covers\//);
+  await expect
+    .poll(
+      () =>
+        coverImage.evaluate(
+          (element) => element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0
+        ),
+      { timeout: 10_000 }
+    )
+    .toBe(true);
   await page.getByTitle("Cover options").click();
   await expect(page.getByRole("menuitem", { name: "Remove Cover" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Info" })).not.toBeVisible();

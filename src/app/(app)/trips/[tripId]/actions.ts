@@ -18,7 +18,7 @@ import {
 } from "@/db/schema";
 import { eq, and, max, gte, sql, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { del } from "@vercel/blob";
+import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { deriveGraphicCover } from "@/lib/utils";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
 import {
@@ -207,9 +207,13 @@ export async function deleteEvent(eventId: string): Promise<void> {
   await db.delete(events).where(eq(events.id, eventId));
 
   const urlsToCleanup = eventDocs.map((document) => document.url).filter((url): url is string => !!url);
-  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+  if (urlsToCleanup.length > 0) {
     await Promise.all(
-      urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
+      urlsToCleanup.map((url) =>
+        getStorageAdapter()
+          .del(url)
+          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
+      )
     );
   }
 
@@ -234,9 +238,13 @@ export async function deleteEventWithDocDecision(eventId: string, keepDocs: bool
     await tx.delete(events).where(eq(events.id, eventId));
   });
 
-  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+  if (urlsToCleanup.length > 0) {
     await Promise.all(
-      urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
+      urlsToCleanup.map((url) =>
+        getStorageAdapter()
+          .del(url)
+          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
+      )
     );
   }
 
@@ -409,9 +417,13 @@ export async function removeLastDay(tripId: string, confirmedDestructiveRemoval 
   if (result.status === "confirmation-required") return result;
 
   const urlsToCleanup = eventDocuments.map((document) => document.url).filter((url): url is string => !!url);
-  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
+  if (urlsToCleanup.length > 0) {
     await Promise.all(
-      urlsToCleanup.map((url) => del(url).catch((error) => console.warn(`Blob cleanup failed for ${url}`, error)))
+      urlsToCleanup.map((url) =>
+        getStorageAdapter()
+          .del(url)
+          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
+      )
     );
   }
 
@@ -715,12 +727,10 @@ export async function removeDocument(docId: string): Promise<void> {
   const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
-  if (doc.url && process.env.UPLOAD_STUB !== "true") {
-    try {
-      await del(doc.url);
-    } catch (err) {
-      console.warn(`Blob cleanup failed for doc ${docId} (${doc.url}); continuing with DB delete`, err);
-    }
+  if (doc.url) {
+    await getStorageAdapter()
+      .del(doc.url)
+      .catch((error) => console.warn(`Cleanup failed for ${doc.url}`, error));
   }
   await db.delete(documents).where(eq(documents.id, docId));
   revalidatePath(`/trips/${tripId}`);

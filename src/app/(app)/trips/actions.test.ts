@@ -43,13 +43,14 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
-const { blobPut } = vi.hoisted(() => ({
-  blobPut: vi.fn(),
+const { adapterDel, adapterPut, getStorageAdapter } = vi.hoisted(() => ({
+  adapterDel: vi.fn(),
+  adapterPut: vi.fn(),
+  getStorageAdapter: vi.fn(),
 }));
 
-vi.mock("@vercel/blob", () => ({
-  del: vi.fn(),
-  put: blobPut,
+vi.mock("@/lib/storage/storage-adapter", () => ({
+  getStorageAdapter,
 }));
 
 const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
@@ -270,9 +271,10 @@ describe("buildTripDateChangeConfirmation", () => {
 describe("updateTripMetadata", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.UPLOAD_STUB = "true";
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
+    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    adapterDel.mockResolvedValue(undefined);
   });
 
   it("rejects unsupported budget currencies before mutating", async () => {
@@ -706,6 +708,9 @@ describe("createTrip", () => {
       email: "test@example.com",
       name: "Test User",
     });
+    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    adapterPut.mockResolvedValue("https://blob.vercel.com/mapbox-covers/trip-1.jpg");
+    adapterDel.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -964,13 +969,12 @@ describe("createTrip", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
   });
 
-  it("fetches the Mapbox static tile server-side and stores the Blob URL when the default is map", async () => {
+  it("fetches the Mapbox static tile server-side and stores the adapter URL when the default is map", async () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "mapbox-token");
-    vi.stubEnv("UPLOAD_STUB", ""); // override .env UPLOAD_STUB=true for this test
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("cover-1234");
     const operations = setupCreateTripDb("map");
     const fakeBlob = new Blob(["png-bytes"], { type: "image/jpeg" });
     mockFetch.mockResolvedValue({ ok: true, blob: async () => fakeBlob });
-    blobPut.mockResolvedValue({ url: "https://blob.vercel.com/mapbox-covers/trip-1.jpg" });
 
     await expect(
       createTrip({
@@ -984,31 +988,13 @@ describe("createTrip", () => {
     expect(mockFetch).toHaveBeenCalledWith(
       "https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/2.3488,48.8534,10/600x400@2x?access_token=mapbox-token"
     );
-    expect(blobPut).toHaveBeenCalledWith("mapbox-covers/trip-1.jpg", fakeBlob, { access: "public" });
+    expect(adapterPut).toHaveBeenCalledWith("trip-covers/trip-1/cover-1234.jpg", expect.any(File));
     expect(operations.updates).toEqual([
       {
         table: trips,
         values: { coverImageUrl: "https://blob.vercel.com/mapbox-covers/trip-1.jpg" },
       },
     ]);
-  });
-
-  it("skips blob upload and leaves coverImageUrl null when UPLOAD_STUB is set", async () => {
-    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "mapbox-token");
-    vi.stubEnv("UPLOAD_STUB", "true");
-    const operations = setupCreateTripDb("map");
-
-    await expect(
-      createTrip({
-        name: "Map Trip",
-        destinationName: "Paris, France",
-        destinationCenter: [2.3488, 48.8534],
-      })
-    ).resolves.toEqual({ tripId: "trip-1" });
-
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(blobPut).not.toHaveBeenCalled();
-    expect(operations.updates).toEqual([]);
   });
 
   it("derives a graphic cover without calling external APIs when the default is graphic", async () => {

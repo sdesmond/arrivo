@@ -57,6 +57,10 @@ next-env.d.ts
 /public/uploads/
 /drizzle/
 
+# storage adapter local roots
+/.e2e-storage/
+/.dev-storage/
+
 # bmad framework installation (reinstallable from manifest)
 _bmad/**
 !_bmad/_config/
