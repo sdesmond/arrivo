@@ -1,19 +1,20 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { assertTripAccess, db, put, del, requireUser, revalidatePath, saveLocalUpload, tripsTable } = vi.hoisted(() => ({
-  assertTripAccess: vi.fn(),
-  db: {
-    select: vi.fn(),
-    update: vi.fn(),
-  },
-  put: vi.fn(),
-  del: vi.fn(),
-  requireUser: vi.fn(),
-  revalidatePath: vi.fn(),
-  saveLocalUpload: vi.fn(),
-  tripsTable: { coverImageUrl: "trips.coverImageUrl", id: "trips.id" },
-}));
+const { adapterDel, adapterPut, assertTripAccess, db, getStorageAdapter, requireUser, revalidatePath, tripsTable } =
+  vi.hoisted(() => ({
+    adapterDel: vi.fn(),
+    adapterPut: vi.fn(),
+    assertTripAccess: vi.fn(),
+    db: {
+      select: vi.fn(),
+      update: vi.fn(),
+    },
+    getStorageAdapter: vi.fn(),
+    requireUser: vi.fn(),
+    revalidatePath: vi.fn(),
+    tripsTable: { coverImageUrl: "trips.coverImageUrl", id: "trips.id" },
+  }));
 
 vi.mock("@/lib/auth-helpers", () => ({
   assertTripAccess,
@@ -28,18 +29,12 @@ vi.mock("@/db/schema", () => ({
   trips: tripsTable,
 }));
 
-vi.mock("@vercel/blob", () => ({
-  del,
-  put,
+vi.mock("@/lib/storage/storage-adapter", () => ({
+  getStorageAdapter,
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath,
-}));
-
-vi.mock("@/lib/local-upload", () => ({
-  isBlobUploadUrl: (url: string) => url.startsWith("https://blob.vercel."),
-  saveLocalUpload,
 }));
 
 import { uploadCoverImage } from "./cover-upload-actions";
@@ -54,12 +49,11 @@ describe("uploadCoverImage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
-    vi.unstubAllEnvs();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    put.mockResolvedValue({ url: "https://blob.vercel.dev/new-cover.png" });
-    del.mockResolvedValue(undefined);
-    saveLocalUpload.mockResolvedValue("/uploads/trip-covers/trip-1/upload-1234.png");
+    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    adapterPut.mockResolvedValue("https://blob.vercel.dev/new-cover.png");
+    adapterDel.mockResolvedValue(undefined);
     db.select.mockReturnValue({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -82,11 +76,11 @@ describe("uploadCoverImage", () => {
       "Unsupported cover image type. Choose JPG, PNG, WEBP, HEIC, GIF, or AVIF."
     );
 
-    expect(put).not.toHaveBeenCalled();
+    expect(adapterPut).not.toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("uses a generated Blob storage name", async () => {
+  it("uses a generated storage name", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     const file = makeFile("cover.png", "image/png");
     const formData = new FormData();
@@ -94,24 +88,11 @@ describe("uploadCoverImage", () => {
 
     await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/new-cover.png");
 
-    expect(put).toHaveBeenCalledWith("trip-covers/trip-1/upload-1234.png", file, { access: "public" });
+    expect(adapterPut).toHaveBeenCalledWith("trip-covers/trip-1/upload-1234.png", file);
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
-  it("uses the generated storage name for local stub uploads too", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
-    vi.stubEnv("UPLOAD_STUB", "true");
-    const file = makeFile("cover.png", "image/png");
-    const formData = new FormData();
-    formData.append("file", file);
-
-    await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("/uploads/trip-covers/trip-1/upload-1234.png");
-
-    expect(saveLocalUpload).toHaveBeenCalledWith(file, { storageName: "trip-covers/trip-1/upload-1234.png" });
-    expect(put).not.toHaveBeenCalled();
-  });
-
-  it("rolls back the uploaded blob when the trip update fails", async () => {
+  it("rolls back the uploaded file when the trip update fails", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     const file = makeFile("cover.png", "image/png");
     const formData = new FormData();
@@ -126,6 +107,69 @@ describe("uploadCoverImage", () => {
 
     await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow("db failed");
 
-    expect(del).toHaveBeenCalledWith("https://blob.vercel.dev/new-cover.png");
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.vercel.dev/new-cover.png");
+  });
+
+  it("deletes the previous cover unconditionally, including legacy blob URLs", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
+    const formData = new FormData();
+    formData.append("file", makeFile("new-cover.png", "image/png"));
+    db.select.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [{ coverImageUrl: "https://blob.vercel.dev/old-cover.png" }]),
+        })),
+      })),
+    });
+
+    await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/new-cover.png");
+
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.vercel.dev/old-cover.png");
+  });
+
+  it("deletes the previous cover even when it is an external URL (adapter no-ops)", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
+    const formData = new FormData();
+    formData.append("file", makeFile("new-cover.png", "image/png"));
+    db.select.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [{ coverImageUrl: "https://images.example.com/old-cover.png" }]),
+        })),
+      })),
+    });
+
+    await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/new-cover.png");
+
+    expect(adapterDel).toHaveBeenCalledWith("https://images.example.com/old-cover.png");
+  });
+
+  it("skips previous-cover cleanup when there is no previous cover", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
+    const formData = new FormData();
+    formData.append("file", makeFile("cover.png", "image/png"));
+
+    await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/new-cover.png");
+
+    expect(adapterDel).not.toHaveBeenCalled();
+  });
+
+  it("still succeeds when deleting the previous cover rejects (no rollback of the new upload)", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
+    const formData = new FormData();
+    formData.append("file", makeFile("new-cover.png", "image/png"));
+    db.select.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [{ coverImageUrl: "https://blob.vercel.dev/old-cover.png" }]),
+        })),
+      })),
+    });
+    adapterDel.mockRejectedValueOnce(new Error("storage unavailable"));
+
+    await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/new-cover.png");
+
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.vercel.dev/old-cover.png");
+    expect(adapterDel).toHaveBeenCalledTimes(1);
   });
 });

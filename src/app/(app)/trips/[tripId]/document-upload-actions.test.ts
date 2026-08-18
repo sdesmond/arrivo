@@ -1,20 +1,30 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { assertTripAccess, db, documentsTable, eventsTable, put, requireUser, revalidatePath, saveLocalUpload } =
-  vi.hoisted(() => ({
-    assertTripAccess: vi.fn(),
-    db: {
-      insert: vi.fn(),
-      select: vi.fn(),
-    },
-    documentsTable: {},
-    eventsTable: { id: "events.id", tripId: "events.tripId" },
-    put: vi.fn(),
-    requireUser: vi.fn(),
-    revalidatePath: vi.fn(),
-    saveLocalUpload: vi.fn(),
-  }));
+const {
+  assertTripAccess,
+  adapterDel,
+  adapterPut,
+  db,
+  documentsTable,
+  eventsTable,
+  getStorageAdapter,
+  requireUser,
+  revalidatePath,
+} = vi.hoisted(() => ({
+  assertTripAccess: vi.fn(),
+  adapterDel: vi.fn(),
+  adapterPut: vi.fn(),
+  db: {
+    insert: vi.fn(),
+    select: vi.fn(),
+  },
+  documentsTable: {},
+  eventsTable: { id: "events.id", tripId: "events.tripId" },
+  getStorageAdapter: vi.fn(),
+  requireUser: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
 
 vi.mock("@/lib/auth-helpers", () => ({
   assertTripAccess,
@@ -30,16 +40,12 @@ vi.mock("@/db/schema", () => ({
   events: eventsTable,
 }));
 
-vi.mock("@vercel/blob", () => ({
-  put,
+vi.mock("@/lib/storage/storage-adapter", () => ({
+  getStorageAdapter,
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath,
-}));
-
-vi.mock("@/lib/local-upload", () => ({
-  saveLocalUpload,
 }));
 
 import { uploadDocument, uploadDocumentToEvent } from "./document-upload-actions";
@@ -56,14 +62,14 @@ describe("uploadDocument", () => {
     vi.restoreAllMocks();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    put.mockResolvedValue({ url: "https://blob.example.com/doc.pdf" });
-    saveLocalUpload.mockResolvedValue("/uploads/trip-documents/trip-1/upload-1234.pdf");
+    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    adapterPut.mockResolvedValue("https://blob.example.com/doc.pdf");
     db.insert.mockReturnValue({
       values: vi.fn(async () => undefined),
     });
   });
 
-  it("rejects unsupported MIME types before Blob or DB work", async () => {
+  it("rejects unsupported MIME types before upload or DB work", async () => {
     const formData = new FormData();
     formData.append("file", makeFile("doc.docx", "application/msword"));
 
@@ -71,11 +77,11 @@ describe("uploadDocument", () => {
       "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
     );
 
-    expect(put).not.toHaveBeenCalled();
+    expect(adapterPut).not.toHaveBeenCalled();
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("uploads with a generated Blob storage name and preserves the original filename in the DB row", async () => {
+  it("uploads with a generated storage name and preserves the original filename in the DB row", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
     let insertedValues: Record<string, unknown> | undefined;
     db.insert.mockReturnValue({
@@ -89,7 +95,7 @@ describe("uploadDocument", () => {
 
     await uploadDocument("trip-1", formData);
 
-    expect(put).toHaveBeenCalledWith("trip-documents/trip-1/upload-1234.pdf", file, { access: "public" });
+    expect(adapterPut).toHaveBeenCalledWith("trip-documents/trip-1/upload-1234.pdf", file);
     expect(insertedValues).toMatchObject({
       tripId: "trip-1",
       name: "Boarding Pass.pdf",
@@ -99,20 +105,6 @@ describe("uploadDocument", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
-
-  it("uses the generated storage name for local stub uploads too", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
-    vi.stubEnv("UPLOAD_STUB", "true");
-    const file = makeFile("Boarding Pass.pdf", "application/pdf");
-    const formData = new FormData();
-    formData.append("file", file);
-
-    await uploadDocument("trip-1", formData);
-
-    expect(saveLocalUpload).toHaveBeenCalledWith(file, { storageName: "trip-documents/trip-1/upload-1234.pdf" });
-    expect(put).not.toHaveBeenCalled();
-    vi.unstubAllEnvs();
-  });
 });
 
 describe("uploadDocumentToEvent", () => {
@@ -121,8 +113,8 @@ describe("uploadDocumentToEvent", () => {
     vi.restoreAllMocks();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    put.mockResolvedValue({ url: "https://blob.example.com/event-doc.png" });
-    saveLocalUpload.mockResolvedValue("/uploads/event-documents/event-1/upload-1234.png");
+    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    adapterPut.mockResolvedValue("https://blob.example.com/event-doc.png");
     db.insert.mockReturnValue({
       values: vi.fn(async () => undefined),
     });
@@ -133,7 +125,7 @@ describe("uploadDocumentToEvent", () => {
     });
   });
 
-  it("rejects unsupported MIME types before Blob or DB work", async () => {
+  it("rejects unsupported MIME types before upload or DB work", async () => {
     const formData = new FormData();
     formData.append("file", makeFile("event.svg", "image/svg+xml"));
 
@@ -141,7 +133,7 @@ describe("uploadDocumentToEvent", () => {
       "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
     );
 
-    expect(put).not.toHaveBeenCalled();
+    expect(adapterPut).not.toHaveBeenCalled();
     expect(db.insert).not.toHaveBeenCalled();
   });
 
@@ -160,7 +152,7 @@ describe("uploadDocumentToEvent", () => {
     await uploadDocumentToEvent("event-1", formData);
 
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(put).toHaveBeenCalledWith("event-documents/event-1/upload-1234.png", file, { access: "public" });
+    expect(adapterPut).toHaveBeenCalledWith("event-documents/event-1/upload-1234.png", file);
     expect(insertedValues).toMatchObject({
       tripId: "trip-1",
       eventId: "event-1",
@@ -170,5 +162,20 @@ describe("uploadDocumentToEvent", () => {
       url: "https://blob.example.com/event-doc.png",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("throws when the owning event cannot be resolved", async () => {
+    db.select.mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => []),
+      })),
+    });
+    const formData = new FormData();
+    formData.append("file", makeFile("Agenda.png", "image/png"));
+
+    await expect(uploadDocumentToEvent("missing-event", formData)).rejects.toThrow("Event not found");
+
+    expect(adapterPut).not.toHaveBeenCalled();
+    expect(assertTripAccess).not.toHaveBeenCalled();
   });
 });

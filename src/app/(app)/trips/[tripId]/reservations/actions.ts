@@ -1,11 +1,11 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { del } from "@vercel/blob";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { reservations, documents, trips } from "@/db/schema";
 import { revalidatePath } from "next/cache";
+import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { REQUIRES_END_AT } from "@/components/packt/reservation-type-badge";
@@ -204,13 +204,9 @@ export async function deleteReservation(reservationId: string): Promise<void> {
 
   const attachedDocs = await db.select().from(documents).where(eq(documents.reservationId, reservationId));
   const blobUrls = attachedDocs.map((doc) => doc.url).filter(Boolean) as string[];
-  if (blobUrls.length > 0 && process.env.UPLOAD_STUB !== "true") {
-    // Best-effort cleanup: a transient blob-store error must not block the DB delete.
-    try {
-      await del(blobUrls);
-    } catch {
-      // Orphaned blobs are tolerable; a blocked reservation delete is not.
-    }
+  if (blobUrls.length > 0) {
+    // Best-effort cleanup: one failing deletion must not block the others (or the DB delete).
+    await Promise.allSettled(blobUrls.map((url) => getStorageAdapter().del(url)));
   }
 
   await db.delete(reservations).where(eq(reservations.id, reservationId));

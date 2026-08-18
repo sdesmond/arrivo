@@ -46,10 +46,11 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
-const { del } = vi.hoisted(() => ({
-  del: vi.fn(),
+const { adapterDel, getStorageAdapter } = vi.hoisted(() => ({
+  adapterDel: vi.fn(),
+  getStorageAdapter: vi.fn(),
 }));
-vi.mock("@vercel/blob", () => ({ del }));
+vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter }));
 
 import { createReservation, updateReservation, deleteReservation } from "./actions";
 import { ReservationType } from "@/data/types";
@@ -1113,7 +1114,7 @@ describe("deleteReservation", () => {
   });
 });
 
-describe("deleteReservation — blob cleanup", () => {
+describe("deleteReservation — storage cleanup", () => {
   const baseRow = {
     id: "res-1",
     tripId: "trip-1",
@@ -1132,11 +1133,12 @@ describe("deleteReservation — blob cleanup", () => {
     db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    del.mockResolvedValue(undefined);
+    getStorageAdapter.mockReturnValue({ put: vi.fn(), del: adapterDel });
+    adapterDel.mockResolvedValue(undefined);
     db.delete.mockReturnValue({ where: async () => undefined });
   });
 
-  it("calls del() on each attached document blob URL before deleting the reservation row", async () => {
+  it("calls del() on each attached document URL before deleting the reservation row", async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     db.delete.mockReturnValue({ where: deleteWhere });
 
@@ -1146,20 +1148,44 @@ describe("deleteReservation — blob cleanup", () => {
 
     await deleteReservation("res-1");
 
-    expect(del).toHaveBeenCalledWith(["https://blob.example.com/doc.pdf"]);
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.example.com/doc.pdf");
     expect(deleteWhere).toHaveBeenCalled();
   });
 
-  it("skips del() when UPLOAD_STUB is 'true'", async () => {
-    process.env.UPLOAD_STUB = "true";
-    db.select
-      .mockReturnValueOnce({ from: () => ({ where: async () => [baseRow] }) })
-      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) });
+  it("calls del() per URL for multiple attached documents (Promise.allSettled)", async () => {
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [baseRow] }) }).mockReturnValueOnce({
+      from: () => ({
+        where: async () => [
+          { id: "doc-1", url: "https://blob.example.com/doc-1.pdf", reservationId: "res-1" },
+          { id: "doc-2", url: "https://blob.example.com/doc-2.pdf", reservationId: "res-1" },
+        ],
+      }),
+    });
 
     await deleteReservation("res-1");
 
-    expect(del).not.toHaveBeenCalled();
-    delete process.env.UPLOAD_STUB;
+    expect(adapterDel).toHaveBeenCalledTimes(2);
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.example.com/doc-1.pdf");
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.example.com/doc-2.pdf");
+  });
+
+  it("still deletes the reservation when one deletion fails (other deletions complete)", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    db.delete.mockReturnValue({ where: deleteWhere });
+    adapterDel.mockRejectedValueOnce(new Error("blob store unavailable"));
+
+    db.select.mockReturnValueOnce({ from: () => ({ where: async () => [baseRow] }) }).mockReturnValueOnce({
+      from: () => ({
+        where: async () => [
+          { id: "doc-1", url: "https://blob.example.com/doc-1.pdf", reservationId: "res-1" },
+          { id: "doc-2", url: "https://blob.example.com/doc-2.pdf", reservationId: "res-1" },
+        ],
+      }),
+    });
+
+    await expect(deleteReservation("res-1")).resolves.toBeUndefined();
+    expect(adapterDel).toHaveBeenCalledTimes(2);
+    expect(deleteWhere).toHaveBeenCalled();
   });
 
   it("skips del() when there are no attached documents", async () => {
@@ -1169,19 +1195,6 @@ describe("deleteReservation — blob cleanup", () => {
 
     await deleteReservation("res-1");
 
-    expect(del).not.toHaveBeenCalled();
-  });
-
-  it("still deletes the reservation when blob cleanup fails (best-effort)", async () => {
-    const deleteWhere = vi.fn().mockResolvedValue(undefined);
-    db.delete.mockReturnValue({ where: deleteWhere });
-    del.mockRejectedValue(new Error("blob store unavailable"));
-
-    db.select
-      .mockReturnValueOnce({ from: () => ({ where: async () => [baseRow] }) })
-      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) });
-
-    await expect(deleteReservation("res-1")).resolves.toBeUndefined();
-    expect(deleteWhere).toHaveBeenCalled();
+    expect(adapterDel).not.toHaveBeenCalled();
   });
 });

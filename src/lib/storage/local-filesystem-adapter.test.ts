@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StorageNotFoundError } from "./storage-adapter";
 
-const { writeFileMock } = vi.hoisted(() => ({ writeFileMock: vi.fn() }));
+const { unlinkMock, writeFileMock } = vi.hoisted(() => ({ unlinkMock: vi.fn(), writeFileMock: vi.fn() }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
+  unlinkMock.mockImplementation(actual.unlink);
   writeFileMock.mockImplementation(actual.writeFile);
-  return { ...actual, writeFile: writeFileMock };
+  return { ...actual, unlink: unlinkMock, writeFile: writeFileMock };
 });
 
 import { createLocalFileSystemAdapter } from "./local-filesystem-adapter";
@@ -35,6 +36,7 @@ describe("createLocalFileSystemAdapter", () => {
 
   beforeEach(async () => {
     rootDir = await mkdtemp(join(tmpdir(), "packt-storage-test-"));
+    unlinkMock.mockClear();
     writeFileMock.mockClear();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
@@ -99,6 +101,17 @@ describe("createLocalFileSystemAdapter", () => {
       const adapter = createLocalFileSystemAdapter(rootDir);
 
       await expect(adapter.del("/api/storage/trip-documents/trip-1/does-not-exist.pdf")).resolves.toBeUndefined();
+      expect(console.warn).toHaveBeenCalled();
+    });
+
+    it("does not throw and logs a warning when unlink rejects with a non-ENOENT error (EACCES)", async () => {
+      const adapter = createLocalFileSystemAdapter(rootDir);
+      const file = makeFile("doc.pdf", "content");
+      const url = await adapter.put("trip-documents/trip-1/uuid.pdf", file);
+      const eaccesError = Object.assign(new Error("permission denied"), { code: "EACCES" });
+      unlinkMock.mockRejectedValueOnce(eaccesError);
+
+      await expect(adapter.del(url)).resolves.toBeUndefined();
       expect(console.warn).toHaveBeenCalled();
     });
   });

@@ -1,20 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { documents, events } from "@/db/schema";
+import { documents } from "@/db/schema";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
-import { saveLocalUpload } from "@/lib/local-upload";
+import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
 import { formatFileSize, inferDocKind } from "@/lib/utils";
 import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
-
-async function getEventTripId(eventId: string): Promise<string> {
-  const [event] = await db.select({ tripId: events.tripId }).from(events).where(eq(events.id, eventId));
-  if (!event) throw new Error("Event not found");
-  return event.tripId;
-}
 
 export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -29,14 +22,7 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
   const kind = inferDocKind(file.type);
   const size = formatFileSize(file.size);
   const storageName = createUploadStorageName("trip-document", tripId, file.type);
-
-  let url: string;
-  if (process.env.UPLOAD_STUB === "true") {
-    url = await saveLocalUpload(file, { storageName });
-  } else {
-    const result = await put(storageName, file, { access: "public" });
-    url = result.url;
-  }
+  const url = await getStorageAdapter().put(storageName, file);
 
   await db.insert(documents).values({ tripId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
@@ -44,8 +30,6 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
 
 export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {
   const user = await requireUser();
-  const tripId = await getEventTripId(eventId);
-  await assertTripAccess(tripId, user.id!, "editor");
 
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided");
@@ -56,14 +40,10 @@ export async function uploadDocumentToEvent(eventId: string, formData: FormData)
   const kind = inferDocKind(file.type);
   const size = formatFileSize(file.size);
   const storageName = createUploadStorageName("event-document", eventId, file.type);
+  const tripId = await resolveOwningTripId(storageName);
+  await assertTripAccess(tripId, user.id!, "editor");
 
-  let url: string;
-  if (process.env.UPLOAD_STUB === "true") {
-    url = await saveLocalUpload(file, { storageName });
-  } else {
-    const result = await put(storageName, file, { access: "public" });
-    url = result.url;
-  }
+  const url = await getStorageAdapter().put(storageName, file);
 
   await db.insert(documents).values({ tripId, eventId, name, kind, size, url });
   revalidatePath(`/trips/${tripId}`);
