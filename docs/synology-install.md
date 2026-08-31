@@ -1,15 +1,13 @@
 # How to Install Packt on Your Synology NAS
 
 This guide walks through self-hosting [Packt](../README.md) on a Synology NAS using **Container
-Manager**. Packt has no published container image — Container Manager builds it from source on
-the NAS, so the guide starts by getting the repository onto the NAS over SSH.
+Manager**. A prebuilt image publishes to GHCR on every release, so this only needs the
+`docker-compose.yml` and `.env` files on the NAS — no repo clone, no local build.
 
 **Prerequisites:**
 
 - DSM 7.2 or later
 - **Container Manager** installed (Package Center → search "Container Manager")
-- **Git Server** installed (Package Center → search "Git Server") — provides the `git` command
-  used in Step 2
 - SSH access to the NAS
 
 ---
@@ -22,7 +20,7 @@ Note the port (default `22`) — you'll need it to connect.
 
 ---
 
-## Step 2 — Create the project folder and clone Packt
+## Step 2 — Create the project folder and download the compose file
 
 Connect over SSH from your computer's terminal:
 
@@ -30,16 +28,13 @@ Connect over SSH from your computer's terminal:
 ssh your-user@your-nas-ip
 ```
 
-Create a folder under `docker` and clone the repository into it:
+Create a folder under `docker` and download `docker-compose.yml` into it:
 
 ```sh
 mkdir -p /volume1/docker/packt
 cd /volume1/docker/packt
-git clone https://github.com/sdesmond/packt.git .
+curl -O https://raw.githubusercontent.com/sdesmond/packt/main/docker-compose.yml
 ```
-
-> **Note:** the trailing `.` clones directly into `packt/` instead of creating a nested
-> `packt/packt/` folder — Container Manager needs `docker-compose.yml` at the folder's top level.
 
 ---
 
@@ -48,7 +43,7 @@ git clone https://github.com/sdesmond/packt.git .
 Still in `/volume1/docker/packt`:
 
 ```sh
-cp .env.example .env
+curl -o .env https://raw.githubusercontent.com/sdesmond/packt/main/.env.example
 echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)" >> .env
 ```
 
@@ -70,17 +65,21 @@ the container.
 
 ---
 
-## Step 5 — Build and run
+## Step 5 — Pull and run
 
 1. Review the compose file summary on the confirmation screen — you should see two services,
    `db` and `app`.
-2. Click **Done** to build and start the project.
+2. Click **Done** to start the project.
 
-The first build takes a few minutes (Container Manager runs `npm run build` inside the image).
-Watch progress under **Project → packt → Build Logs**.
+This pulls `ghcr.io/sdesmond/packt:latest` rather than building — it should finish in well under a
+minute. Watch progress under **Project → packt → Container**.
 
 > **Note:** the `app` container pushes the current Drizzle schema to `db` automatically on its
 > first boot — this is an intentional pre-release workflow, not a bug.
+
+> **If the pull fails with an authentication/permission error,** the GHCR image may not be public
+> yet — check [ghcr.io/sdesmond/packt](https://github.com/sdesmond/packt/pkgs/container/packt) or
+> ask the maintainer.
 
 ---
 
@@ -99,8 +98,8 @@ Visit `http://your-nas-ip:3000`.
 
 - Sign in with the demo account (`demo@packt.local` / `demo1234`) if you seeded demo data, or
 - Sign up for your own account — `ALLOW_SIGNUP` defaults to `true` in `docker-compose.yml`. Set
-  it to `false` and rebuild once you've created your account if you don't want the sign-up page
-  exposed publicly.
+  it to `false` and recreate the project once you've created your account if you don't want the
+  sign-up page exposed publicly.
 
 ### (Optional) Seed demo data
 
@@ -125,24 +124,26 @@ docker volume inspect packt_packt-storage
 
 ## Updating Packt
 
+Over SSH, in `/volume1/docker/packt`:
+
 ```sh
-cd /volume1/docker/packt
-git pull
+docker compose pull
+docker compose up -d
 ```
 
-Then in Container Manager: **Project → packt → Action → Build** to rebuild the image with the new
-source, followed by **Action → Start**. Your database and uploaded files are untouched — they live
-in the `packt-pgdata` and `packt-storage` volumes, not in the container.
+This pulls the latest published image and recreates the `app` container. Your database and
+uploaded files are untouched — they live in the `packt-pgdata` and `packt-storage` volumes, not in
+the container.
 
 ---
 
 ## Troubleshooting
 
 - **Port 3000 already in use** — edit the `ports` line under the `app` service in
-  `docker-compose.yml` (e.g. `"3001:3000"`), then rebuild the project.
+  `docker-compose.yml` (e.g. `"3001:3000"`), then recreate the project.
 - **Reverse proxy / HTTPS** — put Packt behind DSM's built-in reverse proxy (**Control Panel →
   Login Portal → Advanced → Reverse Proxy**) pointing at `localhost:3000`, and set `NEXTAUTH_URL`
-  in `.env` to your public HTTPS URL before rebuilding.
+  in `.env` to your public HTTPS URL before recreating.
 - **Permission errors writing uploads** — see the PUID/GID note in
   [Storage](../README.md#storage); this only applies if you swap the named `packt-storage` volume
   for a host bind mount.

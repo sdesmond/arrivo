@@ -31,20 +31,26 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## Self-hosting
 
-**Prerequisites:** Docker, Docker Compose, `openssl`
+**Prerequisites:** Docker, Docker Compose, `curl`, `openssl`
 
-1. Copy the env file and fill in a secret:
+A prebuilt image publishes to [GHCR](https://github.com/sdesmond/packt/pkgs/container/packt) on every release, so no clone or local build is required.
+
+1. Grab the compose file and env template into a new folder:
 
    ```sh
-   cp .env.example .env
+   mkdir packt && cd packt
+   curl -O https://raw.githubusercontent.com/sdesmond/packt/main/docker-compose.yml
+   curl -o .env https://raw.githubusercontent.com/sdesmond/packt/main/.env.example
    echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)" >> .env
    ```
 
-2. Build and start:
+2. Pull and start:
 
    ```sh
-   docker compose up -d --build
+   docker compose up -d
    ```
+
+   This pulls `ghcr.io/sdesmond/packt:latest` — no build step. (Building from source instead: clone the repo and run `docker compose up -d --build`.)
 
    The app pushes the current Drizzle schema automatically at boot.
    This is an intentional pre-release workflow and will switch to explicit tracked migrations before general production rollout.
@@ -60,6 +66,8 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
    Signs in as `demo@packt.local` / `demo1234`.
 
 4. Open [http://localhost:3000](http://localhost:3000).
+
+**Updating:** `docker compose pull && docker compose up -d` — your database and uploads live in named volumes, untouched by the image update.
 
 For a Synology NAS walkthrough (Container Manager, no CLI Docker experience required), see
 **[docs/synology-install.md](./docs/synology-install.md)**.
