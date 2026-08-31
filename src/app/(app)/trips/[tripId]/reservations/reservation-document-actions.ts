@@ -1,13 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { put, del } from "@vercel/blob";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { reservations, documents } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { inferDocKind, formatFileSize } from "@/lib/utils";
-import { saveLocalUpload } from "@/lib/local-upload";
+import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
 import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
 
 async function getReservationTripId(reservationId: string): Promise<string> {
@@ -21,24 +21,21 @@ async function getReservationTripId(reservationId: string): Promise<string> {
 
 export async function uploadReservationDocument(reservationId: string, formData: FormData): Promise<void> {
   const user = await requireUser();
-  const [reservation] = await db.select().from(reservations).where(eq(reservations.id, reservationId));
-  if (!reservation) throw new Error("Reservation not found.");
-  await assertTripAccess(reservation.tripId, user.id!, "editor");
 
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided.");
   assertValidDocumentUpload(file);
 
   const kind = inferDocKind(file.type);
-  const isStub = process.env.UPLOAD_STUB === "true";
   const storageName = createUploadStorageName("reservation-document", reservationId, file.type);
-  const url = isStub
-    ? await saveLocalUpload(file, { storageName })
-    : (await put(storageName, file, { access: "public" })).url;
+  const tripId = await resolveOwningTripId(storageName);
+  await assertTripAccess(tripId, user.id!, "editor");
+
+  const url = await getStorageAdapter().put(storageName, file);
 
   try {
     await db.insert(documents).values({
-      tripId: reservation.tripId,
+      tripId,
       reservationId,
       name: file.name,
       kind,
@@ -46,18 +43,15 @@ export async function uploadReservationDocument(reservationId: string, formData:
       url,
     });
   } catch (error) {
-    // Roll back the just-uploaded blob so a failed insert does not leak storage.
-    if (!isStub) {
-      try {
-        await del(url);
-      } catch {
-        // Swallow rollback failure; surface the original insert error below.
-      }
-    }
+    // Roll back the just-uploaded file so a failed insert does not leak storage.
+    // A rollback failure must never mask the original insert error.
+    await getStorageAdapter()
+      .del(url)
+      .catch(() => {});
     throw error;
   }
 
-  revalidatePath(`/trips/${reservation.tripId}`);
+  revalidatePath(`/trips/${tripId}`);
 }
 
 export async function removeReservationDocument(docId: string): Promise<void> {
@@ -71,12 +65,13 @@ export async function removeReservationDocument(docId: string): Promise<void> {
 
   await assertTripAccess(reservation.tripId, user.id!, "editor");
 
-  if (doc.url && process.env.UPLOAD_STUB !== "true") {
-    // Best-effort cleanup: a transient blob-store error must not block the DB delete.
+  if (doc.url) {
+    // Best-effort cleanup: a rejecting del (or an adapter that never throws)
+    // must not block the DB delete.
     try {
-      await del(doc.url);
-    } catch {
-      // Orphaned blob is tolerable; a blocked document delete is not.
+      await getStorageAdapter().del(doc.url);
+    } catch (error) {
+      console.warn(`Cleanup failed for ${doc.url}`, error);
     }
   }
 

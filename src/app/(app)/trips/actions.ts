@@ -33,6 +33,8 @@ import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies
 import { recalculateAll } from "@/lib/currency";
 import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
+import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { createUploadStorageName } from "@/lib/upload-policy";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
@@ -311,16 +313,12 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
         const [lng, lat] = input.destinationCenter;
         const token = process.env.MAPBOX_ACCESS_TOKEN ?? "";
         const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/${lng},${lat},10/600x400@2x?access_token=${token}`;
-        if (process.env.UPLOAD_STUB === "true") {
-          coverUrl = null;
-        } else {
-          const tileRes = await fetch(tileUrl);
-          if (!tileRes.ok) throw new Error(`Mapbox tile fetch failed: ${tileRes.status}`);
-          const tileBlob = await tileRes.blob();
-          const { put } = await import("@vercel/blob");
-          const result = await put(`mapbox-covers/${tripId}.jpg`, tileBlob, { access: "public" });
-          coverUrl = result.url;
-        }
+        const tileRes = await fetch(tileUrl);
+        if (!tileRes.ok) throw new Error(`Mapbox tile fetch failed: ${tileRes.status}`);
+        const tileBlob = await tileRes.blob();
+        const storageName = createUploadStorageName("trip-cover", tripId, "image/jpeg");
+        const tileFile = new File([tileBlob], storageName, { type: "image/jpeg" });
+        coverUrl = await getStorageAdapter().put(storageName, tileFile);
       } else if (coverType === CoverType.Photo && input.destinationName) {
         const images = await searchCoverImages(input.destinationName);
         const firstImage = images[0];
@@ -614,17 +612,14 @@ export async function updateTripMetadata(
     return { status: "confirmation-required", confirmation };
   }
 
-  if (eventDocumentUrlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
-    try {
-      const { del } = await import("@vercel/blob");
-      await Promise.all(
-        eventDocumentUrlsToCleanup.map((url) =>
-          del(url).catch((error) => console.warn(`Blob cleanup failed for ${url}`, error))
-        )
-      );
-    } catch (error) {
-      console.warn("Blob cleanup import failed after trip date update", error);
-    }
+  if (eventDocumentUrlsToCleanup.length > 0) {
+    await Promise.all(
+      eventDocumentUrlsToCleanup.map((url) =>
+        getStorageAdapter()
+          .del(url)
+          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
+      )
+    );
   }
 
   revalidatePath(`/trips/${tripId}`);
@@ -641,10 +636,13 @@ export async function deleteTrip(tripId: string) {
   await db.delete(trips).where(eq(trips.id, tripId));
 
   const urlsToCleanup = tripDocs.map((doc) => doc.url).filter((url): url is string => !!url);
-  if (urlsToCleanup.length > 0 && process.env.UPLOAD_STUB !== "true") {
-    const { del } = await import("@vercel/blob");
+  if (urlsToCleanup.length > 0) {
     await Promise.all(
-      urlsToCleanup.map((url) => del(url).catch((err) => console.warn(`Blob cleanup failed for ${url}`, err)))
+      urlsToCleanup.map((url) =>
+        getStorageAdapter()
+          .del(url)
+          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
+      )
     );
   }
 

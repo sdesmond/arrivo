@@ -1,7 +1,19 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { assertTripAccess, db, documentsTable, requireUser, reservationsTable, revalidatePath } = vi.hoisted(() => ({
+const {
+  adapterDel,
+  adapterPut,
+  assertTripAccess,
+  db,
+  documentsTable,
+  getStorageAdapter,
+  requireUser,
+  reservationsTable,
+  revalidatePath,
+} = vi.hoisted(() => ({
+  adapterDel: vi.fn(),
+  adapterPut: vi.fn(),
   assertTripAccess: vi.fn(),
   db: {
     insert: vi.fn(),
@@ -10,6 +22,7 @@ const { assertTripAccess, db, documentsTable, requireUser, reservationsTable, re
     delete: vi.fn(),
   },
   documentsTable: { id: "documents.id", reservationId: "documents.reservationId", url: "documents.url" },
+  getStorageAdapter: vi.fn(),
   requireUser: vi.fn(),
   reservationsTable: { id: "reservations.id", tripId: "reservations.tripId" },
   revalidatePath: vi.fn(),
@@ -29,20 +42,13 @@ vi.mock("@/db/schema", () => ({
   documents: documentsTable,
 }));
 
+vi.mock("@/lib/storage/storage-adapter", () => ({
+  getStorageAdapter,
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath,
 }));
-
-const { put, del } = vi.hoisted(() => ({
-  put: vi.fn(),
-  del: vi.fn(),
-}));
-vi.mock("@vercel/blob", () => ({ put, del }));
-
-const { saveLocalUpload } = vi.hoisted(() => ({
-  saveLocalUpload: vi.fn(),
-}));
-vi.mock("@/lib/local-upload", () => ({ saveLocalUpload }));
 
 import {
   uploadReservationDocument,
@@ -67,12 +73,13 @@ describe("uploadReservationDocument", () => {
     db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    put.mockResolvedValue({ url: "https://blob.example.com/doc.pdf" });
-    saveLocalUpload.mockResolvedValue("http://localhost/stub/doc.pdf");
+    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    adapterPut.mockResolvedValue("https://blob.example.com/doc.pdf");
+    adapterDel.mockResolvedValue(undefined);
     db.insert.mockReturnValue({ values: async () => undefined });
   });
 
-  it("throws when the reservation does not exist", async () => {
+  it("throws when the owning reservation cannot be resolved", async () => {
     db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
 
     const form = new FormData();
@@ -100,10 +107,10 @@ describe("uploadReservationDocument", () => {
     form.append("file", makeFile("big.pdf", 30 * 1024 * 1024));
 
     await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("File is too large.");
-    expect(put).not.toHaveBeenCalled();
+    expect(adapterPut).not.toHaveBeenCalled();
   });
 
-  it("rejects unsupported MIME types before Blob or DB work", async () => {
+  it("rejects unsupported MIME types before upload or DB work", async () => {
     db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
 
     const file = new File(["x"], "doc.docx", { type: "application/msword" });
@@ -114,7 +121,7 @@ describe("uploadReservationDocument", () => {
     await expect(uploadReservationDocument("res-1", form)).rejects.toThrow(
       "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
     );
-    expect(put).not.toHaveBeenCalled();
+    expect(adapterPut).not.toHaveBeenCalled();
     expect(db.insert).not.toHaveBeenCalled();
   });
 
@@ -133,9 +140,7 @@ describe("uploadReservationDocument", () => {
 
     await uploadReservationDocument("res-1", form);
 
-    expect(put).toHaveBeenCalledWith("reservation-documents/res-1/upload-1234.pdf", expect.any(File), {
-      access: "public",
-    });
+    expect(adapterPut).toHaveBeenCalledWith("reservation-documents/res-1/upload-1234.pdf", expect.any(File));
     expect(insertedValues).toMatchObject({
       tripId: "trip-1",
       reservationId: "res-1",
@@ -166,7 +171,7 @@ describe("uploadReservationDocument", () => {
     expect(insertedValues).toMatchObject({ kind: "image" });
   });
 
-  it("rolls back the uploaded blob when the document insert fails", async () => {
+  it("rolls back the uploaded file when the document insert fails", async () => {
     db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
     db.insert.mockReturnValue({
       values: async () => {
@@ -178,40 +183,7 @@ describe("uploadReservationDocument", () => {
     form.append("file", makeFile("doc.pdf", 100));
 
     await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("insert failed");
-    expect(del).toHaveBeenCalledWith("https://blob.example.com/doc.pdf");
-  });
-
-  it("does not attempt blob rollback when the insert fails under UPLOAD_STUB", async () => {
-    process.env.UPLOAD_STUB = "true";
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-    db.insert.mockReturnValue({
-      values: async () => {
-        throw new Error("insert failed");
-      },
-    });
-
-    const form = new FormData();
-    form.append("file", makeFile("doc.pdf", 100));
-
-    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("insert failed");
-    expect(del).not.toHaveBeenCalled();
-    delete process.env.UPLOAD_STUB;
-  });
-
-  it("calls saveLocalUpload() when UPLOAD_STUB is 'true'", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
-    process.env.UPLOAD_STUB = "true";
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-
-    const file = makeFile("doc.pdf", 100);
-    const form = new FormData();
-    form.append("file", file);
-
-    await uploadReservationDocument("res-1", form);
-
-    expect(saveLocalUpload).toHaveBeenCalledWith(file, { storageName: "reservation-documents/res-1/upload-1234.pdf" });
-    expect(put).not.toHaveBeenCalled();
-    delete process.env.UPLOAD_STUB;
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.example.com/doc.pdf");
   });
 
   it("revalidates the trip path after upload", async () => {
@@ -235,7 +207,8 @@ describe("removeReservationDocument", () => {
     db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    del.mockResolvedValue(undefined);
+    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    adapterDel.mockResolvedValue(undefined);
     db.delete.mockReturnValue({ where: async () => undefined });
   });
 
@@ -272,7 +245,7 @@ describe("removeReservationDocument", () => {
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
   });
 
-  it("calls del() on the blob URL before deleting the document row", async () => {
+  it("calls del() on the document URL before deleting the document row", async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     db.delete.mockReturnValue({ where: deleteWhere });
 
@@ -282,20 +255,22 @@ describe("removeReservationDocument", () => {
 
     await removeReservationDocument("doc-1");
 
-    expect(del).toHaveBeenCalledWith("https://blob.example.com/doc.pdf");
+    expect(adapterDel).toHaveBeenCalledWith("https://blob.example.com/doc.pdf");
     expect(deleteWhere).toHaveBeenCalled();
   });
 
-  it("skips del() when UPLOAD_STUB is 'true'", async () => {
-    process.env.UPLOAD_STUB = "true";
+  it("calls del() unconditionally on legacy URLs (the adapter no-ops on them)", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    db.delete.mockReturnValue({ where: deleteWhere });
+
     db.select
-      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [{ ...docRow, url: "/uploads/legacy.pdf" }] }) })
       .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
 
     await removeReservationDocument("doc-1");
 
-    expect(del).not.toHaveBeenCalled();
-    delete process.env.UPLOAD_STUB;
+    expect(adapterDel).toHaveBeenCalledWith("/uploads/legacy.pdf");
+    expect(deleteWhere).toHaveBeenCalled();
   });
 
   it("skips del() when the document has no url", async () => {
@@ -305,20 +280,7 @@ describe("removeReservationDocument", () => {
 
     await removeReservationDocument("doc-1");
 
-    expect(del).not.toHaveBeenCalled();
-  });
-
-  it("still deletes the document row when blob cleanup fails (best-effort)", async () => {
-    const deleteWhere = vi.fn().mockResolvedValue(undefined);
-    db.delete.mockReturnValue({ where: deleteWhere });
-    del.mockRejectedValue(new Error("blob store unavailable"));
-
-    db.select
-      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) })
-      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
-
-    await expect(removeReservationDocument("doc-1")).resolves.toBeUndefined();
-    expect(deleteWhere).toHaveBeenCalled();
+    expect(adapterDel).not.toHaveBeenCalled();
   });
 
   it("revalidates the trip path after removal", async () => {
@@ -328,6 +290,21 @@ describe("removeReservationDocument", () => {
 
     await removeReservationDocument("doc-1");
 
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("still deletes the document row when the adapter del rejects", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    db.delete.mockReturnValue({ where: deleteWhere });
+    adapterDel.mockRejectedValueOnce(new Error("storage unavailable"));
+
+    db.select
+      .mockReturnValueOnce({ from: () => ({ where: async () => [docRow] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [reservationRow] }) });
+
+    await expect(removeReservationDocument("doc-1")).resolves.toBeUndefined();
+
+    expect(deleteWhere).toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });

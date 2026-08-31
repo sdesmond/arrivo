@@ -49,6 +49,8 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
    The app pushes the current Drizzle schema automatically at boot.
    This is an intentional pre-release workflow and will switch to explicit tracked migrations before general production rollout.
 
+   Uploaded documents and cover images persist in the `packt-storage` volume (see [Storage](#storage)).
+
 3. (Optional) Seed demo data:
 
    ```sh
@@ -60,6 +62,40 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 4. Open [http://localhost:3000](http://localhost:3000).
 
 **Session revocation:** this app uses JWT sessions. To invalidate all active sessions, rotate `NEXTAUTH_SECRET` and restart the container.
+
+## Storage
+
+Packt stores uploaded documents and trip cover images through a pluggable `StorageAdapter` port (`src/lib/storage/storage-adapter.ts`) instead of calling any storage backend SDK directly. The active backend is chosen by environment variable and is swappable without code changes.
+
+### Providers
+
+| `STORAGE_PROVIDER` | Adapter                                                               | Required env vars        |
+| ------------------ | --------------------------------------------------------------------- | ------------------------ |
+| `local` (default)  | `local-filesystem-adapter.ts` — writes to disk under a root directory | `STORAGE_LOCAL_ROOT_DIR` |
+
+`local` is the only provider implemented today. Object-storage backends (e.g. S3-compatible) are a future addition, not yet built.
+
+### How it works
+
+- `getStorageAdapter()` resolves the active adapter once per process. It validates `STORAGE_PROVIDER` and that provider's required env vars on first use, so misconfiguration fails fast with a clear "missing X env var" error instead of surfacing deep inside an upload.
+- `put(key, file)` writes the file and returns a ready-to-render URL, stored as-is in `documents.url` / `trips.coverImageUrl` — there's no separate key column or key-to-URL resolution at render time.
+- Reads never expose a raw filesystem path or storage URL to the browser. Every read goes through the authenticated proxy route `GET /api/storage/[...path]`, which calls `requireUser()`, resolves and authorizes the owning trip (`resolveOwningTripId()` + `assertTripAccess()`), and only then streams bytes.
+- `del(url)` is safe to call unconditionally at any call site — each adapter recognizes only its own produced-URL shape and no-ops on anything else, including URLs left over from a prior backend after a migration. Deletion failures are best-effort/logged, never thrown.
+- Storage keys (e.g. `trip-document/<tripId>/<uuid>.pdf`) are generated exclusively by `createUploadStorageName()` in `src/lib/upload-policy.ts`; adapters treat them as opaque path strings and never construct or interpret their meaning.
+
+### Switching providers
+
+Set `STORAGE_PROVIDER` and that provider's required env vars, then redeploy — no code changes needed. Live mid-process switching isn't supported; a provider change takes effect on restart.
+
+### Local provider
+
+Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and mounts a named volume (`packt-storage`) at that path so uploads survive container rebuilds and restarts.
+
+If you swap that named volume for a host bind mount, match the bind-mounted directory's owner to the container process's UID/GID (the app container runs as root by default) — an ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
+
+### Adding a provider
+
+Implement the `StorageAdapter` interface (`put`/`del`/`read`) in a new file under `src/lib/storage/`, register it in `createAdapterFromEnv()`'s provider switch in `storage-adapter.ts`, and validate that provider's required env vars there. `read()` must throw `StorageNotFoundError` for a missing key so the proxy route can return 404 instead of 500.
 
 ## Tech stack
 

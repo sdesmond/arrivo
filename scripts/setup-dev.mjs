@@ -23,8 +23,8 @@ const ENV_ORDER = [
   "E2E_EMAIL",
   "E2E_PASSWORD",
   "HIDE_OVERLAY",
-  "UPLOAD_STUB",
-  "BLOB_READ_WRITE_TOKEN",
+  "STORAGE_PROVIDER",
+  "STORAGE_LOCAL_ROOT_DIR",
 ];
 
 const DEFAULT_ENV_VALUES = {
@@ -33,7 +33,8 @@ const DEFAULT_ENV_VALUES = {
   E2E_EMAIL: "e2e@packt.local",
   E2E_PASSWORD: "e2e1234",
   HIDE_OVERLAY: "true",
-  BLOB_READ_WRITE_TOKEN: "",
+  STORAGE_PROVIDER: "local",
+  STORAGE_LOCAL_ROOT_DIR: "./.dev-storage",
 };
 
 const LOCAL_DATABASE_URL = "postgres://packt:packt@localhost:5432/packt";
@@ -203,6 +204,9 @@ function needsGeneratedSecret(value) {
 function createEnvValues(existingValues) {
   const nextValues = { ...existingValues };
 
+  delete nextValues.UPLOAD_STUB;
+  delete nextValues.BLOB_READ_WRITE_TOKEN;
+
   nextValues.DATABASE_URL = LOCAL_DATABASE_URL;
   nextValues.E2E_DATABASE_URL = LOCAL_E2E_DATABASE_URL;
 
@@ -214,12 +218,6 @@ function createEnvValues(existingValues) {
 
   if (needsGeneratedSecret(nextValues.NEXTAUTH_SECRET)) {
     nextValues.NEXTAUTH_SECRET = randomBytes(32).toString("base64");
-  }
-
-  if (!nextValues.BLOB_READ_WRITE_TOKEN) {
-    nextValues.UPLOAD_STUB = "true";
-  } else if (!nextValues.UPLOAD_STUB) {
-    nextValues.UPLOAD_STUB = "false";
   }
 
   return nextValues;
@@ -384,8 +382,8 @@ function applyDatabaseSetup(rootDir, envValues) {
     E2E_EMAIL: envValues.E2E_EMAIL,
     E2E_PASSWORD: envValues.E2E_PASSWORD,
     HIDE_OVERLAY: envValues.HIDE_OVERLAY,
-    UPLOAD_STUB: envValues.UPLOAD_STUB,
-    BLOB_READ_WRITE_TOKEN: envValues.BLOB_READ_WRITE_TOKEN,
+    STORAGE_PROVIDER: envValues.STORAGE_PROVIDER,
+    STORAGE_LOCAL_ROOT_DIR: envValues.STORAGE_LOCAL_ROOT_DIR,
   };
 
   runPackageCommand("npm", ["run", "db:push"], { cwd: rootDir, env });
@@ -430,9 +428,7 @@ export async function main(argv = process.argv.slice(2)) {
   log("Setup complete");
   log("Start the app with: npm run dev");
   log("Sign in with: demo@packt.local / demo1234");
-  if (envValues.UPLOAD_STUB === "true") {
-    log("Uploads are stubbed locally until BLOB_READ_WRITE_TOKEN is set.");
-  }
+  log(`Storage: ${envValues.STORAGE_PROVIDER} (${envValues.STORAGE_LOCAL_ROOT_DIR})`);
 }
 
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

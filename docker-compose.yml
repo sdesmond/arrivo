@@ -22,8 +22,13 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       ALLOW_SIGNUP: "true"
+      STORAGE_PROVIDER: local
+      STORAGE_LOCAL_ROOT_DIR: /app/storage
+    volumes:
+      - packt-storage:/app/storage
     ports:
       - "3000:3000"
 
 volumes:
   packt-pgdata:
+  packt-storage:
