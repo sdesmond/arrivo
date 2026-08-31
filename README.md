@@ -61,6 +61,9 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 4. Open [http://localhost:3000](http://localhost:3000).
 
+For a Synology NAS walkthrough (Container Manager, no CLI Docker experience required), see
+**[docs/synology-install.md](./docs/synology-install.md)**.
+
 **Session revocation:** this app uses JWT sessions. To invalidate all active sessions, rotate `NEXTAUTH_SECRET` and restart the container.
 
 ## Storage
