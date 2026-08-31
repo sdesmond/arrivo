@@ -95,7 +95,7 @@ The seed is idempotent — safe to run multiple times; exits early if the demo u
 | `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                           |
 | `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                   | `./.dev-storage`                                  |
 
-Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`.
+Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`. See the **[Storage](./README.md#storage)** section in README.md for how the adapter, providers, and Docker volume mount work.
 
 ---
 
