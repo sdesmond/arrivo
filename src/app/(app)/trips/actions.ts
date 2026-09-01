@@ -13,19 +13,22 @@ import {
   itineraryNotes,
   itineraryChecklists,
   users,
+  invitations,
 } from "@/db/schema";
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type {
   CreateTripInput,
   UpdateTripPatch,
   AddCollaboratorInput,
+  InviteContributorResult,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
 } from "@/data/types";
-import { TransitMode } from "@/data/types";
+import { CollaboratorRole, TransitMode } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/lib/utils";
@@ -35,6 +38,7 @@ import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
+import { INVITE_TTL_HOURS, normalizeEmail } from "@/lib/invitations";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
@@ -666,6 +670,99 @@ export async function addCollaborator(tripId: string, input: AddCollaboratorInpu
     })
     .onConflictDoNothing();
   revalidatePath(`/trips/${tripId}`);
+}
+
+const VALID_COLLABORATOR_ROLES = Object.values(CollaboratorRole);
+
+function isCollaboratorRole(value: string): value is CollaboratorRole {
+  return VALID_COLLABORATOR_ROLES.some((collaboratorRole) => collaboratorRole === value);
+}
+
+export function hasNormalizedEmail(emailColumn: AnyPgColumn, email: string) {
+  return sql`lower(trim(${emailColumn})) = ${email}`;
+}
+
+const UNIQUE_VIOLATION_CODE = "23505";
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === UNIQUE_VIOLATION_CODE;
+}
+
+export async function inviteContributor(
+  tripId: string,
+  email: string,
+  role: CollaboratorRole = CollaboratorRole.Viewer
+): Promise<InviteContributorResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "manager");
+
+  if (!isCollaboratorRole(role)) {
+    return { status: "error", message: "Invalid collaborator role" };
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (user.email && normalizedEmail === normalizeEmail(user.email)) {
+    return { status: "error", message: "You cannot invite yourself to this trip" };
+  }
+
+  const [invitee] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(hasNormalizedEmail(users.email, normalizedEmail));
+  if (!invitee) {
+    return { status: "error", message: "No Packt account found for this email" };
+  }
+
+  const expiresAt = new Date(Date.now() + INVITE_TTL_HOURS * 60 * 60 * 1000);
+  const result = await db.transaction(async (transaction) => {
+    const existingCollaborators = await transaction
+      .select({ id: collaborators.id })
+      .from(collaborators)
+      .where(and(eq(collaborators.tripId, tripId), hasNormalizedEmail(collaborators.email, normalizedEmail)));
+    if (existingCollaborators.length > 0) {
+      return { status: "error", message: "This person is already a collaborator on this trip" } as const;
+    }
+
+    const existingInvitations = await transaction
+      .select({ id: invitations.id, status: invitations.status })
+      .from(invitations)
+      .where(and(eq(invitations.tripId, tripId), hasNormalizedEmail(invitations.email, normalizedEmail)));
+    const pendingInvitation = existingInvitations.find((invitation) => invitation.status === "pending");
+    if (pendingInvitation) {
+      await transaction.update(invitations).set({ role, expiresAt }).where(eq(invitations.id, pendingInvitation.id));
+      return { status: "resent" } as const;
+    }
+
+    const declinedInvitation = existingInvitations.find((invitation) => invitation.status === "declined");
+    if (declinedInvitation) {
+      await transaction.delete(invitations).where(eq(invitations.id, declinedInvitation.id));
+    }
+
+    try {
+      await transaction.insert(invitations).values({
+        tripId,
+        email: normalizedEmail,
+        role,
+        status: "pending",
+        expiresAt,
+        invitedBy: user.id!,
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return {
+          status: "error",
+          message: "This person was just invited by someone else. Try again.",
+        } as const;
+      }
+      throw error;
+    }
+    return { status: "invited" } as const;
+  });
+
+  if (result.status !== "error") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
 }
 
 export async function removeCollaborator(collabId: string) {

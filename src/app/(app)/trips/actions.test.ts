@@ -6,9 +6,11 @@ import {
   documents,
   events,
   expenses,
+  invitations,
   itineraryChecklists,
   itineraryNotes,
   trips,
+  users,
 } from "@/db/schema";
 import { headers } from "next/headers";
 
@@ -106,6 +108,8 @@ import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDate
 import {
   addPackingItem,
   createTrip,
+  hasNormalizedEmail,
+  inviteContributor,
   pullTemplatesOntoTrip,
   reorderPackingItems,
   removePackingItem,
@@ -694,6 +698,227 @@ describe("updateTripMetadata", () => {
     expect(operations.updates.some((entry) => entry.table === trips)).toBe(false);
     expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+interface InvitationFixture {
+  collaboratorRows?: Array<{ id: string }>;
+  invitationRows?: Array<{ id: string; status: string }>;
+  userRows?: Array<{ id: string; email: string | null }>;
+}
+
+function setupInviteContributorDb({
+  collaboratorRows = [],
+  invitationRows = [],
+  userRows = [{ id: "invitee-1", email: "invitee@example.com" }],
+}: InvitationFixture = {}) {
+  const operations = {
+    deletes: [] as unknown[],
+    inserts: [] as Array<{ table: unknown; values: unknown }>,
+    updates: [] as Array<{ table: unknown; values: unknown }>,
+  };
+  const transaction = {
+    delete: (table: unknown) => ({
+      where: async () => {
+        operations.deletes.push(table);
+      },
+    }),
+    insert: (table: unknown) => ({
+      values: async (values: unknown) => {
+        operations.inserts.push({ table, values });
+      },
+    }),
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () => {
+          if (table === users) return userRows;
+          if (table === collaborators) return collaboratorRows;
+          if (table === invitations) return invitationRows;
+          throw new Error("Unexpected table read in invitation fixture.");
+        },
+      }),
+    }),
+    update: (table: unknown) => ({
+      set: (values: unknown) => ({
+        where: async () => {
+          operations.updates.push({ table, values });
+        },
+      }),
+    }),
+  };
+
+  db.select.mockReturnValue({
+    from: (table: unknown) => ({
+      where: async () => {
+        if (table === users) return userRows;
+        throw new Error("Unexpected non-transactional table read in invitation fixture.");
+      },
+    }),
+  });
+  db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+    callback(transaction)
+  );
+
+  return operations;
+}
+
+describe("inviteContributor", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("creates a normalized, pending viewer invitation for an existing account", async () => {
+    const operations = setupInviteContributorDb();
+    vi.spyOn(Date, "now").mockReturnValue(new Date("2026-09-01T12:00:00.000Z").valueOf());
+
+    await expect(inviteContributor("trip-1", "  INVITEE@EXAMPLE.COM  ")).resolves.toEqual({ status: "invited" });
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
+    expect(operations.inserts).toEqual([
+      {
+        table: invitations,
+        values: expect.objectContaining({
+          tripId: "trip-1",
+          email: "invitee@example.com",
+          role: "viewer",
+          status: "pending",
+          invitedBy: "manager-1",
+          expiresAt: new Date("2026-09-04T12:00:00.000Z"),
+        }),
+      },
+    ]);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("returns an error without writing when no Packt account matches", async () => {
+    const operations = setupInviteContributorDb({ userRows: [] });
+
+    await expect(inviteContributor("trip-1", "missing@example.com")).resolves.toEqual({
+      status: "error",
+      message: "No Packt account found for this email",
+    });
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(operations.inserts).toEqual([]);
+  });
+
+  it("updates a pending invitation in place and returns resent", async () => {
+    const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "pending" }] });
+
+    await expect(inviteContributor("trip-1", "invitee@example.com", "editor")).resolves.toEqual({ status: "resent" });
+
+    expect(operations.inserts).toEqual([]);
+    expect(operations.updates).toEqual([
+      {
+        table: invitations,
+        values: expect.objectContaining({ role: "editor", expiresAt: expect.any(Date) }),
+      },
+    ]);
+  });
+
+  it("replaces a declined invitation with a new pending invitation", async () => {
+    const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "declined" }] });
+
+    await expect(inviteContributor("trip-1", "invitee@example.com", "editor")).resolves.toEqual({ status: "invited" });
+
+    expect(operations.deletes).toEqual([invitations]);
+    expect(operations.inserts).toEqual([
+      {
+        table: invitations,
+        values: expect.objectContaining({ role: "editor", status: "pending" }),
+      },
+    ]);
+  });
+
+  it("returns an error without writing when invitee is already on trip", async () => {
+    const operations = setupInviteContributorDb({ collaboratorRows: [{ id: "collaborator-1" }] });
+
+    await expect(inviteContributor("trip-1", "invitee@example.com")).resolves.toEqual({
+      status: "error",
+      message: "This person is already a collaborator on this trip",
+    });
+
+    expect(operations.inserts).toEqual([]);
+    expect(operations.updates).toEqual([]);
+  });
+
+  it("returns an error without writing when manager invites themself", async () => {
+    const operations = setupInviteContributorDb();
+
+    await expect(inviteContributor("trip-1", " MANAGER@example.com ")).resolves.toEqual({
+      status: "error",
+      message: "You cannot invite yourself to this trip",
+    });
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(operations.inserts).toEqual([]);
+  });
+
+  it("rejects editors before any write", async () => {
+    setupInviteContributorDb();
+    assertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(inviteContributor("trip-1", "invitee@example.com")).rejects.toThrow("not found");
+
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("returns an error without writing for an invalid role", async () => {
+    const operations = setupInviteContributorDb();
+
+    await expect(inviteContributor("trip-1", "invitee@example.com", "owner" as "viewer")).resolves.toEqual({
+      status: "error",
+      message: "Invalid collaborator role",
+    });
+
+    expect(operations.inserts).toEqual([]);
+  });
+
+  it("returns a friendly error when a concurrent invite wins the unique-index race", async () => {
+    db.select.mockReturnValue({
+      from: (table: unknown) => ({
+        where: async () => {
+          if (table === users) return [{ id: "invitee-1", email: "invitee@example.com" }];
+          throw new Error("Unexpected non-transactional table read.");
+        },
+      }),
+    });
+    db.transaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) =>
+      callback({
+        insert: () => ({
+          values: async () => {
+            throw Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
+          },
+        }),
+        select: () => ({
+          from: (table: unknown) => ({
+            where: async () => {
+              if (table === collaborators || table === invitations) return [];
+              throw new Error("Unexpected transactional table read.");
+            },
+          }),
+        }),
+      })
+    );
+
+    await expect(inviteContributor("trip-1", "invitee@example.com")).resolves.toEqual({
+      status: "error",
+      message: "This person was just invited by someone else. Try again.",
+    });
+  });
+});
+
+describe("hasNormalizedEmail", () => {
+  it("builds a case- and whitespace-insensitive equality condition against the given column", () => {
+    const condition = hasNormalizedEmail(users.email, "invitee@example.com");
+    const chunks = condition.queryChunks;
+
+    expect(chunks[0]).toMatchObject({ value: ["lower(trim("] });
+    expect(chunks[1]).toBe(users.email);
+    expect(chunks[2]).toMatchObject({ value: [")) = "] });
+    expect(chunks[3]).toBe("invitee@example.com");
   });
 });
 

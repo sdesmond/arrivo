@@ -7,6 +7,7 @@ import {
   dbDocToType,
   dbReservationToType,
   dbCollabToType,
+  dbInvitationToType,
   dbNoteToType,
   dbTripNoteToType,
   dbChecklistToType,
@@ -26,6 +27,7 @@ import type {
   reservations,
   expenses,
   collaborators,
+  invitations,
   packingItems,
   tripPackingLists,
   packingTemplates,
@@ -46,6 +48,7 @@ type DocRow = typeof documents.$inferSelect;
 type ReservationRow = typeof reservations.$inferSelect;
 type ExpenseRow = typeof expenses.$inferSelect;
 type CollabRow = typeof collaborators.$inferSelect;
+type InvitationRow = typeof invitations.$inferSelect;
 type PackingItemRow = typeof packingItems.$inferSelect;
 type TripPackingListRow = typeof tripPackingLists.$inferSelect;
 type PackingTemplateRow = typeof packingTemplates.$inferSelect;
@@ -520,6 +523,43 @@ describe("dbCollabToType", () => {
     });
     expect(result.tintBg).toBe("oklch(0.86 0.07 30)");
     expect(result.tintFg).toBe("oklch(0.30 0.10 30)");
+  });
+});
+
+// ── dbInvitationToType ───────────────────────────────────────────────────────
+
+const BASE_INVITATION: InvitationRow = {
+  id: "invite-1",
+  tripId: "trip-1",
+  email: "invitee@example.com",
+  role: "viewer",
+  status: "pending",
+  expiresAt: new Date("2026-09-04T12:00:00.000Z"),
+  invitedBy: "manager-1",
+  createdAt: null,
+};
+
+describe("dbInvitationToType", () => {
+  it("maps typed role and status plus required invitation fields", () => {
+    const result = dbInvitationToType(BASE_INVITATION);
+
+    expect(result).toEqual({
+      id: "invite-1",
+      tripId: "trip-1",
+      email: "invitee@example.com",
+      role: "viewer",
+      status: "pending",
+      expiresAt: "2026-09-04T12:00:00.000Z",
+      invitedBy: "manager-1",
+      createdAt: undefined,
+    });
+  });
+
+  it("converts nullable createdAt to undefined and a Date to ISO", () => {
+    expect(dbInvitationToType(BASE_INVITATION).createdAt).toBeUndefined();
+
+    const createdAt = new Date("2026-09-01T12:00:00.000Z");
+    expect(dbInvitationToType({ ...BASE_INVITATION, createdAt }).createdAt).toBe(createdAt.toISOString());
   });
 });
 

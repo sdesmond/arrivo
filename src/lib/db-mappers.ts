@@ -6,6 +6,7 @@ import {
   reservations,
   expenses,
   collaborators,
+  invitations,
   itineraryChecklists,
   checklistItems,
   itineraryNotes,
@@ -29,6 +30,7 @@ import type {
   ReservationType,
   Expense,
   Collaborator,
+  Invitation,
   DocPreviewLine,
   Checklist,
   ChecklistItem,
@@ -198,6 +200,19 @@ export function dbCollabToType(row: typeof collaborators.$inferSelect): Collabor
     isCreator: row.isCreator,
     tintBg: row.tintBg ?? undefined,
     tintFg: row.tintFg ?? undefined,
+  };
+}
+
+export function dbInvitationToType(row: typeof invitations.$inferSelect): Invitation {
+  return {
+    id: row.id,
+    tripId: row.tripId,
+    email: row.email,
+    role: row.role as Invitation["role"],
+    status: row.status as Invitation["status"],
+    expiresAt: row.expiresAt.toISOString(),
+    invitedBy: row.invitedBy,
+    createdAt: row.createdAt?.toISOString() ?? undefined,
   };
 }
 
