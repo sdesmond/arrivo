@@ -113,6 +113,12 @@ export interface ScenarioFixtureContext {
   setValue<T>(key: string, value: T): void;
   getValue<T>(key: string): T | undefined;
   clearValue(key: string): void;
+  /**
+   * Registers a raw-seeded row for scenario cleanup. Deleting a "user" cascades its owned trips and
+   * invitations via FK, so a step that seeds a second (non-current) account only needs to register
+   * that user — it does not need its own trip/invitation cleanup handles.
+   */
+  registerCleanup(handle: CleanupHandle): void;
 }
 
 interface MutableScenarioState {
@@ -688,6 +694,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     clearValue(key: string): void {
       state.values.delete(key);
     },
+    registerCleanup,
   };
 
   (context as ScenarioFixtureContext & { cleanup?: () => Promise<void> }).cleanup = cleanup;

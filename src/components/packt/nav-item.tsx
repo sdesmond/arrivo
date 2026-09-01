@@ -9,13 +9,18 @@ export interface NavItemProps {
   label: string;
   href: string;
   count?: number;
+  countTint?: "warning";
   active?: boolean;
 }
 
-export function NavItem({ icon: Icon, label, href, count, active }: NavItemProps) {
+export function NavItem({ icon: Icon, label, href, count, countTint, active }: NavItemProps) {
+  const hasCount = count != null && count > 0;
+  const ariaLabel = hasCount ? `${label}, ${count} pending invitations` : undefined;
+
   return (
     <Link
       href={href}
+      aria-label={ariaLabel}
       className={cn(
         "flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] font-medium transition-colors",
         "hover:bg-surface",
@@ -29,7 +34,7 @@ export function NavItem({ icon: Icon, label, href, count, active }: NavItemProps
         className={cn("shrink-0", active ? "text-accent-brand" : "text-fg-3")}
       />
       <span>{label}</span>
-      {count != null && (
+      {hasCount && (
         <span
           className="ml-auto"
           style={{
@@ -37,7 +42,7 @@ export function NavItem({ icon: Icon, label, href, count, active }: NavItemProps
             fontSize: "calc(var(--fs-nav-badge) * var(--font-scale))",
             fontWeight: 500,
             letterSpacing: "0.04em",
-            color: "var(--fg-3)",
+            color: countTint === "warning" ? "var(--warning)" : "var(--fg-3)",
           }}
         >
           {count}

@@ -1,11 +1,12 @@
 "use client";
 
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
+import { PendingInvitationsList } from "@/components/packt/pending-invitations-list";
 import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
 import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { NewTripDialog } from "@/components/packt/new-trip-dialog";
-import { type CurrencyOption, type TripListEntry } from "@/data/types";
+import { type CurrencyOption, type PendingInvitation, type TripListEntry } from "@/data/types";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import {
   AlertDialog,
@@ -24,6 +25,7 @@ interface TripsPageClientProps {
   nowISO: string;
   dateFormat: string;
   initialViewMode: "cards" | "list";
+  pendingInvitations?: PendingInvitation[];
 }
 
 export function TripsPageClient({
@@ -32,6 +34,7 @@ export function TripsPageClient({
   nowISO,
   dateFormat,
   initialViewMode,
+  pendingInvitations = [],
 }: TripsPageClientProps) {
   const now = new Date(nowISO);
   const handlers = useTripsPageHandlers(initialEntries, now);
@@ -39,6 +42,7 @@ export function TripsPageClient({
 
   return (
     <>
+      <PendingInvitationsList invitations={pendingInvitations} />
       <TripsDesktopLayout
         activeEntry={handlers.activeEntry}
         upcomingTrips={handlers.upcomingTrips}

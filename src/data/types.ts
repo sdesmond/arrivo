@@ -539,6 +539,20 @@ export interface Invitation {
   createdAt?: string;
 }
 
+export interface PendingInvitation {
+  id: string;
+  tripId: string;
+  tripName: string;
+  inviterName: string;
+  inviterEmail: string;
+  role: CollaboratorRole;
+  expiresAt: string;
+}
+
+export type AcceptInvitationResult = { status: "accepted"; tripId: string } | { status: "error"; message: string };
+
+export type DeclineInvitationResult = { status: "declined" } | { status: "error"; message: string };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────
