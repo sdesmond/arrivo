@@ -112,6 +112,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/packing-actions.ts",
   ]),
   entry("packing-lists", ["src/components/packt/packing-list*.tsx", "src/components/packt/packing-lists-view.tsx"]),
+  entry("pending-invitations", ["src/components/packt/pending-invitations-list.tsx", "src/lib/invitations.ts"]),
   entry("pull-templates", ["src/components/packt/template-pull-dialog.tsx"]),
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),

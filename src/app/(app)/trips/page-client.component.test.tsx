@@ -50,6 +50,10 @@ vi.mock("@/components/packt/new-trip-dialog", () => ({
   NewTripDialog: () => <div>New trip dialog</div>,
 }));
 
+vi.mock("@/components/packt/pending-invitations-list", () => ({
+  PendingInvitationsList: () => null,
+}));
+
 vi.mock("@/components/ui/alert-dialog", () => ({
   AlertDialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   AlertDialogAction: ({ children, onClick }: { children: ReactNode; onClick: () => void }) => (

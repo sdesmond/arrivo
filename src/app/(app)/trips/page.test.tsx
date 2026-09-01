@@ -8,6 +8,7 @@ const {
   mockRequireUser,
   mockGetServerNow,
   mockGetUserById,
+  mockGetMyPendingInvitations,
   mockListSupportedCurrencies,
   mockListTripsForUser,
   tripsPageClientSpy,
@@ -17,6 +18,7 @@ const {
   mockRequireUser: vi.fn(),
   mockGetServerNow: vi.fn(),
   mockGetUserById: vi.fn(),
+  mockGetMyPendingInvitations: vi.fn(),
   mockListSupportedCurrencies: vi.fn(),
   mockListTripsForUser: vi.fn(),
   tripsPageClientSpy: vi.fn(),
@@ -38,6 +40,10 @@ vi.mock("@/lib/currencies", () => ({
 vi.mock("@/lib/queries", () => ({
   getUserById: mockGetUserById,
   listTripsForUser: mockListTripsForUser,
+}));
+
+vi.mock("@/lib/invitations", () => ({
+  getMyPendingInvitations: mockGetMyPendingInvitations,
 }));
 
 vi.mock("@/lib/server-now", () => ({
@@ -67,6 +73,18 @@ const entries: TripListEntry[] = [
 
 const currencyOptions: CurrencyOption[] = [{ code: "USD", name: "US Dollar" }];
 
+const pendingInvitations = [
+  {
+    id: "invite-1",
+    tripId: "trip-2",
+    tripName: "Osaka",
+    inviterName: "Ada Lovelace",
+    inviterEmail: "ada@example.com",
+    role: "editor" as const,
+    expiresAt: "2026-09-10T00:00:00.000Z",
+  },
+];
+
 describe("TripsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,11 +92,12 @@ describe("TripsPage", () => {
       get: vi.fn((key: string) => (key === "trips-view-mode" ? { value: "list" } : undefined)),
     });
     mockHeaders.mockResolvedValue(new Headers([["accept-language", "en-US"]]));
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockRequireUser.mockResolvedValue({ id: "user-1", email: "user@example.com" });
     mockGetServerNow.mockResolvedValue(new Date("2026-07-07T12:00:00.000Z"));
     mockGetUserById.mockResolvedValue({ id: "user-1", dateFormat: "DD/MM/YYYY" });
     mockListTripsForUser.mockResolvedValue(entries);
     mockListSupportedCurrencies.mockResolvedValue(currencyOptions);
+    mockGetMyPendingInvitations.mockResolvedValue(pendingInvitations);
   });
 
   it("passes fetched currency options into the client page", async () => {
@@ -96,5 +115,14 @@ describe("TripsPage", () => {
         currencyOptions,
       })
     );
+  });
+
+  it("passes fetched pending invitations into the client page, scoped to the signed-in user's email", async () => {
+    const page = await TripsPage();
+
+    render(page);
+
+    expect(mockGetMyPendingInvitations).toHaveBeenCalledWith("user@example.com");
+    expect(tripsPageClientSpy).toHaveBeenCalledWith(expect.objectContaining({ pendingInvitations }));
   });
 });

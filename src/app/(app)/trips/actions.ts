@@ -16,13 +16,14 @@ import {
   invitations,
 } from "@/db/schema";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type {
+  AcceptInvitationResult,
   CreateTripInput,
   UpdateTripPatch,
   AddCollaboratorInput,
+  DeclineInvitationResult,
   InviteContributorResult,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
@@ -38,7 +39,7 @@ import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
-import { INVITE_TTL_HOURS, normalizeEmail } from "@/lib/invitations";
+import { hasNormalizedEmail, INVITE_TTL_HOURS, normalizeEmail } from "@/lib/invitations";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
@@ -678,10 +679,6 @@ function isCollaboratorRole(value: string): value is CollaboratorRole {
   return VALID_COLLABORATOR_ROLES.some((collaboratorRole) => collaboratorRole === value);
 }
 
-export function hasNormalizedEmail(emailColumn: AnyPgColumn, email: string) {
-  return sql`lower(trim(${emailColumn})) = ${email}`;
-}
-
 const UNIQUE_VIOLATION_CODE = "23505";
 
 function isUniqueViolation(error: unknown): boolean {
@@ -763,6 +760,131 @@ export async function inviteContributor(
     revalidatePath(`/trips/${tripId}`);
   }
   return result;
+}
+
+/**
+ * Diagnoses why a conditional accept/decline UPDATE matched zero rows, so the caller can surface a
+ * descriptive error instead of a generic one. Read-only — never used to gate the mutation itself,
+ * which stays a single atomic UPDATE ... WHERE ... RETURNING.
+ */
+async function describeUnmatchedInvitation(invitationId: string, normalizedEmail: string): Promise<string> {
+  const [invitationRow] = await db.select().from(invitations).where(eq(invitations.id, invitationId));
+
+  if (!invitationRow) {
+    return "Invitation not found.";
+  }
+
+  if (normalizeEmail(invitationRow.email) !== normalizedEmail) {
+    return "This invitation is not addressed to your account.";
+  }
+
+  if (invitationRow.status === "rescinded") {
+    return "This invitation was rescinded by the trip owner.";
+  }
+
+  if (invitationRow.status !== "pending") {
+    return "This invitation is no longer pending.";
+  }
+
+  if (invitationRow.expiresAt.getTime() <= Date.now()) {
+    return "This invitation has expired.";
+  }
+
+  return "This invitation is no longer pending.";
+}
+
+export async function acceptInvitation(invitationId: string): Promise<AcceptInvitationResult> {
+  const user = await requireUser();
+  if (!user.email || !user.id) {
+    return { status: "error", message: "Invitation not found." };
+  }
+  const normalizedEmail = normalizeEmail(user.email);
+  const userName = user.name ?? user.email;
+  const matchedInvitation = await db.transaction(async (transaction) => {
+    const [updatedInvitation] = await transaction
+      .update(invitations)
+      .set({ status: "accepted" })
+      .where(
+        and(
+          eq(invitations.id, invitationId),
+          hasNormalizedEmail(invitations.email, normalizedEmail),
+          eq(invitations.status, "pending"),
+          sql`${invitations.expiresAt} > now()`
+        )
+      )
+      .returning();
+
+    if (!updatedInvitation) {
+      return null;
+    }
+
+    const collaboratorValues = {
+      tripId: updatedInvitation.tripId,
+      userId: user.id,
+      email: normalizedEmail,
+      name: userName,
+      initials: userName.slice(0, 2).toUpperCase(),
+      role: updatedInvitation.role,
+      isCreator: false,
+    };
+
+    await transaction
+      .insert(collaborators)
+      .values(collaboratorValues)
+      .onConflictDoUpdate({
+        target: [collaborators.tripId, collaborators.email],
+        set: collaboratorValues,
+      });
+
+    return updatedInvitation;
+  });
+
+  if (!matchedInvitation) {
+    const message = await describeUnmatchedInvitation(invitationId, normalizedEmail);
+    return { status: "error", message };
+  }
+
+  // TODO(epic-4): publish a `membership-changed` event on `trip:{tripId}` and `user:{userId}` via
+  // publishTripEvent/publishUserEvent once src/lib/trip-events.ts ships the pub-sub module.
+
+  revalidatePath("/trips");
+  revalidatePath(`/trips/${matchedInvitation.tripId}`);
+
+  return { status: "accepted", tripId: matchedInvitation.tripId };
+}
+
+export async function declineInvitation(invitationId: string): Promise<DeclineInvitationResult> {
+  const user = await requireUser();
+  if (!user.email) {
+    return { status: "error", message: "Invitation not found." };
+  }
+  const normalizedEmail = normalizeEmail(user.email);
+
+  const [matchedInvitation] = await db
+    .update(invitations)
+    .set({ status: "declined" })
+    .where(
+      and(
+        eq(invitations.id, invitationId),
+        hasNormalizedEmail(invitations.email, normalizedEmail),
+        eq(invitations.status, "pending"),
+        sql`${invitations.expiresAt} > now()`
+      )
+    )
+    .returning();
+
+  if (!matchedInvitation) {
+    const message = await describeUnmatchedInvitation(invitationId, normalizedEmail);
+    return { status: "error", message };
+  }
+
+  // TODO(epic-4): publish a `membership-changed` event on `trip:{tripId}` and `user:{userId}` via
+  // publishTripEvent/publishUserEvent once src/lib/trip-events.ts ships the pub-sub module.
+
+  revalidatePath("/trips");
+  revalidatePath(`/trips/${matchedInvitation.tripId}`);
+
+  return { status: "declined" };
 }
 
 export async function removeCollaborator(collabId: string) {

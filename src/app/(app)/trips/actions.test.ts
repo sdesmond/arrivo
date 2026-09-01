@@ -106,9 +106,10 @@ vi.mock("./packing-actions", async (importOriginal) => {
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import {
+  acceptInvitation,
   addPackingItem,
   createTrip,
-  hasNormalizedEmail,
+  declineInvitation,
   inviteContributor,
   pullTemplatesOntoTrip,
   reorderPackingItems,
@@ -910,15 +911,310 @@ describe("inviteContributor", () => {
   });
 });
 
-describe("hasNormalizedEmail", () => {
-  it("builds a case- and whitespace-insensitive equality condition against the given column", () => {
-    const condition = hasNormalizedEmail(users.email, "invitee@example.com");
-    const chunks = condition.queryChunks;
+interface AcceptDeclineFixture {
+  matchedRows?: Array<{ id: string; tripId: string; role: string; email: string; status: string; expiresAt: Date }>;
+  diagnosticRow?: { id: string; email: string; status: string; expiresAt: Date } | null;
+}
 
-    expect(chunks[0]).toMatchObject({ value: ["lower(trim("] });
-    expect(chunks[1]).toBe(users.email);
-    expect(chunks[2]).toMatchObject({ value: [")) = "] });
-    expect(chunks[3]).toBe("invitee@example.com");
+function setupAcceptDeclineDb({ matchedRows = [], diagnosticRow = null }: AcceptDeclineFixture = {}) {
+  const operations = {
+    inserts: [] as Array<{ table: unknown; values: unknown; conflictUpdate: unknown }>,
+    updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
+  };
+
+  const transaction = {
+    update: vi.fn(),
+    insert: vi.fn(),
+  };
+
+  transaction.update.mockReturnValue({
+    set: (values: unknown) => ({
+      where: (condition: unknown) => ({
+        returning: async () => {
+          operations.updates.push({ table: invitations, values, condition });
+          return matchedRows;
+        },
+      }),
+    }),
+  });
+  db.update.mockImplementation(transaction.update);
+
+  db.select.mockReturnValue({
+    from: (table: unknown) => ({
+      where: async () => {
+        if (table === invitations) return diagnosticRow ? [diagnosticRow] : [];
+        throw new Error("Unexpected table read in accept/decline fixture.");
+      },
+    }),
+  });
+
+  transaction.insert.mockReturnValue({
+    values: (values: unknown) => ({
+      onConflictDoUpdate: async (conflictUpdate: unknown) => {
+        operations.inserts.push({ table: collaborators, values, conflictUpdate });
+      },
+    }),
+  });
+
+  db.transaction.mockImplementation(async (callback: (currentTransaction: typeof transaction) => Promise<unknown>) =>
+    callback(transaction)
+  );
+
+  return operations;
+}
+
+describe("acceptInvitation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1", email: "invitee@example.com", name: "Invitee Person" });
+  });
+
+  it("accepts a pending, unexpired invitation and creates the collaborator row", async () => {
+    const operations = setupAcceptDeclineDb({
+      matchedRows: [
+        {
+          id: "invite-1",
+          tripId: "trip-1",
+          role: "editor",
+          email: "invitee@example.com",
+          status: "accepted",
+          expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({ status: "accepted", tripId: "trip-1" });
+
+    expect(operations.inserts).toEqual([
+      {
+        table: collaborators,
+        values: expect.objectContaining({
+          tripId: "trip-1",
+          userId: "user-1",
+          email: "invitee@example.com",
+          name: "Invitee Person",
+          role: "editor",
+          isCreator: false,
+        }),
+        conflictUpdate: expect.anything(),
+      },
+    ]);
+    expect(operations.updates).toEqual([
+      expect.objectContaining({ table: invitations, values: { status: "accepted" }, condition: expect.anything() }),
+    ]);
+    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("returns an expired error and creates no collaborator when the invitation is past expiresAt", async () => {
+    const operations = setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "invitee@example.com",
+        status: "pending",
+        expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      },
+    });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation has expired.",
+    });
+    expect(operations.inserts).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the invitation was already accepted or declined", async () => {
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "invitee@example.com",
+        status: "declined",
+        expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+    });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation is no longer pending.",
+    });
+  });
+
+  it("returns a rescind-specific error when the manager rescinded it moments before the click landed", async () => {
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "invitee@example.com",
+        status: "rescinded",
+        expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+    });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation was rescinded by the trip owner.",
+    });
+  });
+
+  it("returns an error without creating a duplicate collaborator on a double-click", async () => {
+    const operations = setupAcceptDeclineDb({
+      matchedRows: [
+        {
+          id: "invite-1",
+          tripId: "trip-1",
+          role: "editor",
+          email: "invitee@example.com",
+          status: "accepted",
+          expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+        },
+      ],
+    });
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({ status: "accepted", tripId: "trip-1" });
+    expect(operations.inserts).toHaveLength(1);
+
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "invitee@example.com",
+        status: "accepted",
+        expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+    });
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation is no longer pending.",
+    });
+    expect(operations.inserts).toHaveLength(1);
+  });
+
+  it("returns a wrong-account error when the invitation belongs to a different email", async () => {
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "someone-else@example.com",
+        status: "pending",
+        expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+    });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation is not addressed to your account.",
+    });
+  });
+
+  it("returns a not-found error when no invitation matches the given ID", async () => {
+    setupAcceptDeclineDb({ diagnosticRow: null });
+
+    await expect(acceptInvitation("missing-invite")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+  });
+});
+
+describe("declineInvitation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-1", email: "invitee@example.com", name: "Invitee Person" });
+  });
+
+  it("declines a pending, unexpired invitation without creating a collaborator", async () => {
+    const operations = setupAcceptDeclineDb({
+      matchedRows: [
+        {
+          id: "invite-1",
+          tripId: "trip-1",
+          role: "viewer",
+          email: "invitee@example.com",
+          status: "declined",
+          expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    await expect(declineInvitation("invite-1")).resolves.toEqual({ status: "declined" });
+
+    expect(operations.inserts).toEqual([]);
+    expect(operations.updates).toEqual([
+      expect.objectContaining({ table: invitations, values: { status: "declined" }, condition: expect.anything() }),
+    ]);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("returns a generic error when the invitation is already resolved", async () => {
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "invitee@example.com",
+        status: "accepted",
+        expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+    });
+
+    await expect(declineInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation is no longer pending.",
+    });
+  });
+
+  it("returns an expired error when the invitation can no longer be declined", async () => {
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "invitee@example.com",
+        status: "pending",
+        expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      },
+    });
+
+    await expect(declineInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation has expired.",
+    });
+  });
+
+  it("returns a rescind-specific error when the invitation was withdrawn", async () => {
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "invitee@example.com",
+        status: "rescinded",
+        expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+    });
+
+    await expect(declineInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation was rescinded by the trip owner.",
+    });
+  });
+
+  it("returns a not-found error when the invitation does not exist", async () => {
+    setupAcceptDeclineDb({ diagnosticRow: null });
+
+    await expect(declineInvitation("missing-invite")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+  });
+
+  it("returns a wrong-account error when the invitation belongs to a different email", async () => {
+    setupAcceptDeclineDb({
+      diagnosticRow: {
+        id: "invite-1",
+        email: "someone-else@example.com",
+        status: "pending",
+        expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+      },
+    });
+
+    await expect(declineInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "This invitation is not addressed to your account.",
+    });
   });
 });
 
