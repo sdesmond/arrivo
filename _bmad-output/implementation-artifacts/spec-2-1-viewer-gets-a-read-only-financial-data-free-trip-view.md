@@ -2,7 +2,7 @@
 title: "Viewer gets a read-only, financial-data-free trip view"
 type: "feature"
 created: "2026-09-01"
-status: "in-review"
+status: "done"
 baseline_commit: "4bde41ea92b5b1ae8a4e22e31fa3bb8b2dc835fb"
 review_loop_iteration: 0
 context: []
@@ -101,3 +101,10 @@ context: []
 - `npm run lint` — clean.
 - `npm run test:coverage` — ≥95% lines/functions, ≥90% branches.
 - `packt-build-validator` (once) — affected E2E (here the full suite via SHARED_GLOBS) passes.
+
+### Review Findings
+
+- [x] [Review][Patch] Viewer can still open write controls [src/app/(app)/trips/[tripId]/trip-detail-hero.tsx:160]
+- [x] [Review][Patch] Viewer can still see attributed-cover options [src/app/(app)/trips/[tripId]/trip-detail-hero.tsx:102]
+- [x] [Review][Patch] Viewer payloads retain `expense` keys with undefined values [src/lib/queries.ts:397]
+- [x] [Review][Patch] E2E omits manager-access scenario required by story [tests/e2e/features/viewer-trip-access.feature:13]

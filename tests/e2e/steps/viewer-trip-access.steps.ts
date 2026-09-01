@@ -13,7 +13,7 @@ async function seedSharedTrip(
   scenario: ScenarioFixtureContext,
   tripName: string,
   ownerName: string,
-  collaboratorRole: "viewer" | "editor"
+  collaboratorRole: "viewer" | "editor" | "manager"
 ): Promise<ScenarioTripRecord> {
   const invitee = await scenario.ensureCurrentUser();
   const ownerEmail = scenario.uniqueEmail(`owner-${ownerName}`);
@@ -75,6 +75,10 @@ Given("I am a viewer on {string} owned by {string}", async ({ scenario }, tripNa
 
 Given("I am an editor on {string} owned by {string}", async ({ scenario }, tripName, ownerName) => {
   await seedSharedTrip(scenario, tripName, ownerName, "editor");
+});
+
+Given("I am a manager on {string} owned by {string}", async ({ scenario }, tripName, ownerName) => {
+  await seedSharedTrip(scenario, tripName, ownerName, "manager");
 });
 
 When("I go to the shared trip", async ({ page, scenario }) => {

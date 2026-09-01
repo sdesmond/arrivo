@@ -549,6 +549,8 @@ describe("getTripDetail", () => {
 
     expect(result?.expenses).toEqual([]);
     expect(result?.reservations[0]?.expense).toBeUndefined();
+    expect(result?.reservations[0]).not.toHaveProperty("expense");
+    expect(result?.accessRole).toBe("viewer");
   });
 
   it("includes the expenses list and reservation-linked expense for an editor role", async () => {
@@ -653,6 +655,7 @@ describe("getTripDetail", () => {
     const result = await getTripDetail("trip-1", "user-1");
 
     expect(result?.unscheduledEvents[0]?.expense).toBeUndefined();
+    expect(result?.unscheduledEvents[0]).not.toHaveProperty("expense");
   });
 
   it("attaches or omits a day-scheduled event's linked expense based on role", async () => {
@@ -721,6 +724,7 @@ describe("getTripDetail", () => {
 
     const viewerResult = await runForRole("viewer");
     expect(viewerResult?.days[0]?.events[0]?.expense).toBeUndefined();
+    expect(viewerResult?.days[0]?.events[0]).not.toHaveProperty("expense");
 
     vi.clearAllMocks();
     mockAssertTripAccess.mockResolvedValue("editor");

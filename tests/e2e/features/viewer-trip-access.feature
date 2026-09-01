@@ -14,3 +14,8 @@ Feature: Viewer Trip Access
     Given I am an editor on "Lisbon Escape" owned by "Bo Nilsen"
     When I go to the shared trip
     Then I see a "Budget" tab
+
+  Scenario: A manager collaborator still sees the Budget tab
+    Given I am a manager on "Reykjavik Getaway" owned by "Grace Hopper"
+    When I go to the shared trip
+    Then I see a "Budget" tab

@@ -172,6 +172,30 @@ describe("TripDetailHero", () => {
     expect(screen.getByTitle("Cover options")).toBeInTheDocument();
   });
 
+  it("hides trip and cover editing controls from viewers", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          accessRole: "viewer",
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+            coverPhotographer: "Casey Camera",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
+  });
+
   it("shows edit only for graphic covers", () => {
     render(
       <TripDetailHero
@@ -373,7 +397,7 @@ describe("TripDetailHero", () => {
     expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
   });
 
-  it("hides Edit Cover and Remove Cover for a viewer but still shows Info when attribution exists", () => {
+  it("hides every cover option for a viewer when attribution exists", () => {
     render(
       <TripDetailHero
         detail={buildDetail({
@@ -395,7 +419,8 @@ describe("TripDetailHero", () => {
 
     expect(screen.queryByRole("button", { name: "Edit Cover" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove Cover" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Info" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Info" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
   });
 
   it("shows toast on removeTripCover failure", async () => {

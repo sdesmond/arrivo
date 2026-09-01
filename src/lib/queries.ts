@@ -396,10 +396,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
 
   const reservationsDomain = tripReservations.map((row) => ({
     ...dbReservationToType(row),
-    expense:
-      !isViewer && expensesByReservationId.get(row.id)
-        ? dbExpenseToType(expensesByReservationId.get(row.id)!)
-        : undefined,
+    ...(!isViewer && expensesByReservationId.get(row.id)
+      ? { expense: dbExpenseToType(expensesByReservationId.get(row.id)!) }
+      : {}),
     documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
   }));
   const linkedEvents = deriveLinkedEvents(reservationsDomain);
@@ -510,10 +509,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
         ),
         ...(eventsByDay.get(day.id) ?? []).map((event) => ({
           ...dbEventToType(event),
-          expense:
-            !isViewer && expensesByEventId.get(event.id)
-              ? dbExpenseToType(expensesByEventId.get(event.id)!)
-              : undefined,
+          ...(!isViewer && expensesByEventId.get(event.id)
+            ? { expense: dbExpenseToType(expensesByEventId.get(event.id)!) }
+            : {}),
           docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
         })),
       ].sort((first, second) => first.position - second.position),
@@ -528,8 +526,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     })),
     unscheduledEvents: unscheduledEvents.map((event) => ({
       ...dbEventToType(event),
-      expense:
-        !isViewer && expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
+      ...(!isViewer && expensesByEventId.get(event.id)
+        ? { expense: dbExpenseToType(expensesByEventId.get(event.id)!) }
+        : {}),
       docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
     })),
     docs: tripDocs.map(dbDocToType),

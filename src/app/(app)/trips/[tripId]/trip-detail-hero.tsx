@@ -67,7 +67,7 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
 
   const { trip, days, unscheduledEvents, docs, collaborators, accessRole } = detail;
 
-  const canEditCover = accessRole !== CollaboratorRole.Viewer;
+  const canEdit = accessRole !== CollaboratorRole.Viewer;
 
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
@@ -99,7 +99,7 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
 
   const canShowAttribution = coverType === "photo" && !!trip.coverPhotographer;
 
-  const showCoverMenu = canEditCover || canShowAttribution;
+  const showCoverMenu = canEdit;
 
   function handleCoverSelection(image: CoverImageSelection) {
     startTransition(async () => {
@@ -156,17 +156,19 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
 
         <span className="flex-1" />
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Pencil size={13} strokeWidth={1.5} />
-            Edit
-          </Button>
+        {canEdit ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil size={13} strokeWidth={1.5} />
+              Edit
+            </Button>
 
-          <Button variant="outline" size="sm">
-            <Share2 size={13} strokeWidth={1.5} />
-            Share
-          </Button>
-        </div>
+            <Button variant="outline" size="sm">
+              <Share2 size={13} strokeWidth={1.5} />
+              Share
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {/* Hero */}
@@ -192,14 +194,14 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
                 className="rounded-xl shadow-3"
                 style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
               >
-                {canEditCover ? (
+                {canEdit ? (
                   <DropdownMenuItem disabled={isPending} onClick={() => setIsPickerOpen(true)}>
                     <Pencil size={13} strokeWidth={1.5} />
                     Edit Cover
                   </DropdownMenuItem>
                 ) : null}
 
-                {canEditCover && canRemoveCover ? (
+                {canEdit && canRemoveCover ? (
                   <DropdownMenuItem variant="destructive" disabled={isPending} onClick={handleRemoveCover}>
                     <Trash2 size={13} strokeWidth={1.5} />
                     Remove Cover
