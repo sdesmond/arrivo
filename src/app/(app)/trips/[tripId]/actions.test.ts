@@ -279,6 +279,15 @@ describe("createTripNote", () => {
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
   });
 
+  it("propagates denied access (e.g. a viewer) without writing", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("denied"));
+
+    await expect(createTripNote("trip-1", { title: "Pack sunscreen" })).rejects.toThrow("denied");
+
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
   it("rejects a fully-blank note without touching the transaction", async () => {
     await expect(createTripNote("trip-1", { title: "   ", body: "" })).rejects.toThrow("Note is blank");
 
