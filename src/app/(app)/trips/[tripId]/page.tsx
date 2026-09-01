@@ -47,7 +47,7 @@ export default async function TripDetailPage({
       dateFormat={dateFormat}
       defaultExpenseCurrency={detail.trip.budget?.currency ?? profile?.currency ?? "USD"}
       initialExpandedDayNumber={focusedDayNumber ?? (isNew ? 1 : undefined)}
-      initialActiveTab={resolveTripDetailTab(resolvedSearchParams.tab)}
+      initialActiveTab={resolveTripDetailTab(resolvedSearchParams.tab, detail.accessRole)}
       isNew={isNew}
       templates={templates}
       currencyOptions={currencyOptions}

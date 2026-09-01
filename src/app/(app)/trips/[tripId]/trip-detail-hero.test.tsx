@@ -111,6 +111,7 @@ function buildDetail(overrides: Partial<TripDetailPayload> = {}): TripDetailPayl
     reservations: [],
     expenses: [],
     notes: [],
+    accessRole: "editor",
     ...overrides,
   };
 }
@@ -357,6 +358,44 @@ describe("TripDetailHero", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Could not save cover image");
     });
+  });
+
+  it("hides the cover options trigger for a viewer when there is nothing to view", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "viewer" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
+  });
+
+  it("hides Edit Cover and Remove Cover for a viewer but still shows Info when attribution exists", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          accessRole: "viewer",
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+            coverPhotographer: "Casey Camera",
+            coverPhotographerUrl: "https://unsplash.com/@caseycamera",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit Cover" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Cover" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Info" })).toBeInTheDocument();
   });
 
   it("shows toast on removeTripCover failure", async () => {

@@ -178,6 +178,7 @@ const baseDetail: TripDetailPayload = {
   reservations: [],
   expenses: [],
   notes: [],
+  accessRole: "manager",
 };
 
 describe("TripDetailClient", () => {
@@ -328,6 +329,66 @@ describe("TripDetailClient", () => {
     );
 
     expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("docs");
+  });
+
+  it("does not render the Budget tab for a viewer", () => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Budget" })).not.toBeInTheDocument();
+  });
+
+  it("renders the Budget tab for an editor", () => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "editor" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Budget" })).toBeInTheDocument();
+  });
+
+  it("renders the Budget tab for a manager", () => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "manager" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Budget" })).toBeInTheDocument();
+  });
+
+  it("falls back to the itinerary tab when a viewer's URL changes to tab=budget", () => {
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+    const { rerender } = render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
+
+    mockSearchParams.mockReturnValue(new URLSearchParams("tab=budget"));
+    rerender(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
   });
 
   it("switches to the Budget tab from the tab bar", async () => {
