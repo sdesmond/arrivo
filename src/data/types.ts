@@ -553,6 +553,8 @@ export type AcceptInvitationResult = { status: "accepted"; tripId: string } | { 
 
 export type DeclineInvitationResult = { status: "declined" } | { status: "error"; message: string };
 
+export type RescindInvitationResult = { status: "success" } | { status: "error"; message: string };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────

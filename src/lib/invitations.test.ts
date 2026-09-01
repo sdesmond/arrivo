@@ -60,7 +60,7 @@ describe("getMyPendingInvitations", () => {
 
   it("maps joined rows to PendingInvitation, normalizing the lookup email", async () => {
     const expiresAt = new Date("2026-09-10T00:00:00.000Z");
-    mockQueryResult([
+    const { where } = mockQueryResult([
       {
         id: "invitation-1",
         tripId: "trip-1",
@@ -85,6 +85,10 @@ describe("getMyPendingInvitations", () => {
         expiresAt: expiresAt.toISOString(),
       },
     ]);
+    const condition = where.mock.calls[0]?.[0] as { queryChunks: unknown[] };
+    const conditionText = JSON.stringify(condition.queryChunks);
+    expect(conditionText).toContain("pending");
+    expect(conditionText).toContain("> now()");
   });
 
   it("falls back to the inviter email when the inviter has no display name", async () => {
@@ -106,14 +110,17 @@ describe("getMyPendingInvitations", () => {
     expect(result[0].inviterName).toBe("manager@example.com");
   });
 
-  it("returns an empty array when there are no pending, unexpired invitations", async () => {
+  it("excludes expired pending invitations", async () => {
     const { where } = mockQueryResult([]);
 
     const result = await getMyPendingInvitations("someone@example.com");
 
     expect(result).toEqual([]);
     const condition = where.mock.calls[0]?.[0] as { queryChunks: unknown[] };
-    expect(JSON.stringify(condition.queryChunks)).toContain("pending");
-    expect(JSON.stringify(condition.queryChunks)).toContain("now()");
+    const conditionText = JSON.stringify(condition.queryChunks);
+    // Checks the comparison direction specifically — a flipped `expiresAt < now()` would still
+    // contain the substrings "pending" and "now()" but not this exact "> now()" fragment.
+    expect(conditionText).toContain("pending");
+    expect(conditionText).toContain("> now()");
   });
 });

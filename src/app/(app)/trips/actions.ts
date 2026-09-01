@@ -25,6 +25,7 @@ import type {
   AddCollaboratorInput,
   DeclineInvitationResult,
   InviteContributorResult,
+  RescindInvitationResult,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
@@ -885,6 +886,31 @@ export async function declineInvitation(invitationId: string): Promise<DeclineIn
   revalidatePath(`/trips/${matchedInvitation.tripId}`);
 
   return { status: "declined" };
+}
+
+export async function rescindInvitation(tripId: string, invitationId: string): Promise<RescindInvitationResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "manager");
+
+  const [rescindedInvitation] = await db
+    .update(invitations)
+    .set({ status: "rescinded" })
+    .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), eq(invitations.status, "pending")))
+    .returning();
+
+  if (!rescindedInvitation) {
+    const [invitation] = await db.select().from(invitations).where(eq(invitations.id, invitationId));
+    const message =
+      invitation && invitation.tripId === tripId ? "Invitation is no longer pending." : "Invitation not found.";
+    return { status: "error", message };
+  }
+
+  // TODO(epic-4): publish a `membership-changed` event on `trip:{tripId}` via publishTripEvent once
+  // src/lib/trip-events.ts ships the pub-sub module — the manager rescinding is the actor here, not
+  // the invitee (who is keyed by email, not userId, until they accept).
+  revalidatePath("/trips");
+
+  return { status: "success" };
 }
 
 export async function removeCollaborator(collabId: string) {
