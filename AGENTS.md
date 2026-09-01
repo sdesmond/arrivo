@@ -167,13 +167,18 @@ Before editing any production file, you MUST name the exact test files and scena
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 
 **Build stage checkpoints — NON-NEGOTIABLE:**
-When running `bmad-build` (or any equivalent plan → implement → review flow), HALT and wait for explicit user confirmation before advancing past each of these three points, even where the workflow's own step files would otherwise continue automatically:
+bmad-build (or any equivalent plan → implement → review flow) MUST halt at each of the three boundaries below and wait for a NEW, explicit user message saying to proceed. Workflow step files attempt to advance automatically — do not let them. Answering a checkpoint prompt (e.g. "[A] Approve", "looks good") does NOT cross a boundary; the confirm must be a fresh "proceed/continue/go" typed after you post the boundary status.
 
-1. **After planning** — spec/plan is written and approved, before implementation starts.
-2. **After implementation** — code changes are done, before code review begins.
-3. **After code review** — review findings are triaged/applied, before presenting or committing.
+The three boundaries, in order:
 
-Do not auto-continue through any of these boundaries. Post a short status (what finished, what's next) and wait for the user to say to proceed.
+1. After planning — spec/plan written and approved, BEFORE any implementation starts.
+2. After implementation — code changes done, BEFORE code review begins.
+3. After code review — findings triaged/applied, BEFORE presenting or committing.
+
+Crossing rules:
+
+- No implementation work (source/test/E2E edits, or dispatching the implementation subagent) may occur in the same turn as, or before, the user's confirm message. Only pure status bookkeeping that records the approved spec (frontmatter status flip, baseline_commit capture, sprint-status.yaml sync) may run.
+- At each boundary, post a short status ("what finished, what's next"), then HALT with a single "Proceed?" question — no further tool calls until the user answers.
 
 **Default workflow for any coding task:**
 
