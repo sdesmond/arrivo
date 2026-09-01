@@ -38,6 +38,15 @@ export const CollaboratorRole = {
 } as const;
 export type CollaboratorRole = (typeof CollaboratorRole)[keyof typeof CollaboratorRole];
 
+export const InvitationStatus = {
+  Pending: "pending",
+  Accepted: "accepted",
+  Declined: "declined",
+  Expired: "expired",
+  Rescinded: "rescinded",
+} as const;
+export type InvitationStatus = (typeof InvitationStatus)[keyof typeof InvitationStatus];
+
 // kind = the file format
 export const DocKind = {
   PDF: "pdf",
@@ -519,6 +528,17 @@ export interface Collaborator {
   tintFg?: string;
 }
 
+export interface Invitation {
+  id: string;
+  tripId: string;
+  email: string;
+  role: CollaboratorRole;
+  status: InvitationStatus;
+  expiresAt: string;
+  invitedBy: string;
+  createdAt?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────
@@ -808,6 +828,16 @@ export interface AddCollaboratorInput {
   tintBg?: string;
   tintFg?: string;
 }
+
+export interface InviteContributorInput {
+  email: string;
+  role?: CollaboratorRole;
+}
+
+export type InviteContributorResult =
+  | { status: "invited" }
+  | { status: "resent" }
+  | { status: "error"; message: string };
 
 export interface AddDocumentInput {
   tripId?: string;
