@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { inspect } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   collaborators,
@@ -115,6 +116,7 @@ import {
   reorderPackingItems,
   removePackingItem,
   retrieveLocation,
+  rescindInvitation,
   saveTripListAsTemplate,
   searchAddressLocations,
   searchLocations,
@@ -123,7 +125,12 @@ import {
   updateTripMetadata,
 } from "./actions";
 import { searchCoverImages } from "./cover-image-search-actions";
-import { TransitMode, TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
+import {
+  TransitMode,
+  TripDateConflictResolution,
+  type InvitationStatus,
+  type TripDateChangeConfirmation,
+} from "@/data/types";
 import { deriveGraphicCover } from "@/lib/utils";
 
 interface TransactionFixture {
@@ -1042,7 +1049,7 @@ describe("acceptInvitation", () => {
   });
 
   it("returns a rescind-specific error when the manager rescinded it moments before the click landed", async () => {
-    setupAcceptDeclineDb({
+    const operations = setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
         email: "invitee@example.com",
@@ -1055,6 +1062,8 @@ describe("acceptInvitation", () => {
       status: "error",
       message: "This invitation was rescinded by the trip owner.",
     });
+    expect(operations.inserts).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("returns an error without creating a duplicate collaborator on a double-click", async () => {
@@ -1215,6 +1224,119 @@ describe("declineInvitation", () => {
       status: "error",
       message: "This invitation is not addressed to your account.",
     });
+  });
+});
+
+interface RescindInvitationFixture {
+  // The row the atomic UPDATE would have matched — present only when the invitation truly is
+  // `pending` and belongs to `tripId`, mirroring the real `WHERE id = ? AND tripId = ? AND status =
+  // 'pending'` predicate rather than an independently-asserted outcome.
+  matchedRow?: { id: string; tripId: string; status: InvitationStatus } | null;
+  // The row the post-failure diagnostic SELECT would find, used only to pick between "not found"
+  // (missing or wrong trip) and "no longer pending" (right trip, wrong status).
+  diagnosticRow?: { id: string; tripId: string } | null;
+}
+
+function setupRescindInvitationDb({ matchedRow = null, diagnosticRow = null }: RescindInvitationFixture = {}) {
+  const operations = {
+    updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
+  };
+
+  db.update.mockReturnValue({
+    set: (values: unknown) => ({
+      where: (condition: unknown) => ({
+        returning: async () => {
+          operations.updates.push({ table: invitations, values, condition });
+          return matchedRow ? [matchedRow] : [];
+        },
+      }),
+    }),
+  });
+
+  db.select.mockReturnValue({
+    from: (table: unknown) => ({
+      where: async () => {
+        if (table === invitations) return diagnosticRow ? [diagnosticRow] : [];
+        throw new Error("Unexpected table read in rescind fixture.");
+      },
+    }),
+  });
+
+  return operations;
+}
+
+describe("rescindInvitation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("rescinds a pending invitation belonging to the managed trip", async () => {
+    const operations = setupRescindInvitationDb({
+      matchedRow: { id: "invite-1", tripId: "trip-1", status: "rescinded" },
+    });
+
+    await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
+    expect(operations.updates).toEqual([
+      expect.objectContaining({ table: invitations, values: { status: "rescinded" }, condition: expect.anything() }),
+    ]);
+    expect(inspect(operations.updates[0]?.condition, { depth: 8 })).toContain("pending");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it.each(["rescinded", "accepted", "declined"])("rejects an already-%s invitation", async (status) => {
+    const operations = setupRescindInvitationDb({
+      diagnosticRow: { id: "invite-1", tripId: "trip-1" },
+    });
+
+    await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({
+      status: "error",
+      message: "Invitation is no longer pending.",
+    });
+
+    // The invitation's real status (`status`) never reaches the atomic UPDATE's WHERE clause in this
+    // fixture — it only drives which branch of `rescindInvitation` we're documenting via the test
+    // title. What actually proves the UPDATE's status guard exists is the predicate assertion below:
+    // a production change that dropped `eq(invitations.status, "pending")` would still return zero
+    // rows here (since `matchedRow` is unset), but this assertion on the composed WHERE clause fails.
+    expect(inspect(operations.updates[0]?.condition, { depth: 8 })).toContain("pending");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invitation that belongs to a different trip", async () => {
+    setupRescindInvitationDb({
+      diagnosticRow: { id: "invite-2", tripId: "trip-2" },
+    });
+
+    await expect(rescindInvitation("trip-1", "invite-2")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects an editor before reading or writing invitations", async () => {
+    assertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(rescindInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
+
+    expect(db.update).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it("returns not found for a missing invitation", async () => {
+    setupRescindInvitationDb();
+
+    await expect(rescindInvitation("trip-1", "missing-invite")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 
