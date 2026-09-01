@@ -65,24 +65,24 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
                 value={collaborator.role}
                 onValueChange={(selectedValue) => onUpdateRole(i, selectedValue as CollaboratorRole)}
               >
-                <SelectTrigger disabled={collaborator.role === "owner"} aria-label={`Role for ${collaborator.name}`}>
+                <SelectTrigger disabled={collaborator.role === "manager"} aria-label={`Role for ${collaborator.name}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="editor">Editor</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
               <button
-                disabled={collaborator.role === "owner"}
+                disabled={collaborator.role === "manager"}
                 onClick={() => onRemove(i)}
-                className="p-1 rounded-[5px] transition-colors"
+                className="size-11 rounded-[5px] transition-colors"
                 style={{
-                  color: collaborator.role === "owner" ? "var(--fg-5)" : "var(--fg-3)",
-                  cursor: collaborator.role === "owner" ? "not-allowed" : "pointer",
+                  color: collaborator.role === "manager" ? "var(--fg-5)" : "var(--fg-3)",
+                  cursor: collaborator.role === "manager" ? "not-allowed" : "pointer",
                 }}
-                title={collaborator.role === "owner" ? "Owner cannot be removed" : "Remove"}
+                title={collaborator.role === "manager" ? "Manager cannot be removed" : "Remove"}
               >
                 <Trash2 size={13} strokeWidth={1.5} />
               </button>

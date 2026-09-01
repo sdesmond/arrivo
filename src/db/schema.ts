@@ -257,6 +257,7 @@ export const collaborators = pgTable(
     name: text("name").notNull(),
     initials: text("initials").notNull(),
     role: text("role").notNull(),
+    isCreator: boolean("is_creator").notNull().default(false),
     tintBg: text("tint_bg"),
     tintFg: text("tint_fg"),
   },

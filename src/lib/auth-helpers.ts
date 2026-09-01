@@ -22,14 +22,15 @@ export async function requireUser() {
 export async function assertTripAccess(
   tripId: string,
   userId: string,
-  minRole: "viewer" | "editor" | "owner" = "viewer"
+  minRole: "viewer" | "editor" | "manager" = "viewer"
 ) {
-  const roleRank = { viewer: 0, editor: 1, owner: 2 };
+  const roleRank = { viewer: 0, editor: 1, manager: 2 };
   const [collab] = await db
     .select({ role: collaborators.role })
     .from(collaborators)
     .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, userId)));
-  if (!collab || roleRank[collab.role as keyof typeof roleRank] < roleRank[minRole]) {
+  const collaboratorRank = collab ? roleRank[collab.role as keyof typeof roleRank] : undefined;
+  if (collaboratorRank === undefined || collaboratorRank < roleRank[minRole]) {
     notFound();
   }
 }

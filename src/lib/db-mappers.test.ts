@@ -490,18 +490,20 @@ const BASE_COLLAB: CollabRow = {
   name: "Alice",
   initials: "AL",
   role: "editor",
+  isCreator: false,
   tintBg: null,
   tintFg: null,
 };
 
 describe("dbCollabToType", () => {
-  it("maps core fields correctly", () => {
-    const result = dbCollabToType(BASE_COLLAB);
+  it("maps core fields and creator status correctly", () => {
+    const result = dbCollabToType({ ...BASE_COLLAB, isCreator: true });
     expect(result.id).toBe("collab-1");
     expect(result.email).toBe("alice@example.com");
     expect(result.name).toBe("Alice");
     expect(result.initials).toBe("AL");
     expect(result.role).toBe("editor");
+    expect(result.isCreator).toBe(true);
   });
 
   it("null tint fields become undefined", () => {

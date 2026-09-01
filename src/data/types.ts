@@ -32,7 +32,7 @@ export const ItineraryItemType = {
 export type ItineraryItemType = (typeof ItineraryItemType)[keyof typeof ItineraryItemType];
 
 export const CollaboratorRole = {
-  Owner: "owner",
+  Manager: "manager",
   Editor: "editor",
   Viewer: "viewer",
 } as const;
@@ -509,6 +509,7 @@ export interface Collaborator {
   email: string;
   initials: string;
   role: CollaboratorRole;
+  isCreator?: boolean;
   tint?: {
     bg: string;
     fg: string;

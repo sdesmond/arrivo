@@ -320,7 +320,8 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         email: ownerUser.email,
         name: ownerUser.name,
         initials: ownerUser.initials,
-        role: "owner",
+        role: "manager",
+        isCreator: true,
       });
 
       const insertedDays =

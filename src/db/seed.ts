@@ -57,7 +57,8 @@ async function main() {
         email: DEMO_EMAIL,
         name: "Demo User",
         initials: "DU",
-        role: "owner",
+        role: "manager",
+        isCreator: true,
       })
       .onConflictDoNothing();
 

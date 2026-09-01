@@ -195,6 +195,7 @@ export function dbCollabToType(row: typeof collaborators.$inferSelect): Collabor
     name: row.name,
     initials: row.initials,
     role: row.role as Collaborator["role"],
+    isCreator: row.isCreator,
     tintBg: row.tintBg ?? undefined,
     tintFg: row.tintFg ?? undefined,
   };

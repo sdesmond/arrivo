@@ -280,7 +280,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
       email: userEmail,
       name: userName,
       initials: userName.slice(0, 2).toUpperCase(),
-      role: "owner",
+      role: "manager",
+      isCreator: true,
     });
     const dayRows = buildDayRows(trip.id, input.startDate, input.endDate);
     if (dayRows.length > 0) {
@@ -629,7 +630,7 @@ export async function updateTripMetadata(
 
 export async function deleteTrip(tripId: string) {
   const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "owner");
+  await assertTripAccess(tripId, user.id!, "manager");
 
   const tripDocs = await db.select({ url: documents.url }).from(documents).where(eq(documents.tripId, tripId));
 
@@ -651,7 +652,7 @@ export async function deleteTrip(tripId: string) {
 
 export async function addCollaborator(tripId: string, input: AddCollaboratorInput) {
   const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "owner");
+  await assertTripAccess(tripId, user.id!, "manager");
   await db
     .insert(collaborators)
     .values({
@@ -671,7 +672,7 @@ export async function removeCollaborator(collabId: string) {
   const user = await requireUser();
   const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
   if (!collab) return;
-  await assertTripAccess(collab.tripId, user.id!, "owner");
+  await assertTripAccess(collab.tripId, user.id!, "manager");
   await db.delete(collaborators).where(eq(collaborators.id, collabId));
   revalidatePath(`/trips/${collab.tripId}`);
 }
@@ -680,7 +681,7 @@ export async function updateCollaboratorRole(collabId: string, role: "editor" | 
   const user = await requireUser();
   const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
   if (!collab) return;
-  await assertTripAccess(collab.tripId, user.id!, "owner");
+  await assertTripAccess(collab.tripId, user.id!, "manager");
   await db.update(collaborators).set({ role }).where(eq(collaborators.id, collabId));
   revalidatePath(`/trips/${collab.tripId}`);
 }

@@ -950,7 +950,8 @@ describe("createTrip", () => {
           table: collaborators,
           values: expect.objectContaining({
             tripId: "trip-1",
-            role: "owner",
+            role: "manager",
+            isCreator: true,
           }),
         },
       ])

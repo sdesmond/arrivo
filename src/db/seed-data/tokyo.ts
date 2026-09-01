@@ -423,7 +423,8 @@ export const TOKYO_COLLAB: Collaborator[] = [
   {
     name: "Maya R.",
     email: "maya@packt.local",
-    role: "owner",
+    role: "manager",
+    isCreator: true,
     initials: "MR",
     tint: { bg: "oklch(0.86 0.05 8)", fg: "oklch(0.30 0.08 8)" },
   },

@@ -89,29 +89,29 @@ describe("TripEditCollaborators", () => {
     expect(onAdd).toHaveBeenCalledWith("Dana Blue", "dana@example.com", "viewer");
   });
 
-  it("owner role cannot be removed (button is disabled)", () => {
-    const ownerCollaborator: Collaborator[] = [
-      { name: "Owner User", email: "owner@example.com", initials: "OU", role: "owner" },
+  it("manager role cannot be removed (button is disabled)", () => {
+    const managerCollaborator: Collaborator[] = [
+      { name: "Manager User", email: "manager@example.com", initials: "MU", role: "manager" },
     ];
     render(
       <TripEditCollaborators
-        collaborators={ownerCollaborator}
+        collaborators={managerCollaborator}
         onRemove={vi.fn()}
         onUpdateRole={vi.fn()}
         onAdd={vi.fn()}
       />
     );
-    const removeButtons = screen.getAllByTitle(/Owner cannot be removed/i);
+    const removeButtons = screen.getAllByTitle(/Manager cannot be removed/i);
     expect(removeButtons[0]).toBeDisabled();
   });
 
-  it("owner role select is disabled", () => {
-    const ownerCollaborator: Collaborator[] = [
-      { name: "Owner User", email: "owner@example.com", initials: "OU", role: "owner" },
+  it("manager role select is disabled", () => {
+    const managerCollaborator: Collaborator[] = [
+      { name: "Manager User", email: "manager@example.com", initials: "MU", role: "manager" },
     ];
     render(
       <TripEditCollaborators
-        collaborators={ownerCollaborator}
+        collaborators={managerCollaborator}
         onRemove={vi.fn()}
         onUpdateRole={vi.fn()}
         onAdd={vi.fn()}
