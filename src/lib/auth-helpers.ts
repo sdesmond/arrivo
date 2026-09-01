@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import { db } from "@/db";
 import { collaborators } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import type { CollaboratorRole } from "@/data/types";
 
 export async function getCurrentUser() {
   const session = await auth();
@@ -22,8 +23,8 @@ export async function requireUser() {
 export async function assertTripAccess(
   tripId: string,
   userId: string,
-  minRole: "viewer" | "editor" | "manager" = "viewer"
-) {
+  minRole: CollaboratorRole = "viewer"
+): Promise<CollaboratorRole> {
   const roleRank = { viewer: 0, editor: 1, manager: 2 };
   const [collab] = await db
     .select({ role: collaborators.role })
@@ -33,4 +34,5 @@ export async function assertTripAccess(
   if (collaboratorRank === undefined || collaboratorRank < roleRank[minRole]) {
     notFound();
   }
+  return collab!.role as CollaboratorRole;
 }
