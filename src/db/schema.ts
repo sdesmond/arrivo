@@ -11,6 +11,7 @@ import {
   jsonb,
   index,
   unique,
+  uniqueIndex,
   primaryKey,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -262,6 +263,31 @@ export const collaborators = pgTable(
     tintFg: text("tint_fg"),
   },
   (table) => [unique().on(table.tripId, table.email)]
+);
+
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    tripId: uuid("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role").notNull(),
+    status: text("status").notNull().default("pending"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    invitedBy: uuid("invited_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex("invitations_pending_trip_email_unique")
+      .on(table.tripId, table.email)
+      .where(sql`${table.status} = 'pending'`),
+  ]
 );
 
 export const userLoyaltyNumbers = pgTable(
