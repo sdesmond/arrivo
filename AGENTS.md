@@ -169,7 +169,7 @@ Before starting any new development task, you MUST ask the user whether they wan
 **Build stage checkpoints — NON-NEGOTIABLE:**
 When running `bmad-build` (or any equivalent plan → implement → review flow), HALT and wait for explicit user confirmation before advancing past each of these three points, even where the workflow's own step files would otherwise continue automatically:
 
-1. **After planning** — spec/plan is written, before implementation starts.
+1. **After planning** — spec/plan is written and approved, before implementation starts.
 2. **After implementation** — code changes are done, before code review begins.
 3. **After code review** — review findings are triaged/applied, before presenting or committing.
 
