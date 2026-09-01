@@ -166,6 +166,15 @@ Before editing any production file, you MUST name the exact test files and scena
 **Branch-confirmation gate — NON-NEGOTIABLE:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 
+**Build stage checkpoints — NON-NEGOTIABLE:**
+When running `bmad-build` (or any equivalent plan → implement → review flow), HALT and wait for explicit user confirmation before advancing past each of these three points, even where the workflow's own step files would otherwise continue automatically:
+
+1. **After planning** — spec/plan is written, before implementation starts.
+2. **After implementation** — code changes are done, before code review begins.
+3. **After code review** — review findings are triaged/applied, before presenting or committing.
+
+Do not auto-continue through any of these boundaries. Post a short status (what finished, what's next) and wait for the user to say to proceed.
+
 **Default workflow for any coding task:**
 
 1. Ask whether the user wants a branch created before development begins
