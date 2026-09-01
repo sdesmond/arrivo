@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-31-2026 00:00
-last_updated: 09-01-2026 14:17
+last_updated: 09-01-2026 14:31
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -40,7 +40,7 @@ development_status:
   1-2-invite-an-existing-packt-user-to-a-trip: done
   1-3-view-accept-or-decline-a-pending-invitation: done
   1-4-invitation-expiry-and-rescind: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   epic-2: backlog
   2-1-viewer-gets-a-read-only-financial-data-free-trip-view: backlog
@@ -64,3 +64,35 @@ development_status:
   4-4-revocation-modal-on-self-targeted-removal: backlog
   4-5-dashboard-reflects-membership-changes-live: backlog
   epic-4-retrospective: optional
+action_items:
+  - id: "epic-1-retro-item-1-guarantee-every-story-in-the-build-workf"
+    epic: 1
+    action: "Guarantee every story in the build workflow opens a PR-based review checkpoint,
+      including a lone first story on a freshly created feature branch (Story 1.1
+      landed as a direct commit with none, unlike 1.2-1.4)."
+    owner: "story-automator / dev-workflow configuration"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
+  - id: "epic-1-retro-item-2-resolve-the-dead-add-person-remove-role"
+    epic: 1
+    action: "Resolve the dead Add person/remove/role-change UI in trip-edit-sheet.tsx
+      People section (getPatch never includes collaborators) before or alongside Epic
+      3 Story 3.1 share dialog, so it stops silently no-opping."
+    owner: "Epic 3 Story 3.1 implementer"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
+  - id: "epic-1-retro-item-3-correct-the-deferred-work-md-entry-from"
+    epic: 1
+    action: "Correct the deferred-work.md entry from index on invitations.email alone
+      to an expression index on lower(trim(email)), matching what hasNormalizedEmail
+      actually queries."
+    owner: "whoever next picks up deferred-work.md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
+  - id: "epic-1-retro-item-4-parameterize-navitem-badge-aria-label-in"
+    epic: 1
+    action: "Parameterize NavItem badge aria-label instead of hardcoding pending invitations
+      text, before a second feature reuses count/countTint for an unrelated badge."
+    owner: "implementer of the next NavItem badge"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
