@@ -45,7 +45,7 @@ development_status:
   epic-2: in-progress
   2-1-viewer-gets-a-read-only-financial-data-free-trip-view: done
   2-2-editor-sees-full-itinerary-budget-access-without-trip-manage: done
-  2-3-manager-has-full-trip-control-the-creator-s-seat-can-t-be-to: review
+  2-3-manager-has-full-trip-control-the-creator-s-seat-can-t-be-to: done
   2-4-viewer-s-shared-trips-are-excluded-from-personal-expense-rep: backlog
   epic-2-retrospective: optional
 
