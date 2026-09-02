@@ -96,16 +96,18 @@ export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip, vie
               <MoreHorizontal size={14} strokeWidth={1.5} />
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end">
-              <DropdownMenuItem
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onEditTrip(trip);
-                }}
-              >
-                <Pencil size={13} strokeWidth={1.5} />
-                Edit trip
-              </DropdownMenuItem>
+              {trip.accessRole !== CollaboratorRole.Viewer ? (
+                <DropdownMenuItem
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onEditTrip(trip);
+                  }}
+                >
+                  <Pencil size={13} strokeWidth={1.5} />
+                  Edit trip
+                </DropdownMenuItem>
+              ) : null}
               {onDeleteTrip && trip.accessRole === CollaboratorRole.Manager ? (
                 <DropdownMenuItem
                   variant="destructive"

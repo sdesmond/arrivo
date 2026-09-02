@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-31-2026 00:00
-last_updated: 09-02-2026 15:00
+last_updated: 09-02-2026 16:00
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -47,7 +47,7 @@ development_status:
   2-2-editor-sees-full-itinerary-budget-access-without-trip-manage: done
   2-3-manager-has-full-trip-control-the-creator-s-seat-can-t-be-to: done
   2-4-viewer-s-shared-trips-are-excluded-from-personal-expense-rep: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   epic-3: backlog
   3-1-build-the-share-dialog-shell-with-active-pending-declined-ro: backlog
@@ -67,17 +67,15 @@ development_status:
 action_items:
   - id: "epic-1-retro-item-1-guarantee-every-story-in-the-build-workf"
     epic: 1
-    action:
-      "Guarantee every story in the build workflow opens a PR-based review checkpoint,
+    action: "Guarantee every story in the build workflow opens a PR-based review checkpoint,
       including a lone first story on a freshly created feature branch (Story 1.1
       landed as a direct commit with none, unlike 1.2-1.4)."
     owner: "story-automator / dev-workflow configuration"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
   - id: "epic-1-retro-item-2-resolve-the-dead-add-person-remove-role"
     epic: 1
-    action:
-      "Resolve the dead Add person/remove/role-change UI in trip-edit-sheet.tsx
+    action: "Resolve the dead Add person/remove/role-change UI in trip-edit-sheet.tsx
       People section (getPatch never includes collaborators) before or alongside Epic
       3 Story 3.1 share dialog, so it stops silently no-opping."
     owner: "Epic 3 Story 3.1 implementer"
@@ -85,8 +83,7 @@ action_items:
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
   - id: "epic-1-retro-item-3-correct-the-deferred-work-md-entry-from"
     epic: 1
-    action:
-      "Correct the deferred-work.md entry from index on invitations.email alone
+    action: "Correct the deferred-work.md entry from index on invitations.email alone
       to an expression index on lower(trim(email)), matching what hasNormalizedEmail
       actually queries."
     owner: "whoever next picks up deferred-work.md"
@@ -94,9 +91,33 @@ action_items:
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
   - id: "epic-1-retro-item-4-parameterize-navitem-badge-aria-label-in"
     epic: 1
-    action:
-      "Parameterize NavItem badge aria-label instead of hardcoding pending invitations
+    action: "Parameterize NavItem badge aria-label instead of hardcoding pending invitations
       text, before a second feature reuses count/countTint for an unrelated badge."
     owner: "implementer of the next NavItem badge"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
+  - id: "epic-2-retro-item-5-fold-the-updatecollaboratorrole-manager"
+    epic: 2
+    action: "Fold the updateCollaboratorRole manager-promotion type gap (trips/actions.ts:928
+      cannot promote to manager, but the People-section role dropdown offers it) into
+      the existing deferred-work.md entry for that action, to be resolved when Epic
+      3 wires the People section to live server actions."
+    owner: "Epic 3 Story 3.1 implementer"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-02.md"
+  - id: "epic-2-retro-item-6-extract-the-iscreator-creator-seat-guard"
+    epic: 2
+    action: "Extract the isCreator creator-seat guard (duplicated inline in removeCollaborator/updateCollaboratorRole,
+      trips/actions.ts:916-935) into a shared helper before Epic 3 saveContributorChanges
+      adds a third call site."
+    owner: "Epic 3 Story 3.1 implementer"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-02.md"
+  - id: "epic-2-retro-item-7-correct-spec-2-3-manager-has-full-trip-c"
+    epic: 2
+    action: "Correct spec-2-3-manager-has-full-trip-control.md frontmatter status
+      to done and check off its remaining Review Finding checkbox (sizing fix already
+      landed in commit e180270)."
+    owner: "whoever next touches that file"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-02.md"

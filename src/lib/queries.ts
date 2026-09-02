@@ -210,7 +210,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     const packAgg = packingByTrip[trip.id];
     const packingProgress =
       packAgg && packAgg.total > 0 ? { checked: packAgg.checked, total: packAgg.total } : undefined;
-    const tripEntry = dbTripToType(trip);
+    const tripEntry = dbTripToType(trip, { role: accessRole as CollaboratorRole });
 
     const linkedEventsForTrip = deriveLinkedEvents((reservationsByTrip[trip.id] ?? []).map(dbReservationToType));
     const todayLinkedEvents = linkedEventsForTrip.filter(

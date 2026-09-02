@@ -181,31 +181,35 @@ describe("TripsPageClient", () => {
   });
 
   it.each([
-    ["manager", CollaboratorRole.Manager, true],
-    ["editor", CollaboratorRole.Editor, false],
-    ["viewer", CollaboratorRole.Viewer, false],
-  ] as const)("gates canManage/onDelete on the edit sheet for a %s", async (_label, accessRole, canManage) => {
-    const entryWithRole: TripListEntry = { ...entries[0], trip: { ...entries[0].trip, accessRole } };
-    const handlers = createHandlers({ editingEntry: entryWithRole });
-    mockUseTripsPageHandlers.mockReturnValue(handlers);
+    ["manager", CollaboratorRole.Manager, true, true],
+    ["editor", CollaboratorRole.Editor, false, true],
+    ["viewer", CollaboratorRole.Viewer, false, false],
+  ] as const)(
+    "gates canManage/onDelete/canEditBudget on the edit sheet for a %s",
+    async (_label, accessRole, canManage, canEditBudget) => {
+      const entryWithRole: TripListEntry = { ...entries[0], trip: { ...entries[0].trip, accessRole } };
+      const handlers = createHandlers({ editingEntry: entryWithRole });
+      mockUseTripsPageHandlers.mockReturnValue(handlers);
 
-    render(
-      <TripsPageClient
-        initialEntries={entries}
-        currencyOptions={currencyOptions}
-        nowISO="2026-07-07T12:00:00.000Z"
-        dateFormat="MM/DD/YYYY"
-        initialViewMode="cards"
-      />
-    );
+      render(
+        <TripsPageClient
+          initialEntries={entries}
+          currencyOptions={currencyOptions}
+          nowISO="2026-07-07T12:00:00.000Z"
+          dateFormat="MM/DD/YYYY"
+          initialViewMode="cards"
+        />
+      );
 
-    expect(tripEditSheetSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        canManage,
-        onDelete: canManage ? expect.any(Function) : undefined,
-      })
-    );
-  });
+      expect(tripEditSheetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          canManage,
+          canEditBudget,
+          onDelete: canManage ? expect.any(Function) : undefined,
+        })
+      );
+    }
+  );
 
   it("shows pending long-trip warning and submits draft on continue", async () => {
     const user = userEvent.setup();

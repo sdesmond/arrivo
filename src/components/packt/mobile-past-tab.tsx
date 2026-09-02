@@ -25,6 +25,7 @@ export function MobilePastTab({ trips, dateFormat, onEditTrip, onDeleteTrip }: M
     <div className="flex flex-col gap-3">
       {trips.map((trip) => {
         const canDelete = Boolean(onDeleteTrip) && trip.accessRole === CollaboratorRole.Manager;
+        const canEdit = Boolean(onEditTrip) && trip.accessRole !== CollaboratorRole.Viewer;
         return (
           <div
             key={trip.id}
@@ -51,7 +52,7 @@ export function MobilePastTab({ trips, dateFormat, onEditTrip, onDeleteTrip }: M
                 </Badge>
               </div>
             </Link>
-            {onEditTrip || canDelete ? (
+            {canEdit || canDelete ? (
               <div className="flex items-start justify-center pr-1 pt-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger
@@ -66,12 +67,12 @@ export function MobilePastTab({ trips, dateFormat, onEditTrip, onDeleteTrip }: M
                     <MoreHorizontal size={14} strokeWidth={1.5} />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent side="bottom" align="end">
-                    {onEditTrip ? (
+                    {canEdit ? (
                       <DropdownMenuItem
                         onClick={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
-                          onEditTrip(trip);
+                          onEditTrip!(trip);
                         }}
                       >
                         <Pencil size={13} strokeWidth={1.5} />

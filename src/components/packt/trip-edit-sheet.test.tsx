@@ -262,6 +262,36 @@ describe("TripEditSheet", () => {
     expect(screen.queryByText("People")).not.toBeInTheDocument();
   });
 
+  it.each([undefined, true])("shows the Budget section when canEditBudget is %s", (canEditBudget) => {
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        canEditBudget={canEditBudget}
+      />
+    );
+
+    expect(screen.getByText("Budget")).toBeInTheDocument();
+  });
+
+  it("hides the Budget section when canEditBudget is false", () => {
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        canEditBudget={false}
+      />
+    );
+
+    expect(screen.queryByText("Budget")).not.toBeInTheDocument();
+  });
+
   it("Cancel button calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

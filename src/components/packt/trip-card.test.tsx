@@ -164,6 +164,18 @@ describe("TripCard", () => {
     expect(screen.getByRole("button", { name: /delete trip/i })).toBeInTheDocument();
   });
 
+  it("hides Edit trip for a viewer", () => {
+    const trip = { ...baseTrip, accessRole: CollaboratorRole.Viewer };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Edit trip for an editor", () => {
+    const trip = { ...baseTrip, accessRole: CollaboratorRole.Editor };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: /edit trip/i })).toBeInTheDocument();
+  });
+
   it("links to the trip detail page", () => {
     render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     const link = screen.getByRole("link");

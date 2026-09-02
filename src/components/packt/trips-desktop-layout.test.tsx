@@ -401,6 +401,40 @@ describe("TripsDesktopLayout", () => {
       expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
     });
 
+    it("in list mode, hides Edit for a viewer", () => {
+      render(
+        <TripsDesktopLayout
+          activeEntry={null}
+          upcomingTrips={[{ ...upcomingTrips[0], accessRole: CollaboratorRole.Viewer }]}
+          unscheduledEntries={[]}
+          dateFormat="MM/DD/YYYY"
+          initialViewMode="list"
+          onNewTrip={vi.fn()}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={vi.fn()}
+        />,
+        { wrapper: Wrapper }
+      );
+      expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+    });
+
+    it("in list mode, shows Edit for an editor", () => {
+      render(
+        <TripsDesktopLayout
+          activeEntry={null}
+          upcomingTrips={[{ ...upcomingTrips[0], accessRole: CollaboratorRole.Editor }]}
+          unscheduledEntries={[]}
+          dateFormat="MM/DD/YYYY"
+          initialViewMode="list"
+          onNewTrip={vi.fn()}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={vi.fn()}
+        />,
+        { wrapper: Wrapper }
+      );
+      expect(screen.getByRole("button", { name: /edit trip/i })).toBeInTheDocument();
+    });
+
     it("shows dayTotal in upcoming list rows for dateless trips", () => {
       render(
         <TripsDesktopLayout

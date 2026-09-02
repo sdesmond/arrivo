@@ -129,6 +129,24 @@ describe("MobilePastTab", () => {
     expect(screen.queryByTitle("Trip options")).not.toBeInTheDocument();
   });
 
+  it("hides edit button for a viewer even when onEditTrip is provided", () => {
+    const trip: Trip = { ...pastTrips[0], accessRole: CollaboratorRole.Viewer };
+    render(<MobilePastTab trips={[trip]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the trip options trigger for a viewer when only onEditTrip is provided", () => {
+    const trip: Trip = { ...pastTrips[0], accessRole: CollaboratorRole.Viewer };
+    render(<MobilePastTab trips={[trip]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.queryByTitle("Trip options")).not.toBeInTheDocument();
+  });
+
+  it("shows edit button for an editor", () => {
+    const trip: Trip = { ...pastTrips[0], accessRole: CollaboratorRole.Editor };
+    render(<MobilePastTab trips={[trip]} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /edit trip/i })).toBeInTheDocument();
+  });
+
   it("renders without the dropdown menu when no handlers provided", () => {
     render(<MobilePastTab trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" />);
     expect(screen.queryByTitle("Trip options")).not.toBeInTheDocument();

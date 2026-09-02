@@ -100,3 +100,9 @@ Then("I do not see a {string} tab", async ({ page }, tabName: string) => {
 Then("I do not see the cover options control", async ({ page }) => {
   await expect(page.getByTitle("Cover options")).toHaveCount(0);
 });
+
+When("I open trip options for {string}", async ({ page }, tripName: string) => {
+  const tripCard = page.locator("a[href^='/trips/']").filter({ hasText: tripName }).first();
+  await expect(tripCard).toBeVisible();
+  await tripCard.getByTitle("Trip options").click();
+});
