@@ -21,7 +21,7 @@ import {
   packingTemplates,
   packingTemplateItems,
 } from "@/db/schema";
-import { eq, and, or, sql, inArray, asc, count, isNull } from "drizzle-orm";
+import { eq, and, or, sql, inArray, asc, count, isNull, ne } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { deriveLinkedEvents } from "@/lib/linked-events";
 import {
@@ -254,7 +254,16 @@ export async function listExpensesForUserInRange(
   const tripRows = await db
     .select({ trip: trips })
     .from(trips)
-    .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
+    // Viewers must never see a shared trip's financial data anywhere they can reach it,
+    // including this personal expense report — exclude viewer-role rows at the join.
+    .innerJoin(
+      collaborators,
+      and(
+        eq(collaborators.tripId, trips.id),
+        eq(collaborators.userId, userId),
+        ne(collaborators.role, CollaboratorRole.Viewer)
+      )
+    )
     .where(
       or(
         isNull(trips.startDate),

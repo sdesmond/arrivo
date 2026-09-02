@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { and, ne } from "drizzle-orm";
 
 const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToType, schemaTokens } = vi.hoisted(() => ({
   mockAssertTripAccess: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn(() => "eq"),
   inArray: vi.fn(() => "inArray"),
   isNull: vi.fn(() => "isNull"),
+  ne: vi.fn(() => "ne"),
   sql: vi.fn(() => "sql"),
 }));
 
@@ -920,6 +922,107 @@ describe("listExpensesForUserInRange", () => {
     const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
 
     expect(result.trips).toEqual([expect.objectContaining({ id: "trip-1", name: "Flex Trip", dayTotal: 3 })]);
+  });
+
+  it("applies a ne(role, viewer) predicate to the collaborator join condition", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Editor Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(ne).toHaveBeenCalledWith(schemaTokens.collaborators.role, "viewer");
+    expect(and).toHaveBeenCalledWith("eq", "eq", "ne");
+    expect(result.trips).toEqual([expect.objectContaining({ id: "trip-1" })]);
+    expect(result.expenses).toEqual([]);
+  });
+
+  it("returns every non-viewer trip when a call spans both an editor and a manager trip", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-editor", name: "Editor Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+              { trip: { id: "trip-manager", name: "Manager Trip", startDate: "2026-06-01", endDate: "2026-06-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result.trips.map((trip) => trip.id)).toEqual(["trip-editor", "trip-manager"]);
+  });
+
+  it("includes a trip on the next call once the user's role is no longer viewer", async () => {
+    mockDbSelect.mockReturnValueOnce({
+      from: () => ({
+        innerJoin: () => ({
+          where: async () => [],
+        }),
+      }),
+    });
+
+    const whileViewer = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+    expect(whileViewer.trips).toEqual([]);
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Promoted Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const afterPromotion = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+    expect(afterPromotion.trips).toEqual([expect.objectContaining({ id: "trip-1" })]);
   });
 
   it("returns empty trips and expenses when the user has no trips in range", async () => {
