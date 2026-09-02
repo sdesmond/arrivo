@@ -22,6 +22,7 @@ import {
 import { getTripStatus } from "@/lib/utils";
 import { ExpenseCategory } from "@/data/types";
 import type {
+  CollaboratorRole,
   Trip,
   UserProfile,
   TripEvent,
@@ -57,7 +58,8 @@ export function isTransitMode(value: string): value is TransitMode {
   return VALID_TRANSIT_MODES.some((transitMode) => transitMode === value);
 }
 
-export function dbTripToType(row: typeof trips.$inferSelect): Trip {
+export function dbTripToType(row: typeof trips.$inferSelect, options?: { role?: CollaboratorRole }): Trip {
+  const isViewer = options?.role === "viewer";
   return {
     id: row.id,
     name: row.name,
@@ -71,12 +73,13 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
     destinationCountry: row.destinationCountry ?? undefined,
     destinationCountryCode: row.destinationCountryCode ?? undefined,
     notes: row.notes ?? undefined,
-    budget: row.budgetTotal
-      ? {
-          currency: row.budgetCurrency ?? "USD",
-          total: Number(row.budgetTotal),
-        }
-      : undefined,
+    budget:
+      !isViewer && row.budgetTotal
+        ? {
+            currency: row.budgetCurrency ?? "USD",
+            total: Number(row.budgetTotal),
+          }
+        : undefined,
     tags: row.tags ?? [],
     transitMode: row.transitMode && isTransitMode(row.transitMode) ? row.transitMode : null,
   };

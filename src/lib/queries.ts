@@ -42,7 +42,7 @@ import {
   dbTemplateItemToType,
   isTransitMode,
 } from "@/lib/db-mappers";
-import { CoverType } from "@/data/types";
+import { CollaboratorRole, CoverType } from "@/data/types";
 import { getTripStatus, getWallClockDateKey, toLocalDateKey } from "@/lib/utils";
 import type {
   PackingTemplate,
@@ -327,7 +327,8 @@ export async function getTemplateWithItems(
 }
 
 export async function getTripDetail(tripId: string, userId: string): Promise<TripDetailPayload | null> {
-  await assertTripAccess(tripId, userId);
+  const accessRole = await assertTripAccess(tripId, userId);
+  const isViewer = accessRole === CollaboratorRole.Viewer;
 
   const [trip] = await db.select().from(trips).where(eq(trips.id, tripId));
   if (!trip) return null;
@@ -395,7 +396,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
 
   const reservationsDomain = tripReservations.map((row) => ({
     ...dbReservationToType(row),
-    expense: expensesByReservationId.get(row.id) ? dbExpenseToType(expensesByReservationId.get(row.id)!) : undefined,
+    ...(!isViewer && expensesByReservationId.get(row.id)
+      ? { expense: dbExpenseToType(expensesByReservationId.get(row.id)!) }
+      : {}),
     documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
   }));
   const linkedEvents = deriveLinkedEvents(reservationsDomain);
@@ -491,7 +494,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
   }
 
   return {
-    trip: dbTripToType(trip),
+    trip: dbTripToType(trip, { role: accessRole }),
     days: tripDays.map((day) => ({
       id: day.id,
       dayNumber: day.dayNumber,
@@ -506,7 +509,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
         ),
         ...(eventsByDay.get(day.id) ?? []).map((event) => ({
           ...dbEventToType(event),
-          expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
+          ...(!isViewer && expensesByEventId.get(event.id)
+            ? { expense: dbExpenseToType(expensesByEventId.get(event.id)!) }
+            : {}),
           docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
         })),
       ].sort((first, second) => first.position - second.position),
@@ -521,7 +526,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     })),
     unscheduledEvents: unscheduledEvents.map((event) => ({
       ...dbEventToType(event),
-      expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
+      ...(!isViewer && expensesByEventId.get(event.id)
+        ? { expense: dbExpenseToType(expensesByEventId.get(event.id)!) }
+        : {}),
       docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
     })),
     docs: tripDocs.map(dbDocToType),
@@ -529,7 +536,8 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     packingItems: tripPackingItems.map(dbPackingItemToType),
     packingLists: tripPackingListRows.map(dbPackingListToType),
     reservations: reservationsDomain,
-    expenses: tripExpenses.map(dbExpenseToType),
+    expenses: isViewer ? [] : tripExpenses.map(dbExpenseToType),
     notes: tripNotes.map(dbTripNoteToType),
+    accessRole,
   };
 }

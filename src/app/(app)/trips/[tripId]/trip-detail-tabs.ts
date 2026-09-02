@@ -1,4 +1,4 @@
-import { TripDetailTab } from "@/data/types";
+import { CollaboratorRole, TripDetailTab } from "@/data/types";
 
 type SearchParamValue = string | string[] | null | undefined;
 
@@ -14,11 +14,12 @@ export function readSearchParamValue(value: SearchParamValue): string | undefine
   return Array.isArray(value) ? value[0] : value;
 }
 
-export function resolveTripDetailTab(value: SearchParamValue): TripDetailTab {
+export function resolveTripDetailTab(value: SearchParamValue, accessRole?: CollaboratorRole): TripDetailTab {
   const resolvedValue = readSearchParamValue(value);
 
   switch (resolvedValue) {
     case TripDetailTab.Budget:
+      return accessRole === CollaboratorRole.Viewer ? TripDetailTab.Itinerary : TripDetailTab.Budget;
     case TripDetailTab.Map:
     case TripDetailTab.Documents:
     case TripDetailTab.Packing:

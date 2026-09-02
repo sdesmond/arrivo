@@ -715,6 +715,7 @@ export interface TripDetailPayload {
   reservations: Reservation[];
   expenses: Expense[];
   notes: TripNote[];
+  accessRole: CollaboratorRole;
 }
 
 export interface NewTripDraft {

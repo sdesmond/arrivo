@@ -165,6 +165,26 @@ describe("dbTripToType", () => {
     const result = dbTripToType({ ...BASE_TRIP, budgetTotal: "1000.00", budgetCurrency: null });
     expect(result.budget?.currency).toBe("USD");
   });
+
+  it("omits budget for a viewer even when the trip has a budget", () => {
+    const result = dbTripToType({ ...BASE_TRIP, budgetTotal: "5000.00", budgetCurrency: "EUR" }, { role: "viewer" });
+    expect(result.budget).toBeUndefined();
+  });
+
+  it("includes budget when no role is passed", () => {
+    const result = dbTripToType({ ...BASE_TRIP, budgetTotal: "5000.00", budgetCurrency: "EUR" });
+    expect(result.budget).toEqual({ currency: "EUR", total: 5000 });
+  });
+
+  it("includes budget for an editor", () => {
+    const result = dbTripToType({ ...BASE_TRIP, budgetTotal: "5000.00", budgetCurrency: "EUR" }, { role: "editor" });
+    expect(result.budget).toEqual({ currency: "EUR", total: 5000 });
+  });
+
+  it("includes budget for a manager", () => {
+    const result = dbTripToType({ ...BASE_TRIP, budgetTotal: "5000.00", budgetCurrency: "EUR" }, { role: "manager" });
+    expect(result.budget).toEqual({ currency: "EUR", total: 5000 });
+  });
 });
 
 // ── dbEventToType ─────────────────────────────────────────────────────────────

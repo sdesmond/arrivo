@@ -8,7 +8,7 @@ import { TripDetailTabBar } from "./trip-detail-tab-bar";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { BudgetStatus, TripDetailTab } from "@/data/types";
+import { BudgetStatus, CollaboratorRole, TripDetailTab } from "@/data/types";
 import {
   calculateActual,
   calculateBudgetStatus,
@@ -92,7 +92,10 @@ export function TripDetailClient({
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes } = detail;
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes, accessRole } =
+    detail;
+
+  const tabs = accessRole === CollaboratorRole.Viewer ? TABS.filter((tab) => tab.id !== TripDetailTab.Budget) : TABS;
 
   const hasBudget = !!trip.budget && (trip.budget.total ?? 0) > 0 && !!trip.budget.currency;
   const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
@@ -113,13 +116,13 @@ export function TripDetailClient({
 
   useEffect(() => {
     function handlePopState(): void {
-      const nextTab = resolveTripDetailTab(new URLSearchParams(window.location.search).get("tab"));
+      const nextTab = resolveTripDetailTab(new URLSearchParams(window.location.search).get("tab"), accessRole);
       setActiveTab(nextTab);
     }
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [accessRole]);
 
   // Child components (CTA, linked-event taps, ReservationsTab) navigate via next/navigation's router
   // rather than raw history APIs, so this syncs activeTab from the live search params instead of
@@ -127,14 +130,14 @@ export function TripDetailClient({
   useEffect(() => {
     if (previousTabParamRef.current === tabParam) return;
     previousTabParamRef.current = tabParam;
-    const nextTab = resolveTripDetailTab(tabParam);
+    const nextTab = resolveTripDetailTab(tabParam, accessRole);
     setActiveTab(nextTab);
     if (nextTab === TripDetailTab.Reservations && pendingCtaAnnouncementRef.current) {
       setAnnouncementId((current) => current + 1);
       setReservationsAnnouncement("Reservations tab");
     }
     pendingCtaAnnouncementRef.current = false;
-  }, [tabParam]);
+  }, [tabParam, accessRole]);
 
   function navigateToReservations(target: ReservationsDeepLinkTarget): void {
     if (target.kind === "add-reservation") {
@@ -205,7 +208,7 @@ export function TripDetailClient({
       <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
 
       <TripDetailTabBar
-        tabs={TABS}
+        tabs={tabs}
         activeTab={activeTab}
         budgetStatus={budgetStatus}
         budgetActual={budgetActual}

@@ -1,10 +1,17 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, schemaTokens } = vi.hoisted(() => ({
+const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToType, schemaTokens } = vi.hoisted(() => ({
   mockAssertTripAccess: vi.fn(),
   mockDbSelect: vi.fn(),
   mockDbTripNoteToType: vi.fn((tripNote: { id: string; tripId: string; position: number }) => tripNote),
+  mockDbTripToType: vi.fn((trip: { id: string; name: string; startDate: string | null; endDate: string | null }) => ({
+    id: trip.id,
+    name: trip.name,
+    startDate: trip.startDate ?? undefined,
+    endDate: trip.endDate ?? undefined,
+    status: "upcoming" as const,
+  })),
   schemaTokens: {
     trips: { id: "trips.id", name: "trips.name", startDate: "trips.startDate", endDate: "trips.endDate" },
     days: { tripId: "days.tripId" },
@@ -60,13 +67,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 vi.mock("@/lib/db-mappers", () => ({
-  dbTripToType: vi.fn((trip: { id: string; name: string; startDate: string | null; endDate: string | null }) => ({
-    id: trip.id,
-    name: trip.name,
-    startDate: trip.startDate ?? undefined,
-    endDate: trip.endDate ?? undefined,
-    status: "upcoming" as const,
-  })),
+  dbTripToType: mockDbTripToType,
   dbEventToType: vi.fn((event: unknown) => event),
   dbDocToType: vi.fn((doc: unknown) => doc),
   dbCollabToType: vi.fn((collaborator: unknown) => collaborator),
@@ -474,6 +475,262 @@ describe("getTripDetail", () => {
     const result = await getTripDetail("trip-1", "user-1");
 
     expect(result?.expenses.map((expense) => expense.id)).toEqual(["expense-event", "expense-unlinked"]);
+  });
+
+  it("threads the resolved role into the trip mapper and returns it as accessRole", async () => {
+    mockAssertTripAccess.mockResolvedValue("editor");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(mockDbTripToType).toHaveBeenCalledWith(expect.objectContaining({ id: "trip-1" }), {
+      role: "editor",
+    });
+    expect(result?.accessRole).toBe("editor");
+  });
+
+  it("omits the expenses list and reservation-linked expense for a viewer role", async () => {
+    mockAssertTripAccess.mockResolvedValue("viewer");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            { id: "res-1", tripId: "trip-1", type: "flight", provider: "Acme", startAt: null, endAt: null },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "expense-1",
+              tripId: "trip-1",
+              eventId: null,
+              reservationId: "res-1",
+              category: "food",
+              amount: "50",
+              currency: "USD",
+              date: "2026-08-01",
+            },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(result?.expenses).toEqual([]);
+    expect(result?.reservations[0]?.expense).toBeUndefined();
+    expect(result?.reservations[0]).not.toHaveProperty("expense");
+    expect(result?.accessRole).toBe("viewer");
+  });
+
+  it("includes the expenses list and reservation-linked expense for an editor role", async () => {
+    mockAssertTripAccess.mockResolvedValue("editor");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            { id: "res-1", tripId: "trip-1", type: "flight", provider: "Acme", startAt: null, endAt: null },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "expense-1",
+              tripId: "trip-1",
+              eventId: null,
+              reservationId: "res-1",
+              category: "food",
+              amount: "50",
+              currency: "USD",
+              date: "2026-08-01",
+            },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(result?.expenses).toEqual([{ id: "expense-1" }]);
+    expect(result?.reservations[0]?.expense).toEqual({ id: "expense-1" });
+  });
+
+  it("omits an unscheduled event's linked expense for a viewer role", async () => {
+    mockAssertTripAccess.mockResolvedValue("viewer");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [
+              {
+                id: "event-1",
+                dayId: null,
+                tripId: "trip-1",
+                name: "Museum",
+                position: 0,
+                startAt: null,
+                endAt: null,
+                displacedDate: null,
+              },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "expense-1",
+              tripId: "trip-1",
+              eventId: "event-1",
+              reservationId: null,
+              category: "food",
+              amount: "20",
+              currency: "USD",
+              date: "2026-08-01",
+            },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(result?.unscheduledEvents[0]?.expense).toBeUndefined();
+    expect(result?.unscheduledEvents[0]).not.toHaveProperty("expense");
+  });
+
+  it("attaches or omits a day-scheduled event's linked expense based on role", async () => {
+    async function runForRole(role: string) {
+      mockAssertTripAccess.mockResolvedValue(role);
+
+      mockDbSelect
+        .mockReturnValueOnce({
+          from: () => ({
+            where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+          }),
+        })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              orderBy: async () => [{ id: "day-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" }],
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              orderBy: async () => [
+                {
+                  id: "event-1",
+                  dayId: "day-1",
+                  tripId: "trip-1",
+                  name: "Museum",
+                  position: 0,
+                  startAt: null,
+                  endAt: null,
+                  displacedDate: null,
+                },
+              ],
+            }),
+          }),
+        })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: async () => [
+              {
+                id: "expense-1",
+                tripId: "trip-1",
+                eventId: "event-1",
+                reservationId: null,
+                category: "food",
+                amount: "20",
+                currency: "USD",
+                date: "2026-08-01",
+              },
+            ],
+          }),
+        })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+      return getTripDetail("trip-1", "user-1");
+    }
+
+    const viewerResult = await runForRole("viewer");
+    expect(viewerResult?.days[0]?.events[0]?.expense).toBeUndefined();
+    expect(viewerResult?.days[0]?.events[0]).not.toHaveProperty("expense");
+
+    vi.clearAllMocks();
+    mockAssertTripAccess.mockResolvedValue("editor");
+
+    const editorResult = await runForRole("editor");
+    expect(editorResult?.days[0]?.events[0]?.expense).toEqual({ id: "expense-1" });
   });
 
   it("maps trip notes into the payload in persisted position order", async () => {
