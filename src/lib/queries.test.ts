@@ -234,6 +234,75 @@ describe("listTripsForUser", () => {
     const result = await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
 
     expect(result[0].trip.accessRole).toBe("editor");
+    expect(mockDbTripToType).toHaveBeenCalledWith(expect.objectContaining({ id: "trip-1" }), { role: "editor" });
+  });
+
+  it("omits budget from a viewer-role trip in the list payload", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            orderBy: async () => [
+              {
+                trip: {
+                  id: "trip-1",
+                  name: "Viewer's Trip",
+                  startDate: null,
+                  endDate: null,
+                },
+                accessRole: "viewer",
+              },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      });
+
+    await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
+
+    expect(mockDbTripToType).toHaveBeenCalledWith(expect.objectContaining({ id: "trip-1" }), { role: "viewer" });
   });
 
   it("keeps todayEvents current-day only while summaryEvents include future active-trip events", async () => {
