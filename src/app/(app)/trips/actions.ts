@@ -918,6 +918,9 @@ export async function removeCollaborator(collabId: string) {
   const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
   if (!collab) return;
   await assertTripAccess(collab.tripId, user.id!, "manager");
+  if (collab.isCreator) {
+    throw new Error("The trip creator's seat cannot be removed.");
+  }
   await db.delete(collaborators).where(eq(collaborators.id, collabId));
   revalidatePath(`/trips/${collab.tripId}`);
 }
@@ -927,6 +930,9 @@ export async function updateCollaboratorRole(collabId: string, role: "editor" | 
   const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
   if (!collab) return;
   await assertTripAccess(collab.tripId, user.id!, "manager");
+  if (collab.isCreator) {
+    throw new Error("The trip creator's seat cannot be changed.");
+  }
   await db.update(collaborators).set({ role }).where(eq(collaborators.id, collabId));
   revalidatePath(`/trips/${collab.tripId}`);
 }

@@ -37,7 +37,7 @@ describe("TripEditCollaborators", () => {
     render(
       <TripEditCollaborators collaborators={collaborators} onRemove={onRemove} onUpdateRole={vi.fn()} onAdd={vi.fn()} />
     );
-    const removeButtons = screen.getAllByTitle("Remove");
+    const removeButtons = screen.getAllByTitle(/^Remove /);
     await user.click(removeButtons[0]);
     expect(onRemove).toHaveBeenCalledWith(0);
   });
@@ -89,9 +89,9 @@ describe("TripEditCollaborators", () => {
     expect(onAdd).toHaveBeenCalledWith("Dana Blue", "dana@example.com", "viewer");
   });
 
-  it("manager role cannot be removed (button is disabled)", () => {
+  it("a non-creator manager's row shows an enabled role dropdown and remove control", () => {
     const managerCollaborator: Collaborator[] = [
-      { name: "Manager User", email: "manager@example.com", initials: "MU", role: "manager" },
+      { name: "Manager User", email: "manager@example.com", initials: "MU", role: "manager", isCreator: false },
     ];
     render(
       <TripEditCollaborators
@@ -101,23 +101,85 @@ describe("TripEditCollaborators", () => {
         onAdd={vi.fn()}
       />
     );
-    const removeButtons = screen.getAllByTitle(/Manager cannot be removed/i);
-    expect(removeButtons[0]).toBeDisabled();
+    const trigger = screen.getByRole("combobox", { name: "Role for Manager User" });
+    expect(trigger).not.toBeDisabled();
+    expect(trigger).toHaveClass("h-11");
+    const removeButton = screen.getByTitle("Remove Manager User");
+    expect(removeButton).not.toBeDisabled();
+    expect(screen.queryByTitle(/is the trip creator/i)).not.toBeInTheDocument();
   });
 
-  it("manager role select is disabled", () => {
+  it("a non-creator manager can be removed via the remove control", async () => {
+    const user = userEvent.setup();
+    const onRemove = vi.fn();
     const managerCollaborator: Collaborator[] = [
-      { name: "Manager User", email: "manager@example.com", initials: "MU", role: "manager" },
+      { name: "Manager User", email: "manager@example.com", initials: "MU", role: "manager", isCreator: false },
+    ];
+    render(
+      <TripEditCollaborators
+        collaborators={managerCollaborator}
+        onRemove={onRemove}
+        onUpdateRole={vi.fn()}
+        onAdd={vi.fn()}
+      />
+    );
+    await user.click(screen.getByTitle("Remove Manager User"));
+    expect(onRemove).toHaveBeenCalledWith(0);
+  });
+
+  it("a non-creator manager can be demoted via the role dropdown", async () => {
+    const user = userEvent.setup();
+    const onUpdateRole = vi.fn();
+    const managerCollaborator: Collaborator[] = [
+      { name: "Manager User", email: "manager@example.com", initials: "MU", role: "manager", isCreator: false },
     ];
     render(
       <TripEditCollaborators
         collaborators={managerCollaborator}
         onRemove={vi.fn()}
+        onUpdateRole={onUpdateRole}
+        onAdd={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole("combobox", { name: "Role for Manager User" }));
+    await user.click(await screen.findByRole("option", { name: /viewer/i }));
+    expect(onUpdateRole).toHaveBeenCalledWith(0, "viewer");
+  });
+
+  it("the creator's row shows a lock icon with no role dropdown and no remove control", () => {
+    const creatorCollaborator: Collaborator[] = [
+      { name: "Creator User", email: "creator@example.com", initials: "CU", role: "manager", isCreator: true },
+    ];
+    render(
+      <TripEditCollaborators
+        collaborators={creatorCollaborator}
+        onRemove={vi.fn()}
         onUpdateRole={vi.fn()}
         onAdd={vi.fn()}
       />
     );
-    const triggers = screen.getAllByRole("combobox");
-    expect(triggers[0]).toBeDisabled();
+    expect(screen.getByTitle("Creator User is the trip creator")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Role for Creator User" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Remove Creator User")).not.toBeInTheDocument();
+  });
+
+  it("does not call onRemove or onUpdateRole for the creator's row (no controls to trigger them)", () => {
+    const creatorCollaborator: Collaborator[] = [
+      { name: "Creator User", email: "creator@example.com", initials: "CU", role: "manager", isCreator: true },
+    ];
+    const onRemove = vi.fn();
+    const onUpdateRole = vi.fn();
+    render(
+      <TripEditCollaborators
+        collaborators={creatorCollaborator}
+        onRemove={onRemove}
+        onUpdateRole={onUpdateRole}
+        onAdd={vi.fn()}
+      />
+    );
+    // Only the lock icon renders for the creator's row — no interactive control exists to click.
+    expect(screen.getAllByRole("button")).toHaveLength(1); // just the "Add" button
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(onUpdateRole).not.toHaveBeenCalled();
   });
 });

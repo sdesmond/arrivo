@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2, UserPlus } from "lucide-react";
+import { Lock, Trash2, UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,61 +33,72 @@ export function TripEditCollaborators({ collaborators, onRemove, onUpdateRole, o
     <div className="flex flex-col gap-2">
       {collaborators.length > 0 ? (
         <div className="flex flex-col gap-2">
-          {collaborators.map((collaborator, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2"
-              style={{ padding: "6px 8px", borderRadius: 8, background: "var(--surface-2)" }}
-            >
-              <span
-                className="rounded-full flex items-center justify-center shrink-0"
-                style={{
-                  width: 28,
-                  height: 28,
-                  fontSize: "calc(10px * var(--font-scale))",
-                  fontWeight: 700,
-                  letterSpacing: "0.04em",
-                  background: collaborator.tint?.bg ?? "var(--surface-3)",
-                  color: collaborator.tint?.fg ?? "var(--fg-2)",
-                }}
+          {collaborators.map((collaborator, i) => {
+            const isCreator = collaborator.isCreator === true;
+            return (
+              <div
+                key={i}
+                className="flex items-center gap-2"
+                style={{ padding: "6px 8px", borderRadius: 8, background: "var(--surface-2)" }}
               >
-                {collaborator.initials}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
-                  {collaborator.name}
+                <span
+                  className="rounded-full flex items-center justify-center shrink-0"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    fontSize: "calc(10px * var(--font-scale))",
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    background: collaborator.tint?.bg ?? "var(--surface-3)",
+                    color: collaborator.tint?.fg ?? "var(--fg-2)",
+                  }}
+                >
+                  {collaborator.initials}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
+                    {collaborator.name}
+                  </div>
+                  <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+                    {collaborator.email}
+                  </div>
                 </div>
-                <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>
-                  {collaborator.email}
-                </div>
+                {isCreator ? (
+                  <span
+                    className="size-11 flex items-center justify-center shrink-0"
+                    style={{ color: "var(--fg-4)" }}
+                    title={`${collaborator.name} is the trip creator`}
+                  >
+                    <Lock size={13} strokeWidth={1.5} />
+                  </span>
+                ) : (
+                  <>
+                    <Select
+                      value={collaborator.role}
+                      onValueChange={(selectedValue) => onUpdateRole(i, selectedValue as CollaboratorRole)}
+                    >
+                      <SelectTrigger className="h-11" aria-label={`Role for ${collaborator.name}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="editor">Editor</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <button
+                      onClick={() => onRemove(i)}
+                      className="size-11 rounded-[5px] transition-colors"
+                      style={{ color: "var(--fg-3)", cursor: "pointer" }}
+                      title={`Remove ${collaborator.name}`}
+                    >
+                      <Trash2 size={13} strokeWidth={1.5} />
+                    </button>
+                  </>
+                )}
               </div>
-              <Select
-                value={collaborator.role}
-                onValueChange={(selectedValue) => onUpdateRole(i, selectedValue as CollaboratorRole)}
-              >
-                <SelectTrigger disabled={collaborator.role === "manager"} aria-label={`Role for ${collaborator.name}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="editor">Editor</SelectItem>
-                  <SelectItem value="viewer">Viewer</SelectItem>
-                </SelectContent>
-              </Select>
-              <button
-                disabled={collaborator.role === "manager"}
-                onClick={() => onRemove(i)}
-                className="size-11 rounded-[5px] transition-colors"
-                style={{
-                  color: collaborator.role === "manager" ? "var(--fg-5)" : "var(--fg-3)",
-                  cursor: collaborator.role === "manager" ? "not-allowed" : "pointer",
-                }}
-                title={collaborator.role === "manager" ? "Manager cannot be removed" : "Remove"}
-              >
-                <Trash2 size={13} strokeWidth={1.5} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-4)" }}>No collaborators yet.</div>
