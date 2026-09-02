@@ -108,12 +108,15 @@ vi.mock("./packing-actions", async (importOriginal) => {
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import {
   acceptInvitation,
+  addCollaborator,
   addPackingItem,
   createTrip,
+  deleteTrip,
   declineInvitation,
   inviteContributor,
   pullTemplatesOntoTrip,
   reorderPackingItems,
+  removeCollaborator,
   removePackingItem,
   retrieveLocation,
   rescindInvitation,
@@ -121,6 +124,7 @@ import {
   searchAddressLocations,
   searchLocations,
   togglePackingItem,
+  updateCollaboratorRole,
   updatePackingItem,
   updateTripMetadata,
 } from "./actions";
@@ -132,6 +136,48 @@ import {
   type TripDateChangeConfirmation,
 } from "@/data/types";
 import { deriveGraphicCover } from "@/lib/utils";
+
+describe("manager-gated trip actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "editor-1", email: "editor@example.com" });
+    assertTripAccess.mockRejectedValue(new Error("not found"));
+  });
+
+  it("denies an editor from deleting a trip before any write", async () => {
+    await expect(deleteTrip("trip-1")).rejects.toThrow("not found");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
+    expect(db.delete).not.toHaveBeenCalled();
+  });
+
+  it("denies an editor from adding a collaborator before any write", async () => {
+    await expect(
+      addCollaborator("trip-1", { email: "new@example.com", name: "New Person", initials: "NP", role: "viewer" })
+    ).rejects.toThrow("not found");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("denies an editor from removing a collaborator before any write", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [{ id: "collab-1", tripId: "trip-1" }] }) });
+
+    await expect(removeCollaborator("collab-1")).rejects.toThrow("not found");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
+    expect(db.delete).not.toHaveBeenCalled();
+  });
+
+  it("denies an editor from updating a collaborator role before any write", async () => {
+    db.select.mockReturnValue({ from: () => ({ where: async () => [{ id: "collab-1", tripId: "trip-1" }] }) });
+
+    await expect(updateCollaboratorRole("collab-1", "viewer")).rejects.toThrow("not found");
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
+    expect(db.update).not.toHaveBeenCalled();
+  });
+});
 
 interface TransactionFixture {
   checklistRows?: Array<{ id: string }>;

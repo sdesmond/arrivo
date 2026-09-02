@@ -196,6 +196,34 @@ describe("TripDetailHero", () => {
     expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
   });
 
+  it("keeps editor itinerary controls while hiding Share", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "editor" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+    expect(screen.getByTitle("Cover options")).toBeInTheDocument();
+  });
+
+  it("shows Share to managers", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+  });
+
   it("shows edit only for graphic covers", () => {
     render(
       <TripDetailHero
