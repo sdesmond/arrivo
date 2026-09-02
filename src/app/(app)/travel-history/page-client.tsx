@@ -56,6 +56,7 @@ export function TravelHistoryPageClient({
   const handlers = useTravelHistoryPageHandlers(initialEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
   const editingCanManage = handlers.editingEntry?.trip.accessRole === CollaboratorRole.Manager;
+  const editingCanEditBudget = handlers.editingEntry?.trip.accessRole !== CollaboratorRole.Viewer;
 
   return (
     <>
@@ -124,6 +125,7 @@ export function TravelHistoryPageClient({
         }}
         onCancelDateChange={handlers.cancelTripDateChange}
         canManage={editingCanManage}
+        canEditBudget={editingCanEditBudget}
         onDelete={editingTripId && editingCanManage ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
         isDeleting={handlers.isDeleting}
       />

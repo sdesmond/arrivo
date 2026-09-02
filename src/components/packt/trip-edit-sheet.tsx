@@ -46,6 +46,7 @@ interface TripEditSheetProps {
   isDeleting?: boolean;
   highlightDates?: boolean;
   canManage?: boolean;
+  canEditBudget?: boolean;
 }
 
 export function TripEditSheet({
@@ -64,6 +65,7 @@ export function TripEditSheet({
   isDeleting = false,
   highlightDates = false,
   canManage = true,
+  canEditBudget = true,
 }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -244,14 +246,16 @@ export function TripEditSheet({
               }}
               disabled={isBusy}
             />
-            <TripEditBudget
-              currencyOptions={currencyOptions}
-              currency={draft.budget?.currency}
-              total={draft.budget?.total}
-              onCurrencyChange={(currency) => setBudget("currency", currency)}
-              onTotalChange={(total) => setBudget("total", total)}
-              disabled={isBusy}
-            />
+            {canEditBudget ? (
+              <TripEditBudget
+                currencyOptions={currencyOptions}
+                currency={draft.budget?.currency}
+                total={draft.budget?.total}
+                onCurrencyChange={(currency) => setBudget("currency", currency)}
+                onTotalChange={(total) => setBudget("total", total)}
+                disabled={isBusy}
+              />
+            ) : null}
             <GettingAroundSection
               transitMode={draft.transitMode ?? TransitMode.Drive}
               onTransitModeChange={(mode) => set("transitMode", mode)}
