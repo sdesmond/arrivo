@@ -6,7 +6,7 @@ import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
 import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { NewTripDialog } from "@/components/packt/new-trip-dialog";
-import { type CurrencyOption, type PendingInvitation, type TripListEntry } from "@/data/types";
+import { CollaboratorRole, type CurrencyOption, type PendingInvitation, type TripListEntry } from "@/data/types";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import {
   AlertDialog,
@@ -39,6 +39,7 @@ export function TripsPageClient({
   const now = new Date(nowISO);
   const handlers = useTripsPageHandlers(initialEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
+  const editingCanManage = handlers.editingEntry?.trip.accessRole === CollaboratorRole.Manager;
 
   return (
     <>
@@ -80,7 +81,8 @@ export function TripsPageClient({
           await handlers.handleTripSaveResolution(resolution);
         }}
         onCancelDateChange={handlers.cancelTripDateChange}
-        onDelete={editingTripId ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
+        canManage={editingCanManage}
+        onDelete={editingTripId && editingCanManage ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
         isDeleting={handlers.isDeleting}
       />
       <DeleteTripAlertDialog

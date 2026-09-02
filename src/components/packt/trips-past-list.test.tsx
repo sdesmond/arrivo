@@ -59,7 +59,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { PastTripsList } from "./trips-past-list";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import type { Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
@@ -74,9 +74,24 @@ const pastTrips: Trip[] = [
     status: "past",
     startDate: "2025-09-01",
     endDate: "2025-09-07",
+    accessRole: CollaboratorRole.Manager,
   },
-  { id: "t2", name: "NYC Visit", status: "past", startDate: "2025-11-01", endDate: "2025-11-05" },
-  { id: "t3", name: "Berlin Trip", status: "past", startDate: "2025-12-01", endDate: "2025-12-05" },
+  {
+    id: "t2",
+    name: "NYC Visit",
+    status: "past",
+    startDate: "2025-11-01",
+    endDate: "2025-11-05",
+    accessRole: CollaboratorRole.Manager,
+  },
+  {
+    id: "t3",
+    name: "Berlin Trip",
+    status: "past",
+    startDate: "2025-12-01",
+    endDate: "2025-12-05",
+    accessRole: CollaboratorRole.Manager,
+  },
 ];
 
 describe("PastTripsList", () => {
@@ -130,6 +145,30 @@ describe("PastTripsList", () => {
 
   it("does not render delete button when onDeleteTrip is not provided", () => {
     render(<PastTripsList trips={pastTrips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+  });
+
+  it.each([CollaboratorRole.Editor, CollaboratorRole.Viewer])(
+    "does not render delete button for a %s even when onDeleteTrip is provided (list mode)",
+    (accessRole) => {
+      const trips = [{ ...pastTrips[0], accessRole }];
+      render(<PastTripsList trips={trips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} onDeleteTrip={vi.fn()} />);
+      expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+    }
+  );
+
+  it("does not render delete button for a non-manager in cards mode", () => {
+    const trips = [{ ...pastTrips[0], accessRole: CollaboratorRole.Editor }];
+    render(
+      <PastTripsList
+        trips={trips}
+        dateFormat="MM/DD/YYYY"
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        viewMode="cards"
+      />,
+      { wrapper: Wrapper }
+    );
     expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
   });
 

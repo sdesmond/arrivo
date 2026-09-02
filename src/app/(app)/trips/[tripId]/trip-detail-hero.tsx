@@ -68,6 +68,7 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
   const { trip, days, unscheduledEvents, docs, collaborators, accessRole } = detail;
 
   const canEdit = accessRole !== CollaboratorRole.Viewer;
+  const canManage = accessRole === CollaboratorRole.Manager;
 
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
@@ -163,10 +164,12 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
               Edit
             </Button>
 
-            <Button variant="outline" size="sm">
-              <Share2 size={13} strokeWidth={1.5} />
-              Share
-            </Button>
+            {canManage ? (
+              <Button variant="outline" size="sm">
+                <Share2 size={13} strokeWidth={1.5} />
+                Share
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>

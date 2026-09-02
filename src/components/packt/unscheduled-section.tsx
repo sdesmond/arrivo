@@ -11,7 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { type Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 
 interface UnscheduledSectionProps {
   trips: Trip[];
@@ -89,17 +89,19 @@ export function UnscheduledSection({
                     <Pencil size={13} strokeWidth={1.5} />
                     Edit trip
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onDeleteTrip(trip);
-                    }}
-                  >
-                    <Trash2 size={13} strokeWidth={1.5} />
-                    Delete trip
-                  </DropdownMenuItem>
+                  {trip.accessRole === CollaboratorRole.Manager ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onDeleteTrip(trip);
+                      }}
+                    >
+                      <Trash2 size={13} strokeWidth={1.5} />
+                      Delete trip
+                    </DropdownMenuItem>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
             </Link>

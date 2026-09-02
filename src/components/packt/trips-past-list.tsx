@@ -11,7 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { type Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 import { getDisplayedTripDays, formatDate } from "@/lib/utils";
 
 interface PastTripsListProps {
@@ -106,7 +106,7 @@ export function PastTripsList({ trips, dateFormat, onEditTrip, onDeleteTrip, vie
                 <Pencil size={13} strokeWidth={1.5} />
                 Edit trip
               </DropdownMenuItem>
-              {onDeleteTrip ? (
+              {onDeleteTrip && trip.accessRole === CollaboratorRole.Manager ? (
                 <DropdownMenuItem
                   variant="destructive"
                   onClick={(event) => {

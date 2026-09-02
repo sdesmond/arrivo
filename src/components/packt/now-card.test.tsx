@@ -79,7 +79,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 import { NowCard } from "./now-card";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { formatAnchorDateTime } from "./reservation-type-badge";
-import type { Trip, TripEvent } from "@/data/types";
+import { CollaboratorRole, type Trip, type TripEvent } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
@@ -185,6 +185,25 @@ describe("NowCard", () => {
     render(<NowCard trip={activeTrip} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
     expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
   });
+
+  it("shows Delete trip when onDeleteTrip is provided and accessRole is manager", () => {
+    const managerTrip: Trip = { ...activeTrip, accessRole: CollaboratorRole.Manager };
+    render(<NowCard trip={managerTrip} todayEvents={[]} onDeleteTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByRole("button", { name: /delete trip/i })).toBeInTheDocument();
+  });
+
+  it.each([CollaboratorRole.Editor, CollaboratorRole.Viewer])(
+    "hides Delete trip for a %s even when onDeleteTrip is provided",
+    (accessRole) => {
+      const trip: Trip = { ...activeTrip, accessRole };
+      render(<NowCard trip={trip} todayEvents={[]} onDeleteTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, {
+        wrapper: Wrapper,
+      });
+      expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+    }
+  );
 
   it("renders PAST TRIP label for past trips", () => {
     const pastTrip: Trip = {

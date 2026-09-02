@@ -116,8 +116,25 @@ vi.mock("@/components/packt/trip-confetti", () => ({
 }));
 
 vi.mock("@/components/packt/trip-edit-sheet", () => ({
-  TripEditSheet: ({ open, highlightDates }: { open: boolean; highlightDates?: boolean }) =>
-    open ? <div data-testid="trip-edit-sheet" data-highlight-dates={String(!!highlightDates)} /> : null,
+  TripEditSheet: ({
+    open,
+    highlightDates,
+    canManage,
+    onDelete,
+  }: {
+    open: boolean;
+    highlightDates?: boolean;
+    canManage?: boolean;
+    onDelete?: () => void | Promise<void>;
+  }) =>
+    open ? (
+      <div
+        data-testid="trip-edit-sheet"
+        data-can-manage={String(!!canManage)}
+        data-highlight-dates={String(!!highlightDates)}
+        data-on-delete={String(typeof onDelete === "function")}
+      />
+    ) : null,
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
@@ -365,6 +382,25 @@ describe("TripDetailClient", () => {
     );
 
     expect(screen.getByRole("button", { name: "Budget" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["manager", true, true],
+    ["editor", false, false],
+    ["viewer", false, false],
+  ] as const)("passes manager controls only for a %s", (accessRole, canManage, hasDeleteHandler) => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit trip" }));
+
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-can-manage", String(canManage));
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-on-delete", String(hasDeleteHandler));
   });
 
   it("falls back to the itinerary tab when a viewer's URL changes to tab=budget", () => {

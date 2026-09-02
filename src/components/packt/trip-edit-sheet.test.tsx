@@ -232,6 +232,36 @@ describe("TripEditSheet", () => {
     expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
   });
 
+  it.each([undefined, true])("shows the People section when canManage is %s", (canManage) => {
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        canManage={canManage}
+      />
+    );
+
+    expect(screen.getByText("People")).toBeInTheDocument();
+  });
+
+  it("hides the People section when canManage is false", () => {
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        canManage={false}
+      />
+    );
+
+    expect(screen.queryByText("People")).not.toBeInTheDocument();
+  });
+
   it("Cancel button calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

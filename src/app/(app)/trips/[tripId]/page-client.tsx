@@ -96,6 +96,7 @@ export function TripDetailClient({
     detail;
 
   const tabs = accessRole === CollaboratorRole.Viewer ? TABS.filter((tab) => tab.id !== TripDetailTab.Budget) : TABS;
+  const canManage = accessRole === CollaboratorRole.Manager;
 
   const hasBudget = !!trip.budget && (trip.budget.total ?? 0) > 0 && !!trip.budget.currency;
   const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
@@ -306,7 +307,8 @@ export function TripDetailClient({
         dateChangeConfirmation={tripDateConfirmation}
         onResolveDateChange={handleTripDateResolution}
         onCancelDateChange={handleTripDateResolutionCancel}
-        onDelete={handlers.handleDeleteTrip}
+        canManage={canManage}
+        onDelete={canManage ? handlers.handleDeleteTrip : undefined}
         isDeleting={handlers.isDeleting}
       />
       {isNew ? <TripConfetti tripId={trip.id} /> : null}

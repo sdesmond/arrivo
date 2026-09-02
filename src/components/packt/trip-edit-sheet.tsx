@@ -45,6 +45,7 @@ interface TripEditSheetProps {
   onDelete?: () => void | Promise<void>;
   isDeleting?: boolean;
   highlightDates?: boolean;
+  canManage?: boolean;
 }
 
 export function TripEditSheet({
@@ -62,6 +63,7 @@ export function TripEditSheet({
   onDelete,
   isDeleting = false,
   highlightDates = false,
+  canManage = true,
 }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -255,14 +257,16 @@ export function TripEditSheet({
               onTransitModeChange={(mode) => set("transitMode", mode)}
               disabled={isBusy}
             />
-            <Section title="People">
-              <TripEditCollaborators
-                collaborators={draft.collaborators ?? []}
-                onRemove={removeCollaborator}
-                onUpdateRole={updateCollaboratorRole}
-                onAdd={addCollaborator}
-              />
-            </Section>
+            {canManage ? (
+              <Section title="People">
+                <TripEditCollaborators
+                  collaborators={draft.collaborators ?? []}
+                  onRemove={removeCollaborator}
+                  onUpdateRole={updateCollaboratorRole}
+                  onAdd={addCollaborator}
+                />
+              </Section>
+            ) : null}
           </div>
 
           <DrawerFooter className="shrink-0" style={{ borderTop: "1px solid var(--line)" }}>

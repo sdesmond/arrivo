@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TripCover } from "./trip-cover";
 import { AvatarStack } from "./avatar-stack";
-import { type Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 import { getDisplayedTripDays, formatDate, getTripStatus, pluralize } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 
@@ -24,6 +24,7 @@ interface TripCardProps {
 
 export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCardProps) {
   const now = useNow();
+  const canManage = trip.accessRole === CollaboratorRole.Manager;
   const hasTripDates = Boolean(trip.startDate && trip.endDate);
   const tripStatus = hasTripDates ? getTripStatus(trip.startDate, trip.endDate, now) : null;
   const tripDays = getDisplayedTripDays(trip);
@@ -80,17 +81,19 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
               <Pencil size={13} strokeWidth={1.5} />
               Edit trip
             </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onDeleteTrip(trip);
-              }}
-            >
-              <Trash2 size={13} strokeWidth={1.5} />
-              Delete trip
-            </DropdownMenuItem>
+            {canManage ? (
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onDeleteTrip(trip);
+                }}
+              >
+                <Trash2 size={13} strokeWidth={1.5} />
+                Delete trip
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

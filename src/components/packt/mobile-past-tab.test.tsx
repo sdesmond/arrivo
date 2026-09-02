@@ -50,11 +50,25 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 }));
 
 import { MobilePastTab } from "./mobile-past-tab";
-import type { Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 
 const pastTrips: Trip[] = [
-  { id: "trip-1", name: "Lisbon Escape", status: "past", startDate: "2025-09-01", endDate: "2025-09-07" },
-  { id: "trip-2", name: "NYC Visit", status: "past", startDate: "2025-11-01", endDate: "2025-11-05" },
+  {
+    id: "trip-1",
+    name: "Lisbon Escape",
+    status: "past",
+    startDate: "2025-09-01",
+    endDate: "2025-09-07",
+    accessRole: CollaboratorRole.Manager,
+  },
+  {
+    id: "trip-2",
+    name: "NYC Visit",
+    status: "past",
+    startDate: "2025-11-01",
+    endDate: "2025-11-05",
+    accessRole: CollaboratorRole.Manager,
+  },
 ];
 
 describe("MobilePastTab", () => {
@@ -98,6 +112,21 @@ describe("MobilePastTab", () => {
   it("shows delete button when only onDeleteTrip is provided", () => {
     render(<MobilePastTab trips={[pastTrips[0]]} dateFormat="MM/DD/YYYY" onDeleteTrip={vi.fn()} />);
     expect(screen.getByRole("button", { name: /delete trip/i })).toBeInTheDocument();
+  });
+
+  it.each([CollaboratorRole.Editor, CollaboratorRole.Viewer])(
+    "hides delete button for a %s even when onDeleteTrip is provided",
+    (accessRole) => {
+      const trip: Trip = { ...pastTrips[0], accessRole };
+      render(<MobilePastTab trips={[trip]} dateFormat="MM/DD/YYYY" onDeleteTrip={vi.fn()} />);
+      expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+    }
+  );
+
+  it("hides the trip options trigger for a non-manager when only onDeleteTrip is provided", () => {
+    const trip: Trip = { ...pastTrips[0], accessRole: CollaboratorRole.Editor };
+    render(<MobilePastTab trips={[trip]} dateFormat="MM/DD/YYYY" onDeleteTrip={vi.fn()} />);
+    expect(screen.queryByTitle("Trip options")).not.toBeInTheDocument();
   });
 
   it("renders without the dropdown menu when no handlers provided", () => {

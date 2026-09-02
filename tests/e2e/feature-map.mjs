@@ -209,6 +209,10 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/date-sync.ts",
   ]),
   entry("viewer-trip-access", ["src/app/(app)/trips/[tripId]/trip-detail-hero.tsx"]),
+  entry("editor-trip-access", [
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+    "src/components/packt/trip-edit-sheet.tsx",
+  ]),
 ];
 
 // Changing anything that matches a SHARED_GLOB forces the full suite — these are cross-cutting and
