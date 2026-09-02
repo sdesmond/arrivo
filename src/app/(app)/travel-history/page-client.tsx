@@ -4,7 +4,13 @@ import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dial
 import { SpendingView } from "@/components/packt/spending-view";
 import { TravelHistoryList } from "@/components/packt/travel-history-list";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { SpendingDateRange, type CurrencyOption, type SpendingSummary, type TripListEntry } from "@/data/types";
+import {
+  CollaboratorRole,
+  SpendingDateRange,
+  type CurrencyOption,
+  type SpendingSummary,
+  type TripListEntry,
+} from "@/data/types";
 import { useTravelHistoryPageHandlers } from "./use-travel-history-page-handlers";
 
 interface TravelHistoryPageClientProps {
@@ -49,6 +55,7 @@ export function TravelHistoryPageClient({
   const now = new Date(nowISO);
   const handlers = useTravelHistoryPageHandlers(initialEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
+  const editingCanManage = handlers.editingEntry?.trip.accessRole === CollaboratorRole.Manager;
 
   return (
     <>
@@ -116,7 +123,8 @@ export function TravelHistoryPageClient({
           await handlers.handleTripSaveResolution(resolution);
         }}
         onCancelDateChange={handlers.cancelTripDateChange}
-        onDelete={editingTripId ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
+        canManage={editingCanManage}
+        onDelete={editingTripId && editingCanManage ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
         isDeleting={handlers.isDeleting}
       />
       <DeleteTripAlertDialog

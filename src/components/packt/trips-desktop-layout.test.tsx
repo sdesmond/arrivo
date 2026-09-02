@@ -53,24 +53,53 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { TripsDesktopLayout } from "./trips-desktop-layout";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import type { Trip, TripListEntry } from "@/data/types";
+import { CollaboratorRole, type Trip, type TripListEntry } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
 const activeEntry: TripListEntry = {
-  trip: { id: "trip-active", name: "Active Japan", status: "active", startDate: "2026-05-10", endDate: "2026-05-20" },
+  trip: {
+    id: "trip-active",
+    name: "Active Japan",
+    status: "active",
+    startDate: "2026-05-10",
+    endDate: "2026-05-20",
+    accessRole: CollaboratorRole.Manager,
+  },
   todayEvents: [],
   summaryEvents: [],
 };
 
 const upcomingTrips: Trip[] = [
-  { id: "trip-upcoming-1", name: "Paris Trip", status: "upcoming", startDate: "2026-06-01", endDate: "2026-06-10" },
-  { id: "trip-upcoming-2", name: "Rome Tour", status: "upcoming", startDate: "2026-07-01", endDate: "2026-07-08" },
+  {
+    id: "trip-upcoming-1",
+    name: "Paris Trip",
+    status: "upcoming",
+    startDate: "2026-06-01",
+    endDate: "2026-06-10",
+    accessRole: CollaboratorRole.Manager,
+  },
+  {
+    id: "trip-upcoming-2",
+    name: "Rome Tour",
+    status: "upcoming",
+    startDate: "2026-07-01",
+    endDate: "2026-07-08",
+    accessRole: CollaboratorRole.Manager,
+  },
 ];
 
 const unscheduledEntries: TripListEntry[] = [
-  { trip: { id: "trip-unsched-1", name: "Dream Trip", status: "upcoming" }, todayEvents: [], summaryEvents: [] },
-  { trip: { id: "trip-unsched-2", name: "Bucket List", status: "upcoming" }, todayEvents: [], summaryEvents: [] },
+  {
+    trip: { id: "trip-unsched-1", name: "Dream Trip", status: "upcoming", accessRole: CollaboratorRole.Manager },
+    todayEvents: [],
+    summaryEvents: [],
+  },
+  {
+    trip: { id: "trip-unsched-2", name: "Bucket List", status: "upcoming", accessRole: CollaboratorRole.Manager },
+    todayEvents: [],
+    summaryEvents: [],
+  },
 ];
 
 function Wrapper({ children }: { children: React.ReactNode }) {
@@ -235,6 +264,22 @@ describe("TripsDesktopLayout", () => {
     expect(onDeleteTrip).toHaveBeenCalledWith(upcomingTrips[0]);
   });
 
+  it("hides Delete from the upcoming TripCard menu for a non-manager", () => {
+    render(
+      <TripsDesktopLayout
+        activeEntry={null}
+        upcomingTrips={[{ ...upcomingTrips[0], accessRole: CollaboratorRole.Editor }]}
+        unscheduledEntries={[]}
+        dateFormat="MM/DD/YYYY"
+        onNewTrip={vi.fn()}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+  });
+
   describe("view mode toggle", () => {
     function renderLayout(overrides = {}) {
       return render(
@@ -337,6 +382,23 @@ describe("TripsDesktopLayout", () => {
       const triggers = screen.getAllByTitle("Trip options");
       expect(triggers.length).toBeGreaterThan(0);
       await user.click(triggers[0]);
+    });
+
+    it.each([CollaboratorRole.Editor, CollaboratorRole.Viewer])("in list mode, hides Delete for a %s", (accessRole) => {
+      render(
+        <TripsDesktopLayout
+          activeEntry={null}
+          upcomingTrips={[{ ...upcomingTrips[0], accessRole }]}
+          unscheduledEntries={[]}
+          dateFormat="MM/DD/YYYY"
+          initialViewMode="list"
+          onNewTrip={vi.fn()}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={vi.fn()}
+        />,
+        { wrapper: Wrapper }
+      );
+      expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
     });
 
     it("shows dayTotal in upcoming list rows for dateless trips", () => {

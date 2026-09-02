@@ -124,7 +124,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
 
 export async function listTripsForUser(userId: string, now: Date): Promise<TripListEntry[]> {
   const rows = await db
-    .select({ trip: trips })
+    .select({ trip: trips, accessRole: collaborators.role })
     .from(trips)
     .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
     .orderBy(sql`${trips.startDate} NULLS FIRST`, trips.name);
@@ -206,7 +206,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     return acc;
   }, {});
 
-  return rows.map(({ trip }) => {
+  return rows.map(({ trip, accessRole }) => {
     const packAgg = packingByTrip[trip.id];
     const packingProgress =
       packAgg && packAgg.total > 0 ? { checked: packAgg.checked, total: packAgg.total } : undefined;
@@ -232,6 +232,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     return {
       trip: {
         ...tripEntry,
+        accessRole: accessRole as CollaboratorRole,
         dayTotal: dayTotalsByTrip[trip.id] ?? tripEntry.dayTotal,
         packingProgress,
         docs: (docsByTrip[trip.id] ?? []).map(dbDocToType),

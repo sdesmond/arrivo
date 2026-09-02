@@ -604,6 +604,10 @@ export interface Trip {
 
   createdAt?: string;
   updatedAt?: string;
+
+  // Set only by list-context queries (listTripsForUser) — the current viewer's
+  // role on this trip, for gating manager-only controls in list/card UI.
+  accessRole?: CollaboratorRole;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

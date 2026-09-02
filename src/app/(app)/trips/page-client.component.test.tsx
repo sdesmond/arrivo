@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import type { CurrencyOption, TripDateChangeConfirmation, TripListEntry, UpdateTripPatch } from "@/data/types";
+import {
+  CollaboratorRole,
+  type CurrencyOption,
+  type TripDateChangeConfirmation,
+  type TripListEntry,
+  type UpdateTripPatch,
+} from "@/data/types";
 import { TripsPageClient } from "./page-client";
 
 const { mockUseTripsPageHandlers, tripEditSheetSpy } = vi.hoisted(() => ({
@@ -172,6 +178,33 @@ describe("TripsPageClient", () => {
 
     await user.click(screen.getByRole("button", { name: "Confirm trip delete" }));
     expect(handlers.handleConfirmDeleteTrip).toHaveBeenCalledWith("trip-1");
+  });
+
+  it.each([
+    ["manager", CollaboratorRole.Manager, true],
+    ["editor", CollaboratorRole.Editor, false],
+    ["viewer", CollaboratorRole.Viewer, false],
+  ] as const)("gates canManage/onDelete on the edit sheet for a %s", async (_label, accessRole, canManage) => {
+    const entryWithRole: TripListEntry = { ...entries[0], trip: { ...entries[0].trip, accessRole } };
+    const handlers = createHandlers({ editingEntry: entryWithRole });
+    mockUseTripsPageHandlers.mockReturnValue(handlers);
+
+    render(
+      <TripsPageClient
+        initialEntries={entries}
+        currencyOptions={currencyOptions}
+        nowISO="2026-07-07T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(tripEditSheetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        canManage,
+        onDelete: canManage ? expect.any(Function) : undefined,
+      })
+    );
   });
 
   it("shows pending long-trip warning and submits draft on continue", async () => {

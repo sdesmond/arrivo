@@ -49,7 +49,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { TripCard } from "./trip-card";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import type { Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
@@ -59,6 +59,7 @@ const baseTrip: Trip = {
   status: "upcoming",
   startDate: "2026-06-01",
   endDate: "2026-06-10",
+  accessRole: CollaboratorRole.Manager,
   collaborators: [
     { name: "Alice Smith", email: "alice@example.com", initials: "AS", role: "editor" },
     { name: "Bob Jones", email: "bob@example.com", initials: "BJ", role: "viewer" },
@@ -150,6 +151,17 @@ describe("TripCard", () => {
 
     expect(onDeleteTrip).toHaveBeenCalledOnce();
     expect(onDeleteTrip).toHaveBeenCalledWith(baseTrip);
+  });
+
+  it.each([CollaboratorRole.Editor, CollaboratorRole.Viewer])("hides Delete trip for a %s", (accessRole) => {
+    const trip = { ...baseTrip, accessRole };
+    render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Delete trip for a manager", () => {
+    render(<TripCard trip={baseTrip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: /delete trip/i })).toBeInTheDocument();
   });
 
   it("links to the trip detail page", () => {

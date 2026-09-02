@@ -18,7 +18,7 @@ import { Topbar } from "@/components/packt/trips-topbar";
 import { SectionHead } from "@/components/packt/trips-section-head";
 import { UnscheduledSection } from "@/components/packt/unscheduled-section";
 import { formatDate, getDisplayedTripDays } from "@/lib/utils";
-import { type Trip, type TripListEntry } from "@/data/types";
+import { CollaboratorRole, type Trip, type TripListEntry } from "@/data/types";
 
 type ViewMode = "cards" | "list";
 
@@ -180,17 +180,19 @@ export function TripsDesktopLayout({
                           <Pencil size={13} strokeWidth={1.5} />
                           Edit trip
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            onDeleteTrip(trip);
-                          }}
-                        >
-                          <Trash2 size={13} strokeWidth={1.5} />
-                          Delete trip
-                        </DropdownMenuItem>
+                        {trip.accessRole === CollaboratorRole.Manager ? (
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              onDeleteTrip(trip);
+                            }}
+                          >
+                            <Trash2 size={13} strokeWidth={1.5} />
+                            Delete trip
+                          </DropdownMenuItem>
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </Link>

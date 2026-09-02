@@ -39,7 +39,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { UnscheduledSection } from "./unscheduled-section";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import type { Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
@@ -48,11 +48,13 @@ const unscheduledTrips: Trip[] = [
     id: "trip-1",
     name: "Unsorted Ideas",
     status: "upcoming",
+    accessRole: CollaboratorRole.Manager,
   },
   {
     id: "trip-2",
     name: "Future Planning",
     status: "upcoming",
+    accessRole: CollaboratorRole.Manager,
   },
 ];
 
@@ -152,6 +154,35 @@ describe("UnscheduledSection", () => {
     await user.click(screen.getAllByRole("button", { name: /delete trip/i })[0]);
     expect(onDeleteTrip).toHaveBeenCalledWith(unscheduledTrips[0]);
   });
+
+  it.each([CollaboratorRole.Editor, CollaboratorRole.Viewer])(
+    "hides Delete trip for a %s in the card grid",
+    (accessRole) => {
+      const trips = [{ ...unscheduledTrips[0], accessRole }];
+      render(<UnscheduledSection trips={trips} onEditTrip={vi.fn()} onDeleteTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, {
+        wrapper: Wrapper,
+      });
+      expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+    }
+  );
+
+  it.each([CollaboratorRole.Editor, CollaboratorRole.Viewer])(
+    "hides Delete trip for a %s in list view",
+    (accessRole) => {
+      const trips = [{ ...unscheduledTrips[0], accessRole }];
+      render(
+        <UnscheduledSection
+          trips={trips}
+          onEditTrip={vi.fn()}
+          onDeleteTrip={vi.fn()}
+          dateFormat="MM/DD/YYYY"
+          viewMode="list"
+        />,
+        { wrapper: Wrapper }
+      );
+      expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
+    }
+  );
 
   it("viewMode=cards renders TripCard grid (explicit prop)", () => {
     render(

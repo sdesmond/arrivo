@@ -23,7 +23,7 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
       addedAt: "documents.addedAt",
       id: "documents.id",
     },
-    collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId" },
+    collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId", role: "collaborators.role" },
     reservations: { tripId: "reservations.tripId" },
     expenses: { tripId: "expenses.tripId" },
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
@@ -164,6 +164,74 @@ describe("listTripsForUser", () => {
       })
     );
     expect(result[0].summaryEvents).toEqual([]);
+  });
+
+  it("stamps the caller's collaborator role onto the returned trip as accessRole", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            orderBy: async () => [
+              {
+                trip: {
+                  id: "trip-1",
+                  name: "Editor's Trip",
+                  startDate: null,
+                  endDate: null,
+                },
+                accessRole: "editor",
+              },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      });
+
+    const result = await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
+
+    expect(result[0].trip.accessRole).toBe("editor");
   });
 
   it("keeps todayEvents current-day only while summaryEvents include future active-trip events", async () => {
