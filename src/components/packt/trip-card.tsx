@@ -25,6 +25,7 @@ interface TripCardProps {
 export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCardProps) {
   const now = useNow();
   const canManage = trip.accessRole === CollaboratorRole.Manager;
+  const canEdit = trip.accessRole !== CollaboratorRole.Viewer;
   const hasTripDates = Boolean(trip.startDate && trip.endDate);
   const tripStatus = hasTripDates ? getTripStatus(trip.startDate, trip.endDate, now) : null;
   const tripDays = getDisplayedTripDays(trip);
@@ -71,16 +72,18 @@ export function TripCard({ trip, onEditTrip, onDeleteTrip, dateFormat }: TripCar
             <MoreHorizontal size={18} strokeWidth={1.5} />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="bottom" align="end">
-            <DropdownMenuItem
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onEditTrip(trip);
-              }}
-            >
-              <Pencil size={13} strokeWidth={1.5} />
-              Edit trip
-            </DropdownMenuItem>
+            {canEdit ? (
+              <DropdownMenuItem
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onEditTrip(trip);
+                }}
+              >
+                <Pencil size={13} strokeWidth={1.5} />
+                Edit trip
+              </DropdownMenuItem>
+            ) : null}
             {canManage ? (
               <DropdownMenuItem
                 variant="destructive"

@@ -157,6 +157,18 @@ describe("PastTripsList", () => {
     }
   );
 
+  it("does not render edit button for a viewer (list mode)", () => {
+    const trips = [{ ...pastTrips[0], accessRole: CollaboratorRole.Viewer }];
+    render(<PastTripsList trips={trips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+  });
+
+  it("renders edit button for an editor (list mode)", () => {
+    const trips = [{ ...pastTrips[0], accessRole: CollaboratorRole.Editor }];
+    render(<PastTripsList trips={trips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /edit trip/i })).toBeInTheDocument();
+  });
+
   it("does not render delete button for a non-manager in cards mode", () => {
     const trips = [{ ...pastTrips[0], accessRole: CollaboratorRole.Editor }];
     render(

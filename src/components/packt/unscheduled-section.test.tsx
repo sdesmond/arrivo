@@ -184,6 +184,36 @@ describe("UnscheduledSection", () => {
     }
   );
 
+  it("hides Edit trip for a viewer in list view", () => {
+    const trips = [{ ...unscheduledTrips[0], accessRole: CollaboratorRole.Viewer }];
+    render(
+      <UnscheduledSection
+        trips={trips}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        dateFormat="MM/DD/YYYY"
+        viewMode="list"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Edit trip for an editor in list view", () => {
+    const trips = [{ ...unscheduledTrips[0], accessRole: CollaboratorRole.Editor }];
+    render(
+      <UnscheduledSection
+        trips={trips}
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+        dateFormat="MM/DD/YYYY"
+        viewMode="list"
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByRole("button", { name: /edit trip/i })).toBeInTheDocument();
+  });
+
   it("viewMode=cards renders TripCard grid (explicit prop)", () => {
     render(
       <UnscheduledSection

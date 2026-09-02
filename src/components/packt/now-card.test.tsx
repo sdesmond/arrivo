@@ -205,6 +205,22 @@ describe("NowCard", () => {
     }
   );
 
+  it("hides Edit trip for a viewer even when onEditTrip is provided", () => {
+    const trip: Trip = { ...activeTrip, accessRole: CollaboratorRole.Viewer };
+    render(<NowCard trip={trip} todayEvents={[]} onEditTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.queryByRole("button", { name: /edit trip/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Edit trip for an editor", () => {
+    const trip: Trip = { ...activeTrip, accessRole: CollaboratorRole.Editor };
+    render(<NowCard trip={trip} todayEvents={[]} onEditTrip={vi.fn()} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByRole("button", { name: /edit trip/i })).toBeInTheDocument();
+  });
+
   it("renders PAST TRIP label for past trips", () => {
     const pastTrip: Trip = {
       id: "trip-3",

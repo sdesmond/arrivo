@@ -19,3 +19,15 @@ Feature: Viewer Trip Access
     Given I am a manager on "Reykjavik Getaway" owned by "Grace Hopper"
     When I go to the shared trip
     Then I see a "Budget" tab
+
+  Scenario: A viewer does not see Edit trip from the trips list
+    Given I am a viewer on "Nairobi Safari" owned by "Marie Curie"
+    When I navigate to the trips list
+    And I open trip options for "Nairobi Safari"
+    Then I do not see "Edit trip"
+
+  Scenario: An editor still sees Edit trip from the trips list
+    Given I am an editor on "Cairo Expedition" owned by "Alan Turing"
+    When I navigate to the trips list
+    And I open trip options for "Cairo Expedition"
+    Then I see "Edit trip"

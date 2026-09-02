@@ -42,6 +42,7 @@ export function NowCard({
   const now = useNow();
   const router = useRouter();
   const canManage = trip.accessRole === CollaboratorRole.Manager;
+  const canEdit = trip.accessRole !== CollaboratorRole.Viewer;
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
   const sub = status === "upcoming" ? (trip.startDate ?? "") : status === "past" ? (trip.endDate ?? "") : "";
@@ -123,7 +124,7 @@ export function NowCard({
             <MoreHorizontal size={18} strokeWidth={1.5} />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="bottom" align="end">
-            {onEditTrip && (
+            {onEditTrip && canEdit && (
               <DropdownMenuItem
                 onClick={(event) => {
                   event.preventDefault();
