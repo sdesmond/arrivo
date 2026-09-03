@@ -22,10 +22,6 @@ Then("I do not see the trip Delete control", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Delete trip", exact: true })).toHaveCount(0);
 });
 
-Then("I see the People section", async ({ page }) => {
-  await expect(page.getByText("People", { exact: true })).toBeVisible();
-});
-
 Then("I do not see the People section", async ({ page }) => {
   await expect(page.getByText("People", { exact: true })).toHaveCount(0);
 });

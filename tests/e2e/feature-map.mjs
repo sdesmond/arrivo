@@ -116,11 +116,7 @@ export const FEATURE_MAP = [
   entry("pull-templates", ["src/components/packt/template-pull-dialog.tsx"]),
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),
-  entry("profile", [
-    "src/app/(app)/profile/**",
-    "src/components/packt/collaborators-rail.tsx",
-    "src/components/packt/avatar-stack.tsx",
-  ]),
+  entry("profile", ["src/app/(app)/profile/**", "src/components/packt/avatar-stack.tsx"]),
   entry("reservations", [
     "src/components/packt/reservation*",
     "src/components/packt/add-reservation-doc-dialog.tsx",

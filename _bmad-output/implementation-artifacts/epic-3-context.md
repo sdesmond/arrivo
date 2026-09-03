@@ -10,9 +10,10 @@ Give a trip manager a single share dialog from which they administer every contr
 
 - Story 3.1: Build the share dialog shell with active/pending/declined rows
 - Story 3.2: Resend and Rescind a pending invitation
-- Story 3.3: Dismiss a declined invitation
-- Story 3.4: Stage and save role changes and removals as one batch
-- Story 3.5: Unsaved-changes guard on dialog close
+- Story 3.3: Wire invite form and remove dead collaborator surfaces
+- Story 3.4: Dismiss a declined invitation
+- Story 3.5: Stage and save role changes and removals as one batch
+- Story 3.6: Unsaved-changes guard on dialog close
 
 ## Requirements & Constraints
 
@@ -45,5 +46,5 @@ Give a trip manager a single share dialog from which they administer every contr
 ## Cross-Story Dependencies
 
 - Builds on Epic 1's `invitations` data model (AD-2): the dialog reads the same invitations table Epic 1 writes, and relies on the role model and creator-protection (`isCreator`, AD-1) migrated there. Resend/rescind/dismiss server logic lives with Epic 1's `invitations.ts` / `contributor-actions.ts`.
-- Story 3.4 removes `trip-edit-sheet.tsx`'s collaborators tab, `trip-edit-collaborators.tsx`, and the legacy `addCollaborator`/`removeCollaborator`/`updateCollaboratorRole` actions; until then the old sheet and new dialog coexist.
+- Story 3.3 removes `trip-edit-sheet.tsx`'s collaborators tab, `trip-edit-collaborators.tsx`, and the legacy `addCollaborator`/`removeCollaborator`/`updateCollaboratorRole` actions; until then the old sheet and new dialog coexist.
 - Dialog must refetch its list when a `membership-changed` event arrives (Epic 4 live sync) so a new accept appears without closing/reopening. Epic 4's revocation modal force-closes this dialog (discarding staged changes) on a self-targeted removal.

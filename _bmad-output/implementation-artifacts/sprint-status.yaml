@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-31-2026 00:00
-last_updated: 09-03-2026 00:00
+last_updated: 09-03-2026
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -52,9 +52,10 @@ development_status:
   epic-3: in-progress
   3-1-build-the-share-dialog-shell-with-active-pending-declined-ro: done
   3-2-resend-and-rescind-a-pending-invitation: done
-  3-3-dismiss-a-declined-invitation: backlog
-  3-4-stage-and-save-role-changes-and-removals-as-one-batch: backlog
-  3-5-unsaved-changes-guard-on-dialog-close: backlog
+  3-3-wire-invite-form-and-remove-dead-collaborator-surfaces: review
+  3-4-dismiss-a-declined-invitation: backlog
+  3-5-stage-and-save-role-changes-and-removals-as-one-batch: backlog
+  3-6-unsaved-changes-guard-on-dialog-close: backlog
   epic-3-retrospective: optional
 
   epic-4: backlog
@@ -80,8 +81,8 @@ action_items:
       "Resolve the dead Add person/remove/role-change UI in trip-edit-sheet.tsx
       People section (getPatch never includes collaborators) before or alongside Epic
       3 Story 3.1 share dialog, so it stops silently no-opping."
-    owner: "Epic 3 Story 3.1 implementer"
-    status: open
+    owner: "Epic 3 Story 3.3 implementer"
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-01.md"
   - id: "epic-1-retro-item-3-correct-the-deferred-work-md-entry-from"
     epic: 1
@@ -106,8 +107,9 @@ action_items:
       "Fold the updateCollaboratorRole manager-promotion type gap (trips/actions.ts:928
       cannot promote to manager, but the People-section role dropdown offers it) into
       the existing deferred-work.md entry for that action, to be resolved when Epic
-      3 wires the People section to live server actions."
-    owner: "Epic 3 Story 3.1 implementer"
+      3 wires the invite form in the share dialog (Story 3.3) and the legacy
+      trip-edit-collaborators.tsx is removed."
+    owner: "Epic 3 Story 3.3 implementer"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-02.md"
   - id: "epic-2-retro-item-6-extract-the-iscreator-creator-seat-guard"
@@ -116,7 +118,7 @@ action_items:
       "Extract the isCreator creator-seat guard (duplicated inline in removeCollaborator/updateCollaboratorRole,
       trips/actions.ts:916-935) into a shared helper before Epic 3 saveContributorChanges
       adds a third call site."
-    owner: "Epic 3 Story 3.1 implementer"
+    owner: "Epic 3 Story 3.5 implementer"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-02.md"
   - id: "epic-2-retro-item-7-correct-spec-2-3-manager-has-full-trip-c"

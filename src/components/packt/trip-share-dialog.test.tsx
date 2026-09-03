@@ -6,11 +6,16 @@ import { TripShareDialog } from "./trip-share-dialog";
 const mockGetShareDialogData = vi.fn();
 const mockRescindShareInvitation = vi.fn();
 const mockResendShareInvitation = vi.fn();
+const mockInviteContributor = vi.fn();
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   getShareDialogData: (...args: unknown[]) => mockGetShareDialogData(...args),
   rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
   resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
+}));
+
+vi.mock("@/app/(app)/trips/actions", () => ({
+  inviteContributor: (...args: unknown[]) => mockInviteContributor(...args),
 }));
 
 vi.mock("sonner", () => ({
@@ -73,6 +78,7 @@ describe("TripShareDialog", () => {
     });
     mockResendShareInvitation.mockResolvedValue({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
     mockRescindShareInvitation.mockResolvedValue({ status: "success" });
+    mockInviteContributor.mockResolvedValue({ status: "invited" });
   });
 
   it("renders locked creator and active, pending, and declined rows", async () => {
@@ -99,7 +105,7 @@ describe("TripShareDialog", () => {
 
     expect(screen.getByRole("textbox", { name: "Invite email" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Invite role" })).toHaveTextContent("viewer");
-    expect(screen.getByRole("button", { name: "Invite" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Invite" })).toBeEnabled();
     expect(screen.queryByText("No collaborators yet.")).not.toBeInTheDocument();
   });
 
@@ -223,5 +229,120 @@ describe("TripShareDialog", () => {
     deferred.resolve({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
     await waitFor(() => expect(resendButton).toBeEnabled());
     expect(rescindButton).toBeEnabled();
+  });
+
+  it("invites a user, refetches data, clears the email, resets role, and shows a success toast", async () => {
+    const { toast } = await import("sonner");
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    const emailInput = await screen.findByRole("textbox", { name: "Invite email" });
+    fireEvent.change(emailInput, { target: { value: "invitee@example.com" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+
+    await waitFor(() => expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "invitee@example.com", "viewer"));
+    expect(mockGetShareDialogData).toHaveBeenCalledTimes(2);
+    expect(emailInput).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Invite role" })).toHaveTextContent("viewer");
+    expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
+  });
+
+  it("shows Invitation resent toast when inviteContributor returns resent", async () => {
+    const { toast } = await import("sonner");
+    mockInviteContributor.mockResolvedValue({ status: "resent" });
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
+      target: { value: "invitee@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation resent."));
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("");
+  });
+
+  it("shows an inline error below the email input when no Packt account matches the email", async () => {
+    const { toast } = await import("sonner");
+    mockInviteContributor.mockResolvedValue({ status: "error", message: "No Packt account found for this email" });
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
+      target: { value: "nobody@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+
+    await waitFor(() => expect(screen.getByText("No Packt account found for this email.")).toBeInTheDocument());
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("nobody@example.com");
+  });
+
+  it("shows an error toast and keeps the input for other invite errors", async () => {
+    const { toast } = await import("sonner");
+    mockInviteContributor.mockResolvedValue({
+      status: "error",
+      message: "This person is already a collaborator on this trip",
+    });
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
+      target: { value: "dupe@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This person is already a collaborator on this trip"));
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("dupe@example.com");
+  });
+
+  it("disables the Invite button, email input, and role select while the request is in flight", async () => {
+    const deferred = createDeferred<{ status: "invited" }>();
+    mockInviteContributor.mockReturnValue(deferred.promise);
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
+      target: { value: "invitee@example.com" },
+    });
+    const inviteButton = screen.getByRole("button", { name: "Invite" });
+    fireEvent.click(inviteButton);
+
+    await waitFor(() => expect(inviteButton).toBeDisabled());
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeDisabled();
+    expect(screen.getByLabelText("Sending invitation")).toBeInTheDocument();
+
+    deferred.resolve({ status: "invited" });
+    await waitFor(() => expect(inviteButton).toBeEnabled());
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeEnabled();
+  });
+
+  it("clears the stale inline error when the user starts typing a new email", async () => {
+    mockInviteContributor.mockResolvedValue({ status: "error", message: "No Packt account found for this email" });
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
+      target: { value: "nobody@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+
+    await waitFor(() => expect(screen.getByText("No Packt account found for this email.")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Invite email" }), {
+      target: { value: "someone@example.com" },
+    });
+
+    expect(screen.queryByText("No Packt account found for this email.")).not.toBeInTheDocument();
+  });
+
+  it("shows a toast if the invite succeeds but the refetch fails", async () => {
+    const { toast } = await import("sonner");
+    mockGetShareDialogData.mockRejectedValueOnce(new Error("network"));
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
+      target: { value: "invitee@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+
+    await waitFor(() => expect(mockInviteContributor).toHaveBeenCalled());
+    expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("");
   });
 });

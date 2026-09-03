@@ -90,7 +90,7 @@ context:
 
 The dialog is read-only shell only: row actions (resend/rescind/dismiss, role editing, removal, unsaved-changes guard) are later stories. Fetch strategy: the client dialog calls a `getShareDialogData` server action on open rather than importing the server-only `queries.ts`; this keeps invitation data out of the shared `TripDetailPayload` (which loads for editors/viewers too) and matches the existing manager-gated action convention. Live refetch on a `membership-changed` event is deferred to Epic 4 (pub/sub not built); the dialog refetches on each open, so after any mutation that revalidates the page it shows fresh state.
 
-Row data shapes: active rows map through `dbCollabToType` producing `Collaborator` (has `isCreator`); pending/declined rows use the existing `Invitation` fields (`status`, `expiresAt`). The invite form (email + role Select default Viewer) renders the invite action in a later story; for 3.1 keep the submit button disabled with a `title` explaining it becomes available in a later story — never a silently no-op submit.
+Row data shapes: active rows map through `dbCollabToType` producing `Collaborator` (has `isCreator`); pending/declined rows use the existing `Invitation` fields (`status`, `expiresAt`). The invite form (email + role Select default Viewer) renders with the submit button disabled; Story 3.3 wires the invite action.
 
 ## Verification
 
