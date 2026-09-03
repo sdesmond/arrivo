@@ -23,7 +23,7 @@ import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
-import { rescindInvitation } from "../actions";
+import { dismissInvitation, rescindInvitation } from "../actions";
 import {
   uploadDocument as uploadTripDocumentAction,
   uploadDocumentToEvent as uploadEventDocumentAction,
@@ -60,6 +60,14 @@ export async function resendShareInvitation(tripId: string, invitationId: string
 
 export async function rescindShareInvitation(tripId: string, invitationId: string) {
   const result = await rescindInvitation(tripId, invitationId);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
+}
+
+export async function dismissShareInvitation(tripId: string, invitationId: string) {
+  const result = await dismissInvitation(tripId, invitationId);
   if (result.status === "success") {
     revalidatePath(`/trips/${tripId}`);
   }

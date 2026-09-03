@@ -14,6 +14,7 @@ const {
   mockAdapterDel,
   mockAdapterPut,
   mockDeriveGraphicCover,
+  mockDismissInvitation,
   mockGetStorageAdapter,
   mockRescindInvitation,
   mockResendInvitation,
@@ -31,6 +32,7 @@ const {
   const mockAdapterDel = vi.fn();
   const mockAdapterPut = vi.fn();
   const mockDeriveGraphicCover = vi.fn((title: string) => `graphic:${title}`);
+  const mockDismissInvitation = vi.fn();
   const mockGetStorageAdapter = vi.fn();
   const mockRescindInvitation = vi.fn();
   const mockResendInvitation = vi.fn();
@@ -58,6 +60,7 @@ const {
     mockAdapterDel,
     mockAdapterPut,
     mockDeriveGraphicCover,
+    mockDismissInvitation,
     mockGetStorageAdapter,
     mockRescindInvitation,
     mockResendInvitation,
@@ -96,6 +99,7 @@ vi.mock("@/lib/invitations", () => ({
 }));
 
 vi.mock("../actions", () => ({
+  dismissInvitation: mockDismissInvitation,
   rescindInvitation: mockRescindInvitation,
 }));
 
@@ -124,6 +128,7 @@ import {
   createEvent,
   deleteTripNote,
   createTripNote,
+  dismissShareInvitation,
   removeDocument,
   removeLastDay,
   removeTripCover,
@@ -193,6 +198,7 @@ describe("share invitation actions", () => {
     mockRequireUser.mockResolvedValue({ id: "manager-1" });
     mockResendInvitation.mockResolvedValue({ status: "success", expiresAt: "2026-09-04T12:00:00.000Z" });
     mockRescindInvitation.mockResolvedValue({ status: "success" });
+    mockDismissInvitation.mockResolvedValue({ status: "success" });
   });
 
   it("delegates a resend before revalidating the trip", async () => {
@@ -212,12 +218,32 @@ describe("share invitation actions", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
-  it("propagates an editor rejection from the underlying resend/rescind logic without revalidating", async () => {
+  it("delegates a dismissal and revalidates the trip after success", async () => {
+    await expect(dismissShareInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
+
+    expect(mockDismissInvitation).toHaveBeenCalledWith("trip-1", "invite-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("does not revalidate when a dismissal result is rejected", async () => {
+    mockDismissInvitation.mockResolvedValue({ status: "error", message: "Invitation is still pending." });
+
+    await expect(dismissShareInvitation("trip-1", "invite-1")).resolves.toEqual({
+      status: "error",
+      message: "Invitation is still pending.",
+    });
+
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("propagates a rejection from underlying share invitation actions without revalidating", async () => {
     mockResendInvitation.mockRejectedValue(new Error("not found"));
     mockRescindInvitation.mockRejectedValue(new Error("not found"));
+    mockDismissInvitation.mockRejectedValue(new Error("not found"));
 
     await expect(resendShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
     await expect(rescindShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
+    await expect(dismissShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
 
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });

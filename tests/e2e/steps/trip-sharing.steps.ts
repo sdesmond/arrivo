@@ -106,3 +106,18 @@ Then("I do not see the pending sharing row", async ({ page }) => {
   await expect(page.getByText(PENDING_EMAIL, { exact: true })).not.toBeVisible();
   await expect(page.getByText("Invitation rescinded.")).toBeVisible();
 });
+
+When("I dismiss the declined sharing invitation", async ({ page }) => {
+  await page.getByTitle(`Dismiss invitation to ${DECLINED_EMAIL}`).click();
+});
+
+Then("I do not see the declined sharing row", async ({ page }) => {
+  await expect(page.getByText(DECLINED_EMAIL, { exact: true })).not.toBeVisible();
+  await expect(page.getByText("Invitation dismissed.")).toBeVisible();
+});
+
+Then("dismissed sharing invitation remains removed after reopening dialog", async ({ page }) => {
+  await page.getByTitle("Close sharing dialog").click();
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(page.getByText(DECLINED_EMAIL, { exact: true })).not.toBeVisible();
+});

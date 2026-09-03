@@ -15,7 +15,7 @@ import {
   users,
   invitations,
 } from "@/db/schema";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type {
@@ -24,6 +24,7 @@ import type {
   UpdateTripPatch,
   AddCollaboratorInput,
   DeclineInvitationResult,
+  DismissInvitationResult,
   InviteContributorResult,
   RescindInvitationResult,
   TripDateChangeConfirmation,
@@ -908,6 +909,27 @@ export async function rescindInvitation(tripId: string, invitationId: string): P
   // TODO(epic-4): publish a `membership-changed` event on `trip:{tripId}` via publishTripEvent once
   // src/lib/trip-events.ts ships the pub-sub module — the manager rescinding is the actor here, not
   // the invitee (who is keyed by email, not userId, until they accept).
+  revalidatePath("/trips");
+
+  return { status: "success" };
+}
+
+export async function dismissInvitation(tripId: string, invitationId: string): Promise<DismissInvitationResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "manager");
+
+  const [dismissedInvitation] = await db
+    .delete(invitations)
+    .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), ne(invitations.status, "pending")))
+    .returning();
+
+  if (!dismissedInvitation) {
+    const [invitation] = await db.select().from(invitations).where(eq(invitations.id, invitationId));
+    const message =
+      invitation && invitation.tripId === tripId ? "Invitation is still pending." : "Invitation not found.";
+    return { status: "error", message };
+  }
+
   revalidatePath("/trips");
 
   return { status: "success" };

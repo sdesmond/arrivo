@@ -113,6 +113,7 @@ import {
   createTrip,
   deleteTrip,
   declineInvitation,
+  dismissInvitation,
   inviteContributor,
   pullTemplatesOntoTrip,
   reorderPackingItems,
@@ -1359,6 +1360,37 @@ interface RescindInvitationFixture {
   diagnosticRow?: { id: string; tripId: string } | null;
 }
 
+interface DismissInvitationFixture {
+  matchedRow?: { id: string; tripId: string; status: InvitationStatus } | null;
+  diagnosticRow?: { id: string; tripId: string } | null;
+}
+
+function setupDismissInvitationDb({ matchedRow = null, diagnosticRow = null }: DismissInvitationFixture = {}) {
+  const operations = {
+    deletes: [] as Array<{ table: unknown; condition: unknown }>,
+  };
+
+  db.delete.mockReturnValue({
+    where: (condition: unknown) => ({
+      returning: async () => {
+        operations.deletes.push({ table: invitations, condition });
+        return matchedRow ? [matchedRow] : [];
+      },
+    }),
+  });
+
+  db.select.mockReturnValue({
+    from: (table: unknown) => ({
+      where: async () => {
+        if (table === invitations) return diagnosticRow ? [diagnosticRow] : [];
+        throw new Error("Unexpected table read in dismiss fixture.");
+      },
+    }),
+  });
+
+  return operations;
+}
+
 function setupRescindInvitationDb({ matchedRow = null, diagnosticRow = null }: RescindInvitationFixture = {}) {
   const operations = {
     updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
@@ -1460,6 +1492,75 @@ describe("rescindInvitation", () => {
     });
 
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("dismissInvitation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("hard-deletes a non-pending invitation belonging to the managed trip", async () => {
+    const operations = setupDismissInvitationDb({
+      matchedRow: { id: "invite-1", tripId: "trip-1", status: "declined" },
+    });
+
+    await expect(dismissInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
+    expect(operations.deletes).toHaveLength(1);
+    const deletionCondition = inspect(operations.deletes[0]?.condition, { depth: 8 });
+    expect(deletionCondition).toContain("pending");
+    expect(deletionCondition).toContain("trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("rejects a pending invitation without deletion success or revalidation", async () => {
+    const operations = setupDismissInvitationDb({
+      diagnosticRow: { id: "invite-1", tripId: "trip-1" },
+    });
+
+    await expect(dismissInvitation("trip-1", "invite-1")).resolves.toEqual({
+      status: "error",
+      message: "Invitation is still pending.",
+    });
+
+    expect(operations.deletes).toHaveLength(1);
+    expect(inspect(operations.deletes[0]?.condition, { depth: 8 })).toContain("pending");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invitation from another trip without revealing its state", async () => {
+    setupDismissInvitationDb({ diagnosticRow: { id: "invite-2", tripId: "trip-2" } });
+
+    await expect(dismissInvitation("trip-1", "invite-2")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing invitation without revalidating", async () => {
+    setupDismissInvitationDb();
+
+    await expect(dismissInvitation("trip-1", "missing-invite")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-manager before reading or deleting invitations", async () => {
+    assertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(dismissInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
+
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
   });
 });
 
