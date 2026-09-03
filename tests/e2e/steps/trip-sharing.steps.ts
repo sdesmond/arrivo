@@ -7,6 +7,7 @@ const ACTIVE_EMAIL = "active-share@example.com";
 const PENDING_EMAIL = "pending-share@example.com";
 const DECLINED_EMAIL = "declined-share@example.com";
 const EXPIRED_PENDING_EMAIL = "expired-pending-share@example.com";
+const PENDING_INVITATION_EXPIRY_LABEL_KEY = "pendingInvitationExpiryLabel";
 
 Given("I have a trip with sharing rows", async ({ scenario }) => {
   const [user, trip] = await Promise.all([scenario.ensureCurrentUser(), scenario.ensureCurrentTrip("datelessTrip")]);
@@ -83,4 +84,25 @@ Then("I see the declined sharing row", async ({ page }) => {
 
 Then("I do not see the expired pending sharing row", async ({ page }) => {
   await expect(page.getByText(EXPIRED_PENDING_EMAIL, { exact: true })).not.toBeVisible();
+});
+
+When("I resend the pending sharing invitation", async ({ page, scenario }) => {
+  const expiryLabel = (await page.getByLabel(/^Invitation expires/).getAttribute("aria-label")) ?? "";
+  scenario.setValue(PENDING_INVITATION_EXPIRY_LABEL_KEY, expiryLabel);
+  await page.getByTitle(`Resend invitation to ${PENDING_EMAIL}`).click();
+});
+
+Then("I see the pending sharing invitation expiry refresh", async ({ page, scenario }) => {
+  const previousExpiryLabel = scenario.getValue<string>(PENDING_INVITATION_EXPIRY_LABEL_KEY);
+  await expect(page.getByLabel(/^Invitation expires/)).not.toHaveAttribute("aria-label", previousExpiryLabel ?? "");
+  await expect(page.getByText("Invitation resent.")).toBeVisible();
+});
+
+When("I rescind the pending sharing invitation", async ({ page }) => {
+  await page.getByTitle(`Rescind invitation to ${PENDING_EMAIL}`).click();
+});
+
+Then("I do not see the pending sharing row", async ({ page }) => {
+  await expect(page.getByText(PENDING_EMAIL, { exact: true })).not.toBeVisible();
+  await expect(page.getByText("Invitation rescinded.")).toBeVisible();
 });

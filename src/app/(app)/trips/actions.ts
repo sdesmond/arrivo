@@ -40,7 +40,7 @@ import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
-import { hasNormalizedEmail, INVITE_TTL_HOURS, normalizeEmail } from "@/lib/invitations";
+import { applyInvitationResend, getInvitationExpiry, hasNormalizedEmail, normalizeEmail } from "@/lib/invitations";
 import { CoverType } from "@/data/types";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
@@ -711,7 +711,7 @@ export async function inviteContributor(
     return { status: "error", message: "No Packt account found for this email" };
   }
 
-  const expiresAt = new Date(Date.now() + INVITE_TTL_HOURS * 60 * 60 * 1000);
+  const expiresAt = getInvitationExpiry();
   const result = await db.transaction(async (transaction) => {
     const existingCollaborators = await transaction
       .select({ id: collaborators.id })
@@ -727,7 +727,7 @@ export async function inviteContributor(
       .where(and(eq(invitations.tripId, tripId), hasNormalizedEmail(invitations.email, normalizedEmail)));
     const pendingInvitation = existingInvitations.find((invitation) => invitation.status === "pending");
     if (pendingInvitation) {
-      await transaction.update(invitations).set({ role, expiresAt }).where(eq(invitations.id, pendingInvitation.id));
+      await applyInvitationResend(transaction, pendingInvitation.id, tripId, expiresAt, role);
       return { status: "resent" } as const;
     }
 

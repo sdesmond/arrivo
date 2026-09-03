@@ -20,8 +20,10 @@ import { eq, and, max, gte, sql, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { getContributorsAndInvitations } from "@/lib/queries";
+import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
+import { rescindInvitation } from "../actions";
 import {
   uploadDocument as uploadTripDocumentAction,
   uploadDocumentToEvent as uploadEventDocumentAction,
@@ -45,6 +47,23 @@ const CONCURRENT_MODIFICATION_ERROR = "CONCURRENT_MODIFICATION";
 export async function getShareDialogData(tripId: string) {
   const user = await requireUser();
   return getContributorsAndInvitations(tripId, user.id!);
+}
+
+export async function resendShareInvitation(tripId: string, invitationId: string) {
+  const user = await requireUser();
+  const result = await resendInvitation(invitationId, tripId, user.id!);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
+}
+
+export async function rescindShareInvitation(tripId: string, invitationId: string) {
+  const result = await rescindInvitation(tripId, invitationId);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
 }
 
 type PositionExecutor = Pick<DbTransaction, "select" | "update" | "insert">;

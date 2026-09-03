@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ReactElement } from "react";
-import { Lock, UserPlus, X } from "lucide-react";
+import { LoaderCircle, Lock, RotateCw, UserPlus, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { getShareDialogData } from "@/app/(app)/trips/[tripId]/actions";
+import { getShareDialogData, rescindShareInvitation, resendShareInvitation } from "@/app/(app)/trips/[tripId]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -38,12 +38,80 @@ function roleStyle(role: CollaboratorRole): { background: string; color: string 
   return { background: "var(--surface-2)", color: "var(--fg-2)" };
 }
 
+function formatInvitationExpiry(expiresAt: string): string {
+  return new Date(expiresAt).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+type PendingInvitationAction = { invitationId: string; action: "resend" | "rescind" };
+
 function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContentProps): ReactElement {
   const [data, setData] = useState<ShareDialogData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<CollaboratorRole>(CollaboratorRole.Viewer);
+  const [pendingAction, setPendingAction] = useState<PendingInvitationAction | null>(null);
+
+  async function resendPendingInvitation(invitation: Invitation): Promise<void> {
+    setPendingAction({ invitationId: invitation.id, action: "resend" });
+    try {
+      const result = await resendShareInvitation(tripId, invitation.id);
+      if (result.status === "error") {
+        toast.error(result.message);
+        return;
+      }
+
+      const { expiresAt } = result;
+      setData((currentData) =>
+        currentData
+          ? {
+              ...currentData,
+              invitations: currentData.invitations.map((currentInvitation) =>
+                currentInvitation.id === invitation.id ? { ...currentInvitation, expiresAt } : currentInvitation
+              ),
+            }
+          : currentData
+      );
+      toast.success("Invitation resent.");
+    } catch {
+      toast.error("Could not resend invitation.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function rescindPendingInvitation(invitation: Invitation): Promise<void> {
+    setPendingAction({ invitationId: invitation.id, action: "rescind" });
+    try {
+      const result = await rescindShareInvitation(tripId, invitation.id);
+      if (result.status === "error") {
+        toast.error(result.message);
+        return;
+      }
+
+      setData((currentData) =>
+        currentData
+          ? {
+              ...currentData,
+              invitations: currentData.invitations.filter(
+                (currentInvitation) => currentInvitation.id !== invitation.id
+              ),
+            }
+          : currentData
+      );
+      toast.success("Invitation rescinded.");
+    } catch {
+      toast.error("Could not rescind invitation.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -191,11 +259,14 @@ function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContent
 
           {data.invitations.map((invitation) => {
             const isPending = invitation.status === "pending";
+            const isRowActionPending = pendingAction?.invitationId === invitation.id;
+            const isResendPending = isRowActionPending && pendingAction?.action === "resend";
+            const isRescindPending = isRowActionPending && pendingAction?.action === "rescind";
             return (
               <div
-                className="flex items-center gap-2"
+                className="flex items-center gap-3"
                 key={invitation.id}
-                style={{ padding: "6px 8px", borderRadius: 8, background: "var(--surface-2)" }}
+                style={{ padding: "12px", borderRadius: 8, background: "var(--surface-2)" }}
               >
                 <span
                   className="flex shrink-0 items-center justify-center rounded-full"
@@ -219,16 +290,69 @@ function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContent
                     {roleLabel(invitation.role)} access
                   </div>
                 </div>
-                <span
-                  className="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium"
-                  style={
-                    isPending
-                      ? { background: "var(--warning-soft)", color: "var(--warning-ink)" }
-                      : { background: "var(--surface-3)", color: "var(--fg-3)" }
-                  }
-                >
-                  {isPending ? "Pending" : "Declined"}
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span
+                    className="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium"
+                    style={
+                      isPending
+                        ? { background: "var(--warning-soft)", color: "var(--warning-ink)" }
+                        : { background: "var(--surface-3)", color: "var(--fg-3)" }
+                    }
+                  >
+                    {isPending ? "Pending" : "Declined"}
+                  </span>
+                  {isPending ? (
+                    <span
+                      aria-label={`Invitation expires ${formatInvitationExpiry(invitation.expiresAt)}`}
+                      className="text-xs"
+                      style={{ color: "var(--fg-3)" }}
+                    >
+                      Expires {formatInvitationExpiry(invitation.expiresAt)}
+                    </span>
+                  ) : null}
+                </div>
+                {isPending ? (
+                  <div className="ml-1 flex shrink-0 items-center gap-1.5">
+                    <Button
+                      disabled={isRowActionPending}
+                      onClick={() => void resendPendingInvitation(invitation)}
+                      size="icon-lg"
+                      title={`Resend invitation to ${invitation.email}`}
+                      variant="ghost"
+                    >
+                      {isResendPending ? (
+                        <LoaderCircle
+                          aria-label="Resending invitation"
+                          className="animate-spin"
+                          size={16}
+                          strokeWidth={1.5}
+                        />
+                      ) : (
+                        <RotateCw size={16} strokeWidth={1.5} />
+                      )}
+                      <span className="sr-only">Resend invitation to {invitation.email}</span>
+                    </Button>
+                    <Button
+                      disabled={isRowActionPending}
+                      onClick={() => void rescindPendingInvitation(invitation)}
+                      size="icon-lg"
+                      title={`Rescind invitation to ${invitation.email}`}
+                      variant="ghost"
+                    >
+                      {isRescindPending ? (
+                        <LoaderCircle
+                          aria-label="Rescinding invitation"
+                          className="animate-spin"
+                          size={16}
+                          strokeWidth={1.5}
+                        />
+                      ) : (
+                        <XCircle size={16} strokeWidth={1.5} />
+                      )}
+                      <span className="sr-only">Rescind invitation to {invitation.email}</span>
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             );
           })}
