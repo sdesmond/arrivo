@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { LoaderCircle, Lock, RotateCw, UserPlus, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { inviteContributor } from "@/app/(app)/trips/actions";
 import { getShareDialogData, rescindShareInvitation, resendShareInvitation } from "@/app/(app)/trips/[tripId]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -56,7 +57,41 @@ function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContent
   const [loadError, setLoadError] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<CollaboratorRole>(CollaboratorRole.Viewer);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingInvitationAction | null>(null);
+
+  async function handleInvite(): Promise<void> {
+    if (!email.trim()) return;
+    setInviteLoading(true);
+    setInviteError(null);
+    try {
+      const result = await inviteContributor(tripId, email, role);
+      if (result.status === "error") {
+        const message = result.message;
+        if (message === "No Packt account found for this email") {
+          setInviteError("No Packt account found for this email.");
+        } else {
+          toast.error(message);
+        }
+        return;
+      }
+      toast.success(result.status === "resent" ? "Invitation resent." : "Invitation sent.");
+      try {
+        const refreshedData = await getShareDialogData(tripId);
+        setData(refreshedData);
+        setLoadError(false);
+      } catch {
+        setLoadError(true);
+      }
+      setEmail("");
+      setRole(CollaboratorRole.Viewer);
+    } catch {
+      toast.error("Could not send invitation.");
+    } finally {
+      setInviteLoading(false);
+    }
+  }
 
   async function resendPendingInvitation(invitation: Invitation): Promise<void> {
     setPendingAction({ invitationId: invitation.id, action: "resend" });
@@ -151,7 +186,6 @@ function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContent
     >
       <DialogHeader className="pr-12">
         <DialogTitle>Share trip</DialogTitle>
-        <p style={{ color: "var(--fg-3)" }}>Invite controls will be available in a later story.</p>
       </DialogHeader>
 
       <DialogClose
@@ -172,13 +206,22 @@ function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContent
         <Input
           aria-label="Invite email"
           className="h-11"
-          onChange={(event) => setEmail(event.target.value)}
+          disabled={inviteLoading}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setInviteError(null);
+          }}
           placeholder="Email"
           type="email"
           value={email}
         />
+        {inviteError ? (
+          <p role="alert" style={{ color: "var(--danger)", fontSize: "calc(12px * var(--font-scale))" }}>
+            {inviteError}
+          </p>
+        ) : null}
         <div className="flex items-center gap-2">
-          <Select value={role} onValueChange={(value) => setRole(value as CollaboratorRole)}>
+          <Select value={role} onValueChange={(value) => setRole(value as CollaboratorRole)} disabled={inviteLoading}>
             <SelectTrigger aria-label="Invite role" className="h-11">
               <SelectValue />
             </SelectTrigger>
@@ -190,12 +233,17 @@ function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContent
           </Select>
           <Button
             className="h-11"
-            disabled
+            disabled={inviteLoading}
+            onClick={() => void handleInvite()}
             size="sm"
-            title="Inviting people becomes available in a later story"
+            title="Invite this person to the trip"
             variant="outline"
           >
-            <UserPlus size={16} strokeWidth={1.5} />
+            {inviteLoading ? (
+              <LoaderCircle aria-label="Sending invitation" className="animate-spin" size={16} strokeWidth={1.5} />
+            ) : (
+              <UserPlus size={16} strokeWidth={1.5} />
+            )}
             Invite
           </Button>
         </div>

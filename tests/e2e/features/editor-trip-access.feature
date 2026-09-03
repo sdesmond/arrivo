@@ -18,4 +18,4 @@ Feature: Editor Trip Management Access
     Then I see the trip Share control
     When I open the shared trip edit sheet
     Then I see the trip Delete control
-    And I see the People section
+    And I do not see the People section
