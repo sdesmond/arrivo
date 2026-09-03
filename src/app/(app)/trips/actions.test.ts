@@ -864,8 +864,9 @@ function setupInviteContributorDb({
     }),
     update: (table: unknown) => ({
       set: (values: unknown) => ({
-        where: async () => {
+        where: () => {
           operations.updates.push({ table, values });
+          return { returning: async () => [{ id: "invite-1" }] };
         },
       }),
     }),
@@ -895,25 +896,30 @@ describe("inviteContributor", () => {
 
   it("creates a normalized, pending viewer invitation for an existing account", async () => {
     const operations = setupInviteContributorDb();
-    vi.spyOn(Date, "now").mockReturnValue(new Date("2026-09-01T12:00:00.000Z").valueOf());
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-01T12:00:00.000Z"));
 
-    await expect(inviteContributor("trip-1", "  INVITEE@EXAMPLE.COM  ")).resolves.toEqual({ status: "invited" });
+    try {
+      await expect(inviteContributor("trip-1", "  INVITEE@EXAMPLE.COM  ")).resolves.toEqual({ status: "invited" });
 
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
-    expect(operations.inserts).toEqual([
-      {
-        table: invitations,
-        values: expect.objectContaining({
-          tripId: "trip-1",
-          email: "invitee@example.com",
-          role: "viewer",
-          status: "pending",
-          invitedBy: "manager-1",
-          expiresAt: new Date("2026-09-04T12:00:00.000Z"),
-        }),
-      },
-    ]);
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+      expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
+      expect(operations.inserts).toEqual([
+        {
+          table: invitations,
+          values: expect.objectContaining({
+            tripId: "trip-1",
+            email: "invitee@example.com",
+            role: "viewer",
+            status: "pending",
+            invitedBy: "manager-1",
+            expiresAt: new Date("2026-09-04T12:00:00.000Z"),
+          }),
+        },
+      ]);
+      expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("returns an error without writing when no Packt account matches", async () => {

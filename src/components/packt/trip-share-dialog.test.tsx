@@ -1,16 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Collaborator, Invitation } from "@/data/types";
 import { TripShareDialog } from "./trip-share-dialog";
 
 const mockGetShareDialogData = vi.fn();
+const mockRescindShareInvitation = vi.fn();
+const mockResendShareInvitation = vi.fn();
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   getShareDialogData: (...args: unknown[]) => mockGetShareDialogData(...args),
+  rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
+  resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn() },
 }));
 
 const creator: Collaborator = {
@@ -67,6 +71,8 @@ describe("TripShareDialog", () => {
       collaborators: [creator, activeCollaborator],
       invitations: [pendingInvitation, declinedInvitation],
     });
+    mockResendShareInvitation.mockResolvedValue({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
+    mockRescindShareInvitation.mockResolvedValue({ status: "success" });
   });
 
   it("renders locked creator and active, pending, and declined rows", async () => {
@@ -140,5 +146,82 @@ describe("TripShareDialog", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not load sharing details"));
 
     expect(screen.getByText("Could not load collaborators and invitations.")).toBeInTheDocument();
+  });
+
+  it("renders titled resend and rescind controls for a pending invitation", async () => {
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    expect(await screen.findByTitle("Resend invitation to pending@example.com")).toBeEnabled();
+    expect(screen.getByTitle("Rescind invitation to pending@example.com")).toBeEnabled();
+  });
+
+  it("resends a pending invitation, updates its expiry to the server-returned value, and shows a confirmation", async () => {
+    const { toast } = await import("sonner");
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.click(await screen.findByTitle("Resend invitation to pending@example.com"));
+
+    await waitFor(() => expect(mockResendShareInvitation).toHaveBeenCalledWith("trip-1", "pending-1"));
+    expect(toast.success).toHaveBeenCalledWith("Invitation resent.");
+    const expectedExpiry = new Date("2099-02-01T00:00:00.000Z").toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    expect(screen.getByText(`Expires ${expectedExpiry}`)).toBeInTheDocument();
+  });
+
+  it("rescinds a pending invitation and removes its row", async () => {
+    const { toast } = await import("sonner");
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.click(await screen.findByTitle("Rescind invitation to pending@example.com"));
+
+    await waitFor(() => expect(mockRescindShareInvitation).toHaveBeenCalledWith("trip-1", "pending-1"));
+    expect(screen.queryByText("pending@example.com")).not.toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Invitation rescinded.");
+  });
+
+  it("shows an error toast when a pending resend action fails", async () => {
+    const { toast } = await import("sonner");
+    mockResendShareInvitation.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.click(await screen.findByTitle("Resend invitation to pending@example.com"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Invitation is no longer pending."));
+    expect(screen.getByText("pending@example.com")).toBeInTheDocument();
+  });
+
+  it("shows an error toast when a pending rescind action fails and keeps the row", async () => {
+    const { toast } = await import("sonner");
+    mockRescindShareInvitation.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.click(await screen.findByTitle("Rescind invitation to pending@example.com"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Invitation is no longer pending."));
+    expect(screen.getByText("pending@example.com")).toBeInTheDocument();
+  });
+
+  it("only shows a spinner on the button that was clicked while its sibling stays disabled but not spinning", async () => {
+    const deferred = createDeferred<{ status: "success"; expiresAt: string }>();
+    mockResendShareInvitation.mockReturnValue(deferred.promise);
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    const resendButton = await screen.findByTitle("Resend invitation to pending@example.com");
+    const rescindButton = screen.getByTitle("Rescind invitation to pending@example.com");
+    fireEvent.click(resendButton);
+
+    await waitFor(() => expect(resendButton).toBeDisabled());
+    expect(rescindButton).toBeDisabled();
+    expect(screen.getByLabelText("Resending invitation")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Rescinding invitation")).not.toBeInTheDocument();
+
+    deferred.resolve({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
+    await waitFor(() => expect(resendButton).toBeEnabled());
+    expect(rescindButton).toBeEnabled();
   });
 });

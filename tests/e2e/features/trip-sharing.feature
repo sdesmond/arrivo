@@ -22,3 +22,17 @@ Feature: Trip sharing dialog
     Given I am a viewer on "Viewer Share Trip" owned by "Grace Hopper"
     When I go to the shared trip
     Then I do not see the trip Share control
+
+  Scenario: A manager resends a pending invitation
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I resend the pending sharing invitation
+    Then I see the pending sharing invitation expiry refresh
+
+  Scenario: A manager rescinds a pending invitation
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I rescind the pending sharing invitation
+    Then I do not see the pending sharing row

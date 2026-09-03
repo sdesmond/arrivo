@@ -15,6 +15,8 @@ const {
   mockAdapterPut,
   mockDeriveGraphicCover,
   mockGetStorageAdapter,
+  mockRescindInvitation,
+  mockResendInvitation,
   schemaTokens,
 } = vi.hoisted(() => {
   const mockAssertTripAccess = vi.fn();
@@ -30,6 +32,8 @@ const {
   const mockAdapterPut = vi.fn();
   const mockDeriveGraphicCover = vi.fn((title: string) => `graphic:${title}`);
   const mockGetStorageAdapter = vi.fn();
+  const mockRescindInvitation = vi.fn();
+  const mockResendInvitation = vi.fn();
   const schemaTokens: Record<string, unknown> = {
     checklistItems: {},
     days: {},
@@ -55,6 +59,8 @@ const {
     mockAdapterPut,
     mockDeriveGraphicCover,
     mockGetStorageAdapter,
+    mockRescindInvitation,
+    mockResendInvitation,
     schemaTokens,
   };
 });
@@ -83,6 +89,14 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/storage/storage-adapter", () => ({
   getStorageAdapter: mockGetStorageAdapter,
+}));
+
+vi.mock("@/lib/invitations", () => ({
+  resendInvitation: mockResendInvitation,
+}));
+
+vi.mock("../actions", () => ({
+  rescindInvitation: mockRescindInvitation,
 }));
 
 vi.mock("@/lib/utils", () => ({
@@ -118,6 +132,8 @@ import {
   setTripCoverWithAttribution,
   uploadCoverImage,
   updateTripNote,
+  rescindShareInvitation,
+  resendShareInvitation,
 } from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
 
@@ -169,6 +185,42 @@ function createSimpleSelect(rows: unknown[]) {
 beforeEach(() => {
   mockGetStorageAdapter.mockReturnValue({ put: mockAdapterPut, del: mockAdapterDel });
   mockAdapterDel.mockResolvedValue(undefined);
+});
+
+describe("share invitation actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "manager-1" });
+    mockResendInvitation.mockResolvedValue({ status: "success", expiresAt: "2026-09-04T12:00:00.000Z" });
+    mockRescindInvitation.mockResolvedValue({ status: "success" });
+  });
+
+  it("delegates a resend before revalidating the trip", async () => {
+    await expect(resendShareInvitation("trip-1", "invite-1")).resolves.toEqual({
+      status: "success",
+      expiresAt: "2026-09-04T12:00:00.000Z",
+    });
+
+    expect(mockResendInvitation).toHaveBeenCalledWith("invite-1", "trip-1", "manager-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("delegates a rescind before revalidating the trip", async () => {
+    await expect(rescindShareInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
+
+    expect(mockRescindInvitation).toHaveBeenCalledWith("trip-1", "invite-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("propagates an editor rejection from the underlying resend/rescind logic without revalidating", async () => {
+    mockResendInvitation.mockRejectedValue(new Error("not found"));
+    mockRescindInvitation.mockRejectedValue(new Error("not found"));
+
+    await expect(resendShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
+    await expect(rescindShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
+
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
 });
 
 describe("createEvent", () => {
