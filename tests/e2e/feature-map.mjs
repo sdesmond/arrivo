@@ -183,6 +183,7 @@ export const FEATURE_MAP = [
   ]),
   entry("trip-sharing", [
     "src/components/packt/trip-share-dialog.tsx",
+    "src/components/packt/trip-share-*.tsx",
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
   ]),
   entry("trips", [

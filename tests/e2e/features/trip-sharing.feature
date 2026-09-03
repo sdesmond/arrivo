@@ -36,3 +36,11 @@ Feature: Trip sharing dialog
     And I open the sharing dialog
     And I rescind the pending sharing invitation
     Then I do not see the pending sharing row
+
+  Scenario: A manager dismisses a declined invitation
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I dismiss the declined sharing invitation
+    Then I do not see the declined sharing row
+    And dismissed sharing invitation remains removed after reopening dialog

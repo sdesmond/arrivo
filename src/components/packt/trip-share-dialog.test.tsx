@@ -6,12 +6,14 @@ import { TripShareDialog } from "./trip-share-dialog";
 const mockGetShareDialogData = vi.fn();
 const mockRescindShareInvitation = vi.fn();
 const mockResendShareInvitation = vi.fn();
+const mockDismissShareInvitation = vi.fn();
 const mockInviteContributor = vi.fn();
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   getShareDialogData: (...args: unknown[]) => mockGetShareDialogData(...args),
   rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
   resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
+  dismissShareInvitation: (...args: unknown[]) => mockDismissShareInvitation(...args),
 }));
 
 vi.mock("@/app/(app)/trips/actions", () => ({
@@ -60,13 +62,21 @@ const declinedInvitation: Invitation = {
   invitedBy: "creator-1",
 };
 
+const secondDeclinedInvitation: Invitation = {
+  ...declinedInvitation,
+  id: "declined-2",
+  email: "second-declined@example.com",
+};
+
 function createDeferred<T>() {
   let resolvePromise: (value: T) => void;
-  const promise = new Promise<T>((resolve) => {
+  let rejectPromise: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
     resolvePromise = resolve;
+    rejectPromise = reject;
   });
 
-  return { promise, resolve: resolvePromise! };
+  return { promise, reject: rejectPromise!, resolve: resolvePromise! };
 }
 
 describe("TripShareDialog", () => {
@@ -78,6 +88,7 @@ describe("TripShareDialog", () => {
     });
     mockResendShareInvitation.mockResolvedValue({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
     mockRescindShareInvitation.mockResolvedValue({ status: "success" });
+    mockDismissShareInvitation.mockResolvedValue({ status: "success" });
     mockInviteContributor.mockResolvedValue({ status: "invited" });
   });
 
@@ -159,6 +170,120 @@ describe("TripShareDialog", () => {
 
     expect(await screen.findByTitle("Resend invitation to pending@example.com")).toBeEnabled();
     expect(screen.getByTitle("Rescind invitation to pending@example.com")).toBeEnabled();
+    expect(screen.queryByTitle("Dismiss invitation to pending@example.com")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Dismiss invitation to declined@example.com")).toBeEnabled();
+  });
+
+  it("dismisses a declined invitation, removes its row, and shows a confirmation", async () => {
+    const { toast } = await import("sonner");
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.click(await screen.findByTitle("Dismiss invitation to declined@example.com"));
+
+    await waitFor(() => expect(mockDismissShareInvitation).toHaveBeenCalledWith("trip-1", "declined-1"));
+    expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Invitation dismissed.");
+  });
+
+  it("keeps a declined invitation and shows an error when dismissal fails", async () => {
+    const { toast } = await import("sonner");
+    mockDismissShareInvitation.mockResolvedValue({ status: "error", message: "Invitation not found." });
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.click(await screen.findByTitle("Dismiss invitation to declined@example.com"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Invitation not found."));
+    expect(screen.getByText("declined@example.com")).toBeInTheDocument();
+  });
+
+  it("keeps a declined invitation and restores its control when dismissal rejects", async () => {
+    const { toast } = await import("sonner");
+    mockDismissShareInvitation.mockRejectedValue(new Error("Network failure"));
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    const dismissButton = await screen.findByTitle("Dismiss invitation to declined@example.com");
+    fireEvent.click(dismissButton);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not dismiss invitation."));
+    expect(screen.getByText("declined@example.com")).toBeInTheDocument();
+    expect(dismissButton).toBeEnabled();
+  });
+
+  it("shows dismissal progress only on clicked declined row", async () => {
+    const deferred = createDeferred<{ status: "success" }>();
+    mockDismissShareInvitation.mockReturnValue(deferred.promise);
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    const dismissButton = await screen.findByTitle("Dismiss invitation to declined@example.com");
+    const resendButton = screen.getByTitle("Resend invitation to pending@example.com");
+    fireEvent.click(dismissButton);
+
+    await waitFor(() => expect(dismissButton).toBeDisabled());
+    expect(resendButton).toBeEnabled();
+    expect(screen.getByLabelText("Dismissing invitation")).toBeInTheDocument();
+
+    deferred.resolve({ status: "success" });
+    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+  });
+
+  it("keeps progress local to each concurrently dismissed declined row", async () => {
+    const firstDismissal = createDeferred<{ status: "success" }>();
+    const secondDismissal = createDeferred<{ status: "success" }>();
+    mockGetShareDialogData.mockResolvedValue({
+      collaborators: [creator, activeCollaborator],
+      invitations: [pendingInvitation, declinedInvitation, secondDeclinedInvitation],
+    });
+    mockDismissShareInvitation.mockReturnValueOnce(firstDismissal.promise).mockReturnValueOnce(secondDismissal.promise);
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    const firstDismissButton = await screen.findByTitle("Dismiss invitation to declined@example.com");
+    const secondDismissButton = screen.getByTitle("Dismiss invitation to second-declined@example.com");
+    fireEvent.click(firstDismissButton);
+    fireEvent.click(secondDismissButton);
+
+    await waitFor(() => expect(firstDismissButton).toBeDisabled());
+    expect(secondDismissButton).toBeDisabled();
+    expect(screen.getAllByLabelText("Dismissing invitation")).toHaveLength(2);
+
+    firstDismissal.resolve({ status: "success" });
+    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+    expect(secondDismissButton).toBeDisabled();
+
+    secondDismissal.resolve({ status: "success" });
+    await waitFor(() => expect(screen.queryByText("second-declined@example.com")).not.toBeInTheDocument());
+  });
+
+  it("does not restore a dismissed invitation from an overlapping invite refresh", async () => {
+    const staleRefresh = createDeferred<{ collaborators: Collaborator[]; invitations: Invitation[] }>();
+    const initialData = {
+      collaborators: [creator, activeCollaborator],
+      invitations: [pendingInvitation, declinedInvitation],
+    };
+    mockGetShareDialogData.mockResolvedValueOnce(initialData).mockReturnValueOnce(staleRefresh.promise);
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
+      target: { value: "guest@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+    await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByTitle("Dismiss invitation to declined@example.com"));
+    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+
+    staleRefresh.resolve(initialData);
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue(""));
+    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+  });
+
+  it("preserves dialog close handling after the extracted content regions render", async () => {
+    const onOpenChange = vi.fn();
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+
+    fireEvent.click(await screen.findByTitle("Close sharing dialog"));
+
+    expect(onOpenChange.mock.calls[0]?.[0]).toBe(false);
   });
 
   it("resends a pending invitation, updates its expiry to the server-returned value, and shows a confirmation", async () => {
