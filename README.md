@@ -9,7 +9,7 @@ npm run setup:dev
 npm run dev
 ```
 
-Sign in at [http://localhost:3000](http://localhost:3000) with `demo@packt.local` / `demo1234`.
+Sign in at [http://localhost:3000](http://localhost:3000) with `demo@packt.local` / `demo1234` (two more seed accounts, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
 
 `npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the schema, seeds demo data, and installs the Playwright Chromium browser.
 
@@ -57,7 +57,10 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
    docker compose exec app npm run db:seed
    ```
 
-   Signs in as `demo@packt.local` / `demo1234`.
+   Creates three accounts (`demo@packt.local`, `alex@packt.local`, `sam@packt.local`, all `demo1234`) with
+   six trips between them, including a cross-account share. See
+   **[docs/dev-seed-data.md](./docs/dev-seed-data.md)** for the full picture. Re-running `db:seed` wipes and
+   reseeds just these three accounts — safe to run again.
 
 4. Open [http://localhost:3000](http://localhost:3000).
 

@@ -427,7 +427,7 @@ export async function main(argv = process.argv.slice(2)) {
 
   log("Setup complete");
   log("Start the app with: npm run dev");
-  log("Sign in with: demo@packt.local / demo1234");
+  log("Sign in with: demo@packt.local / demo1234 (see docs/dev-seed-data.md for two more seed accounts)");
   log(`Storage: ${envValues.STORAGE_PROVIDER} (${envValues.STORAGE_LOCAL_ROOT_DIR})`);
 }
 
