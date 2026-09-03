@@ -185,6 +185,10 @@ export const FEATURE_MAP = [
     "src/components/packt/mobile-unscheduled-tab.tsx",
     "src/components/packt/mobile-upcoming-tab.tsx",
   ]),
+  entry("trip-sharing", [
+    "src/components/packt/trip-share-dialog.tsx",
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+  ]),
   entry("trips", [
     "src/components/packt/currency-picker.tsx",
     "src/components/packt/trip-budget-tab.tsx",

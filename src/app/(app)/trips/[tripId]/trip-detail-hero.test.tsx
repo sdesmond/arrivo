@@ -188,6 +188,7 @@ describe("TripDetailHero", () => {
         nowISO="2026-07-01T00:00:00Z"
         dateFormat="MM/DD/YYYY"
         onEdit={vi.fn()}
+        onShare={vi.fn()}
       />
     );
 
@@ -218,10 +219,43 @@ describe("TripDetailHero", () => {
         nowISO="2026-07-01T00:00:00Z"
         dateFormat="MM/DD/YYYY"
         onEdit={vi.fn()}
+        onShare={vi.fn()}
       />
     );
 
     expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+  });
+
+  it("hides Share for a manager when no callback is available", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+  });
+
+  it("opens sharing controls when a manager selects Share", async () => {
+    const onShare = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={onShare}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Share" }));
+
+    expect(onShare).toHaveBeenCalledOnce();
   });
 
   it("shows edit only for graphic covers", () => {

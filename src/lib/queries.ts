@@ -8,6 +8,7 @@ import {
   documents,
   reservations,
   collaborators,
+  invitations,
   packingItems,
   tripPackingLists,
   itineraryNotes,
@@ -31,6 +32,7 @@ import {
   dbReservationToType,
   dbExpenseToType,
   dbCollabToType,
+  dbInvitationToType,
   dbChecklistToType,
   dbTripNoteToType,
   dbLoyaltyToType,
@@ -52,6 +54,8 @@ import type {
   UserProfile,
   Trip,
   Expense,
+  Collaborator,
+  Invitation,
 } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
@@ -333,6 +337,34 @@ export async function getTemplateWithItems(
   return {
     template: dbTemplateToType(templateRow),
     items: itemRows.map(dbTemplateItemToType),
+  };
+}
+
+export async function getContributorsAndInvitations(
+  tripId: string,
+  userId: string
+): Promise<{ collaborators: Collaborator[]; invitations: Invitation[] }> {
+  await assertTripAccess(tripId, userId, CollaboratorRole.Manager);
+
+  const [collaboratorRows, invitationRows] = await Promise.all([
+    db.select().from(collaborators).where(eq(collaborators.tripId, tripId)),
+    db
+      .select()
+      .from(invitations)
+      .where(
+        and(
+          eq(invitations.tripId, tripId),
+          or(
+            and(eq(invitations.status, "pending"), sql`${invitations.expiresAt} > now()`),
+            eq(invitations.status, "declined")
+          )
+        )
+      ),
+  ]);
+
+  return {
+    collaborators: collaboratorRows.map(dbCollabToType),
+    invitations: invitationRows.map(dbInvitationToType),
   };
 }
 

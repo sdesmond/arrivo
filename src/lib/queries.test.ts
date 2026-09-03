@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, ne } from "drizzle-orm";
+import { CollaboratorRole } from "@/data/types";
 
 const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToType, schemaTokens } = vi.hoisted(() => ({
   mockAssertTripAccess: vi.fn(),
@@ -25,6 +26,7 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
       id: "documents.id",
     },
     collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId", role: "collaborators.role" },
+    invitations: { tripId: "invitations.tripId", status: "invitations.status", expiresAt: "invitations.expiresAt" },
     reservations: { tripId: "reservations.tripId" },
     expenses: { tripId: "expenses.tripId" },
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
@@ -73,6 +75,7 @@ vi.mock("@/lib/db-mappers", () => ({
   dbEventToType: vi.fn((event: unknown) => event),
   dbDocToType: vi.fn((doc: unknown) => doc),
   dbCollabToType: vi.fn((collaborator: unknown) => collaborator),
+  dbInvitationToType: vi.fn((invitation: unknown) => invitation),
   dbReservationToType: vi.fn((reservation: unknown) => reservation),
   dbExpenseToType: vi.fn((expense: { id: string }) => ({ id: expense.id })),
   dbChecklistToType: vi.fn(),
@@ -86,7 +89,30 @@ vi.mock("@/lib/db-mappers", () => ({
   dbTemplateItemToType: vi.fn(),
 }));
 
-import { getTripDetail, listExpensesForUserInRange, listTripsForUser } from "./queries";
+import { getContributorsAndInvitations, getTripDetail, listExpensesForUserInRange, listTripsForUser } from "./queries";
+
+describe("getContributorsAndInvitations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("requires manager access before loading sharing data", async () => {
+    mockAssertTripAccess.mockImplementation(async () => {
+      expect(mockDbSelect).not.toHaveBeenCalled();
+      return CollaboratorRole.Manager;
+    });
+    mockDbSelect
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    await expect(getContributorsAndInvitations("trip-1", "user-1")).resolves.toEqual({
+      collaborators: [],
+      invitations: [],
+    });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", CollaboratorRole.Manager);
+  });
+});
 
 describe("listTripsForUser", () => {
   beforeEach(() => {

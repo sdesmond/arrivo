@@ -49,8 +49,8 @@ development_status:
   2-4-viewer-s-shared-trips-are-excluded-from-personal-expense-rep: done
   epic-2-retrospective: done
 
-  epic-3: backlog
-  3-1-build-the-share-dialog-shell-with-active-pending-declined-ro: backlog
+  epic-3: in-progress
+  3-1-build-the-share-dialog-shell-with-active-pending-declined-ro: review
   3-2-resend-and-rescind-a-pending-invitation: backlog
   3-3-dismiss-a-declined-invitation: backlog
   3-4-stage-and-save-role-changes-and-removals-as-one-batch: backlog
