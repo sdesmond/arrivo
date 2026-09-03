@@ -306,4 +306,11 @@ export const IGNORE_GLOBS = [
   "**/*.test.ts",
   "**/*.test.tsx",
   "**/*.test.mjs",
+  // Dev-only seed data (`npm run db:seed`) — E2E seeds itself via tests/e2e/global-setup.ts and never
+  // runs db:seed, so this can't move E2E behavior even though it lives under src/db/** (a SHARED_GLOB).
+  "src/db/seed.ts",
+  "src/db/seed-runner.ts",
+  "src/db/seed-inserts-accounts.ts",
+  "src/db/seed-inserts-trip.ts",
+  "src/db/seed-data/**",
 ];
