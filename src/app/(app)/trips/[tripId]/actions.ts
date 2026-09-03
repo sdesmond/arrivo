@@ -23,7 +23,11 @@ import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
-import { dismissInvitation, rescindInvitation } from "../actions";
+import {
+  dismissInvitation,
+  rescindInvitation,
+  saveContributorChanges as saveContributorChangesAction,
+} from "../actions";
 import {
   uploadDocument as uploadTripDocumentAction,
   uploadDocumentToEvent as uploadEventDocumentAction,
@@ -68,6 +72,14 @@ export async function rescindShareInvitation(tripId: string, invitationId: strin
 
 export async function dismissShareInvitation(tripId: string, invitationId: string) {
   const result = await dismissInvitation(tripId, invitationId);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
+}
+
+export async function saveContributorChanges(tripId: string, changes: import("@/data/types").ContributorChange[]) {
+  const result = await saveContributorChangesAction(tripId, changes);
   if (result.status === "success") {
     revalidatePath(`/trips/${tripId}`);
   }

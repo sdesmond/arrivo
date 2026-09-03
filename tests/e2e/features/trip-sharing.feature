@@ -44,3 +44,27 @@ Feature: Trip sharing dialog
     And I dismiss the declined sharing invitation
     Then I do not see the declined sharing row
     And dismissed sharing invitation remains removed after reopening dialog
+
+  Scenario: A manager cancels a staged role change without applying it
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I stage a role change on the active sharing row to viewer
+    Then I see contributor change Save and Cancel controls
+    And I do not receive a contributor changes toast
+    When I cancel the contributor changes
+    Then I do not see contributor change Save and Cancel controls
+    And the active sharing row still shows the editor role
+
+  Scenario: A manager saves a staged role change and removal as one batch
+    Given I have a trip with sharing rows
+    And I have an additional removable sharing contributor
+    When I go to the current trip
+    And I open the sharing dialog
+    And I stage a role change on the active sharing row to viewer
+    And I stage the removal of the additional sharing contributor
+    Then I see contributor change Save and Cancel controls
+    When I save the contributor changes
+    Then I receive a contributor changes toast
+    And I do not see the removed additional sharing contributor
+    And the active sharing row role is updated to viewer

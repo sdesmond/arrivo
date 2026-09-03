@@ -121,6 +121,7 @@ import {
   removePackingItem,
   retrieveLocation,
   rescindInvitation,
+  saveContributorChanges,
   saveTripListAsTemplate,
   searchAddressLocations,
   searchLocations,
@@ -247,6 +248,268 @@ describe("collaborator isCreator protection", () => {
     expect(updateSet).toHaveBeenCalledWith({ role: "editor" });
     expect(updateWhere).toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+interface SaveContributorChangesFixture {
+  collaboratorRows?: Array<{
+    id: string;
+    tripId: string;
+    userId: string | null;
+    role: string;
+    isCreator: boolean | null;
+    email: string;
+  }>;
+}
+
+function setupSaveContributorChangesDb({
+  collaboratorRows = [
+    {
+      id: "collab-editor",
+      tripId: "trip-1",
+      userId: "user-peer",
+      role: "editor",
+      isCreator: false,
+      email: "peer@example.com",
+    },
+  ],
+}: SaveContributorChangesFixture = {}) {
+  const operations = {
+    deletes: [] as Array<{ table: unknown; condition: unknown }>,
+    updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
+  };
+  const transaction = {
+    execute: async () => [{ id: "trip-1" }],
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () => {
+          if (table === collaborators) return collaboratorRows;
+          throw new Error("Unexpected table read in saveContributorChanges fixture.");
+        },
+      }),
+    }),
+    delete: (table: unknown) => ({
+      where: async (condition: unknown) => {
+        operations.deletes.push({ table, condition });
+      },
+    }),
+    update: (table: unknown) => ({
+      set: (values: unknown) => ({
+        where: async (condition: unknown) => {
+          operations.updates.push({ table, values, condition });
+        },
+      }),
+    }),
+  };
+  db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+    callback(transaction)
+  );
+  return operations;
+}
+
+describe("saveContributorChanges", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    assertTripAccess.mockResolvedValue("manager");
+  });
+
+  it("applies a role change and a removal in one transaction and revalidates", async () => {
+    const operations = setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-editor",
+          tripId: "trip-1",
+          userId: "user-peer",
+          role: "editor",
+          isCreator: false,
+          email: "peer@example.com",
+        },
+        {
+          id: "collab-viewer",
+          tripId: "trip-1",
+          userId: "user-viewer",
+          role: "viewer",
+          isCreator: false,
+          email: "viewer@example.com",
+        },
+      ],
+    });
+
+    await expect(
+      saveContributorChanges("trip-1", [
+        { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "manager" },
+        { type: "remove", collaboratorId: "collab-viewer" },
+      ])
+    ).resolves.toEqual({ status: "success" });
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
+    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(operations.updates).toEqual([
+      expect.objectContaining({ table: collaborators, values: { role: "manager" } }),
+    ]);
+    expect(operations.deletes).toHaveLength(1);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("rejects the whole batch when a change targets the trip creator", async () => {
+    const operations = setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-creator",
+          tripId: "trip-1",
+          userId: "creator-user",
+          role: "manager",
+          isCreator: true,
+          email: "creator@example.com",
+        },
+      ],
+    });
+
+    const result = await saveContributorChanges("trip-1", [
+      { type: "role", collaboratorId: "collab-creator", fromRole: "manager", toRole: "editor" },
+    ]);
+
+    expect(result).toEqual({ status: "error", message: expect.any(String) as string, stale: false });
+    expect(operations.updates).toEqual([]);
+    expect(operations.deletes).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole batch when a change targets the caller's own row", async () => {
+    const operations = setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-self",
+          tripId: "trip-1",
+          userId: "manager-1",
+          role: "manager",
+          isCreator: false,
+          email: "manager@example.com",
+        },
+      ],
+    });
+
+    const result = await saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-self" }]);
+
+    expect(result).toEqual({ status: "error", message: expect.any(String) as string, stale: false });
+    expect(operations.deletes).toEqual([]);
+    expect(operations.updates).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole batch when a change id does not belong to the trip", async () => {
+    const operations = setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-other-trip",
+          tripId: "trip-2",
+          userId: "user-other",
+          role: "viewer",
+          isCreator: false,
+          email: "other@example.com",
+        },
+      ],
+    });
+
+    const result = await saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-other-trip" }]);
+
+    expect(result).toEqual({ status: "error", message: expect.any(String) as string, stale: true });
+    expect(operations.deletes).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole batch when a role change fails its fromRole guard", async () => {
+    const operations = setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-editor",
+          tripId: "trip-1",
+          userId: "user-peer",
+          role: "manager",
+          isCreator: false,
+          email: "peer@example.com",
+        },
+      ],
+    });
+
+    const result = await saveContributorChanges("trip-1", [
+      { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "viewer" },
+    ]);
+
+    expect(result).toEqual({ status: "error", message: expect.any(String) as string, stale: true });
+    expect(operations.updates).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole batch when a targeted row no longer exists", async () => {
+    const operations = setupSaveContributorChangesDb({ collaboratorRows: [] });
+
+    const result = await saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-gone" }]);
+
+    expect(result).toEqual({ status: "error", message: expect.any(String) as string, stale: true });
+    expect(operations.deletes).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole batch when the same collaboratorId appears twice", async () => {
+    const operations = setupSaveContributorChangesDb();
+
+    const result = await saveContributorChanges("trip-1", [
+      { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "manager" },
+      { type: "remove", collaboratorId: "collab-editor" },
+    ]);
+
+    expect(result.status).toBe("error");
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(operations.updates).toEqual([]);
+    expect(operations.deletes).toEqual([]);
+  });
+
+  it("rejects an invalid change type before opening a transaction", async () => {
+    const result = await saveContributorChanges("trip-1", [
+      { type: "archive" as "remove", collaboratorId: "collab-editor" },
+    ]);
+
+    expect(result.status).toBe("error");
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("does not swallow an unexpected error from within the transaction", async () => {
+    setupSaveContributorChangesDb();
+    db.transaction.mockImplementation(async () => {
+      throw new Error("connection reset");
+    });
+
+    await expect(
+      saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-editor" }])
+    ).rejects.toThrow("connection reset");
+  });
+
+  it("returns success without a transaction for an empty batch", async () => {
+    const result = await saveContributorChanges("trip-1", []);
+
+    expect(result).toEqual({ status: "success" });
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid toRole before opening a transaction", async () => {
+    const result = await saveContributorChanges("trip-1", [
+      { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "owner" as "editor" },
+    ]);
+
+    expect(result.status).toBe("error");
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("denies a non-manager before opening a transaction", async () => {
+    assertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(
+      saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-editor" }])
+    ).rejects.toThrow("not found");
+
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 });
 

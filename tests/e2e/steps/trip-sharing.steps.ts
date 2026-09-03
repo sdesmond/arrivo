@@ -7,6 +7,7 @@ const ACTIVE_EMAIL = "active-share@example.com";
 const PENDING_EMAIL = "pending-share@example.com";
 const DECLINED_EMAIL = "declined-share@example.com";
 const EXPIRED_PENDING_EMAIL = "expired-pending-share@example.com";
+const REMOVABLE_EMAIL = "removable-share@example.com";
 const PENDING_INVITATION_EXPIRY_LABEL_KEY = "pendingInvitationExpiryLabel";
 
 Given("I have a trip with sharing rows", async ({ scenario }) => {
@@ -48,6 +49,20 @@ Given("I have a trip with sharing rows", async ({ scenario }) => {
         invitedBy: user.id,
       },
     ]);
+  });
+});
+
+Given("I have an additional removable sharing contributor", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  await withE2EDb(async (db) => {
+    await db.insert(collaborators).values({
+      tripId: trip.id,
+      email: REMOVABLE_EMAIL,
+      name: "Removable Contributor",
+      initials: "RC",
+      role: "viewer",
+      isCreator: false,
+    });
   });
 });
 
@@ -120,4 +135,54 @@ Then("dismissed sharing invitation remains removed after reopening dialog", asyn
   await page.getByTitle("Close sharing dialog").click();
   await page.getByRole("button", { name: "Share", exact: true }).click();
   await expect(page.getByText(DECLINED_EMAIL, { exact: true })).not.toBeVisible();
+});
+
+When("I stage a role change on the active sharing row to viewer", async ({ page }) => {
+  await page.getByLabel(`Role for Active Contributor`).click();
+  await page.getByRole("option", { name: "Viewer" }).click();
+});
+
+When("I stage the removal of the additional sharing contributor", async ({ page }) => {
+  await page.getByTitle(`Remove Removable Contributor`).click();
+});
+
+Then("I see contributor change Save and Cancel controls", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
+});
+
+Then("I do not see contributor change Save and Cancel controls", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Save", exact: true })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).not.toBeVisible();
+});
+
+Then("I do not receive a contributor changes toast", async ({ page }) => {
+  await expect(page.getByText("Contributor changes saved.")).not.toBeVisible();
+});
+
+When("I cancel the contributor changes", async ({ page }) => {
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+Then("the active sharing row still shows the editor role", async ({ page }) => {
+  const row = page.getByText(ACTIVE_EMAIL, { exact: true }).locator("..").locator("..");
+  await expect(row).toContainText("Editor");
+  await expect(page.getByText("Contributor changes saved.")).not.toBeVisible();
+});
+
+When("I save the contributor changes", async ({ page }) => {
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+});
+
+Then("I receive a contributor changes toast", async ({ page }) => {
+  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
+});
+
+Then("I do not see the removed additional sharing contributor", async ({ page }) => {
+  await expect(page.getByText(REMOVABLE_EMAIL, { exact: true })).not.toBeVisible();
+});
+
+Then("the active sharing row role is updated to viewer", async ({ page }) => {
+  const row = page.getByText(ACTIVE_EMAIL, { exact: true }).locator("..").locator("..");
+  await expect(row).toContainText("Viewer");
 });

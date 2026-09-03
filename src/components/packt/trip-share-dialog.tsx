@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { X } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { inviteContributor } from "@/app/(app)/trips/actions";
 import {
@@ -9,13 +9,14 @@ import {
   getShareDialogData,
   rescindShareInvitation,
   resendShareInvitation,
+  saveContributorChanges,
 } from "@/app/(app)/trips/[tripId]/actions";
 import { TripShareCollaboratorRow } from "@/components/packt/trip-share-collaborator-row";
 import { type InvitationRowAction, TripShareInvitationRow } from "@/components/packt/trip-share-invitation-row";
 import { TripShareInviteForm } from "@/components/packt/trip-share-invite-form";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CollaboratorRole, type Collaborator, type Invitation } from "@/data/types";
+import { CollaboratorRole, type Collaborator, type ContributorChange, type Invitation } from "@/data/types";
 
 interface TripShareDialogProps {
   open: boolean;
@@ -45,6 +46,93 @@ function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactE
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<Record<string, InvitationRowAction>>({});
   const dismissedInvitationIdsRef = useRef(new Set<string>());
+  const [stagedChanges, setStagedChanges] = useState<Record<string, ContributorChange>>({});
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const hasPendingChanges = Object.keys(stagedChanges).length > 0;
+
+  function stageRoleChange(collaborator: Collaborator, role: CollaboratorRole): void {
+    const collaboratorId = collaborator.id;
+    if (!collaboratorId) return;
+    const originalCollaborator = data?.collaborators.find((item) => item.id === collaboratorId);
+    const fromRole = originalCollaborator?.role ?? collaborator.role;
+    setStagedChanges((currentChanges) => ({
+      ...currentChanges,
+      [collaboratorId]: {
+        type: "role",
+        collaboratorId,
+        fromRole,
+        toRole: role,
+      },
+    }));
+    setSaveError(null);
+  }
+
+  function stageRemoval(collaborator: Collaborator): void {
+    const collaboratorId = collaborator.id;
+    if (!collaboratorId) return;
+    setStagedChanges((currentChanges) => ({
+      ...currentChanges,
+      [collaboratorId]: { type: "remove", collaboratorId },
+    }));
+    setSaveError(null);
+  }
+
+  async function handleSaveChanges(): Promise<void> {
+    const changes = Object.values(stagedChanges);
+    if (changes.length === 0) return;
+    setIsSavingChanges(true);
+    setSaveError(null);
+    try {
+      const result = await saveContributorChanges(tripId, changes);
+      if (result.status === "error") {
+        setSaveError(result.message);
+        if (result.stale) {
+          setStagedChanges({});
+          try {
+            const refreshedData = await getShareDialogData(tripId);
+            setData({
+              ...refreshedData,
+              invitations: refreshedData.invitations.filter(
+                (invitation) => !dismissedInvitationIdsRef.current.has(invitation.id)
+              ),
+            });
+            setLoadError(false);
+          } catch {
+            // Save already failed with a specific message above; a failed refresh has nothing to add.
+          }
+        }
+        return;
+      }
+      setStagedChanges({});
+      const refreshedData = await getShareDialogData(tripId);
+      setData({
+        ...refreshedData,
+        invitations: refreshedData.invitations.filter(
+          (invitation) => !dismissedInvitationIdsRef.current.has(invitation.id)
+        ),
+      });
+      setLoadError(false);
+      toast.success("Contributor changes saved.");
+    } catch {
+      toast.error("Could not save changes.");
+    } finally {
+      setIsSavingChanges(false);
+    }
+  }
+
+  function handleCancelChanges(): void {
+    setStagedChanges({});
+    setSaveError(null);
+  }
+
+  function collaboratorWithStagedChanges(collaborator: Collaborator): Collaborator {
+    const staged = collaborator.id ? stagedChanges[collaborator.id] : undefined;
+    if (staged && staged.type === "role") {
+      return { ...collaborator, role: staged.toRole };
+    }
+    return collaborator;
+  }
   async function handleInvite(): Promise<void> {
     if (!email.trim()) return;
     setInviteLoading(true);
@@ -240,13 +328,28 @@ function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactE
 
       {data ? (
         <div className="flex flex-col gap-2">
-          {data.collaborators.map((collaborator) => (
-            <TripShareCollaboratorRow
-              collaborator={collaborator}
-              key={collaborator.id ?? collaborator.email}
-              roleLabel={roleLabel}
-            />
-          ))}
+          {data.collaborators.map((collaborator) => {
+            const staged = collaborator.id ? stagedChanges[collaborator.id] : undefined;
+            const pendingRemoval = staged?.type === "remove";
+            return (
+              <div key={collaborator.id ?? collaborator.email} style={{ opacity: pendingRemoval ? 0.5 : 1 }}>
+                <TripShareCollaboratorRow
+                  collaborator={collaboratorWithStagedChanges(collaborator)}
+                  onRemove={stageRemoval}
+                  onRoleChange={stageRoleChange}
+                  roleLabel={roleLabel}
+                />
+                {pendingRemoval ? (
+                  <p
+                    aria-label={`${collaborator.name} will be removed`}
+                    style={{ color: "var(--danger)", fontSize: "calc(12px * var(--font-scale))" }}
+                  >
+                    Will be removed on Save
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
           {data.invitations.map((invitation) => (
             <TripShareInvitationRow
               invitation={invitation}
@@ -258,6 +361,26 @@ function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactE
               roleLabel={roleLabel}
             />
           ))}
+        </div>
+      ) : null}
+
+      {saveError ? (
+        <p role="alert" style={{ color: "var(--danger)" }}>
+          {saveError}
+        </p>
+      ) : null}
+
+      {hasPendingChanges ? (
+        <div className="flex items-center justify-end gap-2" style={{ paddingTop: "8px" }}>
+          <Button className="h-11" disabled={isSavingChanges} onClick={handleCancelChanges} variant="ghost">
+            Cancel
+          </Button>
+          <Button className="h-11" disabled={isSavingChanges} onClick={() => void handleSaveChanges()}>
+            {isSavingChanges ? (
+              <LoaderCircle aria-label="Saving changes" className="animate-spin" size={16} strokeWidth={1.5} />
+            ) : null}
+            Save
+          </Button>
         </div>
       ) : null}
     </DialogContent>

@@ -559,6 +559,14 @@ export type DismissInvitationResult = { status: "success" } | { status: "error";
 
 export type ResendInvitationResult = { status: "success"; expiresAt: string } | { status: "error"; message: string };
 
+export type ContributorChange =
+  | { type: "role"; collaboratorId: string; fromRole: CollaboratorRole; toRole: CollaboratorRole }
+  | { type: "remove"; collaboratorId: string };
+
+export type SaveContributorChangesResult =
+  | { status: "success" }
+  | { status: "error"; message: string; stale?: boolean };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────
