@@ -3,9 +3,18 @@ import { db } from "@/db";
 import { invitations, trips, users } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import type { CollaboratorRole, PendingInvitation } from "@/data/types";
+import type { CollaboratorRole, PendingInvitation, ResendInvitationResult } from "@/data/types";
+import { assertTripAccess } from "@/lib/auth-helpers";
+import { getNow } from "@/lib/mock-date";
+import type { DbTransaction } from "@/lib/server-action-locks";
+
+type InvitationExecutor = Pick<DbTransaction, "select" | "update">;
 
 export const INVITE_TTL_HOURS = 72;
+
+export function getInvitationExpiry(now = getNow()): Date {
+  return new Date(now.getTime() + INVITE_TTL_HOURS * 60 * 60 * 1000);
+}
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -60,4 +69,47 @@ export async function getMyPendingInvitations(userEmail: string): Promise<Pendin
     role: row.role as CollaboratorRole,
     expiresAt: row.expiresAt.toISOString(),
   }));
+}
+
+/**
+ * Resets `expiresAt` (and optionally `role`) on a trip's pending invitation. Takes an `executor` so
+ * callers already inside a transaction (e.g. `inviteContributor`'s re-invite branch) can reuse this
+ * instead of hand-rolling the same update — the auth check stays with the standalone `resendInvitation`
+ * below since transactional callers have already authorized the caller themselves.
+ */
+export async function applyInvitationResend(
+  executor: InvitationExecutor,
+  invitationId: string,
+  tripId: string,
+  expiresAt: Date,
+  role?: CollaboratorRole
+): Promise<ResendInvitationResult> {
+  const [resentInvitation] = await executor
+    .update(invitations)
+    .set(role ? { expiresAt, role } : { expiresAt })
+    .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), eq(invitations.status, "pending")))
+    .returning({ id: invitations.id });
+
+  if (resentInvitation) {
+    return { status: "success", expiresAt: expiresAt.toISOString() };
+  }
+
+  const [invitation] = await executor
+    .select({ id: invitations.id, tripId: invitations.tripId })
+    .from(invitations)
+    .where(eq(invitations.id, invitationId));
+  return {
+    status: "error",
+    message: invitation && invitation.tripId === tripId ? "Invitation is no longer pending." : "Invitation not found.",
+  };
+}
+
+export async function resendInvitation(
+  invitationId: string,
+  tripId: string,
+  userId: string
+): Promise<ResendInvitationResult> {
+  await assertTripAccess(tripId, userId, "manager");
+
+  return applyInvitationResend(db, invitationId, tripId, getInvitationExpiry());
 }

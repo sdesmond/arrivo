@@ -555,6 +555,8 @@ export type DeclineInvitationResult = { status: "declined" } | { status: "error"
 
 export type RescindInvitationResult = { status: "success" } | { status: "error"; message: string };
 
+export type ResendInvitationResult = { status: "success"; expiresAt: string } | { status: "error"; message: string };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────
