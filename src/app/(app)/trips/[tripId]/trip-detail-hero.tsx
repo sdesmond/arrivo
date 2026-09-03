@@ -48,6 +48,8 @@ interface TripDetailHeroProps {
   dateFormat: string;
 
   onEdit: () => void;
+
+  onShare?: () => void;
 }
 
 function getCoverType(coverImageUrl?: string): CoverType {
@@ -62,7 +64,7 @@ function getCoverType(coverImageUrl?: string): CoverType {
   return "photo";
 }
 
-export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetailHeroProps): ReactElement {
+export function TripDetailHero({ detail, nowISO, dateFormat, onEdit, onShare }: TripDetailHeroProps): ReactElement {
   const now = new Date(nowISO);
 
   const { trip, days, unscheduledEvents, docs, collaborators, accessRole } = detail;
@@ -164,8 +166,8 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
               Edit
             </Button>
 
-            {canManage ? (
-              <Button variant="outline" size="sm">
+            {canManage && onShare ? (
+              <Button variant="outline" size="sm" onClick={onShare}>
                 <Share2 size={13} strokeWidth={1.5} />
                 Share
               </Button>

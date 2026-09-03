@@ -19,6 +19,7 @@ import {
 import { eq, and, max, gte, sql, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { getContributorsAndInvitations } from "@/lib/queries";
 import { deriveGraphicCover } from "@/lib/utils";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
 import {
@@ -40,6 +41,11 @@ import type {
 
 const MAX_TRIP_DAYS = 45;
 const CONCURRENT_MODIFICATION_ERROR = "CONCURRENT_MODIFICATION";
+
+export async function getShareDialogData(tripId: string) {
+  const user = await requireUser();
+  return getContributorsAndInvitations(tripId, user.id!);
+}
 
 type PositionExecutor = Pick<DbTransaction, "select" | "update" | "insert">;
 

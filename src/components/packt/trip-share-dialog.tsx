@@ -1,0 +1,247 @@
+"use client";
+
+import { useEffect, useState, type ReactElement } from "react";
+import { Lock, UserPlus, X } from "lucide-react";
+import { toast } from "sonner";
+import { getShareDialogData } from "@/app/(app)/trips/[tripId]/actions";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CollaboratorRole, type Collaborator, type Invitation } from "@/data/types";
+
+interface TripShareDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tripId: string;
+}
+
+interface ShareDialogData {
+  collaborators: Collaborator[];
+  invitations: Invitation[];
+}
+
+interface TripShareDialogContentProps {
+  tripId: string;
+  onOpenChange: (open: boolean) => void;
+}
+
+function roleLabel(role: CollaboratorRole): string {
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+function roleStyle(role: CollaboratorRole): { background: string; color: string } {
+  if (role === CollaboratorRole.Manager) {
+    return { background: "var(--accent-soft)", color: "var(--accent-ink)" };
+  }
+
+  return { background: "var(--surface-2)", color: "var(--fg-2)" };
+}
+
+function TripShareDialogContent({ tripId, onOpenChange }: TripShareDialogContentProps): ReactElement {
+  const [data, setData] = useState<ShareDialogData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<CollaboratorRole>(CollaboratorRole.Viewer);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let isCurrent = true;
+
+    async function loadData(): Promise<void> {
+      try {
+        const nextData = await getShareDialogData(tripId);
+        if (isCurrent) {
+          setData(nextData);
+          setLoadError(false);
+        }
+      } catch {
+        if (isCurrent) {
+          setData(null);
+          setLoadError(true);
+          toast.error("Could not load sharing details");
+        }
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    }
+
+    void loadData();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [tripId]);
+
+  return (
+    <DialogContent
+      showCloseButton={false}
+      className="overflow-y-auto sm:max-w-lg"
+      style={{ maxHeight: "min(42rem, calc(100% - 2rem))" }}
+    >
+      <DialogHeader className="pr-12">
+        <DialogTitle>Share trip</DialogTitle>
+        <p style={{ color: "var(--fg-3)" }}>Invite controls will be available in a later story.</p>
+      </DialogHeader>
+
+      <DialogClose
+        title="Close sharing dialog"
+        render={
+          <Button className="absolute top-2 right-2" size="icon-lg" title="Close sharing dialog" variant="ghost" />
+        }
+      >
+        <X size={18} strokeWidth={1.5} />
+        <span className="sr-only">Close sharing dialog</span>
+      </DialogClose>
+
+      <div
+        className="flex flex-col gap-2"
+        style={{ padding: "10px", border: "1px dashed var(--line-strong)", borderRadius: 8 }}
+      >
+        <span style={{ color: "var(--fg)", fontWeight: 500 }}>Invite person</span>
+        <Input
+          aria-label="Invite email"
+          className="h-11"
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Email"
+          type="email"
+          value={email}
+        />
+        <div className="flex items-center gap-2">
+          <Select value={role} onValueChange={(value) => setRole(value as CollaboratorRole)}>
+            <SelectTrigger aria-label="Invite role" className="h-11">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CollaboratorRole.Manager}>Manager</SelectItem>
+              <SelectItem value={CollaboratorRole.Editor}>Editor</SelectItem>
+              <SelectItem value={CollaboratorRole.Viewer}>Viewer</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            className="h-11"
+            disabled
+            size="sm"
+            title="Inviting people becomes available in a later story"
+            variant="outline"
+          >
+            <UserPlus size={16} strokeWidth={1.5} />
+            Invite
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <p aria-label="Loading sharing details" role="status" style={{ color: "var(--fg-3)" }}>
+          Loading sharing details…
+        </p>
+      ) : null}
+      {loadError ? <p style={{ color: "var(--fg-3)" }}>Could not load collaborators and invitations.</p> : null}
+
+      {data ? (
+        <div className="flex flex-col gap-2">
+          {data.collaborators.map((collaborator) => (
+            <div
+              className="flex items-center gap-2"
+              key={collaborator.id ?? collaborator.email}
+              style={{ padding: "6px 8px", borderRadius: 8, background: "var(--surface-2)" }}
+            >
+              <span
+                className="flex shrink-0 items-center justify-center rounded-full"
+                style={{
+                  width: 28,
+                  height: 28,
+                  fontSize: "calc(10px * var(--font-scale))",
+                  fontWeight: 700,
+                  letterSpacing: "0.04em",
+                  background: collaborator.tint?.bg ?? "var(--accent-soft)",
+                  color: collaborator.tint?.fg ?? "var(--accent-ink)",
+                }}
+              >
+                {collaborator.initials}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
+                  {collaborator.name}
+                </div>
+                <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+                  {collaborator.email}
+                </div>
+              </div>
+              {collaborator.isCreator ? (
+                <span
+                  aria-label="Trip creator — access can't be changed"
+                  className="flex size-11 shrink-0 items-center justify-center"
+                  style={{ color: "var(--fg-4)" }}
+                >
+                  <Lock size={16} strokeWidth={1.5} />
+                </span>
+              ) : (
+                <span
+                  className="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium"
+                  style={roleStyle(collaborator.role)}
+                >
+                  {roleLabel(collaborator.role)}
+                </span>
+              )}
+            </div>
+          ))}
+
+          {data.invitations.map((invitation) => {
+            const isPending = invitation.status === "pending";
+            return (
+              <div
+                className="flex items-center gap-2"
+                key={invitation.id}
+                style={{ padding: "6px 8px", borderRadius: 8, background: "var(--surface-2)" }}
+              >
+                <span
+                  className="flex shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    fontSize: "calc(10px * var(--font-scale))",
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    background: "var(--accent-soft)",
+                    color: "var(--accent-ink)",
+                  }}
+                >
+                  {invitation.email.slice(0, 2).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg)" }}>
+                    {invitation.email}
+                  </div>
+                  <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+                    {roleLabel(invitation.role)} access
+                  </div>
+                </div>
+                <span
+                  className="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium"
+                  style={
+                    isPending
+                      ? { background: "var(--warning-soft)", color: "var(--warning-ink)" }
+                      : { background: "var(--surface-3)", color: "var(--fg-3)" }
+                  }
+                >
+                  {isPending ? "Pending" : "Declined"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </DialogContent>
+  );
+}
+
+export function TripShareDialog({ open, onOpenChange, tripId }: TripShareDialogProps): ReactElement {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? <TripShareDialogContent key={tripId} tripId={tripId} onOpenChange={onOpenChange} /> : null}
+    </Dialog>
+  );
+}

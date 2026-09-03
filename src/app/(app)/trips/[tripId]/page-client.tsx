@@ -8,6 +8,7 @@ import { TripDetailTabBar } from "./trip-detail-tab-bar";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
+import { TripShareDialog } from "@/components/packt/trip-share-dialog";
 import { BudgetStatus, CollaboratorRole, TripDetailTab } from "@/data/types";
 import {
   calculateActual,
@@ -82,6 +83,7 @@ export function TripDetailClient({
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TripDetailTabValue>(initialActiveTab);
   const [editingTrip, setEditingTrip] = useState(false);
+  const [sharingTrip, setSharingTrip] = useState(false);
   const [highlightTripDates, setHighlightTripDates] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
   const [pendingCurrencyChangeMode, setPendingCurrencyChangeMode] = useState<TripCurrencyChangeMode | undefined>(
@@ -207,7 +209,13 @@ export function TripDetailClient({
         <span key={announcementId}>{reservationsAnnouncement}</span>
       </div>
 
-      <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
+      <TripDetailHero
+        detail={detail}
+        nowISO={nowISO}
+        dateFormat={dateFormat}
+        onEdit={() => setEditingTrip(true)}
+        onShare={canManage ? () => setSharingTrip(true) : undefined}
+      />
 
       <TripDetailTabBar
         tabs={tabs}
@@ -313,6 +321,7 @@ export function TripDetailClient({
         onDelete={canManage ? handlers.handleDeleteTrip : undefined}
         isDeleting={handlers.isDeleting}
       />
+      {canManage ? <TripShareDialog open={sharingTrip} onOpenChange={setSharingTrip} tripId={trip.id} /> : null}
       {isNew ? <TripConfetti tripId={trip.id} /> : null}
     </div>
   );
