@@ -2,7 +2,7 @@
 title: "Manager has full trip control and a protected creator seat"
 type: "feature"
 created: "2026-09-02"
-status: "in-review"
+status: "done"
 baseline_commit: "08a732a3cfdc1ab4de8ef7019a05e17f37dffe34"
 review_loop_iteration: 0
 context: []
