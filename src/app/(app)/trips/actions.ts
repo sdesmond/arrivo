@@ -20,6 +20,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type {
   AcceptInvitationResult,
+  ContributorChange,
   CreateTripInput,
   UpdateTripPatch,
   AddCollaboratorInput,
@@ -27,6 +28,7 @@ import type {
   DismissInvitationResult,
   InviteContributorResult,
   RescindInvitationResult,
+  SaveContributorChangesResult,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
@@ -935,14 +937,18 @@ export async function dismissInvitation(tripId: string, invitationId: string): P
   return { status: "success" };
 }
 
+function assertNotCreator(collab: { isCreator: boolean | null }, message: string): void {
+  if (collab.isCreator) {
+    throw new Error(message);
+  }
+}
+
 export async function removeCollaborator(collabId: string) {
   const user = await requireUser();
   const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
   if (!collab) return;
   await assertTripAccess(collab.tripId, user.id!, "manager");
-  if (collab.isCreator) {
-    throw new Error("The trip creator's seat cannot be removed.");
-  }
+  assertNotCreator(collab, "The trip creator's seat cannot be removed.");
   await db.delete(collaborators).where(eq(collaborators.id, collabId));
   revalidatePath(`/trips/${collab.tripId}`);
 }
@@ -952,11 +958,106 @@ export async function updateCollaboratorRole(collabId: string, role: "editor" | 
   const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
   if (!collab) return;
   await assertTripAccess(collab.tripId, user.id!, "manager");
-  if (collab.isCreator) {
-    throw new Error("The trip creator's seat cannot be changed.");
-  }
+  assertNotCreator(collab, "The trip creator's seat cannot be changed.");
   await db.update(collaborators).set({ role }).where(eq(collaborators.id, collabId));
   revalidatePath(`/trips/${collab.tripId}`);
+}
+
+/**
+ * Thrown for expected, user-facing rejections inside `saveContributorChanges`'s transaction.
+ * `stale` marks a concurrent-edit guard failure (row gone, or its role changed since staging) so the
+ * caller knows to refetch; unexpected errors are left as plain `Error`s and rethrown, not wrapped here.
+ */
+class ContributorChangeGuardError extends Error {
+  readonly stale: boolean;
+
+  constructor(message: string, options?: { stale?: boolean }) {
+    super(message);
+    this.stale = options?.stale ?? false;
+  }
+}
+
+/**
+ * Applies a batch of role/removal changes for collaborators on a trip, all-or-nothing, in a single
+ * transaction. The server is authoritative: every change is validated against the DB regardless of
+ * what the dialog staged, and the whole batch is rejected if any single change fails.
+ */
+export async function saveContributorChanges(
+  tripId: string,
+  changes: ContributorChange[]
+): Promise<SaveContributorChangesResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "manager");
+
+  if (changes.length === 0) {
+    return { status: "success" };
+  }
+
+  const VALID_ROLES = Object.values(CollaboratorRole);
+  for (const change of changes) {
+    if (change.type !== "role" && change.type !== "remove") {
+      return { status: "error", message: "Invalid change type" };
+    }
+    if (change.type === "role" && !VALID_ROLES.includes(change.toRole)) {
+      return { status: "error", message: "Invalid collaborator role" };
+    }
+  }
+  const changedCollaboratorIds = changes.map((change) => change.collaboratorId);
+  if (new Set(changedCollaboratorIds).size !== changedCollaboratorIds.length) {
+    return { status: "error", message: "Duplicate change for the same contributor" };
+  }
+
+  try {
+    await db.transaction(async (transaction) => {
+      await lockTripForUpdate(transaction, tripId);
+
+      const collaboratorsOnTrip = await transaction
+        .select()
+        .from(collaborators)
+        .where(eq(collaborators.tripId, tripId));
+      const collaboratorById = new Map(collaboratorsOnTrip.map((collaborator) => [collaborator.id, collaborator]));
+
+      const myRow = collaboratorsOnTrip.find((collaborator) => collaborator.userId === user.id);
+      const myRowId = myRow?.id;
+
+      for (const change of changes) {
+        const target = collaboratorById.get(change.collaboratorId);
+        if (!target || target.tripId !== tripId) {
+          throw new ContributorChangeGuardError("One or more contributors are no longer on this trip.", {
+            stale: true,
+          });
+        }
+        if (target.isCreator) {
+          throw new ContributorChangeGuardError("The trip creator's seat cannot be changed.");
+        }
+        if (target.id === myRowId) {
+          throw new ContributorChangeGuardError("You cannot change your own access.");
+        }
+
+        if (change.type === "role") {
+          if (target.role !== change.fromRole) {
+            throw new ContributorChangeGuardError("A contributor's role changed since you started editing.", {
+              stale: true,
+            });
+          }
+          await transaction
+            .update(collaborators)
+            .set({ role: change.toRole })
+            .where(eq(collaborators.id, change.collaboratorId));
+        } else {
+          await transaction.delete(collaborators).where(eq(collaborators.id, change.collaboratorId));
+        }
+      }
+    });
+
+    revalidatePath(`/trips/${tripId}`);
+    return { status: "success" };
+  } catch (error) {
+    if (error instanceof ContributorChangeGuardError) {
+      return { status: "error", message: error.message, stale: error.stale };
+    }
+    throw error;
+  }
 }
 
 export async function addPackingItem(tripId: string, input: import("@/data/types").AddPackingItemInput): Promise<void> {
