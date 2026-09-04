@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import type { Invitation } from "@/data/types";
 import { TripShareInvitationRow } from "./trip-share-invitation-row";
+
+const NOW_ISO = "2026-06-15T12:00:00.000Z";
 
 const pendingInvitation: Invitation = {
   id: "pending-1",
@@ -11,6 +14,13 @@ const pendingInvitation: Invitation = {
   role: "viewer",
   status: "pending",
   tripId: "trip-1",
+};
+
+const expiredPendingInvitation: Invitation = {
+  ...pendingInvitation,
+  id: "expired-pending-1",
+  email: "expired-pending@example.com",
+  expiresAt: "2026-01-01T00:00:00.000Z",
 };
 
 const declinedInvitation: Invitation = {
@@ -71,6 +81,45 @@ describe("TripShareInvitationRow", () => {
 
     expect(screen.getByTitle("Dismiss invitation to declined@example.com")).toBeDisabled();
     expect(screen.getByLabelText("Dismissing invitation")).toBeInTheDocument();
+  });
+
+  it("shows an Expired badge, but still offers resend and rescind, for an expired pending invitation", () => {
+    render(
+      <MockDateProvider initialISO={NOW_ISO}>
+        <TripShareInvitationRow
+          invitation={expiredPendingInvitation}
+          onDismiss={vi.fn()}
+          onRescind={vi.fn()}
+          onResend={vi.fn()}
+          pendingAction={null}
+          roleLabel={(role) => role}
+        />
+      </MockDateProvider>
+    );
+
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Resend invitation to expired-pending@example.com")).toBeEnabled();
+    expect(screen.getByTitle("Rescind invitation to expired-pending@example.com")).toBeEnabled();
+    expect(screen.queryByTitle("Dismiss invitation to expired-pending@example.com")).not.toBeInTheDocument();
+  });
+
+  it("shows a Pending badge for a pending invitation that has not expired yet", () => {
+    render(
+      <MockDateProvider initialISO={NOW_ISO}>
+        <TripShareInvitationRow
+          invitation={pendingInvitation}
+          onDismiss={vi.fn()}
+          onRescind={vi.fn()}
+          onResend={vi.fn()}
+          pendingAction={null}
+          roleLabel={(role) => role}
+        />
+      </MockDateProvider>
+    );
+
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.queryByText("Expired")).not.toBeInTheDocument();
   });
 
   it.each(["accepted", "expired", "rescinded"] as const)("does not render a terminal %s invitation", (status) => {
