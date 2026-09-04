@@ -15,7 +15,17 @@ import {
 } from "@/db/schema";
 import { headers } from "next/headers";
 
-const { assertTripAccess, db, recalculateAll, requireUser, revalidatePath } = vi.hoisted(() => ({
+const {
+  assertTripAccess,
+  db,
+  publishTripEvent,
+  publishUserEvent,
+  purgeTripTopic,
+  recalculateAll,
+  removeTripSubscribersForUser,
+  requireUser,
+  revalidatePath,
+} = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   db: {
     delete: vi.fn(),
@@ -24,7 +34,11 @@ const { assertTripAccess, db, recalculateAll, requireUser, revalidatePath } = vi
     transaction: vi.fn(),
     update: vi.fn(),
   },
+  publishTripEvent: vi.fn(),
+  publishUserEvent: vi.fn(),
+  purgeTripTopic: vi.fn(),
   recalculateAll: vi.fn(),
+  removeTripSubscribersForUser: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -36,6 +50,13 @@ vi.mock("@/lib/auth-helpers", () => ({
 
 vi.mock("@/db", () => ({
   db,
+}));
+
+vi.mock("@/lib/trip-events", () => ({
+  publishTripEvent,
+  publishUserEvent,
+  purgeTripTopic,
+  removeTripSubscribersForUser,
 }));
 
 vi.mock("@/lib/currency", () => ({
@@ -129,6 +150,7 @@ import {
 } from "./actions";
 import { searchCoverImages } from "./cover-image-search-actions";
 import {
+  LiveSyncEventType,
   TransitMode,
   TripDateConflictResolution,
   type InvitationStatus,
@@ -148,6 +170,53 @@ describe("manager-gated trip actions", () => {
 
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
     expect(db.delete).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteTrip", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    assertTripAccess.mockResolvedValue("manager");
+    db.select.mockReturnValue({
+      from: () => ({
+        where: async () => [],
+      }),
+    });
+    db.delete.mockReturnValue({
+      where: async () => {},
+    });
+  });
+
+  it("publishes trip-deleted and purges the topic after the delete commits, before revalidating", async () => {
+    await deleteTrip("trip-1");
+
+    expect(db.delete).toHaveBeenCalledWith(trips);
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.TripDeleted,
+      tripId: "trip-1",
+    });
+    expect(purgeTripTopic).toHaveBeenCalledWith("trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+
+    const deleteOrder = db.delete.mock.invocationCallOrder[0];
+    const publishOrder = publishTripEvent.mock.invocationCallOrder[0];
+    const purgeOrder = purgeTripTopic.mock.invocationCallOrder[0];
+    const revalidateOrder = revalidatePath.mock.invocationCallOrder[0];
+    expect(deleteOrder).toBeLessThan(publishOrder);
+    expect(publishOrder).toBeLessThan(purgeOrder);
+    expect(purgeOrder).toBeLessThan(revalidateOrder);
+    expect(publishOrder).toBeLessThan(revalidateOrder);
+  });
+
+  it("does not publish or purge when access is denied", async () => {
+    assertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(deleteTrip("trip-1")).rejects.toThrow("not found");
+
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(purgeTripTopic).not.toHaveBeenCalled();
   });
 });
 
@@ -160,6 +229,7 @@ interface SaveContributorChangesFixture {
     isCreator: boolean | null;
     email: string;
   }>;
+  tripName?: string;
 }
 
 function setupSaveContributorChangesDb({
@@ -173,6 +243,7 @@ function setupSaveContributorChangesDb({
       email: "peer@example.com",
     },
   ],
+  tripName = "Test Trip",
 }: SaveContributorChangesFixture = {}) {
   const operations = {
     deletes: [] as Array<{ table: unknown; condition: unknown }>,
@@ -184,6 +255,7 @@ function setupSaveContributorChangesDb({
       from: (table: unknown) => ({
         where: async () => {
           if (table === collaborators) return collaboratorRows;
+          if (table === trips) return [{ name: tripName }];
           throw new Error("Unexpected table read in saveContributorChanges fixture.");
         },
       }),
@@ -204,6 +276,9 @@ function setupSaveContributorChangesDb({
   db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
     callback(transaction)
   );
+  db.select.mockImplementation(() => {
+    throw new Error("Trip name must be read while the contributor transaction is locked.");
+  });
   return operations;
 }
 
@@ -250,6 +325,84 @@ describe("saveContributorChanges", () => {
     ]);
     expect(operations.deletes).toHaveLength(1);
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+
+    // The role change alone publishes nothing this story; only the removal does.
+    expect(publishUserEvent).toHaveBeenCalledOnce();
+    expect(publishUserEvent).toHaveBeenCalledWith("user-viewer", {
+      type: LiveSyncEventType.MembershipRemoved,
+      removedUserId: "user-viewer",
+      tripId: "trip-1",
+      tripName: "Test Trip",
+      removedByName: "manager@example.com",
+      removedByEmail: "manager@example.com",
+    });
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
+    expect(removeTripSubscribersForUser).toHaveBeenCalledWith("trip-1", "user-viewer");
+  });
+
+  it("publishes nothing when the batch is role changes only", async () => {
+    setupSaveContributorChangesDb();
+
+    await expect(
+      saveContributorChanges("trip-1", [
+        { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "manager" },
+      ])
+    ).resolves.toEqual({ status: "success" });
+
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(removeTripSubscribersForUser).not.toHaveBeenCalled();
+  });
+
+  it("publishes nothing when a removal targets a collaborator with no linked user account", async () => {
+    setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-orphan",
+          tripId: "trip-1",
+          userId: null,
+          role: "viewer",
+          isCreator: false,
+          email: "orphan@example.com",
+        },
+      ],
+    });
+
+    await expect(
+      saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-orphan" }])
+    ).resolves.toEqual({ status: "success" });
+
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(removeTripSubscribersForUser).not.toHaveBeenCalled();
+  });
+
+  it("publishes nothing when the batch is rejected", async () => {
+    const operations = setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-creator",
+          tripId: "trip-1",
+          userId: "creator-user",
+          role: "manager",
+          isCreator: true,
+          email: "creator@example.com",
+        },
+      ],
+    });
+
+    const result = await saveContributorChanges("trip-1", [
+      { type: "role", collaboratorId: "collab-creator", fromRole: "manager", toRole: "editor" },
+    ]);
+
+    expect(result.status).toBe("error");
+    expect(operations.deletes).toEqual([]);
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(removeTripSubscribersForUser).not.toHaveBeenCalled();
   });
 
   it("rejects the whole batch when a change targets the trip creator", async () => {
@@ -1302,6 +1455,14 @@ describe("acceptInvitation", () => {
     expect(db.transaction).toHaveBeenCalledOnce();
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
+    expect(publishUserEvent).toHaveBeenCalledWith("user-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("returns an expired error and creates no collaborator when the invitation is past expiresAt", async () => {
@@ -1320,6 +1481,8 @@ describe("acceptInvitation", () => {
     });
     expect(operations.inserts).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(publishUserEvent).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when the invitation was already accepted or declined", async () => {
@@ -1441,6 +1604,14 @@ describe("declineInvitation", () => {
     ]);
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
+    expect(publishUserEvent).toHaveBeenCalledWith("user-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("returns a generic error when the invitation is already resolved", async () => {
@@ -1457,6 +1628,8 @@ describe("declineInvitation", () => {
       status: "error",
       message: "This invitation is no longer pending.",
     });
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(publishUserEvent).not.toHaveBeenCalled();
   });
 
   it("returns an expired error when the invitation can no longer be declined", async () => {
@@ -1606,6 +1779,11 @@ describe("rescindInvitation", () => {
     ]);
     expect(inspect(operations.updates[0]?.condition, { depth: 8 })).toContain("pending");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
+    expect(publishUserEvent).not.toHaveBeenCalled();
   });
 
   it.each(["rescinded", "accepted", "declined"])("rejects an already-%s invitation", async () => {
@@ -1626,6 +1804,7 @@ describe("rescindInvitation", () => {
     // rows here (since `matchedRow` is unset), but this assertion on the composed WHERE clause fails.
     expect(inspect(operations.updates[0]?.condition, { depth: 8 })).toContain("pending");
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
   });
 
   it("rejects an invitation that belongs to a different trip", async () => {

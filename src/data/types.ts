@@ -672,6 +672,31 @@ export interface UpdatePackingTemplatePatch {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LIVE SYNC EVENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const LiveSyncEventType = {
+  ItineraryChanged: "itinerary-changed",
+  MembershipChanged: "membership-changed",
+  MembershipRemoved: "membership-removed",
+  TripDeleted: "trip-deleted",
+} as const;
+export type LiveSyncEventType = (typeof LiveSyncEventType)[keyof typeof LiveSyncEventType];
+
+export type LiveSyncEvent =
+  | { type: typeof LiveSyncEventType.ItineraryChanged; tripId: string }
+  | { type: typeof LiveSyncEventType.MembershipChanged; tripId: string }
+  | {
+      type: typeof LiveSyncEventType.MembershipRemoved;
+      removedUserId: string;
+      tripId: string;
+      tripName: string;
+      removedByName: string;
+      removedByEmail: string;
+    }
+  | { type: typeof LiveSyncEventType.TripDeleted; tripId: string };
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PACKING TEMPLATE ITEM
 // ─────────────────────────────────────────────────────────────────────────────
 

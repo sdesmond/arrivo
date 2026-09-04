@@ -17,6 +17,7 @@ const {
   mockDismissInvitation,
   mockGetContributorsAndInvitations,
   mockGetStorageAdapter,
+  mockPublishTripEvent,
   mockRescindInvitation,
   mockResendInvitation,
   mockSaveContributorChanges,
@@ -37,6 +38,7 @@ const {
   const mockDismissInvitation = vi.fn();
   const mockGetContributorsAndInvitations = vi.fn();
   const mockGetStorageAdapter = vi.fn();
+  const mockPublishTripEvent = vi.fn();
   const mockRescindInvitation = vi.fn();
   const mockResendInvitation = vi.fn();
   const mockSaveContributorChanges = vi.fn();
@@ -67,6 +69,7 @@ const {
     mockDismissInvitation,
     mockGetContributorsAndInvitations,
     mockGetStorageAdapter,
+    mockPublishTripEvent,
     mockRescindInvitation,
     mockResendInvitation,
     mockSaveContributorChanges,
@@ -108,6 +111,10 @@ vi.mock("@/lib/queries", () => ({
   getContributorsAndInvitations: mockGetContributorsAndInvitations,
 }));
 
+vi.mock("@/lib/trip-events", () => ({
+  publishTripEvent: mockPublishTripEvent,
+}));
+
 vi.mock("../actions", () => ({
   dismissInvitation: mockDismissInvitation,
   rescindInvitation: mockRescindInvitation,
@@ -137,6 +144,8 @@ import {
   addChecklistFromPackingSource,
   addDay,
   createEvent,
+  deleteEvent,
+  deleteEventWithDocDecision,
   deleteTripNote,
   createTripNote,
   dismissShareInvitation,
@@ -148,12 +157,14 @@ import {
   reorderTripNotes,
   setTripCoverWithAttribution,
   uploadCoverImage,
+  updateEvent,
   updateTripNote,
   rescindShareInvitation,
   resendShareInvitation,
   saveContributorChanges,
 } from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
+import { LiveSyncEventType } from "@/data/types";
 
 interface ReorderTransactionFixture {
   currentChecklists?: Array<{ id: string }>;
@@ -347,6 +358,10 @@ describe("createEvent", () => {
       }),
     ]);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("fails when the day disappears before locked insert work begins", async () => {
@@ -363,6 +378,113 @@ describe("createEvent", () => {
     await expect(createEvent("day-1", { name: "Museum" })).rejects.toThrow("Day not found");
 
     expect(transaction.insert).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateEvent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+    mockDbUpdate.mockReturnValue({
+      set: vi.fn(() => ({
+        where: vi.fn(async () => {}),
+      })),
+    });
+  });
+
+  it("updates the event and publishes itinerary-changed before revalidating", async () => {
+    await updateEvent("event-1", { name: "Renamed" });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("does not publish when access is denied", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(updateEvent("event-1", { name: "Renamed" })).rejects.toThrow("not found");
+
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteEvent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockImplementation((columns?: unknown) => {
+      if (columns && typeof columns === "object" && "url" in (columns as Record<string, unknown>)) {
+        return createSimpleSelect([]);
+      }
+      return createSimpleSelect([{ tripId: "trip-1" }]);
+    });
+    mockDbDelete.mockReturnValue({ where: vi.fn(async () => {}) });
+  });
+
+  it("deletes the event and publishes itinerary-changed before revalidating", async () => {
+    await deleteEvent("event-1");
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("does not publish when access is denied", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(deleteEvent("event-1")).rejects.toThrow("not found");
+
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteEventWithDocDecision", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+  });
+
+  it("commits the transaction, publishes itinerary-changed, and revalidates", async () => {
+    const transaction = {
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => {}) })) })),
+      delete: vi.fn(() => ({ where: vi.fn(async () => {}) })),
+    };
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await deleteEventWithDocDecision("event-1", true);
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("does not publish when access is denied", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(deleteEventWithDocDecision("event-1", true)).rejects.toThrow("not found");
+
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });
@@ -1098,6 +1220,10 @@ describe("addDay", () => {
     expect(inserts[0]).toMatchObject({ tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" });
     expect(tripUpdates).toHaveLength(0);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("appends a dated day and updates trip endDate when the trip is scheduled", async () => {
@@ -1192,6 +1318,7 @@ describe("removeLastDay", () => {
     });
 
     await expect(removeLastDay("trip-1")).rejects.toThrow("Cannot remove the only remaining day.");
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
   });
 
   it("removes last day of a multi-day dateless trip without updating trip dates", async () => {
@@ -1211,6 +1338,10 @@ describe("removeLastDay", () => {
     expect(deletes).toHaveLength(1);
     expect(tripUpdates).toHaveLength(0);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("removes last day of a scheduled multi-day trip and updates trip endDate", async () => {
@@ -1249,6 +1380,7 @@ describe("removeLastDay", () => {
 
     expect(result).toEqual({ status: "confirmation-required", hasPlannedContent: true });
     expect(deletes).toHaveLength(0);
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
   });
 });
 
