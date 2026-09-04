@@ -654,7 +654,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     uniqueEmail,
     async refreshCurrentPage(page: Page): Promise<void> {
       await page.reload();
-      await page.waitForLoadState("networkidle");
+      await page.waitForLoadState("domcontentloaded");
     },
     async rememberTripByName(name: string): Promise<ScenarioTripRecord> {
       const owner =

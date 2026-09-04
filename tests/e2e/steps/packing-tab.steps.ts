@@ -227,7 +227,7 @@ async function waitForPackingItemPosition(
 
 async function keyboardMovePackingItemDownOnePosition(page: Page, name: string): Promise<void> {
   const dragHandle = page.getByTitle(`Reorder ${name}`);
-  const statusEl = page.getByRole("status");
+  const statusEl = page.getByRole("status").filter({ hasText: "was moved over" });
 
   for (let attemptIndex = 0; attemptIndex < 3; attemptIndex += 1) {
     await expect(dragHandle).toBeVisible({ timeout: 10_000 });

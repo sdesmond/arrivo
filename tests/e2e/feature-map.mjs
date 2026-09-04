@@ -134,6 +134,7 @@ export const FEATURE_MAP = [
     "src/lib/route.ts",
     "src/app/(app)/trips/[tripId]/route-actions.ts",
   ]),
+  entry("sync-status", ["src/components/packt/sync-status-indicator.tsx"]),
   entry("spending", [
     "src/components/packt/spending-view.tsx",
     "src/components/packt/spending-date-filter.tsx",

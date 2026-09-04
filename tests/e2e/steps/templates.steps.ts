@@ -88,7 +88,7 @@ Then(
 );
 
 Then("I should see a template validation error", async ({ page }) => {
-  await expect(page.getByRole("status")).toHaveText("Template name is required.");
+  await expect(page.getByRole("status").filter({ hasText: "Template name is required." })).toBeVisible();
 });
 
 Then("the create template button should be disabled", async ({ page }) => {

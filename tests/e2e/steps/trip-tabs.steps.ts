@@ -63,7 +63,8 @@ When("I open the {string} trip tab", async ({ page }, label: string) => {
 
 When("I reload the browser page", async ({ page }) => {
   await page.reload();
-  await page.waitForLoadState("networkidle");
+  // "networkidle" never resolves once the app-shell's SyncStatusIndicator opens its persistent SSE connection.
+  await page.waitForLoadState("domcontentloaded");
 });
 
 When("I go back in the browser", async ({ page }) => {
