@@ -15,6 +15,7 @@ const {
   mockAdapterPut,
   mockDeriveGraphicCover,
   mockDismissInvitation,
+  mockGetContributorsAndInvitations,
   mockGetStorageAdapter,
   mockRescindInvitation,
   mockResendInvitation,
@@ -34,6 +35,7 @@ const {
   const mockAdapterPut = vi.fn();
   const mockDeriveGraphicCover = vi.fn((title: string) => `graphic:${title}`);
   const mockDismissInvitation = vi.fn();
+  const mockGetContributorsAndInvitations = vi.fn();
   const mockGetStorageAdapter = vi.fn();
   const mockRescindInvitation = vi.fn();
   const mockResendInvitation = vi.fn();
@@ -63,6 +65,7 @@ const {
     mockAdapterPut,
     mockDeriveGraphicCover,
     mockDismissInvitation,
+    mockGetContributorsAndInvitations,
     mockGetStorageAdapter,
     mockRescindInvitation,
     mockResendInvitation,
@@ -101,6 +104,10 @@ vi.mock("@/lib/invitations", () => ({
   resendInvitation: mockResendInvitation,
 }));
 
+vi.mock("@/lib/queries", () => ({
+  getContributorsAndInvitations: mockGetContributorsAndInvitations,
+}));
+
 vi.mock("../actions", () => ({
   dismissInvitation: mockDismissInvitation,
   rescindInvitation: mockRescindInvitation,
@@ -133,6 +140,7 @@ import {
   deleteTripNote,
   createTripNote,
   dismissShareInvitation,
+  getShareDialogData,
   removeDocument,
   removeLastDay,
   removeTripCover,
@@ -205,6 +213,19 @@ describe("share invitation actions", () => {
     mockRescindInvitation.mockResolvedValue({ status: "success" });
     mockDismissInvitation.mockResolvedValue({ status: "success" });
     mockSaveContributorChanges.mockResolvedValue({ status: "success" });
+    mockGetContributorsAndInvitations.mockResolvedValue({ collaborators: [], invitations: [] });
+  });
+
+  it("delegates to getContributorsAndInvitations with the caller's id", async () => {
+    await expect(getShareDialogData("trip-1")).resolves.toEqual({ collaborators: [], invitations: [] });
+
+    expect(mockGetContributorsAndInvitations).toHaveBeenCalledWith("trip-1", "manager-1");
+  });
+
+  it("propagates a rejection from getContributorsAndInvitations", async () => {
+    mockGetContributorsAndInvitations.mockRejectedValue(new Error("not found"));
+
+    await expect(getShareDialogData("trip-1")).rejects.toThrow("not found");
   });
 
   it("delegates a resend before revalidating the trip", async () => {

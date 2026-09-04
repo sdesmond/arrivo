@@ -352,13 +352,7 @@ export async function getContributorsAndInvitations(
       .select()
       .from(invitations)
       .where(
-        and(
-          eq(invitations.tripId, tripId),
-          or(
-            and(eq(invitations.status, "pending"), sql`${invitations.expiresAt} > now()`),
-            eq(invitations.status, "declined")
-          )
-        )
+        and(eq(invitations.tripId, tripId), or(eq(invitations.status, "pending"), eq(invitations.status, "declined")))
       ),
   ]);
 

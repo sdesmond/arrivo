@@ -3,6 +3,7 @@
 import type { ReactElement } from "react";
 import { LoaderCircle, RotateCw, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNow } from "@/components/providers/mock-date-provider";
 import type { CollaboratorRole, Invitation } from "@/data/types";
 
 export type InvitationRowAction = "dismiss" | "rescind" | "resend";
@@ -34,8 +35,10 @@ export function TripShareInvitationRow({
   pendingAction,
   roleLabel,
 }: TripShareInvitationRowProps): ReactElement | null {
+  const now = useNow();
   const isPending = invitation.status === "pending";
   const isDeclined = invitation.status === "declined";
+  const isExpired = isPending && new Date(invitation.expiresAt).getTime() <= now.getTime();
   const isRowActionPending = pendingAction !== null;
   const isResendPending = pendingAction === "resend";
   const isRescindPending = pendingAction === "rescind";
@@ -78,20 +81,22 @@ export function TripShareInvitationRow({
         <span
           className="inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium"
           style={
-            isPending
-              ? { background: "var(--warning-soft)", color: "var(--warning-ink)" }
-              : { background: "var(--surface-3)", color: "var(--fg-3)" }
+            isExpired
+              ? { background: "var(--surface-3)", color: "var(--fg-3)" }
+              : isPending
+                ? { background: "var(--warning-soft)", color: "var(--warning-ink)" }
+                : { background: "var(--surface-3)", color: "var(--fg-3)" }
           }
         >
-          {isPending ? "Pending" : "Declined"}
+          {isExpired ? "Expired" : isPending ? "Pending" : "Declined"}
         </span>
         {isPending ? (
           <span
-            aria-label={`Invitation expires ${formatInvitationExpiry(invitation.expiresAt)}`}
+            aria-label={`Invitation ${isExpired ? "expired" : "expires"} ${formatInvitationExpiry(invitation.expiresAt)}`}
             className="text-xs"
             style={{ color: "var(--fg-3)" }}
           >
-            Expires {formatInvitationExpiry(invitation.expiresAt)}
+            {isExpired ? "Expired" : "Expires"} {formatInvitationExpiry(invitation.expiresAt)}
           </span>
         ) : null}
       </div>

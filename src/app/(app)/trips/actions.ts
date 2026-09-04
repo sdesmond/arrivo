@@ -23,7 +23,6 @@ import type {
   ContributorChange,
   CreateTripInput,
   UpdateTripPatch,
-  AddCollaboratorInput,
   DeclineInvitationResult,
   DismissInvitationResult,
   InviteContributorResult,
@@ -659,24 +658,6 @@ export async function deleteTrip(tripId: string) {
   revalidatePath("/trips");
 }
 
-export async function addCollaborator(tripId: string, input: AddCollaboratorInput) {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "manager");
-  await db
-    .insert(collaborators)
-    .values({
-      tripId,
-      email: input.email,
-      name: input.name,
-      initials: input.initials,
-      role: input.role,
-      tintBg: input.tintBg,
-      tintFg: input.tintFg,
-    })
-    .onConflictDoNothing();
-  revalidatePath(`/trips/${tripId}`);
-}
-
 const VALID_COLLABORATOR_ROLES = Object.values(CollaboratorRole);
 
 function isCollaboratorRole(value: string): value is CollaboratorRole {
@@ -937,30 +918,14 @@ export async function dismissInvitation(tripId: string, invitationId: string): P
   return { status: "success" };
 }
 
-function assertNotCreator(collab: { isCreator: boolean | null }, message: string): void {
+function assertNotCreator(
+  collab: { isCreator: boolean | null },
+  message: string,
+  ErrorClass: new (message: string) => Error = Error
+): void {
   if (collab.isCreator) {
-    throw new Error(message);
+    throw new ErrorClass(message);
   }
-}
-
-export async function removeCollaborator(collabId: string) {
-  const user = await requireUser();
-  const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
-  if (!collab) return;
-  await assertTripAccess(collab.tripId, user.id!, "manager");
-  assertNotCreator(collab, "The trip creator's seat cannot be removed.");
-  await db.delete(collaborators).where(eq(collaborators.id, collabId));
-  revalidatePath(`/trips/${collab.tripId}`);
-}
-
-export async function updateCollaboratorRole(collabId: string, role: "editor" | "viewer") {
-  const user = await requireUser();
-  const [collab] = await db.select().from(collaborators).where(eq(collaborators.id, collabId));
-  if (!collab) return;
-  await assertTripAccess(collab.tripId, user.id!, "manager");
-  assertNotCreator(collab, "The trip creator's seat cannot be changed.");
-  await db.update(collaborators).set({ role }).where(eq(collaborators.id, collabId));
-  revalidatePath(`/trips/${collab.tripId}`);
 }
 
 /**
@@ -1027,9 +992,7 @@ export async function saveContributorChanges(
             stale: true,
           });
         }
-        if (target.isCreator) {
-          throw new ContributorChangeGuardError("The trip creator's seat cannot be changed.");
-        }
+        assertNotCreator(target, "The trip creator's seat cannot be changed.", ContributorChangeGuardError);
         if (target.id === myRowId) {
           throw new ContributorChangeGuardError("You cannot change your own access.");
         }

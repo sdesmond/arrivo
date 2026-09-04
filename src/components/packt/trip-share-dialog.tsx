@@ -340,6 +340,7 @@ function TripShareDialogContent({ tripId, onRequestClose }: TripShareDialogConte
               <div key={collaborator.id ?? collaborator.email} style={{ opacity: pendingRemoval ? 0.5 : 1 }}>
                 <TripShareCollaboratorRow
                   collaborator={collaboratorWithStagedChanges(collaborator)}
+                  disabled={pendingRemoval}
                   onRemove={stageRemoval}
                   onRoleChange={stageRoleChange}
                   roleLabel={roleLabel}

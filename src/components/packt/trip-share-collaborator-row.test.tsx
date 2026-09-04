@@ -104,6 +104,40 @@ describe("TripShareCollaboratorRow", () => {
     expect(onRemove).toHaveBeenCalledWith(editor);
   });
 
+  it("disables the role selector and remove control when the row has a pending removal", () => {
+    render(
+      <TripShareCollaboratorRow
+        collaborator={editor}
+        disabled
+        onRemove={vi.fn()}
+        onRoleChange={vi.fn()}
+        roleLabel={roleLabel}
+      />
+    );
+
+    expect(screen.getByLabelText("Role for Grace Hopper")).toBeDisabled();
+    expect(screen.getByTitle("Remove Grace Hopper")).toBeDisabled();
+  });
+
+  it("does not report a role change through the callback while disabled", async () => {
+    const user = userEvent.setup();
+    const onRoleChange = vi.fn();
+    render(
+      <TripShareCollaboratorRow
+        collaborator={editor}
+        disabled
+        onRemove={vi.fn()}
+        onRoleChange={onRoleChange}
+        roleLabel={roleLabel}
+      />
+    );
+
+    await user.click(screen.getByLabelText("Role for Grace Hopper"));
+
+    expect(screen.queryByRole("option", { name: "Viewer" })).not.toBeInTheDocument();
+    expect(onRoleChange).not.toHaveBeenCalled();
+  });
+
   it("falls back to a static role badge when no callbacks are provided", () => {
     render(<TripShareCollaboratorRow collaborator={editor} roleLabel={roleLabel} />);
 

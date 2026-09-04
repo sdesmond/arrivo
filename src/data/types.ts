@@ -853,15 +853,6 @@ export interface RemoveLastDayResult {
   hasPlannedContent?: boolean;
 }
 
-export interface AddCollaboratorInput {
-  email: string;
-  name: string;
-  initials: string;
-  role: "editor" | "viewer";
-  tintBg?: string;
-  tintFg?: string;
-}
-
 export interface InviteContributorInput {
   email: string;
   role?: CollaboratorRole;

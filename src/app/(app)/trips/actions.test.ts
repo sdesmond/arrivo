@@ -108,7 +108,6 @@ vi.mock("./packing-actions", async (importOriginal) => {
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import {
   acceptInvitation,
-  addCollaborator,
   addPackingItem,
   createTrip,
   deleteTrip,
@@ -117,7 +116,6 @@ import {
   inviteContributor,
   pullTemplatesOntoTrip,
   reorderPackingItems,
-  removeCollaborator,
   removePackingItem,
   retrieveLocation,
   rescindInvitation,
@@ -126,7 +124,6 @@ import {
   searchAddressLocations,
   searchLocations,
   togglePackingItem,
-  updateCollaboratorRole,
   updatePackingItem,
   updateTripMetadata,
 } from "./actions";
@@ -151,103 +148,6 @@ describe("manager-gated trip actions", () => {
 
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
     expect(db.delete).not.toHaveBeenCalled();
-  });
-
-  it("denies an editor from adding a collaborator before any write", async () => {
-    await expect(
-      addCollaborator("trip-1", { email: "new@example.com", name: "New Person", initials: "NP", role: "viewer" })
-    ).rejects.toThrow("not found");
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
-    expect(db.insert).not.toHaveBeenCalled();
-  });
-
-  it("denies an editor from removing a collaborator before any write", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [{ id: "collab-1", tripId: "trip-1" }] }) });
-
-    await expect(removeCollaborator("collab-1")).rejects.toThrow("not found");
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
-    expect(db.delete).not.toHaveBeenCalled();
-  });
-
-  it("denies an editor from updating a collaborator role before any write", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [{ id: "collab-1", tripId: "trip-1" }] }) });
-
-    await expect(updateCollaboratorRole("collab-1", "viewer")).rejects.toThrow("not found");
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
-    expect(db.update).not.toHaveBeenCalled();
-  });
-});
-
-describe("collaborator isCreator protection", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
-    assertTripAccess.mockResolvedValue("manager");
-  });
-
-  it("rejects removeCollaborator when the target is the trip creator", async () => {
-    db.select.mockReturnValue({
-      from: () => ({ where: async () => [{ id: "collab-creator", tripId: "trip-1", isCreator: true }] }),
-    });
-
-    await expect(removeCollaborator("collab-creator")).rejects.toThrow(/creator/i);
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
-    expect(db.delete).not.toHaveBeenCalled();
-  });
-
-  it("rejects updateCollaboratorRole when the target is the trip creator", async () => {
-    db.select.mockReturnValue({
-      from: () => ({ where: async () => [{ id: "collab-creator", tripId: "trip-1", isCreator: true }] }),
-    });
-
-    await expect(updateCollaboratorRole("collab-creator", "editor")).rejects.toThrow(/creator/i);
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
-    expect(db.update).not.toHaveBeenCalled();
-  });
-
-  it("rejects removeCollaborator when the creator tries to remove their own row", async () => {
-    requireUser.mockResolvedValue({ id: "creator-1", email: "creator@example.com" });
-    db.select.mockReturnValue({
-      from: () => ({ where: async () => [{ id: "collab-creator", tripId: "trip-1", isCreator: true }] }),
-    });
-
-    await expect(removeCollaborator("collab-creator")).rejects.toThrow(/creator/i);
-
-    expect(db.delete).not.toHaveBeenCalled();
-  });
-
-  it("removes a non-creator manager normally", async () => {
-    db.select.mockReturnValue({
-      from: () => ({ where: async () => [{ id: "collab-peer", tripId: "trip-1", isCreator: false }] }),
-    });
-    const deleteWhere = vi.fn(async () => undefined);
-    db.delete.mockReturnValue({ where: deleteWhere });
-
-    await removeCollaborator("collab-peer");
-
-    expect(db.delete).toHaveBeenCalledWith(collaborators);
-    expect(deleteWhere).toHaveBeenCalled();
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-  });
-
-  it("demotes a non-creator manager to editor normally", async () => {
-    db.select.mockReturnValue({
-      from: () => ({ where: async () => [{ id: "collab-peer", tripId: "trip-1", isCreator: false }] }),
-    });
-    const updateWhere = vi.fn(async () => undefined);
-    const updateSet = vi.fn(() => ({ where: updateWhere }));
-    db.update.mockReturnValue({ set: updateSet });
-
-    await updateCollaboratorRole("collab-peer", "editor");
-
-    expect(updateSet).toHaveBeenCalledWith({ role: "editor" });
-    expect(updateWhere).toHaveBeenCalled();
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });
 
@@ -370,7 +270,11 @@ describe("saveContributorChanges", () => {
       { type: "role", collaboratorId: "collab-creator", fromRole: "manager", toRole: "editor" },
     ]);
 
-    expect(result).toEqual({ status: "error", message: expect.any(String) as string, stale: false });
+    expect(result).toEqual({
+      status: "error",
+      message: "The trip creator's seat cannot be changed.",
+      stale: false,
+    });
     expect(operations.updates).toEqual([]);
     expect(operations.deletes).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();

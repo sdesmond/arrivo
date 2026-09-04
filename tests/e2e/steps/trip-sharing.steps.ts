@@ -97,8 +97,18 @@ Then("I see the declined sharing row", async ({ page }) => {
   await expect(row).toContainText("Declined");
 });
 
-Then("I do not see the expired pending sharing row", async ({ page }) => {
-  await expect(page.getByText(EXPIRED_PENDING_EMAIL, { exact: true })).not.toBeVisible();
+Then("I see the expired pending sharing row", async ({ page }) => {
+  const row = page.getByText(EXPIRED_PENDING_EMAIL, { exact: true }).locator("..").locator("..");
+  await expect(row).toContainText("Expired");
+  await expect(row).not.toContainText("Pending");
+});
+
+Then("I can resend the expired pending sharing invitation", async ({ page }) => {
+  await expect(page.getByTitle(`Resend invitation to ${EXPIRED_PENDING_EMAIL}`)).toBeEnabled();
+});
+
+Then("I can rescind the expired pending sharing invitation", async ({ page }) => {
+  await expect(page.getByTitle(`Rescind invitation to ${EXPIRED_PENDING_EMAIL}`)).toBeEnabled();
 });
 
 When("I resend the pending sharing invitation", async ({ page, scenario }) => {
