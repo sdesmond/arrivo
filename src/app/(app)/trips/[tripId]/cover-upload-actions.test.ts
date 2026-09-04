@@ -1,20 +1,30 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { adapterDel, adapterPut, assertTripAccess, db, getStorageAdapter, requireUser, revalidatePath, tripsTable } =
-  vi.hoisted(() => ({
-    adapterDel: vi.fn(),
-    adapterPut: vi.fn(),
-    assertTripAccess: vi.fn(),
-    db: {
-      select: vi.fn(),
-      update: vi.fn(),
-    },
-    getStorageAdapter: vi.fn(),
-    requireUser: vi.fn(),
-    revalidatePath: vi.fn(),
-    tripsTable: { coverImageUrl: "trips.coverImageUrl", id: "trips.id" },
-  }));
+const {
+  adapterDel,
+  adapterPut,
+  assertTripAccess,
+  db,
+  getStorageAdapter,
+  publishTripEvent,
+  requireUser,
+  revalidatePath,
+  tripsTable,
+} = vi.hoisted(() => ({
+  adapterDel: vi.fn(),
+  adapterPut: vi.fn(),
+  assertTripAccess: vi.fn(),
+  db: {
+    select: vi.fn(),
+    update: vi.fn(),
+  },
+  getStorageAdapter: vi.fn(),
+  publishTripEvent: vi.fn(),
+  requireUser: vi.fn(),
+  revalidatePath: vi.fn(),
+  tripsTable: { coverImageUrl: "trips.coverImageUrl", id: "trips.id" },
+}));
 
 vi.mock("@/lib/auth-helpers", () => ({
   assertTripAccess,
@@ -37,7 +47,12 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
+vi.mock("@/lib/trip-events", () => ({
+  publishTripEvent,
+}));
+
 import { uploadCoverImage } from "./cover-upload-actions";
+import { LiveSyncEventType } from "@/data/types";
 
 function makeFile(name: string, type: string, size = 100): File {
   const file = new File(["x"], name, { type });
@@ -90,6 +105,10 @@ describe("uploadCoverImage", () => {
 
     expect(adapterPut).toHaveBeenCalledWith("trip-covers/trip-1/upload-1234.png", file);
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("rolls back the uploaded file when the trip update fails", async () => {

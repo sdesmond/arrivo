@@ -43,7 +43,8 @@ import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
 import { applyInvitationResend, getInvitationExpiry, hasNormalizedEmail, normalizeEmail } from "@/lib/invitations";
-import { CoverType } from "@/data/types";
+import { CoverType, LiveSyncEventType } from "@/data/types";
+import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import { searchCoverImages } from "./cover-image-search-actions";
@@ -644,6 +645,9 @@ export async function deleteTrip(tripId: string) {
 
   await db.delete(trips).where(eq(trips.id, tripId));
 
+  publishTripEvent(tripId, { type: LiveSyncEventType.TripDeleted, tripId });
+  purgeTripTopic(tripId);
+
   const urlsToCleanup = tripDocs.map((doc) => doc.url).filter((url): url is string => !!url);
   if (urlsToCleanup.length > 0) {
     await Promise.all(
@@ -829,8 +833,11 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
     return { status: "error", message };
   }
 
-  // TODO(epic-4): publish a `membership-changed` event on `trip:{tripId}` and `user:{userId}` via
-  // publishTripEvent/publishUserEvent once src/lib/trip-events.ts ships the pub-sub module.
+  publishTripEvent(matchedInvitation.tripId, {
+    type: LiveSyncEventType.MembershipChanged,
+    tripId: matchedInvitation.tripId,
+  });
+  publishUserEvent(user.id, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${matchedInvitation.tripId}`);
@@ -863,8 +870,11 @@ export async function declineInvitation(invitationId: string): Promise<DeclineIn
     return { status: "error", message };
   }
 
-  // TODO(epic-4): publish a `membership-changed` event on `trip:{tripId}` and `user:{userId}` via
-  // publishTripEvent/publishUserEvent once src/lib/trip-events.ts ships the pub-sub module.
+  publishTripEvent(matchedInvitation.tripId, {
+    type: LiveSyncEventType.MembershipChanged,
+    tripId: matchedInvitation.tripId,
+  });
+  publishUserEvent(user.id!, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${matchedInvitation.tripId}`);
@@ -889,9 +899,7 @@ export async function rescindInvitation(tripId: string, invitationId: string): P
     return { status: "error", message };
   }
 
-  // TODO(epic-4): publish a `membership-changed` event on `trip:{tripId}` via publishTripEvent once
-  // src/lib/trip-events.ts ships the pub-sub module — the manager rescinding is the actor here, not
-  // the invitee (who is keyed by email, not userId, until they accept).
+  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
   revalidatePath("/trips");
 
   return { status: "success" };
@@ -972,6 +980,9 @@ export async function saveContributorChanges(
     return { status: "error", message: "Duplicate change for the same contributor" };
   }
 
+  const removedUserIds: string[] = [];
+  let tripName = "";
+
   try {
     await db.transaction(async (transaction) => {
       await lockTripForUpdate(transaction, tripId);
@@ -1009,9 +1020,34 @@ export async function saveContributorChanges(
             .where(eq(collaborators.id, change.collaboratorId));
         } else {
           await transaction.delete(collaborators).where(eq(collaborators.id, change.collaboratorId));
+          if (target.userId) {
+            removedUserIds.push(target.userId);
+          }
         }
       }
+
+      if (removedUserIds.length > 0) {
+        const [tripRow] = await transaction.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId));
+        tripName = tripRow?.name ?? "";
+      }
     });
+
+    if (removedUserIds.length > 0) {
+      const removedByName = user.name ?? user.email ?? "";
+      const removedByEmail = user.email ?? "";
+      for (const removedUserId of removedUserIds) {
+        publishUserEvent(removedUserId, {
+          type: LiveSyncEventType.MembershipRemoved,
+          removedUserId,
+          tripId,
+          tripName,
+          removedByName,
+          removedByEmail,
+        });
+        publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+        removeTripSubscribersForUser(tripId, removedUserId);
+      }
+    }
 
     revalidatePath(`/trips/${tripId}`);
     return { status: "success" };
