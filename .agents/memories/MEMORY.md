@@ -6,3 +6,4 @@
 - [E2E unique trip startDate](feedback_e2e_unique_trip_startdate.md) — Dedicated E2E trips must use a startDate distinct from the base seed trip (2026-07-01) or parallel base-trip lookups become non-deterministic
 - [Validator failures = Vite cache collision](project_validator_failures_are_contention.md) — Coverage/E2E crashes under the parallel validator were two Vitest processes sharing node_modules/.vite; fixed with per-config cacheDir (suites pass standalone)
 - [No direct commits to protected branches](feedback_no_direct_commits_to_protected_branches.md) — Never commit to main/feature/_/feat/_ directly; branch off and PR into them instead
+- [GitHub CLI needs elevated sandbox access](feedback_gh_needs_elevated_sandbox.md) — Run authenticated gh commands outside the sandbox so Windows keyring credentials are available
