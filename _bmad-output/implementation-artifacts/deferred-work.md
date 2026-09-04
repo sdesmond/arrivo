@@ -31,3 +31,8 @@
 
 - No upper bound on `changes.length` in `saveContributorChanges` — an authenticated manager could submit an arbitrarily large batch in one transaction. Low real-world impact given the caller is already an authorized manager on the trip. `src/app/(app)/trips/actions.ts:971`.
 - Potential `setState` after unmount if the dialog is closed while a save is in flight (`handleSaveChanges` in `trip-share-dialog.tsx`) — matches the existing unguarded pattern already noted for the resend/rescind handlers in story-3-2's deferred items; React 18+ no longer warns on this. `src/components/packt/trip-share-dialog.tsx:86`.
+
+## Deferred from: code review of story-4-2-sync-status-indicator (2026-09-04)
+
+- The `"heartbeat"` wire sentinel has no shared constant/type in `LiveSyncEventType` — future story 4.3 consumers parsing `onmessage` payloads as a `LiveSyncEvent` must hardcode the literal string. Explicitly deferred to 4.3 per this story's own spec Design Notes ("4.3 consumers filter to known event types"). `src/data/types.ts`.
+- `refreshCurrentPage` in `tests/e2e/scenario-fixture.ts:654-657` has no callers anywhere in `tests/e2e/` — pre-existing dead code, untouched by this story besides its `waitForLoadState` line.

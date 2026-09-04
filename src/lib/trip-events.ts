@@ -1,5 +1,6 @@
 import "server-only";
 import type { LiveSyncEvent } from "@/data/types";
+export { SSE_HEARTBEAT_INTERVAL_MS } from "./live-sync-constants";
 
 type LiveSyncCallback = (event: LiveSyncEvent) => void;
 
@@ -21,14 +22,12 @@ if (process.env.NODE_ENV !== "production") globalThis.__tripEventTopics = tripTo
 const userTopics = globalThis.__userEventTopics ?? new Map<string, Set<LiveSyncCallback>>();
 if (process.env.NODE_ENV !== "production") globalThis.__userEventTopics = userTopics;
 
-export const SSE_HEARTBEAT_INTERVAL_MS = 15_000;
-
 export function formatSseEvent(event: LiveSyncEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
 export function formatSseHeartbeat(): string {
-  return ": ping\n\n";
+  return `data: ${JSON.stringify({ type: "heartbeat" })}\n\n`;
 }
 
 /**

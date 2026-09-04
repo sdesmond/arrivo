@@ -5,7 +5,7 @@ const { requireUser, subscribeUser, formatSseEvent, formatSseHeartbeat } = vi.ho
   requireUser: vi.fn(),
   subscribeUser: vi.fn(),
   formatSseEvent: vi.fn((event: unknown) => `data: ${JSON.stringify(event)}\n\n`),
-  formatSseHeartbeat: vi.fn(() => ": ping\n\n"),
+  formatSseHeartbeat: vi.fn(() => 'data: {"type":"heartbeat"}\n\n'),
 }));
 
 vi.mock("@/lib/auth-helpers", () => ({
@@ -71,7 +71,7 @@ describe("GET /api/users/me/events", () => {
     await reader.cancel().catch(() => {});
   });
 
-  it("emits a heartbeat comment on an idle connection", async () => {
+  it("emits a heartbeat data event on an idle connection", async () => {
     vi.useFakeTimers();
     const response = await GET(new Request("http://localhost/api/users/me/events") as never);
     const reader = response.body!.getReader();
@@ -79,7 +79,7 @@ describe("GET /api/users/me/events", () => {
     vi.advanceTimersByTime(15_000);
 
     const chunk = await readNextChunk(reader);
-    expect(chunk).toBe(": ping\n\n");
+    expect(chunk).toBe(formatSseHeartbeat());
     await reader.cancel().catch(() => {});
   });
 

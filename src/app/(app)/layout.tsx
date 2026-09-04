@@ -1,5 +1,6 @@
 import { SidebarNav } from "@/components/packt/sidebar-nav";
 import { BottomTabBar } from "@/components/packt/bottom-tab-bar";
+import { SyncStatusIndicator } from "@/components/packt/sync-status-indicator";
 import { requireUser } from "@/lib/auth-helpers";
 import { getUserById } from "@/lib/queries";
 import { getMyPendingInvitations } from "@/lib/invitations";
@@ -26,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       {/* Mobile bottom tab bar — hidden on desktop */}
       <BottomTabBar />
+      <SyncStatusIndicator />
     </div>
   );
 }

@@ -683,6 +683,13 @@ export const LiveSyncEventType = {
 } as const;
 export type LiveSyncEventType = (typeof LiveSyncEventType)[keyof typeof LiveSyncEventType];
 
+export const SyncConnectionStatus = {
+  Connected: "connected",
+  Reconnecting: "reconnecting",
+  Offline: "offline",
+} as const;
+export type SyncConnectionStatus = (typeof SyncConnectionStatus)[keyof typeof SyncConnectionStatus];
+
 export type LiveSyncEvent =
   | { type: typeof LiveSyncEventType.ItineraryChanged; tripId: string }
   | { type: typeof LiveSyncEventType.MembershipChanged; tripId: string }

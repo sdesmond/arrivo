@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType } from "@/data/types";
+import { SSE_HEARTBEAT_INTERVAL_MS } from "./live-sync-constants";
 import {
-  SSE_HEARTBEAT_INTERVAL_MS,
   formatSseEvent,
   formatSseHeartbeat,
   publishTripEvent,
@@ -39,8 +39,8 @@ describe("trip-events", () => {
       expect(formatSseEvent(event)).toBe(`data: ${JSON.stringify(event)}\n\n`);
     });
 
-    it("encodes a heartbeat as an SSE comment", () => {
-      expect(formatSseHeartbeat()).toBe(": ping\n\n");
+    it("encodes a heartbeat as an observable data event", () => {
+      expect(formatSseHeartbeat()).toBe('data: {"type":"heartbeat"}\n\n');
     });
   });
 

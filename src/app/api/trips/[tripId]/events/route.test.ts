@@ -6,7 +6,7 @@ const { assertTripAccess, requireUser, subscribeTripForUser, formatSseEvent, for
   requireUser: vi.fn(),
   subscribeTripForUser: vi.fn(),
   formatSseEvent: vi.fn((event: unknown) => `data: ${JSON.stringify(event)}\n\n`),
-  formatSseHeartbeat: vi.fn(() => ": ping\n\n"),
+  formatSseHeartbeat: vi.fn(() => 'data: {"type":"heartbeat"}\n\n'),
 }));
 
 vi.mock("@/lib/auth-helpers", () => ({
@@ -94,7 +94,7 @@ describe("GET /api/trips/[tripId]/events", () => {
     await reader.cancel().catch(() => {});
   });
 
-  it("emits a heartbeat comment on an idle connection", async () => {
+  it("emits a heartbeat data event on an idle connection", async () => {
     vi.useFakeTimers();
     const response = await GET(new Request("http://localhost/api/trips/trip-1/events") as never, makeParams("trip-1"));
     const reader = response.body!.getReader();
@@ -102,7 +102,7 @@ describe("GET /api/trips/[tripId]/events", () => {
     vi.advanceTimersByTime(15_000);
 
     const chunk = await readNextChunk(reader);
-    expect(chunk).toBe(": ping\n\n");
+    expect(chunk).toBe(formatSseHeartbeat());
     await reader.cancel().catch(() => {});
   });
 
