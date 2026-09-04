@@ -27,7 +27,7 @@ Give a trip manager a single share dialog from which they administer every contr
 ## Technical Decisions
 
 - New `src/components/packt/trip-share-dialog.tsx` (Base UI `Dialog`) replaces `trip-edit-collaborators.tsx` as the control plane.
-- `getContributorsAndInvitations(tripId, userId)` supplies row data; `contributor-actions.ts` hosts `saveContributorChanges`, `dismissInvitation`, (and `getContributorsAndInvitations`), per the architecture file layout.
+- `getContributorsAndInvitations(tripId, userId)` (in `src/lib/queries.ts`) supplies row data. `saveContributorChanges` and `dismissInvitation` live in `src/app/(app)/trips/actions.ts` alongside the other contributor actions, with thin per-route wrappers in `src/app/(app)/trips/[tripId]/actions.ts` (`getShareDialogData`, `saveContributorChanges`, `dismissShareInvitation`, etc.) — no separate `contributor-actions.ts` file was created; stories 3.1-3.6 consistently extended the existing action files instead (see spec-3-5's Technical Decisions).
 - Save calls exactly one server action, `saveContributorChanges(tripId, changes: ContributorChange[])`, applying all staged changes in a single DB transaction — all-or-nothing. Each `ContributorChange` is a role-change or removal keyed by id.
 - Server rejects the entire batch if any `ContributorChange` targets an `isCreator=true` row, any id not belonging to `tripId`, or the calling manager's own row — regardless of what the UI staged. The dialog's disabled creator controls are UX only, never the enforcement point.
 - Each entry applies against an expected-state guard (row still exists; for a role change, still holds the staged from-role). If any guard fails (concurrent save by another manager), the whole batch is rejected; no partial or unconditional apply.
@@ -45,6 +45,6 @@ Give a trip manager a single share dialog from which they administer every contr
 
 ## Cross-Story Dependencies
 
-- Builds on Epic 1's `invitations` data model (AD-2): the dialog reads the same invitations table Epic 1 writes, and relies on the role model and creator-protection (`isCreator`, AD-1) migrated there. Resend/rescind/dismiss server logic lives with Epic 1's `invitations.ts` / `contributor-actions.ts`.
+- Builds on Epic 1's `invitations` data model (AD-2): the dialog reads the same invitations table Epic 1 writes, and relies on the role model and creator-protection (`isCreator`, AD-1) migrated there. Resend/rescind/dismiss server logic lives with Epic 1's `invitations.ts` and the contributor actions in `src/app/(app)/trips/actions.ts`.
 - Story 3.3 removes `trip-edit-sheet.tsx`'s collaborators tab, `trip-edit-collaborators.tsx`, and the legacy `addCollaborator`/`removeCollaborator`/`updateCollaboratorRole` actions; until then the old sheet and new dialog coexist.
 - Dialog must refetch its list when a `membership-changed` event arrives (Epic 4 live sync) so a new accept appears without closing/reopening. Epic 4's revocation modal force-closes this dialog (discarding staged changes) on a self-targeted removal.
