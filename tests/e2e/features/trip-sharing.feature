@@ -53,8 +53,9 @@ Feature: Trip sharing dialog
     Then I see contributor change Save and Cancel controls
     And I do not receive a contributor changes toast
     When I cancel the contributor changes
-    Then I do not see contributor change Save and Cancel controls
-    And the active sharing row still shows the editor role
+    Then the sharing dialog is closed
+    When I open the sharing dialog
+    Then the active sharing row still shows the editor role
 
   Scenario: A manager saves a staged role change and removal as one batch
     Given I have a trip with sharing rows
@@ -66,5 +67,39 @@ Feature: Trip sharing dialog
     Then I see contributor change Save and Cancel controls
     When I save the contributor changes
     Then I receive a contributor changes toast
-    And I do not see the removed additional sharing contributor
+    And the sharing dialog is closed
+    When I open the sharing dialog
+    Then I do not see the removed additional sharing contributor
     And the active sharing row role is updated to viewer
+
+  Scenario: The Save control is disabled until a change is staged
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    Then the sharing Save control is disabled
+
+  Scenario: Escape does not close the sharing dialog
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I stage a role change on the active sharing row to viewer
+    And I press Escape to dismiss the sharing dialog
+    Then I see contributor change Save and Cancel controls
+    And the active sharing row role is updated to viewer
+
+  Scenario: Clicking outside the dialog does not close it
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I click outside the sharing dialog
+    Then the sharing dialog is not closed
+
+  Scenario: The X button closes the sharing dialog and discards staged changes
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I stage a role change on the active sharing row to viewer
+    And I close the sharing dialog via the X button
+    Then the sharing dialog is closed
+    When I open the sharing dialog
+    Then the active sharing row still shows the editor role

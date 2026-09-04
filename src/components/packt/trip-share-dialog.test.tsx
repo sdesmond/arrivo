@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Collaborator, Invitation } from "@/data/types";
-import { TripShareDialog } from "./trip-share-dialog";
+import { isDismissalPress, TripShareDialog } from "./trip-share-dialog";
 
 const mockGetShareDialogData = vi.fn();
 const mockRescindShareInvitation = vi.fn();
@@ -486,18 +486,26 @@ describe("TripShareDialog batch staging", () => {
     mockSaveContributorChanges.mockResolvedValue({ status: "success" });
   });
 
-  function openDialog() {
-    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+  function openDialog(onOpenChange: (open: boolean) => void = vi.fn()): (open: boolean) => void {
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+    return onOpenChange;
   }
 
-  it("stages a role change and shows a Save control without applying it", async () => {
+  it("renders Save and Cancel always, with Save disabled until a change is staged", async () => {
+    openDialog();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+
+  it("stages a role change and enables Save without applying it", async () => {
     const user = userEvent.setup();
     openDialog();
 
     await user.click(await screen.findByLabelText("Role for Grace Hopper"));
     await user.click(await screen.findByRole("option", { name: "Viewer" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
     expect(mockSaveContributorChanges).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Role for Grace Hopper")).toHaveTextContent("Viewer");
   });
@@ -508,7 +516,7 @@ describe("TripShareDialog batch staging", () => {
     fireEvent.click(await screen.findByTitle("Remove Grace Hopper"));
 
     await waitFor(() => expect(screen.getByLabelText("Grace Hopper will be removed")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     expect(mockSaveContributorChanges).not.toHaveBeenCalled();
   });
 
@@ -532,9 +540,9 @@ describe("TripShareDialog batch staging", () => {
     );
   });
 
-  it("saves one batch containing role changes and removals, then refetches", async () => {
+  it("saves one batch containing role changes and removals, then closes the dialog", async () => {
     const user = userEvent.setup();
-    openDialog();
+    const onOpenChange = openDialog();
 
     await user.click(await screen.findByLabelText("Role for Grace Hopper"));
     await user.click(await screen.findByRole("option", { name: "Viewer" }));
@@ -547,37 +555,36 @@ describe("TripShareDialog batch staging", () => {
       ])
     );
     expect(mockSaveContributorChanges).toHaveBeenCalledTimes(1);
-    expect(mockGetShareDialogData).toHaveBeenCalledTimes(2);
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument());
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 
-  it("cancels staged edits with no server call and no Save control", async () => {
-    openDialog();
+  it("cancels staged edits with no server call and closes the dialog", async () => {
+    const onOpenChange = openDialog();
 
     fireEvent.click(await screen.findByTitle("Remove Grace Hopper"));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument());
     expect(mockSaveContributorChanges).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Grace Hopper will be removed")).not.toBeInTheDocument();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("keeps staged state and shows the error when the batch fails", async () => {
+  it("keeps staged state, shows the error, and does not close when the batch fails", async () => {
     const { toast } = await import("sonner");
     mockSaveContributorChanges.mockResolvedValue({ status: "error", message: "Batch rejected" });
-    openDialog();
+    const onOpenChange = openDialog();
 
     fireEvent.click(await screen.findByTitle("Remove Grace Hopper"));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Batch rejected"));
     expect(screen.getByLabelText("Grace Hopper will be removed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     expect(toast.error).not.toHaveBeenCalled();
     expect(mockGetShareDialogData).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it("refetches and discards staged changes when the batch is rejected as stale", async () => {
@@ -589,29 +596,121 @@ describe("TripShareDialog batch staging", () => {
     openDialog();
 
     fireEvent.click(await screen.findByTitle("Remove Grace Hopper"));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("A contributor's role changed since you started editing.")
     );
     await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.queryByLabelText("Grace Hopper will be removed")).not.toBeInTheDocument();
   });
 
-  it("disables Cancel while a save is in flight", async () => {
+  it("disables Save, Cancel, and the close (X) button while a save is in flight", async () => {
     const deferred = createDeferred<{ status: "success" }>();
     mockSaveContributorChanges.mockReturnValue(deferred.promise);
     openDialog();
 
     fireEvent.click(await screen.findByTitle("Remove Grace Hopper"));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    fireEvent.click(saveButton);
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled());
+    expect(saveButton).toBeDisabled();
+    expect(screen.getByTitle("Close sharing dialog")).toBeDisabled();
 
     deferred.resolve({ status: "success" });
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled());
+  });
+});
+
+describe("isDismissalPress", () => {
+  it("treats outside-press and escape-key as dismissal presses", () => {
+    expect(isDismissalPress("outside-press")).toBe(true);
+    expect(isDismissalPress("escape-key")).toBe(true);
+  });
+
+  it("does not treat close-press or trigger-press as a dismissal press", () => {
+    expect(isDismissalPress("close-press")).toBe(false);
+    expect(isDismissalPress("trigger-press")).toBe(false);
+  });
+});
+
+describe("TripShareDialog dialog dismissal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetShareDialogData.mockResolvedValue({
+      collaborators: [creator, activeCollaborator],
+      invitations: [],
+    });
+    mockSaveContributorChanges.mockResolvedValue({ status: "success" });
+  });
+
+  async function stageRoleChange(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(await screen.findByLabelText("Role for Grace Hopper"));
+    await user.click(await screen.findByRole("option", { name: "Viewer" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+  }
+
+  it("does nothing on Escape when changes are staged", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+    await stageRoleChange(user);
+
+    screen.getByRole("dialog").focus();
+    await user.keyboard("{Escape}");
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("does nothing on Escape when there are no staged changes", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+    await screen.findByText("Grace Hopper");
+
+    screen.getByRole("dialog").focus();
+    await user.keyboard("{Escape}");
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes and discards staged changes via the explicit Cancel button", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+    await stageRoleChange(user);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(mockSaveContributorChanges).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("closes via Save once changes are staged", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+    await stageRoleChange(user);
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("closes via the X button regardless of staged changes", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+    await stageRoleChange(user);
+
+    await user.click(screen.getByTitle("Close sharing dialog"));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
