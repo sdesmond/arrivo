@@ -18,7 +18,7 @@ Give a trip manager a single share dialog from which they administer every contr
 ## Requirements & Constraints
 
 - Manager-only surface: an editor or viewer must not see the Invite trigger, and `getContributorsAndInvitations` is gated by `assertTripAccess(tripId, userId, "manager")` at the query itself — pending/declined invitation emails are never returned to a non-manager even if the dialog is bypassed.
-- The dialog cannot be closed while staged role/removal changes are unsaved; only explicit Save or Cancel exits. Explicit Cancel always discards immediately without confirmation.
+- The dialog cannot be closed via `Esc` or backdrop-click, staged changes or not — both are unconditional no-ops. Only explicit Save (saves and closes; disabled with no staged changes) or Cancel (discards immediately and closes) exits, plus the explicit close (X) button, which also discards and closes immediately.
 - Row data is active `collaborators` plus `invitations WHERE status IN ('pending','declined')`, expiry-filtered (`status != 'pending' OR expiresAt > now()`) so stale expired pending rows are never shown as "Pending".
 - Pending-row Resend and Rescind, and declined-row Dismiss (`dismissInvitation`), all act immediately with no confirmation. Dismiss is a hard delete valid only for non-pending rows. Each verifies `invitation.tripId === tripId` before acting, not just the caller's manager role on some trip.
 - Role/removal edits are staged; staging is keyed by `collaboratorId`, so a second staged change on the same row replaces the earlier one.
@@ -40,7 +40,7 @@ Give a trip manager a single share dialog from which they administer every contr
 - Creator row shows a lock icon (`aria-label="Trip creator — access can't be changed"`) instead of a role dropdown or remove control — never a disabled trash icon.
 - Remove control is a trash icon matching the existing icon-button pattern with a new hover-color delta from `fg-3` to `danger`.
 - Pending row offers Resend + Rescind instead of role dropdown/remove; declined row offers only Dismiss. Re-inviting an email with an existing pending row updates that row in place (badge timestamp refreshes) rather than adding a duplicate.
-- Unsaved-changes guard: backdrop-click or `Esc` with staged changes swaps the dialog's own content in place to a discard-confirmation view ("Discard unsaved changes?" / Discard / Keep editing) — never a second stacked dialog. Focus moves to "Keep editing" (safe default); the swapped region announces via `role="alertdialog"` + `aria-live="assertive"`. Navigating away via in-app routing is intercepted by the same guard.
+- Unsaved-changes guard: backdrop-click and `Esc` are unconditional no-ops on this dialog — never a discard-confirmation view, never keyed on staged-change state. Save and Cancel render always (not conditional on staged changes); Save is disabled until something is staged. In-app routing interception remains deferred, tracked separately outside story 3.6.
 - Accessibility floor: every interactive target (role selects, resend/rescind/remove/dismiss/accept) meets the 44×44px minimum; icon-only controls carry a `title` naming the action and person (`title="Rescind invitation to {email}"`); role/status never color-only, every pill/badge carries a text label.
 
 ## Cross-Story Dependencies
