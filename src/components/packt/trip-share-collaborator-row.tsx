@@ -9,6 +9,7 @@ import { CollaboratorRole, type Collaborator, type CollaboratorRole as Collabora
 interface TripShareCollaboratorRowProps {
   collaborator: Collaborator;
   roleLabel: (role: CollaboratorRoleValue) => string;
+  disabled?: boolean;
   onRemove?: (collaborator: Collaborator) => void;
   onRoleChange?: (collaborator: Collaborator, role: CollaboratorRoleValue) => void;
 }
@@ -30,6 +31,7 @@ function roleStyle(role: CollaboratorRoleValue): { background: string; color: st
 export function TripShareCollaboratorRow({
   collaborator,
   roleLabel,
+  disabled = false,
   onRemove,
   onRoleChange,
 }: TripShareCollaboratorRowProps): ReactElement {
@@ -73,6 +75,7 @@ export function TripShareCollaboratorRow({
         <>
           {onRoleChange && collaboratorId ? (
             <Select
+              disabled={disabled}
               value={collaborator.role}
               onValueChange={(value) => onRoleChange(collaborator, value as CollaboratorRoleValue)}
             >
@@ -102,6 +105,7 @@ export function TripShareCollaboratorRow({
           {onRemove && collaboratorId ? (
             <Button
               className="size-11 shrink-0"
+              disabled={disabled}
               onClick={() => onRemove(collaborator)}
               size="icon-lg"
               title={`Remove ${collaborator.name}`}
