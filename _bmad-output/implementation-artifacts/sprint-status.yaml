@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-31-2026 00:00
-last_updated: 09-04-2026 08:35
+last_updated: 09-04-2026 09:10
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -154,7 +154,7 @@ action_items:
       invisible in getContributorsAndInvitations and refused by dismissInvitations
       ne(status,\"pending\") guard) so stale invites can be audited/cleaned up."
     owner: "follow-up story owner"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-04.md"
   - id: "epic-3-retro-item-12-guard-trip-share-dialog-tsx-row-controls"
     epic: 3
@@ -198,3 +198,14 @@ action_items:
     owner: "retrospective follow-through step"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-04.md"
+  - id: "epic-3-retro-item-17-design-and-scope-a-self-service-leave-tr"
+    epic: 3
+    action: "Design and scope a self-service \"leave trip\" option for editors/viewers
+      (they currently have no way to remove themselves from a shared trip other than
+      account deletion). Confirm the sharing dialog and contributor list stay manager-only/hidden
+      from non-managers throughout — already true today via the assertTripAccess(manager)
+      gate on getContributorsAndInvitations/getShareDialogData. User flagged this
+      needs more design discussion before being scoped into a story."
+    owner: "PM/UX discussion, then next implementer"
+    status: open
+    ref: ""

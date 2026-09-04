@@ -16,7 +16,7 @@
 
 ## Deferred from: code review of story-3-2 (2026-09-03)
 
-- `resendInvitation`'s WHERE guard (`src/lib/invitations.ts:82`) checks `status = 'pending'` but not `expiresAt > now()`, so it could revive a row that's still `status='pending'` but already past expiry. Narrow race: `getContributorsAndInvitations` already filters expired-pending rows out of the share dialog's list (`src/lib/queries.ts:358`), so this is only reachable if the dialog is left open across the expiry boundary.
+- ~~`resendInvitation`'s WHERE guard (`src/lib/invitations.ts:82`) checks `status = 'pending'` but not `expiresAt > now()`~~ — resolved by design, not a bug: the epic-3 retro (2026-09-04) changed `getContributorsAndInvitations` to stop excluding expired-pending rows, specifically so a manager can see and resend/rescind an expired invitation from the share dialog. Reviving an expired-but-still-`pending` row via Resend is now the intended recovery path, not a latent race.
 - Resend/rescind async handlers in `src/components/packt/trip-share-dialog.tsx:65` have no unmount guard, unlike the existing `loadData` effect's `isCurrent` pattern in the same file — calling `setData`/`setPendingInvitationId`/`toast` after the dialog closes mid-request. No-op under React 18, but inconsistent with the guarded pattern used elsewhere in the file.
 
 ## Deferred from: code review of story-3-3 (2026-09-03)
