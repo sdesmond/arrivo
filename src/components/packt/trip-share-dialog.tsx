@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactElement } from "react";
+import type { DialogRoot } from "@base-ui/react/dialog";
 import { LoaderCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { inviteContributor } from "@/app/(app)/trips/actions";
@@ -31,12 +32,21 @@ interface ShareDialogData {
 
 interface TripShareDialogContentProps {
   tripId: string;
+  onRequestClose: () => void;
 }
 
 function roleLabel(role: CollaboratorRole): string {
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
-function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactElement {
+
+/** True for backdrop-click ("outside-press") and Esc ("escape-key") — the two dismissal
+ * reasons `handleOpenChange` below treats as a no-op, leaving Save/Cancel/X as the only
+ * ways to close. */
+export function isDismissalPress(reason: DialogRoot.ChangeEventReason): boolean {
+  return reason === "outside-press" || reason === "escape-key";
+}
+
+function TripShareDialogContent({ tripId, onRequestClose }: TripShareDialogContentProps): ReactElement {
   const [data, setData] = useState<ShareDialogData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -105,15 +115,8 @@ function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactE
         return;
       }
       setStagedChanges({});
-      const refreshedData = await getShareDialogData(tripId);
-      setData({
-        ...refreshedData,
-        invitations: refreshedData.invitations.filter(
-          (invitation) => !dismissedInvitationIdsRef.current.has(invitation.id)
-        ),
-      });
-      setLoadError(false);
       toast.success("Contributor changes saved.");
+      onRequestClose();
     } catch {
       toast.error("Could not save changes.");
     } finally {
@@ -124,6 +127,7 @@ function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactE
   function handleCancelChanges(): void {
     setStagedChanges({});
     setSaveError(null);
+    onRequestClose();
   }
 
   function collaboratorWithStagedChanges(collaborator: Collaborator): Collaborator {
@@ -297,6 +301,7 @@ function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactE
       </DialogHeader>
 
       <DialogClose
+        disabled={isSavingChanges}
         title="Close sharing dialog"
         render={
           <Button className="absolute top-2 right-2" size="icon-lg" title="Close sharing dialog" variant="ghost" />
@@ -370,27 +375,37 @@ function TripShareDialogContent({ tripId }: TripShareDialogContentProps): ReactE
         </p>
       ) : null}
 
-      {hasPendingChanges ? (
-        <div className="flex items-center justify-end gap-2" style={{ paddingTop: "8px" }}>
-          <Button className="h-11" disabled={isSavingChanges} onClick={handleCancelChanges} variant="ghost">
-            Cancel
-          </Button>
-          <Button className="h-11" disabled={isSavingChanges} onClick={() => void handleSaveChanges()}>
-            {isSavingChanges ? (
-              <LoaderCircle aria-label="Saving changes" className="animate-spin" size={16} strokeWidth={1.5} />
-            ) : null}
-            Save
-          </Button>
-        </div>
-      ) : null}
+      <div className="flex items-center justify-end gap-2" style={{ paddingTop: "8px" }}>
+        <Button className="h-11" disabled={isSavingChanges} onClick={handleCancelChanges} variant="ghost">
+          Cancel
+        </Button>
+        <Button
+          className="h-11"
+          disabled={isSavingChanges || !hasPendingChanges}
+          onClick={() => void handleSaveChanges()}
+        >
+          {isSavingChanges ? (
+            <LoaderCircle aria-label="Saving changes" className="animate-spin" size={16} strokeWidth={1.5} />
+          ) : null}
+          Save
+        </Button>
+      </div>
     </DialogContent>
   );
 }
 
 export function TripShareDialog({ open, onOpenChange, tripId }: TripShareDialogProps): ReactElement {
+  function handleOpenChange(nextOpen: boolean, eventDetails: DialogRoot.ChangeEventDetails): void {
+    if (!nextOpen && isDismissalPress(eventDetails.reason)) {
+      eventDetails.preventUnmountOnClose();
+      return;
+    }
+    onOpenChange(nextOpen);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {open ? <TripShareDialogContent key={tripId} tripId={tripId} /> : null}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {open ? <TripShareDialogContent key={tripId} onRequestClose={() => onOpenChange(false)} tripId={tripId} /> : null}
     </Dialog>
   );
 }

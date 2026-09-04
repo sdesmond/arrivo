@@ -151,9 +151,8 @@ Then("I see contributor change Save and Cancel controls", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
 });
 
-Then("I do not see contributor change Save and Cancel controls", async ({ page }) => {
-  await expect(page.getByRole("button", { name: "Save", exact: true })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "Cancel", exact: true })).not.toBeVisible();
+Then("the sharing Save control is disabled", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
 });
 
 Then("I do not receive a contributor changes toast", async ({ page }) => {
@@ -185,4 +184,24 @@ Then("I do not see the removed additional sharing contributor", async ({ page })
 Then("the active sharing row role is updated to viewer", async ({ page }) => {
   const row = page.getByText(ACTIVE_EMAIL, { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Viewer");
+});
+
+When("I press Escape to dismiss the sharing dialog", async ({ page }) => {
+  await page.keyboard.press("Escape");
+});
+
+When("I click outside the sharing dialog", async ({ page }) => {
+  await page.locator('[data-slot="dialog-overlay"]').click({ position: { x: 4, y: 4 } });
+});
+
+When("I close the sharing dialog via the X button", async ({ page }) => {
+  await page.getByTitle("Close sharing dialog").click();
+});
+
+Then("the sharing dialog is closed", async ({ page }) => {
+  await expect(page.getByRole("heading", { name: "Share trip" })).not.toBeVisible();
+});
+
+Then("the sharing dialog is not closed", async ({ page }) => {
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
 });
