@@ -2,7 +2,7 @@
 title: "Trip Page Live Refresh on Itinerary and Membership Events"
 type: "feature"
 created: "2026-09-04"
-status: "in-review"
+status: "done"
 baseline_commit: "3bd80b498dc171e2321e3f5a02c53a1fc53c2ca8"
 review_loop_iteration: 0
 context: []

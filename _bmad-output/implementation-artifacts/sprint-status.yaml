@@ -61,7 +61,7 @@ development_status:
   epic-4: in-progress
   4-1-sse-pub-sub-infrastructure-and-both-routes: done
   4-2-sync-status-indicator: done
-  4-3-trip-page-live-refresh-on-itinerary-and-membership-events: in-progress
+  4-3-trip-page-live-refresh-on-itinerary-and-membership-events: done
   4-4-revocation-modal-on-self-targeted-removal: backlog
   4-5-dashboard-reflects-membership-changes-live: backlog
   4-6-move-sync-status-indicator-to-top-bar-icon: backlog
