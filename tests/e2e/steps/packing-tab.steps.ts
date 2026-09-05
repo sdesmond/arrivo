@@ -140,8 +140,10 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
     await page.waitForTimeout(60);
 
     // The drop fires the reorder server action. Wait for that POST to resolve so a later reload
-    // cannot out-race persistence. Armed per attempt, since each retry fires its own reorder.
-    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+    // cannot out-race persistence. Armed per attempt, since each retry fires its own reorder —
+    // and not required, because an attempt whose drop misses the target fires no POST and is
+    // expected to fall through to the retry below.
+    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
     await page.mouse.up();
     await reorderResponse;
   }
@@ -263,7 +265,7 @@ async function keyboardMovePackingItemDownOnePosition(page: Page, name: string):
     // response returns — so a later reload cannot out-race persistence. A move
     // that registers as a no-op fires no POST, so tolerate a timeout and fall
     // through to the position check / retry.
-    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
     await dragHandle.press("Enter");
     await reorderResponse;
 

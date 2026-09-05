@@ -266,8 +266,9 @@ When("I keyboard-move the note {string} down one position", async ({ page }, nam
 
   // Enter drops the item, firing the reorder server action. Wait for that POST to resolve —
   // the transaction commits and revalidatePath runs before the response returns — so a later
-  // reload cannot out-race persistence.
-  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+  // reload cannot out-race persistence. Not required — a move that registers as a no-op fires no
+  // POST, and the caller falls through to the position check.
+  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
   await handle.press("Enter");
   await reorderResponse;
 });

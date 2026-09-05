@@ -7,6 +7,12 @@ interface WaitForServerActionOptions {
   pathIncludes: string;
   /** Long enough for a real mutation under load, short enough not to stall a no-op gesture. */
   timeoutMs?: number;
+  /**
+   * Whether the POST must actually happen. Default true: no response, or a non-2xx one, throws.
+   * Pass false only where the gesture is legitimately allowed to be a no-op — a keyboard move that
+   * lands back in its original position fires no POST at all, and those call sites retry.
+   */
+  required?: boolean;
 }
 
 /**
@@ -16,16 +22,25 @@ interface WaitForServerActionOptions {
  *
  * Arm it BEFORE the gesture that triggers the action (mouse.up / Enter) and await it AFTER, so the
  * transaction commits and revalidatePath runs before a later reload can out-race persistence.
- * Resolves to null on timeout rather than throwing — some gestures are legitimate no-ops (a move
- * that lands back in its original position) that fire no POST at all.
+ *
+ * By default a missing or failed POST throws here, at the gesture, rather than surfacing later as a
+ * confusing post-reload order mismatch. `required: false` opts out for genuinely-optional gestures.
  */
 export function waitForServerActionResponse(
   page: Page,
-  { pathIncludes, timeoutMs = SERVER_ACTION_TIMEOUT_MS }: WaitForServerActionOptions
+  { pathIncludes, timeoutMs = SERVER_ACTION_TIMEOUT_MS, required = true }: WaitForServerActionOptions
 ): Promise<Response | null> {
-  return page
-    .waitForResponse((response) => response.request().method() === "POST" && response.url().includes(pathIncludes), {
-      timeout: timeoutMs,
-    })
-    .catch(() => null);
+  const pending = page.waitForResponse(
+    (response) => response.request().method() === "POST" && response.url().includes(pathIncludes),
+    { timeout: timeoutMs }
+  );
+
+  if (!required) return pending.catch(() => null);
+
+  return pending.then((response) => {
+    if (!response.ok()) {
+      throw new Error(`Server action POST to ${response.url()} failed with status ${response.status()}.`);
+    }
+    return response;
+  });
 }
