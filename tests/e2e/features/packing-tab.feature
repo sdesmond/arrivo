@@ -142,7 +142,6 @@ Feature: Packing tab
     Then the section label "Documents" should not be visible
     And the packing list should not contain "Passport"
 
-  @retry(2)
   Scenario: Dragging an item out to Ungrouped and back leaves other ungrouped items in place
     Given I have pre-seeded a section with items and ungrouped items
     When I open the Packing tab

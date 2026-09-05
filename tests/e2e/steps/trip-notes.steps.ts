@@ -1,9 +1,10 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { notes } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { E2E_TRIP_NOTES_REORDER } from "../e2e-seed-data";
 import { Given, When, Then } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
 
 function decodeStepValue(value: string): string {
   return value.replace(/\\n/g, "\n");
@@ -11,6 +12,17 @@ function decodeStepValue(value: string): string {
 
 function reorderHandle(page: Page, name: string) {
   return page.getByTitle(`Reorder ${name}`, { exact: false });
+}
+
+// No scrollIntoViewIfNeeded here — these are pure geometry checks, not interactions, and scrolling
+// right after a viewport resize (e.g. `page.setViewportSize`) races the layout reflow, occasionally
+// throwing "Element is not attached to the DOM". A single evaluate() reads the rect atomically
+// instead of resolving the element across two separate round-trips (scroll, then boundingBox).
+async function expectControlAtLeast44px(control: Locator): Promise<void> {
+  await expect(control).toBeVisible({ timeout: 10_000 });
+  const rect = await control.evaluate((element) => element.getBoundingClientRect());
+  expect(rect.width).toBeGreaterThanOrEqual(44);
+  expect(rect.height).toBeGreaterThanOrEqual(44);
 }
 
 Given("I have a trip for trip notes", async ({ scenario }) => {
@@ -158,29 +170,12 @@ Then("the expanded note titled {string} remains and its Trash action is focused"
 });
 
 Then("the expanded note disclosure measures at least 44 by 44 pixels", async ({ page }) => {
-  const disclosure = page.locator('button[aria-expanded="true"]');
-  await disclosure.scrollIntoViewIfNeeded();
-  await expect(disclosure).toBeVisible({ timeout: 10_000 });
-  const bounds = await disclosure.boundingBox();
-  expect(bounds).not.toBeNull();
-  expect(bounds!.width).toBeGreaterThanOrEqual(44);
-  expect(bounds!.height).toBeGreaterThanOrEqual(44);
+  await expectControlAtLeast44px(page.locator('button[aria-expanded="true"]'));
 });
 
 Then("the Notes tab and New Note controls measure at least 44 by 44 pixels", async ({ page }) => {
-  const controls = [
-    page.getByRole("button", { name: "Notes", exact: true }),
-    page.getByRole("button", { name: "New Note", exact: true }),
-  ];
-
-  for (const control of controls) {
-    await control.scrollIntoViewIfNeeded();
-    await expect(control).toBeVisible({ timeout: 10_000 });
-    const bounds = await control.boundingBox();
-    expect(bounds).not.toBeNull();
-    expect(bounds!.width).toBeGreaterThanOrEqual(44);
-    expect(bounds!.height).toBeGreaterThanOrEqual(44);
-  }
+  await expectControlAtLeast44px(page.getByRole("button", { name: "Notes", exact: true }));
+  await expectControlAtLeast44px(page.getByRole("button", { name: "New Note", exact: true }));
 });
 
 Then("the Notes panel has no horizontal scrolling", async ({ page }) => {
@@ -247,7 +242,13 @@ When(
       await page.waitForTimeout(80);
       await page.mouse.move(dest.x + dest.width / 2, dest.y + dest.height / 2, { steps: 4 });
       await page.waitForTimeout(60);
+
+      // The drop fires the reorderTripNotes server action. Wait for that POST to resolve — the
+      // transaction commits and revalidatePath runs before the response returns — so a later
+      // reload cannot out-race persistence.
+      const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
       await page.mouse.up();
+      await reorderResponse;
     }
 
     await performDrag();
@@ -266,11 +267,7 @@ When("I keyboard-move the note {string} down one position", async ({ page }, nam
   // Enter drops the item, firing the reorder server action. Wait for that POST to resolve —
   // the transaction commits and revalidatePath runs before the response returns — so a later
   // reload cannot out-race persistence.
-  const reorderResponse = page
-    .waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/trips/"), {
-      timeout: 5_000,
-    })
-    .catch(() => null);
+  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
   await handle.press("Enter");
   await reorderResponse;
 });
@@ -294,11 +291,5 @@ When("I reload the Notes tab", async ({ page }) => {
 });
 
 Then("the reorder handle for {string} measures at least 44 by 44 pixels", async ({ page }, name: string) => {
-  const handle = reorderHandle(page, name);
-  await handle.scrollIntoViewIfNeeded();
-  await expect(handle).toBeVisible({ timeout: 10_000 });
-  const bounds = await handle.boundingBox();
-  expect(bounds).not.toBeNull();
-  expect(bounds!.width).toBeGreaterThanOrEqual(44);
-  expect(bounds!.height).toBeGreaterThanOrEqual(44);
+  await expectControlAtLeast44px(reorderHandle(page, name));
 });
