@@ -30,6 +30,7 @@ When starting work on this Next.js project, ALWAYS call the `init` tool from `ne
 
 ## Git Workflow
 
+- Run every authenticated GitHub CLI command (`gh pr create`, `gh api`, `gh auth status`, and similar) with `sandbox_permissions: "require_escalated"` on first attempt so Windows keyring credentials are available. Never probe GitHub authentication inside sandbox first.
 - When committing, split staged changes into logically-sized commits by concern (e.g. schema/migration, then implementation, then tests, then docs) rather than one large commit — but don't split a single cohesive change just to manufacture multiple commits.
 - Write each commit message focused on _why_, not a restatement of the diff.
 - NEVER add `Co-Authored-By` or other Claude/AI attribution trailers to commits or PRs.
@@ -257,6 +258,7 @@ Crossing rules:
 - Reusable E2E starting states belong in the mother/materializer helpers in `tests/e2e/e2e-seed-data.ts`, `tests/e2e/scenario-fixture.ts`, and related helpers — extend those instead of inventing ad hoc shared setup
 - `tests/e2e/global-setup.ts` is for minimal bootstrap data only, such as baseline auth prerequisites; do not add feature-specific shared trips, templates, documents, or profile rows there
 - Do not fix E2E flakiness with ordering tags, serial execution, or shared-record reseeding; each scenario must create the mutable rows it depends on and rely on scenario cleanup
+- A step that triggers a mutation and is followed by a reload must await the server action's POST via `waitForServerActionResponse` (`tests/e2e/server-action.ts`) before returning — arm it before the gesture (`mouse.up`/`Enter`), await it after. Optimistic UI makes the in-page assertion pass while the reload aborts the still-in-flight request, so the reordered/edited state silently never persists
 - If a scenario needs a 3-day trip, template, document set, or profile shape, clone a mother with overrides and materialize fresh rows for that scenario
 - Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
 - Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`, but treat those thresholds as backstops rather than the trigger for adding tests
