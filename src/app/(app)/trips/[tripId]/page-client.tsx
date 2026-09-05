@@ -27,6 +27,7 @@ import type {
   CurrencyOption,
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
+import { useTripLiveRefresh } from "@/lib/use-trip-live-refresh";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import {
   buildReservationsDeepLinkHref,
@@ -96,6 +97,8 @@ export function TripDetailClient({
 
   const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes, accessRole } =
     detail;
+
+  useTripLiveRefresh(trip.id);
 
   const tabs = accessRole === CollaboratorRole.Viewer ? TABS.filter((tab) => tab.id !== TripDetailTab.Budget) : TABS;
   const canManage = accessRole === CollaboratorRole.Manager;

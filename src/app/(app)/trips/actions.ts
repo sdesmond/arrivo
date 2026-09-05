@@ -1044,10 +1044,14 @@ export async function saveContributorChanges(
           removedByName,
           removedByEmail,
         });
-        publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
         removeTripSubscribersForUser(tripId, removedUserId);
       }
     }
+
+    // The batch reaching here always applied at least one change (role or removal) — `changes` was
+    // checked non-empty above and the transaction is all-or-nothing — so every open session on this
+    // trip's channel needs to know, not just the sessions of removed users.
+    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
 
     revalidatePath(`/trips/${tripId}`);
     return { status: "success" };

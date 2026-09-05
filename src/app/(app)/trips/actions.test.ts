@@ -326,7 +326,6 @@ describe("saveContributorChanges", () => {
     expect(operations.deletes).toHaveLength(1);
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
 
-    // The role change alone publishes nothing this story; only the removal does.
     expect(publishUserEvent).toHaveBeenCalledOnce();
     expect(publishUserEvent).toHaveBeenCalledWith("user-viewer", {
       type: LiveSyncEventType.MembershipRemoved,
@@ -336,14 +335,51 @@ describe("saveContributorChanges", () => {
       removedByName: "manager@example.com",
       removedByEmail: "manager@example.com",
     });
-    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
       type: LiveSyncEventType.MembershipChanged,
       tripId: "trip-1",
     });
     expect(removeTripSubscribersForUser).toHaveBeenCalledWith("trip-1", "user-viewer");
   });
 
-  it("publishes nothing when the batch is role changes only", async () => {
+  it("publishes membership-changed exactly once even when the batch removes multiple users", async () => {
+    const operations = setupSaveContributorChangesDb({
+      collaboratorRows: [
+        {
+          id: "collab-a",
+          tripId: "trip-1",
+          userId: "user-a",
+          role: "editor",
+          isCreator: false,
+          email: "a@example.com",
+        },
+        {
+          id: "collab-b",
+          tripId: "trip-1",
+          userId: "user-b",
+          role: "viewer",
+          isCreator: false,
+          email: "b@example.com",
+        },
+      ],
+    });
+
+    await expect(
+      saveContributorChanges("trip-1", [
+        { type: "remove", collaboratorId: "collab-a" },
+        { type: "remove", collaboratorId: "collab-b" },
+      ])
+    ).resolves.toEqual({ status: "success" });
+
+    expect(operations.deletes).toHaveLength(2);
+    expect(publishUserEvent).toHaveBeenCalledTimes(2);
+    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
+  });
+
+  it("publishes membership-changed on the trip topic even when the batch is role changes only", async () => {
     setupSaveContributorChangesDb();
 
     await expect(
@@ -352,12 +388,15 @@ describe("saveContributorChanges", () => {
       ])
     ).resolves.toEqual({ status: "success" });
 
-    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
     expect(publishUserEvent).not.toHaveBeenCalled();
     expect(removeTripSubscribersForUser).not.toHaveBeenCalled();
   });
 
-  it("publishes nothing when a removal targets a collaborator with no linked user account", async () => {
+  it("publishes membership-changed on the trip topic even when a removal targets a collaborator with no linked user account", async () => {
     setupSaveContributorChangesDb({
       collaboratorRows: [
         {
@@ -375,7 +414,10 @@ describe("saveContributorChanges", () => {
       saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-orphan" }])
     ).resolves.toEqual({ status: "success" });
 
-    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
     expect(publishUserEvent).not.toHaveBeenCalled();
     expect(removeTripSubscribersForUser).not.toHaveBeenCalled();
   });

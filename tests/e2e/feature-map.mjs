@@ -134,7 +134,12 @@ export const FEATURE_MAP = [
     "src/lib/route.ts",
     "src/app/(app)/trips/[tripId]/route-actions.ts",
   ]),
-  entry("sync-status", ["src/components/packt/sync-status-indicator.tsx"]),
+  entry("sync-status", [
+    "src/components/packt/sync-status-indicator.tsx",
+    "src/lib/live-sync-constants.ts",
+    "src/lib/use-live-sync.ts",
+    "src/app/api/users/me/events/route.ts",
+  ]),
   entry("spending", [
     "src/components/packt/spending-view.tsx",
     "src/components/packt/spending-date-filter.tsx",
@@ -174,6 +179,13 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/cover-image-search-actions.ts",
   ]),
   entry("trip-delete", ["src/components/packt/delete-trip-alert-dialog.tsx"]),
+  entry("trip-live-refresh", [
+    "src/lib/live-sync-constants.ts",
+    "src/lib/use-live-sync.ts",
+    "src/lib/use-trip-live-refresh.ts",
+    "src/app/api/trips/[tripId]/events/route.ts",
+    "src/lib/trip-events.ts",
+  ]),
   entry("trip-notes", ["src/components/packt/trip-notes-*.tsx", "src/lib/note-preview.ts"]),
   entry("trip-tabs", [
     "src/components/packt/active-trip-summary-events.ts",
