@@ -25,6 +25,90 @@ function parseLiveSyncEvent(rawData: string): LiveSyncEvent | null {
   return parsed as LiveSyncEvent;
 }
 
+type StatusListener = (status: SyncConnectionStatusValue) => void;
+type EventListener = (event: LiveSyncEvent) => void;
+
+interface SharedChannel {
+  eventSource: EventSource;
+  refCount: number;
+  status: SyncConnectionStatusValue;
+  watchdog: ReturnType<typeof setTimeout> | null;
+  statusListeners: Set<StatusListener>;
+  eventListeners: Set<EventListener>;
+}
+
+// Keyed by URL so every consumer of the same channel (e.g. SyncStatusIndicator and
+// ContributorRevocationModal, both on the default personal-channel URL) shares one underlying
+// EventSource instead of each opening its own. A page with several personal-channel consumers plus
+// an open trip channel can otherwise approach the browser's per-origin HTTP/1.1 connection cap with
+// just two open tabs, starving unrelated requests (navigations, server actions) of a socket.
+const channels = new Map<string, SharedChannel>();
+
+function broadcastStatus(channel: SharedChannel, status: SyncConnectionStatusValue): void {
+  channel.status = status;
+  channel.statusListeners.forEach((listener) => listener(status));
+}
+
+function resetWatchdog(channel: SharedChannel): void {
+  if (channel.watchdog !== null) clearTimeout(channel.watchdog);
+  channel.watchdog = setTimeout(() => broadcastStatus(channel, SyncConnectionStatus.Offline), DEAD_CHANNEL_TIMEOUT_MS);
+}
+
+function openChannel(url: string): SharedChannel {
+  const eventSource = new EventSource(url);
+  const channel: SharedChannel = {
+    eventSource,
+    refCount: 0,
+    status: SyncConnectionStatus.Reconnecting,
+    watchdog: null,
+    statusListeners: new Set(),
+    eventListeners: new Set(),
+  };
+
+  const markConnected = () => {
+    broadcastStatus(channel, SyncConnectionStatus.Connected);
+    resetWatchdog(channel);
+  };
+
+  eventSource.onopen = markConnected;
+  eventSource.onmessage = (event) => {
+    markConnected();
+    const liveSyncEvent = parseLiveSyncEvent(event.data as string);
+    if (liveSyncEvent) channel.eventListeners.forEach((listener) => listener(liveSyncEvent));
+  };
+  eventSource.onerror = () => {
+    if (channel.status !== SyncConnectionStatus.Offline) broadcastStatus(channel, SyncConnectionStatus.Reconnecting);
+  };
+  resetWatchdog(channel);
+
+  return channel;
+}
+
+function acquireChannel(url: string): { channel: SharedChannel; isNewChannel: boolean } {
+  const existing = channels.get(url);
+  if (existing) {
+    existing.refCount += 1;
+    return { channel: existing, isNewChannel: false };
+  }
+
+  const channel = openChannel(url);
+  channel.refCount = 1;
+  channels.set(url, channel);
+  return { channel, isNewChannel: true };
+}
+
+function releaseChannel(url: string): void {
+  const channel = channels.get(url);
+  if (!channel) return;
+
+  channel.refCount -= 1;
+  if (channel.refCount > 0) return;
+
+  if (channel.watchdog !== null) clearTimeout(channel.watchdog);
+  channel.eventSource.close();
+  channels.delete(url);
+}
+
 export function useLiveSync(
   url = "/api/users/me/events",
   onLiveSyncEvent?: (event: LiveSyncEvent) => void
@@ -39,45 +123,31 @@ export function useLiveSync(
   });
 
   useEffect(() => {
-    // Force a real transition out of Connected whenever this effect (re)runs for a new `url`. On
-    // first mount `status` is already Reconnecting, so this is a no-op render. On a later `url`
-    // change while still Connected, without this the new EventSource's `onopen` would call
-    // `setStatus(Connected)` while state is already `"connected"` — React bails on the identical
-    // value and skips the re-render, so a consumer's effect keyed on `status` (e.g.
-    // useTripLiveRefresh's reconnect-resync watcher) never sees this as a fresh Connected
-    // transition, and misreads the *next* genuine reconnect as the initial connect.
-    /* eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate resync with the new
-       `url`'s external EventSource identity, not derivable state; see comment above. */
-    setStatus(SyncConnectionStatus.Reconnecting);
+    const { channel, isNewChannel } = acquireChannel(url);
 
-    let watchdog: ReturnType<typeof setTimeout> | null = null;
+    // A brand-new channel always starts Reconnecting, so this is a no-op render. Joining an
+    // already-open channel (a second consumer of the same URL, e.g. the revocation modal mounting
+    // alongside SyncStatusIndicator) reflects its true current status immediately instead of lying
+    // about a fresh Reconnecting state. Forcing Reconnecting only applies to a genuinely new
+    // EventSource — see the reconnect-resync note below.
+    /* eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate resync with the
+       channel's current status on (re)acquire, not derivable state; see comment above. */
+    setStatus(isNewChannel ? SyncConnectionStatus.Reconnecting : channel.status);
 
-    const resetWatchdog = () => {
-      if (watchdog !== null) clearTimeout(watchdog);
-      watchdog = setTimeout(() => setStatus(SyncConnectionStatus.Offline), DEAD_CHANNEL_TIMEOUT_MS);
-    };
-
-    const eventSource = new EventSource(url);
-    const markConnected = () => {
-      setStatus(SyncConnectionStatus.Connected);
-      resetWatchdog();
-    };
-
-    eventSource.onopen = markConnected;
-    eventSource.onmessage = (event) => {
-      markConnected();
-      const liveSyncEvent = parseLiveSyncEvent(event.data as string);
-      if (liveSyncEvent) onLiveSyncEventRef.current?.(liveSyncEvent);
-    };
-    eventSource.onerror = () =>
-      setStatus((currentStatus) =>
-        currentStatus === SyncConnectionStatus.Offline ? currentStatus : SyncConnectionStatus.Reconnecting
-      );
-    resetWatchdog();
+    // On a later `url` change while a previous channel for that URL was still Connected, forcing a
+    // fresh channel (and thus a fresh Reconnecting state above) guarantees a real transition out of
+    // Connected — without it, a consumer's effect keyed on `status` (e.g. useTripLiveRefresh's
+    // reconnect-resync watcher) could miss the transition and misread the *next* genuine reconnect
+    // as the initial connect.
+    const statusListener: StatusListener = (nextStatus) => setStatus(nextStatus);
+    const eventListener: EventListener = (event) => onLiveSyncEventRef.current?.(event);
+    channel.statusListeners.add(statusListener);
+    channel.eventListeners.add(eventListener);
 
     return () => {
-      if (watchdog !== null) clearTimeout(watchdog);
-      eventSource.close();
+      channel.statusListeners.delete(statusListener);
+      channel.eventListeners.delete(eventListener);
+      releaseChannel(url);
     };
   }, [url]);
 
