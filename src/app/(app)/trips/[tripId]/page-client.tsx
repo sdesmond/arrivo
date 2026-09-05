@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
@@ -9,7 +9,7 @@ import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { TripShareDialog } from "@/components/packt/trip-share-dialog";
-import { BudgetStatus, CollaboratorRole, TripDetailTab } from "@/data/types";
+import { BudgetStatus, CollaboratorRole, LiveSyncEventType, TripDetailTab } from "@/data/types";
 import {
   calculateActual,
   calculateBudgetStatus,
@@ -28,6 +28,8 @@ import type {
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { useTripLiveRefresh } from "@/lib/use-trip-live-refresh";
+import { useBfcacheRefresh } from "@/lib/use-bfcache-refresh";
+import { getRevocationTicket, getServerRevocationTicket, subscribeRevocation } from "@/lib/revocation-ticket";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import {
   buildReservationsDeepLinkHref,
@@ -99,6 +101,9 @@ export function TripDetailClient({
     detail;
 
   useTripLiveRefresh(trip.id);
+  useBfcacheRefresh();
+
+  const revocationTicket = useSyncExternalStore(subscribeRevocation, getRevocationTicket, getServerRevocationTicket);
 
   const tabs = accessRole === CollaboratorRole.Viewer ? TABS.filter((tab) => tab.id !== TripDetailTab.Budget) : TABS;
   const canManage = accessRole === CollaboratorRole.Manager;
@@ -130,6 +135,24 @@ export function TripDetailClient({
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [accessRole]);
+
+  // A self-targeted membership-removed ticket for this trip means ContributorRevocationModal is
+  // about to be (or already is) the sole surface on screen — force-close every dialog here so any
+  // staged changes are discarded via unmount rather than left open behind the modal.
+  useEffect(() => {
+    if (!revocationTicket || revocationTicket.type !== LiveSyncEventType.MembershipRemoved) return;
+    if (revocationTicket.tripId !== trip.id) return;
+
+    // Deliberate reaction to an external store (the revocation ticket), not state derivable from
+    // this render — mirrors the same justified use in use-live-sync.ts.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setSharingTrip(false);
+    setEditingTrip(false);
+    setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
+    setTripDateConfirmation(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [revocationTicket, trip.id]);
 
   // Child components (CTA, linked-event taps, ReservationsTab) navigate via next/navigation's router
   // rather than raw history APIs, so this syncs activeTab from the live search params instead of

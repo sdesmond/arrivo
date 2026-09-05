@@ -117,6 +117,11 @@ export const FEATURE_MAP = [
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("profile", ["src/app/(app)/profile/**", "src/components/packt/avatar-stack.tsx"]),
+  entry("revocation-modal", [
+    "src/components/packt/contributor-revocation-modal.tsx",
+    "src/lib/revocation-ticket.ts",
+    "src/lib/use-bfcache-refresh.ts",
+  ]),
   entry("reservations", [
     "src/components/packt/reservation*",
     "src/components/packt/add-reservation-doc-dialog.tsx",
