@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -c \"import sys,json; f=json.load(sys.stdin).get('tool_input',{}).get('file_path',''); print(f) if f else None\" | { read -r f; [ -n \"$f\" ] && npx prettier --write \"$f\" --ignore-unknown && npx eslint --fix \"$f\"; } 2>/dev/null || true"
+            "command": "python3 -c \"import sys,json; f=json.load(sys.stdin).get('tool_input',{}).get('file_path',''); print(f) if f else None\" | { read -r f; [ -n \"$f\" ] || exit 0; PB=node_modules/.bin; if [ -x \"$PB/prettier\" ]; then \"$PB/prettier\" --write \"$f\" --ignore-unknown; else npx prettier --write \"$f\" --ignore-unknown; fi && if [ -x \"$PB/eslint\" ]; then \"$PB/eslint\" --fix \"$f\"; else npx eslint --fix \"$f\"; fi; } 2>/dev/null || true"
           }
         ]
       }

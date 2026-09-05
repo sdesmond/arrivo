@@ -41,16 +41,19 @@ describe("feature-map consistency", async () => {
     expect(missing, `Map references files that no longer exist: ${missing.join(", ")}`).toEqual([]);
   });
 
-  it.each(["src/lib/live-sync-constants.ts", "src/lib/use-live-sync.ts"])(
-    "runs connection-status and trip-refresh coverage when %s changes",
-    (path) => {
-      const tags = FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs))
-        .map((feature) => feature.tag)
-        .sort();
+  it.each([
+    // The constants only shape heartbeat/watchdog timing, which is what these two features assert.
+    ["src/lib/live-sync-constants.ts", ["@feat:sync-status", "@feat:trip-live-refresh"]],
+    // The hook additionally owns the ref-counted shared-channel registry that lets the revocation
+    // modal share the personal channel with the sync indicator, so it must run that feature too.
+    ["src/lib/use-live-sync.ts", ["@feat:revocation-modal", "@feat:sync-status", "@feat:trip-live-refresh"]],
+  ])("runs the live-sync feature coverage when %s changes", (path, expectedTags) => {
+    const tags = FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs))
+      .map((feature) => feature.tag)
+      .sort();
 
-      expect(tags).toEqual(["@feat:sync-status", "@feat:trip-live-refresh"]);
-    }
-  );
+    expect(tags).toEqual(expectedTags);
+  });
 
   it("no packt component is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
     const orphans = readdirSync(PACKT_DIR)

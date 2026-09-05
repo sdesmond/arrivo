@@ -23,9 +23,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         controller.enqueue(encoder.encode(formatSseEvent(event)));
       });
 
-      const heartbeat = setInterval(() => {
-        controller.enqueue(encoder.encode(formatSseHeartbeat()));
-      }, SSE_HEARTBEAT_INTERVAL_MS);
+      const emitHeartbeat = () => controller.enqueue(encoder.encode(formatSseHeartbeat()));
+      // Fired once synchronously so the response flushes immediately — without an
+      // initial byte the client's connection can sit unopened for a full heartbeat
+      // interval, racing any "Connected" assertion tied to the same interval length.
+      emitHeartbeat();
+      const heartbeat = setInterval(emitHeartbeat, SSE_HEARTBEAT_INTERVAL_MS);
 
       let cleanedUp = false;
       const cleanup = () => {

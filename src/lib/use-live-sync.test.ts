@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType, SyncConnectionStatus } from "@/data/types";
 import type { LiveSyncEvent } from "@/data/types";
 import { LIVE_SYNC_DEAD_CHANNEL_GRACE_MS, SSE_HEARTBEAT_INTERVAL_MS } from "./live-sync-constants";
-import { useLiveSync } from "./use-live-sync";
+import { resetLiveSyncChannelsForTest, useLiveSync } from "./use-live-sync";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -34,12 +34,17 @@ const DEAD_CHANNEL_TIMEOUT_MS = SSE_HEARTBEAT_INTERVAL_MS + LIVE_SYNC_DEAD_CHANN
 
 describe("useLiveSync", () => {
   beforeEach(() => {
+    // The channel registry is module-level, so it outlives any single renderHook. Reset it before
+    // stubbing EventSource, or a channel leaked by an earlier test (and its watchdog timer) shows
+    // up here as an unrelated instance-count failure.
+    resetLiveSyncChannelsForTest();
     MockEventSource.instances = [];
     vi.useFakeTimers();
     vi.stubGlobal("EventSource", MockEventSource);
   });
 
   afterEach(() => {
+    resetLiveSyncChannelsForTest();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -234,6 +239,76 @@ describe("useLiveSync", () => {
           )
         )
       ).not.toThrow();
+    });
+  });
+
+  describe("shared channel per URL", () => {
+    it("opens only one EventSource for two concurrent consumers of the same URL", () => {
+      renderHook(() => useLiveSync());
+      renderHook(() => useLiveSync());
+
+      expect(MockEventSource.instances).toHaveLength(1);
+    });
+
+    it("opens independent EventSource instances for different URLs", () => {
+      renderHook(() => useLiveSync("/api/trips/trip-1/events"));
+      renderHook(() => useLiveSync("/api/trips/trip-2/events"));
+
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it("keeps the shared EventSource open while any consumer remains mounted", () => {
+      const first = renderHook(() => useLiveSync());
+      renderHook(() => useLiveSync());
+
+      first.unmount();
+
+      expect(MockEventSource.instances[0]?.close).not.toHaveBeenCalled();
+    });
+
+    it("closes the shared EventSource only after the last consumer unmounts", () => {
+      const first = renderHook(() => useLiveSync());
+      const second = renderHook(() => useLiveSync());
+
+      first.unmount();
+      second.unmount();
+
+      expect(MockEventSource.instances[0]?.close).toHaveBeenCalledOnce();
+    });
+
+    it("delivers a message to every consumer subscribed to the shared channel", () => {
+      const firstCallback = vi.fn();
+      const secondCallback = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", firstCallback));
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", secondCallback));
+
+      act(() =>
+        MockEventSource.instances[0]?.emitMessage(
+          JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })
+        )
+      );
+
+      expect(firstCallback).toHaveBeenCalledOnce();
+      expect(secondCallback).toHaveBeenCalledOnce();
+    });
+
+    it("reflects a shared status change on every consumer", () => {
+      const first = renderHook(() => useLiveSync());
+      const second = renderHook(() => useLiveSync());
+
+      act(() => MockEventSource.instances[0]?.emitOpen());
+
+      expect(first.result.current).toBe(SyncConnectionStatus.Connected);
+      expect(second.result.current).toBe(SyncConnectionStatus.Connected);
+    });
+
+    it("gives a consumer joining an already-connected channel its true current status immediately", () => {
+      renderHook(() => useLiveSync());
+      act(() => MockEventSource.instances[0]?.emitOpen());
+
+      const joiner = renderHook(() => useLiveSync());
+
+      expect(joiner.result.current).toBe(SyncConnectionStatus.Connected);
     });
   });
 });

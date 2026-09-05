@@ -58,10 +58,21 @@ describe("GET /api/users/me/events", () => {
     expect(response.headers.get("X-Accel-Buffering")).toBe("no");
   });
 
+  it("flushes an immediate heartbeat on connect, before any interval tick", async () => {
+    const response = await GET(new Request("http://localhost/api/users/me/events") as never);
+    const reader = response.body!.getReader();
+
+    const chunk = await readNextChunk(reader);
+    expect(chunk).toBe(formatSseHeartbeat());
+    await reader.cancel().catch(() => {});
+  });
+
   it("streams a published event through to the client", async () => {
     const response = await GET(new Request("http://localhost/api/users/me/events") as never);
     const reader = response.body!.getReader();
     const publish = subscribeUser.mock.calls[0][1] as (event: unknown) => void;
+
+    await readNextChunk(reader); // the immediate connect heartbeat
 
     const event = { type: "membership-changed", tripId: "trip-1" };
     publish(event);
@@ -76,6 +87,7 @@ describe("GET /api/users/me/events", () => {
     const response = await GET(new Request("http://localhost/api/users/me/events") as never);
     const reader = response.body!.getReader();
 
+    await readNextChunk(reader); // the immediate connect heartbeat
     vi.advanceTimersByTime(15_000);
 
     const chunk = await readNextChunk(reader);

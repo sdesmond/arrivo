@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { packingItems, tripPackingLists } from "../../../src/db/schema";
 import { type E2EDb, withE2EDb } from "../e2e-db";
+import { waitForServerActionResponse } from "../server-action";
 import {
   E2E_PACKING_CONTEXTUAL_ADD_ITEMS,
   E2E_PACKING_DELETE_LABEL_ITEMS,
@@ -137,7 +138,14 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
     }
     await page.mouse.move(lastBox.x + lastBox.width / 2, lastBox.y + lastBox.height / 2, { steps: 3 });
     await page.waitForTimeout(60);
+
+    // The drop fires the reorder server action. Wait for that POST to resolve so a later reload
+    // cannot out-race persistence. Armed per attempt, since each retry fires its own reorder —
+    // and not required, because an attempt whose drop misses the target fires no POST and is
+    // expected to fall through to the retry below.
+    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
     await page.mouse.up();
+    await reorderResponse;
   }
 
   await performDrag();
@@ -178,7 +186,9 @@ async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<vo
     await page.mouse.move(targetPointX, targetPointY, { steps: 8 });
     if ((await previewItem.count()) === 1) {
       await page.waitForTimeout(60);
+      const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
       await page.mouse.up();
+      await reorderResponse;
       return;
     }
     await page.waitForTimeout(90);
@@ -188,7 +198,9 @@ async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<vo
 
   await expect(previewItem).toHaveCount(1, { timeout: 2_000 });
   await page.waitForTimeout(60);
+  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
   await page.mouse.up();
+  await reorderResponse;
 }
 
 async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promise<void> {
@@ -253,11 +265,7 @@ async function keyboardMovePackingItemDownOnePosition(page: Page, name: string):
     // response returns — so a later reload cannot out-race persistence. A move
     // that registers as a no-op fires no POST, so tolerate a timeout and fall
     // through to the position check / retry.
-    const reorderResponse = page
-      .waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/trips/"), {
-        timeout: 5_000,
-      })
-      .catch(() => null);
+    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
     await dragHandle.press("Enter");
     await reorderResponse;
 

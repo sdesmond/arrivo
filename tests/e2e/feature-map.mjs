@@ -117,6 +117,12 @@ export const FEATURE_MAP = [
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("profile", ["src/app/(app)/profile/**", "src/components/packt/avatar-stack.tsx"]),
+  // `src/lib/revocation-ticket.ts` and `src/lib/use-bfcache-refresh.ts` are deliberately NOT listed:
+  // FEATURE_MAP is checked before SHARED_GLOBS, so naming them here would demote them out of
+  // `src/lib/**` (full suite) down to this one feature — and use-bfcache-refresh is mounted in
+  // page-client.tsx, so it can move every trip-detail feature. use-live-sync.ts stays mapped to its
+  // own features but is listed here too: the shared-channel registry exists for this modal.
+  entry("revocation-modal", ["src/components/packt/contributor-revocation-modal.tsx", "src/lib/use-live-sync.ts"]),
   entry("reservations", [
     "src/components/packt/reservation*",
     "src/components/packt/add-reservation-doc-dialog.tsx",
@@ -278,6 +284,8 @@ export const SHARED_GLOBS = [
   "tests/e2e/e2e-seed-data.ts",
   "tests/e2e/auth.setup.ts",
   "tests/e2e/steps/common.steps.ts",
+  "tests/e2e/server-action.ts",
+  "tests/e2e/live-sync.ts",
   "tests/e2e/feature-map.mjs",
   // Root config + the segmentation tooling itself
   "package.json",
