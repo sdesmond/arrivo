@@ -41,6 +41,17 @@ describe("feature-map consistency", async () => {
     expect(missing, `Map references files that no longer exist: ${missing.join(", ")}`).toEqual([]);
   });
 
+  it.each(["src/lib/live-sync-constants.ts", "src/lib/use-live-sync.ts"])(
+    "runs connection-status and trip-refresh coverage when %s changes",
+    (path) => {
+      const tags = FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs))
+        .map((feature) => feature.tag)
+        .sort();
+
+      expect(tags).toEqual(["@feat:sync-status", "@feat:trip-live-refresh"]);
+    }
+  );
+
   it("no packt component is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
     const orphans = readdirSync(PACKT_DIR)
       .filter((name) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name))

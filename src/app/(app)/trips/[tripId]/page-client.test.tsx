@@ -5,18 +5,26 @@ import type { ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
 import type { TripDetailPayload } from "@/data/types";
 
-const { tripConfettiMock, mockPathname, mockSearchParams, mockRouterPush, mockRouterReplace, mockUseFocusScroll } =
-  vi.hoisted(() => ({
-    tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
-      void tripId;
-      return null;
-    }),
-    mockPathname: vi.fn(() => "/trips/trip-1"),
-    mockSearchParams: vi.fn(() => new URLSearchParams()),
-    mockRouterPush: vi.fn(),
-    mockRouterReplace: vi.fn(),
-    mockUseFocusScroll: vi.fn<() => string | null>(() => null),
-  }));
+const {
+  tripConfettiMock,
+  mockPathname,
+  mockSearchParams,
+  mockRouterPush,
+  mockRouterReplace,
+  mockUseFocusScroll,
+  mockUseTripLiveRefresh,
+} = vi.hoisted(() => ({
+  tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
+    void tripId;
+    return null;
+  }),
+  mockPathname: vi.fn(() => "/trips/trip-1"),
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
+  mockRouterPush: vi.fn(),
+  mockRouterReplace: vi.fn(),
+  mockUseFocusScroll: vi.fn<() => string | null>(() => null),
+  mockUseTripLiveRefresh: vi.fn(),
+}));
 
 interface TripCoverProps {
   metaTag: string;
@@ -149,6 +157,10 @@ vi.mock("@/lib/use-focus-scroll", () => ({
   useFocusScroll: mockUseFocusScroll,
 }));
 
+vi.mock("@/lib/use-trip-live-refresh", () => ({
+  useTripLiveRefresh: mockUseTripLiveRefresh,
+}));
+
 vi.mock("./use-trip-detail-handlers", () => ({
   useTripDetailHandlers: () => ({
     newlyCreatedChecklistId: null,
@@ -231,6 +243,12 @@ describe("TripDetailClient", () => {
     );
 
     expect(tripConfettiMock).not.toHaveBeenCalled();
+  });
+
+  it("mounts live refresh for the trip", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(mockUseTripLiveRefresh).toHaveBeenCalledExactlyOnceWith("trip-1");
   });
 
   it("shows an unscheduled hero label when the trip has no dates", () => {

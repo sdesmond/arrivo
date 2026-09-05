@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SyncConnectionStatus } from "@/data/types";
+import { LiveSyncEventType, SyncConnectionStatus } from "@/data/types";
+import type { LiveSyncEvent } from "@/data/types";
 import { LIVE_SYNC_DEAD_CHANNEL_GRACE_MS, SSE_HEARTBEAT_INTERVAL_MS } from "./live-sync-constants";
 import { useLiveSync } from "./use-live-sync";
 
@@ -20,8 +21,8 @@ class MockEventSource {
     this.onerror?.(new Event("error"));
   }
 
-  emitMessage(): void {
-    this.onmessage?.(new MessageEvent("message", { data: '{"type":"heartbeat"}' }));
+  emitMessage(data = '{"type":"heartbeat"}'): void {
+    this.onmessage?.(new MessageEvent("message", { data }));
   }
 
   emitOpen(): void {
@@ -116,5 +117,123 @@ describe("useLiveSync", () => {
     expect(source?.close).toHaveBeenCalledOnce();
     expect(clearTimeoutSpy).toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  describe("onLiveSyncEvent callback", () => {
+    it("invokes the callback with the parsed event for a known type", () => {
+      const onLiveSyncEvent = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", onLiveSyncEvent));
+
+      act(() =>
+        MockEventSource.instances[0]?.emitMessage(
+          JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })
+        )
+      );
+
+      expect(onLiveSyncEvent).toHaveBeenCalledExactlyOnceWith({
+        type: LiveSyncEventType.ItineraryChanged,
+        tripId: "trip-1",
+      });
+    });
+
+    it("passes through the full event payload for a multi-field event type", () => {
+      const onLiveSyncEvent = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", onLiveSyncEvent));
+
+      const payload: LiveSyncEvent = {
+        type: LiveSyncEventType.MembershipRemoved,
+        removedUserId: "user-1",
+        tripId: "trip-1",
+        tripName: "Test Trip",
+        removedByName: "Manager",
+        removedByEmail: "manager@example.com",
+      };
+      act(() => MockEventSource.instances[0]?.emitMessage(JSON.stringify(payload)));
+
+      expect(onLiveSyncEvent).toHaveBeenCalledExactlyOnceWith(payload);
+    });
+
+    it("does not invoke the callback for a heartbeat frame", () => {
+      const onLiveSyncEvent = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", onLiveSyncEvent));
+
+      act(() => MockEventSource.instances[0]?.emitMessage('{"type":"heartbeat"}'));
+
+      expect(onLiveSyncEvent).not.toHaveBeenCalled();
+    });
+
+    it("does not invoke the callback for an unrecognized event type", () => {
+      const onLiveSyncEvent = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", onLiveSyncEvent));
+
+      act(() => MockEventSource.instances[0]?.emitMessage('{"type":"something-unknown"}'));
+
+      expect(onLiveSyncEvent).not.toHaveBeenCalled();
+    });
+
+    it("does not invoke the callback and does not throw for malformed JSON", () => {
+      const onLiveSyncEvent = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", onLiveSyncEvent));
+
+      expect(() => act(() => MockEventSource.instances[0]?.emitMessage("not json"))).not.toThrow();
+      expect(onLiveSyncEvent).not.toHaveBeenCalled();
+    });
+
+    it("does not invoke the callback for a frame with no type field", () => {
+      const onLiveSyncEvent = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", onLiveSyncEvent));
+
+      act(() => MockEventSource.instances[0]?.emitMessage('{"tripId":"trip-1"}'));
+
+      expect(onLiveSyncEvent).not.toHaveBeenCalled();
+    });
+
+    it("still marks connected and resets the watchdog on a message that carries an event", () => {
+      const onLiveSyncEvent = vi.fn();
+      const { result } = renderHook(() => useLiveSync("/api/trips/trip-1/events", onLiveSyncEvent));
+      act(() => vi.advanceTimersByTime(DEAD_CHANNEL_TIMEOUT_MS));
+      expect(result.current).toBe(SyncConnectionStatus.Offline);
+
+      act(() =>
+        MockEventSource.instances[0]?.emitMessage(
+          JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })
+        )
+      );
+
+      expect(result.current).toBe(SyncConnectionStatus.Connected);
+      expect(onLiveSyncEvent).toHaveBeenCalledOnce();
+    });
+
+    it("calls the latest callback without resubscribing the EventSource when the callback identity changes", () => {
+      const firstCallback = vi.fn();
+      const secondCallback = vi.fn();
+      const { rerender } = renderHook(({ callback }) => useLiveSync("/api/trips/trip-1/events", callback), {
+        initialProps: { callback: firstCallback },
+      });
+
+      rerender({ callback: secondCallback });
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() =>
+        MockEventSource.instances[0]?.emitMessage(
+          JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })
+        )
+      );
+
+      expect(firstCallback).not.toHaveBeenCalled();
+      expect(secondCallback).toHaveBeenCalledOnce();
+    });
+
+    it("works with no callback supplied", () => {
+      renderHook(() => useLiveSync("/api/trips/trip-1/events"));
+
+      expect(() =>
+        act(() =>
+          MockEventSource.instances[0]?.emitMessage(
+            JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })
+          )
+        )
+      ).not.toThrow();
+    });
   });
 });
