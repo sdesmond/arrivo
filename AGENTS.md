@@ -30,7 +30,7 @@ When starting work on this Next.js project, ALWAYS call the `init` tool from `ne
 
 ## Git Workflow
 
-- Run every authenticated GitHub CLI command (`gh pr create`, `gh api`, `gh auth status`, and similar) with `sandbox_permissions: "require_escalated"` on first attempt so Windows keyring credentials are available. Never probe GitHub authentication inside sandbox first.
+- Run every authenticated GitHub CLI command (`gh pr create`, `gh api`, `gh auth status`, and similar) outside the sandbox on the first attempt so Windows keyring credentials are available. Never probe GitHub authentication inside the sandbox first. The parameter differs per agent: Codex passes `sandbox_permissions: "require_escalated"`; Claude Code passes `dangerouslyDisableSandbox: true` on the Bash/PowerShell tool.
 - When committing, split staged changes into logically-sized commits by concern (e.g. schema/migration, then implementation, then tests, then docs) rather than one large commit — but don't split a single cohesive change just to manufacture multiple commits.
 - Write each commit message focused on _why_, not a restatement of the diff.
 - NEVER add `Co-Authored-By` or other Claude/AI attribution trailers to commits or PRs.
