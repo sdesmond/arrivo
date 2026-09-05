@@ -8,6 +8,7 @@ import { waitForLiveSyncResponse } from "../live-sync";
 const REMOVED_PAGE_KEY = "revocationModalRemovedPage";
 const REMOVED_CONTEXT_KEY = "revocationModalRemovedContext";
 const REMOVED_NAME_KEY = "revocationModalRemovedName";
+const STAGED_TARGET_NAME_KEY = "revocationModalStagedTargetName";
 
 async function openTripWithPersonalChannel(page: Page, tripId: string): Promise<void> {
   const personalChannelReady = waitForLiveSyncResponse(page, "/api/users/me/events");
@@ -42,79 +43,105 @@ async function removeNamedContributorAndSave(page: Page, scenario: ScenarioFixtu
   await expect(page.getByText("Contributor changes saved.")).toBeVisible();
 }
 
+function revocationModal(page: Page) {
+  return page.getByRole("alertdialog");
+}
+
 async function assertRevocationModalNamesRemover(scenario: ScenarioFixtureContext): Promise<void> {
   const removedPage = getRemovedPage(scenario);
   const trip = await scenario.ensureCurrentTrip();
   const remover = scenario.currentUser;
+  if (!remover) throw new Error("No current user is set for this scenario, so there is no remover to name.");
 
-  await expect(removedPage.getByText(trip.name, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
-  if (remover) {
-    await expect(removedPage.getByText(remover.name, { exact: false }).first()).toBeVisible();
-  }
-  await expect(removedPage.getByRole("button", { name: "OK", exact: true })).toBeVisible();
+  // Scoped to the dialog: the trip page underneath renders the trip name in its hero and the
+  // remover's name in the contributor rail, so an unscoped getByText would pass without the modal.
+  const modal = revocationModal(removedPage);
+  await expect(modal).toBeVisible({ timeout: 15_000 });
+  await expect(modal.getByText(trip.name, { exact: false })).toBeVisible();
+  await expect(modal.getByText(remover.name, { exact: false })).toBeVisible();
+  await expect(modal.getByRole("button", { name: "OK", exact: true })).toBeVisible();
 }
 
-Given("I have a contributor viewing my trip in their own session", async ({ page, scenario }) => {
-  const trip = await scenario.ensureCurrentTrip();
+interface SeededContributor {
+  id: string;
+  email: string;
+  name: string;
+  initials: string;
+}
 
+async function seedCollaborator(
+  scenario: ScenarioFixtureContext,
+  tripId: string,
+  name: string,
+  initials: string,
+  role: "editor" | "manager"
+): Promise<SeededContributor> {
   const { user: contributor } = await scenario.materialize({
-    user: { overrides: { user: { name: "Revocation Contributor", initials: "RC" } }, setCurrent: false },
+    user: { overrides: { user: { name, initials } }, setCurrent: false },
   });
-  if (!contributor) throw new Error("Failed to materialize the contributor user.");
+  if (!contributor) throw new Error(`Failed to materialize the ${role} user "${name}".`);
 
   await withE2EDb(async (db) => {
     await db.insert(collaborators).values({
-      tripId: trip.id,
+      tripId,
       userId: contributor.id,
       email: contributor.email,
       name: contributor.name,
       initials: contributor.initials,
-      role: "editor",
+      role,
       isCreator: false,
     });
   });
 
-  const contributorContext = await page.context().browser()!.newContext();
-  const contributorPage = await contributorContext.newPage();
-  await signInAsRemovedUser(contributorPage, contributor.email);
-  await openTripWithPersonalChannel(contributorPage, trip.id);
+  return contributor;
+}
 
-  scenario.setValue(REMOVED_PAGE_KEY, contributorPage);
-  scenario.setValue(REMOVED_CONTEXT_KEY, contributorContext);
+/**
+ * Opens a second browser session on the trip as `contributor`. The context is registered with the
+ * scenario immediately after creation — before sign-in or navigation can throw — so the After hook
+ * always has something to close and a failed setup cannot leak a context into the rest of the run.
+ */
+async function openSecondSession(
+  page: Page,
+  scenario: ScenarioFixtureContext,
+  contributor: SeededContributor,
+  tripId: string
+): Promise<Page> {
+  const browser = page.context().browser();
+  if (!browser) throw new Error("No browser is available to open a second session.");
+
+  const context = await browser.newContext();
+  scenario.setValue(REMOVED_CONTEXT_KEY, context);
+
+  const secondPage = await context.newPage();
+  scenario.setValue(REMOVED_PAGE_KEY, secondPage);
   scenario.setValue(REMOVED_NAME_KEY, contributor.name);
+
+  await signInAsRemovedUser(secondPage, contributor.email);
+  await openTripWithPersonalChannel(secondPage, tripId);
+  return secondPage;
+}
+
+Given("I have a contributor viewing my trip in their own session", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const contributor = await seedCollaborator(scenario, trip.id, "Revocation Contributor", "RC", "editor");
+  await openSecondSession(page, scenario, contributor, trip.id);
 });
 
-Given("I have a co-manager with the share dialog open on my trip in their own session", async ({ page, scenario }) => {
+Given("I have a co-manager with a staged contributor removal in their own session", async ({ page, scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
+  const coManager = await seedCollaborator(scenario, trip.id, "Revocation Co-Manager", "RM", "manager");
+  const bystander = await seedCollaborator(scenario, trip.id, "Revocation Bystander", "RB", "editor");
+  scenario.setValue(STAGED_TARGET_NAME_KEY, bystander.name);
 
-  const { user: coManager } = await scenario.materialize({
-    user: { overrides: { user: { name: "Revocation Co-Manager", initials: "RM" } }, setCurrent: false },
-  });
-  if (!coManager) throw new Error("Failed to materialize the co-manager user.");
-
-  await withE2EDb(async (db) => {
-    await db.insert(collaborators).values({
-      tripId: trip.id,
-      userId: coManager.id,
-      email: coManager.email,
-      name: coManager.name,
-      initials: coManager.initials,
-      role: "manager",
-      isCreator: false,
-    });
-  });
-
-  const coManagerContext = await page.context().browser()!.newContext();
-  const coManagerPage = await coManagerContext.newPage();
-  await signInAsRemovedUser(coManagerPage, coManager.email);
-  await openTripWithPersonalChannel(coManagerPage, trip.id);
+  const coManagerPage = await openSecondSession(page, scenario, coManager, trip.id);
 
   await coManagerPage.getByRole("button", { name: "Share", exact: true }).click();
   await expect(coManagerPage.getByRole("heading", { name: "Share trip" })).toBeVisible();
 
-  scenario.setValue(REMOVED_PAGE_KEY, coManagerPage);
-  scenario.setValue(REMOVED_CONTEXT_KEY, coManagerContext);
-  scenario.setValue(REMOVED_NAME_KEY, coManager.name);
+  // Stage a removal without saving — this is the work AC3 requires to be discarded.
+  await coManagerPage.getByTitle(`Remove ${bystander.name}`).click();
+  await expect(coManagerPage.getByText("Will be removed on Save")).toBeVisible();
 });
 
 When("I remove the contributor from the trip and save", async ({ page, scenario }) => {
@@ -144,6 +171,30 @@ Then("the co-manager's session no longer shows the share dialog", async ({ scena
   await expect(removedPage.getByRole("heading", { name: "Share trip" })).toHaveCount(0);
 });
 
+Then("the removal message cannot be dismissed", async ({ scenario }) => {
+  const removedPage = getRemovedPage(scenario);
+  const modal = revocationModal(removedPage);
+
+  await removedPage.keyboard.press("Escape");
+  await expect(modal).toBeVisible();
+
+  // Click the far top-left corner — outside the centred popup, on the backdrop.
+  await removedPage.mouse.click(4, 4);
+  await expect(modal).toBeVisible();
+});
+
+Then("the staged removal was discarded", async ({ page, scenario }) => {
+  const stagedTargetName = scenario.getValue<string>(STAGED_TARGET_NAME_KEY);
+  if (!stagedTargetName) throw new Error("No staged removal target is set up for this scenario.");
+
+  // The co-manager's staged removal must never have reached the server. Verified from the owner's
+  // session, since the co-manager has lost access to the trip by this point.
+  await scenario.gotoCurrentTrip(page);
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
+  await expect(page.getByTitle(`Remove ${stagedTargetName}`)).toBeVisible();
+});
+
 When("the contributor's session clicks OK", async ({ scenario }) => {
   await getRemovedPage(scenario).getByRole("button", { name: "OK", exact: true }).click();
 });
@@ -167,5 +218,6 @@ After(async ({ scenario }) => {
     scenario.clearValue(REMOVED_CONTEXT_KEY);
     scenario.clearValue(REMOVED_PAGE_KEY);
     scenario.clearValue(REMOVED_NAME_KEY);
+    scenario.clearValue(STAGED_TARGET_NAME_KEY);
   }
 });
