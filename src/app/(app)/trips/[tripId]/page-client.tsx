@@ -137,11 +137,18 @@ export function TripDetailClient({
   }, [accessRole]);
 
   // A self-targeted membership-removed ticket for this trip means ContributorRevocationModal is
-  // about to be (or already is) the sole surface on screen — force-close every dialog here so any
-  // staged changes are discarded via unmount rather than left open behind the modal.
+  // about to be (or already is) the sole surface on screen. Every dialog on the page has to go so
+  // staged changes are discarded rather than left open behind the modal, and that takes two steps
+  // because dialog state lives in two places: the trip-level state below, and state owned by the
+  // tab components themselves (cost/location/delete-event, add-doc, reservation dialogs, the doc
+  // viewer). `isRevoked` remounts the tab body to clear the latter — see its `key` prop.
+  const isRevoked =
+    !!revocationTicket &&
+    revocationTicket.type === LiveSyncEventType.MembershipRemoved &&
+    revocationTicket.tripId === trip.id;
+
   useEffect(() => {
-    if (!revocationTicket || revocationTicket.type !== LiveSyncEventType.MembershipRemoved) return;
-    if (revocationTicket.tripId !== trip.id) return;
+    if (!isRevoked) return;
 
     // Deliberate reaction to an external store (the revocation ticket), not state derivable from
     // this render — mirrors the same justified use in use-live-sync.ts.
@@ -152,7 +159,7 @@ export function TripDetailClient({
     setPendingCurrencyChangeMode(undefined);
     setTripDateConfirmation(null);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [revocationTicket, trip.id]);
+  }, [isRevoked]);
 
   // Child components (CTA, linked-event taps, ReservationsTab) navigate via next/navigation's router
   // rather than raw history APIs, so this syncs activeTab from the live search params instead of
@@ -256,6 +263,9 @@ export function TripDetailClient({
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           <TripDetailTabBody
+            // Remounting on revocation is what discards dialog state the tab components own
+            // themselves — unmounting them is the only handle this page has on it.
+            key={isRevoked ? "revoked" : "active"}
             tripId={trip.id}
             trip={trip}
             defaultExpenseCurrency={defaultExpenseCurrency}

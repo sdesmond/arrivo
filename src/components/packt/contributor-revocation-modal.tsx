@@ -57,14 +57,18 @@ export function ContributorRevocationModal({ userId }: ContributorRevocationModa
   function handleOk(): void {
     clearRevocationTicket();
     router.push("/trips");
+    // The modal is app-shell-wide, so the user may already be on /trips — where `push` resolves to
+    // the current URL and is served from the client router cache, leaving the revoked trip listed.
+    // `refresh` re-runs the route's server fetch either way.
+    router.refresh();
   }
 
   return (
     <AlertDialog open>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader className="place-items-start text-left">
+      <AlertDialogContent size="default">
+        <AlertDialogHeader>
           <AlertDialogTitle>Removed from {ticket.tripName}</AlertDialogTitle>
-          <AlertDialogDescription className="text-left">
+          <AlertDialogDescription>
             {ticket.removedByName} ({ticket.removedByEmail}) removed you as a contributor on this trip. You no longer
             have access to it.
           </AlertDialogDescription>

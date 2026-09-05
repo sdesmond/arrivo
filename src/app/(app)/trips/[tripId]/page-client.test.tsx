@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
-import type { TripDetailPayload } from "@/data/types";
+import { LiveSyncEventType, type TripDetailPayload } from "@/data/types";
+import { clearRevocationTicket, publishRevocationTicket } from "@/lib/revocation-ticket";
 
 const {
   tripConfettiMock,
@@ -13,6 +14,7 @@ const {
   mockRouterReplace,
   mockUseFocusScroll,
   mockUseTripLiveRefresh,
+  mockUseBfcacheRefresh,
 } = vi.hoisted(() => ({
   tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
     void tripId;
@@ -24,6 +26,7 @@ const {
   mockRouterReplace: vi.fn(),
   mockUseFocusScroll: vi.fn<() => string | null>(() => null),
   mockUseTripLiveRefresh: vi.fn(),
+  mockUseBfcacheRefresh: vi.fn(),
 }));
 
 interface TripCoverProps {
@@ -51,7 +54,17 @@ vi.mock("@/components/packt/trip-cover", () => ({
 }));
 
 vi.mock("./trip-detail-hero", () => ({
-  TripDetailHero: ({ detail, nowISO, onEdit }: { detail: TripDetailPayload; nowISO: string; onEdit: () => void }) => {
+  TripDetailHero: ({
+    detail,
+    nowISO,
+    onEdit,
+    onShare,
+  }: {
+    detail: TripDetailPayload;
+    nowISO: string;
+    onEdit: () => void;
+    onShare?: () => void;
+  }) => {
     const { trip, days, unscheduledEvents, docs, collaborators } = detail;
     if (!trip.startDate || !trip.endDate) {
       return (
@@ -68,6 +81,7 @@ vi.mock("./trip-detail-hero", () => ({
             {collaborators.length} {collaborators.length === 1 ? "collaborator" : "collaborators"}
           </span>
           <button onClick={onEdit}>Edit trip</button>
+          {onShare && <button onClick={onShare}>Share</button>}
         </div>
       );
     }
@@ -82,6 +96,7 @@ vi.mock("./trip-detail-hero", () => ({
       <div>
         {`${dayTotal} days · day ${dayNumber} today`}
         <button onClick={onEdit}>Edit trip</button>
+        {onShare && <button onClick={onShare}>Share</button>}
       </div>
     );
   },
@@ -104,19 +119,27 @@ vi.mock("./trip-detail-tab-body", () => ({
     onLinkedEventTap: (reservationId: string) => void;
     onOpenEditDates: () => void;
     onOpenMapTab?: (dayNumber: number) => void;
-  }) => (
-    <div
-      data-testid="trip-detail-tab-body"
-      data-highlighted-event-id={highlightedEventId ?? ""}
-      data-walk-threshold-meters={walkThresholdMeters ?? ""}
-    >
-      {activeTab}
-      <button onClick={onActivateReservationsCta}>Activate CTA</button>
-      <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
-      <button onClick={onOpenEditDates}>Open edit dates</button>
-      {onOpenMapTab && <button onClick={() => onOpenMapTab(3)}>Open map tab for day 3</button>}
-    </div>
-  ),
+  }) => {
+    // Stands in for a dialog the tab components own themselves (cost, location, delete-event, doc
+    // viewer, …). The page can only close those by unmounting this subtree, so this local state is
+    // what proves the revocation `key` remount actually discards them.
+    const [childDialogOpen, setChildDialogOpen] = useState(false);
+    return (
+      <div
+        data-testid="trip-detail-tab-body"
+        data-highlighted-event-id={highlightedEventId ?? ""}
+        data-walk-threshold-meters={walkThresholdMeters ?? ""}
+      >
+        {activeTab}
+        <button onClick={onActivateReservationsCta}>Activate CTA</button>
+        <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
+        <button onClick={onOpenEditDates}>Open edit dates</button>
+        {onOpenMapTab && <button onClick={() => onOpenMapTab(3)}>Open map tab for day 3</button>}
+        <button onClick={() => setChildDialogOpen(true)}>Open child dialog</button>
+        {childDialogOpen && <div data-testid="tab-child-dialog" />}
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/packt/trip-confetti", () => ({
@@ -159,6 +182,14 @@ vi.mock("@/lib/use-focus-scroll", () => ({
 
 vi.mock("@/lib/use-trip-live-refresh", () => ({
   useTripLiveRefresh: mockUseTripLiveRefresh,
+}));
+
+vi.mock("@/lib/use-bfcache-refresh", () => ({
+  useBfcacheRefresh: mockUseBfcacheRefresh,
+}));
+
+vi.mock("@/components/packt/trip-share-dialog", () => ({
+  TripShareDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="trip-share-dialog" /> : null),
 }));
 
 vi.mock("./use-trip-detail-handlers", () => ({
@@ -249,6 +280,76 @@ describe("TripDetailClient", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
     expect(mockUseTripLiveRefresh).toHaveBeenCalledExactlyOnceWith("trip-1");
+  });
+
+  it("mounts the bfcache refresh hook so a restored page re-runs its access check", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(mockUseBfcacheRefresh).toHaveBeenCalledOnce();
+  });
+
+  describe("revocation ticket", () => {
+    afterEach(() => {
+      clearRevocationTicket();
+    });
+
+    function publishTicketForTrip(tripId: string): void {
+      act(() =>
+        publishRevocationTicket({
+          type: LiveSyncEventType.MembershipRemoved,
+          removedUserId: "user-1",
+          tripId,
+          tripName: "Tokyo Adventure",
+          removedByName: "Alex Manager",
+          removedByEmail: "alex@example.com",
+        })
+      );
+    }
+
+    it("force-closes the share dialog when a ticket names this trip", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Share" }));
+      expect(screen.getByTestId("trip-share-dialog")).toBeInTheDocument();
+
+      publishTicketForTrip("trip-1");
+
+      expect(screen.queryByTestId("trip-share-dialog")).not.toBeInTheDocument();
+    });
+
+    it("force-closes the trip edit sheet when a ticket names this trip", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open edit dates" }));
+      expect(screen.getByTestId("trip-edit-sheet")).toBeInTheDocument();
+
+      publishTicketForTrip("trip-1");
+
+      expect(screen.queryByTestId("trip-edit-sheet")).not.toBeInTheDocument();
+    });
+
+    it("discards dialogs the tab body owns by remounting it", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+
+      publishTicketForTrip("trip-1");
+
+      expect(screen.queryByTestId("tab-child-dialog")).not.toBeInTheDocument();
+    });
+
+    it("leaves dialogs open when the ticket names a different trip", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Share" }));
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+
+      publishTicketForTrip("some-other-trip");
+
+      expect(screen.getByTestId("trip-share-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+    });
   });
 
   it("shows an unscheduled hero label when the trip has no dates", () => {

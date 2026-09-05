@@ -71,6 +71,28 @@ describe("revocation-ticket", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
+  it("keeps the first ticket when a second removal is published over it", () => {
+    const secondEvent: LiveSyncEvent = { ...SAMPLE_EVENT, tripId: "trip-2", tripName: "Second Trip" };
+    publishRevocationTicket(SAMPLE_EVENT);
+    const listener = vi.fn();
+    subscribeRevocation(listener);
+
+    publishRevocationTicket(secondEvent);
+
+    expect(getRevocationTicket()).toEqual(SAMPLE_EVENT);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("accepts a new ticket again once the outstanding one is cleared", () => {
+    const secondEvent: LiveSyncEvent = { ...SAMPLE_EVENT, tripId: "trip-2", tripName: "Second Trip" };
+    publishRevocationTicket(SAMPLE_EVENT);
+    clearRevocationTicket();
+
+    publishRevocationTicket(secondEvent);
+
+    expect(getRevocationTicket()).toEqual(secondEvent);
+  });
+
   it("returns a stable snapshot reference across repeated reads with no change", () => {
     publishRevocationTicket(SAMPLE_EVENT);
 

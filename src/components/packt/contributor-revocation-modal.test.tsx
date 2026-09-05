@@ -3,13 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType } from "@/data/types";
 import { clearRevocationTicket, getRevocationTicket } from "@/lib/revocation-ticket";
+import { resetLiveSyncChannelsForTest } from "@/lib/use-live-sync";
 
-const { mockRouterPush } = vi.hoisted(() => ({
+const { mockRouterPush, mockRouterRefresh } = vi.hoisted(() => ({
   mockRouterPush: vi.fn(),
+  mockRouterRefresh: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockRouterPush }),
+  useRouter: () => ({ push: mockRouterPush, refresh: mockRouterRefresh }),
 }));
 
 vi.mock("@/components/ui/alert-dialog", () => ({
@@ -61,13 +63,18 @@ const SELF_REMOVAL_EVENT = {
 
 describe("ContributorRevocationModal", () => {
   beforeEach(() => {
+    // This suite drives the real useLiveSync, so its module-level channel registry has to be torn
+    // down between tests or a leaked channel breaks the instance-count assertions below.
+    resetLiveSyncChannelsForTest();
     MockEventSource.instances = [];
     mockRouterPush.mockClear();
+    mockRouterRefresh.mockClear();
     clearRevocationTicket();
     vi.stubGlobal("EventSource", MockEventSource);
   });
 
   afterEach(() => {
+    resetLiveSyncChannelsForTest();
     vi.unstubAllGlobals();
   });
 
@@ -132,6 +139,28 @@ describe("ContributorRevocationModal", () => {
 
     expect(mockRouterPush).toHaveBeenCalledWith("/trips");
     expect(getRevocationTicket()).toBeNull();
+  });
+
+  it("refreshes on OK so an already-open /trips list drops the revoked trip", async () => {
+    const user = userEvent.setup();
+    render(<ContributorRevocationModal userId="user-1" />);
+    act(() => currentSource().emitMessage(JSON.stringify(SELF_REMOVAL_EVENT)));
+
+    await user.click(screen.getByRole("button", { name: "OK" }));
+
+    expect(mockRouterRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the first removal on screen when a second one arrives", () => {
+    render(<ContributorRevocationModal userId="user-1" />);
+    act(() => currentSource().emitMessage(JSON.stringify(SELF_REMOVAL_EVENT)));
+
+    act(() =>
+      currentSource().emitMessage(JSON.stringify({ ...SELF_REMOVAL_EVENT, tripId: "trip-2", tripName: "Kyoto Detour" }))
+    );
+
+    expect(screen.getByText(/Tokyo Adventure/)).toBeInTheDocument();
+    expect(screen.queryByText(/Kyoto Detour/)).not.toBeInTheDocument();
   });
 
   it("clears the ticket on unmount", () => {

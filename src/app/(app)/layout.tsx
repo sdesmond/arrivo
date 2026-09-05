@@ -29,6 +29,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Mobile bottom tab bar — hidden on desktop */}
       <BottomTabBar />
       <SyncStatusIndicator />
+      {/* From the session, not `user` — getUserById returns null for a session whose row is gone
+          (a stale cookie against a truncated DB), and this modal still needs the signed-in id. */}
       <ContributorRevocationModal userId={session.id!} />
     </div>
   );
