@@ -109,6 +109,21 @@ function releaseChannel(url: string): void {
   channels.delete(url);
 }
 
+/**
+ * Test-only teardown for the module-level registry above. `channels` outlives any single
+ * `renderHook`, so a test that leaves a consumer mounted (or whose cleanup ordering shifts) would
+ * otherwise leak a channel — and its watchdog timer — into the next test, where it reads as an
+ * unrelated failure in an `EventSource` instance count. Call it from `beforeEach` in any suite that
+ * drives the real hook.
+ */
+export function resetLiveSyncChannelsForTest(): void {
+  for (const channel of channels.values()) {
+    if (channel.watchdog !== null) clearTimeout(channel.watchdog);
+    channel.eventSource.close();
+  }
+  channels.clear();
+}
+
 export function useLiveSync(
   url = "/api/users/me/events",
   onLiveSyncEvent?: (event: LiveSyncEvent) => void
@@ -134,11 +149,15 @@ export function useLiveSync(
        channel's current status on (re)acquire, not derivable state; see comment above. */
     setStatus(isNewChannel ? SyncConnectionStatus.Reconnecting : channel.status);
 
-    // On a later `url` change while a previous channel for that URL was still Connected, forcing a
-    // fresh channel (and thus a fresh Reconnecting state above) guarantees a real transition out of
-    // Connected — without it, a consumer's effect keyed on `status` (e.g. useTripLiveRefresh's
-    // reconnect-resync watcher) could miss the transition and misread the *next* genuine reconnect
-    // as the initial connect.
+    // Per-consumer fan-out: each mounted consumer keeps its own listener pair on the shared
+    // channel, so status and events reach every one of them rather than only the opener.
+    //
+    // Scope note on the forced Reconnecting above: it fires per *channel*, not per `url` change. A
+    // consumer that switches `url` onto a channel some other consumer already holds Connected
+    // therefore adopts Connected with no intervening transition, and an effect keyed on `status`
+    // (e.g. useTripLiveRefresh's reconnect-resync watcher) would not see a fresh Connected edge.
+    // No call site does that today — only useTripLiveRefresh opens trip channels, one at a time,
+    // and its cleanup releases the old channel before the new one is acquired.
     const statusListener: StatusListener = (nextStatus) => setStatus(nextStatus);
     const eventListener: EventListener = (event) => onLiveSyncEventRef.current?.(event);
     channel.statusListeners.add(statusListener);

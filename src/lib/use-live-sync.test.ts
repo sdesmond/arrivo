@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType, SyncConnectionStatus } from "@/data/types";
 import type { LiveSyncEvent } from "@/data/types";
 import { LIVE_SYNC_DEAD_CHANNEL_GRACE_MS, SSE_HEARTBEAT_INTERVAL_MS } from "./live-sync-constants";
-import { useLiveSync } from "./use-live-sync";
+import { resetLiveSyncChannelsForTest, useLiveSync } from "./use-live-sync";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -34,12 +34,17 @@ const DEAD_CHANNEL_TIMEOUT_MS = SSE_HEARTBEAT_INTERVAL_MS + LIVE_SYNC_DEAD_CHANN
 
 describe("useLiveSync", () => {
   beforeEach(() => {
+    // The channel registry is module-level, so it outlives any single renderHook. Reset it before
+    // stubbing EventSource, or a channel leaked by an earlier test (and its watchdog timer) shows
+    // up here as an unrelated instance-count failure.
+    resetLiveSyncChannelsForTest();
     MockEventSource.instances = [];
     vi.useFakeTimers();
     vi.stubGlobal("EventSource", MockEventSource);
   });
 
   afterEach(() => {
+    resetLiveSyncChannelsForTest();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
