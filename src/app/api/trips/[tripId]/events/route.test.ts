@@ -81,10 +81,21 @@ describe("GET /api/trips/[tripId]/events", () => {
     expect(response.headers.get("X-Accel-Buffering")).toBe("no");
   });
 
+  it("flushes an immediate heartbeat on connect, before any interval tick", async () => {
+    const response = await GET(new Request("http://localhost/api/trips/trip-1/events") as never, makeParams("trip-1"));
+    const reader = response.body!.getReader();
+
+    const chunk = await readNextChunk(reader);
+    expect(chunk).toBe(formatSseHeartbeat());
+    await reader.cancel().catch(() => {});
+  });
+
   it("streams a published event through to the client", async () => {
     const response = await GET(new Request("http://localhost/api/trips/trip-1/events") as never, makeParams("trip-1"));
     const reader = response.body!.getReader();
     const publish = subscribeTripForUser.mock.calls[0][2] as (event: unknown) => void;
+
+    await readNextChunk(reader); // the immediate connect heartbeat
 
     const event = { type: "itinerary-changed", tripId: "trip-1" };
     publish(event);
@@ -99,6 +110,7 @@ describe("GET /api/trips/[tripId]/events", () => {
     const response = await GET(new Request("http://localhost/api/trips/trip-1/events") as never, makeParams("trip-1"));
     const reader = response.body!.getReader();
 
+    await readNextChunk(reader); // the immediate connect heartbeat
     vi.advanceTimersByTime(15_000);
 
     const chunk = await readNextChunk(reader);
