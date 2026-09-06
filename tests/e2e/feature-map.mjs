@@ -52,6 +52,13 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/create-trip-days.ts",
   ]),
   entry("new-trip", ["src/components/packt/new-trip-dialog.tsx", "src/components/packt/new-trip-card.tsx"]),
+  // Deliberately maps no source: `src/lib/use-dashboard-live-refresh.ts` and `use-live-refresh.ts`
+  // must stay on the `src/lib/**` full-suite tier, same reasoning as use-bfcache-refresh below.
+  // The dashboard hook is mounted in the trips page-client and every scenario lands on `/trips`, so
+  // it can move any feature — naming it here would demote it to these two scenarios. The entry
+  // itself still has to exist (scripts/feature-map.test.mjs pairs every .feature with one) and
+  // `entry()` covers its own feature/step files, so editing a scenario still re-runs it.
+  entry("dashboard-live-sync", []),
   entry("day-planning", [
     "src/components/packt/day-card*.tsx",
     "src/components/packt/place-row*.tsx",
