@@ -7,6 +7,7 @@ import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { NewTripDialog } from "@/components/packt/new-trip-dialog";
 import { CollaboratorRole, type CurrencyOption, type PendingInvitation, type TripListEntry } from "@/data/types";
+import { useDashboardLiveRefresh } from "@/lib/use-dashboard-live-refresh";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import {
   AlertDialog,
@@ -36,6 +37,7 @@ export function TripsPageClient({
   initialViewMode,
   pendingInvitations = [],
 }: TripsPageClientProps) {
+  useDashboardLiveRefresh();
   const now = new Date(nowISO);
   const handlers = useTripsPageHandlers(initialEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
