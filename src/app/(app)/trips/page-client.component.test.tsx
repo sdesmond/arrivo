@@ -11,13 +11,18 @@ import {
 } from "@/data/types";
 import { TripsPageClient } from "./page-client";
 
-const { mockUseTripsPageHandlers, tripEditSheetSpy } = vi.hoisted(() => ({
+const { mockUseDashboardLiveRefresh, mockUseTripsPageHandlers, tripEditSheetSpy } = vi.hoisted(() => ({
+  mockUseDashboardLiveRefresh: vi.fn(),
   mockUseTripsPageHandlers: vi.fn(),
   tripEditSheetSpy: vi.fn(),
 }));
 
 vi.mock("./use-trips-page-handlers", () => ({
   useTripsPageHandlers: mockUseTripsPageHandlers,
+}));
+
+vi.mock("@/lib/use-dashboard-live-refresh", () => ({
+  useDashboardLiveRefresh: mockUseDashboardLiveRefresh,
 }));
 
 vi.mock("@/components/packt/trips-desktop-layout", () => ({
@@ -145,6 +150,21 @@ function createHandlers(overrides: Partial<HandlerState> = {}): HandlerState {
 describe("TripsPageClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("mounts dashboard live refresh", () => {
+    mockUseTripsPageHandlers.mockReturnValue(createHandlers());
+
+    render(
+      <TripsPageClient
+        initialEntries={entries}
+        nowISO="2026-07-07T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(mockUseDashboardLiveRefresh).toHaveBeenCalledExactlyOnceWith();
   });
 
   it("threads currency options and edit/delete handlers into the edit flow", async () => {

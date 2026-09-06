@@ -981,6 +981,7 @@ export async function saveContributorChanges(
   }
 
   const removedUserIds: string[] = [];
+  const roleChangedUserIds: string[] = [];
   let tripName = "";
 
   try {
@@ -1018,6 +1019,9 @@ export async function saveContributorChanges(
             .update(collaborators)
             .set({ role: change.toRole })
             .where(eq(collaborators.id, change.collaboratorId));
+          if (target.userId) {
+            roleChangedUserIds.push(target.userId);
+          }
         } else {
           await transaction.delete(collaborators).where(eq(collaborators.id, change.collaboratorId));
           if (target.userId) {
@@ -1046,6 +1050,13 @@ export async function saveContributorChanges(
         });
         removeTripSubscribersForUser(tripId, removedUserId);
       }
+    }
+
+    for (const roleChangedUserId of roleChangedUserIds) {
+      publishUserEvent(roleChangedUserId, {
+        type: LiveSyncEventType.MembershipChanged,
+        tripId,
+      });
     }
 
     // The batch reaching here always applied at least one change (role or removal) — `changes` was
