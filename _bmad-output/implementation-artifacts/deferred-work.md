@@ -83,3 +83,18 @@
   4-1 and 4-6; and/or route the heartbeat through the same publish path as real events so a broken
   fan-out actually stalls the watchdog and surfaces `Unable to sync`. The second is the smaller
   change and is what makes the indicator honest regardless of transport.
+
+## Deferred from: spec-heartbeat-fanout-health-check.md token-count split (2026-09-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`
+  summary: Same open item as the story-4-2 entry above ("no shared constant/type in `LiveSyncEventType`... future consumers must hardcode the literal string") — carved off this spec to stay under its token-count target, not a new finding. See that entry; no separate fix needed here.
+  evidence: The heartbeat scheduler added by this spec reuses today's internal `"heartbeat"` literal rather than promoting it to `src/data/types.ts`, so the pre-existing gap is unchanged, not widened.
+
+## Deferred from: code review of spec-heartbeat-fanout-health-check.md (2026-09-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`
+  summary: `deliverToTripSubscribers`/`deliverToUserSubscribers` never remove a subscriber whose callback throws — they `console.warn` and continue, leaving it registered.
+  evidence: Pre-existing behavior from `publishTripEvent`/`publishUserEvent`'s original try/catch (unchanged by this spec, just reused by the new heartbeat scheduler), but the heartbeat now invokes every subscriber every `SSE_HEARTBEAT_INTERVAL_MS` regardless of activity, so a connection whose `enqueue` starts throwing for a reason other than its own abort signal (e.g. the controller closed out-of-band) now re-fails and re-logs on every tick indefinitely instead of only on the next real publish. `src/lib/trip-events.ts:54-82`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`
+  summary: `removeTripSubscribersForUser` and `purgeTripTopic` drop a subscriber from the topic `Set` without closing that subscriber's underlying stream/controller.
+  evidence: Pre-existing, untouched by this spec's diff. A forcibly-removed connection (e.g. a contributor's access revoked) stops receiving anything but its `ReadableStream` is never told to close, leaking an open response until the client's own watchdog times out. `src/lib/trip-events.ts:215-232`.

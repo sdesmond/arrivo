@@ -97,9 +97,14 @@ function acquireChannel(url: string): { channel: SharedChannel; isNewChannel: bo
   return { channel, isNewChannel: true };
 }
 
-function releaseChannel(url: string): void {
-  const channel = channels.get(url);
-  if (!channel) return;
+/**
+ * Releases the exact channel object the caller acquired — not whatever the shared map currently
+ * holds at `url`. A stale effect cleanup (e.g. React StrictMode double-invoke ordering, or a
+ * cleanup that runs after some other consumer's acquire/release cycle already replaced the map's
+ * entry at this URL) must never decrement or close a *newer* channel it never opened.
+ */
+function releaseChannel(url: string, channel: SharedChannel): void {
+  if (channels.get(url) !== channel) return;
 
   channel.refCount -= 1;
   if (channel.refCount > 0) return;
@@ -166,7 +171,7 @@ export function useLiveSync(
     return () => {
       channel.statusListeners.delete(statusListener);
       channel.eventListeners.delete(eventListener);
-      releaseChannel(url);
+      releaseChannel(url, channel);
     };
   }, [url]);
 
