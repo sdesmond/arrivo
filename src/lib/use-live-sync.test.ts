@@ -310,5 +310,33 @@ describe("useLiveSync", () => {
 
       expect(joiner.result.current).toBe(SyncConnectionStatus.Connected);
     });
+
+    it("does not touch a newer channel when a stale cleanup releases the channel the map already replaced", () => {
+      const first = renderHook(() => useLiveSync());
+      const firstEventSource = MockEventSource.instances[0];
+      expect(firstEventSource).toBeDefined();
+
+      // Simulate the module's channel registry being replaced out from under `first`'s still-live
+      // reference at the same URL — e.g. some other path fully released and reopened the channel
+      // before `first`'s own effect cleanup for it has run. resetLiveSyncChannelsForTest (normally
+      // test teardown) is repurposed here to force exactly that replacement without going through
+      // `first`'s own unmount.
+      resetLiveSyncChannelsForTest();
+      const second = renderHook(() => useLiveSync());
+      const secondEventSource = MockEventSource.instances[1];
+      expect(secondEventSource).toBeDefined();
+      expect(secondEventSource).not.toBe(firstEventSource);
+
+      // `first`'s cleanup now fires holding the old channel object, which the map no longer holds
+      // at this URL — a stale release.
+      first.unmount();
+
+      // The newer channel (second's) must be entirely unaffected: not decremented, not closed.
+      expect(secondEventSource?.close).not.toHaveBeenCalled();
+      expect(MockEventSource.instances).toHaveLength(2);
+
+      second.unmount();
+      expect(secondEventSource?.close).toHaveBeenCalledOnce();
+    });
   });
 });

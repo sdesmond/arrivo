@@ -1,12 +1,10 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { assertTripAccess, requireUser, subscribeTripForUser, formatSseEvent, formatSseHeartbeat } = vi.hoisted(() => ({
+const { assertTripAccess, requireUser, subscribeTripForUser } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   requireUser: vi.fn(),
   subscribeTripForUser: vi.fn(),
-  formatSseEvent: vi.fn((event: unknown) => `data: ${JSON.stringify(event)}\n\n`),
-  formatSseHeartbeat: vi.fn(() => 'data: {"type":"heartbeat"}\n\n'),
 }));
 
 vi.mock("@/lib/auth-helpers", () => ({
@@ -14,13 +12,20 @@ vi.mock("@/lib/auth-helpers", () => ({
   requireUser,
 }));
 
-vi.mock("@/lib/trip-events", () => ({
-  SSE_HEARTBEAT_INTERVAL_MS: 15_000,
-  formatSseEvent,
-  formatSseHeartbeat,
-  subscribeTripForUser,
-}));
+// Only subscribeTripForUser is mocked (so tests can grab and manually drive the callback the
+// route wires up, the same way a real publish or a real scheduler tick would). createLiveSyncResponse,
+// formatSseEvent, and formatSseHeartbeat stay the real trip-events.ts implementations — this route
+// now delegates all stream setup to that shared helper, so testing it end to end is what proves
+// the route actually wires subscribeTripForUser into it correctly.
+vi.mock("@/lib/trip-events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/trip-events")>();
+  return {
+    ...actual,
+    subscribeTripForUser,
+  };
+});
 
+import { formatSseEvent, formatSseHeartbeat } from "@/lib/trip-events";
 import { GET } from "./route";
 
 function makeParams(tripId: string) {
@@ -97,7 +102,7 @@ describe("GET /api/trips/[tripId]/events", () => {
 
     await readNextChunk(reader); // the immediate connect heartbeat
 
-    const event = { type: "itinerary-changed", tripId: "trip-1" };
+    const event = { type: "itinerary-changed", tripId: "trip-1" } as const;
     publish(event);
 
     const chunk = await readNextChunk(reader);
@@ -105,23 +110,27 @@ describe("GET /api/trips/[tripId]/events", () => {
     await reader.cancel().catch(() => {});
   });
 
-  it("emits a heartbeat data event on an idle connection", async () => {
-    vi.useFakeTimers();
+  it("emits a heartbeat data event when the scheduler ticks the subscriber it registered", async () => {
+    // The heartbeat scheduler in trip-events.ts delivers through this exact subscriber callback —
+    // not an independent per-route timer. Driving the callback directly (as the scheduler would)
+    // is what proves the route's stream reacts to that path, rather than re-asserting the removed
+    // per-route setInterval mechanism.
     const response = await GET(new Request("http://localhost/api/trips/trip-1/events") as never, makeParams("trip-1"));
     const reader = response.body!.getReader();
+    const deliver = subscribeTripForUser.mock.calls[0][2] as (frame: unknown) => void;
 
     await readNextChunk(reader); // the immediate connect heartbeat
-    vi.advanceTimersByTime(15_000);
+
+    deliver({ type: "heartbeat" });
 
     const chunk = await readNextChunk(reader);
     expect(chunk).toBe(formatSseHeartbeat());
     await reader.cancel().catch(() => {});
   });
 
-  it("removes the subscriber and clears the heartbeat interval when the request aborts", async () => {
+  it("removes the subscriber and closes the stream when the request aborts", async () => {
     const unsubscribe = vi.fn();
     subscribeTripForUser.mockReturnValue(unsubscribe);
-    const clearIntervalSpy = vi.spyOn(global, "clearInterval");
     const controller = new AbortController();
     const request = new Request("http://localhost/api/trips/trip-1/events", {
       signal: controller.signal,
@@ -129,18 +138,18 @@ describe("GET /api/trips/[tripId]/events", () => {
 
     const response = await GET(request, makeParams("trip-1"));
     const reader = response.body!.getReader();
+    await readNextChunk(reader); // the immediate connect heartbeat
 
     controller.abort();
     await Promise.resolve();
     await Promise.resolve();
 
     expect(unsubscribe).toHaveBeenCalledOnce();
-    expect(clearIntervalSpy).toHaveBeenCalled();
-
-    await reader.cancel().catch(() => {});
+    const { done } = await reader.read();
+    expect(done).toBe(true);
   });
 
-  it("cleans up when authorization finishes after the request already aborted", async () => {
+  it("cleans up without enqueueing when authorization finishes after the request already aborted", async () => {
     const unsubscribe = vi.fn();
     subscribeTripForUser.mockReturnValue(unsubscribe);
     const controller = new AbortController();
@@ -149,8 +158,10 @@ describe("GET /api/trips/[tripId]/events", () => {
     }) as never;
     controller.abort();
 
-    await GET(request, makeParams("trip-1"));
+    const response = await GET(request, makeParams("trip-1"));
 
     expect(unsubscribe).toHaveBeenCalledOnce();
+    const { done } = await response.body!.getReader().read();
+    expect(done).toBe(true);
   });
 });
