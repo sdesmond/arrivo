@@ -61,3 +61,25 @@
 - The `aria-live` announcement region keeps the last transition's text indefinitely. After recovery the sr-only span still reads `Unable to sync`, so a screen-reader user browsing into the region later hears an out-of-date status. Pre-existing from 4-2's announcement contract, unchanged by this story. `src/components/packt/sync-status-indicator.tsx:108-110`.
 - No debounce on status announcements. A flapping SSE channel produces alternating `Reconnecting` / `Connected` announcements with no settling window. Pre-existing from 4-2. `src/components/packt/sync-status-indicator.tsx:68-73`.
 - `bottom-tab-bar`'s `env(safe-area-inset-bottom)` padding is inert for the same reason the new top spacer is: the app emits no `viewport-fit=cover`, so every `env(safe-area-inset-*)` resolves to `0px`. This is the actual root cause of the notched-mobile tab-bar overlap that story 4-6 was written to route around. `src/components/packt/bottom-tab-bar.tsx:26`.
+
+## Deferred from: live-sync health review (2026-09-08)
+
+- The SSE heartbeat proves the route is alive, not that the pub/sub fan-out reaches the client, so a
+  broken fan-out reports as healthy. `src/app/api/users/me/events/route.ts:24-29` emits the
+  heartbeat from the request's own `setInterval`, entirely independent of the `subscribeUser`
+  registration above it (`src/app/api/trips/[tripId]/events/route.ts` has the same shape). The
+  client's dead-channel watchdog resets on any message including heartbeats
+  (`src/lib/use-live-sync.ts:68-78`), so heartbeats keep it satisfied while no real event ever
+  arrives, and `SyncStatusIndicator` correctly renders nothing the whole time.
+
+  Reachable the moment the app runs more than one instance: `src/lib/trip-events.ts` holds
+  subscribers in an in-process `Map` (`tripTopics` / `userTopics`), so a publish on instance A never
+  reaches a subscriber on instance B — an editor's changes silently never appear for a viewer, with
+  the UI reporting a healthy connection throughout. Single-instance deployments (dev, a single
+  Synology container) are unaffected today, which is why this is latent rather than broken.
+
+  Two candidate fixes, not mutually exclusive: back the topics with a real pub/sub transport (Redis
+  or equivalent) so fan-out survives multiple instances — explicitly ruled out of scope by story
+  4-1 and 4-6; and/or route the heartbeat through the same publish path as real events so a broken
+  fan-out actually stalls the watchdog and surfaces `Unable to sync`. The second is the smaller
+  change and is what makes the indicator honest regardless of transport.
