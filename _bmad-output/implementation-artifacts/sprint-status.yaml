@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-31-2026 00:00
-last_updated: 09-06-2026
+last_updated: 09-08-2026 13:44
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -65,7 +65,7 @@ development_status:
   4-4-revocation-modal-on-self-targeted-removal: done
   4-5-dashboard-reflects-membership-changes-live: done
   4-6-move-sync-status-indicator-to-top-bar-icon: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 action_items:
   - id: "epic-1-retro-item-1-guarantee-every-story-in-the-build-workf"
     epic: 1
@@ -210,3 +210,130 @@ action_items:
     owner: "PM/UX discussion, then next implementer"
     status: open
     ref: ""
+  - id: "epic-4-retro-item-18-removetripsubscribersforuser-purgetripto"
+    epic: 4
+    action: "removeTripSubscribersForUser/purgeTripTopic (trip-events.ts) must close
+      the underlying per-connection SSE stream, not just delete the Set entry, and
+      run the same idle/topic cleanup the normal unsubscribe() closure runs. Extract
+      one shared unregisterSubscriber helper used by both the normal and force-removal
+      paths. Highest-confidence finding this retro -- three independent review passes
+      converged on it."
+    owner: "next implementer touching trip-events.ts"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-19-add-regression-coverage-for-the-24-of-30"
+    epic: 4
+    action: "Add regression coverage for the 24 of 30 publishItineraryChanged(tripId)
+      call sites in trips/[tripId]/actions.ts currently unasserted in actions.test.ts
+      -- prefer a parameterized/table test over every mutating action rather than
+      one-off assertions."
+    owner: "next implementer touching trips/[tripId]/actions.ts"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-20-wrap-the-connect-time-heartbeat-flush-in"
+    epic: 4
+    action: "Wrap the connect-time heartbeat flush in createLiveSyncResponse (trip-events.ts)
+      in the same try/catch every other frame delivery in the file already uses."
+    owner: "same pass as the trip-events.ts cleanup item"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-21-contributor-revocation-modal-tsx-fall-ba"
+    epic: 4
+    action: "contributor-revocation-modal.tsx: fall back to a generic phrase (this
+      trip / a trip manager) instead of interpolating a possibly-empty tripName/removedByEmail
+      into the one non-dismissible modal's copy."
+    owner: "next implementer touching the revocation modal"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-22-client-side-use-live-sync-ts-fan-out-bro"
+    epic: 4
+    action: "Client-side use-live-sync.ts fan-out (broadcastStatus, onmessage) has
+      no per-listener throw isolation, unlike its server-side counterpart. Already
+      recorded as deferred/pre-existing in spec-heartbeat-fanout-health-check.md;
+      two independent review lenses re-found it unprompted in this retro -- escalate
+      priority rather than deferring again."
+    owner: "whoever next touches use-live-sync.ts"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-23-trip-deleted-is-published-story-4-1-but"
+    epic: 4
+    action: "trip-deleted is published (story 4.1) but never consumed client-side:
+      an open trip page for the deleted trip stays a zombie page, and other collaborators'
+      dashboards don't drop it live since revalidatePath doesn't reach other sessions.
+      Wire TripDeleted into useTripLiveRefresh (redirect + toast) and useDashboardLiveRefresh
+      (drop from list), matching the force-close pattern 4.4 already built for MembershipRemoved."
+    owner: "PM/next epic scoping"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-24-a-role-downgrade-membershipchanged-while"
+    epic: 4
+    action: "A role downgrade (MembershipChanged) while an editor-only dialog is open
+      isn't force-closed the way full removal is -- server-side rejection is correct
+      but the client shows a generic error instead of proactively closing the now-invalid
+      dialog."
+    owner: "next implementer touching the trip page dialogs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-25-publishitinerarychanged-fires-before-rev"
+    epic: 4
+    action: "publishItineraryChanged fires before revalidatePath at all ~30 call sites
+      in actions.ts -- flip the order for defense-in-depth against a theoretical stale-cache
+      race (narrow window, no observed failure)."
+    owner: "opportunistic, next touch of actions.ts"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-26-user-id-vs-user-id-inconsistency-between"
+    epic: 4
+    action: "user.id vs user.id! inconsistency between acceptInvitation (trips/actions.ts:840)
+      and declineInvitation (:877) -- no runtime bug, cosmetic/maintenance-trap only."
+    owner: "opportunistic"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-27-document-the-single-instance-only-in-mem"
+    epic: 4
+    action: "Document the single-instance-only in-memory pub/sub limitation inline
+      in trip-events.ts itself, not only in epic-4-context.md."
+    owner: "opportunistic, doc-only"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-28-epic-3-retro-item-9-distinguish-the-mana"
+    epic: 4
+    action: "epic-3-retro-item-9 (distinguish the manager's own row in trip-share-dialog.tsx)
+      was explicitly assigned to \"Epic 4 implementer\" and never landed -- trip-share-dialog.tsx
+      was never touched anywhere in epic 4's diff. Two epics running now with this
+      file's backlog (items 9, 10, 12, 13, 14) untouched. Bundle all five into one
+      focused cleanup story rather than continuing to carry them forward as scattered
+      items nobody owns."
+    owner: "PM/sprint scoping"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-29-process-lesson-a-fast-path-added-as-a-si"
+    epic: 4
+    action: "Process lesson: a \"fast path\" added as a sibling to an existing subscribe/unsubscribe
+      lifecycle (e.g. a force-removal function) needs either a shared implementation
+      with the normal path or a test asserting behavioral parity between them -- neither
+      existed for trip-events.ts's force-removal functions, which is the root cause
+      of this retro's #1 finding."
+    owner: "review guidance for live-sync/subscription work"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-30-process-lesson-a-code-comment-deferring"
+    epic: 4
+    action: "Process lesson: a code comment deferring work to a named future story
+      (\"that's a 4.4/4.5 concern\") must be checked against that later story's actual
+      declared AC at the point the story is written, not just trusted at comment-writing
+      time -- epic-3-retro-item-15 recurring in a new shape: the later stories existed
+      here, but their scope never actually covered the deferred trip-deleted handling."
+    owner: "epic/story planning step"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
+  - id: "epic-4-retro-item-31-process-lesson-near-identical-files-that"
+    epic: 4
+    action: "Process lesson: near-identical files that never land in the same story's
+      diff are a per-story review blind spot -- the two SSE route handlers stayed
+      byte-identical in duplicated stream-setup logic for the entire epic, caught
+      only by a dedicated post-epic bugfix. A periodic structural-similarity check
+      between obviously-paired files would catch this mid-epic."
+    owner: "retrospective/review process"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
