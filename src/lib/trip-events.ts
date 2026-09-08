@@ -21,6 +21,7 @@ type LiveSyncCallback = (frame: SseFrame) => void;
 interface TripSubscriber {
   userId: string;
   callback: LiveSyncCallback;
+  close: () => void;
 }
 
 // Same lazy-init globalThis-singleton shape as src/db/index.ts, so the maps survive
@@ -144,6 +145,16 @@ function stopHeartbeatSchedulerIfIdle(): void {
   clearHeartbeatTimer();
 }
 
+function unregisterTripSubscriber(tripId: string, subscriber: TripSubscriber): void {
+  const subscribers = tripTopics.get(tripId);
+  if (!subscribers?.delete(subscriber)) return;
+  if (subscribers.size === 0 && tripTopics.get(tripId) === subscribers) {
+    tripTopics.delete(tripId);
+  }
+  stopHeartbeatSchedulerIfIdle();
+  subscriber.close();
+}
+
 /**
  * Test-only teardown for the module-level heartbeat scheduler timer, the same way purgeTripTopic
  * resets topic state below. Without this, a subscribe call under real timers in one test leaves a
@@ -162,7 +173,12 @@ export function resetLiveSyncHeartbeatSchedulerForTest(): void {
  * connection(s) via removeTripSubscribersForUser. Returns an unsubscribe function
  * the route wires to its request's AbortSignal.
  */
-export function subscribeTripForUser(tripId: string, userId: string, callback: LiveSyncCallback): () => void {
+export function subscribeTripForUser(
+  tripId: string,
+  userId: string,
+  callback: LiveSyncCallback,
+  close: () => void
+): () => void {
   ensureHeartbeatScheduler();
 
   let subscribers = tripTopics.get(tripId);
@@ -171,23 +187,18 @@ export function subscribeTripForUser(tripId: string, userId: string, callback: L
     tripTopics.set(tripId, subscribers);
   }
 
-  const subscriber: TripSubscriber = { userId, callback };
+  const subscriber: TripSubscriber = { userId, callback, close };
   subscribers.add(subscriber);
 
-  return () => {
-    subscribers.delete(subscriber);
-    if (subscribers.size === 0 && tripTopics.get(tripId) === subscribers) {
-      tripTopics.delete(tripId);
-    }
-    stopHeartbeatSchedulerIfIdle();
-  };
+  return () => unregisterTripSubscriber(tripId, subscriber);
 }
 
 /**
  * Subscribes a callback to a user's personal topic. Returns an unsubscribe
  * function the route wires to its request's AbortSignal.
  */
-export function subscribeUser(userId: string, callback: LiveSyncCallback): () => void {
+export function subscribeUser(userId: string, callback: LiveSyncCallback, close: () => void = () => {}): () => void {
+  void close;
   ensureHeartbeatScheduler();
 
   let subscribers = userTopics.get(userId);
@@ -215,9 +226,9 @@ export function subscribeUser(userId: string, callback: LiveSyncCallback): () =>
 export function removeTripSubscribersForUser(tripId: string, userId: string): void {
   const subscribers = tripTopics.get(tripId);
   if (!subscribers) return;
-  for (const subscriber of subscribers) {
+  for (const subscriber of [...subscribers]) {
     if (subscriber.userId === userId) {
-      subscribers.delete(subscriber);
+      unregisterTripSubscriber(tripId, subscriber);
     }
   }
 }
@@ -227,8 +238,11 @@ export function removeTripSubscribersForUser(tripId: string, userId: string): vo
  * trip-deleted so no dead entry lingers on the map.
  */
 export function purgeTripTopic(tripId: string): void {
-  tripTopics.get(tripId)?.clear();
-  tripTopics.delete(tripId);
+  const subscribers = tripTopics.get(tripId);
+  if (!subscribers) return;
+  for (const subscriber of [...subscribers]) {
+    unregisterTripSubscriber(tripId, subscriber);
+  }
 }
 
 const SSE_RESPONSE_HEADERS = {
@@ -256,7 +270,7 @@ const SSE_RESPONSE_HEADERS = {
  */
 export function createLiveSyncResponse(
   signal: AbortSignal,
-  subscribe: (callback: (frame: SseFrame) => void) => () => void
+  subscribe: (callback: (frame: SseFrame) => void, close: () => void) => () => void
 ): Response {
   const encoder = new TextEncoder();
 
@@ -267,9 +281,8 @@ export function createLiveSyncResponse(
         controller.enqueue(encoder.encode(payload));
       };
 
-      const unsubscribe = subscribe(enqueueFrame);
-
       let cleanedUp = false;
+      let unsubscribe = () => {};
       const cleanup = () => {
         if (cleanedUp) return;
         cleanedUp = true;
@@ -281,12 +294,19 @@ export function createLiveSyncResponse(
         }
       };
 
+      unsubscribe = subscribe(enqueueFrame, cleanup);
+      if (cleanedUp) unsubscribe();
+
       if (signal.aborted) {
         cleanup();
         return;
       }
 
-      enqueueFrame(HEARTBEAT_FRAME);
+      try {
+        enqueueFrame(HEARTBEAT_FRAME);
+      } catch (error) {
+        console.warn("Live sync heartbeat flush failed while opening connection", error);
+      }
       signal.addEventListener("abort", cleanup, { once: true });
     },
   });

@@ -54,8 +54,8 @@ describe("trip-events", () => {
     it("delivers a published event to every subscriber on the topic", () => {
       const first = vi.fn();
       const second = vi.fn();
-      const unsubscribeFirst = subscribeTripForUser("trip-1", "user-1", first);
-      const unsubscribeSecond = subscribeTripForUser("trip-1", "user-2", second);
+      const unsubscribeFirst = subscribeTripForUser("trip-1", "user-1", first, vi.fn());
+      const unsubscribeSecond = subscribeTripForUser("trip-1", "user-2", second, vi.fn());
 
       const event = { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" } as const;
       publishTripEvent("trip-1", event);
@@ -69,7 +69,7 @@ describe("trip-events", () => {
 
     it("does not deliver to subscribers on a different trip topic", () => {
       const callback = vi.fn();
-      const unsubscribe = subscribeTripForUser("trip-1", "user-1", callback);
+      const unsubscribe = subscribeTripForUser("trip-1", "user-1", callback, vi.fn());
 
       publishTripEvent("trip-2", { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-2" });
 
@@ -88,16 +88,19 @@ describe("trip-events", () => {
 
     it("stops delivering to a subscriber once its unsubscribe function runs", () => {
       const callback = vi.fn();
-      const unsubscribe = subscribeTripForUser("trip-1", "user-1", callback);
+      const close = vi.fn();
+      const unsubscribe = subscribeTripForUser("trip-1", "user-1", callback, close);
+      unsubscribe();
       unsubscribe();
 
       publishTripEvent("trip-1", { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" });
 
       expect(callback).not.toHaveBeenCalled();
+      expect(close).toHaveBeenCalledOnce();
     });
 
     it("reclaims an empty trip topic after its final unsubscribe", () => {
-      const unsubscribe = subscribeTripForUser("trip-3", "user-1", vi.fn());
+      const unsubscribe = subscribeTripForUser("trip-3", "user-1", vi.fn(), vi.fn());
 
       unsubscribe();
 
@@ -110,8 +113,8 @@ describe("trip-events", () => {
         throw new Error("boom");
       });
       const healthy = vi.fn();
-      const unsubscribeThrowing = subscribeTripForUser("trip-1", "user-1", throwing);
-      const unsubscribeHealthy = subscribeTripForUser("trip-1", "user-2", healthy);
+      const unsubscribeThrowing = subscribeTripForUser("trip-1", "user-1", throwing, vi.fn());
+      const unsubscribeHealthy = subscribeTripForUser("trip-1", "user-2", healthy, vi.fn());
 
       const event = { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" } as const;
       expect(() => publishTripEvent("trip-1", event)).not.toThrow();
@@ -200,13 +203,16 @@ describe("trip-events", () => {
   });
 
   describe("removeTripSubscribersForUser", () => {
-    it("force-unsubscribes only the targeted user's connections, including multiple tabs", () => {
+    it("force-unsubscribes and closes only the targeted user's connections, including multiple tabs", () => {
       const removedTabOne = vi.fn();
       const removedTabTwo = vi.fn();
       const staysSubscribed = vi.fn();
-      subscribeTripForUser("trip-1", "user-removed", removedTabOne);
-      subscribeTripForUser("trip-1", "user-removed", removedTabTwo);
-      const unsubscribeOther = subscribeTripForUser("trip-1", "user-other", staysSubscribed);
+      const closeRemovedTabOne = vi.fn();
+      const closeRemovedTabTwo = vi.fn();
+      const closeOther = vi.fn();
+      subscribeTripForUser("trip-1", "user-removed", removedTabOne, closeRemovedTabOne);
+      subscribeTripForUser("trip-1", "user-removed", removedTabTwo, closeRemovedTabTwo);
+      const unsubscribeOther = subscribeTripForUser("trip-1", "user-other", staysSubscribed, closeOther);
 
       removeTripSubscribersForUser("trip-1", "user-removed");
 
@@ -216,8 +222,56 @@ describe("trip-events", () => {
       expect(removedTabOne).not.toHaveBeenCalled();
       expect(removedTabTwo).not.toHaveBeenCalled();
       expect(staysSubscribed).toHaveBeenCalledWith(event);
+      expect(closeRemovedTabOne).toHaveBeenCalledOnce();
+      expect(closeRemovedTabTwo).toHaveBeenCalledOnce();
+      expect(closeOther).not.toHaveBeenCalled();
 
       unsubscribeOther();
+    });
+
+    it("closes every targeted response stream while another user's stream stays open", async () => {
+      const firstRemovedResponse = createLiveSyncResponse(new AbortController().signal, (callback, close) =>
+        subscribeTripForUser("trip-1", "user-removed", callback, close)
+      );
+      const secondRemovedResponse = createLiveSyncResponse(new AbortController().signal, (callback, close) =>
+        subscribeTripForUser("trip-1", "user-removed", callback, close)
+      );
+      const otherController = new AbortController();
+      const otherResponse = createLiveSyncResponse(otherController.signal, (callback, close) =>
+        subscribeTripForUser("trip-1", "user-other", callback, close)
+      );
+      const firstRemovedReader = firstRemovedResponse.body!.getReader();
+      const secondRemovedReader = secondRemovedResponse.body!.getReader();
+      const otherReader = otherResponse.body!.getReader();
+      await Promise.all([firstRemovedReader.read(), secondRemovedReader.read(), otherReader.read()]);
+
+      removeTripSubscribersForUser("trip-1", "user-removed");
+
+      const [firstRemovedResult, secondRemovedResult] = await Promise.all([
+        firstRemovedReader.read(),
+        secondRemovedReader.read(),
+      ]);
+      expect(firstRemovedResult.done).toBe(true);
+      expect(secondRemovedResult.done).toBe(true);
+
+      const event = { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" } as const;
+      publishTripEvent("trip-1", event);
+      const otherResult = await otherReader.read();
+      expect(new TextDecoder().decode(otherResult.value)).toBe(formatSseEvent(event));
+
+      otherController.abort();
+      await Promise.resolve();
+    });
+
+    it("closes the final subscriber, prunes the topic, and stops the idle scheduler", () => {
+      const close = vi.fn();
+      subscribeTripForUser("trip-1", "user-removed", vi.fn(), close);
+
+      removeTripSubscribersForUser("trip-1", "user-removed");
+
+      expect(close).toHaveBeenCalledOnce();
+      expect(globalThis.__tripEventTopics?.has("trip-1")).toBe(false);
+      expect(globalThis.__liveSyncHeartbeatTimer).toBeUndefined();
     });
 
     it("is a no-op when the trip topic has no subscribers", () => {
@@ -226,14 +280,23 @@ describe("trip-events", () => {
   });
 
   describe("purgeTripTopic", () => {
-    it("removes every subscriber from the trip topic", () => {
-      const callback = vi.fn();
-      subscribeTripForUser("trip-1", "user-1", callback);
+    it("closes and removes every subscriber from the trip topic", () => {
+      const firstCallback = vi.fn();
+      const secondCallback = vi.fn();
+      const closeFirst = vi.fn();
+      const closeSecond = vi.fn();
+      subscribeTripForUser("trip-1", "user-1", firstCallback, closeFirst);
+      subscribeTripForUser("trip-1", "user-2", secondCallback, closeSecond);
 
       purgeTripTopic("trip-1");
 
       publishTripEvent("trip-1", { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" });
-      expect(callback).not.toHaveBeenCalled();
+      expect(firstCallback).not.toHaveBeenCalled();
+      expect(secondCallback).not.toHaveBeenCalled();
+      expect(closeFirst).toHaveBeenCalledOnce();
+      expect(closeSecond).toHaveBeenCalledOnce();
+      expect(globalThis.__tripEventTopics?.has("trip-1")).toBe(false);
+      expect(globalThis.__liveSyncHeartbeatTimer).toBeUndefined();
     });
 
     it("is a no-op when the topic does not exist", () => {
@@ -258,7 +321,7 @@ describe("trip-events", () => {
     it("delivers a heartbeat to every trip and user subscriber through the shared delivery path", () => {
       const tripSubscriber = vi.fn();
       const userSubscriber = vi.fn();
-      const unsubscribeTrip = subscribeTripForUser("trip-1", "user-1", tripSubscriber);
+      const unsubscribeTrip = subscribeTripForUser("trip-1", "user-1", tripSubscriber, vi.fn());
       const unsubscribeUser = subscribeUser("user-2", userSubscriber);
 
       vi.advanceTimersByTime(SSE_HEARTBEAT_INTERVAL_MS);
@@ -272,7 +335,7 @@ describe("trip-events", () => {
 
     it("does not attempt delivery to a topic with no subscribers", () => {
       const callback = vi.fn();
-      const unsubscribe = subscribeTripForUser("trip-empty", "user-1", callback);
+      const unsubscribe = subscribeTripForUser("trip-empty", "user-1", callback, vi.fn());
       unsubscribe(); // reclaims the topic, so it no longer exists in tripTopics
 
       expect(() => vi.advanceTimersByTime(SSE_HEARTBEAT_INTERVAL_MS)).not.toThrow();
@@ -297,8 +360,8 @@ describe("trip-events", () => {
         throw new Error("boom");
       });
       const healthy = vi.fn();
-      const unsubscribeThrowing = subscribeTripForUser("trip-1", "user-1", throwing);
-      const unsubscribeHealthy = subscribeTripForUser("trip-1", "user-2", healthy);
+      const unsubscribeThrowing = subscribeTripForUser("trip-1", "user-1", throwing, vi.fn());
+      const unsubscribeHealthy = subscribeTripForUser("trip-1", "user-2", healthy, vi.fn());
 
       expect(() => vi.advanceTimersByTime(SSE_HEARTBEAT_INTERVAL_MS)).not.toThrow();
 
@@ -331,7 +394,7 @@ describe("trip-events", () => {
 
     it("does not start a second scheduler interval when a subscriber already exists on another topic", () => {
       const setIntervalSpy = vi.spyOn(global, "setInterval");
-      const unsubscribeFirst = subscribeTripForUser("trip-1", "user-1", vi.fn());
+      const unsubscribeFirst = subscribeTripForUser("trip-1", "user-1", vi.fn(), vi.fn());
       const unsubscribeSecond = subscribeUser("user-1", vi.fn());
 
       expect(setIntervalSpy).toHaveBeenCalledOnce();
@@ -342,7 +405,7 @@ describe("trip-events", () => {
 
     it("stops the scheduler interval once the last subscriber across every topic unsubscribes", () => {
       const clearIntervalSpy = vi.spyOn(global, "clearInterval");
-      const unsubscribeTrip = subscribeTripForUser("trip-1", "user-1", vi.fn());
+      const unsubscribeTrip = subscribeTripForUser("trip-1", "user-1", vi.fn(), vi.fn());
       const unsubscribeUser = subscribeUser("user-2", vi.fn());
 
       unsubscribeTrip();
@@ -393,8 +456,8 @@ describe("trip-events", () => {
 
     it("delivers a real published event to the subscribed connection", async () => {
       const controller = new AbortController();
-      const response = createLiveSyncResponse(controller.signal, (callback) =>
-        subscribeTripForUser("trip-1", "user-1", callback)
+      const response = createLiveSyncResponse(controller.signal, (callback, close) =>
+        subscribeTripForUser("trip-1", "user-1", callback, close)
       );
       const reader = response.body!.getReader();
       await reader.read(); // the immediate connect heartbeat
@@ -430,8 +493,8 @@ describe("trip-events", () => {
       resetLiveSyncHeartbeatSchedulerForTest();
       vi.useFakeTimers();
       const controller = new AbortController();
-      const response = createLiveSyncResponse(controller.signal, (callback) =>
-        subscribeTripForUser("trip-1", "user-1", callback)
+      const response = createLiveSyncResponse(controller.signal, (callback, close) =>
+        subscribeTripForUser("trip-1", "user-1", callback, close)
       );
       const reader = response.body!.getReader();
       await reader.read(); // the immediate connect heartbeat
@@ -471,6 +534,27 @@ describe("trip-events", () => {
       expect(unsubscribe).toHaveBeenCalledOnce();
       const { done } = await reader.read();
       expect(done).toBe(true);
+    });
+
+    it("logs a throwing connect-time heartbeat flush without crashing stream setup", async () => {
+      const controller = new AbortController();
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const addEventListenerSpy = vi.spyOn(controller.signal, "addEventListener");
+      const unsubscribe = vi.fn();
+
+      expect(() =>
+        createLiveSyncResponse(controller.signal, (_callback, close) => {
+          close();
+          return unsubscribe;
+        })
+      ).not.toThrow();
+
+      expect(unsubscribe).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Live sync heartbeat flush failed while opening connection",
+        expect.any(Error)
+      );
+      expect(addEventListenerSpy).toHaveBeenCalledWith("abort", expect.any(Function), { once: true });
     });
   });
 });

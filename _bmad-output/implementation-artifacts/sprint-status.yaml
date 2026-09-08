@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-31-2026 00:00
-last_updated: 09-08-2026 13:44
+last_updated: 09-08-2026 15:29
 project: packt
 project_key: NOKEY
 tracking_system: file-system
@@ -219,7 +219,7 @@ action_items:
       paths. Highest-confidence finding this retro -- three independent review passes
       converged on it."
     owner: "next implementer touching trip-events.ts"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
   - id: "epic-4-retro-item-19-add-regression-coverage-for-the-24-of-30"
     epic: 4
@@ -235,7 +235,7 @@ action_items:
     action: "Wrap the connect-time heartbeat flush in createLiveSyncResponse (trip-events.ts)
       in the same try/catch every other frame delivery in the file already uses."
     owner: "same pass as the trip-events.ts cleanup item"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-08.md"
   - id: "epic-4-retro-item-21-contributor-revocation-modal-tsx-fall-ba"
     epic: 4
