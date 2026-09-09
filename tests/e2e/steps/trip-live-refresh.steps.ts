@@ -114,6 +114,13 @@ Then("the contributor's open trip page no longer shows a {string} tab", async ({
   });
 });
 
+Then("the contributor's open trip page redirects to the trips list with a deletion notice", async ({ scenario }) => {
+  const contributorPage = scenario.getValue<Page>(CONTRIBUTOR_PAGE_KEY);
+  if (!contributorPage) throw new Error("No contributor page is open for this scenario.");
+  await contributorPage.waitForURL(/\/trips\/?$/, { timeout: 15_000 });
+  await expect(contributorPage.getByText("This trip was deleted.")).toBeVisible();
+});
+
 After(async ({ scenario }) => {
   const secondTabPage = scenario.getValue<Page>(SECOND_TAB_PAGE_KEY);
   if (secondTabPage) {

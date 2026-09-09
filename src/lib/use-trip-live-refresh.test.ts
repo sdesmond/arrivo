@@ -3,12 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType } from "@/data/types";
 import { useTripLiveRefresh } from "./use-trip-live-refresh";
 
-const { mockRouterRefresh } = vi.hoisted(() => ({
+const { mockRouterPush, mockRouterRefresh, mockToastError } = vi.hoisted(() => ({
+  mockRouterPush: vi.fn(),
   mockRouterRefresh: vi.fn(),
+  mockToastError: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: mockRouterRefresh }),
+  useRouter: () => ({ push: mockRouterPush, refresh: mockRouterRefresh }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: mockToastError },
 }));
 
 class MockEventSource {
@@ -52,7 +58,9 @@ async function flushMicrotasks(): Promise<void> {
 describe("useTripLiveRefresh", () => {
   beforeEach(() => {
     MockEventSource.instances = [];
+    mockRouterPush.mockClear();
     mockRouterRefresh.mockClear();
+    mockToastError.mockClear();
     vi.stubGlobal("EventSource", MockEventSource);
   });
 
@@ -138,12 +146,11 @@ describe("useTripLiveRefresh", () => {
     expect(mockRouterRefresh).not.toHaveBeenCalled();
   });
 
-  it("does not refresh for a trip-deleted or membership-removed frame on the trip channel", async () => {
+  it("does not refresh, redirect, or toast for a membership-removed frame on the trip channel", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
     act(() => currentSource().emitOpen());
     await flushMicrotasks();
 
-    act(() => currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" })));
     act(() =>
       currentSource().emitMessage(
         JSON.stringify({
@@ -158,6 +165,21 @@ describe("useTripLiveRefresh", () => {
     );
     await flushMicrotasks();
 
+    expect(mockRouterRefresh).not.toHaveBeenCalled();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("redirects to the trips list and shows a toast when the trip is deleted, without refreshing", async () => {
+    renderHook(() => useTripLiveRefresh("trip-1"));
+    act(() => currentSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() => currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" })));
+    await flushMicrotasks();
+
+    expect(mockToastError).toHaveBeenCalledWith("This trip was deleted.");
+    expect(mockRouterPush).toHaveBeenCalledWith("/trips");
     expect(mockRouterRefresh).not.toHaveBeenCalled();
   });
 

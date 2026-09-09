@@ -126,6 +126,12 @@ Then("the removed trip is absent from the contributor's dashboard", async ({ sce
   await expect(contributorPage.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0, { timeout: 15_000 });
 });
 
+Then("the deleted trip is absent from the contributor's dashboard", async ({ scenario }) => {
+  const contributorPage = getContributorPage(scenario);
+  const trip = await scenario.ensureCurrentTrip();
+  await expect(contributorPage.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0, { timeout: 15_000 });
+});
+
 After(async ({ scenario }) => {
   const contributorContext = scenario.getValue<BrowserContext>(CONTRIBUTOR_CONTEXT_KEY);
   if (contributorContext) {

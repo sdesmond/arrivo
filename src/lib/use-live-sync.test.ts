@@ -302,6 +302,28 @@ describe("useLiveSync", () => {
       expect(second.result.current).toBe(SyncConnectionStatus.Connected);
     });
 
+    it("guards per-listener event delivery so one throwing listener does not block the others", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const throwingCallback = vi.fn(() => {
+        throw new Error("boom");
+      });
+      const healthyCallback = vi.fn();
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", throwingCallback));
+      renderHook(() => useLiveSync("/api/trips/trip-1/events", healthyCallback));
+
+      expect(() =>
+        act(() =>
+          MockEventSource.instances[0]?.emitMessage(
+            JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })
+          )
+        )
+      ).not.toThrow();
+
+      expect(throwingCallback).toHaveBeenCalledOnce();
+      expect(healthyCallback).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
     it("gives a consumer joining an already-connected channel its true current status immediately", () => {
       renderHook(() => useLiveSync());
       act(() => MockEventSource.instances[0]?.emitOpen());
