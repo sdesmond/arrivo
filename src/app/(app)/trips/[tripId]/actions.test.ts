@@ -184,7 +184,7 @@ import {
   saveContributorChanges,
 } from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
-import { LiveSyncEventType } from "@/data/types";
+import { LiveSyncEventType, type ContributorChange } from "@/data/types";
 
 interface ReorderTransactionFixture {
   currentChecklists?: Array<{ id: string }>;
@@ -244,11 +244,19 @@ describe("share invitation actions", () => {
     mockRescindInvitation.mockResolvedValue({ status: "success" });
     mockDismissInvitation.mockResolvedValue({ status: "success" });
     mockSaveContributorChanges.mockResolvedValue({ status: "success" });
-    mockGetContributorsAndInvitations.mockResolvedValue({ collaborators: [], invitations: [] });
+    mockGetContributorsAndInvitations.mockResolvedValue({
+      collaborators: [],
+      currentCollaboratorId: "manager-row-1",
+      invitations: [],
+    });
   });
 
   it("delegates to getContributorsAndInvitations with the caller's id", async () => {
-    await expect(getShareDialogData("trip-1")).resolves.toEqual({ collaborators: [], invitations: [] });
+    await expect(getShareDialogData("trip-1")).resolves.toEqual({
+      collaborators: [],
+      currentCollaboratorId: "manager-row-1",
+      invitations: [],
+    });
 
     expect(mockGetContributorsAndInvitations).toHaveBeenCalledWith("trip-1", "manager-1");
   });
@@ -307,7 +315,7 @@ describe("share invitation actions", () => {
   });
 
   it("delegates saveContributorChanges and revalidates the detail route on success", async () => {
-    const changes: import("@/data/types").ContributorChange[] = [
+    const changes: ContributorChange[] = [
       { type: "role", collaboratorId: "collab-1", fromRole: "editor", toRole: "viewer" },
       { type: "remove", collaboratorId: "collab-2" },
     ];
