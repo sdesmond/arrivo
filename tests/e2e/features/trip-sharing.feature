@@ -12,6 +12,14 @@ Feature: Trip sharing dialog
     And I see the pending sharing row
     And I see the declined sharing row
 
+  Scenario: A non-creator manager sees their locked row while another manager stays editable
+    Given I am a manager on "Manager Share Trip" owned by "Ada Lovelace"
+    And the shared trip has another manager
+    When I go to the shared trip
+    And I open the sharing dialog
+    Then I see my sharing row marked You and locked
+    And I see the other manager sharing row is editable
+
   Scenario: A manager sees an expired pending invitation and can still act on it
     Given I have a trip with sharing rows
     When I go to the current trip

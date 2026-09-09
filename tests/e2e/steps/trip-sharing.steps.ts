@@ -8,6 +8,7 @@ const PENDING_EMAIL = "pending-share@example.com";
 const DECLINED_EMAIL = "declined-share@example.com";
 const EXPIRED_PENDING_EMAIL = "expired-pending-share@example.com";
 const REMOVABLE_EMAIL = "removable-share@example.com";
+const OTHER_MANAGER_EMAIL = "other-manager-share@example.com";
 const PENDING_INVITATION_EXPIRY_LABEL_KEY = "pendingInvitationExpiryLabel";
 
 Given("I have a trip with sharing rows", async ({ scenario }) => {
@@ -66,6 +67,20 @@ Given("I have an additional removable sharing contributor", async ({ scenario })
   });
 });
 
+Given("the shared trip has another manager", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  await withE2EDb(async (db) => {
+    await db.insert(collaborators).values({
+      tripId: trip.id,
+      email: OTHER_MANAGER_EMAIL,
+      name: "Other Manager",
+      initials: "OM",
+      role: "manager",
+      isCreator: false,
+    });
+  });
+});
+
 When("I go to the current trip", async ({ page, scenario }) => {
   await scenario.gotoCurrentTrip(page);
 });
@@ -85,6 +100,20 @@ Then("I see the active sharing row", async ({ page }) => {
   const row = page.getByText(ACTIVE_EMAIL, { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Active Contributor");
   await expect(row).toContainText("Editor");
+});
+
+Then("I see my sharing row marked You and locked", async ({ page, scenario }) => {
+  const user = await scenario.ensureCurrentUser();
+  const row = page.getByRole("dialog").getByText(user.email, { exact: true }).locator("..").locator("..");
+  await expect(row).toContainText("You");
+  await expect(row.getByLabel("Your access can't be changed here")).toBeVisible();
+  await expect(row.getByLabel(`Role for ${user.name}`)).toHaveCount(0);
+});
+
+Then("I see the other manager sharing row is editable", async ({ page }) => {
+  const row = page.getByText(OTHER_MANAGER_EMAIL, { exact: true }).locator("..").locator("..");
+  await expect(row.getByLabel("Role for Other Manager")).toBeEnabled();
+  await expect(row.getByTitle("Remove Other Manager")).toBeEnabled();
 });
 
 Then("I see the pending sharing row", async ({ page }) => {
