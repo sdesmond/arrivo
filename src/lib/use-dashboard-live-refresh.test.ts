@@ -125,7 +125,7 @@ describe("useDashboardLiveRefresh", () => {
     expect(mockRouterRefresh).toHaveBeenCalledOnce();
   });
 
-  it("ignores removals, itinerary changes, trip deletion, heartbeat, and unknown frames", async () => {
+  it("ignores removals, itinerary changes, heartbeat, and unknown frames", async () => {
     renderHook(() => useDashboardLiveRefresh());
     act(() => currentSource().emitOpen());
     await flushMicrotasks();
@@ -142,13 +142,23 @@ describe("useDashboardLiveRefresh", () => {
         })
       );
       currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" }));
-      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" }));
       currentSource().emitMessage('{"type":"heartbeat"}');
       currentSource().emitMessage('{"type":"something-unknown"}');
     });
     await flushMicrotasks();
 
     expect(mockRouterRefresh).not.toHaveBeenCalled();
+  });
+
+  it("refreshes once when a trip is deleted, dropping it from the list", async () => {
+    renderHook(() => useDashboardLiveRefresh());
+    act(() => currentSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() => currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" })));
+    await flushMicrotasks();
+
+    expect(mockRouterRefresh).toHaveBeenCalledOnce();
   });
 
   it("collapses a burst of membership changes into one refresh", async () => {

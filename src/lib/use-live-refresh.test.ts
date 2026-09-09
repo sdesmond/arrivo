@@ -84,6 +84,19 @@ describe("useLiveRefresh", () => {
     expect(mockRouterRefresh).toHaveBeenCalledOnce();
   });
 
+  it("invokes onEvent for every event, independent of whether the predicate accepts it", async () => {
+    const onEvent = vi.fn();
+    renderHook(() => useLiveRefresh("/channel", () => false, onEvent));
+    connect();
+    await flushMicrotasks();
+
+    act(() => channel.emit(itineraryChanged));
+    await flushMicrotasks();
+
+    expect(onEvent).toHaveBeenCalledWith(itineraryChanged);
+    expect(mockRouterRefresh).not.toHaveBeenCalled();
+  });
+
   it("swallows the initial connect and resyncs on a later one", async () => {
     renderHook(() => useLiveRefresh("/channel", () => true));
 

@@ -14,3 +14,9 @@ Feature: Trip page live refresh
     And I have a trip with an editor contributor viewing it in their own session
     When I demote the contributor to viewer and save
     Then the contributor's open trip page no longer shows a "Budget" tab
+
+  Scenario: A contributor viewing the trip is redirected when it is deleted elsewhere
+    Given I am signed in
+    And I have a trip with an editor contributor viewing it in their own session
+    When I delete the trip
+    Then the contributor's open trip page redirects to the trips list with a deletion notice

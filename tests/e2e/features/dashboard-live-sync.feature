@@ -13,3 +13,9 @@ Feature: Dashboard live sync
     Then the dashboard contributor sees a message that they were removed from the trip
     When the dashboard contributor clicks OK
     Then the removed trip is absent from the contributor's dashboard
+
+  Scenario: A contributor's dashboard drops a trip deleted elsewhere without a reload
+    Given I am signed in
+    And I have an editor contributor viewing the dashboard in their own session
+    When I delete the trip
+    Then the deleted trip is absent from the contributor's dashboard

@@ -27,8 +27,17 @@ import { useLiveSync } from "./use-live-sync";
  *
  * Passing `url` as `undefined` falls through to `useLiveSync`'s default personal-channel URL, which
  * joins the ref-counted EventSource the app shell already holds rather than opening a second one.
+ *
+ * `onEvent`, if given, runs for every event regardless of `shouldRefresh` — an escape hatch for a
+ * caller that needs to react to one event type with something other than a route refresh (e.g.
+ * `useTripLiveRefresh` redirecting away on `trip-deleted` instead of refreshing a page that's about
+ * to be gone).
  */
-export function useLiveRefresh(url: string | undefined, shouldRefresh: (event: LiveSyncEvent) => boolean): void {
+export function useLiveRefresh(
+  url: string | undefined,
+  shouldRefresh: (event: LiveSyncEvent) => boolean,
+  onEvent?: (event: LiveSyncEvent) => void
+): void {
   const router = useRouter();
   const generationRef = useRef(0);
   const hasConnectedOnceRef = useRef(false);
@@ -43,6 +52,7 @@ export function useLiveRefresh(url: string | undefined, shouldRefresh: (event: L
   }
 
   function handleLiveSyncEvent(event: LiveSyncEvent): void {
+    onEvent?.(event);
     if (shouldRefresh(event)) triggerRefresh();
   }
 

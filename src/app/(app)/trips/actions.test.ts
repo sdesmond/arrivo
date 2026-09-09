@@ -210,6 +210,21 @@ describe("deleteTrip", () => {
     expect(publishOrder).toBeLessThan(revalidateOrder);
   });
 
+  it("also publishes trip-deleted to each other collaborator's personal channel, but not the acting manager's", async () => {
+    db.select.mockReturnValue({
+      from: () => ({
+        where: async () => [{ userId: "manager-1" }, { userId: "user-editor" }, { userId: null }],
+      }),
+    });
+
+    await deleteTrip("trip-1");
+
+    expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("user-editor", {
+      type: LiveSyncEventType.TripDeleted,
+      tripId: "trip-1",
+    });
+  });
+
   it("does not publish or purge when access is denied", async () => {
     assertTripAccess.mockRejectedValue(new Error("not found"));
 

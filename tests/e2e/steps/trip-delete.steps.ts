@@ -35,3 +35,16 @@ When("I confirm the trip deletion", async ({ page }) => {
 Then("the trip {string} is no longer visible in the trip list", async ({ page }, tripName: string) => {
   await expect(page.locator("a[href^='/trips/']").filter({ hasText: tripName })).toHaveCount(0);
 });
+
+When("I delete the trip", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  await page.goto("/trips");
+  const tripCard = page.locator(`a[href="/trips/${trip.id}"]`).filter({ hasText: trip.name }).first();
+  await expect(tripCard).toBeVisible();
+  await tripCard.getByTitle("Trip options").click();
+  const deleteTripItem = page.getByRole("menuitem", { name: "Delete trip" });
+  await expect(deleteTripItem).toBeVisible();
+  await deleteTripItem.click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0);
+});
