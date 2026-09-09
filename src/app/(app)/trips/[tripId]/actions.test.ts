@@ -50,7 +50,11 @@ const {
     itineraryChecklists: {},
     itineraryNotes: {},
     notes: {},
+    packingItems: {},
+    packingTemplateItems: {},
+    packingTemplates: {},
     trips: {},
+    tripPackingLists: {},
   };
 
   return {
@@ -143,21 +147,37 @@ vi.mock("drizzle-orm", () => ({
 import {
   addChecklistFromPackingSource,
   addDay,
+  addDocument,
+  attachTripDocToEvent,
+  createChecklist,
+  createChecklistItem,
+  createChecklistWithItem,
   createEvent,
+  createNote,
+  deleteChecklist,
+  deleteChecklistItem,
   deleteEvent,
   deleteEventWithDocDecision,
+  deleteNote,
   deleteTripNote,
   createTripNote,
   dismissShareInvitation,
   getShareDialogData,
+  promoteEventDocToTrip,
   removeDocument,
   removeLastDay,
   removeTripCover,
+  renameDocument,
   reorderDayItems,
   reorderTripNotes,
   setTripCoverWithAttribution,
+  toggleChecklistItem,
+  updateChecklistItem,
+  updateChecklistTitle,
+  updateDay,
   uploadCoverImage,
   updateEvent,
+  updateNote,
   updateTripNote,
   rescindShareInvitation,
   resendShareInvitation,
@@ -566,6 +586,10 @@ describe("createTripNote", () => {
         body: "Reef-safe only",
       },
     ]);
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
@@ -618,6 +642,10 @@ describe("updateTripNote", () => {
     ]);
     expect(updatedValues[0]).not.toHaveProperty("position");
     expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
@@ -700,6 +728,10 @@ describe("deleteTripNote", () => {
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
     expect(mockDbDelete).toHaveBeenCalledWith(notes);
     expect(where).toHaveBeenCalledOnce();
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
@@ -767,6 +799,10 @@ describe("reorderDayItems", () => {
       { position: 1, table: events },
       { position: 2, table: itineraryChecklists },
     ]);
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
@@ -847,6 +883,10 @@ describe("reorderTripNotes", () => {
       { position: 1, table: notes },
       { position: 2, table: notes },
     ]);
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
@@ -940,6 +980,43 @@ describe("addChecklistFromPackingSource", () => {
     expect(mockDbTransaction).not.toHaveBeenCalled();
     expect(mockDbInsert).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("creates a checklist from a packing list and publishes itinerary-changed before revalidating", async () => {
+    mockDbSelect
+      .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }])) // getDayTripId
+      .mockReturnValueOnce(createSimpleSelect([{ name: "Beach Kit", tripId: "trip-1" }])) // tripPackingLists
+      .mockReturnValueOnce({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn(async () => [{ name: "Sunscreen" }, { name: "Towel" }]),
+          })),
+        })),
+      }); // packingItems, ordered
+
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+      insert: vi
+        .fn()
+        .mockReturnValueOnce({
+          values: vi.fn(() => ({ returning: vi.fn(async () => [{ id: "checklist-1" }]) })),
+        })
+        .mockReturnValueOnce({ values: vi.fn(async () => undefined) }),
+    };
+    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const checklistId = await addChecklistFromPackingSource("trip-1", "day-1", 0, "packing-list", "list-1");
+
+    expect(checklistId).toBe("checklist-1");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });
 
@@ -1084,6 +1161,10 @@ describe("setTripCoverWithAttribution", () => {
       coverPhotographer: "Jane Lens",
       coverPhotographerUrl: "https://unsplash.com/@janelens",
     });
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
@@ -1135,6 +1216,10 @@ describe("removeTripCover", () => {
       coverImageUrl: "graphic:Summer Trip",
       coverPhotographer: null,
       coverPhotographerUrl: null,
+    });
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
@@ -1407,6 +1492,230 @@ describe("removeDocument", () => {
 
     expect(mockAdapterDel).toHaveBeenCalledWith("/api/storage/trip-documents/trip-1/doc.pdf");
     expect(deleteWhere).toHaveBeenCalled();
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+describe("publishItineraryChanged regression coverage", () => {
+  // These actions each end by publishing ItineraryChanged for their trip. Rather than a bespoke
+  // describe block per action duplicating the same assert-and-mock boilerplate, this table drives
+  // one generic test body per action-under-test; see epic-4-retro-2026-09-08.md item 19.
+  interface PublishCase {
+    name: string;
+    tripId: string;
+    run: () => Promise<unknown>;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+  });
+
+  const cases: PublishCase[] = [
+    {
+      name: "updateDay",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return updateDay("day-1", { label: "Day One" });
+      },
+    },
+    {
+      name: "addDocument",
+      tripId: "trip-1",
+      run: () => {
+        mockDbInsert.mockReturnValue({ values: vi.fn(async () => undefined) });
+        return addDocument({ tripId: "trip-1", name: "Passport.pdf", kind: "other", url: "https://x/doc.pdf" });
+      },
+    },
+    {
+      name: "createNote",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+        const transaction = {
+          execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+          select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
+          update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+          insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+        };
+        mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+          callback(transaction)
+        );
+        return createNote("day-1", "Bring sunscreen", 0);
+      },
+    },
+    {
+      name: "updateNote",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ id: "note-1", dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return updateNote("note-1", "Updated content");
+      },
+    },
+    {
+      name: "deleteNote",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ id: "note-1", dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbDelete.mockReturnValue({ where: vi.fn(async () => undefined) });
+        return deleteNote("note-1");
+      },
+    },
+    {
+      name: "createChecklist",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+        const transaction = {
+          execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+          select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
+          update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+          insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+        };
+        mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+          callback(transaction)
+        );
+        return createChecklist("day-1", 0);
+      },
+    },
+    {
+      name: "createChecklistWithItem",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+        const transaction = {
+          execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+          select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
+          update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+          insert: vi
+            .fn()
+            .mockReturnValueOnce({
+              values: vi.fn(() => ({ returning: vi.fn(async () => [{ id: "checklist-1" }]) })),
+            })
+            .mockReturnValueOnce({ values: vi.fn(async () => undefined) }),
+        };
+        mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+          callback(transaction)
+        );
+        return createChecklistWithItem("day-1", 0, "Passport");
+      },
+    },
+    {
+      name: "updateChecklistTitle",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return updateChecklistTitle("checklist-1", "Museum Day");
+      },
+    },
+    {
+      name: "deleteChecklist",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbDelete.mockReturnValue({ where: vi.fn(async () => undefined) });
+        return deleteChecklist("checklist-1");
+      },
+    },
+    {
+      name: "createChecklistItem",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbInsert.mockReturnValue({ values: vi.fn(async () => undefined) });
+        return createChecklistItem("checklist-1", "Passport");
+      },
+    },
+    {
+      name: "updateChecklistItem",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return updateChecklistItem("item-1", "Updated");
+      },
+    },
+    {
+      name: "toggleChecklistItem",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return toggleChecklistItem("item-1");
+      },
+    },
+    {
+      name: "deleteChecklistItem",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect
+          .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
+          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbDelete.mockReturnValue({ where: vi.fn(async () => undefined) });
+        return deleteChecklistItem("item-1");
+      },
+    },
+    {
+      name: "renameDocument",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect.mockReturnValue(createSimpleSelect([{ id: "doc-1", tripId: "trip-1", eventId: null }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return renameDocument("doc-1", "Passport-scan.pdf");
+      },
+    },
+    {
+      name: "attachTripDocToEvent",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return attachTripDocToEvent("doc-1", "event-1");
+      },
+    },
+    {
+      name: "promoteEventDocToTrip",
+      tripId: "trip-1",
+      run: () => {
+        mockDbSelect.mockReturnValue(createSimpleSelect([{ id: "doc-1", tripId: "trip-1", eventId: "event-1" }]));
+        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        return promoteEventDocToTrip("doc-1");
+      },
+    },
+  ];
+
+  it.each(cases)("publishes ItineraryChanged for $name", async ({ tripId, run }) => {
+    await run();
+
+    expect(mockPublishTripEvent).toHaveBeenCalledWith(tripId, {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId,
+    });
   });
 });
