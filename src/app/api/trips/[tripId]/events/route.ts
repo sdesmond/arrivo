@@ -8,5 +8,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { tripId } = await params;
   await assertTripAccess(tripId, user.id!, "viewer");
 
-  return createLiveSyncResponse(request.signal, (callback) => subscribeTripForUser(tripId, user.id!, callback));
+  return createLiveSyncResponse(request.signal, (callback, close) =>
+    subscribeTripForUser(tripId, user.id!, callback, close)
+  );
 }

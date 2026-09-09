@@ -90,6 +90,12 @@
   summary: Same open item as the story-4-2 entry above ("no shared constant/type in `LiveSyncEventType`... future consumers must hardcode the literal string") — carved off this spec to stay under its token-count target, not a new finding. See that entry; no separate fix needed here.
   evidence: The heartbeat scheduler added by this spec reuses today's internal `"heartbeat"` literal rather than promoting it to `src/data/types.ts`, so the pre-existing gap is unchanged, not widened.
 
+## Deferred from: spec-sse-subscriber-cleanup.md token-count split (2026-09-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-sse-subscriber-cleanup.md`
+  summary: Add per-listener throw isolation to `use-live-sync.ts`'s client-side fan-out (`broadcastStatus`, `onmessage`) — retro epic-4 item 22/VG-2/EC-5.
+  evidence: Split off spec-sse-subscriber-cleanup.md to stay under its token-count target. Item 22 is a different file/layer (client vs. server) with no shared code to that spec's items 18/20, so it doesn't need to land in the same change.
+
 ## Deferred from: code review of spec-heartbeat-fanout-health-check.md (2026-09-08)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`

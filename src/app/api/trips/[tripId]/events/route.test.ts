@@ -79,11 +79,23 @@ describe("GET /api/trips/[tripId]/events", () => {
     const response = await GET(new Request("http://localhost/api/trips/trip-1/events") as never, makeParams("trip-1"));
 
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "viewer");
-    expect(subscribeTripForUser).toHaveBeenCalledWith("trip-1", "user-1", expect.any(Function));
+    expect(subscribeTripForUser).toHaveBeenCalledWith("trip-1", "user-1", expect.any(Function), expect.any(Function));
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
     expect(response.headers.get("Cache-Control")).toBe("no-store, no-transform");
     expect(response.headers.get("Connection")).toBe("keep-alive");
     expect(response.headers.get("X-Accel-Buffering")).toBe("no");
+  });
+
+  it("forwards stream cleanup so subscriber removal closes the response", async () => {
+    const response = await GET(new Request("http://localhost/api/trips/trip-1/events") as never, makeParams("trip-1"));
+    const reader = response.body!.getReader();
+    await reader.read(); // the immediate connect heartbeat
+    const close = subscribeTripForUser.mock.calls[0][3] as () => void;
+
+    close();
+
+    const { done } = await reader.read();
+    expect(done).toBe(true);
   });
 
   it("flushes an immediate heartbeat on connect, before any interval tick", async () => {
