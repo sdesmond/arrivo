@@ -8,6 +8,7 @@ import { CollaboratorRole, type Collaborator, type CollaboratorRole as Collabora
 
 interface TripShareCollaboratorRowProps {
   collaborator: Collaborator;
+  isCurrentUser?: boolean;
   roleLabel: (role: CollaboratorRoleValue) => string;
   disabled?: boolean;
   onRemove?: (collaborator: Collaborator) => void;
@@ -30,12 +31,13 @@ function roleStyle(role: CollaboratorRoleValue): { background: string; color: st
 
 export function TripShareCollaboratorRow({
   collaborator,
+  isCurrentUser = false,
   roleLabel,
   disabled = false,
   onRemove,
   onRoleChange,
 }: TripShareCollaboratorRowProps): ReactElement {
-  const isLocked = !!collaborator.isCreator;
+  const isLocked = !!collaborator.isCreator || isCurrentUser;
   const collaboratorId = collaborator.id;
 
   return (
@@ -58,14 +60,27 @@ export function TripShareCollaboratorRow({
         {collaborator.initials}
       </span>
       <div className="min-w-0 flex-1">
-        <div style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}>
-          {collaborator.name}
+        <div
+          className="flex items-center gap-1.5"
+          style={{ fontSize: "calc(13px * var(--font-scale))", fontWeight: 500, color: "var(--fg)" }}
+        >
+          <span>{collaborator.name}</span>
+          {isCurrentUser ? (
+            <span
+              className="rounded-full px-1.5 text-xs"
+              style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}
+            >
+              You
+            </span>
+          ) : null}
         </div>
         <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>{collaborator.email}</div>
       </div>
       {isLocked ? (
         <span
-          aria-label="Trip creator — access can't be changed"
+          aria-label={
+            collaborator.isCreator ? "Trip creator — access can't be changed" : "Your access can't be changed here"
+          }
           className="flex size-11 shrink-0 items-center justify-center"
           style={{ color: "var(--fg-4)" }}
         >

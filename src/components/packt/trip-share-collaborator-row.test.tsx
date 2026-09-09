@@ -46,6 +46,31 @@ describe("TripShareCollaboratorRow", () => {
     expect(screen.queryByTitle("Remove Ada Lovelace")).not.toBeInTheDocument();
   });
 
+  it("marks and locks the current user's non-creator row", () => {
+    render(
+      <TripShareCollaboratorRow
+        collaborator={editor}
+        isCurrentUser
+        onRemove={vi.fn()}
+        onRoleChange={vi.fn()}
+        roleLabel={roleLabel}
+      />
+    );
+
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.getByLabelText("Your access can't be changed here")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Role for Grace Hopper")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Remove Grace Hopper")).not.toBeInTheDocument();
+  });
+
+  it("uses creator lock semantics while still marking the creator as current", () => {
+    render(<TripShareCollaboratorRow collaborator={creator} isCurrentUser roleLabel={roleLabel} />);
+
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.getByLabelText("Trip creator — access can't be changed")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Your access can't be changed here")).not.toBeInTheDocument();
+  });
+
   it("offers a titled remove control and a role selector for a non-creator", () => {
     render(
       <TripShareCollaboratorRow collaborator={editor} onRemove={vi.fn()} onRoleChange={vi.fn()} roleLabel={roleLabel} />
