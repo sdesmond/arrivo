@@ -44,9 +44,19 @@ interface SharedChannel {
 // just two open tabs, starving unrelated requests (navigations, server actions) of a socket.
 const channels = new Map<string, SharedChannel>();
 
+/**
+ * Delivery is guarded per-listener — one throwing listener never blocks the rest, matching
+ * deliverToTripSubscribers/deliverToUserSubscribers on the server side.
+ */
 function broadcastStatus(channel: SharedChannel, status: SyncConnectionStatusValue): void {
   channel.status = status;
-  channel.statusListeners.forEach((listener) => listener(status));
+  channel.statusListeners.forEach((listener) => {
+    try {
+      listener(status);
+    } catch (error) {
+      console.warn("Live sync status listener threw while broadcasting status", error);
+    }
+  });
 }
 
 function resetWatchdog(channel: SharedChannel): void {
@@ -74,7 +84,16 @@ function openChannel(url: string): SharedChannel {
   eventSource.onmessage = (event) => {
     markConnected();
     const liveSyncEvent = parseLiveSyncEvent(event.data as string);
-    if (liveSyncEvent) channel.eventListeners.forEach((listener) => listener(liveSyncEvent));
+    if (!liveSyncEvent) return;
+    // Delivery is guarded per-listener — one throwing listener never blocks the rest, matching
+    // deliverToTripSubscribers/deliverToUserSubscribers on the server side.
+    channel.eventListeners.forEach((listener) => {
+      try {
+        listener(liveSyncEvent);
+      } catch (error) {
+        console.warn("Live sync event listener threw while delivering an event", error);
+      }
+    });
   };
   eventSource.onerror = () => {
     if (channel.status !== SyncConnectionStatus.Offline) broadcastStatus(channel, SyncConnectionStatus.Reconnecting);
