@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CollaboratorRole } from "@/data/types";
 
 interface TripShareInviteFormProps {
+  disabled?: boolean;
   email: string;
   error: string | null;
   isLoading: boolean;
@@ -18,6 +19,7 @@ interface TripShareInviteFormProps {
 }
 
 export function TripShareInviteForm({
+  disabled = false,
   email,
   error,
   isLoading,
@@ -26,6 +28,8 @@ export function TripShareInviteForm({
   onRoleChange,
   role,
 }: TripShareInviteFormProps): ReactElement {
+  const controlsDisabled = disabled || isLoading;
+
   return (
     <div
       className="flex flex-col gap-2"
@@ -36,7 +40,7 @@ export function TripShareInviteForm({
         aria-label="Invite email"
         aria-describedby={error ? "invite-email-error" : undefined}
         className="h-11"
-        disabled={isLoading}
+        disabled={controlsDisabled}
         onChange={(event) => onEmailChange(event.target.value)}
         placeholder="Email"
         type="email"
@@ -52,7 +56,11 @@ export function TripShareInviteForm({
         </p>
       ) : null}
       <div className="flex items-center gap-2">
-        <Select value={role} onValueChange={(value) => onRoleChange(value as CollaboratorRole)} disabled={isLoading}>
+        <Select
+          value={role}
+          onValueChange={(value) => onRoleChange(value as CollaboratorRole)}
+          disabled={controlsDisabled}
+        >
           <SelectTrigger aria-label="Invite role" className="h-11">
             <SelectValue />
           </SelectTrigger>
@@ -64,7 +72,7 @@ export function TripShareInviteForm({
         </Select>
         <Button
           className="h-11"
-          disabled={isLoading}
+          disabled={controlsDisabled}
           onClick={onInvite}
           size="sm"
           title="Invite this person to the trip"

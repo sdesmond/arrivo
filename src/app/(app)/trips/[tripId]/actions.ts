@@ -45,6 +45,7 @@ import type {
   CreateTripNoteInput,
   UpdateTripNoteInput,
   ReorderTripNotesInput,
+  ContributorChange,
 } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
@@ -80,7 +81,7 @@ export async function dismissShareInvitation(tripId: string, invitationId: strin
   return result;
 }
 
-export async function saveContributorChanges(tripId: string, changes: import("@/data/types").ContributorChange[]) {
+export async function saveContributorChanges(tripId: string, changes: ContributorChange[]) {
   const result = await saveContributorChangesAction(tripId, changes);
   if (result.status === "success") {
     revalidatePath(`/trips/${tripId}`);

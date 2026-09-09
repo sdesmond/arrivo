@@ -87,6 +87,7 @@ describe("TripShareDialog", () => {
     vi.clearAllMocks();
     mockGetShareDialogData.mockResolvedValue({
       collaborators: [creator, activeCollaborator],
+      currentCollaboratorId: "creator-1",
       invitations: [pendingInvitation, declinedInvitation],
     });
     mockResendShareInvitation.mockResolvedValue({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
@@ -109,6 +110,22 @@ describe("TripShareDialog", () => {
     expect(screen.getByText("Pending", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("declined@example.com")).toBeInTheDocument();
     expect(screen.getByText("Declined", { exact: true })).toBeInTheDocument();
+  });
+
+  it("wires the caller row id into current-user marking and locking", async () => {
+    mockGetShareDialogData.mockResolvedValue({
+      collaborators: [creator, activeCollaborator],
+      currentCollaboratorId: "editor-1",
+      invitations: [],
+    });
+
+    render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
+
+    await screen.findByText("Grace Hopper");
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.getByLabelText("Your access can't be changed here")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Role for Grace Hopper")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Remove Grace Hopper")).not.toBeInTheDocument();
   });
 
   it("shows only creator and invite form without an empty state", async () => {
@@ -607,7 +624,7 @@ describe("TripShareDialog batch staging", () => {
     expect(screen.queryByLabelText("Grace Hopper will be removed")).not.toBeInTheDocument();
   });
 
-  it("disables Save, Cancel, and the close (X) button while a save is in flight", async () => {
+  it("disables collaborator, invite, Save, Cancel, and close controls while a save is in flight", async () => {
     const deferred = createDeferred<{ status: "success" }>();
     mockSaveContributorChanges.mockReturnValue(deferred.promise);
     openDialog();
@@ -620,6 +637,12 @@ describe("TripShareDialog batch staging", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled());
     expect(saveButton).toBeDisabled();
     expect(screen.getByTitle("Close sharing dialog")).toBeDisabled();
+    expect(screen.getByLabelText("Role for Grace Hopper")).toBeDisabled();
+    expect(screen.getByTitle("Remove Grace Hopper")).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Invite role" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Invite" })).toBeDisabled();
+    expect(screen.queryByLabelText("Sending invitation")).not.toBeInTheDocument();
 
     deferred.resolve({ status: "success" });
     await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled());
@@ -643,6 +666,7 @@ describe("TripShareDialog dialog dismissal", () => {
     vi.clearAllMocks();
     mockGetShareDialogData.mockResolvedValue({
       collaborators: [creator, activeCollaborator],
+      currentCollaboratorId: "creator-1",
       invitations: [],
     });
     mockSaveContributorChanges.mockResolvedValue({ status: "success" });

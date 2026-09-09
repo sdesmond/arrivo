@@ -343,7 +343,7 @@ export async function getTemplateWithItems(
 export async function getContributorsAndInvitations(
   tripId: string,
   userId: string
-): Promise<{ collaborators: Collaborator[]; invitations: Invitation[] }> {
+): Promise<{ collaborators: Collaborator[]; currentCollaboratorId: string | null; invitations: Invitation[] }> {
   await assertTripAccess(tripId, userId, CollaboratorRole.Manager);
 
   const [collaboratorRows, invitationRows] = await Promise.all([
@@ -358,6 +358,7 @@ export async function getContributorsAndInvitations(
 
   return {
     collaborators: collaboratorRows.map(dbCollabToType),
+    currentCollaboratorId: collaboratorRows.find((collaborator) => collaborator.userId === userId)?.id ?? null,
     invitations: invitationRows.map(dbInvitationToType),
   };
 }

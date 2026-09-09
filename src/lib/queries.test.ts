@@ -107,10 +107,40 @@ describe("getContributorsAndInvitations", () => {
 
     await expect(getContributorsAndInvitations("trip-1", "user-1")).resolves.toEqual({
       collaborators: [],
+      currentCollaboratorId: null,
       invitations: [],
     });
 
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", CollaboratorRole.Manager);
+  });
+
+  it("returns the caller collaborator row id beside mapped sharing data", async () => {
+    mockAssertTripAccess.mockResolvedValue(CollaboratorRole.Manager);
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            { id: "creator-1", userId: "owner-1" },
+            { id: "manager-1", userId: "user-1" },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    await expect(getContributorsAndInvitations("trip-1", "user-1")).resolves.toMatchObject({
+      currentCollaboratorId: "manager-1",
+    });
+  });
+
+  it("returns a null caller row id when no collaborator row matches", async () => {
+    mockAssertTripAccess.mockResolvedValue(CollaboratorRole.Manager);
+    mockDbSelect
+      .mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "creator-1", userId: "owner-1" }] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    await expect(getContributorsAndInvitations("trip-1", "missing-user")).resolves.toMatchObject({
+      currentCollaboratorId: null,
+    });
   });
 });
 

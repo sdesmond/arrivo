@@ -49,4 +49,24 @@ describe("TripShareInviteForm", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("No Packt account found for this email.");
     expect(screen.getByLabelText("Sending invitation")).toBeInTheDocument();
   });
+
+  it("supports external disabling without showing invite progress", () => {
+    render(
+      <TripShareInviteForm
+        disabled
+        email="guest@example.com"
+        error={null}
+        isLoading={false}
+        onEmailChange={vi.fn()}
+        onInvite={vi.fn()}
+        onRoleChange={vi.fn()}
+        role={CollaboratorRole.Viewer}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Invite role" })).toBeDisabled();
+    expect(screen.getByTitle("Invite this person to the trip")).toBeDisabled();
+    expect(screen.queryByLabelText("Sending invitation")).not.toBeInTheDocument();
+  });
 });
