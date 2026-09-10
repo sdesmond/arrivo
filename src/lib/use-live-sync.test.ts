@@ -2,33 +2,9 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType, SyncConnectionStatus } from "@/data/types";
 import type { LiveSyncEvent } from "@/data/types";
+import { MockEventSource } from "./live-sync-test-helpers";
 import { LIVE_SYNC_DEAD_CHANNEL_GRACE_MS, SSE_HEARTBEAT_INTERVAL_MS } from "./live-sync-constants";
 import { resetLiveSyncChannelsForTest, useLiveSync } from "./use-live-sync";
-
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-
-  readonly close = vi.fn();
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-
-  constructor(readonly url: string) {
-    MockEventSource.instances.push(this);
-  }
-
-  emitError(): void {
-    this.onerror?.(new Event("error"));
-  }
-
-  emitMessage(data = '{"type":"heartbeat"}'): void {
-    this.onmessage?.(new MessageEvent("message", { data }));
-  }
-
-  emitOpen(): void {
-    this.onopen?.(new Event("open"));
-  }
-}
 
 const DEAD_CHANNEL_TIMEOUT_MS = SSE_HEARTBEAT_INTERVAL_MS + LIVE_SYNC_DEAD_CHANNEL_GRACE_MS;
 

@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType } from "@/data/types";
+import { flushMicrotasks, MockEventSource, personalSource, tripSource } from "./live-sync-test-helpers";
 import { useTripLiveRefresh } from "./use-trip-live-refresh";
 
 const { mockRouterPush, mockRouterRefresh, mockToastError } = vi.hoisted(() => ({
@@ -16,50 +17,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("sonner", () => ({
   toast: { error: mockToastError },
 }));
-
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-
-  readonly close = vi.fn();
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-
-  constructor(readonly url: string) {
-    MockEventSource.instances.push(this);
-  }
-
-  emitError(): void {
-    this.onerror?.(new Event("error"));
-  }
-
-  emitMessage(data: string): void {
-    this.onmessage?.(new MessageEvent("message", { data }));
-  }
-
-  emitOpen(): void {
-    this.onopen?.(new Event("open"));
-  }
-}
-
-function tripSource(): MockEventSource {
-  const source = MockEventSource.instances.filter((instance) => instance.url.startsWith("/api/trips/")).at(-1);
-  if (!source) throw new Error("No trip-channel MockEventSource instance was created.");
-  return source;
-}
-
-function personalSource(): MockEventSource {
-  const source = MockEventSource.instances.filter((instance) => instance.url === "/api/users/me/events").at(-1);
-  if (!source) throw new Error("No personal-channel MockEventSource instance was created.");
-  return source;
-}
-
-async function flushMicrotasks(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-}
 
 describe("useTripLiveRefresh", () => {
   beforeEach(() => {

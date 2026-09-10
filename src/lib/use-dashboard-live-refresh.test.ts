@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType } from "@/data/types";
+import { currentSource, flushMicrotasks, MockEventSource } from "./live-sync-test-helpers";
 import { resetLiveSyncChannelsForTest, useLiveSync } from "./use-live-sync";
 import { useDashboardLiveRefresh } from "./use-dashboard-live-refresh";
 
@@ -11,44 +12,6 @@ const { mockRouterRefresh } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mockRouterRefresh }),
 }));
-
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-
-  readonly close = vi.fn();
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-
-  constructor(readonly url: string) {
-    MockEventSource.instances.push(this);
-  }
-
-  emitError(): void {
-    this.onerror?.(new Event("error"));
-  }
-
-  emitMessage(data: string): void {
-    this.onmessage?.(new MessageEvent("message", { data }));
-  }
-
-  emitOpen(): void {
-    this.onopen?.(new Event("open"));
-  }
-}
-
-function currentSource(): MockEventSource {
-  const source = MockEventSource.instances.at(-1);
-  if (!source) throw new Error("No MockEventSource instance was created.");
-  return source;
-}
-
-async function flushMicrotasks(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-}
 
 describe("useDashboardLiveRefresh", () => {
   beforeEach(() => {

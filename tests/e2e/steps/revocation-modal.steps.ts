@@ -1,8 +1,6 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
-import { collaborators } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
 import { After, Given, Then, When } from "../fixtures";
-import type { ScenarioFixtureContext } from "../scenario-fixture";
+import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 import { waitForLiveSyncResponse } from "../live-sync";
 
 const REMOVED_PAGE_KEY = "revocationModalRemovedPage";
@@ -14,14 +12,6 @@ async function openTripWithPersonalChannel(page: Page, tripId: string): Promise<
   const personalChannelReady = waitForLiveSyncResponse(page, "/api/users/me/events");
   await Promise.all([page.goto(`/trips/${tripId}`), personalChannelReady]);
   await page.waitForURL(/\/trips\/.+/);
-}
-
-async function signInAsRemovedUser(page: Page, email: string): Promise<void> {
-  await page.goto("/sign-in");
-  await page.getByRole("textbox", { name: "Email" }).fill(email);
-  await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/trips");
 }
 
 function getRemovedPage(scenario: ScenarioFixtureContext): Page {
@@ -62,79 +52,40 @@ async function assertRevocationModalNamesRemover(scenario: ScenarioFixtureContex
   await expect(modal.getByRole("button", { name: "OK", exact: true })).toBeVisible();
 }
 
-interface SeededContributor {
-  id: string;
-  email: string;
-  name: string;
-  initials: string;
-}
-
-async function seedCollaborator(
-  scenario: ScenarioFixtureContext,
-  tripId: string,
-  name: string,
-  initials: string,
-  role: "editor" | "manager"
-): Promise<SeededContributor> {
-  const { user: contributor } = await scenario.materialize({
-    user: { overrides: { user: { name, initials } }, setCurrent: false },
-  });
-  if (!contributor) throw new Error(`Failed to materialize the ${role} user "${name}".`);
-
-  await withE2EDb(async (db) => {
-    await db.insert(collaborators).values({
-      tripId,
-      userId: contributor.id,
-      email: contributor.email,
-      name: contributor.name,
-      initials: contributor.initials,
-      role,
-      isCreator: false,
-    });
-  });
-
-  return contributor;
-}
-
 /**
  * Opens a second browser session on the trip as `contributor`. The context is registered with the
  * scenario immediately after creation — before sign-in or navigation can throw — so the After hook
  * always has something to close and a failed setup cannot leak a context into the rest of the run.
  */
-async function openSecondSession(
+async function openSecondSessionOnTrip(
   page: Page,
   scenario: ScenarioFixtureContext,
-  contributor: SeededContributor,
+  contributor: ScenarioUserRecord,
   tripId: string
 ): Promise<Page> {
-  const browser = page.context().browser();
-  if (!browser) throw new Error("No browser is available to open a second session.");
-
-  const context = await browser.newContext();
+  const { context, page: secondPage } = await scenario.openSecondSession(page);
   scenario.setValue(REMOVED_CONTEXT_KEY, context);
-
-  const secondPage = await context.newPage();
   scenario.setValue(REMOVED_PAGE_KEY, secondPage);
   scenario.setValue(REMOVED_NAME_KEY, contributor.name);
 
-  await signInAsRemovedUser(secondPage, contributor.email);
+  await scenario.signInAsUser(secondPage, contributor.email);
   await openTripWithPersonalChannel(secondPage, tripId);
   return secondPage;
 }
 
 Given("I have a contributor viewing my trip in their own session", async ({ page, scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
-  const contributor = await seedCollaborator(scenario, trip.id, "Revocation Contributor", "RC", "editor");
-  await openSecondSession(page, scenario, contributor, trip.id);
+  const contributor = await scenario.seedCollaborator(trip.id, "Revocation Contributor", "RC", "editor");
+  await openSecondSessionOnTrip(page, scenario, contributor, trip.id);
 });
 
 Given("I have a co-manager with a staged contributor removal in their own session", async ({ page, scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
-  const coManager = await seedCollaborator(scenario, trip.id, "Revocation Co-Manager", "RM", "manager");
-  const bystander = await seedCollaborator(scenario, trip.id, "Revocation Bystander", "RB", "editor");
+  const coManager = await scenario.seedCollaborator(trip.id, "Revocation Co-Manager", "RM", "manager");
+  const bystander = await scenario.seedCollaborator(trip.id, "Revocation Bystander", "RB", "editor");
   scenario.setValue(STAGED_TARGET_NAME_KEY, bystander.name);
 
-  const coManagerPage = await openSecondSession(page, scenario, coManager, trip.id);
+  const coManagerPage = await openSecondSessionOnTrip(page, scenario, coManager, trip.id);
 
   await coManagerPage.getByRole("button", { name: "Share", exact: true }).click();
   await expect(coManagerPage.getByRole("heading", { name: "Share trip" })).toBeVisible();
@@ -144,27 +95,13 @@ Given("I have a co-manager with a staged contributor removal in their own sessio
   await expect(coManagerPage.getByText("Will be removed on Save")).toBeVisible();
 });
 
-When("I remove the contributor from the trip and save", async ({ page, scenario }) => {
+When("I remove the {string} from the trip and save", async ({ page, scenario }) => {
   await removeNamedContributorAndSave(page, scenario);
 });
 
-When("I remove the co-manager from the trip and save", async ({ page, scenario }) => {
-  await removeNamedContributorAndSave(page, scenario);
+Then("the {string} session shows a message that they were removed from the trip, naming me", async ({ scenario }) => {
+  await assertRevocationModalNamesRemover(scenario);
 });
-
-Then(
-  "the contributor's session shows a message that they were removed from the trip, naming me",
-  async ({ scenario }) => {
-    await assertRevocationModalNamesRemover(scenario);
-  }
-);
-
-Then(
-  "the co-manager's session shows a message that they were removed from the trip, naming me",
-  async ({ scenario }) => {
-    await assertRevocationModalNamesRemover(scenario);
-  }
-);
 
 Then("the co-manager's session no longer shows the share dialog", async ({ scenario }) => {
   const removedPage = getRemovedPage(scenario);
@@ -195,19 +132,11 @@ Then("the staged removal was discarded", async ({ page, scenario }) => {
   await expect(page.getByTitle(`Remove ${stagedTargetName}`)).toBeVisible();
 });
 
-When("the contributor's session clicks OK", async ({ scenario }) => {
+When("the {string} session clicks OK", async ({ scenario }) => {
   await getRemovedPage(scenario).getByRole("button", { name: "OK", exact: true }).click();
 });
 
-When("the co-manager's session clicks OK", async ({ scenario }) => {
-  await getRemovedPage(scenario).getByRole("button", { name: "OK", exact: true }).click();
-});
-
-Then("the contributor's session is on the trips page", async ({ scenario }) => {
-  await getRemovedPage(scenario).waitForURL("**/trips");
-});
-
-Then("the co-manager's session is on the trips page", async ({ scenario }) => {
+Then("the {string} session is on the trips page", async ({ scenario }) => {
   await getRemovedPage(scenario).waitForURL("**/trips");
 });
 

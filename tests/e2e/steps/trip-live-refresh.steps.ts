@@ -1,6 +1,4 @@
 import { expect, type Page } from "@playwright/test";
-import { collaborators } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
 import { After, Given, Then, When } from "../fixtures";
 import { waitForLiveSyncResponse } from "../live-sync";
 
@@ -59,31 +57,10 @@ Then("the trip page shows {string} without reloading", async ({ page }, name: st
 
 Given("I have a trip with an editor contributor viewing it in their own session", async ({ page, scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
+  const contributor = await scenario.seedCollaborator(trip.id, "Live Refresh Contributor", "LR", "editor");
 
-  const { user: contributor } = await scenario.materialize({
-    user: { overrides: { user: { name: "Live Refresh Contributor", initials: "LR" } }, setCurrent: false },
-  });
-  if (!contributor) throw new Error("Failed to materialize the contributor user.");
-
-  await withE2EDb(async (db) => {
-    await db.insert(collaborators).values({
-      tripId: trip.id,
-      userId: contributor.id,
-      email: contributor.email,
-      name: contributor.name,
-      initials: contributor.initials,
-      role: "editor",
-      isCreator: false,
-    });
-  });
-
-  const contributorContext = await page.context().browser()!.newContext();
-  const contributorPage = await contributorContext.newPage();
-  await contributorPage.goto("/sign-in");
-  await contributorPage.getByRole("textbox", { name: "Email" }).fill(contributor.email);
-  await contributorPage.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
-  await contributorPage.getByRole("button", { name: "Sign in" }).click();
-  await contributorPage.waitForURL("**/trips");
+  const { page: contributorPage } = await scenario.openSecondSession(page);
+  await scenario.signInAsUser(contributorPage, contributor.email);
 
   await openTripWithLiveSync(contributorPage, trip.id);
   await expect(contributorPage.getByRole("button", { name: "Budget", exact: true })).toBeVisible();
@@ -118,31 +95,10 @@ Given(
   "I have a trip with a manager contributor who has the sharing dialog open in their own session",
   async ({ page, scenario }) => {
     const trip = await scenario.ensureCurrentTrip();
+    const contributor = await scenario.seedCollaborator(trip.id, "Live Refresh Manager", "LM", "manager");
 
-    const { user: contributor } = await scenario.materialize({
-      user: { overrides: { user: { name: "Live Refresh Manager", initials: "LM" } }, setCurrent: false },
-    });
-    if (!contributor) throw new Error("Failed to materialize the manager contributor user.");
-
-    await withE2EDb(async (db) => {
-      await db.insert(collaborators).values({
-        tripId: trip.id,
-        userId: contributor.id,
-        email: contributor.email,
-        name: contributor.name,
-        initials: contributor.initials,
-        role: "manager",
-        isCreator: false,
-      });
-    });
-
-    const contributorContext = await page.context().browser()!.newContext();
-    const contributorPage = await contributorContext.newPage();
-    await contributorPage.goto("/sign-in");
-    await contributorPage.getByRole("textbox", { name: "Email" }).fill(contributor.email);
-    await contributorPage.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
-    await contributorPage.getByRole("button", { name: "Sign in" }).click();
-    await contributorPage.waitForURL("**/trips");
+    const { page: contributorPage } = await scenario.openSecondSession(page);
+    await scenario.signInAsUser(contributorPage, contributor.email);
 
     await openTripWithLiveSync(contributorPage, trip.id);
     await contributorPage.getByRole("button", { name: "Share", exact: true }).click();
