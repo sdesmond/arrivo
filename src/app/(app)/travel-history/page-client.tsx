@@ -124,7 +124,6 @@ export function TravelHistoryPageClient({
           await handlers.handleTripSaveResolution(resolution);
         }}
         onCancelDateChange={handlers.cancelTripDateChange}
-        canManage={editingCanManage}
         canEditBudget={editingCanEditBudget}
         onDelete={editingTripId && editingCanManage ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
         isDeleting={handlers.isDeleting}
