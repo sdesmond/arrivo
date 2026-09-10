@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { collaborators, invitations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, Then, When } from "../fixtures";
+import type { ScenarioUserRecord } from "../scenario-fixture";
 
 const ACTIVE_EMAIL = "active-share@example.com";
 const PENDING_EMAIL = "pending-share@example.com";
@@ -10,6 +11,7 @@ const EXPIRED_PENDING_EMAIL = "expired-pending-share@example.com";
 const REMOVABLE_EMAIL = "removable-share@example.com";
 const OTHER_MANAGER_EMAIL = "other-manager-share@example.com";
 const PENDING_INVITATION_EXPIRY_LABEL_KEY = "pendingInvitationExpiryLabel";
+const INVITABLE_USER_KEY = "invitableUser";
 
 Given("I have a trip with sharing rows", async ({ scenario }) => {
   const [user, trip] = await Promise.all([scenario.ensureCurrentUser(), scenario.ensureCurrentTrip("datelessTrip")]);
@@ -138,6 +140,35 @@ Then("I can resend the expired pending sharing invitation", async ({ page }) => 
 
 Then("I can rescind the expired pending sharing invitation", async ({ page }) => {
   await expect(page.getByTitle(`Rescind invitation to ${EXPIRED_PENDING_EMAIL}`)).toBeEnabled();
+});
+
+Given("there is a Packt user I can invite", async ({ scenario }) => {
+  const { user } = await scenario.materialize({
+    user: { overrides: { user: { name: "Invitable Person", initials: "IP" } }, setCurrent: false },
+  });
+  if (!user) throw new Error("Failed to materialize the invitable user.");
+  scenario.setValue(INVITABLE_USER_KEY, user);
+});
+
+When("I invite that user to the trip as an editor", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY);
+  if (!invitee) throw new Error("No invitable user materialized for this scenario.");
+  await page.getByLabel("Invite email").fill(invitee.email);
+  await page.getByLabel("Invite role").click();
+  await page.getByRole("option", { name: "Editor" }).click();
+  await page.getByTitle("Invite this person to the trip").click();
+});
+
+Then("I receive an invitation sent toast", async ({ page }) => {
+  await expect(page.getByText("Invitation sent.")).toBeVisible();
+});
+
+Then("I see a pending sharing row for the invited user with the editor role", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY);
+  if (!invitee) throw new Error("No invitable user materialized for this scenario.");
+  const row = page.getByText(invitee.email, { exact: true }).locator("..").locator("..");
+  await expect(row).toContainText("Pending");
+  await expect(row).toContainText("Editor");
 });
 
 When("I resend the pending sharing invitation", async ({ page, scenario }) => {
