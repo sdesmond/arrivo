@@ -150,20 +150,17 @@ vi.mock("@/components/packt/trip-edit-sheet", () => ({
   TripEditSheet: ({
     open,
     highlightDates,
-    canManage,
     canEditBudget,
     onDelete,
   }: {
     open: boolean;
     highlightDates?: boolean;
-    canManage?: boolean;
     canEditBudget?: boolean;
     onDelete?: () => void | Promise<void>;
   }) =>
     open ? (
       <div
         data-testid="trip-edit-sheet"
-        data-can-manage={String(!!canManage)}
         data-can-edit-budget={String(!!canEditBudget)}
         data-highlight-dates={String(!!highlightDates)}
         data-on-delete={String(typeof onDelete === "function")}
@@ -561,10 +558,10 @@ describe("TripDetailClient", () => {
   });
 
   it.each([
-    ["manager", true, true, true],
-    ["editor", false, false, true],
-    ["viewer", false, false, false],
-  ] as const)("passes manager controls only for a %s", (accessRole, canManage, hasDeleteHandler, canEditBudget) => {
+    ["manager", true, true],
+    ["editor", false, true],
+    ["viewer", false, false],
+  ] as const)("passes manager controls only for a %s", (accessRole, hasDeleteHandler, canEditBudget) => {
     render(
       <TripDetailClient
         detail={{ ...baseDetail, accessRole }}
@@ -575,7 +572,6 @@ describe("TripDetailClient", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit trip" }));
 
-    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-can-manage", String(canManage));
     expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-can-edit-budget", String(canEditBudget));
     expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-on-delete", String(hasDeleteHandler));
   });

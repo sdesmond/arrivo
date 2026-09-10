@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { inviteContributor } from "@/app/(app)/trips/actions";
 import {
   dismissShareInvitation,
   getShareDialogData,
@@ -11,7 +10,8 @@ import {
   saveContributorChanges,
 } from "@/app/(app)/trips/[tripId]/actions";
 import type { InvitationRowAction } from "@/components/packt/trip-share-invitation-row";
-import { CollaboratorRole, type Collaborator, type ContributorChange, type Invitation } from "@/data/types";
+import { useTripShareInviteForm } from "@/components/packt/use-trip-share-invite-form";
+import type { Collaborator, CollaboratorRole, ContributorChange, Invitation } from "@/data/types";
 export interface ShareDialogData {
   collaborators: Collaborator[];
   currentCollaboratorId: string | null;
@@ -26,10 +26,6 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
   const [data, setData] = useState<ShareDialogData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<CollaboratorRole>(CollaboratorRole.Viewer);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<Record<string, InvitationRowAction>>({});
   const suppressedInvitationIdsRef = useRef(new Set<string>());
   const [stagedChanges, setStagedChanges] = useState<Record<string, ContributorChange>>({});
@@ -38,12 +34,32 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
   const [saveError, setSaveError] = useState<string | null>(null);
   const [recoveryWarning, setRecoveryWarning] = useState<string | null>(null);
   const hasPendingChanges = Object.keys(stagedChanges).length > 0;
+  const isCurrentRef = useRef(true);
+  useEffect(() => {
+    isCurrentRef.current = true;
+    return () => {
+      isCurrentRef.current = false;
+    };
+  }, []);
   function withoutSuppressedInvitations(nextData: ShareDialogData): ShareDialogData {
     return {
       ...nextData,
       invitations: nextData.invitations.filter((invitation) => !suppressedInvitationIdsRef.current.has(invitation.id)),
     };
   }
+  async function refreshAfterInvite(): Promise<void> {
+    try {
+      setData(withoutSuppressedInvitations(await getShareDialogData(tripId)));
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    }
+  }
+  const inviteForm = useTripShareInviteForm({
+    tripId,
+    isBlocked: () => isSavingChangesRef.current,
+    onInvited: refreshAfterInvite,
+  });
   function stageRoleChange(collaborator: Collaborator, nextRole: CollaboratorRole): void {
     if (isSavingChangesRef.current) return;
     const collaboratorId = collaborator.id;
@@ -83,15 +99,18 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     setSaveError(null);
     try {
       const result = await saveContributorChanges(tripId, changes);
+      if (!isCurrentRef.current) return;
       if (result.status === "error") {
         setSaveError(result.message);
         if (result.stale) {
           setStagedChanges({});
           try {
-            setData(withoutSuppressedInvitations(await getShareDialogData(tripId)));
+            const nextData = await getShareDialogData(tripId);
+            if (!isCurrentRef.current) return;
+            setData(withoutSuppressedInvitations(nextData));
             setLoadError(false);
           } catch {
-            setRecoveryWarning(RECOVERY_WARNING);
+            if (isCurrentRef.current) setRecoveryWarning(RECOVERY_WARNING);
           }
         }
         return;
@@ -100,10 +119,10 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
       toast.success("Contributor changes saved.");
       onRequestClose();
     } catch {
-      toast.error("Could not save changes.");
+      if (isCurrentRef.current) toast.error("Could not save changes.");
     } finally {
       isSavingChangesRef.current = false;
-      setIsSavingChanges(false);
+      if (isCurrentRef.current) setIsSavingChanges(false);
     }
   }
   function handleCancelChanges(): void {
@@ -111,33 +130,6 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     setStagedChanges({});
     setSaveError(null);
     onRequestClose();
-  }
-  async function handleInvite(): Promise<void> {
-    if (isSavingChangesRef.current || !email.trim()) return;
-    setInviteLoading(true);
-    setInviteError(null);
-    try {
-      const result = await inviteContributor(tripId, email, role);
-      if (result.status === "error") {
-        if (result.message === "No Packt account found for this email") {
-          setInviteError("No Packt account found for this email.");
-        } else toast.error(result.message);
-        return;
-      }
-      toast.success(result.status === "resent" ? "Invitation resent." : "Invitation sent.");
-      try {
-        setData(withoutSuppressedInvitations(await getShareDialogData(tripId)));
-        setLoadError(false);
-      } catch {
-        setLoadError(true);
-      }
-      setEmail("");
-      setRole(CollaboratorRole.Viewer);
-    } catch {
-      toast.error("Could not send invitation.");
-    } finally {
-      setInviteLoading(false);
-    }
   }
   async function runInvitationAction(
     invitation: Invitation,
@@ -148,17 +140,20 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     try {
       await operation();
     } finally {
-      setPendingActions((currentActions) => {
-        const nextActions = { ...currentActions };
-        delete nextActions[invitation.id];
-        return nextActions;
-      });
+      if (isCurrentRef.current) {
+        setPendingActions((currentActions) => {
+          const nextActions = { ...currentActions };
+          delete nextActions[invitation.id];
+          return nextActions;
+        });
+      }
     }
   }
   async function resendPendingInvitation(invitation: Invitation): Promise<void> {
     await runInvitationAction(invitation, "resend", async () => {
       try {
         const result = await resendShareInvitation(tripId, invitation.id);
+        if (!isCurrentRef.current) return;
         if (result.status === "error") return void toast.error(result.message);
         setData((currentData) =>
           currentData
@@ -172,7 +167,7 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
         );
         toast.success("Invitation resent.");
       } catch {
-        toast.error("Could not resend invitation.");
+        if (isCurrentRef.current) toast.error("Could not resend invitation.");
       }
     });
   }
@@ -184,6 +179,7 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     await runInvitationAction(invitation, action, async () => {
       try {
         const result = await request();
+        if (!isCurrentRef.current) return;
         if (result.status === "error") return void toast.error(result.message);
         suppressedInvitationIdsRef.current.add(invitation.id);
         setData((currentData) =>
@@ -193,7 +189,9 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
         );
         toast.success(action === "rescind" ? "Invitation rescinded." : "Invitation dismissed.");
       } catch {
-        toast.error(action === "rescind" ? "Could not rescind invitation." : "Could not dismiss invitation.");
+        if (isCurrentRef.current) {
+          toast.error(action === "rescind" ? "Could not rescind invitation." : "Could not dismiss invitation.");
+        }
       }
     });
   }
@@ -225,16 +223,13 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     };
   }, [tripId]);
   return {
+    ...inviteForm,
     collaboratorWithStagedChanges,
     data,
     dismissDeclinedInvitation,
-    email,
     handleCancelChanges,
-    handleInvite,
     handleSaveChanges,
     hasPendingChanges,
-    inviteError,
-    inviteLoading,
     isLoading,
     isSavingChanges,
     loadError,
@@ -242,11 +237,7 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     recoveryWarning,
     resendPendingInvitation,
     rescindPendingInvitation,
-    role,
     saveError,
-    setEmail,
-    setInviteError,
-    setRole,
     stagedChanges,
     stageRemoval,
     stageRoleChange,

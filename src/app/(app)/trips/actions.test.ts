@@ -340,6 +340,7 @@ describe("saveContributorChanges", () => {
     ]);
     expect(operations.deletes).toHaveLength(1);
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
 
     expect(publishUserEvent).toHaveBeenCalledTimes(2);
     expect(publishUserEvent).toHaveBeenCalledWith("user-peer", {
@@ -655,6 +656,19 @@ describe("saveContributorChanges", () => {
 
     expect(result).toEqual({ status: "success" });
     expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a batch over the contributor-changes cap before opening a transaction", async () => {
+    const oversizedBatch = Array.from({ length: 51 }, (_unused, index) => ({
+      type: "remove" as const,
+      collaboratorId: `collab-${index}`,
+    }));
+
+    const result = await saveContributorChanges("trip-1", oversizedBatch);
+
+    expect(result).toEqual({ status: "error", message: expect.any(String) as string });
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid toRole before opening a transaction", async () => {
@@ -1356,6 +1370,7 @@ describe("inviteContributor", () => {
     await expect(inviteContributor("trip-1", "missing@example.com")).resolves.toEqual({
       status: "error",
       message: "No Packt account found for this email",
+      errorCode: "no-account",
     });
 
     expect(db.transaction).not.toHaveBeenCalled();
@@ -1396,6 +1411,7 @@ describe("inviteContributor", () => {
     await expect(inviteContributor("trip-1", "invitee@example.com")).resolves.toEqual({
       status: "error",
       message: "This person is already a collaborator on this trip",
+      errorCode: "already-collaborator",
     });
 
     expect(operations.inserts).toEqual([]);
@@ -1408,6 +1424,7 @@ describe("inviteContributor", () => {
     await expect(inviteContributor("trip-1", " MANAGER@example.com ")).resolves.toEqual({
       status: "error",
       message: "You cannot invite yourself to this trip",
+      errorCode: "self-invite",
     });
 
     expect(db.transaction).not.toHaveBeenCalled();
@@ -1429,6 +1446,7 @@ describe("inviteContributor", () => {
     await expect(inviteContributor("trip-1", "invitee@example.com", "owner" as "viewer")).resolves.toEqual({
       status: "error",
       message: "Invalid collaborator role",
+      errorCode: "invalid-role",
     });
 
     expect(operations.inserts).toEqual([]);
@@ -1464,6 +1482,7 @@ describe("inviteContributor", () => {
     await expect(inviteContributor("trip-1", "invitee@example.com")).resolves.toEqual({
       status: "error",
       message: "This person was just invited by someone else. Try again.",
+      errorCode: "invite-conflict",
     });
   });
 });

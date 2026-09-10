@@ -409,7 +409,11 @@ describe("TripShareDialog", () => {
 
   it("shows an inline error below the email input when no Packt account matches the email", async () => {
     const { toast } = await import("sonner");
-    mockInviteContributor.mockResolvedValue({ status: "error", message: "No Packt account found for this email" });
+    mockInviteContributor.mockResolvedValue({
+      status: "error",
+      message: "No Packt account found for this email",
+      errorCode: "no-account",
+    });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
     fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
@@ -427,6 +431,7 @@ describe("TripShareDialog", () => {
     mockInviteContributor.mockResolvedValue({
       status: "error",
       message: "This person is already a collaborator on this trip",
+      errorCode: "already-collaborator",
     });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
@@ -460,7 +465,11 @@ describe("TripShareDialog", () => {
   });
 
   it("clears the stale inline error when the user starts typing a new email", async () => {
-    mockInviteContributor.mockResolvedValue({ status: "error", message: "No Packt account found for this email" });
+    mockInviteContributor.mockResolvedValue({
+      status: "error",
+      message: "No Packt account found for this email",
+      errorCode: "no-account",
+    });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
     fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {

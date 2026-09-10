@@ -42,7 +42,6 @@ interface TripEditSheetProps {
   onDelete?: () => void | Promise<void>;
   isDeleting?: boolean;
   highlightDates?: boolean;
-  canManage?: boolean;
   canEditBudget?: boolean;
 }
 
@@ -61,7 +60,6 @@ export function TripEditSheet({
   onDelete,
   isDeleting = false,
   highlightDates = false,
-  canManage = true,
   canEditBudget = true,
 }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
