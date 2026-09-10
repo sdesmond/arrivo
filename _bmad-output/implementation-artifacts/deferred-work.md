@@ -12,7 +12,7 @@
 
 ## Deferred from: code review of spec-2-4-viewer-s-shared-trips-are-excluded-from-personal-expense-rep (2026-09-02)
 
-- Duplicate collaborator rows for the same trip+user could yield duplicate trip entries in `listExpensesForUserInRange`: the `innerJoin` matches on `eq(collaborators.tripId, trips.id)` + `eq(collaborators.userId, userId)`, but the table's unique constraint is on `(tripId, email)`, not `(tripId, userId)` — so two collaborator rows with different emails but the same linked `userId` on one trip would both match the join. Pre-existing join shape, unrelated to this story's `ne(role, "viewer")` addition. `src/lib/queries.ts:257`.
+- ~~Duplicate collaborator rows for the same trip+user could yield duplicate trip entries in `listExpensesForUserInRange`~~ — resolved: `tripRows` is now deduped by `trip.id` before building `tripList`/`tripIds`. `src/lib/queries.ts`.
 
 ## Deferred from: code review of story-3-2 (2026-09-03)
 
@@ -54,7 +54,7 @@
 - The new E2E step file re-implements contributor seeding, second-`BrowserContext` sign-in and the revocation-modal assertion instead of reusing the near-identical helpers the Code Map named. Those helpers (`seedCollaborator`, `openSecondSession`, `signInAsRemovedUser`) are module-local in `revocation-modal.steps.ts` and `trip-live-refresh.steps.ts`, so sharing them means promoting them into `tests/e2e/scenario-fixture.ts` — a three-file extraction beyond this story's scope. `tests/e2e/steps/dashboard-live-sync.steps.ts:33-85`.
 - `15_000` is repeated as a bare assertion timeout in three steps. `tests/e2e/live-sync.ts` already owns `LIVE_SYNC_READY_TIMEOUT_MS`; add an exported assertion-timeout constant there and use it in both live-sync step files. `tests/e2e/steps/dashboard-live-sync.steps.ts:88,111,124`.
 - ~~`saveContributorChanges` revalidates only `/trips/${tripId}`, while `acceptInvitation` and `declineInvitation` also revalidate `/trips`~~ — resolved: `saveContributorChanges` now also calls `revalidatePath("/trips")`, matching `acceptInvitation`/`declineInvitation`. `src/app/(app)/trips/actions.ts`.
-- The trip edit sheet's `open` keys off `editingTrip` (a string id) while its `trip` prop keys off `editingEntry` (looked up in the refreshed list), so a refresh that drops the entry leaves the sheet open with `trip={null}`. Pre-existing shape, unchanged by this story; only reachable on removal or deletion, and removal is already behind the blocking 4.4 revocation modal. `src/app/(app)/trips/page-client.tsx:70-74`.
+- ~~The trip edit sheet's `open` keys off `editingTrip` (a string id) while its `trip` prop keys off `editingEntry`~~ — resolved: `open` now keys off `editingEntry !== null`, matching `trip`'s source. `src/app/(app)/trips/page-client.tsx`.
 
 ## Deferred from: code review of spec-4-6-move-sync-status-indicator-to-top-bar-icon (2026-09-06)
 
