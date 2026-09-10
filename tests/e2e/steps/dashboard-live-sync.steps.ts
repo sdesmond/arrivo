@@ -1,8 +1,6 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
-import { collaborators } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
 import { After, Given, Then, When } from "../fixtures";
-import { waitForLiveSyncResponse } from "../live-sync";
+import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
 import type { ScenarioFixtureContext } from "../scenario-fixture";
 
 const CONTRIBUTOR_CONTEXT_KEY = "dashboardLiveSyncContributorContext";
@@ -32,28 +30,10 @@ async function signInOnDashboard(page: Page, email: string): Promise<void> {
 
 Given("I have an editor contributor viewing the dashboard in their own session", async ({ page, scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
-  const { user: contributor } = await scenario.materialize({
-    user: { overrides: { user: { name: "Dashboard Live Contributor", initials: "DL" } }, setCurrent: false },
-  });
-  if (!contributor) throw new Error("Failed to materialize the dashboard contributor user.");
+  const contributor = await scenario.seedCollaborator(trip.id, "Dashboard Live Contributor", "DL", "editor");
 
-  await withE2EDb(async (db) => {
-    await db.insert(collaborators).values({
-      tripId: trip.id,
-      userId: contributor.id,
-      email: contributor.email,
-      name: contributor.name,
-      initials: contributor.initials,
-      role: "editor",
-      isCreator: false,
-    });
-  });
-
-  const browser = page.context().browser();
-  if (!browser) throw new Error("No browser is available to open the contributor session.");
-  const contributorContext = await browser.newContext();
+  const { context: contributorContext, page: contributorPage } = await scenario.openSecondSession(page);
   scenario.setValue(CONTRIBUTOR_CONTEXT_KEY, contributorContext);
-  const contributorPage = await contributorContext.newPage();
   scenario.setValue(CONTRIBUTOR_PAGE_KEY, contributorPage);
   scenario.setValue(CONTRIBUTOR_NAME_KEY, contributor.name);
 
@@ -94,7 +74,7 @@ Then("the contributor's dashboard no longer offers Edit trip without reloading",
     } finally {
       await contributorPage.keyboard.press("Escape");
     }
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS });
 });
 
 When("I remove the dashboard contributor from the trip and save", async ({ page, scenario }) => {
@@ -112,7 +92,7 @@ Then("the dashboard contributor sees a message that they were removed from the t
   const trip = await scenario.ensureCurrentTrip();
   const modal = contributorPage.getByRole("alertdialog");
 
-  await expect(modal).toBeVisible({ timeout: 15_000 });
+  await expect(modal).toBeVisible({ timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS });
   await expect(modal.getByText(trip.name, { exact: false })).toBeVisible();
 });
 
@@ -123,13 +103,17 @@ When("the dashboard contributor clicks OK", async ({ scenario }) => {
 Then("the removed trip is absent from the contributor's dashboard", async ({ scenario }) => {
   const contributorPage = getContributorPage(scenario);
   const trip = await scenario.ensureCurrentTrip();
-  await expect(contributorPage.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0, { timeout: 15_000 });
+  await expect(contributorPage.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0, {
+    timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
+  });
 });
 
 Then("the deleted trip is absent from the contributor's dashboard", async ({ scenario }) => {
   const contributorPage = getContributorPage(scenario);
   const trip = await scenario.ensureCurrentTrip();
-  await expect(contributorPage.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0, { timeout: 15_000 });
+  await expect(contributorPage.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0, {
+    timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
+  });
 });
 
 After(async ({ scenario }) => {
