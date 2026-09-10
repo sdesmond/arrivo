@@ -1111,6 +1111,36 @@ describe("listExpensesForUserInRange", () => {
     expect(result.trips.map((trip) => trip.id)).toEqual(["trip-editor", "trip-manager"]);
   });
 
+  it("dedupes a trip that matches twice because the user has two collaborator rows on it", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Shared Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+              { trip: { id: "trip-1", name: "Shared Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result.trips.map((trip) => trip.id)).toEqual(["trip-1"]);
+  });
+
   it("includes a trip on the next call once the user's role is no longer viewer", async () => {
     mockDbSelect.mockReturnValueOnce({
       from: () => ({
