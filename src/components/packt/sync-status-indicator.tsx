@@ -140,13 +140,16 @@ export function SyncStatusIndicator({}: SyncStatusIndicatorProps): ReactElement 
     const isHealthy = status === SyncConnectionStatus.Connected;
     const isAlreadyShowingProblem = displayedStatusRef.current !== SyncConnectionStatus.Connected;
 
-    if (isHealthy || isAlreadyShowingProblem) {
-      // Mirrors the shared channel, which lives outside React; only the first problem after a
-      // healthy period waits, and React bails out when the value is unchanged.
+    if (isHealthy && !isAlreadyShowingProblem) {
+      // React also bails out here when the value is unchanged, so this only actually fires while
+      // genuinely healthy and staying that way.
       setDisplayedStatus(status);
       return;
     }
 
+    // Every other transition — the first problem, an escalation, a de-escalation, or a recovery —
+    // gets the same settling window, so a flapping channel can't thrash the displayed status or its
+    // announcement on every tick once a problem is already showing.
     const timer = setTimeout(() => setDisplayedStatus(status), PROBLEM_GRACE_MS);
     return () => clearTimeout(timer);
   }, [status]);
