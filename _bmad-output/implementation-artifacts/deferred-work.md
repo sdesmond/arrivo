@@ -17,20 +17,20 @@
 ## Deferred from: code review of story-3-2 (2026-09-03)
 
 - ~~`resendInvitation`'s WHERE guard (`src/lib/invitations.ts:82`) checks `status = 'pending'` but not `expiresAt > now()`~~ — resolved by design, not a bug: the epic-3 retro (2026-09-04) changed `getContributorsAndInvitations` to stop excluding expired-pending rows, specifically so a manager can see and resend/rescind an expired invitation from the share dialog. Reviving an expired-but-still-`pending` row via Resend is now the intended recovery path, not a latent race.
-- Resend/rescind async handlers in `src/components/packt/trip-share-dialog.tsx:65` have no unmount guard, unlike the existing `loadData` effect's `isCurrent` pattern in the same file — calling `setData`/`setPendingInvitationId`/`toast` after the dialog closes mid-request. No-op under React 18, but inconsistent with the guarded pattern used elsewhere in the file.
+- ~~Resend/rescind async handlers in `src/components/packt/trip-share-dialog.tsx:65` have no unmount guard~~ — resolved: an `isCurrentRef` guard (matching the existing `loadData` `isCurrent` pattern) was added to `resendPendingInvitation`/`removeInvitation` in `src/components/packt/use-trip-share-dialog-controller.ts`.
 
 ## Deferred from: code review of story-3-3 (2026-09-03)
 
-- Invite error string comparison (`message === "No Packt account found for this email"`) ties the client to exact server wording. Server should return a typed error code for the "no account" case. `src/components/packt/trip-share-dialog.tsx:72`.
-- Caught errors in `handleInvite` are not logged (no `console.error` or telemetry). Production debugging for invite failures will have no signal beyond the generic user-facing toast. `src/components/packt/trip-share-dialog.tsx:86`.
-- No client-side email format validation before round-tripping to the server. The `type="email"` attribute on the input provides native browser validation on submit, but the `handleInvite` guard only checks `email.trim()`, allowing syntactically invalid emails through. `src/components/packt/trip-share-dialog.tsx:65`.
-- Server error messages from `inviteContributor` are forwarded raw to `toast.error(message)`. Known error types should be mapped to user-friendly strings. `src/components/packt/trip-share-dialog.tsx:75`.
-- `canManage` prop in `TripEditSheet` is now unused after removing the People section. Removing it would break ~6 call sites; deferred to a follow-up. `src/components/packt/trip-edit-sheet.tsx`.
+- ~~Invite error string comparison (`message === "No Packt account found for this email"`) ties the client to exact server wording~~ — resolved: `inviteContributor` now returns a typed `errorCode` field (`InviteContributorErrorCode`, `src/data/types.ts`); the client branches on `errorCode === "no-account"` in `src/components/packt/use-trip-share-invite-form.ts`.
+- ~~Caught errors in `handleInvite` are not logged~~ — resolved: the extracted `useTripShareInviteForm` hook (`src/components/packt/use-trip-share-invite-form.ts`) logs via `console.error` in its catch block.
+- ~~No client-side email format validation before round-tripping to the server~~ — resolved: `useTripShareInviteForm` validates against an email-format regex before calling `inviteContributor`, showing an inline error instead of round-tripping.
+- Server error messages from `inviteContributor` are forwarded raw to `toast.error(message)`. Known error types should be mapped to user-friendly strings. `src/components/packt/use-trip-share-invite-form.ts`. (Out of scope for `spec-sharing-dialog-invite-flow-hardening.md` — only the "no account" case was typed there.)
+- ~~`canManage` prop in `TripEditSheet` is now unused after removing the People section~~ — resolved: removed from `TripEditSheet` and its 3 call sites (`trips/[tripId]/page-client.tsx`, `trips/page-client.tsx`, `travel-history/page-client.tsx`).
 
 ## Deferred from: code review of story-3-5 (2026-09-03)
 
-- No upper bound on `changes.length` in `saveContributorChanges` — an authenticated manager could submit an arbitrarily large batch in one transaction. Low real-world impact given the caller is already an authorized manager on the trip. `src/app/(app)/trips/actions.ts:971`.
-- Potential `setState` after unmount if the dialog is closed while a save is in flight (`handleSaveChanges` in `trip-share-dialog.tsx`) — matches the existing unguarded pattern already noted for the resend/rescind handlers in story-3-2's deferred items; React 18+ no longer warns on this. `src/components/packt/trip-share-dialog.tsx:86`.
+- ~~No upper bound on `changes.length` in `saveContributorChanges`~~ — resolved: a `MAX_CONTRIBUTOR_CHANGES` (50) cap rejects oversized batches before opening a transaction. `src/app/(app)/trips/actions.ts`.
+- ~~Potential `setState` after unmount if the dialog is closed while a save is in flight~~ — resolved: `handleSaveChanges` now guards its post-await `setState` calls with the same `isCurrentRef` used for resend/rescind. `src/components/packt/use-trip-share-dialog-controller.ts`.
 
 ## Deferred from: code review of story-4-2-sync-status-indicator (2026-09-04)
 
@@ -53,7 +53,7 @@
 - `MockEventSource`, `currentSource()` and `flushMicrotasks()` are now copied identically into a fourth test file. They already exist in `use-trip-live-refresh.test.ts`, `use-live-sync.test.ts` and `contributor-revocation-modal.test.tsx`. Extract to a shared test helper beside `src/lib/use-live-sync.ts`. `src/lib/use-dashboard-live-refresh.test.ts:15-51`.
 - The new E2E step file re-implements contributor seeding, second-`BrowserContext` sign-in and the revocation-modal assertion instead of reusing the near-identical helpers the Code Map named. Those helpers (`seedCollaborator`, `openSecondSession`, `signInAsRemovedUser`) are module-local in `revocation-modal.steps.ts` and `trip-live-refresh.steps.ts`, so sharing them means promoting them into `tests/e2e/scenario-fixture.ts` — a three-file extraction beyond this story's scope. `tests/e2e/steps/dashboard-live-sync.steps.ts:33-85`.
 - `15_000` is repeated as a bare assertion timeout in three steps. `tests/e2e/live-sync.ts` already owns `LIVE_SYNC_READY_TIMEOUT_MS`; add an exported assertion-timeout constant there and use it in both live-sync step files. `tests/e2e/steps/dashboard-live-sync.steps.ts:88,111,124`.
-- `saveContributorChanges` revalidates only `/trips/${tripId}`, while `acceptInvitation` and `declineInvitation` also revalidate `/trips`. Verified to have no staleness consequence today (no `unstable_cache`/`revalidate`/`force-cache` anywhere under `src/`, and `/trips` is dynamic via `cookies()`), so this is an unexplained asymmetry rather than a bug. `src/app/(app)/trips/actions.ts:1067`.
+- ~~`saveContributorChanges` revalidates only `/trips/${tripId}`, while `acceptInvitation` and `declineInvitation` also revalidate `/trips`~~ — resolved: `saveContributorChanges` now also calls `revalidatePath("/trips")`, matching `acceptInvitation`/`declineInvitation`. `src/app/(app)/trips/actions.ts`.
 - The trip edit sheet's `open` keys off `editingTrip` (a string id) while its `trip` prop keys off `editingEntry` (looked up in the refreshed list), so a refresh that drops the entry leaves the sheet open with `trip={null}`. Pre-existing shape, unchanged by this story; only reachable on removal or deletion, and removal is already behind the blocking 4.4 revocation modal. `src/app/(app)/trips/page-client.tsx:70-74`.
 
 ## Deferred from: code review of spec-4-6-move-sync-status-indicator-to-top-bar-icon (2026-09-06)
