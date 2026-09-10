@@ -174,4 +174,79 @@ describe("useTripShareDialogController", () => {
     expect(result.current.isSavingChanges).toBe(false);
     expect(onRequestClose).not.toHaveBeenCalled();
   });
+
+  const UNMOUNTED_UPDATE_WARNING = /Can't perform a React state update on an unmounted component/;
+
+  it("does not update state when the dialog unmounts mid-save", async () => {
+    const save = createDeferred<{ status: "success" }>();
+    mockSaveContributorChanges.mockReturnValue(save.promise);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result, unmount } = renderHook(() =>
+      useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" })
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.stageRemoval(manager));
+    let savePromise: Promise<void>;
+    act(() => {
+      savePromise = result.current.handleSaveChanges();
+    });
+    unmount();
+
+    await act(async () => {
+      save.resolve({ status: "success" });
+      await savePromise!;
+    });
+
+    expect(consoleErrorSpy.mock.calls.some((call) => UNMOUNTED_UPDATE_WARNING.test(String(call[0])))).toBe(false);
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("does not update state when the dialog unmounts mid-resend", async () => {
+    const resend = createDeferred<{ status: "success"; expiresAt: string }>();
+    mockResendShareInvitation.mockReturnValue(resend.promise);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result, unmount } = renderHook(() =>
+      useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" })
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let resendPromise: Promise<void>;
+    act(() => {
+      resendPromise = result.current.resendPendingInvitation(pendingInvitation);
+    });
+    unmount();
+
+    await act(async () => {
+      resend.resolve({ status: "success", expiresAt: "2099-03-01T00:00:00.000Z" });
+      await resendPromise!;
+    });
+
+    expect(consoleErrorSpy.mock.calls.some((call) => UNMOUNTED_UPDATE_WARNING.test(String(call[0])))).toBe(false);
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("does not update state when the dialog unmounts mid-rescind", async () => {
+    const rescind = createDeferred<{ status: "success" }>();
+    mockRescindShareInvitation.mockReturnValue(rescind.promise);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result, unmount } = renderHook(() =>
+      useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" })
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let rescindPromise: Promise<void>;
+    act(() => {
+      rescindPromise = result.current.rescindPendingInvitation(pendingInvitation);
+    });
+    unmount();
+
+    await act(async () => {
+      rescind.resolve({ status: "success" });
+      await rescindPromise!;
+    });
+
+    expect(consoleErrorSpy.mock.calls.some((call) => UNMOUNTED_UPDATE_WARNING.test(String(call[0])))).toBe(false);
+    consoleErrorSpy.mockRestore();
+  });
 });
