@@ -361,7 +361,6 @@ export function TripDetailClient({
         dateChangeConfirmation={tripDateConfirmation}
         onResolveDateChange={handleTripDateResolution}
         onCancelDateChange={handleTripDateResolutionCancel}
-        canManage={canManage}
         canEditBudget={canEditBudget}
         onDelete={canManage ? handlers.handleDeleteTrip : undefined}
         isDeleting={handlers.isDeleting}

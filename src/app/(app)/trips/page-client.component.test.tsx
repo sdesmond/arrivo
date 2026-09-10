@@ -205,7 +205,7 @@ describe("TripsPageClient", () => {
     ["editor", CollaboratorRole.Editor, false, true],
     ["viewer", CollaboratorRole.Viewer, false, false],
   ] as const)(
-    "gates canManage/onDelete/canEditBudget on the edit sheet for a %s",
+    "gates onDelete/canEditBudget on the edit sheet for a %s",
     async (_label, accessRole, canManage, canEditBudget) => {
       const entryWithRole: TripListEntry = { ...entries[0], trip: { ...entries[0].trip, accessRole } };
       const handlers = createHandlers({ editingEntry: entryWithRole });
@@ -223,11 +223,11 @@ describe("TripsPageClient", () => {
 
       expect(tripEditSheetSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          canManage,
           canEditBudget,
           onDelete: canManage ? expect.any(Function) : undefined,
         })
       );
+      expect(tripEditSheetSpy).not.toHaveBeenCalledWith(expect.objectContaining({ canManage: expect.anything() }));
     }
   );
 
