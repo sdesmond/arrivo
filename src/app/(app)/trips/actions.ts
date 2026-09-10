@@ -696,12 +696,12 @@ export async function inviteContributor(
   await assertTripAccess(tripId, user.id!, "manager");
 
   if (!isCollaboratorRole(role)) {
-    return { status: "error", message: "Invalid collaborator role" };
+    return { status: "error", message: "Invalid collaborator role", errorCode: "invalid-role" };
   }
 
   const normalizedEmail = normalizeEmail(email);
   if (user.email && normalizedEmail === normalizeEmail(user.email)) {
-    return { status: "error", message: "You cannot invite yourself to this trip" };
+    return { status: "error", message: "You cannot invite yourself to this trip", errorCode: "self-invite" };
   }
 
   const [invitee] = await db
@@ -709,7 +709,7 @@ export async function inviteContributor(
     .from(users)
     .where(hasNormalizedEmail(users.email, normalizedEmail));
   if (!invitee) {
-    return { status: "error", message: "No Packt account found for this email" };
+    return { status: "error", message: "No Packt account found for this email", errorCode: "no-account" };
   }
 
   const expiresAt = getInvitationExpiry();
@@ -719,7 +719,11 @@ export async function inviteContributor(
       .from(collaborators)
       .where(and(eq(collaborators.tripId, tripId), hasNormalizedEmail(collaborators.email, normalizedEmail)));
     if (existingCollaborators.length > 0) {
-      return { status: "error", message: "This person is already a collaborator on this trip" } as const;
+      return {
+        status: "error",
+        message: "This person is already a collaborator on this trip",
+        errorCode: "already-collaborator",
+      } as const;
     }
 
     const existingInvitations = await transaction
@@ -751,6 +755,7 @@ export async function inviteContributor(
         return {
           status: "error",
           message: "This person was just invited by someone else. Try again.",
+          errorCode: "invite-conflict",
         } as const;
       }
       throw error;
@@ -968,6 +973,8 @@ class ContributorChangeGuardError extends Error {
  * transaction. The server is authoritative: every change is validated against the DB regardless of
  * what the dialog staged, and the whole batch is rejected if any single change fails.
  */
+const MAX_CONTRIBUTOR_CHANGES = 50;
+
 export async function saveContributorChanges(
   tripId: string,
   changes: ContributorChange[]
@@ -977,6 +984,9 @@ export async function saveContributorChanges(
 
   if (changes.length === 0) {
     return { status: "success" };
+  }
+  if (changes.length > MAX_CONTRIBUTOR_CHANGES) {
+    return { status: "error", message: `Cannot change more than ${MAX_CONTRIBUTOR_CHANGES} contributors at once.` };
   }
 
   const VALID_ROLES = Object.values(CollaboratorRole);
@@ -1078,6 +1088,7 @@ export async function saveContributorChanges(
     publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
 
     revalidatePath(`/trips/${tripId}`);
+    revalidatePath("/trips");
     return { status: "success" };
   } catch (error) {
     if (error instanceof ContributorChangeGuardError) {
