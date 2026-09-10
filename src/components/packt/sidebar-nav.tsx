@@ -81,6 +81,7 @@ export function SidebarNav({ user, invitationCount }: SidebarNavProps) {
             label={item.label}
             href={item.href}
             count={item.id === "trips" ? invitationCount : undefined}
+            countLabel="pending invitations"
             countTint={item.id === "trips" && invitationCount ? "warning" : undefined}
             active={
               pathname === item.href ||

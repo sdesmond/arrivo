@@ -9,13 +9,14 @@ export interface NavItemProps {
   label: string;
   href: string;
   count?: number;
+  countLabel: string;
   countTint?: "warning";
   active?: boolean;
 }
 
-export function NavItem({ icon: Icon, label, href, count, countTint, active }: NavItemProps) {
+export function NavItem({ icon: Icon, label, href, count, countLabel, countTint, active }: NavItemProps) {
   const hasCount = count != null && count > 0;
-  const ariaLabel = hasCount ? `${label}, ${count} pending invitations` : undefined;
+  const ariaLabel = hasCount ? `${label}, ${count} ${countLabel}` : undefined;
 
   return (
     <Link
