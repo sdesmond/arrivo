@@ -1,6 +1,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-2-invite-an-existing-packt-user-to-a-trip.md`
-  summary: Add an index on `invitations.email` alone (the current partial unique index only covers `(tripId, email)` where `status = 'pending'`).
-  evidence: Story 1.3 needs `getMyPendingInvitations` (per `src/lib/invitations.ts`'s design note) to look up invitations by invitee email across trips; without a standalone email index that query will full-scan the table.
+  summary: ~~Add an index on `invitations.email` alone~~ — resolved: `getMyPendingInvitations` filters via `hasNormalizedEmail` (`lower(trim(email))`), which a plain column index can't serve, so `invitations_normalized_email` was added as an expression index on `lower(trim(email))` instead (`src/db/schema.ts`).
+  evidence: Story 1.3 needs `getMyPendingInvitations` (per `src/lib/invitations.ts`'s design note) to look up invitations by invitee email across trips; without the matching expression index that query will full-scan the table.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-manager-has-full-trip-control.md`
   summary: Wire `trip-edit-sheet.tsx`'s People section to real collaborator data and server actions — it doesn't hydrate a shared trip's existing collaborators (`TripEditCollaborators` renders "No collaborators yet" for a seeded shared trip), and its `removeCollaborator`/`updateCollaboratorRole`/`addCollaborator` handlers only mutate local draft state, never calling the real `removeCollaborator`/`updateCollaboratorRole`/`addCollaborator` server actions in `actions.ts`.

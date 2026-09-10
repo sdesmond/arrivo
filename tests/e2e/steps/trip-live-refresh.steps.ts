@@ -114,6 +114,65 @@ Then("the contributor's open trip page no longer shows a {string} tab", async ({
   });
 });
 
+Given(
+  "I have a trip with a manager contributor who has the sharing dialog open in their own session",
+  async ({ page, scenario }) => {
+    const trip = await scenario.ensureCurrentTrip();
+
+    const { user: contributor } = await scenario.materialize({
+      user: { overrides: { user: { name: "Live Refresh Manager", initials: "LM" } }, setCurrent: false },
+    });
+    if (!contributor) throw new Error("Failed to materialize the manager contributor user.");
+
+    await withE2EDb(async (db) => {
+      await db.insert(collaborators).values({
+        tripId: trip.id,
+        userId: contributor.id,
+        email: contributor.email,
+        name: contributor.name,
+        initials: contributor.initials,
+        role: "manager",
+        isCreator: false,
+      });
+    });
+
+    const contributorContext = await page.context().browser()!.newContext();
+    const contributorPage = await contributorContext.newPage();
+    await contributorPage.goto("/sign-in");
+    await contributorPage.getByRole("textbox", { name: "Email" }).fill(contributor.email);
+    await contributorPage.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
+    await contributorPage.getByRole("button", { name: "Sign in" }).click();
+    await contributorPage.waitForURL("**/trips");
+
+    await openTripWithLiveSync(contributorPage, trip.id);
+    await contributorPage.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(contributorPage.getByRole("heading", { name: "Share trip" })).toBeVisible();
+
+    scenario.setValue(CONTRIBUTOR_PAGE_KEY, contributorPage);
+    scenario.setValue(CONTRIBUTOR_NAME_KEY, contributor.name);
+  }
+);
+
+When("I demote the manager contributor to editor and save", async ({ page, scenario }) => {
+  const contributorName = scenario.getValue<string>(CONTRIBUTOR_NAME_KEY);
+  if (!contributorName) throw new Error("No contributor is set up for this scenario.");
+
+  await scenario.gotoCurrentTrip(page);
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
+
+  await page.getByLabel(`Role for ${contributorName}`).click();
+  await page.getByRole("option", { name: "Editor" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
+});
+
+Then("the contributor's open trip page no longer shows the sharing dialog", async ({ scenario }) => {
+  const contributorPage = scenario.getValue<Page>(CONTRIBUTOR_PAGE_KEY);
+  if (!contributorPage) throw new Error("No contributor page is open for this scenario.");
+  await expect(contributorPage.getByRole("heading", { name: "Share trip" })).not.toBeVisible({ timeout: 10_000 });
+});
+
 Then("the contributor's open trip page redirects to the trips list with a deletion notice", async ({ scenario }) => {
   const contributorPage = scenario.getValue<Page>(CONTRIBUTOR_PAGE_KEY);
   if (!contributorPage) throw new Error("No contributor page is open for this scenario.");

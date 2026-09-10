@@ -42,9 +42,15 @@ class MockEventSource {
   }
 }
 
-function currentSource(): MockEventSource {
-  const source = MockEventSource.instances.at(-1);
-  if (!source) throw new Error("No MockEventSource instance was created.");
+function tripSource(): MockEventSource {
+  const source = MockEventSource.instances.filter((instance) => instance.url.startsWith("/api/trips/")).at(-1);
+  if (!source) throw new Error("No trip-channel MockEventSource instance was created.");
+  return source;
+}
+
+function personalSource(): MockEventSource {
+  const source = MockEventSource.instances.filter((instance) => instance.url === "/api/users/me/events").at(-1);
+  if (!source) throw new Error("No personal-channel MockEventSource instance was created.");
   return source;
 }
 
@@ -68,17 +74,17 @@ describe("useTripLiveRefresh", () => {
     vi.unstubAllGlobals();
   });
 
-  it("opens the trip's SSE channel", () => {
+  it("opens the trip's SSE channel and the personal channel", () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
 
-    expect(MockEventSource.instances).toHaveLength(1);
-    expect(MockEventSource.instances[0]?.url).toBe("/api/trips/trip-1/events");
+    expect(tripSource().url).toBe("/api/trips/trip-1/events");
+    expect(personalSource().url).toBe("/api/users/me/events");
   });
 
   it("does not refresh on the initial connect", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
 
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     expect(mockRouterRefresh).not.toHaveBeenCalled();
@@ -86,12 +92,10 @@ describe("useTripLiveRefresh", () => {
 
   it("refreshes once when an itinerary-changed event arrives", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
-    act(() =>
-      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" }))
-    );
+    act(() => tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })));
     await flushMicrotasks();
 
     expect(mockRouterRefresh).toHaveBeenCalledOnce();
@@ -99,11 +103,11 @@ describe("useTripLiveRefresh", () => {
 
   it("refreshes once when a membership-changed event arrives, naming any user", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     act(() =>
-      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" }))
+      tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" }))
     );
     await flushMicrotasks();
 
@@ -112,12 +116,12 @@ describe("useTripLiveRefresh", () => {
 
   it("refreshes once on reconnect after a drop, not on the initial connect", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
     expect(mockRouterRefresh).not.toHaveBeenCalled();
 
-    act(() => currentSource().emitError());
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitError());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     expect(mockRouterRefresh).toHaveBeenCalledOnce();
@@ -125,10 +129,10 @@ describe("useTripLiveRefresh", () => {
 
   it("does not refresh on a heartbeat frame", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
-    act(() => currentSource().emitMessage('{"type":"heartbeat"}'));
+    act(() => tripSource().emitMessage('{"type":"heartbeat"}'));
     await flushMicrotasks();
 
     expect(mockRouterRefresh).not.toHaveBeenCalled();
@@ -136,11 +140,11 @@ describe("useTripLiveRefresh", () => {
 
   it("ignores an unrecognized or malformed frame without throwing or refreshing", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
-    expect(() => act(() => currentSource().emitMessage('{"type":"something-unknown"}'))).not.toThrow();
-    expect(() => act(() => currentSource().emitMessage("not json"))).not.toThrow();
+    expect(() => act(() => tripSource().emitMessage('{"type":"something-unknown"}'))).not.toThrow();
+    expect(() => act(() => tripSource().emitMessage("not json"))).not.toThrow();
     await flushMicrotasks();
 
     expect(mockRouterRefresh).not.toHaveBeenCalled();
@@ -148,11 +152,11 @@ describe("useTripLiveRefresh", () => {
 
   it("does not refresh, redirect, or toast for a membership-removed frame on the trip channel", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     act(() =>
-      currentSource().emitMessage(
+      tripSource().emitMessage(
         JSON.stringify({
           type: LiveSyncEventType.MembershipRemoved,
           removedUserId: "user-1",
@@ -172,10 +176,10 @@ describe("useTripLiveRefresh", () => {
 
   it("redirects to the trips list and shows a toast when the trip is deleted, without refreshing", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
-    act(() => currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" })));
+    act(() => tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" })));
     await flushMicrotasks();
 
     expect(mockToastError).toHaveBeenCalledWith("This trip was deleted.");
@@ -185,12 +189,12 @@ describe("useTripLiveRefresh", () => {
 
   it("collapses a burst of quick-succession triggers into a single refresh for the latest generation", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     act(() => {
-      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" }));
-      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" }));
+      tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" }));
+      tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" }));
     });
     await flushMicrotasks();
 
@@ -199,39 +203,37 @@ describe("useTripLiveRefresh", () => {
 
   it("discards an in-flight trigger if the hook unmounts before it settles", async () => {
     const { unmount } = renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
-    act(() =>
-      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" }))
-    );
+    act(() => tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })));
     unmount();
     await flushMicrotasks();
 
     expect(mockRouterRefresh).not.toHaveBeenCalled();
   });
 
-  it("closes the EventSource and clears the watchdog on unmount", async () => {
+  it("closes both the trip and personal EventSources and clears the watchdog on unmount", async () => {
     const { unmount } = renderHook(() => useTripLiveRefresh("trip-1"));
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
-    const source = currentSource();
+    const tripChannel = tripSource();
+    const personalChannel = personalSource();
 
     unmount();
 
-    expect(source.close).toHaveBeenCalledOnce();
+    expect(tripChannel.close).toHaveBeenCalledOnce();
+    expect(personalChannel.close).toHaveBeenCalledOnce();
   });
 
   it("discards a trigger from the old trip if tripId changes before it settles", async () => {
     const { rerender } = renderHook(({ tripId }: { tripId: string }) => useTripLiveRefresh(tripId), {
       initialProps: { tripId: "trip-1" },
     });
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
-    act(() =>
-      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" }))
-    );
+    act(() => tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" })));
     rerender({ tripId: "trip-2" });
     await flushMicrotasks();
 
@@ -242,17 +244,16 @@ describe("useTripLiveRefresh", () => {
     const { rerender } = renderHook(({ tripId }: { tripId: string }) => useTripLiveRefresh(tripId), {
       initialProps: { tripId: "trip-1" },
     });
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
-    const firstSource = currentSource();
+    const firstSource = tripSource();
 
     rerender({ tripId: "trip-2" });
 
     expect(firstSource.close).toHaveBeenCalledOnce();
-    expect(MockEventSource.instances).toHaveLength(2);
-    expect(currentSource().url).toBe("/api/trips/trip-2/events");
+    expect(tripSource().url).toBe("/api/trips/trip-2/events");
 
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     expect(mockRouterRefresh).not.toHaveBeenCalled();
@@ -262,21 +263,76 @@ describe("useTripLiveRefresh", () => {
     const { rerender } = renderHook(({ tripId }: { tripId: string }) => useTripLiveRefresh(tripId), {
       initialProps: { tripId: "trip-1" },
     });
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     // Switch trips while trip-1's channel is still Connected.
     rerender({ tripId: "trip-2" });
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
     expect(mockRouterRefresh).not.toHaveBeenCalled(); // trip-2's initial connect — no refresh yet.
 
     // A genuine drop and reconnect on trip-2's channel must still be detected as a reconnect, not
     // misread as another "initial connect" because status never visibly left Connected.
-    act(() => currentSource().emitError());
-    act(() => currentSource().emitOpen());
+    act(() => tripSource().emitError());
+    act(() => tripSource().emitOpen());
     await flushMicrotasks();
 
     expect(mockRouterRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("invokes onSelfRoleChanged for a personal-channel membership-changed event naming this trip", async () => {
+    const onSelfRoleChanged = vi.fn();
+    renderHook(() => useTripLiveRefresh("trip-1", onSelfRoleChanged));
+    act(() => personalSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() =>
+      personalSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" }))
+    );
+    await flushMicrotasks();
+
+    expect(onSelfRoleChanged).toHaveBeenCalledOnce();
+    expect(mockRouterRefresh).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke onSelfRoleChanged for a personal-channel membership-changed event naming a different trip", async () => {
+    const onSelfRoleChanged = vi.fn();
+    renderHook(() => useTripLiveRefresh("trip-1", onSelfRoleChanged));
+    act(() => personalSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() =>
+      personalSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-2" }))
+    );
+    await flushMicrotasks();
+
+    expect(onSelfRoleChanged).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke onSelfRoleChanged for a membership-changed event on the trip channel", async () => {
+    const onSelfRoleChanged = vi.fn();
+    renderHook(() => useTripLiveRefresh("trip-1", onSelfRoleChanged));
+    act(() => tripSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() =>
+      tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" }))
+    );
+    await flushMicrotasks();
+
+    expect(onSelfRoleChanged).not.toHaveBeenCalled();
+  });
+
+  it("does not throw when a personal-channel membership-changed event arrives and onSelfRoleChanged is omitted", async () => {
+    renderHook(() => useTripLiveRefresh("trip-1"));
+    act(() => personalSource().emitOpen());
+    await flushMicrotasks();
+
+    expect(() =>
+      act(() =>
+        personalSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" }))
+      )
+    ).not.toThrow();
   });
 });

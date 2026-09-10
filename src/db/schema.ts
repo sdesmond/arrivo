@@ -287,6 +287,7 @@ export const invitations = pgTable(
     uniqueIndex("invitations_pending_trip_email_unique")
       .on(table.tripId, table.email)
       .where(sql`${table.status} = 'pending'`),
+    index("invitations_normalized_email").on(sql`lower(trim(${table.email}))`),
   ]
 );
 

@@ -2,7 +2,7 @@
 title: "Harden trip sharing dialog state and self-row controls"
 type: "bugfix"
 created: "2026-09-09"
-status: "in-progress"
+status: "done"
 baseline_commit: "6bdcbbfb74d32dcbfefd66fc829c192798bb0172"
 review_loop_iteration: 0
 context:

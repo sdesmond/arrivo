@@ -100,7 +100,18 @@ export function TripDetailClient({
   const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes, accessRole } =
     detail;
 
-  useTripLiveRefresh(trip.id);
+  const [dialogResetNonce, setDialogResetNonce] = useState(0);
+
+  function forceCloseRoleGatedDialogs(): void {
+    setSharingTrip(false);
+    setEditingTrip(false);
+    setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
+    setTripDateConfirmation(null);
+    setDialogResetNonce((current) => current + 1);
+  }
+
+  useTripLiveRefresh(trip.id, forceCloseRoleGatedDialogs);
   useBfcacheRefresh();
 
   const revocationTicket = useSyncExternalStore(subscribeRevocation, getRevocationTicket, getServerRevocationTicket);
@@ -153,11 +164,7 @@ export function TripDetailClient({
     // Deliberate reaction to an external store (the revocation ticket), not state derivable from
     // this render — mirrors the same justified use in use-live-sync.ts.
     /* eslint-disable react-hooks/set-state-in-effect */
-    setSharingTrip(false);
-    setEditingTrip(false);
-    setPendingTripPatch(null);
-    setPendingCurrencyChangeMode(undefined);
-    setTripDateConfirmation(null);
+    forceCloseRoleGatedDialogs();
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [isRevoked]);
 
@@ -263,9 +270,11 @@ export function TripDetailClient({
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
           <TripDetailTabBody
-            // Remounting on revocation is what discards dialog state the tab components own
-            // themselves — unmounting them is the only handle this page has on it.
-            key={isRevoked ? "revoked" : "active"}
+            // Remounting on revocation, or on a self-targeted role change, is what discards dialog
+            // state the tab components own themselves — unmounting them is the only handle this
+            // page has on it. `dialogResetNonce` also covers a role change while already revoked
+            // isn't possible, but distinguishes repeat role changes from one another.
+            key={isRevoked ? "revoked" : `active-${dialogResetNonce}`}
             tripId={trip.id}
             trip={trip}
             defaultExpenseCurrency={defaultExpenseCurrency}

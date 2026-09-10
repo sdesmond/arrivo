@@ -15,6 +15,12 @@ Feature: Trip page live refresh
     When I demote the contributor to viewer and save
     Then the contributor's open trip page no longer shows a "Budget" tab
 
+  Scenario: A manager demoted to editor loses their own open sharing dialog
+    Given I am signed in
+    And I have a trip with a manager contributor who has the sharing dialog open in their own session
+    When I demote the manager contributor to editor and save
+    Then the contributor's open trip page no longer shows the sharing dialog
+
   Scenario: A contributor viewing the trip is redirected when it is deleted elsewhere
     Given I am signed in
     And I have a trip with an editor contributor viewing it in their own session

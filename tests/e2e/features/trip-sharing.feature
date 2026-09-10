@@ -38,6 +38,15 @@ Feature: Trip sharing dialog
     When I go to the shared trip
     Then I do not see the trip Share control
 
+  Scenario: A manager invites an existing Packt user to the trip
+    Given I have a trip with sharing rows
+    And there is a Packt user I can invite
+    When I go to the current trip
+    And I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then I receive an invitation sent toast
+    And I see a pending sharing row for the invited user with the editor role
+
   Scenario: A manager resends a pending invitation
     Given I have a trip with sharing rows
     When I go to the current trip
