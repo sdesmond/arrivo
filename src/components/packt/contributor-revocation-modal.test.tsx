@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveSyncEventType } from "@/data/types";
 import { clearRevocationTicket, getRevocationTicket } from "@/lib/revocation-ticket";
+import { currentSource, MockEventSource } from "@/lib/live-sync-test-helpers";
 import { resetLiveSyncChannelsForTest } from "@/lib/use-live-sync";
 
 const { mockRouterPush, mockRouterRefresh } = vi.hoisted(() => ({
@@ -28,29 +29,6 @@ vi.mock("@/components/ui/alert-dialog", () => ({
 }));
 
 import { ContributorRevocationModal } from "./contributor-revocation-modal";
-
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-
-  readonly close = vi.fn();
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-
-  constructor(readonly url: string) {
-    MockEventSource.instances.push(this);
-  }
-
-  emitMessage(data: string): void {
-    this.onmessage?.(new MessageEvent("message", { data }));
-  }
-}
-
-function currentSource(): MockEventSource {
-  const source = MockEventSource.instances.at(-1);
-  if (!source) throw new Error("No MockEventSource instance was created.");
-  return source;
-}
 
 const SELF_REMOVAL_EVENT = {
   type: LiveSyncEventType.MembershipRemoved,
