@@ -200,6 +200,23 @@ describe("TripsPageClient", () => {
     expect(handlers.handleConfirmDeleteTrip).toHaveBeenCalledWith("trip-1");
   });
 
+  it("closes the edit sheet instead of leaving it open with null trip data when the editing entry drops out of a refresh", () => {
+    const handlers = createHandlers({ editingTrip: "trip-1", editingEntry: null });
+    mockUseTripsPageHandlers.mockReturnValue(handlers);
+
+    render(
+      <TripsPageClient
+        initialEntries={entries}
+        currencyOptions={currencyOptions}
+        nowISO="2026-07-07T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(tripEditSheetSpy).toHaveBeenCalledWith(expect.objectContaining({ open: false, trip: null }));
+  });
+
   it.each([
     ["manager", CollaboratorRole.Manager, true, true],
     ["editor", CollaboratorRole.Editor, false, true],

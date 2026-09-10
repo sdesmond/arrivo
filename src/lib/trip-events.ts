@@ -60,6 +60,7 @@ function deliverToTripSubscribers(tripId: string, frame: SseFrame): void {
       subscriber.callback(frame);
     } catch (error) {
       console.warn(`Live sync subscriber threw while delivering to trip:${tripId}`, error);
+      unregisterTripSubscriber(tripId, subscriber);
     }
   }
 }
@@ -78,6 +79,7 @@ function deliverToUserSubscribers(userId: string, frame: SseFrame): void {
       subscriber(frame);
     } catch (error) {
       console.warn(`Live sync subscriber threw while delivering to user:${userId}`, error);
+      unregisterUserSubscriber(userId, subscriber);
     }
   }
 }
@@ -155,6 +157,15 @@ function unregisterTripSubscriber(tripId: string, subscriber: TripSubscriber): v
   subscriber.close();
 }
 
+function unregisterUserSubscriber(userId: string, callback: LiveSyncCallback): void {
+  const subscribers = userTopics.get(userId);
+  if (!subscribers?.delete(callback)) return;
+  if (subscribers.size === 0 && userTopics.get(userId) === subscribers) {
+    userTopics.delete(userId);
+  }
+  stopHeartbeatSchedulerIfIdle();
+}
+
 /**
  * Test-only teardown for the module-level heartbeat scheduler timer, the same way purgeTripTopic
  * resets topic state below. Without this, a subscribe call under real timers in one test leaves a
@@ -209,13 +220,7 @@ export function subscribeUser(userId: string, callback: LiveSyncCallback, close:
 
   subscribers.add(callback);
 
-  return () => {
-    subscribers.delete(callback);
-    if (subscribers.size === 0 && userTopics.get(userId) === subscribers) {
-      userTopics.delete(userId);
-    }
-    stopHeartbeatSchedulerIfIdle();
-  };
+  return () => unregisterUserSubscriber(userId, callback);
 }
 
 /**

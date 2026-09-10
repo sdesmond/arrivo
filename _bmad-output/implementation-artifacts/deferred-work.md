@@ -12,7 +12,7 @@
 
 ## Deferred from: code review of spec-2-4-viewer-s-shared-trips-are-excluded-from-personal-expense-rep (2026-09-02)
 
-- Duplicate collaborator rows for the same trip+user could yield duplicate trip entries in `listExpensesForUserInRange`: the `innerJoin` matches on `eq(collaborators.tripId, trips.id)` + `eq(collaborators.userId, userId)`, but the table's unique constraint is on `(tripId, email)`, not `(tripId, userId)` — so two collaborator rows with different emails but the same linked `userId` on one trip would both match the join. Pre-existing join shape, unrelated to this story's `ne(role, "viewer")` addition. `src/lib/queries.ts:257`.
+- ~~Duplicate collaborator rows for the same trip+user could yield duplicate trip entries in `listExpensesForUserInRange`~~ — resolved: `tripRows` is now deduped by `trip.id` before building `tripList`/`tripIds`. `src/lib/queries.ts`.
 
 ## Deferred from: code review of story-3-2 (2026-09-03)
 
@@ -54,12 +54,12 @@
 - ~~The new E2E step file re-implements contributor seeding, second-`BrowserContext` sign-in and the revocation-modal assertion instead of reusing the near-identical helpers~~ — resolved: `seedCollaborator`, `signInAsUser`, and `openSecondSession` are now promoted onto `ScenarioFixtureContext` (`tests/e2e/scenario-fixture.ts`) and used by `revocation-modal.steps.ts`, `dashboard-live-sync.steps.ts`, and `trip-live-refresh.steps.ts`.
 - ~~`15_000` is repeated as a bare assertion timeout in three steps~~ — resolved: `LIVE_SYNC_ASSERTION_TIMEOUT_MS` exported from `tests/e2e/live-sync.ts`, replacing the 4 bare literals in `dashboard-live-sync.steps.ts`.
 - ~~`saveContributorChanges` revalidates only `/trips/${tripId}`, while `acceptInvitation` and `declineInvitation` also revalidate `/trips`~~ — resolved: `saveContributorChanges` now also calls `revalidatePath("/trips")`, matching `acceptInvitation`/`declineInvitation`. `src/app/(app)/trips/actions.ts`.
-- The trip edit sheet's `open` keys off `editingTrip` (a string id) while its `trip` prop keys off `editingEntry` (looked up in the refreshed list), so a refresh that drops the entry leaves the sheet open with `trip={null}`. Pre-existing shape, unchanged by this story; only reachable on removal or deletion, and removal is already behind the blocking 4.4 revocation modal. `src/app/(app)/trips/page-client.tsx:70-74`.
+- ~~The trip edit sheet's `open` keys off `editingTrip` (a string id) while its `trip` prop keys off `editingEntry`~~ — resolved: `open` now keys off `editingEntry !== null`, matching `trip`'s source. `src/app/(app)/trips/page-client.tsx`.
 
 ## Deferred from: code review of spec-4-6-move-sync-status-indicator-to-top-bar-icon (2026-09-06)
 
 - ~~The `aria-live` announcement region keeps the last transition's text indefinitely. After recovery the sr-only span still reads `Unable to sync`.~~ — resolved: the announcement now updates to `"Connected"` on recovery, proven by `sync-status-indicator.test.tsx` ("announces the problem, an escalation, and the recovery").
-- No debounce on status announcements. A flapping SSE channel produces alternating `Reconnecting` / `Connected` announcements with no settling window — confirmed still open: once `displayedStatus` already shows a problem, every subsequent flap sets it immediately (`isAlreadyShowingProblem` branch has no timer); only the *first* transition into a problem gets the grace-period debounce. `src/components/packt/sync-status-indicator.tsx`.
+- ~~No debounce on status announcements. A flapping SSE channel produces alternating `Reconnecting` / `Connected` announcements with no settling window~~ — resolved: `PROBLEM_GRACE_MS` now debounces every transition once a problem is already showing (escalation, de-escalation, and recovery), not only the first healthy→problem edge. `src/components/packt/sync-status-indicator.tsx`.
 - ~~`bottom-tab-bar`'s `env(safe-area-inset-bottom)` padding is inert... the app emits no `viewport-fit=cover`.~~ — resolved: `src/app/layout.tsx` now exports `viewport: Viewport = { viewportFit: "cover" }`, with a comment citing this exact issue.
 
 ## Deferred from: live-sync health review (2026-09-08)
@@ -89,7 +89,7 @@
 ## Deferred from: code review of spec-heartbeat-fanout-health-check.md (2026-09-08)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`
-  summary: `deliverToTripSubscribers`/`deliverToUserSubscribers` never remove a subscriber whose callback throws — they `console.warn` and continue, leaving it registered.
+  summary: ~~`deliverToTripSubscribers`/`deliverToUserSubscribers` never remove a subscriber whose callback throws~~ — resolved: both now call `unregisterTripSubscriber`/`unregisterUserSubscriber` (the latter extracted from `subscribeUser`'s inline unsubscribe) after a caught throw, so a permanently-broken connection stops being invoked and re-logged on every future tick. `src/lib/trip-events.ts`.
   evidence: Pre-existing behavior from `publishTripEvent`/`publishUserEvent`'s original try/catch (unchanged by this spec, just reused by the new heartbeat scheduler), but the heartbeat now invokes every subscriber every `SSE_HEARTBEAT_INTERVAL_MS` regardless of activity, so a connection whose `enqueue` starts throwing for a reason other than its own abort signal (e.g. the controller closed out-of-band) now re-fails and re-logs on every tick indefinitely instead of only on the next real publish. `src/lib/trip-events.ts:54-82`.
 - source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`
   summary: ~~`removeTripSubscribersForUser` and `purgeTripTopic` drop a subscriber from the topic `Set` without closing that subscriber's underlying stream/controller.~~ — resolved by `spec-sse-subscriber-cleanup.md` (epic-4-retro-item-18): both now route through the shared `unregisterTripSubscriber` helper, which calls `subscriber.close()` (`src/lib/trip-events.ts:148-156,226-246`).

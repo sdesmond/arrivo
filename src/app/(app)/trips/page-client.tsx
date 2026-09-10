@@ -71,7 +71,7 @@ export function TripsPageClient({
         key={handlers.editingTrip ?? "none"}
         trip={handlers.editingEntry?.trip ?? null}
         currencyOptions={currencyOptions}
-        open={handlers.editingTrip !== null}
+        open={handlers.editingEntry !== null}
         onClose={handlers.closeTripEditSheet}
         onSave={async (patch) => {
           if (!handlers.editingTrip) return;

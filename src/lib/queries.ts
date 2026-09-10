@@ -276,7 +276,9 @@ export async function listExpensesForUserInRange(
       )
     );
 
-  const tripList = tripRows.map(({ trip }) => trip);
+  // A user can hold two collaborator rows on the same trip (the unique constraint is on
+  // (tripId, email), not (tripId, userId)), which would otherwise duplicate that trip here.
+  const tripList = Array.from(new Map(tripRows.map(({ trip }) => [trip.id, trip])).values());
   if (tripList.length === 0) {
     return { trips: [], expenses: [] };
   }

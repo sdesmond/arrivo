@@ -137,10 +137,39 @@ describe("SyncStatusIndicator", () => {
 
     connectionStatus = SyncConnectionStatus.Offline;
     rerender(<SyncStatusIndicator />);
+    elapseGraceWindow();
     expect(screen.getByTestId("sync-status-announcement")).toHaveTextContent("Unable to sync");
 
     connectionStatus = SyncConnectionStatus.Connected;
     rerender(<SyncStatusIndicator />);
+    elapseGraceWindow();
+    expect(screen.queryByTestId("sync-status-trigger")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sync-status-announcement")).toHaveTextContent("Connected");
+  });
+
+  it("does not thrash the displayed status or announcement while the connection keeps flapping after a problem is already showing", () => {
+    const { rerender } = render(<SyncStatusIndicator />);
+    elapseGraceWindow();
+    expect(screen.getByTestId("sync-status-announcement")).toHaveTextContent("Reconnecting");
+
+    connectionStatus = SyncConnectionStatus.Connected;
+    rerender(<SyncStatusIndicator />);
+    act(() => vi.advanceTimersByTime(GRACE_MS / 2));
+
+    connectionStatus = SyncConnectionStatus.Reconnecting;
+    rerender(<SyncStatusIndicator />);
+    act(() => vi.advanceTimersByTime(GRACE_MS / 2));
+
+    connectionStatus = SyncConnectionStatus.Connected;
+    rerender(<SyncStatusIndicator />);
+
+    // None of the flaps above have had a full grace window to settle, so nothing has changed yet.
+    expect(screen.getByRole("button", { name: "Reconnecting" })).toBeInTheDocument();
+    expect(screen.getByTestId("sync-status-announcement")).toHaveTextContent("Reconnecting");
+
+    elapseGraceWindow();
+
+    // Only the final, settled status is shown/announced — not one update per flap.
     expect(screen.queryByTestId("sync-status-trigger")).not.toBeInTheDocument();
     expect(screen.getByTestId("sync-status-announcement")).toHaveTextContent("Connected");
   });
@@ -174,6 +203,7 @@ describe("SyncStatusIndicator", () => {
         <SyncStatusIndicator />
       </>
     );
+    elapseGraceWindow();
 
     expect(document.getElementById("main-content")).toHaveFocus();
   });
