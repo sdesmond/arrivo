@@ -59,7 +59,7 @@
 ## Deferred from: code review of spec-4-6-move-sync-status-indicator-to-top-bar-icon (2026-09-06)
 
 - ~~The `aria-live` announcement region keeps the last transition's text indefinitely. After recovery the sr-only span still reads `Unable to sync`.~~ — resolved: the announcement now updates to `"Connected"` on recovery, proven by `sync-status-indicator.test.tsx` ("announces the problem, an escalation, and the recovery").
-- No debounce on status announcements. A flapping SSE channel produces alternating `Reconnecting` / `Connected` announcements with no settling window — confirmed still open: once `displayedStatus` already shows a problem, every subsequent flap sets it immediately (`isAlreadyShowingProblem` branch has no timer); only the *first* transition into a problem gets the grace-period debounce. `src/components/packt/sync-status-indicator.tsx`.
+- ~~No debounce on status announcements. A flapping SSE channel produces alternating `Reconnecting` / `Connected` announcements with no settling window~~ — resolved: `PROBLEM_GRACE_MS` now debounces every transition once a problem is already showing (escalation, de-escalation, and recovery), not only the first healthy→problem edge. `src/components/packt/sync-status-indicator.tsx`.
 - ~~`bottom-tab-bar`'s `env(safe-area-inset-bottom)` padding is inert... the app emits no `viewport-fit=cover`.~~ — resolved: `src/app/layout.tsx` now exports `viewport: Viewport = { viewportFit: "cover" }`, with a comment citing this exact issue.
 
 ## Deferred from: live-sync health review (2026-09-08)
@@ -89,7 +89,7 @@
 ## Deferred from: code review of spec-heartbeat-fanout-health-check.md (2026-09-08)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`
-  summary: `deliverToTripSubscribers`/`deliverToUserSubscribers` never remove a subscriber whose callback throws — they `console.warn` and continue, leaving it registered.
+  summary: ~~`deliverToTripSubscribers`/`deliverToUserSubscribers` never remove a subscriber whose callback throws~~ — resolved: both now call `unregisterTripSubscriber`/`unregisterUserSubscriber` (the latter extracted from `subscribeUser`'s inline unsubscribe) after a caught throw, so a permanently-broken connection stops being invoked and re-logged on every future tick. `src/lib/trip-events.ts`.
   evidence: Pre-existing behavior from `publishTripEvent`/`publishUserEvent`'s original try/catch (unchanged by this spec, just reused by the new heartbeat scheduler), but the heartbeat now invokes every subscriber every `SSE_HEARTBEAT_INTERVAL_MS` regardless of activity, so a connection whose `enqueue` starts throwing for a reason other than its own abort signal (e.g. the controller closed out-of-band) now re-fails and re-logs on every tick indefinitely instead of only on the next real publish. `src/lib/trip-events.ts:54-82`.
 - source_spec: `_bmad-output/implementation-artifacts/spec-heartbeat-fanout-health-check.md`
   summary: ~~`removeTripSubscribersForUser` and `purgeTripTopic` drop a subscriber from the topic `Set` without closing that subscriber's underlying stream/controller.~~ — resolved by `spec-sse-subscriber-cleanup.md` (epic-4-retro-item-18): both now route through the shared `unregisterTripSubscriber` helper, which calls `subscriber.close()` (`src/lib/trip-events.ts:148-156,226-246`).

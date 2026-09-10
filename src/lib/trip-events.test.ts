@@ -126,6 +126,40 @@ describe("trip-events", () => {
       unsubscribeThrowing();
       unsubscribeHealthy();
     });
+
+    it("deregisters a trip subscriber whose callback throws so it is not invoked again", () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const close = vi.fn();
+      const throwing = vi.fn(() => {
+        throw new Error("boom");
+      });
+      const healthy = vi.fn();
+      subscribeTripForUser("trip-1", "user-1", throwing, close);
+      const unsubscribeHealthy = subscribeTripForUser("trip-1", "user-2", healthy, vi.fn());
+
+      const event = { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" } as const;
+      publishTripEvent("trip-1", event);
+      expect(throwing).toHaveBeenCalledTimes(1);
+      expect(close).toHaveBeenCalledOnce();
+
+      publishTripEvent("trip-1", event);
+      expect(throwing).toHaveBeenCalledTimes(1);
+      expect(healthy).toHaveBeenCalledTimes(2);
+
+      unsubscribeHealthy();
+    });
+
+    it("removes the trip topic entirely once its only subscriber's callback throws", () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const throwing = vi.fn(() => {
+        throw new Error("boom");
+      });
+      subscribeTripForUser("trip-only-throws", "user-1", throwing, vi.fn());
+
+      publishTripEvent("trip-only-throws", { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-only-throws" });
+
+      expect(globalThis.__tripEventTopics?.has("trip-only-throws")).toBe(false);
+    });
   });
 
   describe("publishUserEvent / subscribeUser", () => {
@@ -199,6 +233,38 @@ describe("trip-events", () => {
 
       unsubscribeThrowing();
       unsubscribeHealthy();
+    });
+
+    it("deregisters a user-topic subscriber whose callback throws so it is not invoked again", () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const throwing = vi.fn(() => {
+        throw new Error("boom");
+      });
+      const healthy = vi.fn();
+      subscribeUser("user-1", throwing);
+      const unsubscribeHealthy = subscribeUser("user-1", healthy);
+
+      const event = { type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" } as const;
+      publishUserEvent("user-1", event);
+      expect(throwing).toHaveBeenCalledTimes(1);
+
+      publishUserEvent("user-1", event);
+      expect(throwing).toHaveBeenCalledTimes(1);
+      expect(healthy).toHaveBeenCalledTimes(2);
+
+      unsubscribeHealthy();
+    });
+
+    it("removes the user topic entirely once its only subscriber's callback throws", () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const throwing = vi.fn(() => {
+        throw new Error("boom");
+      });
+      subscribeUser("user-only-throws", throwing);
+
+      publishUserEvent("user-only-throws", { type: LiveSyncEventType.MembershipChanged, tripId: "trip-1" });
+
+      expect(globalThis.__userEventTopics?.has("user-only-throws")).toBe(false);
     });
   });
 
