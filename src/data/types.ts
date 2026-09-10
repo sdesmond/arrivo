@@ -890,10 +890,17 @@ export interface InviteContributorInput {
   role?: CollaboratorRole;
 }
 
+export type InviteContributorErrorCode =
+  | "invalid-role"
+  | "self-invite"
+  | "no-account"
+  | "already-collaborator"
+  | "invite-conflict";
+
 export type InviteContributorResult =
   | { status: "invited" }
   | { status: "resent" }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; errorCode: InviteContributorErrorCode };
 
 export interface AddDocumentInput {
   tripId?: string;
