@@ -279,7 +279,7 @@ describe("TripDetailClient", () => {
   it("mounts live refresh for the trip", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
-    expect(mockUseTripLiveRefresh).toHaveBeenCalledExactlyOnceWith("trip-1");
+    expect(mockUseTripLiveRefresh).toHaveBeenCalledExactlyOnceWith("trip-1", expect.any(Function));
   });
 
   it("mounts the bfcache refresh hook so a restored page re-runs its access check", () => {
@@ -349,6 +349,60 @@ describe("TripDetailClient", () => {
 
       expect(screen.getByTestId("trip-share-dialog")).toBeInTheDocument();
       expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+    });
+  });
+
+  describe("self role change", () => {
+    function fireSelfRoleChanged(): void {
+      const onSelfRoleChanged = mockUseTripLiveRefresh.mock.calls.at(-1)?.[1] as (() => void) | undefined;
+      if (!onSelfRoleChanged) throw new Error("useTripLiveRefresh was not called with a second argument.");
+      act(() => onSelfRoleChanged());
+    }
+
+    it("force-closes the share dialog when this session's own role changes", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Share" }));
+      expect(screen.getByTestId("trip-share-dialog")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("trip-share-dialog")).not.toBeInTheDocument();
+    });
+
+    it("force-closes the trip edit sheet when this session's own role changes", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open edit dates" }));
+      expect(screen.getByTestId("trip-edit-sheet")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("trip-edit-sheet")).not.toBeInTheDocument();
+    });
+
+    it("discards dialogs the tab body owns by remounting it", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("tab-child-dialog")).not.toBeInTheDocument();
+    });
+
+    it("remounts the tab body again on a second role change even without an intervening revocation", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+      fireSelfRoleChanged();
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("tab-child-dialog")).not.toBeInTheDocument();
     });
   });
 
