@@ -1,9 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { eq } from "drizzle-orm";
-import { notes } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
 import { E2E_TRIP_NOTES_REORDER } from "../e2e-seed-data";
-import { Given, When, Then } from "../fixtures";
+import { Before, Given, When, Then } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
 
 function decodeStepValue(value: string): string {
@@ -29,21 +26,16 @@ Given("I have a trip for trip notes", async ({ scenario }) => {
   await scenario.ensureCurrentTrip();
 });
 
-Given("I have pre-seeded reorder notes for the trip", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await withE2EDb(async (db) => {
-    await db.delete(notes).where(eq(notes.tripId, currentTrip.id));
-    await db.insert(notes).values(
-      E2E_TRIP_NOTES_REORDER.map((noteSeed) => ({
-        tripId: currentTrip.id,
-        title: noteSeed.title,
-        position: noteSeed.position,
-      }))
-    );
+Before({ tags: "@trip-notes-reorder" }, async ({ scenario }) => {
+  const result = await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { tripNotes: E2E_TRIP_NOTES_REORDER },
+      setCurrent: true,
+    },
   });
-  await page.goto(page.url());
-  await page.waitForURL(/\/trips/);
+  if (!result.user || !result.trip) throw new Error("Failed to materialize reorder-note scenario fixtures.");
 });
 
 When("I open the Notes tab", async ({ page, scenario }) => {
