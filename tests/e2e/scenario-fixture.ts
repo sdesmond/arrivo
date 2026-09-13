@@ -12,10 +12,12 @@ import {
   expenses,
   itineraryChecklists,
   itineraryNotes,
+  notes,
   packingItems,
   packingTemplateItems,
   packingTemplates,
   reservations,
+  tripPackingLists,
   trips,
   userCompanions,
   userLoyaltyNumbers,
@@ -396,6 +398,39 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           content: noteSeed.content,
           position: noteSeed.position,
         });
+      }
+
+      for (const listSeed of seed.packingLists) {
+        const [packingList] = await db
+          .insert(tripPackingLists)
+          .values({ tripId: trip.id, name: listSeed.name, position: listSeed.position })
+          .returning({ id: tripPackingLists.id });
+        const listLabelIdsByName = new Map<string, string>();
+        for (const item of listSeed.items) {
+          const [packingRow] = await db
+            .insert(packingItems)
+            .values({
+              tripId: trip.id,
+              listId: packingList.id,
+              name: item.name,
+              isLabel: item.isLabel,
+              done: item.done,
+              position: item.position,
+              labelId: item.isLabel ? null : item.under ? (listLabelIdsByName.get(item.under) ?? null) : null,
+            })
+            .returning({ id: packingItems.id });
+          if (item.isLabel) listLabelIdsByName.set(item.name, packingRow.id);
+        }
+      }
+
+      if (seed.tripNotes.length > 0) {
+        await db.insert(notes).values(
+          seed.tripNotes.map((noteSeed) => ({
+            tripId: trip.id,
+            title: noteSeed.title,
+            position: noteSeed.position,
+          }))
+        );
       }
 
       for (const checklistSeed of seed.checklists) {
