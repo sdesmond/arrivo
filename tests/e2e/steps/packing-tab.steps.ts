@@ -16,7 +16,7 @@ import {
   E2E_PACKING_REORDER_ITEMS,
   E2E_PACKING_STRIKETHROUGH_ITEMS,
 } from "../e2e-seed-data";
-import { Given, Then, When } from "../fixtures";
+import { Before, Given, Then, When } from "../fixtures";
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
@@ -75,29 +75,41 @@ async function seedPackingItems(db: E2EDb, tripId: string, itemsToSeed: typeof E
   }
 }
 
-type GroupedSeedItem = { name: string; isLabel: boolean; done: boolean; position: number; under?: string };
+Before({ tags: "@packing-drag-grouped" }, async ({ scenario }) => {
+  const result = await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { packingLists: [{ name: "Main", position: 0, items: E2E_PACKING_DRAG_ITEMS }] },
+      setCurrent: true,
+    },
+  });
+  if (!result.user || !result.trip) throw new Error("Failed to materialize grouped packing drag fixtures.");
+});
 
-// Explicit grouping: `under` links a non-label item to its section label by name;
-// items without `under` are ungrouped. Lets us seed ungrouped items that sort
-// after a section.
-async function seedGroupedPackingItems(db: E2EDb, tripId: string, itemsToSeed: GroupedSeedItem[]): Promise<void> {
-  await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
-  const listId = await createMainList(db, tripId);
-  const labelIdsByName = new Map<string, string>();
-  for (const item of itemsToSeed) {
-    const labelId = item.under ? (labelIdsByName.get(item.under) ?? null) : null;
-    const id = await insertPackingItem(db, {
-      name: item.name,
-      isLabel: item.isLabel,
-      done: item.done,
-      position: item.position,
-      tripId,
-      labelId: item.isLabel ? null : labelId,
-      listId,
-    });
-    if (item.isLabel) labelIdsByName.set(item.name, id);
-  }
-}
+Before({ tags: "@packing-drag-empty-ungrouped" }, async ({ scenario }) => {
+  const result = await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { packingLists: [{ name: "Main", position: 0, items: E2E_PACKING_DRAG_EMPTY_UNGROUPED }] },
+      setCurrent: true,
+    },
+  });
+  if (!result.user || !result.trip) throw new Error("Failed to materialize empty-Ungrouped packing fixtures.");
+});
+
+Before({ tags: "@packing-drag-two-sections" }, async ({ scenario }) => {
+  const result = await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { packingLists: [{ name: "Main", position: 0, items: E2E_PACKING_DRAG_TWO_SECTIONS }] },
+      setCurrent: true,
+    },
+  });
+  if (!result.user || !result.trip) throw new Error("Failed to materialize two-section packing fixtures.");
+});
 
 async function dragItemOntoTarget(page: Page, sourceName: string, target: ReturnType<Page["locator"]>): Promise<void> {
   const targetContainer = target.locator("xpath=ancestor::*[@data-packing-container][1]");
@@ -603,37 +615,7 @@ Then("the section label {string} should not be visible", async ({ page }, name: 
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0);
 });
 
-// ── Drag-and-drop regression seeds & steps ───────────────────────────────────
-
-Given("I have pre-seeded a section with items and ungrouped items", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await withE2EDb(async (db) => {
-    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_ITEMS);
-  });
-  await page.goto(page.url());
-  await page.waitForURL(/\/trips/);
-});
-
-Given("I have pre-seeded a section with no ungrouped items", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await withE2EDb(async (db) => {
-    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_EMPTY_UNGROUPED);
-  });
-  await page.goto(page.url());
-  await page.waitForURL(/\/trips/);
-});
-
-Given("I have pre-seeded two packing sections", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await withE2EDb(async (db) => {
-    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_TWO_SECTIONS);
-  });
-  await page.goto(page.url());
-  await page.waitForURL(/\/trips/);
-});
+// ── Drag-and-drop regression steps ───────────────────────────────────────────
 
 When("I drag the packing item {string} into the Ungrouped area", async ({ page }, name: string) => {
   await dragItemIntoUngroupedArea(page, name);
