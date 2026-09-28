@@ -1,8 +1,10 @@
-import { expect } from "@playwright/test";
+import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { collaborators, invitations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
-import { Given, Then, When } from "../fixtures";
-import type { ScenarioUserRecord } from "../scenario-fixture";
+import { After, Given, Then, When } from "../fixtures";
+import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
+import { waitForServerActionResponse } from "../server-action";
+import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 
 const ACTIVE_EMAIL = "active-share@example.com";
 const PENDING_EMAIL = "pending-share@example.com";
@@ -274,4 +276,152 @@ Then("the sharing dialog is closed", async ({ page }) => {
 
 Then("the sharing dialog is not closed", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
+});
+
+const SECOND_SESSION_CONTEXT_KEY = "tripSharingSecondSessionContext";
+const SECOND_SESSION_PAGE_KEY = "tripSharingSecondSessionPage";
+const SECOND_SESSION_USER_KEY = "tripSharingSecondSessionUser";
+
+function getSecondSession(scenario: ScenarioFixtureContext): { page: Page; user: ScenarioUserRecord } {
+  const secondPage = scenario.getValue<Page>(SECOND_SESSION_PAGE_KEY);
+  const secondUser = scenario.getValue<ScenarioUserRecord>(SECOND_SESSION_USER_KEY);
+  if (!secondPage || !secondUser) throw new Error("No second sharing session is open for this scenario.");
+  return { page: secondPage, user: secondUser };
+}
+
+async function openSecondSession(
+  page: Page,
+  scenario: ScenarioFixtureContext,
+  user: ScenarioUserRecord,
+  path: string,
+  channelPath: string
+): Promise<Page> {
+  const { context, page: secondPage } = await scenario.openSecondSession(page);
+  scenario.setValue(SECOND_SESSION_CONTEXT_KEY, context);
+  scenario.setValue(SECOND_SESSION_PAGE_KEY, secondPage);
+  scenario.setValue(SECOND_SESSION_USER_KEY, user);
+
+  await scenario.signInAsUser(secondPage, user.email);
+  const channelReady = waitForLiveSyncResponse(secondPage, channelPath);
+  await Promise.all([secondPage.goto(path), channelReady]);
+  return secondPage;
+}
+
+function sharingRowFor(page: Page, email: string) {
+  return page.getByRole("dialog").getByText(email, { exact: true }).locator("..").locator("..");
+}
+
+Given("I have a trip with a pending invitation for a user watching their dashboard", async ({ page, scenario }) => {
+  const [manager, trip] = await Promise.all([scenario.ensureCurrentUser(), scenario.ensureCurrentTrip("datelessTrip")]);
+  const { user: invitee } = await scenario.materialize({
+    user: { overrides: { user: { name: "Sharing Invitee", initials: "SI" } }, setCurrent: false },
+  });
+  if (!invitee) throw new Error("Failed to materialize the sharing invitee.");
+
+  await withE2EDb(async (db) => {
+    await db.insert(invitations).values({
+      tripId: trip.id,
+      email: invitee.email,
+      role: "viewer",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      invitedBy: manager.id,
+    });
+  });
+
+  const inviteePage = await openSecondSession(page, scenario, invitee, "/trips", "/api/users/me/events");
+  await expect(inviteePage.getByTitle(`Accept invitation to ${trip.name}`)).toBeVisible();
+});
+
+Given(
+  "I have a trip with an editor contributor viewing it in their own session for sharing",
+  async ({ page, scenario }) => {
+    const trip = await scenario.ensureCurrentTrip("datelessTrip");
+    const contributor = await scenario.seedCollaborator(trip.id, "Leaving Contributor", "LC", "editor");
+    const contributorPage = await openSecondSession(
+      page,
+      scenario,
+      contributor,
+      `/trips/${trip.id}`,
+      `/api/trips/${trip.id}/events`
+    );
+    await expect(contributorPage.getByRole("heading", { level: 1, name: trip.name })).toBeVisible();
+  }
+);
+
+When("I open the sharing dialog with live sync", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const tripChannelReady = waitForLiveSyncResponse(page, `/api/trips/${trip.id}/events`);
+  await Promise.all([page.goto(`/trips/${trip.id}`), tripChannelReady]);
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
+});
+
+When("the invited user accepts the invitation from their dashboard", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const { page: inviteePage, user: invitee } = getSecondSession(scenario);
+  await expect(sharingRowFor(page, invitee.email)).toContainText("Pending");
+
+  await inviteePage.getByTitle(`Accept invitation to ${trip.name}`).click();
+  await inviteePage.waitForURL(`**/trips/${trip.id}`, { timeout: 15_000 });
+});
+
+When("the invited user declines the invitation from their dashboard", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const { page: inviteePage, user: invitee } = getSecondSession(scenario);
+  await expect(sharingRowFor(page, invitee.email)).toContainText("Pending");
+
+  await inviteePage.getByTitle(`Decline invitation to ${trip.name}`).click();
+  await expect(inviteePage.getByText("Invitation declined.", { exact: true })).toBeVisible();
+});
+
+When("the sharing contributor leaves the trip", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const { page: contributorPage, user: contributor } = getSecondSession(scenario);
+  await expect(page.getByRole("dialog").getByTitle(`Remove ${contributor.name}`)).toBeVisible();
+
+  await contributorPage.getByRole("button", { name: /^Leave trip .+/ }).click();
+  const confirmation = contributorPage.getByRole("alertdialog");
+  const leavePosted = waitForServerActionResponse(contributorPage, { pathIncludes: `/trips/${trip.id}` });
+  await confirmation.getByRole("button", { name: "Leave trip", exact: true }).click();
+  await leavePosted;
+});
+
+Then(
+  "the sharing dialog lists the invited user as an active contributor without reloading",
+  async ({ page, scenario }) => {
+    const { user: invitee } = getSecondSession(scenario);
+    await expect(page.getByRole("dialog").getByLabel(`Role for ${invitee.name}`)).toBeVisible({
+      timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
+    });
+    await expect(page.getByRole("dialog").getByTitle(`Rescind invitation to ${invitee.email}`)).toHaveCount(0);
+  }
+);
+
+Then(
+  "the sharing dialog shows the invited user's invitation as declined without reloading",
+  async ({ page, scenario }) => {
+    const { user: invitee } = getSecondSession(scenario);
+    await expect(page.getByRole("dialog").getByTitle(`Dismiss invitation to ${invitee.email}`)).toBeVisible({
+      timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
+    });
+    await expect(sharingRowFor(page, invitee.email)).toContainText("Declined");
+  }
+);
+
+Then("the sharing dialog no longer lists the sharing contributor without reloading", async ({ page, scenario }) => {
+  const { user: contributor } = getSecondSession(scenario);
+  await expect(page.getByRole("dialog").getByTitle(`Remove ${contributor.name}`)).toHaveCount(0, {
+    timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
+  });
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
+});
+
+After(async ({ scenario }) => {
+  const secondContext = scenario.getValue<BrowserContext>(SECOND_SESSION_CONTEXT_KEY);
+  if (!secondContext) return;
+  await secondContext.close();
+  scenario.clearValue(SECOND_SESSION_CONTEXT_KEY);
+  scenario.clearValue(SECOND_SESSION_PAGE_KEY);
+  scenario.clearValue(SECOND_SESSION_USER_KEY);
 });

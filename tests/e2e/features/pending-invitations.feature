@@ -36,3 +36,11 @@ Feature: Pending Invitations
     Given someone else has a pending invitation to "Private Trip" from "Dee Byrne"
     When I open the trips dashboard
     Then I see no pending invitation row for "Private Trip"
+
+  Scenario: A new invitation appears on the invitee's dashboard without a reload
+    Given a Packt user is watching their dashboard in their own session
+    When I invite the watching user to my trip as an editor
+    Then the watching user sees my trip invitation without reloading
+    And the watching user's Trips nav badge shows "1" pending invitation
+    When I rescind the watching user's invitation
+    Then the watching user's invitation disappears without reloading

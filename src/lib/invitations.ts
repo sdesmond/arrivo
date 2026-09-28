@@ -3,12 +3,18 @@ import { db } from "@/db";
 import { invitations, trips, users } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
+import { LiveSyncEventType } from "@/data/types";
 import type { CollaboratorRole, PendingInvitation, ResendInvitationResult } from "@/data/types";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { getNow } from "@/lib/mock-date";
 import type { DbTransaction } from "@/lib/server-action-locks";
+import { publishTripEvent, publishUserEvent } from "@/lib/trip-events";
 
 type InvitationExecutor = Pick<DbTransaction, "select" | "update">;
+
+type AppliedInvitationResend =
+  | { status: "success"; expiresAt: string; inviteeEmail: string }
+  | Extract<ResendInvitationResult, { status: "error" }>;
 
 export const INVITE_TTL_HOURS = 72;
 
@@ -83,15 +89,15 @@ export async function applyInvitationResend(
   tripId: string,
   expiresAt: Date,
   role?: CollaboratorRole
-): Promise<ResendInvitationResult> {
+): Promise<AppliedInvitationResend> {
   const [resentInvitation] = await executor
     .update(invitations)
     .set(role ? { expiresAt, role } : { expiresAt })
     .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), eq(invitations.status, "pending")))
-    .returning({ id: invitations.id });
+    .returning({ id: invitations.id, email: invitations.email });
 
   if (resentInvitation) {
-    return { status: "success", expiresAt: expiresAt.toISOString() };
+    return { status: "success", expiresAt: expiresAt.toISOString(), inviteeEmail: resentInvitation.email };
   }
 
   const [invitation] = await executor
@@ -111,5 +117,31 @@ export async function resendInvitation(
 ): Promise<ResendInvitationResult> {
   await assertTripAccess(tripId, userId, "manager");
 
-  return applyInvitationResend(db, invitationId, tripId, getInvitationExpiry());
+  const result = await applyInvitationResend(db, invitationId, tripId, getInvitationExpiry());
+  if (result.status !== "success") return result;
+
+  // Trip channel: other managers' open share dialogs pick up the new expiry.
+  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+  await publishInvitationChanged(result.inviteeEmail, tripId);
+  return { status: "success", expiresAt: result.expiresAt };
+}
+
+/**
+ * Tells the invitee's open sessions (dashboard list, sidebar badge) that an invitation addressed to
+ * them changed. Invitations are keyed by email, so this resolves the account first; an email with
+ * no account has no personal channel to notify. Callers run this after their mutation commits, so a
+ * failed lookup is logged and swallowed — a missed live nudge must never fail the mutation itself.
+ */
+export async function publishInvitationChanged(inviteeEmail: string, tripId: string): Promise<void> {
+  try {
+    const [invitee] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(hasNormalizedEmail(users.email, normalizeEmail(inviteeEmail)));
+    if (!invitee) return;
+
+    publishUserEvent(invitee.id, { type: LiveSyncEventType.InvitationChanged, tripId });
+  } catch (error) {
+    console.warn("Could not notify the invitee that their invitation changed", error);
+  }
 }
