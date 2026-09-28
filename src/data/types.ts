@@ -567,6 +567,10 @@ export type SaveContributorChangesResult =
   | { status: "success" }
   | { status: "error"; message: string; stale?: boolean };
 
+// `stale` marks a caller whose membership was already gone (concurrent removal, forged trip id) —
+// the client returns to the trips list rather than reporting a successful exit.
+export type LeaveTripResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────
@@ -679,6 +683,9 @@ export const LiveSyncEventType = {
   ItineraryChanged: "itinerary-changed",
   MembershipChanged: "membership-changed",
   MembershipRemoved: "membership-removed",
+  // Personal-channel only: the signed-in user left a trip themselves (from another tab or this one).
+  // Distinct from MembershipRemoved, whose modal claims a manager removed them.
+  MembershipLeft: "membership-left",
   TripDeleted: "trip-deleted",
 } as const;
 export type LiveSyncEventType = (typeof LiveSyncEventType)[keyof typeof LiveSyncEventType];
@@ -701,6 +708,7 @@ export type LiveSyncEvent =
       removedByName: string;
       removedByEmail: string;
     }
+  | { type: typeof LiveSyncEventType.MembershipLeft; tripId: string }
   | { type: typeof LiveSyncEventType.TripDeleted; tripId: string };
 
 // ─────────────────────────────────────────────────────────────────────────────

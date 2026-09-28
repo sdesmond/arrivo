@@ -135,6 +135,7 @@ import {
   declineInvitation,
   dismissInvitation,
   inviteContributor,
+  leaveTrip,
   pullTemplatesOntoTrip,
   reorderPackingItems,
   removePackingItem,
@@ -788,6 +789,258 @@ function createTransactionMock({
 
   return { operations, transaction };
 }
+
+const LEAVE_TRIP_ID = "11111111-1111-4111-8111-111111111111";
+
+interface LeaveTripFixture {
+  preCheckRows?: Array<{ id: string }>;
+  lockedRows?: Array<{ id: string; role: string; isCreator: boolean | null }>;
+  lockedTripRows?: Array<{ id: string }>;
+  lockError?: Error;
+}
+
+function setupLeaveTripDb({
+  preCheckRows = [{ id: "collab-self" }],
+  lockedRows = [{ id: "collab-self", role: "editor", isCreator: false }],
+  lockedTripRows = [{ id: LEAVE_TRIP_ID }],
+  lockError,
+}: LeaveTripFixture = {}) {
+  const operations = {
+    deletes: [] as Array<{ table: unknown; condition: unknown }>,
+    lockedReads: 0,
+  };
+  const transaction = {
+    execute: async () => {
+      if (lockError) throw lockError;
+      return lockedTripRows;
+    },
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () => {
+          if (table !== collaborators) throw new Error("Unexpected table read in leaveTrip fixture.");
+          operations.lockedReads += 1;
+          return lockedRows;
+        },
+      }),
+    }),
+    delete: (table: unknown) => ({
+      where: async (condition: unknown) => {
+        operations.deletes.push({ table, condition });
+      },
+    }),
+  };
+  db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+    callback(transaction)
+  );
+  db.select.mockReturnValue({
+    from: () => ({
+      where: async () => preCheckRows,
+    }),
+  });
+  return operations;
+}
+
+describe("leaveTrip", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-self", email: "self@example.com" });
+  });
+
+  it.each(["editor", "viewer"])("deletes only the caller's own %s membership and reports success", async (role) => {
+    const operations = setupLeaveTripDb({
+      lockedRows: [{ id: "collab-self", role, isCreator: false }],
+    });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({ status: "success" });
+
+    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(operations.lockedReads).toBe(1);
+    expect(operations.deletes).toHaveLength(1);
+    expect(operations.deletes[0]?.table).toBe(collaborators);
+    const deletionCondition = inspect(operations.deletes[0]?.condition, { depth: 8 });
+    expect(deletionCondition).toContain("collab-self");
+    expect(deletionCondition).toContain("user-self");
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+    expect(assertTripAccess).not.toHaveBeenCalledWith(LEAVE_TRIP_ID, "user-self", "manager");
+  });
+
+  it("publishes a personal leave event, closes the leaver's trip streams, then notifies the trip, after commit", async () => {
+    setupLeaveTripDb();
+
+    await leaveTrip(LEAVE_TRIP_ID);
+
+    expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("user-self", {
+      type: LiveSyncEventType.MembershipLeft,
+      tripId: LEAVE_TRIP_ID,
+    });
+    expect(removeTripSubscribersForUser).toHaveBeenCalledExactlyOnceWith(LEAVE_TRIP_ID, "user-self");
+    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith(LEAVE_TRIP_ID, {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: LEAVE_TRIP_ID,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(`/trips/${LEAVE_TRIP_ID}`);
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
+
+    const transactionOrder = db.transaction.mock.invocationCallOrder[0];
+    const personalOrder = publishUserEvent.mock.invocationCallOrder[0];
+    const closeOrder = removeTripSubscribersForUser.mock.invocationCallOrder[0];
+    const tripOrder = publishTripEvent.mock.invocationCallOrder[0];
+    expect(transactionOrder).toBeLessThan(personalOrder);
+    expect(personalOrder).toBeLessThan(closeOrder);
+    // The leaver's streams close before the trip-wide broadcast so their other tabs never refresh into a
+    // denied page on the membership-changed frame — the personal leave event owns that redirect.
+    expect(closeOrder).toBeLessThan(tripOrder);
+  });
+
+  it("never publishes the manager-removal event", async () => {
+    setupLeaveTripDb();
+
+    await leaveTrip(LEAVE_TRIP_ID);
+
+    for (const [, event] of publishUserEvent.mock.calls) {
+      expect(event).not.toMatchObject({ type: LiveSyncEventType.MembershipRemoved });
+    }
+  });
+
+  it("rejects the trip creator without deleting anything", async () => {
+    const operations = setupLeaveTripDb({
+      lockedRows: [{ id: "collab-self", role: "manager", isCreator: true }],
+    });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({
+      status: "error",
+      message: "The trip creator can't leave this trip.",
+      stale: false,
+    });
+
+    expect(operations.deletes).toHaveLength(0);
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(removeTripSubscribersForUser).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a creator seat even if its role is not manager", async () => {
+    const operations = setupLeaveTripDb({
+      lockedRows: [{ id: "collab-self", role: "editor", isCreator: true }],
+    });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toMatchObject({ status: "error" });
+    expect(operations.deletes).toHaveLength(0);
+  });
+
+  it("rejects a non-creator manager without deleting anything", async () => {
+    const operations = setupLeaveTripDb({
+      lockedRows: [{ id: "collab-self", role: "manager", isCreator: false }],
+    });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({
+      status: "error",
+      message: "Managers can't leave a trip.",
+      stale: false,
+    });
+
+    expect(operations.deletes).toHaveLength(0);
+    expect(publishUserEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns a stale error for a non-member without opening a transaction", async () => {
+    setupLeaveTripDb({ preCheckRows: [] });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({
+      status: "error",
+      message: "You're no longer on this trip.",
+      stale: true,
+    });
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an empty id", ""],
+    ["a non-UUID id", "trip-1"],
+    ["a SQL-shaped id", "' OR 1=1 --"],
+  ])("returns a stale error for %s without touching the database", async (_label, forgedTripId) => {
+    setupLeaveTripDb();
+
+    await expect(leaveTrip(forgedTripId)).resolves.toEqual({
+      status: "error",
+      message: "You're no longer on this trip.",
+      stale: true,
+    });
+
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("treats a membership removed before the lock was acquired as stale and deletes nothing", async () => {
+    const operations = setupLeaveTripDb({ lockedRows: [] });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({
+      status: "error",
+      message: "You're no longer on this trip.",
+      stale: true,
+    });
+
+    expect(operations.deletes).toHaveLength(0);
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns a stale error on a repeated leave after the first one succeeded", async () => {
+    setupLeaveTripDb();
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({ status: "success" });
+
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "user-self", email: "self@example.com" });
+    setupLeaveTripDb({ preCheckRows: [] });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toMatchObject({ status: "error", stale: true });
+    expect(publishUserEvent).not.toHaveBeenCalled();
+  });
+
+  it("treats a trip deleted before the lock was acquired as stale and deletes nothing", async () => {
+    const operations = setupLeaveTripDb({ lockedTripRows: [] });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({
+      status: "error",
+      message: "You're no longer on this trip.",
+      stale: true,
+    });
+
+    expect(operations.deletes).toHaveLength(0);
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(removeTripSubscribersForUser).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rethrows unexpected transaction failures without publishing", async () => {
+    const operations = setupLeaveTripDb({ lockError: new Error("connection reset") });
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).rejects.toThrow("connection reset");
+
+    expect(operations.deletes).toHaveLength(0);
+
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("does not touch the database when the caller is signed out", async () => {
+    requireUser.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    setupLeaveTripDb();
+
+    await expect(leaveTrip(LEAVE_TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+});
 
 describe("resolveTripDateRange", () => {
   it("fills a missing end date from the requested start date", () => {

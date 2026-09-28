@@ -4,6 +4,9 @@ import { packingTemplates, trips, users } from "@/db/schema";
 
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+// Exported so callers can tell "trip row already gone" apart from unexpected lock failures.
+export const TRIP_NOT_FOUND_MESSAGE = "Trip not found.";
+
 async function ensureLockedRow(
   transaction: DbTransaction,
   statement: ReturnType<typeof sql>,
@@ -20,7 +23,7 @@ export async function lockTripForUpdate(transaction: DbTransaction, tripId: stri
   await ensureLockedRow(
     transaction,
     sql`select ${trips.id} from ${trips} where ${trips.id} = ${tripId} for update`,
-    "Trip not found."
+    TRIP_NOT_FOUND_MESSAGE
   );
 }
 

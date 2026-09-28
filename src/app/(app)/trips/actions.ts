@@ -26,6 +26,7 @@ import type {
   DeclineInvitationResult,
   DismissInvitationResult,
   InviteContributorResult,
+  LeaveTripResult,
   RescindInvitationResult,
   SaveContributorChangesResult,
   TripDateChangeConfirmation,
@@ -39,7 +40,7 @@ import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
 import { recalculateAll } from "@/lib/currency";
 import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
-import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
+import { type DbTransaction, lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE } from "@/lib/server-action-locks";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
 import { applyInvitationResend, getInvitationExpiry, hasNormalizedEmail, normalizeEmail } from "@/lib/invitations";
@@ -955,7 +956,7 @@ function assertNotCreator(
 }
 
 /**
- * Thrown for expected, user-facing rejections inside `saveContributorChanges`'s transaction.
+ * Thrown for expected, user-facing rejections inside `saveContributorChanges`'s and `leaveTrip`'s transactions.
  * `stale` marks a concurrent-edit guard failure (row gone, or its role changed since staging) so the
  * caller knows to refetch; unexpected errors are left as plain `Error`s and rethrown, not wrapped here.
  */
@@ -1096,6 +1097,80 @@ export async function saveContributorChanges(
     }
     throw error;
   }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NOT_ON_TRIP_MESSAGE = "You're no longer on this trip.";
+
+/**
+ * Removes the signed-in editor or viewer from a trip — their own membership row only. The trip, its
+ * content, and every other membership stay intact. Deliberately separate from the manager-only
+ * `saveContributorChanges` (which rejects self-changes): identity comes from the session, never the
+ * client, and role/creator protection is re-checked under the same trip lock the manager batch takes,
+ * so a concurrent manager removal can't interleave with this one.
+ *
+ * A caller who is already off the trip (forged id, concurrent removal, repeated click) gets a `stale`
+ * error rather than `notFound()`, so the client can return to the trips list without claiming success.
+ */
+export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
+  const user = await requireUser();
+  const userId = user.id!;
+
+  if (typeof tripId !== "string" || !UUID_PATTERN.test(tripId)) {
+    return { status: "error", message: NOT_ON_TRIP_MESSAGE, stale: true };
+  }
+
+  const ownMembership = and(eq(collaborators.tripId, tripId), eq(collaborators.userId, userId));
+
+  const [existingMembership] = await db.select({ id: collaborators.id }).from(collaborators).where(ownMembership);
+  if (!existingMembership) {
+    return { status: "error", message: NOT_ON_TRIP_MESSAGE, stale: true };
+  }
+
+  try {
+    await db.transaction(async (transaction) => {
+      try {
+        await lockTripForUpdate(transaction, tripId);
+      } catch (error) {
+        // Trip deleted between the pre-check and the lock: the caller is no longer on it — stale, not a failure.
+        if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE) {
+          throw new ContributorChangeGuardError(NOT_ON_TRIP_MESSAGE, { stale: true });
+        }
+        throw error;
+      }
+
+      const [membership] = await transaction
+        .select({ id: collaborators.id, role: collaborators.role, isCreator: collaborators.isCreator })
+        .from(collaborators)
+        .where(ownMembership);
+      if (!membership) {
+        throw new ContributorChangeGuardError(NOT_ON_TRIP_MESSAGE, { stale: true });
+      }
+      assertNotCreator(membership, "The trip creator can't leave this trip.", ContributorChangeGuardError);
+      if (membership.role !== CollaboratorRole.Editor && membership.role !== CollaboratorRole.Viewer) {
+        throw new ContributorChangeGuardError("Managers can't leave a trip.");
+      }
+
+      await transaction
+        .delete(collaborators)
+        .where(and(eq(collaborators.id, membership.id), eq(collaborators.userId, userId)));
+    });
+  } catch (error) {
+    if (error instanceof ContributorChangeGuardError) {
+      return { status: "error", message: error.message, stale: error.stale };
+    }
+    throw error;
+  }
+
+  // Personal event first so the leaver's other tabs redirect, then close their trip streams before the
+  // trip-wide broadcast — otherwise those tabs would refresh into a denied page on membership-changed.
+  publishUserEvent(userId, { type: LiveSyncEventType.MembershipLeft, tripId });
+  removeTripSubscribersForUser(tripId, userId);
+  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+  return { status: "success" };
 }
 
 export async function addPackingItem(tripId: string, input: import("@/data/types").AddPackingItemInput): Promise<void> {
