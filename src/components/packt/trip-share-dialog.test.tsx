@@ -1,8 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Collaborator, Invitation } from "@/data/types";
+import { MockEventSource } from "@/lib/live-sync-test-helpers";
+import { resetLiveSyncChannelsForTest } from "@/lib/use-live-sync";
 import { isDismissalPress, TripShareDialog } from "./trip-share-dialog";
+
+// The share dialog joins the trip's live channel to refetch on membership changes; jsdom has no
+// EventSource, so every suite here runs against the shared mock.
+beforeEach(() => {
+  resetLiveSyncChannelsForTest();
+  MockEventSource.instances = [];
+  vi.stubGlobal("EventSource", MockEventSource);
+});
+
+afterEach(() => {
+  resetLiveSyncChannelsForTest();
+  vi.unstubAllGlobals();
+});
 
 const mockGetShareDialogData = vi.fn();
 const mockRescindShareInvitation = vi.fn();

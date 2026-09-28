@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LiveSyncEventType } from "@/data/types";
 import type { Collaborator, Invitation } from "@/data/types";
+import { MockEventSource, tripSource } from "@/lib/live-sync-test-helpers";
+import { resetLiveSyncChannelsForTest } from "@/lib/use-live-sync";
+import { toast } from "sonner";
 import { useTripShareDialogController } from "./use-trip-share-dialog-controller";
 
 const mockGetShareDialogData = vi.fn();
@@ -53,9 +57,36 @@ function createDeferred<T>() {
   return { promise, reject: rejectPromise!, resolve: resolvePromise! };
 }
 
+const editor: Collaborator = {
+  id: "editor-1",
+  email: "editor@example.com",
+  initials: "ED",
+  isCreator: false,
+  name: "Editor",
+  role: "editor",
+};
+
+const acceptedCollaborator: Collaborator = {
+  id: "collaborator-2",
+  email: "pending@example.com",
+  initials: "PE",
+  isCreator: false,
+  name: "Pending Person",
+  role: "viewer",
+};
+
+type ShareData = { collaborators: Collaborator[]; currentCollaboratorId: string | null; invitations: Invitation[] };
+
+function emitTripEvent(type: LiveSyncEventType): void {
+  act(() => tripSource().emitMessage(JSON.stringify({ type, tripId: "trip-1" })));
+}
+
 describe("useTripShareDialogController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetLiveSyncChannelsForTest();
+    MockEventSource.instances = [];
+    vi.stubGlobal("EventSource", MockEventSource);
     mockGetShareDialogData.mockResolvedValue({
       collaborators: [manager],
       currentCollaboratorId: "manager-1",
@@ -66,6 +97,268 @@ describe("useTripShareDialogController", () => {
     mockResendShareInvitation.mockResolvedValue({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
     mockDismissShareInvitation.mockResolvedValue({ status: "success" });
     mockSaveContributorChanges.mockResolvedValue({ status: "success" });
+  });
+
+  afterEach(() => {
+    resetLiveSyncChannelsForTest();
+    vi.unstubAllGlobals();
+  });
+
+  describe("live membership updates", () => {
+    it("joins the trip channel", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(tripSource().url).toBe("/api/trips/trip-1/events");
+    });
+
+    it("refetches on membership-changed so an accepted invitation becomes a collaborator", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      mockGetShareDialogData.mockResolvedValueOnce({
+        collaborators: [manager, acceptedCollaborator],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+
+      await waitFor(() => expect(result.current.data?.collaborators).toEqual([manager, acceptedCollaborator]));
+      expect(result.current.data?.invitations).toEqual([]);
+    });
+
+    it("shows a declined invitation without a reload", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      mockGetShareDialogData.mockResolvedValueOnce({
+        collaborators: [manager],
+        currentCollaboratorId: "manager-1",
+        invitations: [{ ...pendingInvitation, status: "declined" }],
+      });
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+
+      await waitFor(() => expect(result.current.data?.invitations[0]?.status).toBe("declined"));
+    });
+
+    it("drops a collaborator who left and discards changes staged for them", async () => {
+      mockGetShareDialogData.mockResolvedValueOnce({
+        collaborators: [manager, editor],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => {
+        result.current.stageRoleChange(editor, "viewer");
+        result.current.stageRoleChange(manager, "editor");
+      });
+      mockGetShareDialogData.mockResolvedValueOnce({
+        collaborators: [manager],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+
+      await waitFor(() => expect(result.current.data?.collaborators).toEqual([manager]));
+      expect(Object.keys(result.current.stagedChanges)).toEqual(["manager-1"]);
+    });
+
+    it("ignores non-membership trip events", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      emitTripEvent(LiveSyncEventType.ItineraryChanged);
+
+      expect(mockGetShareDialogData).toHaveBeenCalledOnce();
+    });
+
+    it("applies only the latest of overlapping refetches", async () => {
+      const slow = createDeferred<ShareData>();
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      mockGetShareDialogData.mockReturnValueOnce(slow.promise).mockResolvedValueOnce({
+        collaborators: [manager, acceptedCollaborator],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      await waitFor(() => expect(result.current.data?.collaborators).toEqual([manager, acceptedCollaborator]));
+
+      await act(async () => {
+        slow.resolve({
+          collaborators: [manager],
+          currentCollaboratorId: "manager-1",
+          invitations: [pendingInvitation],
+        });
+        await slow.promise;
+      });
+
+      expect(result.current.data?.collaborators).toEqual([manager, acceptedCollaborator]);
+      expect(result.current.data?.invitations).toEqual([]);
+    });
+
+    it("keeps the last good data when a live refetch fails", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      mockGetShareDialogData.mockRejectedValueOnce(new Error("network"));
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
+
+      expect(result.current.data?.invitations).toEqual([pendingInvitation]);
+      expect(result.current.loadError).toBe(false);
+    });
+
+    it("keeps a rescinded invitation hidden when a live refetch still returns it", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await act(async () => result.current.rescindPendingInvitation(pendingInvitation));
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
+
+      expect(result.current.data?.invitations).toEqual([]);
+    });
+
+    it("defers a refetch that arrives mid-save until a failed save settles", async () => {
+      const save = createDeferred<{ status: "error"; message: string }>();
+      mockSaveContributorChanges.mockReturnValue(save.promise);
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.stageRoleChange(manager, "editor"));
+      let savePromise: Promise<void>;
+      act(() => {
+        savePromise = result.current.handleSaveChanges();
+      });
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      expect(mockGetShareDialogData).toHaveBeenCalledOnce();
+
+      await act(async () => {
+        save.resolve({ status: "error", message: "Could not save." });
+        await savePromise!;
+      });
+
+      await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
+    });
+
+    it("ignores a first-load failure once a newer live refetch has succeeded", async () => {
+      const firstLoad = createDeferred<ShareData>();
+      mockGetShareDialogData.mockReset();
+      mockGetShareDialogData.mockReturnValueOnce(firstLoad.promise).mockResolvedValueOnce({
+        collaborators: [manager, acceptedCollaborator],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      await waitFor(() => expect(result.current.data?.collaborators).toEqual([manager, acceptedCollaborator]));
+      await act(async () => {
+        firstLoad.reject(new Error("first load failed"));
+        await firstLoad.promise.catch(() => undefined);
+      });
+
+      expect(result.current.data?.collaborators).toEqual([manager, acceptedCollaborator]);
+      expect(result.current.loadError).toBe(false);
+      expect(result.current.isLoading).toBe(false);
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("reports a load error when the refetch that superseded the first load fails", async () => {
+      const firstLoad = createDeferred<ShareData>();
+      mockGetShareDialogData.mockReset();
+      mockGetShareDialogData.mockReturnValueOnce(firstLoad.promise).mockRejectedValueOnce(new Error("network"));
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      await act(async () => {
+        firstLoad.resolve({ collaborators: [manager], currentCollaboratorId: "manager-1", invitations: [] });
+        await firstLoad.promise;
+      });
+
+      await waitFor(() => expect(result.current.loadError).toBe(true));
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.data).toBeNull();
+    });
+
+    it("does not flag a load error when a superseded invite refetch fails", async () => {
+      const inviteRefetch = createDeferred<ShareData>();
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      mockGetShareDialogData.mockReturnValueOnce(inviteRefetch.promise).mockResolvedValueOnce({
+        collaborators: [manager, acceptedCollaborator],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+
+      act(() => result.current.setEmail("new@example.com"));
+      let invitePromise: Promise<void>;
+      act(() => {
+        invitePromise = result.current.handleInvite();
+      });
+      await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      await waitFor(() => expect(result.current.data?.collaborators).toEqual([manager, acceptedCollaborator]));
+      await act(async () => {
+        inviteRefetch.reject(new Error("network"));
+        await invitePromise!;
+      });
+
+      expect(result.current.loadError).toBe(false);
+    });
+
+    it("replays a membership change missed mid-save when stale recovery fails", async () => {
+      const save = createDeferred<{ status: "error"; message: string; stale: true }>();
+      mockSaveContributorChanges.mockReturnValue(save.promise);
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.stageRoleChange(manager, "editor"));
+      let savePromise: Promise<void>;
+      act(() => {
+        savePromise = result.current.handleSaveChanges();
+      });
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      mockGetShareDialogData.mockRejectedValueOnce(new Error("recovery failed")).mockResolvedValueOnce({
+        collaborators: [manager, acceptedCollaborator],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+
+      await act(async () => {
+        save.resolve({ status: "error", message: "A contributor changed.", stale: true });
+        await savePromise!;
+      });
+
+      await waitFor(() => expect(result.current.data?.collaborators).toEqual([manager, acceptedCollaborator]));
+      expect(mockGetShareDialogData).toHaveBeenCalledTimes(3);
+    });
+
+    it("does not refetch after a successful save closes the dialog", async () => {
+      const save = createDeferred<{ status: "success" }>();
+      mockSaveContributorChanges.mockReturnValue(save.promise);
+      const onRequestClose = vi.fn();
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose, tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.stageRoleChange(manager, "editor"));
+      let savePromise: Promise<void>;
+      act(() => {
+        savePromise = result.current.handleSaveChanges();
+      });
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+      await act(async () => {
+        save.resolve({ status: "success" });
+        await savePromise!;
+      });
+
+      expect(onRequestClose).toHaveBeenCalledOnce();
+      expect(mockGetShareDialogData).toHaveBeenCalledOnce();
+    });
   });
 
   it("suppresses a successfully rescinded invitation from an overlapping refetch", async () => {
