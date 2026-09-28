@@ -102,9 +102,12 @@ components:
     idle-color: "{colors.fg-3}"
     hover-color: "{colors.danger}"
   sync-status-indicator:
-    connected-color: "{colors.fg-4}"
+    connected-visible: false
+    reconnect-grace: "2s"
     reconnecting-color: "{colors.warning}"
     offline-color: "{colors.danger}"
+    position: "fixed bottom-left; clear mobile tab bar/safe area and desktop sidebar"
+    label-surface: "Base UI tooltip on hover, focus, and tap"
   pending-invitations-list:
     row-background: "{colors.surface-2}"
     row-radius: "{rounded.md}"
@@ -123,10 +126,10 @@ The one deliberate new color vocabulary this feature introduces is a **danger re
 
 ## Colors
 
-- **`{colors.accent-brand}`** (teal) — the only "this is actionable/live" signal. Used for the manager role pill, primary buttons in the share dialog (Send Invite, Save), and the connected state of the sync indicator is deliberately *not* teal (see below — connected is the quiet default, not an accent moment).
+- **`{colors.accent-brand}`** (teal) — the only "this is actionable/live" signal. Used for the manager role pill and primary buttons in the share dialog (Send Invite, Save); sync health does not use teal.
 - **`{colors.warning}` family** — repurposed for "pending" states: the pending-invitation badge in the share dialog, and the sync indicator's reconnecting state. Already means "attention, not alarm" from its budget-threshold use elsewhere.
 - **`{colors.danger}` family** — repurposed for irreversible/security actions: remove-contributor controls (on hover, matching `delete-trip-alert-dialog.tsx`'s existing destructive-button pattern), the revocation modal's icon and heading accent, and the sync indicator's offline state.
-- **`{colors.fg-3}` / `{colors.fg-4}`** — the quiet default. The sync indicator's normal "connected" state uses `{colors.fg-4}`, not teal — a working connection is not an event worth an accent color; only its absence (reconnecting/offline) earns one.
+- **`{colors.fg-3}` / `{colors.fg-4}`** — the quiet default for passive supporting text. Connected sync state renders no visible chrome; only reconnecting/offline earn a visible color.
 - **`{colors.surface-2}`** — role pills for editor/viewer and the pending-row background in the share dialog, matching the existing `trip-edit-collaborators.tsx` row treatment.
 
 Avoid: introducing any color not already in the token set above; using `{colors.danger}` for anything reversible (a role change is not danger-toned, only removal and revocation are); using the teal accent decoratively (it means "act on this" or "this is live," never chrome).
@@ -139,7 +142,7 @@ Inherits Packt's existing font-scale system wholesale: every text size is `calc(
 - Share dialog row email / role meta → `{typography.chip-meta}` (11px scaled)
 - Revocation modal title → `{typography.card-title}` (15px scaled)
 - Revocation modal body → `{typography.card-sub}` (13px scaled)
-- Sync status indicator label → `{typography.chip-meta}` (11px scaled), matching other status-bar-scale chrome
+- Sync status tooltip label → existing Base UI tooltip typography; no always-visible status label
 
 ## Layout & Spacing
 
@@ -161,7 +164,7 @@ Inherits Packt's existing radius scale (`{rounded.sm/md/lg/xl}`, base `0.625rem`
 - **Declined-invite badge** — small `{colors.surface-2}`/`{colors.fg-3}` pill reading "Declined," neutral-toned (not the warning or danger register — a decline is an outcome, not something needing the manager's attention the way "pending" or "irreversible" do). Attached to a declined row in the share dialog, paired with a Dismiss control in place of Resend/Rescind.
 - **Revocation modal** — a Base UI `AlertDialog` (not a plain `Dialog` — it has no dismiss-by-backdrop-click, matching `delete-trip-alert-dialog.tsx`'s pattern, because this is a state the user must acknowledge, not a passive notice). Single "OK" action, no Cancel — there is nothing to cancel, the trip is already gone.
 - **Remove control** — a trash icon matching `trip-edit-collaborators.tsx`'s existing icon-button, but its hover color changes from `{colors.fg-3}` to `{colors.danger}` (today's version has no color change on hover — this is the one visual delta the feature adds to that pattern, making the destructive weight of "remove a person's access" legible before the click).
-- **Sync status indicator** — a small text+dot chip in the app's status-bar position (new real estate — no status bar exists in Packt today; see `EXPERIENCE.md.Foundation`). Three states per `{components.sync-status-indicator}`: connected (quiet, `{colors.fg-4}`, easy to ignore), reconnecting (`{colors.warning}`, a pulse animation), offline (`{colors.danger}`, static — a pulse on a persistent problem reads as nagging).
+- **Sync status indicator** — problem-only fixed bottom-left icon. Connected renders no visible element, while a persistently mounted `aria-live` region can announce recovery. Reconnecting appears only after a 2-second grace window as a warning `RefreshCw` icon (pulsing unless reduced motion is requested); offline uses a static danger `WifiOff` icon. Each visible icon sits in a focusable 44×44px trigger with `aria-label` and a Base UI tooltip reachable by hover, keyboard focus, and tap. Mobile positioning clears the bottom tab bar plus safe-area inset; desktop positioning clears the sidebar.
 - **Pending invitations list** (dashboard) — same row shape and tokens as the share dialog's pending-invite row (`{components.share-dialog.pending-row-background}`, `{components.pending-invite-badge}`), each row ending in an Accept button (primary variant) and a Decline button (outline/ghost variant, `{colors.fg-2}` — a plain secondary action, not the danger register, since declining only affects the recipient's own choice, not someone else's access). No new visual language — this is the share dialog's pending row, reused outside the dialog, with a second button.
 - **Nav invitation badge** — the existing `NavItem` component (`src/components/packt/nav-item.tsx`) already has an unused `count` slot, today rendered in `{colors.fg-4}`. When count reflects pending invitations, it's tinted `{colors.nav-invite-badge.color}` (the same warning register as the pending-invite badge) instead of the neutral default — the only visual delta this feature adds to `NavItem`. No new component; a `highlight` boolean on the existing prop set switches the tint.
 
@@ -170,7 +173,7 @@ Inherits Packt's existing radius scale (`{rounded.sm/md/lg/xl}`, base `0.625rem`
 | Do | Don't |
 | --- | --- |
 | Reuse `{colors.warning}`/`{colors.danger}` families from budget UI for pending/destructive states here | Invent a new "sharing" color vocabulary |
-| Keep the sync indicator's connected state visually quiet (`{colors.fg-4}`) | Make a working connection an accent-teal moment |
+| Render no visible sync indicator while connected; announce recovery through the live region | Keep permanent healthy-state chrome or flash reconnecting during a normal handshake |
 | Use `AlertDialog` (no backdrop-dismiss) for the revocation modal | Let a revocation notice be dismissed by clicking outside it |
 | Show a lock icon on the creator's row | Show a disabled/grayed-out trash icon on the creator's row |
 | Match `trip-edit-collaborators.tsx`'s existing row rhythm and icon-button pattern | Introduce a new list-row layout for the share dialog |
