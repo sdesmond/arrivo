@@ -4,14 +4,15 @@ import { LiveSyncEventType } from "@/data/types";
 import { flushMicrotasks, MockEventSource, personalSource, tripSource } from "./live-sync-test-helpers";
 import { useTripLiveRefresh } from "./use-trip-live-refresh";
 
-const { mockRouterPush, mockRouterRefresh, mockToastError } = vi.hoisted(() => ({
+const { mockRouterPush, mockRouterReplace, mockRouterRefresh, mockToastError } = vi.hoisted(() => ({
   mockRouterPush: vi.fn(),
+  mockRouterReplace: vi.fn(),
   mockRouterRefresh: vi.fn(),
   mockToastError: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockRouterPush, refresh: mockRouterRefresh }),
+  useRouter: () => ({ push: mockRouterPush, replace: mockRouterReplace, refresh: mockRouterRefresh }),
 }));
 
 vi.mock("sonner", () => ({
@@ -22,6 +23,7 @@ describe("useTripLiveRefresh", () => {
   beforeEach(() => {
     MockEventSource.instances = [];
     mockRouterPush.mockClear();
+    mockRouterReplace.mockClear();
     mockRouterRefresh.mockClear();
     mockToastError.mockClear();
     vi.stubGlobal("EventSource", MockEventSource);
@@ -279,6 +281,49 @@ describe("useTripLiveRefresh", () => {
     await flushMicrotasks();
 
     expect(onSelfRoleChanged).not.toHaveBeenCalled();
+  });
+
+  it("closes the trip view without a toast or refresh when this user left the trip from another session", async () => {
+    const onSelfRoleChanged = vi.fn();
+    renderHook(() => useTripLiveRefresh("trip-1", onSelfRoleChanged));
+    act(() => personalSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() =>
+      personalSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipLeft, tripId: "trip-1" }))
+    );
+    await flushMicrotasks();
+
+    expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+    expect(mockRouterRefresh).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(onSelfRoleChanged).not.toHaveBeenCalled();
+  });
+
+  it("ignores a personal leave event naming a different trip", async () => {
+    renderHook(() => useTripLiveRefresh("trip-1"));
+    act(() => personalSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() =>
+      personalSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipLeft, tripId: "trip-2" }))
+    );
+    await flushMicrotasks();
+
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect or refresh for a leave frame on the trip channel", async () => {
+    renderHook(() => useTripLiveRefresh("trip-1"));
+    act(() => tripSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() => tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipLeft, tripId: "trip-1" })));
+    await flushMicrotasks();
+
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+    expect(mockRouterRefresh).not.toHaveBeenCalled();
   });
 
   it("does not throw when a personal-channel membership-changed event arrives and onSelfRoleChanged is omitted", async () => {

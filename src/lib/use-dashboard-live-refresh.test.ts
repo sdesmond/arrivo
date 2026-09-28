@@ -124,6 +124,19 @@ describe("useDashboardLiveRefresh", () => {
     expect(mockRouterRefresh).toHaveBeenCalledOnce();
   });
 
+  it("refreshes once when this user left a trip from another session, dropping it from the list", async () => {
+    renderHook(() => useDashboardLiveRefresh());
+    act(() => currentSource().emitOpen());
+    await flushMicrotasks();
+
+    act(() =>
+      currentSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.MembershipLeft, tripId: "trip-1" }))
+    );
+    await flushMicrotasks();
+
+    expect(mockRouterRefresh).toHaveBeenCalledOnce();
+  });
+
   it("collapses a burst of membership changes into one refresh", async () => {
     renderHook(() => useDashboardLiveRefresh());
     act(() => currentSource().emitOpen());

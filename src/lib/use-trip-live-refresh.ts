@@ -28,7 +28,8 @@ const REFRESH_EVENT_TYPES = new Set<LiveSyncEventType>([
  * collaborator, used only to trigger a refresh), a personal-channel `membership-changed` is
  * inherently self-targeted — `saveContributorChanges` publishes it only to the affected user's own
  * channel — so `onSelfRoleChanged`, when given, fires immediately rather than waiting for the
- * refresh's round trip to correct role-gated UI.
+ * refresh's round trip to correct role-gated UI. A personal `membership-left` naming this trip
+ * means the user left it themselves elsewhere, so the view closes back to the trips list.
  */
 export function useTripLiveRefresh(tripId: string, onSelfRoleChanged?: () => void): void {
   const router = useRouter();
@@ -46,8 +47,13 @@ export function useTripLiveRefresh(tripId: string, onSelfRoleChanged?: () => voi
   useLiveRefresh(`/api/trips/${tripId}/events`, (event) => REFRESH_EVENT_TYPES.has(event.type), handleEvent);
 
   useLiveSync(undefined, (event) => {
-    if (event.type === LiveSyncEventType.MembershipChanged && event.tripId === tripId) {
+    if (event.tripId !== tripId) return;
+    if (event.type === LiveSyncEventType.MembershipChanged) {
       onSelfRoleChangedRef.current?.();
+    } else if (event.type === LiveSyncEventType.MembershipLeft) {
+      // This user left the trip themselves (from this tab or another one). No toast — the acting tab
+      // already confirmed it — and no refresh, which would only land on a denied page.
+      router.replace("/trips");
     }
   });
 }
