@@ -215,8 +215,8 @@ action_items:
       gate on getContributorsAndInvitations/getShareDialogData. User flagged this
       needs more design discussion before being scoped into a story."
     owner: "PM/UX discussion, then next implementer"
-    status: open
-    ref: ""
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-self-service-leave-trip.md"
   - id: "epic-4-retro-item-18-removetripsubscribersforuser-purgetripto"
     epic: 4
     action: "removeTripSubscribersForUser/purgeTripTopic (trip-events.ts) must close
