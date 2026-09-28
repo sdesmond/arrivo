@@ -1612,6 +1612,14 @@ describe("inviteContributor", () => {
         },
       ]);
       expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+      expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
+        type: LiveSyncEventType.InvitationChanged,
+        tripId: "trip-1",
+      });
+      expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
+        type: LiveSyncEventType.MembershipChanged,
+        tripId: "trip-1",
+      });
     } finally {
       vi.useRealTimers();
     }
@@ -1642,6 +1650,14 @@ describe("inviteContributor", () => {
         values: expect.objectContaining({ role: "editor", expiresAt: expect.any(Date) }),
       },
     ]);
+    expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
+      type: LiveSyncEventType.InvitationChanged,
+      tripId: "trip-1",
+    });
+    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("replaces a declined invitation with a new pending invitation", async () => {
@@ -1669,6 +1685,8 @@ describe("inviteContributor", () => {
 
     expect(operations.inserts).toEqual([]);
     expect(operations.updates).toEqual([]);
+    expect(publishUserEvent).not.toHaveBeenCalled();
+    expect(publishTripEvent).not.toHaveBeenCalled();
   });
 
   it("returns an error without writing when manager invites themself", async () => {
@@ -1842,6 +1860,10 @@ describe("acceptInvitation", () => {
       type: LiveSyncEventType.MembershipChanged,
       tripId: "trip-1",
     });
+    expect(publishUserEvent).toHaveBeenCalledWith("user-1", {
+      type: LiveSyncEventType.InvitationChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("returns an expired error and creates no collaborator when the invitation is past expiresAt", async () => {
@@ -1991,6 +2013,10 @@ describe("declineInvitation", () => {
       type: LiveSyncEventType.MembershipChanged,
       tripId: "trip-1",
     });
+    expect(publishUserEvent).toHaveBeenCalledWith("user-1", {
+      type: LiveSyncEventType.InvitationChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("returns a generic error when the invitation is already resolved", async () => {
@@ -2073,14 +2099,14 @@ interface RescindInvitationFixture {
   // The row the atomic UPDATE would have matched — present only when the invitation truly is
   // `pending` and belongs to `tripId`, mirroring the real `WHERE id = ? AND tripId = ? AND status =
   // 'pending'` predicate rather than an independently-asserted outcome.
-  matchedRow?: { id: string; tripId: string; status: InvitationStatus } | null;
+  matchedRow?: { id: string; tripId: string; status: InvitationStatus; email?: string } | null;
   // The row the post-failure diagnostic SELECT would find, used only to pick between "not found"
   // (missing or wrong trip) and "no longer pending" (right trip, wrong status).
   diagnosticRow?: { id: string; tripId: string } | null;
 }
 
 interface DismissInvitationFixture {
-  matchedRow?: { id: string; tripId: string; status: InvitationStatus } | null;
+  matchedRow?: { id: string; tripId: string; status: InvitationStatus; email?: string } | null;
   diagnosticRow?: { id: string; tripId: string } | null;
 }
 
@@ -2130,6 +2156,7 @@ function setupRescindInvitationDb({ matchedRow = null, diagnosticRow = null }: R
     from: (table: unknown) => ({
       where: async () => {
         if (table === invitations) return diagnosticRow ? [diagnosticRow] : [];
+        if (table === users) return [{ id: "invitee-1" }];
         throw new Error("Unexpected table read in rescind fixture.");
       },
     }),
@@ -2147,7 +2174,7 @@ describe("rescindInvitation", () => {
 
   it("rescinds a pending invitation belonging to the managed trip", async () => {
     const operations = setupRescindInvitationDb({
-      matchedRow: { id: "invite-1", tripId: "trip-1", status: "rescinded" },
+      matchedRow: { id: "invite-1", tripId: "trip-1", status: "rescinded", email: "invitee@example.com" },
     });
 
     await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
@@ -2162,7 +2189,30 @@ describe("rescindInvitation", () => {
       type: LiveSyncEventType.MembershipChanged,
       tripId: "trip-1",
     });
+    expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
+      type: LiveSyncEventType.InvitationChanged,
+      tripId: "trip-1",
+    });
+  });
+
+  it("still succeeds and revalidates when notifying the invitee fails after the rescind commits", async () => {
+    setupRescindInvitationDb({
+      matchedRow: { id: "invite-1", tripId: "trip-1", status: "pending", email: "invitee@example.com" },
+    });
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    db.select.mockReturnValue({
+      from: () => ({
+        where: async () => {
+          throw new Error("pool exhausted");
+        },
+      }),
+    });
+
+    await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
+
+    expect(revalidatePath).toHaveBeenCalledWith("/trips");
     expect(publishUserEvent).not.toHaveBeenCalled();
+    consoleWarnSpy.mockRestore();
   });
 
   it.each(["rescinded", "accepted", "declined"])("rejects an already-%s invitation", async () => {
@@ -2240,6 +2290,10 @@ describe("dismissInvitation", () => {
     expect(deletionCondition).toContain("pending");
     expect(deletionCondition).toContain("trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("rejects a pending invitation without deletion success or revalidation", async () => {

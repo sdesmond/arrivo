@@ -43,7 +43,13 @@ import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE } from "@/lib/server-action-locks";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
-import { applyInvitationResend, getInvitationExpiry, hasNormalizedEmail, normalizeEmail } from "@/lib/invitations";
+import {
+  applyInvitationResend,
+  getInvitationExpiry,
+  hasNormalizedEmail,
+  normalizeEmail,
+  publishInvitationChanged,
+} from "@/lib/invitations";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
@@ -765,6 +771,10 @@ export async function inviteContributor(
   });
 
   if (result.status !== "error") {
+    // Invitee's personal channel refreshes their dashboard/badge; the trip channel lets another
+    // manager's open share dialog pick up the new pending row.
+    publishUserEvent(invitee.id, { type: LiveSyncEventType.InvitationChanged, tripId });
+    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
     revalidatePath(`/trips/${tripId}`);
   }
   return result;
@@ -857,6 +867,8 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
     tripId: matchedInvitation.tripId,
   });
   publishUserEvent(user.id, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
+  // The acting user's other tabs drop the invitation from their sidebar badge.
+  publishUserEvent(user.id, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${matchedInvitation.tripId}`);
@@ -894,6 +906,7 @@ export async function declineInvitation(invitationId: string): Promise<DeclineIn
     tripId: matchedInvitation.tripId,
   });
   publishUserEvent(user.id!, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
+  publishUserEvent(user.id!, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${matchedInvitation.tripId}`);
@@ -919,6 +932,7 @@ export async function rescindInvitation(tripId: string, invitationId: string): P
   }
 
   publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+  await publishInvitationChanged(rescindedInvitation.email, tripId);
   revalidatePath("/trips");
 
   return { status: "success" };
@@ -940,6 +954,7 @@ export async function dismissInvitation(tripId: string, invitationId: string): P
     return { status: "error", message };
   }
 
+  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
   revalidatePath("/trips");
 
   return { status: "success" };

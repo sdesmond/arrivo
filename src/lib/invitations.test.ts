@@ -4,10 +4,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { mockAssertTripAccess, mockDbSelect, mockDbUpdate } = vi.hoisted(() => ({
-  mockAssertTripAccess: vi.fn(),
-  mockDbSelect: vi.fn(),
-  mockDbUpdate: vi.fn(),
+const { mockAssertTripAccess, mockDbSelect, mockDbUpdate, mockPublishTripEvent, mockPublishUserEvent } = vi.hoisted(
+  () => ({
+    mockAssertTripAccess: vi.fn(),
+    mockDbSelect: vi.fn(),
+    mockDbUpdate: vi.fn(),
+    mockPublishTripEvent: vi.fn(),
+    mockPublishUserEvent: vi.fn(),
+  })
+);
+
+vi.mock("@/lib/trip-events", () => ({
+  publishTripEvent: mockPublishTripEvent,
+  publishUserEvent: mockPublishUserEvent,
 }));
 
 vi.mock("@/db", () => ({
@@ -35,8 +44,15 @@ vi.mock("@/db/schema", () => ({
   users: { id: "users.id", name: "users.name", email: "users.email" },
 }));
 
-import { getMyPendingInvitations, hasNormalizedEmail, normalizeEmail, resendInvitation } from "@/lib/invitations";
+import {
+  getMyPendingInvitations,
+  hasNormalizedEmail,
+  normalizeEmail,
+  publishInvitationChanged,
+  resendInvitation,
+} from "@/lib/invitations";
 import { users } from "@/db/schema";
+import { LiveSyncEventType } from "@/data/types";
 
 describe("normalizeEmail", () => {
   it("trims surrounding whitespace and lowercases email addresses", () => {
@@ -143,13 +159,16 @@ describe("resendInvitation", () => {
     matchedRow = null,
     diagnosticRow = null,
   }: {
-    matchedRow?: { id: string; tripId: string } | null;
+    matchedRow?: { id: string; email: string } | null;
     diagnosticRow?: { id: string; tripId: string } | null;
   } = {}) {
     const updates: Array<{ values: unknown; condition: unknown }> = [];
     mockDbSelect.mockReturnValue({
-      from: () => ({
-        where: async () => (diagnosticRow ? [diagnosticRow] : []),
+      from: (table: unknown) => ({
+        where: async () => {
+          if (table === users) return [{ id: "invitee-1" }];
+          return diagnosticRow ? [diagnosticRow] : [];
+        },
       }),
     });
 
@@ -170,7 +189,7 @@ describe("resendInvitation", () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
     const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000);
-    const { updates } = setupResendInvitationDb({ matchedRow: { id: "invite-1", tripId: "trip-1" } });
+    const { updates } = setupResendInvitationDb({ matchedRow: { id: "invite-1", email: "invitee@example.com" } });
 
     await expect(resendInvitation("invite-1", "trip-1", "manager-1")).resolves.toEqual({
       status: "success",
@@ -185,6 +204,14 @@ describe("resendInvitation", () => {
       }),
     ]);
     expect(inspect(updates[0]?.condition, { depth: 8 })).toContain("pending");
+    expect(mockPublishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
+      type: LiveSyncEventType.InvitationChanged,
+      tripId: "trip-1",
+    });
+    expect(mockPublishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-1",
+    });
     vi.useRealTimers();
   });
 
@@ -198,6 +225,8 @@ describe("resendInvitation", () => {
 
     expect(updates).toHaveLength(1);
     expect(inspect(updates[0]?.condition, { depth: 8 })).toContain("pending");
+    expect(mockPublishUserEvent).not.toHaveBeenCalled();
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
   });
 
   it("rejects a missing invitation", async () => {
@@ -225,5 +254,61 @@ describe("resendInvitation", () => {
 
     expect(mockDbUpdate).not.toHaveBeenCalled();
     expect(mockDbSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe("publishInvitationChanged", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mockUserLookup(rows: Array<{ id: string }>) {
+    const conditions: unknown[] = [];
+    mockDbSelect.mockReturnValue({
+      from: () => ({
+        where: async (condition: unknown) => {
+          conditions.push(condition);
+          return rows;
+        },
+      }),
+    });
+    return conditions;
+  }
+
+  it("publishes invitation-changed to the invitee's personal channel", async () => {
+    const conditions = mockUserLookup([{ id: "invitee-1" }]);
+
+    await publishInvitationChanged("  Invitee@Example.com ", "trip-1");
+
+    expect(inspect(conditions[0], { depth: 8 })).toContain("invitee@example.com");
+    expect(mockPublishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
+      type: LiveSyncEventType.InvitationChanged,
+      tripId: "trip-1",
+    });
+  });
+
+  it("swallows a failed lookup so a committed mutation never fails on its notification", async () => {
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockDbSelect.mockReturnValue({
+      from: () => ({
+        where: async () => {
+          throw new Error("pool exhausted");
+        },
+      }),
+    });
+
+    await expect(publishInvitationChanged("invitee@example.com", "trip-1")).resolves.toBeUndefined();
+
+    expect(mockPublishUserEvent).not.toHaveBeenCalled();
+    expect(consoleWarnSpy).toHaveBeenCalled();
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("publishes nothing when no account matches the email", async () => {
+    mockUserLookup([]);
+
+    await publishInvitationChanged("ghost@example.com", "trip-1");
+
+    expect(mockPublishUserEvent).not.toHaveBeenCalled();
   });
 });

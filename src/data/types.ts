@@ -686,6 +686,8 @@ export const LiveSyncEventType = {
   // Personal-channel only: the signed-in user left a trip themselves (from another tab or this one).
   // Distinct from MembershipRemoved, whose modal claims a manager removed them.
   MembershipLeft: "membership-left",
+  // Personal-channel only: an invitation addressed to this user was created, resent or rescinded.
+  InvitationChanged: "invitation-changed",
   TripDeleted: "trip-deleted",
 } as const;
 export type LiveSyncEventType = (typeof LiveSyncEventType)[keyof typeof LiveSyncEventType];
@@ -709,6 +711,7 @@ export type LiveSyncEvent =
       removedByEmail: string;
     }
   | { type: typeof LiveSyncEventType.MembershipLeft; tripId: string }
+  | { type: typeof LiveSyncEventType.InvitationChanged; tripId: string }
   | { type: typeof LiveSyncEventType.TripDeleted; tripId: string };
 
 // ─────────────────────────────────────────────────────────────────────────────
