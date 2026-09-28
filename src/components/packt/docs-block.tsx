@@ -6,7 +6,8 @@ import { EventDocRow } from "./event-doc-row";
 
 export interface DocsBlockProps {
   docs: Document[];
-  onAdd: () => void;
+  /** Omitted for a read-only viewer, which hides Add doc. */
+  onAdd?: () => void;
 }
 
 export function DocsBlock({ docs, onAdd }: DocsBlockProps) {
@@ -29,23 +30,25 @@ export function DocsBlock({ docs, onAdd }: DocsBlockProps) {
         {docs.map((doc) => (
           <EventDocRow key={doc.id} doc={doc} />
         ))}
-        <button
-          onClick={onAdd}
-          className="flex items-center gap-1.5 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-surface-2 w-full"
-          style={{
-            fontSize: "calc(12px * var(--font-scale))",
-            color: "var(--fg-4)",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            borderTop: docs.length > 0 ? "1px solid var(--line)" : "none",
-            marginTop: docs.length > 0 ? 4 : 0,
-            paddingTop: docs.length > 0 ? 8 : 4,
-          }}
-        >
-          <Paperclip size={12} strokeWidth={1.5} aria-hidden="true" />
-          Add doc
-        </button>
+        {onAdd && (
+          <button
+            onClick={onAdd}
+            className="flex items-center gap-1.5 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-surface-2 w-full"
+            style={{
+              fontSize: "calc(12px * var(--font-scale))",
+              color: "var(--fg-4)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              borderTop: docs.length > 0 ? "1px solid var(--line)" : "none",
+              marginTop: docs.length > 0 ? 4 : 0,
+              paddingTop: docs.length > 0 ? 8 : 4,
+            }}
+          >
+            <Paperclip size={12} strokeWidth={1.5} aria-hidden="true" />
+            Add doc
+          </button>
+        )}
       </div>
     </div>
   );

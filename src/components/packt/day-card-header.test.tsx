@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { DayCardHeader } from "./day-card-header";
+import { TripEditAccessProvider } from "./trip-edit-access";
 
 const baseProps = {
   dateDisplay: "Wed, May 13",
@@ -135,5 +136,41 @@ describe("DayCardHeader", () => {
     subtitleBtn.focus();
     await user.keyboard(" ");
     expect(screen.getByDisplayValue("Test")).toBeInTheDocument();
+  });
+});
+
+describe("DayCardHeader for a viewer", () => {
+  function renderAsViewer(props: Partial<React.ComponentProps<typeof DayCardHeader>> = {}) {
+    return render(
+      <TripEditAccessProvider canEdit={false}>
+        <DayCardHeader {...baseProps} onRemove={vi.fn()} {...props} />
+      </TripEditAccessProvider>
+    );
+  }
+
+  it("shows the day note as text that cannot be edited", async () => {
+    const user = userEvent.setup();
+    renderAsViewer();
+    expect(screen.queryByRole("button", { name: "Exploring the city" })).not.toBeInTheDocument();
+    await user.click(screen.getByText("Exploring the city"));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("offers no Add a note prompt when the day has no note", () => {
+    renderAsViewer({ subtitle: undefined });
+    expect(screen.queryByText("Add a note")).not.toBeInTheDocument();
+  });
+
+  it("hides Remove day", () => {
+    renderAsViewer();
+    expect(screen.queryByRole("button", { name: "Remove day" })).not.toBeInTheDocument();
+  });
+
+  it("still expands and collapses the day", async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    renderAsViewer({ onToggle });
+    await user.click(screen.getByRole("button", { expanded: true }));
+    expect(onToggle).toHaveBeenCalledOnce();
   });
 });

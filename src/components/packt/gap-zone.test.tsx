@@ -39,6 +39,7 @@ vi.mock("./type-picker", () => ({
 }));
 
 import { GapZone } from "./gap-zone";
+import { TripEditAccessProvider } from "./trip-edit-access";
 
 describe("GapZone", () => {
   it("renders the insert button in inactive state", () => {
@@ -76,5 +77,18 @@ describe("GapZone", () => {
     render(<GapZone gapKey="ti-0" isActive={true} onOpen={vi.fn()} onSelectType={vi.fn()} onDismiss={onDismiss} />);
     await user.click(screen.getByTitle("dismiss"));
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+});
+
+describe("GapZone for a viewer", () => {
+  it("keeps the spacing between items but offers no insert control", () => {
+    const { container } = render(
+      <TripEditAccessProvider canEdit={false}>
+        <GapZone gapKey="ti-0" isActive onOpen={vi.fn()} onSelectType={vi.fn()} onDismiss={vi.fn()} />
+      </TripEditAccessProvider>
+    );
+    expect(screen.queryByTitle("Insert item here")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("type-picker")).not.toBeInTheDocument();
+    expect(container).not.toBeEmptyDOMElement();
   });
 });

@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { TypePicker } from "./type-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ItineraryItemType } from "@/data/types";
+import { useCanEditTrip } from "./trip-edit-access";
 
 export interface DayCardBottomAddProps {
   dayNumber: number;
@@ -24,6 +25,9 @@ export function DayCardBottomAdd({
   closeGap,
   onOpenPackingListPicker,
 }: DayCardBottomAddProps) {
+  const canEdit = useCanEditTrip();
+  if (!canEdit) return null;
+
   return (
     <Popover open={openGapKey === "bottom"} onOpenChange={(open) => (open ? openGap("bottom") : closeGap())}>
       <div className="mt-1">

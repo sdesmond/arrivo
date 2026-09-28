@@ -19,6 +19,7 @@ vi.mock("lucide-react", async (importOriginal) => {
 });
 
 import { ChecklistItem } from "./checklist-item";
+import { TripEditAccessProvider } from "./trip-edit-access";
 import type { Checklist } from "@/data/types";
 
 const BASE_CHECKLIST: Checklist = {
@@ -676,5 +677,57 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
       <ChecklistItem checklist={BASE_CHECKLIST} isDraft dragHandle={<span data-testid="drag-handle">grip</span>} />
     );
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+  });
+});
+
+describe("ChecklistItem for a viewer", () => {
+  const titledWithItems: Checklist = { ...CHECKLIST_WITH_ITEMS, title: "Packing list" };
+
+  function renderAsViewer(props: Partial<React.ComponentProps<typeof ChecklistItem>> = {}) {
+    return render(
+      <TripEditAccessProvider canEdit={false}>
+        <ChecklistItem checklist={titledWithItems} initiallyExpanded {...props} />
+      </TripEditAccessProvider>
+    );
+  }
+
+  it("shows the title and items as text without add, edit or delete controls", async () => {
+    const user = userEvent.setup();
+    renderAsViewer({ dragHandle: <span data-testid="drag-handle">drag</span> });
+
+    expect(screen.getByText("Packing list")).toBeInTheDocument();
+    expect(screen.getByText("Sunscreen")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Delete checklist")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Delete item")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Packing list"));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("offers no Add title prompt for an untitled checklist", () => {
+    renderAsViewer({ checklist: CHECKLIST_WITH_ITEMS });
+    expect(screen.queryByText("Add title...")).not.toBeInTheDocument();
+  });
+
+  it("disables the item checkboxes", () => {
+    renderAsViewer();
+    for (const checkbox of screen.getAllByRole("button", { name: "Check item" })) {
+      expect(checkbox).toBeDisabled();
+    }
+  });
+
+  it("never deletes an empty checklist when focus leaves it", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(
+      <TripEditAccessProvider canEdit={false}>
+        <ChecklistItem checklist={BASE_CHECKLIST} onDelete={onDelete} />
+        <button>elsewhere</button>
+      </TripEditAccessProvider>
+    );
+    await user.click(screen.getByRole("button", { name: /checklist/i }));
+    await user.click(screen.getByRole("button", { name: "elsewhere" }));
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

@@ -31,3 +31,17 @@ Feature: Viewer Trip Access
     When I navigate to the trips list
     And I open trip options for "Cairo Expedition"
     Then I see "Edit trip"
+
+  Scenario: A viewer sees the itinerary read-only
+    Given I am a viewer on "Hakone Retreat" owned by "Ada Lovelace" with a planned day
+    When I go to the shared trip
+    And I open the first itinerary day
+    Then I see the event "Tea ceremony" with its time and location but no cost
+    And clicking the time of "Tea ceremony" opens no dialog
+    And I see no itinerary edit controls
+
+  Scenario: An editor still sees the itinerary edit controls
+    Given I am an editor on "Osaka Food Tour" owned by "Bo Nilsen" with a planned day
+    When I go to the shared trip
+    And I open the first itinerary day
+    Then I see the itinerary edit controls

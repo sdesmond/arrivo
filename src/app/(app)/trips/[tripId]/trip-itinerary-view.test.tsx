@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { DayItinerary, TransitMode } from "@/data/types";
+import { TripEditAccessProvider } from "@/components/packt/trip-edit-access";
 import { TripItineraryView, type TripItineraryViewProps } from "./trip-itinerary-view";
 
 interface MockDayCardProps {
@@ -330,5 +331,32 @@ describe("TripItineraryView", () => {
     expect(dayCard).toHaveAttribute("data-trip-id", "");
     expect(dayCard).toHaveAttribute("data-trip-transit-mode", "");
     expect(dayCard).toHaveAttribute("data-walk-threshold-meters", "");
+  });
+});
+
+describe("TripItineraryView for a viewer", () => {
+  function renderAsViewer(props: TripItineraryViewProps) {
+    return render(
+      <TripEditAccessProvider canEdit={false}>
+        <TripItineraryView {...props} />
+      </TripEditAccessProvider>
+    );
+  }
+
+  it("hides Add Day and the last day's remove control", () => {
+    renderAsViewer(buildProps([dayOne, dayTwo]));
+    expect(screen.queryByRole("button", { name: "Add Day" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Day 2" })).not.toBeInTheDocument();
+    expect(screen.getByText("Day 2")).toBeInTheDocument();
+  });
+
+  it("hides Set trip dates on a dateless trip", () => {
+    renderAsViewer(buildProps([], { isDateless: true }));
+    expect(screen.queryByRole("button", { name: /set trip dates/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the add-reservation prompt", () => {
+    renderAsViewer(buildProps([dayOne]));
+    expect(screen.queryByRole("button", { name: /opens the Reservations tab/ })).not.toBeInTheDocument();
   });
 });

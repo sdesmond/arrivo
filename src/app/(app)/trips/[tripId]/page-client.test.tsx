@@ -113,45 +113,52 @@ vi.mock("./trip-detail-hero", () => ({
   },
 }));
 
-vi.mock("./trip-detail-tab-body", () => ({
-  TripDetailTabBody: ({
-    activeTab,
-    highlightedEventId,
-    walkThresholdMeters,
-    onActivateReservationsCta,
-    onLinkedEventTap,
-    onOpenEditDates,
-    onOpenMapTab,
-  }: {
-    activeTab: string;
-    highlightedEventId?: string | null;
-    walkThresholdMeters?: number | null;
-    onActivateReservationsCta: () => void;
-    onLinkedEventTap: (reservationId: string) => void;
-    onOpenEditDates: () => void;
-    onOpenMapTab?: (dayNumber: number) => void;
-  }) => {
-    // Stands in for a dialog the tab components own themselves (cost, location, delete-event, doc
-    // viewer, …). The page can only close those by unmounting this subtree, so this local state is
-    // what proves the revocation `key` remount actually discards them.
-    const [childDialogOpen, setChildDialogOpen] = useState(false);
-    return (
-      <div
-        data-testid="trip-detail-tab-body"
-        data-highlighted-event-id={highlightedEventId ?? ""}
-        data-walk-threshold-meters={walkThresholdMeters ?? ""}
-      >
-        {activeTab}
-        <button onClick={onActivateReservationsCta}>Activate CTA</button>
-        <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
-        <button onClick={onOpenEditDates}>Open edit dates</button>
-        {onOpenMapTab && <button onClick={() => onOpenMapTab(3)}>Open map tab for day 3</button>}
-        <button onClick={() => setChildDialogOpen(true)}>Open child dialog</button>
-        {childDialogOpen && <div data-testid="tab-child-dialog" />}
-      </div>
-    );
-  },
-}));
+vi.mock("./trip-detail-tab-body", async () => {
+  const { useCanEditTrip } = await vi.importActual<typeof import("@/components/packt/trip-edit-access")>(
+    "@/components/packt/trip-edit-access"
+  );
+  return {
+    TripDetailTabBody: ({
+      activeTab,
+      highlightedEventId,
+      walkThresholdMeters,
+      onActivateReservationsCta,
+      onLinkedEventTap,
+      onOpenEditDates,
+      onOpenMapTab,
+    }: {
+      activeTab: string;
+      highlightedEventId?: string | null;
+      walkThresholdMeters?: number | null;
+      onActivateReservationsCta: () => void;
+      onLinkedEventTap: (reservationId: string) => void;
+      onOpenEditDates: () => void;
+      onOpenMapTab?: (dayNumber: number) => void;
+    }) => {
+      // Stands in for a dialog the tab components own themselves (cost, location, delete-event, doc
+      // viewer, …). The page can only close those by unmounting this subtree, so this local state is
+      // what proves the revocation `key` remount actually discards them.
+      const [childDialogOpen, setChildDialogOpen] = useState(false);
+      const canEditTrip = useCanEditTrip();
+      return (
+        <div
+          data-testid="trip-detail-tab-body"
+          data-can-edit-trip={String(canEditTrip)}
+          data-highlighted-event-id={highlightedEventId ?? ""}
+          data-walk-threshold-meters={walkThresholdMeters ?? ""}
+        >
+          {activeTab}
+          <button onClick={onActivateReservationsCta}>Activate CTA</button>
+          <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
+          <button onClick={onOpenEditDates}>Open edit dates</button>
+          {onOpenMapTab && <button onClick={() => onOpenMapTab(3)}>Open map tab for day 3</button>}
+          <button onClick={() => setChildDialogOpen(true)}>Open child dialog</button>
+          {childDialogOpen && <div data-testid="tab-child-dialog" />}
+        </div>
+      );
+    },
+  };
+});
 
 vi.mock("@/components/packt/trip-confetti", () => ({
   TripConfetti: ({ tripId }: { tripId: string }) => tripConfettiMock({ tripId }),
@@ -981,6 +988,38 @@ describe("TripDetailClient", () => {
     await user.click(screen.getByRole("button", { name: "Open edit dates" }));
 
     expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "true");
+  });
+
+  it.each([
+    ["viewer", false],
+    ["editor", true],
+    ["manager", true],
+  ] as const)("tells the tab body whether a %s may edit the itinerary", (accessRole, canEditTrip) => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveAttribute("data-can-edit-trip", String(canEditTrip));
+  });
+
+  it("never opens the trip edit sheet for a viewer, even if the tab body asks", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open edit dates" }));
+
+    expect(screen.queryByTestId("trip-edit-sheet")).not.toBeInTheDocument();
   });
 
   it("opens the trip edit sheet without highlighting dates when edited via the hero pencil", async () => {

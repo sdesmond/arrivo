@@ -5,16 +5,6 @@ import type { ReactElement } from "react";
 import { CalendarDays, Plus } from "lucide-react";
 import { DayCard } from "@/components/packt/day-card";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { PackingListPickerDialog } from "@/components/packt/packing-list-picker-dialog";
 import { ItineraryCta } from "@/components/packt/itinerary-cta";
 import type {
@@ -26,7 +16,9 @@ import type {
   PackingTemplate,
   TransitMode,
 } from "@/data/types";
+import { useCanEditTrip } from "@/components/packt/trip-edit-access";
 import { UnscheduledEventsSection } from "./unscheduled-events-section";
+import { RemoveLastDayDialog } from "./remove-last-day-dialog";
 
 export interface TripItineraryViewProps {
   days: DayItinerary[];
@@ -130,6 +122,7 @@ export function TripItineraryView({
   tripTransitMode,
   walkThresholdMeters,
 }: TripItineraryViewProps): ReactElement {
+  const canEdit = useCanEditTrip();
   const [removalConfirmation, setRemovalConfirmation] = useState<RemovalConfirmation | null>(null);
   const [initialRenderDayCount] = useState(() => days.length);
   const [pickerState, setPickerState] = useState<PickerState | null>(null);
@@ -166,7 +159,7 @@ export function TripItineraryView({
   return (
     <>
       <div>
-        {isDateless && (
+        {canEdit && isDateless && (
           <div className="flex items-center mb-4">
             <Button
               variant="outline"
@@ -192,9 +185,9 @@ export function TripItineraryView({
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
         />
-        <ItineraryCta reservationCount={reservationCount} onActivate={onActivateReservationsCta} />
+        {canEdit && <ItineraryCta reservationCount={reservationCount} onActivate={onActivateReservationsCta} />}
         {days.map((day, index) => {
-          const canRemove = days.length > 1 && day.dayNumber === lastDay?.dayNumber;
+          const canRemove = canEdit && days.length > 1 && day.dayNumber === lastDay?.dayNumber;
           const dayCard = (
             <DayCard
               key={day.dayNumber}
@@ -248,10 +241,12 @@ export function TripItineraryView({
             </div>
           );
         })}
-        <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
-          <Plus data-icon="inline-start" strokeWidth={1.5} />
-          {addingDay ? "Adding Day..." : "Add Day"}
-        </Button>
+        {canEdit && (
+          <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
+            <Plus data-icon="inline-start" strokeWidth={1.5} />
+            {addingDay ? "Adding Day..." : "Add Day"}
+          </Button>
+        )}
       </div>
 
       <PackingListPickerDialog
@@ -262,25 +257,12 @@ export function TripItineraryView({
         onSelect={handlePickerSelect}
       />
 
-      <AlertDialog
+      <RemoveLastDayDialog
         open={removalConfirmation !== null}
-        onOpenChange={(open) => {
-          if (!open) setRemovalConfirmation(null);
-        }}
-      >
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Day</AlertDialogTitle>
-            <AlertDialogDescription>Planned content will be deleted from this day.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removingDay}>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={removingDay} onClick={confirmLastDayRemoval}>
-              {removingDay ? "Removing Day..." : "Remove Day"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        removingDay={removingDay}
+        onCancel={() => setRemovalConfirmation(null)}
+        onConfirm={confirmLastDayRemoval}
+      />
     </>
   );
 }

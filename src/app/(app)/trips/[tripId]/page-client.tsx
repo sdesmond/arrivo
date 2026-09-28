@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
+import { TripEditAccessProvider } from "@/components/packt/trip-edit-access";
 import { TripDetailTabBar } from "./trip-detail-tab-bar";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
-import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { TripShareDialog } from "@/components/packt/trip-share-dialog";
-import { LeaveTripAlertDialog } from "@/components/packt/leave-trip-alert-dialog";
-import { toast } from "sonner";
-import { leaveTrip } from "@/app/(app)/trips/actions";
+import { TripDetailDialogs } from "./trip-detail-dialogs";
+import { useLeaveTrip } from "./use-leave-trip";
 import { BudgetStatus, CollaboratorRole, LiveSyncEventType, TripDetailTab } from "@/data/types";
 import {
   calculateActual,
@@ -105,18 +103,11 @@ export function TripDetailClient({
 
   const [dialogResetNonce, setDialogResetNonce] = useState(0);
 
-  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
-  const [isLeaving, setIsLeaving] = useState(false);
-  const [leaveError, setLeaveError] = useState<string | null>(null);
-  // Bumped when a force-close supersedes an in-flight leave, so its late result can't write stale dialog state.
-  const leaveAttemptRef = useRef(0);
+  const leave = useLeaveTrip({ tripId: trip.id, tripName: trip.name });
 
   function forceCloseRoleGatedDialogs(): void {
     setSharingTrip(false);
-    leaveAttemptRef.current += 1;
-    setLeaveDialogOpen(false);
-    setIsLeaving(false);
-    setLeaveError(null);
+    leave.forceCloseLeaveDialog();
     setEditingTrip(false);
     setPendingTripPatch(null);
     setPendingCurrencyChangeMode(undefined);
@@ -131,7 +122,7 @@ export function TripDetailClient({
 
   const tabs = accessRole === CollaboratorRole.Viewer ? TABS.filter((tab) => tab.id !== TripDetailTab.Budget) : TABS;
   const canManage = accessRole === CollaboratorRole.Manager;
-  const canEditBudget = accessRole !== CollaboratorRole.Viewer;
+  const canEditTrip = accessRole !== CollaboratorRole.Viewer;
 
   const hasBudget = !!trip.budget && (trip.budget.total ?? 0) > 0 && !!trip.budget.currency;
   const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
@@ -171,13 +162,16 @@ export function TripDetailClient({
     revocationTicket.type === LiveSyncEventType.MembershipRemoved &&
     revocationTicket.tripId === trip.id;
 
+  // Reads the latest dialog closers without making the effect re-run whenever they change identity.
+  const closeDialogsOnRevocation = useEffectEvent(forceCloseRoleGatedDialogs);
+
   useEffect(() => {
     if (!isRevoked) return;
 
     // Deliberate reaction to an external store (the revocation ticket), not state derivable from
     // this render — mirrors the same justified use in use-live-sync.ts.
     /* eslint-disable react-hooks/set-state-in-effect */
-    forceCloseRoleGatedDialogs();
+    closeDialogsOnRevocation();
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [isRevoked]);
 
@@ -239,46 +233,6 @@ export function TripDetailClient({
     setPendingCurrencyChangeMode(undefined);
   }
 
-  function handleLeaveDialogOpenChange(nextOpen: boolean): void {
-    setLeaveDialogOpen(nextOpen);
-    if (!nextOpen) setLeaveError(null);
-  }
-
-  async function handleConfirmLeave(): Promise<void> {
-    const attempt = leaveAttemptRef.current;
-    setIsLeaving(true);
-    setLeaveError(null);
-
-    // A superseded attempt's dialog is closed (or unmounted), so its error goes to a toast instead.
-    function reportFailure(message: string): void {
-      if (attempt !== leaveAttemptRef.current) {
-        toast.error(message);
-        return;
-      }
-      setLeaveError(message);
-      setIsLeaving(false);
-    }
-
-    try {
-      const result = await leaveTrip(trip.id);
-      if (result.status === "success") {
-        // Stay in the pending state until navigation unmounts this page, so the action can't re-fire.
-        toast.success(`You left ${trip.name}.`);
-        router.replace("/trips");
-        return;
-      }
-      if (result.stale) {
-        // Membership was already gone — nothing to confirm, and this view is no longer reachable.
-        toast.error(result.message);
-        router.replace("/trips");
-        return;
-      }
-      reportFailure(result.message);
-    } catch {
-      reportFailure("Couldn't leave this trip. Try again.");
-    }
-  }
-
   function handleTabChange(nextTab: TripDetailTabValue): void {
     if (nextTab === activeTab) return;
 
@@ -308,7 +262,7 @@ export function TripDetailClient({
         dateFormat={dateFormat}
         onEdit={() => setEditingTrip(true)}
         onShare={canManage ? () => setSharingTrip(true) : undefined}
-        onLeave={canManage ? undefined : () => setLeaveDialogOpen(true)}
+        onLeave={canManage ? undefined : leave.openLeaveDialog}
       />
 
       <TripDetailTabBar
@@ -323,113 +277,108 @@ export function TripDetailClient({
       {/* Body */}
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
-          <TripDetailTabBody
-            // Remounting on revocation, or on a self-targeted role change, is what discards dialog
-            // state the tab components own themselves — unmounting them is the only handle this
-            // page has on it. `dialogResetNonce` also covers a role change while already revoked
-            // isn't possible, but distinguishes repeat role changes from one another.
-            key={isRevoked ? "revoked" : `active-${dialogResetNonce}`}
-            tripId={trip.id}
-            trip={trip}
-            defaultExpenseCurrency={defaultExpenseCurrency}
-            warningThreshold={warningThreshold}
-            dangerThreshold={dangerThreshold}
-            walkThresholdMeters={walkThresholdMeters}
-            activeTab={activeTab}
-            days={days}
-            unscheduledEvents={unscheduledEvents}
-            docs={docs}
-            packingItems={packingItems}
-            packingLists={packingLists}
-            reservations={reservations}
-            expenses={expenses}
-            notes={notes}
-            templates={templates}
-            dateFormat={dateFormat}
-            initialExpandedDayNumber={initialExpandedDayNumber}
-            highlightedEventId={highlightedEventId}
-            isNew={isNew}
-            newlyCreatedChecklistId={handlers.newlyCreatedChecklistId ?? undefined}
-            onUpdateEvent={handlers.handleEventUpdate}
-            onDeleteEvent={handlers.handleEventDelete}
-            onReorderDayItems={handlers.handleDayItemsReorder}
-            onUpdateDay={handlers.handleDayUpdate}
-            onAddEvent={handlers.handleAddEvent}
-            onAddNote={handlers.handleAddNote}
-            onUpdateNote={handlers.handleUpdateNote}
-            onDeleteNote={handlers.handleDeleteNote}
-            onAddChecklist={handlers.handleAddChecklist}
-            onUpdateChecklistTitle={handlers.handleUpdateChecklistTitle}
-            onDeleteChecklist={handlers.handleDeleteChecklist}
-            onAddChecklistItem={handlers.handleAddChecklistItem}
-            onUpdateChecklistItem={handlers.handleUpdateChecklistItem}
-            onDeleteChecklistItem={handlers.handleDeleteChecklistItem}
-            onToggleChecklistItem={handlers.handleToggleChecklistItem}
-            onAddPackingItem={(name, isLabel, afterItemId, beforeItemId, labelId, listId) =>
-              handlers.handleAddPackingItem(name, isLabel, afterItemId, beforeItemId, labelId, listId)
-            }
-            onRemovePackingItem={handlers.handleRemovePackingItem}
-            onRemovePackingSection={(id, input) => handlers.handleRemovePackingSection(id, input.mode)}
-            onTogglePackingItem={handlers.handleTogglePackingItem}
-            onReorderPackingItems={handlers.handleReorderPackingItems}
-            onEditPackingItem={handlers.handleUpdatePackingItem}
-            onPullTemplates={handlers.handlePullTemplates}
-            onSaveAsTemplate={handlers.handleSaveAsTemplate}
-            onCreatePackingList={handlers.handleCreatePackingList}
-            onRenamePackingList={handlers.handleRenamePackingList}
-            onDeletePackingList={handlers.handleDeletePackingList}
-            onInsertFromPackingSource={handlers.handleInsertFromPackingSource}
-            isDateless={!trip.startDate}
-            onOpenEditDates={() => {
-              setEditingTrip(true);
-              setHighlightTripDates(true);
-            }}
-            onOpenEditBudget={() => {
-              setEditingTrip(true);
-            }}
-            onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
-            onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
-            onOpenMapTab={handleOpenMapTab}
-            onAddDay={handlers.handleAddDay}
-            onRemoveLastDay={handlers.handleRemoveLastDay}
-            addingDay={handlers.addingDay}
-            removingDay={handlers.removingDay}
-          />
+          <TripEditAccessProvider canEdit={canEditTrip}>
+            <TripDetailTabBody
+              // Remounting on revocation, or on a self-targeted role change, is what discards dialog
+              // state the tab components own themselves — unmounting them is the only handle this
+              // page has on it. `dialogResetNonce` also covers a role change while already revoked
+              // isn't possible, but distinguishes repeat role changes from one another.
+              key={isRevoked ? "revoked" : `active-${dialogResetNonce}`}
+              tripId={trip.id}
+              trip={trip}
+              defaultExpenseCurrency={defaultExpenseCurrency}
+              warningThreshold={warningThreshold}
+              dangerThreshold={dangerThreshold}
+              walkThresholdMeters={walkThresholdMeters}
+              activeTab={activeTab}
+              days={days}
+              unscheduledEvents={unscheduledEvents}
+              docs={docs}
+              packingItems={packingItems}
+              packingLists={packingLists}
+              reservations={reservations}
+              expenses={expenses}
+              notes={notes}
+              templates={templates}
+              dateFormat={dateFormat}
+              initialExpandedDayNumber={initialExpandedDayNumber}
+              highlightedEventId={highlightedEventId}
+              isNew={isNew}
+              newlyCreatedChecklistId={handlers.newlyCreatedChecklistId ?? undefined}
+              onUpdateEvent={handlers.handleEventUpdate}
+              onDeleteEvent={handlers.handleEventDelete}
+              onReorderDayItems={handlers.handleDayItemsReorder}
+              onUpdateDay={handlers.handleDayUpdate}
+              onAddEvent={handlers.handleAddEvent}
+              onAddNote={handlers.handleAddNote}
+              onUpdateNote={handlers.handleUpdateNote}
+              onDeleteNote={handlers.handleDeleteNote}
+              onAddChecklist={handlers.handleAddChecklist}
+              onUpdateChecklistTitle={handlers.handleUpdateChecklistTitle}
+              onDeleteChecklist={handlers.handleDeleteChecklist}
+              onAddChecklistItem={handlers.handleAddChecklistItem}
+              onUpdateChecklistItem={handlers.handleUpdateChecklistItem}
+              onDeleteChecklistItem={handlers.handleDeleteChecklistItem}
+              onToggleChecklistItem={handlers.handleToggleChecklistItem}
+              onAddPackingItem={(name, isLabel, afterItemId, beforeItemId, labelId, listId) =>
+                handlers.handleAddPackingItem(name, isLabel, afterItemId, beforeItemId, labelId, listId)
+              }
+              onRemovePackingItem={handlers.handleRemovePackingItem}
+              onRemovePackingSection={(id, input) => handlers.handleRemovePackingSection(id, input.mode)}
+              onTogglePackingItem={handlers.handleTogglePackingItem}
+              onReorderPackingItems={handlers.handleReorderPackingItems}
+              onEditPackingItem={handlers.handleUpdatePackingItem}
+              onPullTemplates={handlers.handlePullTemplates}
+              onSaveAsTemplate={handlers.handleSaveAsTemplate}
+              onCreatePackingList={handlers.handleCreatePackingList}
+              onRenamePackingList={handlers.handleRenamePackingList}
+              onDeletePackingList={handlers.handleDeletePackingList}
+              onInsertFromPackingSource={handlers.handleInsertFromPackingSource}
+              isDateless={!trip.startDate}
+              onOpenEditDates={() => {
+                if (!canEditTrip) return;
+                setEditingTrip(true);
+                setHighlightTripDates(true);
+              }}
+              onOpenEditBudget={() => {
+                if (canEditTrip) setEditingTrip(true);
+              }}
+              onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
+              onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
+              onOpenMapTab={handleOpenMapTab}
+              onAddDay={handlers.handleAddDay}
+              onRemoveLastDay={handlers.handleRemoveLastDay}
+              addingDay={handlers.addingDay}
+              removingDay={handlers.removingDay}
+            />
+          </TripEditAccessProvider>
         </div>
       </div>
 
-      <TripEditSheet
-        key={trip.id}
+      <TripDetailDialogs
         trip={trip}
         currencyOptions={currencyOptions}
         expenses={expenses}
-        open={editingTrip}
-        onClose={() => {
+        dateFormat={dateFormat}
+        canManage={canManage}
+        canEditBudget={canEditTrip}
+        editingTrip={editingTrip}
+        highlightTripDates={highlightTripDates}
+        onCloseEdit={() => {
           setEditingTrip(false);
           setHighlightTripDates(false);
         }}
-        highlightDates={highlightTripDates}
-        onSave={handleTripSave}
-        saving={handlers.savingTrip}
-        dateFormat={dateFormat}
-        dateChangeConfirmation={tripDateConfirmation}
+        onSaveTrip={handleTripSave}
+        savingTrip={handlers.savingTrip}
+        tripDateConfirmation={tripDateConfirmation}
         onResolveDateChange={handleTripDateResolution}
         onCancelDateChange={handleTripDateResolutionCancel}
-        canEditBudget={canEditBudget}
-        onDelete={canManage ? handlers.handleDeleteTrip : undefined}
+        onDeleteTrip={handlers.handleDeleteTrip}
         isDeleting={handlers.isDeleting}
+        sharingTrip={sharingTrip}
+        onSharingTripChange={setSharingTrip}
+        leave={leave}
       />
-      {canManage ? <TripShareDialog open={sharingTrip} onOpenChange={setSharingTrip} tripId={trip.id} /> : null}
-      {canManage ? null : (
-        <LeaveTripAlertDialog
-          tripName={trip.name}
-          open={leaveDialogOpen}
-          onOpenChange={handleLeaveDialogOpenChange}
-          onConfirm={handleConfirmLeave}
-          isLeaving={isLeaving}
-          error={leaveError}
-        />
-      )}
       {isNew ? <TripConfetti tripId={trip.id} /> : null}
     </div>
   );

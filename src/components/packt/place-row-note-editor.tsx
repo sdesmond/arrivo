@@ -1,5 +1,7 @@
 "use client";
 
+import { useCanEditTrip } from "./trip-edit-access";
+
 export interface PlaceRowNoteEditorProps {
   note?: string;
   isEditingNote: boolean;
@@ -19,6 +21,20 @@ export function PlaceRowNoteEditor({
   onCancel,
   onStartEdit,
 }: PlaceRowNoteEditorProps) {
+  const canEdit = useCanEditTrip();
+  const noteStyle: React.CSSProperties = {
+    fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
+    borderRadius: 6,
+    padding: "4px 10px",
+    lineHeight: 1.5,
+    whiteSpace: "pre-wrap",
+    color: note ? "var(--fg-2)" : "var(--fg-4)",
+  };
+
+  if (!canEdit) {
+    return note ? <div style={noteStyle}>{note}</div> : null;
+  }
+
   if (isEditingNote) {
     return (
       <textarea
@@ -60,15 +76,7 @@ export function PlaceRowNoteEditor({
           onStartEdit();
         }
       }}
-      style={{
-        fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
-        cursor: "text",
-        borderRadius: 6,
-        padding: "4px 10px",
-        lineHeight: 1.5,
-        whiteSpace: "pre-wrap",
-        color: note ? "var(--fg-2)" : "var(--fg-4)",
-      }}
+      style={{ ...noteStyle, cursor: "text" }}
     >
       {note ?? "Add a note..."}
     </div>
