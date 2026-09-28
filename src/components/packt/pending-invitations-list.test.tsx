@@ -130,4 +130,35 @@ describe("PendingInvitationsList", () => {
     await waitFor(() => expect(screen.queryByText("Kyoto Trip")).not.toBeInTheDocument());
     expect(screen.getByText("Oslo Trip")).toBeInTheDocument();
   });
+
+  it("shows invitations that arrive through new props after a live refresh", () => {
+    const { rerender } = render(<PendingInvitationsList invitations={[INVITATION]} />);
+
+    rerender(<PendingInvitationsList invitations={[INVITATION, SECOND_INVITATION]} />);
+
+    expect(screen.getByText("Oslo Trip")).toBeInTheDocument();
+    expect(screen.getByText("Kyoto Trip")).toBeInTheDocument();
+  });
+
+  it("drops invitations that disappear from new props, such as a rescinded one", () => {
+    const { rerender, container } = render(<PendingInvitationsList invitations={[INVITATION]} />);
+
+    rerender(<PendingInvitationsList invitations={[]} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("keeps a locally declined invitation hidden when stale props re-deliver it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(declineInvitation).mockResolvedValue({ status: "declined" });
+
+    const { rerender } = render(<PendingInvitationsList invitations={[INVITATION, SECOND_INVITATION]} />);
+    await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
+    await waitFor(() => expect(screen.queryByText("Kyoto Trip")).not.toBeInTheDocument());
+
+    rerender(<PendingInvitationsList invitations={[INVITATION, SECOND_INVITATION]} />);
+
+    expect(screen.queryByText("Kyoto Trip")).not.toBeInTheDocument();
+    expect(screen.getByText("Oslo Trip")).toBeInTheDocument();
+  });
 });

@@ -20,9 +20,12 @@ const ROLE_LABELS: Record<CollaboratorRole, string> = {
 
 export function PendingInvitationsList({ invitations }: PendingInvitationsListProps) {
   const router = useRouter();
-  const [items, setItems] = useState(invitations);
+  // Props stay the source of truth so a live refresh can add or drop rows; declines are layered on
+  // top until the refreshed props stop returning them.
+  const [declinedIds, setDeclinedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const items = invitations.filter((invitation) => !declinedIds.has(invitation.id));
 
   if (items.length === 0) {
     return null;
@@ -47,7 +50,7 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
       const result = await declineInvitation(invitation.id);
       setPendingId(null);
       if (result.status === "declined") {
-        setItems((current) => current.filter((item) => item.id !== invitation.id));
+        setDeclinedIds((current) => new Set(current).add(invitation.id));
         toast.success("Invitation declined.");
         return;
       }

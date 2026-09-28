@@ -2,6 +2,7 @@ import { SidebarNav } from "@/components/packt/sidebar-nav";
 import { BottomTabBar } from "@/components/packt/bottom-tab-bar";
 import { SyncStatusIndicator } from "@/components/packt/sync-status-indicator";
 import { ContributorRevocationModal } from "@/components/packt/contributor-revocation-modal";
+import { InvitationLiveRefresh } from "@/components/packt/invitation-live-refresh";
 import { requireUser } from "@/lib/auth-helpers";
 import { getUserById } from "@/lib/queries";
 import { getMyPendingInvitations } from "@/lib/invitations";
@@ -29,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Mobile bottom tab bar — hidden on desktop */}
       <BottomTabBar />
       <SyncStatusIndicator />
+      <InvitationLiveRefresh />
       {/* From the session, not `user` — getUserById returns null for a session whose row is gone
           (a stale cookie against a truncated DB), and this modal still needs the signed-in id. */}
       <ContributorRevocationModal userId={session.id!} />
