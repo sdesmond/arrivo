@@ -1,5 +1,7 @@
 "use client";
 
+import { useCanEditTrip } from "./trip-edit-access";
+
 export interface PlaceRowNameFieldProps {
   isEditingName: boolean;
   draftName: string;
@@ -22,6 +24,13 @@ export function PlaceRowNameField({
   isDraft,
   onStartEdit,
 }: PlaceRowNameFieldProps) {
+  const canEdit = useCanEditTrip();
+  const nameStyle: React.CSSProperties = {
+    fontSize: "calc(14px * var(--font-scale))",
+    fontWeight: 600,
+    color: "var(--fg)",
+    lineHeight: 1.2,
+  };
   return (
     <div className="flex items-center gap-1.5 min-w-0">
       {isEditingName ? (
@@ -45,6 +54,8 @@ export function PlaceRowNameField({
             fontFamily: "inherit",
           }}
         />
+      ) : !canEdit ? (
+        <span style={nameStyle}>{displayName}</span>
       ) : (
         <button
           type="button"
@@ -53,10 +64,7 @@ export function PlaceRowNameField({
             if (event.key === "Enter" || event.key === " ") onStartEdit();
           }}
           style={{
-            fontSize: "calc(14px * var(--font-scale))",
-            fontWeight: 600,
-            color: "var(--fg)",
-            lineHeight: 1.2,
+            ...nameStyle,
             cursor: "text",
             background: "none",
             border: "none",

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { IconSize } from "@/lib/size-tokens";
 import type { DayItinerary } from "@/data/types";
+import { useCanEditTrip } from "./trip-edit-access";
 
 export interface DayCardHeaderProps {
   dateDisplay: string;
@@ -33,6 +34,7 @@ export function DayCardHeader({
   onRemove,
   removeDisabled = false,
 }: DayCardHeaderProps): ReactElement {
+  const canEdit = useCanEditTrip();
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
   const [draftSubtitle, setDraftSubtitle] = useState(subtitle ?? "");
   const pendingSubtitleRef = useRef<string | null>(null);
@@ -111,7 +113,7 @@ export function DayCardHeader({
             />
           </div>
         </button>
-        {onRemove && (
+        {canEdit && onRemove && (
           <Button
             variant="ghost"
             size="icon"
@@ -172,6 +174,21 @@ export function DayCardHeader({
               {draftSubtitle || "Add a note"}
             </span>
           </span>
+        ) : !canEdit ? (
+          subtitle && (
+            <span
+              style={{
+                display: "block",
+                fontSize: "calc(var(--fs-card-sub) * var(--font-scale))",
+                color: "var(--fg-3)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {subtitle}
+            </span>
+          )
         ) : (
           <button
             type="button"

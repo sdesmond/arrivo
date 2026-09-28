@@ -39,6 +39,7 @@ vi.mock("./type-picker", () => ({
 }));
 
 import { DayCardBottomAdd } from "./day-card-bottom-add";
+import { TripEditAccessProvider } from "./trip-edit-access";
 
 describe("DayCardBottomAdd", () => {
   it("renders the bottom-add button when gap is closed", () => {
@@ -133,5 +134,23 @@ describe("DayCardBottomAdd", () => {
     );
     await user.click(screen.getByRole("button", { name: "Insert packing list" }));
     expect(onOpenPackingListPicker).toHaveBeenCalledWith(5);
+  });
+});
+
+describe("DayCardBottomAdd for a viewer", () => {
+  it("renders nothing", () => {
+    const { container } = render(
+      <TripEditAccessProvider canEdit={false}>
+        <DayCardBottomAdd
+          dayNumber={2}
+          openGapKey={null}
+          bottomInsertPosition={3}
+          openGap={vi.fn()}
+          activateDraft={vi.fn()}
+          closeGap={vi.fn()}
+        />
+      </TripEditAccessProvider>
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 });

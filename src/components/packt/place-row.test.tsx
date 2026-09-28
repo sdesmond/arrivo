@@ -38,12 +38,12 @@ vi.mock("lucide-react", async (importOriginal) => {
 });
 
 vi.mock("./docs-block", () => ({
-  DocsBlock: ({ docs, onAdd }: { docs: { id: string; name: string }[]; onAdd: () => void }) => (
+  DocsBlock: ({ docs, onAdd }: { docs: { id: string; name: string }[]; onAdd?: () => void }) => (
     <div data-testid="docs-block">
       {docs.map((doc) => (
         <span key={doc.id}>{doc.name}</span>
       ))}
-      <button onClick={onAdd}>add-doc-in-block</button>
+      {onAdd ? <button onClick={onAdd}>add-doc-in-block</button> : null}
     </div>
   ),
 }));
@@ -163,6 +163,7 @@ vi.mock("./place-row-dialogs", () => ({
 }));
 
 import { PlaceRow } from "./place-row";
+import { TripEditAccessProvider } from "./trip-edit-access";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { ExpenseCategory, type TripEvent } from "@/data/types";
 import {
@@ -176,6 +177,14 @@ const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <MockDateProvider initialISO={NOW_ISO}>{children}</MockDateProvider>;
+}
+
+function ViewerWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <TripEditAccessProvider canEdit={false}>
+      <Wrapper>{children}</Wrapper>
+    </TripEditAccessProvider>
+  );
 }
 
 const basePlace: TripEvent = {
@@ -1138,5 +1147,34 @@ describe("PlaceRow", () => {
 
     rerender(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Schedule conflict" })).not.toBeInTheDocument();
+  });
+});
+
+describe("PlaceRow for a viewer", () => {
+  it("hides the drag handle and Delete event", () => {
+    render(
+      <PlaceRow
+        place={basePlace}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+        dragHandle={<span data-testid="drag-handle">drag</span>}
+      />,
+      { wrapper: ViewerWrapper }
+    );
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Delete event")).not.toBeInTheDocument();
+  });
+
+  it("lists attached documents without offering to add one", async () => {
+    const user = userEvent.setup();
+    const place: TripEvent = {
+      ...basePlace,
+      docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }],
+    };
+    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: ViewerWrapper });
+
+    await user.click(screen.getByTitle("Show attached documents"));
+    expect(screen.getByText("Plan.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "add-doc-in-block" })).not.toBeInTheDocument();
   });
 });
