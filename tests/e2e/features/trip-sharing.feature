@@ -127,3 +127,21 @@ Feature: Trip sharing dialog
     Then the sharing dialog is closed
     When I open the sharing dialog
     Then the active sharing row still shows the editor role
+
+  Scenario: The sharing dialog shows an accepted invitation without a reload
+    Given I have a trip with a pending invitation for a user watching their dashboard
+    When I open the sharing dialog with live sync
+    And the invited user accepts the invitation from their dashboard
+    Then the sharing dialog lists the invited user as an active contributor without reloading
+
+  Scenario: The sharing dialog shows a declined invitation without a reload
+    Given I have a trip with a pending invitation for a user watching their dashboard
+    When I open the sharing dialog with live sync
+    And the invited user declines the invitation from their dashboard
+    Then the sharing dialog shows the invited user's invitation as declined without reloading
+
+  Scenario: The sharing dialog drops a contributor who leaves the trip
+    Given I have a trip with an editor contributor viewing it in their own session for sharing
+    When I open the sharing dialog with live sync
+    And the sharing contributor leaves the trip
+    Then the sharing dialog no longer lists the sharing contributor without reloading
