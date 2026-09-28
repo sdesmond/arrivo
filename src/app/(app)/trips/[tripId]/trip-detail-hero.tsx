@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Trash2,
   Info,
+  LogOut,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -50,6 +51,8 @@ interface TripDetailHeroProps {
   onEdit: () => void;
 
   onShare?: () => void;
+
+  onLeave?: () => void;
 }
 
 function getCoverType(coverImageUrl?: string): CoverType {
@@ -64,7 +67,14 @@ function getCoverType(coverImageUrl?: string): CoverType {
   return "photo";
 }
 
-export function TripDetailHero({ detail, nowISO, dateFormat, onEdit, onShare }: TripDetailHeroProps): ReactElement {
+export function TripDetailHero({
+  detail,
+  nowISO,
+  dateFormat,
+  onEdit,
+  onShare,
+  onLeave,
+}: TripDetailHeroProps): ReactElement {
   const now = new Date(nowISO);
 
   const { trip, days, unscheduledEvents, docs, collaborators, accessRole } = detail;
@@ -159,21 +169,35 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit, onShare }: 
 
         <span className="flex-1" />
 
-        {canEdit ? (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {canEdit ? (
             <Button variant="outline" size="sm" onClick={onEdit}>
               <Pencil size={13} strokeWidth={1.5} />
               Edit
             </Button>
+          ) : null}
 
-            {canManage && onShare ? (
-              <Button variant="outline" size="sm" onClick={onShare}>
-                <Share2 size={13} strokeWidth={1.5} />
-                Share
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
+          {canManage && onShare ? (
+            <Button variant="outline" size="sm" onClick={onShare}>
+              <Share2 size={13} strokeWidth={1.5} />
+              Share
+            </Button>
+          ) : null}
+
+          {/* Self-exit for editors/viewers only — managers (including the creator) never get it. */}
+          {!canManage && onLeave ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onLeave}
+              aria-label={`Leave trip ${trip.name}`}
+              style={{ minHeight: 44, minWidth: 44 }}
+            >
+              <LogOut size={13} strokeWidth={1.5} />
+              Leave trip
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Hero */}

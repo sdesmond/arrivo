@@ -9,6 +9,9 @@ import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { TripShareDialog } from "@/components/packt/trip-share-dialog";
+import { LeaveTripAlertDialog } from "@/components/packt/leave-trip-alert-dialog";
+import { toast } from "sonner";
+import { leaveTrip } from "@/app/(app)/trips/actions";
 import { BudgetStatus, CollaboratorRole, LiveSyncEventType, TripDetailTab } from "@/data/types";
 import {
   calculateActual,
@@ -102,8 +105,18 @@ export function TripDetailClient({
 
   const [dialogResetNonce, setDialogResetNonce] = useState(0);
 
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  // Bumped when a force-close supersedes an in-flight leave, so its late result can't write stale dialog state.
+  const leaveAttemptRef = useRef(0);
+
   function forceCloseRoleGatedDialogs(): void {
     setSharingTrip(false);
+    leaveAttemptRef.current += 1;
+    setLeaveDialogOpen(false);
+    setIsLeaving(false);
+    setLeaveError(null);
     setEditingTrip(false);
     setPendingTripPatch(null);
     setPendingCurrencyChangeMode(undefined);
@@ -226,6 +239,46 @@ export function TripDetailClient({
     setPendingCurrencyChangeMode(undefined);
   }
 
+  function handleLeaveDialogOpenChange(nextOpen: boolean): void {
+    setLeaveDialogOpen(nextOpen);
+    if (!nextOpen) setLeaveError(null);
+  }
+
+  async function handleConfirmLeave(): Promise<void> {
+    const attempt = leaveAttemptRef.current;
+    setIsLeaving(true);
+    setLeaveError(null);
+
+    // A superseded attempt's dialog is closed (or unmounted), so its error goes to a toast instead.
+    function reportFailure(message: string): void {
+      if (attempt !== leaveAttemptRef.current) {
+        toast.error(message);
+        return;
+      }
+      setLeaveError(message);
+      setIsLeaving(false);
+    }
+
+    try {
+      const result = await leaveTrip(trip.id);
+      if (result.status === "success") {
+        // Stay in the pending state until navigation unmounts this page, so the action can't re-fire.
+        toast.success(`You left ${trip.name}.`);
+        router.replace("/trips");
+        return;
+      }
+      if (result.stale) {
+        // Membership was already gone — nothing to confirm, and this view is no longer reachable.
+        toast.error(result.message);
+        router.replace("/trips");
+        return;
+      }
+      reportFailure(result.message);
+    } catch {
+      reportFailure("Couldn't leave this trip. Try again.");
+    }
+  }
+
   function handleTabChange(nextTab: TripDetailTabValue): void {
     if (nextTab === activeTab) return;
 
@@ -255,6 +308,7 @@ export function TripDetailClient({
         dateFormat={dateFormat}
         onEdit={() => setEditingTrip(true)}
         onShare={canManage ? () => setSharingTrip(true) : undefined}
+        onLeave={canManage ? undefined : () => setLeaveDialogOpen(true)}
       />
 
       <TripDetailTabBar
@@ -366,6 +420,16 @@ export function TripDetailClient({
         isDeleting={handlers.isDeleting}
       />
       {canManage ? <TripShareDialog open={sharingTrip} onOpenChange={setSharingTrip} tripId={trip.id} /> : null}
+      {canManage ? null : (
+        <LeaveTripAlertDialog
+          tripName={trip.name}
+          open={leaveDialogOpen}
+          onOpenChange={handleLeaveDialogOpenChange}
+          onConfirm={handleConfirmLeave}
+          isLeaving={isLeaving}
+          error={leaveError}
+        />
+      )}
       {isNew ? <TripConfetti tripId={trip.id} /> : null}
     </div>
   );

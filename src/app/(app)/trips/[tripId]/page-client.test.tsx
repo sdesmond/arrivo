@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
@@ -15,7 +15,13 @@ const {
   mockUseFocusScroll,
   mockUseTripLiveRefresh,
   mockUseBfcacheRefresh,
+  mockLeaveTrip,
+  mockToastSuccess,
+  mockToastError,
 } = vi.hoisted(() => ({
+  mockLeaveTrip: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
   tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
     void tripId;
     return null;
@@ -59,13 +65,16 @@ vi.mock("./trip-detail-hero", () => ({
     nowISO,
     onEdit,
     onShare,
+    onLeave,
   }: {
     detail: TripDetailPayload;
     nowISO: string;
     onEdit: () => void;
     onShare?: () => void;
+    onLeave?: () => void;
   }) => {
     const { trip, days, unscheduledEvents, docs, collaborators } = detail;
+    const leaveButton = onLeave ? <button onClick={onLeave}>Leave trip</button> : null;
     if (!trip.startDate || !trip.endDate) {
       return (
         <div>
@@ -82,6 +91,7 @@ vi.mock("./trip-detail-hero", () => ({
           </span>
           <button onClick={onEdit}>Edit trip</button>
           {onShare && <button onClick={onShare}>Share</button>}
+          {leaveButton}
         </div>
       );
     }
@@ -97,6 +107,7 @@ vi.mock("./trip-detail-hero", () => ({
         {`${dayTotal} days · day ${dayNumber} today`}
         <button onClick={onEdit}>Edit trip</button>
         {onShare && <button onClick={onShare}>Share</button>}
+        {leaveButton}
       </div>
     );
   },
@@ -171,6 +182,14 @@ vi.mock("@/components/packt/trip-edit-sheet", () => ({
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   removeTripCover: vi.fn(),
   setTripCoverWithAttribution: vi.fn(),
+}));
+
+vi.mock("@/app/(app)/trips/actions", () => ({
+  leaveTrip: mockLeaveTrip,
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: mockToastSuccess, error: mockToastError },
 }));
 
 vi.mock("@/lib/use-focus-scroll", () => ({
@@ -400,6 +419,205 @@ describe("TripDetailClient", () => {
       fireSelfRoleChanged();
 
       expect(screen.queryByTestId("tab-child-dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("leave trip", () => {
+    const viewerDetail: TripDetailPayload = { ...baseDetail, accessRole: "viewer" };
+
+    function renderAs(detail: TripDetailPayload = viewerDetail) {
+      return render(<TripDetailClient detail={detail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+    }
+
+    async function openLeaveDialog(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: "Leave trip" }));
+      return screen.findByRole("alertdialog");
+    }
+
+    it.each(["editor", "viewer"] as const)("offers Leave trip to a %s and keeps Share manager-only", (accessRole) => {
+      renderAs({ ...baseDetail, accessRole });
+
+      expect(screen.getByRole("button", { name: "Leave trip" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("trip-share-dialog")).not.toBeInTheDocument();
+    });
+
+    it("does not offer Leave trip to a manager", () => {
+      renderAs(baseDetail);
+
+      expect(screen.queryByRole("button", { name: "Leave trip" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+    });
+
+    it("keeps membership and the trip view when the confirmation is cancelled", async () => {
+      const user = userEvent.setup();
+      renderAs();
+
+      await openLeaveDialog(user);
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+      expect(mockLeaveTrip).not.toHaveBeenCalled();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("leaves the trip, confirms it, and returns to the trips list on success", async () => {
+      mockLeaveTrip.mockResolvedValue({ status: "success" });
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(mockLeaveTrip).toHaveBeenCalledExactlyOnceWith("trip-1");
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastSuccess).toHaveBeenCalledWith("You left Tokyo.");
+      expect(mockToastError).not.toHaveBeenCalled();
+    });
+
+    it("shows the pending state while the leave is in flight", async () => {
+      mockLeaveTrip.mockReturnValue(new Promise(() => {}));
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(await within(dialog).findByRole("button", { name: "Leaving..." })).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("keeps the user on the trip and shows the error when the leave is rejected", async () => {
+      mockLeaveTrip.mockResolvedValue({ status: "error", message: "Managers can't leave a trip.", stale: false });
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("Managers can't leave a trip.");
+      expect(within(dialog).getByRole("button", { name: "Leave trip" })).toBeEnabled();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
+
+    it("shows a generic error and stays on the trip when the request fails", async () => {
+      mockLeaveTrip.mockRejectedValue(new Error("network down"));
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("Couldn't leave this trip. Try again.");
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("returns to the trips list without claiming success when the membership was already gone", async () => {
+      mockLeaveTrip.mockResolvedValue({ status: "error", message: "You're no longer on this trip.", stale: true });
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastError).toHaveBeenCalledWith("You're no longer on this trip.");
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
+
+    it("force-closes the leave confirmation when this session's own role changes", async () => {
+      const user = userEvent.setup();
+      renderAs();
+      await openLeaveDialog(user);
+
+      const onSelfRoleChanged = mockUseTripLiveRefresh.mock.calls.at(-1)?.[1] as () => void;
+      act(() => onSelfRoleChanged());
+
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    });
+
+    function deferLeave() {
+      let settle: { resolve: (value: unknown) => void; reject: (reason: unknown) => void } | undefined;
+      mockLeaveTrip.mockReturnValue(
+        new Promise((resolve, reject) => {
+          settle = { resolve, reject };
+        })
+      );
+      return () => settle!;
+    }
+
+    async function confirmThenForceClose(user: ReturnType<typeof userEvent.setup>) {
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+      await within(dialog).findByRole("button", { name: "Leaving..." });
+
+      const onSelfRoleChanged = mockUseTripLiveRefresh.mock.calls.at(-1)?.[1] as () => void;
+      act(() => onSelfRoleChanged());
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    }
+
+    it("toasts a superseded leave error instead of stashing it in the closed dialog", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().resolve({ status: "error", message: "Managers can't leave a trip.", stale: false });
+      });
+
+      expect(mockToastError).toHaveBeenCalledExactlyOnceWith("Managers can't leave a trip.");
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+
+      const reopened = await openLeaveDialog(user);
+      expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+      expect(within(reopened).getByRole("button", { name: "Leave trip" })).toBeEnabled();
+      expect(within(reopened).getByRole("button", { name: "Cancel" })).toBeEnabled();
+    });
+
+    it("toasts the generic error when a superseded leave request fails", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().reject(new Error("network down"));
+      });
+
+      expect(mockToastError).toHaveBeenCalledExactlyOnceWith("Couldn't leave this trip. Try again.");
+      const reopened = await openLeaveDialog(user);
+      expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("still returns to the trips list when a superseded leave succeeds", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().resolve({ status: "success" });
+      });
+
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastSuccess).toHaveBeenCalledWith("You left Tokyo.");
+    });
+
+    it("still returns to the trips list when a superseded leave turns out stale", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().resolve({ status: "error", message: "You're no longer on this trip.", stale: true });
+      });
+
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastError).toHaveBeenCalledExactlyOnceWith("You're no longer on this trip.");
     });
   });
 

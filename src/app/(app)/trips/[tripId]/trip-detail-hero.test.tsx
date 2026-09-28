@@ -258,6 +258,73 @@ describe("TripDetailHero", () => {
     expect(onShare).toHaveBeenCalledOnce();
   });
 
+  it.each(["editor", "viewer"] as const)("offers Leave trip, not Share, to a %s", (accessRole) => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={vi.fn()}
+        onLeave={vi.fn()}
+      />
+    );
+
+    const leaveButton = screen.getByRole("button", { name: "Leave trip Summer Getaway" });
+    expect(leaveButton).toHaveTextContent("Leave trip");
+    expect(leaveButton.style.minHeight).toBe("44px");
+    expect(leaveButton.style.minWidth).toBe("44px");
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+  });
+
+  it("never offers Leave trip to a manager, even if a callback is passed", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={vi.fn()}
+        onLeave={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /Leave trip/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+  });
+
+  it("hides Leave trip when no callback is available", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "viewer" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /Leave trip/ })).not.toBeInTheDocument();
+  });
+
+  it("asks to leave when a viewer selects Leave trip", async () => {
+    const onLeave = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "viewer" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onLeave={onLeave}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /Leave trip/ }));
+
+    expect(onLeave).toHaveBeenCalledOnce();
+  });
+
   it("shows edit only for graphic covers", () => {
     render(
       <TripDetailHero
