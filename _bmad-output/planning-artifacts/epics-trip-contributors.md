@@ -7,7 +7,7 @@ inputDocuments:
   - _bmad-output/planning-artifacts/ux-designs/ux-trip-contributors-2026-08-31/EXPERIENCE.md
 ---
 
-# Packt - Epic Breakdown: Trip Contributors
+# Packt - Trip Contributors Plan
 
 ## Overview
 
@@ -33,7 +33,7 @@ FR6: A manager administers every contributor, pending invitation, and declined i
 
 FR7: Pending invitations expire automatically after a global 72-hour window; a manager can rescind one before acceptance, which drops it from the recipient's pending-invitations list instead of granting access — there is no separate rescinded-invite notice. (CAP-7)
 
-FR8: Shared trip state — itinerary, events, locations, membership, and roles — updates live across sessions without a reload; when live sync cannot operate, an offline/internet-down indicator appears in the status bar. (CAP-8)
+FR8: Shared trip state — itinerary, events, locations, membership, and roles — updates live across sessions without a reload; when live sync cannot operate, a problem-only corner indicator appears after the reconnect grace window. (CAP-8)
 
 FR9: Removing a contributor revokes their access immediately and everywhere — the trip disappears at once from their dashboard/shared-trip list; if actively viewing it, a modal names the trip owner, directs them to request resharing, OK returns them to their own dashboard, and browser Back cannot reopen the trip. (CAP-9)
 
@@ -93,7 +93,7 @@ _Extracted from the trip-contributors Architecture Spine. No starter template ap
   - The server rejects the entire batch if any change targets an `isCreator=true` row, targets a `collaboratorId` not belonging to `tripId`, or targets the calling manager's own row (self-removal/self-demotion is unsupported via this action) — regardless of what the UI allowed to stage.
   - Each targeted row's current state is re-checked inside the transaction against what the dialog last loaded; if any row was modified by another manager's save in the meantime, the entire batch is rejected rather than silently reapplying against stale state.
   - Client-side staging is keyed by `collaboratorId` — a second staged action on the same row (a role change followed by Remove, or two role changes) replaces the earlier staged entry rather than accumulating both.
-- `src/lib/use-live-sync.ts` client hook (wraps `EventSource`, exposes `{status: "connected" | "reconnecting" | "offline"}`) backs `src/components/packt/sync-status-indicator.tsx`, mounted once in `(app)/layout.tsx` alongside the existing `<Toaster/>`. Dashboard subscribes to `user:{userId}` so removal reflects without the trip page ever being open. (AD-8)
+- `src/lib/use-live-sync.ts` client hook (wraps `EventSource`, exposes `{status: "connected" | "reconnecting" | "offline"}`) backs `src/components/packt/sync-status-indicator.tsx`, mounted once in `(app)/layout.tsx` alongside the existing `<Toaster/>`. The indicator is problem-only after a 2-second reconnect grace window: connected renders no visible chrome, while reconnecting/offline render an accessible bottom-left icon above mobile safe-area/tab-bar space. Dashboard subscribes to `user:{userId}` so removal reflects without the trip page ever being open. (AD-8, Story 4.6)
 - Test environment: no email stub needed. E2E scenarios materialize their own `invitations`/`collaborators` rows per the project's self-seeding convention — no shared fixture trips.
 
 ### UX Design Requirements
@@ -120,11 +120,11 @@ UX-DR8: Revocation modal — Base UI `AlertDialog` (no backdrop-dismiss), single
 
 UX-DR9: Pending invitations list (`src/components/packt/pending-invitations-list.tsx`) — a pinned "Invitations" section at the top of the trips dashboard, above the trip cards, shown only when at least one pending invitation exists. Each row uses the share dialog's pending-row tokens (trip name, inviter, role) plus two buttons: Accept (primary variant) calls `acceptInvitation()` and redirects to the trip overview; Decline (outline/ghost variant) calls `declineInvitation()` and the row disappears immediately, confirmed via `toast.success("Invitation declined.")`. Neither action requires a confirmation step. An invitation that expires or is rescinded also just drops out of the list on next fetch/SSE refresh — no separate terminal-state page.
 
-UX-DR10: Sync status indicator — new status-bar chip (no status bar exists in Packt today), three states: connected (quiet, `fg-4`, no accent color), reconnecting (`warning`, pulsing), offline (`danger`, static/non-pulsing). State changes announce via `aria-live="polite"`, including recovery back to connected. The reconnecting pulse respects `prefers-reduced-motion` (static warning-toned dot substitutes).
+UX-DR10: Sync status indicator — problem-only bottom-left corner icon. Connected renders no visible indicator; reconnecting appears only after a 2-second grace window as a warning-toned `RefreshCw` icon (pulsing unless `prefers-reduced-motion`); offline appears as a static danger-toned `WifiOff` icon. Visible states expose `Reconnecting` / `Unable to sync` through an accessible Base UI tooltip on hover, keyboard focus, and tap. State transitions announce via a persistently mounted `aria-live="polite"` region, including recovery back to connected. Mobile placement clears the 56px tab bar plus `env(safe-area-inset-bottom)`; desktop shifts right of the sidebar.
 
-UX-DR11: Microcopy per the Voice and Tone table — direct, unadorned, no exclamation points: "Invitation sent." / "Invitation resent." / "Invitation declined." (via `toast.success()`); "No Packt account found for this email."; "This invitation was rescinded by the trip owner."; "You no longer have access to this trip. Contact {removedByName} to request access again."; "You're offline. Changes from other people won't appear until you reconnect."; role labels in UI are exactly Viewer/Editor/Manager, never invented synonyms.
+UX-DR11: Microcopy per the Voice and Tone table — direct, unadorned: "Invitation sent." / "Invitation resent." / "Invitation declined." (via `toast.success()`); "No Packt account found for this email."; "This invitation was rescinded by the trip owner."; "You no longer have access to this trip. Contact {removedByName} to request access again."; sync labels exactly `Reconnecting`, `Unable to sync`, and `Connected`; role labels exactly Viewer/Editor/Manager, never invented synonyms.
 
-UX-DR12: Accessibility floor — every interactive target in the share dialog, revocation modal, and pending invitations list meets the project's existing 44×44px minimum (role selects, resend/rescind/remove/accept buttons included); icon-only controls carry a `title` attribute naming the action and the person or trip (for example `title="Remove {name}"`, `title="Accept invitation to {tripName}"`); role/status is never color-only, every pill/badge carries a text label.
+UX-DR12: Accessibility floor — every interactive target in the share dialog, revocation modal, pending invitations list, and sync-status tooltip trigger meets the project's existing 44×44px minimum. Share-dialog icon controls carry a `title` naming the action and person/trip. Sync-status icons instead use `aria-label` plus Base UI tooltip text to avoid duplicate native/custom tooltips. Role and status remain available as text, never color-only.
 
 UX-DR13: Role-scoped view differences — a viewer's Budget tab/section is absent from trip navigation entirely (not present-but-disabled), and nothing in their itinerary view references money. An editor's view has no "Delete trip" action and no "Invite"/Share entry point at all (not disabled-with-tooltip) — matching the manager-only gating on the Share dialog trigger.
 
@@ -146,7 +146,7 @@ FR9: Epic 4 - immediate access revocation
 FR10: Epic 4 - concurrent edit latest-write-wins
 FR11: Epic 1 - decline a pending invitation
 
-## Epic List
+## Initiative Summary
 
 ### Epic 1: Share a Trip and Accept an Invitation
 **FRs covered:** FR1, FR2, FR7, FR11
@@ -161,12 +161,12 @@ FR11: Epic 1 - decline a pending invitation
 ### Epic 3: Contributor Management Dialog
 **FRs covered:** FR6
 **NFRs covered:** NFR7
-**Implementation notes:** `trip-share-dialog.tsx` replacing `trip-edit-collaborators.tsx`, `saveContributorChanges()` atomic batch action for role/removal (AD-7), `dismissInvitation()` as an immediate action alongside Resend/Rescind (AD-2, AD-7). UX-DR1, 2, 3, 4, 5, 6, 6a, 7, 12.
+**Implementation notes:** `trip-share-dialog.tsx` replaces both dead collaborator surfaces and wires the invite form before gaining staged role/removal edits through `saveContributorChanges()` (AD-7); `dismissInvitation()` remains an immediate action alongside Resend/Rescind (AD-2, AD-7). UX-DR1, 2, 3, 4, 5, 6, 6a, 7, 12.
 
 ### Epic 4: Live Sync and Revocation
 **FRs covered:** FR8, FR9, FR10
 **NFRs covered:** NFR8
-**Implementation notes:** `trip-events.ts` in-process pub-sub, both SSE routes, `use-live-sync.ts`, `sync-status-indicator.tsx` (AD-3/4/8). Revocation modal (UX-DR8), sync indicator (UX-DR10). CAP-10 needs no new mechanism — verified by test, not built.
+**Implementation notes:** `trip-events.ts` in-process pub-sub, both SSE routes, `use-live-sync.ts`, and a problem-only bottom-left `sync-status-indicator.tsx` with a 2-second grace window, accessible tooltip, live announcements, and mobile safe-area clearance (AD-3/4/8; Story 4.6). Revocation modal (UX-DR8), sync indicator (UX-DR10). CAP-10 needs no new mechanism — verified by test, not built.
 
 ---
 
@@ -482,7 +482,7 @@ So that I have one place to see the full state of who can see or edit my trip.
 
 **Given** the new dialog now exists alongside the still-present `trip-edit-sheet.tsx` collaborators tab
 **When** either surface is used
-**Then** they coexist without conflict — role-editing/removal still only works via the old sheet until Story 3.4 retires it
+**Then** they coexist without conflict — role-editing/removal still only works via the old sheet until Story 3.5 adds staged batch editing in the share dialog
 
 ### Story 3.2: Resend and Rescind a pending invitation
 
@@ -512,7 +512,51 @@ So that I can fix a stale invite or cancel one without leaving the dialog.
 **When** rendered
 **Then** its controls carry `title="Resend invitation to {email}"` / `title="Rescind invitation to {email}"`
 
-### Story 3.3: Dismiss a declined invitation
+### Story 3.3: Wire invite form and remove dead collaborator surfaces
+
+As a trip manager,
+I want the share dialog's invite form to work and obsolete collaborator controls removed,
+So that sharing has one complete, trustworthy control plane.
+
+**Acceptance Criteria:**
+
+**Given** I enter the email of an existing Packt user and select a role
+**When** I click Invite
+**Then** `inviteContributor(tripId, email, role)` runs, the dialog data refetches, the email clears, the role resets to Viewer, and I see `toast.success("Invitation sent.")`
+
+**Given** that email already has a pending invitation
+**When** I click Invite
+**Then** the existing invitation is resent in place and I see `toast.success("Invitation resent.")`
+
+**Given** the email does not match a Packt account
+**When** I click Invite
+**Then** no invitation is created and the inline error "No Packt account found for this email." appears below the input
+
+**Given** I try to invite myself or an existing collaborator
+**When** the server rejects the request
+**Then** the returned message appears via `toast.error(...)`
+
+**Given** an invite request is in flight
+**When** the dialog renders
+**Then** the Invite button, email input, and role select are disabled until the request settles
+
+**Given** the share dialog is rendered
+**When** I inspect its invite form
+**Then** the Invite button is functional and the placeholder "Invite controls will be available in a later story" is absent
+
+**Given** `collaborators-rail.tsx` and `trip-edit-collaborators.tsx` were dead, unsaved surfaces
+**When** this story lands
+**Then** both components, their tests, exports, imports, callbacks, draft-copy code, and the trip edit sheet's People section are removed
+
+**Given** the invite form behavior changes
+**When** component tests run
+**Then** `trip-share-dialog.test.tsx` covers successful invite/refetch/reset, resend copy, unmatched-account inline validation, server-error toast, and in-flight disabled controls; `trip-edit-sheet.test.tsx` no longer references removed collaborator markup or callbacks
+
+**Given** the manager invite flow crosses client/server boundaries
+**When** affected E2E runs
+**Then** the `trip-sharing` scenarios cover successful invitation and unmatched-account validation through the share dialog
+
+### Story 3.4: Dismiss a declined invitation
 
 As a trip manager,
 I want to dismiss a declined invitation from the share dialog,
@@ -536,7 +580,7 @@ So that resolved invites don't linger in my view indefinitely.
 **When** `dismissInvitation` is called with that id
 **Then** it's rejected — the action verifies `invitation.tripId === tripId` before deleting
 
-### Story 3.4: Stage and save role changes and removals as one batch
+### Story 3.5: Stage and save role changes and removals as one batch
 
 As a trip manager,
 I want to change roles and remove contributors as staged edits I can review before saving,
@@ -572,16 +616,15 @@ So that I don't make membership changes one accidental click at a time.
 **When** I click Cancel
 **Then** all staged state is discarded client-side with no server call
 
-**Given** `saveContributorChanges` now covers role-change and removal
+**Given** Story 3.3 already removed the dead collaborator components and trip edit sheet People section
 **When** this story lands
-**Then** `trip-edit-sheet.tsx`'s collaborators tab, `trip-edit-collaborators.tsx`, and the legacy `addCollaborator`/`removeCollaborator`/`updateCollaboratorRole` actions are removed — `trip-share-dialog.tsx` is the sole control plane
-**And** `trip-edit-collaborators.test.tsx` is deleted and `trip-edit-sheet.test.tsx`'s collaborators-tab assertions are removed in the same change, so no test references deleted markup or components
+**Then** `trip-share-dialog.tsx` remains the sole control plane and gains staged role-change/removal support through `saveContributorChanges`
 
 **Given** an editor calls `saveContributorChanges` directly
 **When** the action runs
 **Then** it's rejected server-side
 
-### Story 3.5: Unsaved-changes guard on dialog close
+### Story 3.6: Unsaved-changes guard on dialog close
 
 As a trip manager,
 I want the dialog to stop me from losing staged changes by accident,
@@ -785,7 +828,7 @@ So that I'm not left looking at a trip I no longer have access to.
 
 **Given** the SSE connection to `/api/users/me/events` has delivered no event or heartbeat for longer than the heartbeat interval plus a grace window
 **When** that threshold is reached
-**Then** the client treats the channel as down (`sync-status-indicator.tsx` shows "offline") and re-verifies trip/membership access on the next navigation — a dead channel cannot mask a revocation indefinitely
+**Then** the client treats the channel as down (`sync-status-indicator.tsx` shows the `Unable to sync` problem icon) and re-verifies trip/membership access on the next navigation — a dead channel cannot mask a revocation indefinitely
 
 ### Story 4.5: Dashboard reflects membership changes live
 
@@ -810,3 +853,53 @@ So that I always see an accurate list of trips I have access to.
 **Given** a `membership-changed` event (role change, not removal) naming me arrives while the dashboard is open
 **When** it's processed
 **Then** my next server action/query against that trip reflects the new role — no separate "your role changed" interstitial is shown
+
+### Story 4.6: Move sync status indicator to a problem-only corner icon
+
+As any signed-in user,
+I want sync problems shown without permanent healthy-state chrome or mobile overlap,
+So that connection failures remain visible and accessible without adding noise.
+
+**Delivery note:** This story supersedes Story 4.2's visible connected/text-and-dot presentation only; the status machine, EventSource ownership, single app-shell mount, and live-announcement contract remain unchanged.
+
+**Acceptance Criteria:**
+
+**Given** the live-sync status is `connected`
+**When** the app shell renders
+**Then** no visible sync indicator appears and no initial announcement fires, while the `aria-live="polite"` region remains mounted for later transitions
+
+**Given** the status stays `reconnecting` longer than the 2-second grace window
+**When** the problem indicator appears
+**Then** a warning-toned `RefreshCw` icon renders in the bottom-left corner with a 44×44px focusable trigger, `aria-label="Reconnecting"`, and a Base UI tooltip reachable by hover, keyboard focus, and tap
+
+**Given** `prefers-reduced-motion: reduce`
+**When** the reconnecting icon renders
+**Then** it remains static instead of pulsing
+
+**Given** the status becomes `offline`
+**When** the problem indicator updates
+**Then** a static danger-toned `WifiOff` icon renders with accessible label and tooltip text `Unable to sync`
+
+**Given** the connection recovers from reconnecting or offline
+**When** the status becomes `connected`
+**Then** the icon disappears and `Connected` is announced once through the live region
+
+**Given** a mobile device with a bottom safe-area inset
+**When** the indicator renders
+**Then** its fixed bottom-left position clears the 56px bottom tab bar plus `env(safe-area-inset-bottom)`; `src/app/layout.tsx` exports `viewportFit: "cover"` so the inset resolves
+
+**Given** a desktop viewport
+**When** the indicator renders
+**Then** its left position clears the 240px sidebar and its wrapper cannot shield page controls while no problem is visible
+
+**Given** a healthy cold load whose SSE handshake completes inside the grace window
+**When** the initial `reconnecting` state resolves
+**Then** no problem icon flashes and nothing is announced
+
+**Given** component tests run
+**When** all sync states and transitions are exercised
+**Then** `sync-status-indicator.test.tsx` covers connected invisibility, grace-window behavior, reconnecting/offline icons and tooltips, reduced motion, recovery announcement, safe-area placement, and repeat-state suppression
+
+**Given** affected E2E runs
+**When** the sync-status feature executes
+**Then** `sync-status.feature` and `sync-status.steps.ts` cover connected invisibility behind a positive page anchor, keyboard and tap tooltip access, `Unable to sync`, and recovery

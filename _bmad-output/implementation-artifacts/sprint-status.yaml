@@ -29,27 +29,27 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-31-2026 00:00
-last_updated: 09-09-2026 20:05
+last_updated: 09-28-2026 08:22
 project: packt
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-1: in-progress
+  epic-1: done
   1-1-migrate-collaborator-roles-to-viewer-editor-manager: done
   1-2-invite-an-existing-packt-user-to-a-trip: done
   1-3-view-accept-or-decline-a-pending-invitation: done
   1-4-invitation-expiry-and-rescind: done
   epic-1-retrospective: done
 
-  epic-2: in-progress
+  epic-2: done
   2-1-viewer-gets-a-read-only-financial-data-free-trip-view: done
   2-2-editor-sees-full-itinerary-budget-access-without-trip-manage: done
   2-3-manager-has-full-trip-control-the-creator-s-seat-can-t-be-to: done
   2-4-viewer-s-shared-trips-are-excluded-from-personal-expense-rep: done
   epic-2-retrospective: done
 
-  epic-3: in-progress
+  epic-3: done
   3-1-build-the-share-dialog-shell-with-active-pending-declined-ro: done
   3-2-resend-and-rescind-a-pending-invitation: done
   3-3-wire-invite-form-and-remove-dead-collaborator-surfaces: done
@@ -58,14 +58,21 @@ development_status:
   3-6-unsaved-changes-guard-on-dialog-close: done
   epic-3-retrospective: done
 
-  epic-4: in-progress
+  epic-4: done
   4-1-sse-pub-sub-infrastructure-and-both-routes: done
   4-2-sync-status-indicator: done
   4-3-trip-page-live-refresh-on-itinerary-and-membership-events: done
   4-4-revocation-modal-on-self-targeted-removal: done
   4-5-dashboard-reflects-membership-changes-live: done
-  4-6-move-sync-status-indicator-to-top-bar-icon: done
+  4-6-move-sync-status-indicator-to-a-problem-only-corner-icon: done
   epic-4-retrospective: done
+
+  epic-5: done
+  5-1-storageadapter-port-and-local-filesystem-adapter: done
+  5-2-authenticated-proxy-read-route: done
+  5-3-migrate-write-side-call-sites-off-upload_stub: done
+  5-4-e2e-and-lint-cutover: done
+  epic-5-retrospective: optional
 action_items:
   - id: "epic-1-retro-item-1-guarantee-every-story-in-the-build-workf"
     epic: 1

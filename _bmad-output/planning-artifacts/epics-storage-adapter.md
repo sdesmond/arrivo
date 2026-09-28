@@ -8,7 +8,7 @@ inputDocuments:
   - _bmad-output/project-context.md
 ---
 
-# packt - Epic Breakdown (Storage Adapter)
+# packt - Storage Adapter Plan
 
 ## Overview
 
@@ -57,30 +57,30 @@ Not applicable — this is a backend/infrastructure migration with no new or cha
 
 ### FR Coverage Map
 
-FR-1: Epic 1 - StorageAdapter port and call-site migration
-FR-2: Epic 1 - Local filesystem adapter
-FR-3: Epic 1 - Env-var provider selection and config
-FR-4: Epic 1 - Authenticated proxy read route
-FR-5: Epic 1 - StorageAdapter port (key opacity)
-FR-6: Epic 1 - StorageAdapter port (URL contract)
-FR-7: Epic 1 - StorageAdapter port (del semantics) / Local filesystem adapter
-FR-8: Epic 1 - Shared trip-ownership resolver
-FR-9: Epic 1 - Authenticated proxy read route (Content-Type contract)
-FR-10: Epic 1 - Call-site migration off UPLOAD_STUB
+FR-1: Epic 5 - StorageAdapter port and call-site migration
+FR-2: Epic 5 - Local filesystem adapter
+FR-3: Epic 5 - Env-var provider selection and config
+FR-4: Epic 5 - Authenticated proxy read route
+FR-5: Epic 5 - StorageAdapter port (key opacity)
+FR-6: Epic 5 - StorageAdapter port (URL contract)
+FR-7: Epic 5 - StorageAdapter port (del semantics) / Local filesystem adapter
+FR-8: Epic 5 - Shared trip-ownership resolver
+FR-9: Epic 5 - Authenticated proxy read route (Content-Type contract)
+FR-10: Epic 5 - Call-site migration off UPLOAD_STUB
 
-## Epic List
+## Initiative Summary
 
-### Epic 1: Storage Adapter Foundation
+### Epic 5: Storage Adapter Foundation
 Replace direct `@vercel/blob` calls with a `StorageAdapter` port and a default local-filesystem implementation, so Packt can run self-hosted in a Docker container against a bind-mounted volume, with storage backend chosen via env var and no secrets baked into the image.
 **Requirements covered:** FR-1 through FR-10, NFR-1 through NFR-6
 
 ---
 
-## Epic 1: Storage Adapter Foundation
+## Epic 5: Storage Adapter Foundation
 
 Replace direct `@vercel/blob` calls with a `StorageAdapter` port and a default local-filesystem implementation, so Packt can run self-hosted in a Docker container against a bind-mounted volume, with storage backend chosen via env var and no secrets baked into the image.
 
-### Story 1.1: StorageAdapter port and local filesystem adapter
+### Story 5.1: StorageAdapter port and local filesystem adapter
 
 As a developer maintaining Packt's storage layer,
 I want a `StorageAdapter` port and a default local-filesystem implementation,
@@ -126,13 +126,13 @@ So that all file I/O for documents and cover images can go through one swappable
 
 **Given** the codebase's ESLint config
 **When** `no-restricted-imports` is applied
-**Then** `node:fs`/`node:fs/promises` is disallowed everywhere except `local-filesystem-adapter.ts` (the `@vercel/blob` ban is completed in Story 1.4, once all call sites have migrated) (NFR-3)
+**Then** `node:fs`/`node:fs/promises` is disallowed everywhere except `local-filesystem-adapter.ts` (the `@vercel/blob` ban is completed in Story 5.4, once all call sites have migrated) (NFR-3)
 
 **Given** a Vitest suite for `local-filesystem-adapter.ts` using `vi.stubEnv("STORAGE_PROVIDER", ...)`
 **When** a second suite in the same worker stubs a different `STORAGE_PROVIDER` value
 **Then** a documented test-isolation mechanism (a test-only reset export or a wholesale-mock convention) ensures the second suite does not silently reuse the first suite's cached adapter instance
 
-### Story 1.2: Authenticated proxy read route
+### Story 5.2: Authenticated proxy read route
 
 As a developer maintaining Packt's storage layer,
 I want a trip-scoped authenticated proxy route that serves files from the local adapter,
@@ -162,13 +162,13 @@ So that uploaded documents and cover images render in the app without exposing a
 
 **Given** a request for a key that does not exist in the backing store
 **When** the route handles the read failure
-**Then** it returns a 404, not a 500, using the not-found outcome defined in Story 1.1
+**Then** it returns a 404, not a 500, using the not-found outcome defined in Story 5.1
 
 **Given** the proxy route and resolver
 **When** called with a raw, non-percent-encoded multi-segment key
 **Then** the round trip (`put()` → parse route params → `resolveOwningTripId` key) reproduces the original key exactly
 
-### Story 1.3: Migrate write-side call sites off UPLOAD_STUB
+### Story 5.3: Migrate write-side call sites off UPLOAD_STUB
 
 As a developer maintaining Packt's storage layer,
 I want the six existing upload/delete action files to call the `StorageAdapter` port instead of branching on `UPLOAD_STUB`,
@@ -190,7 +190,7 @@ So that uploads and deletes work identically regardless of which backend is conf
 
 **Given** `document-upload-actions.ts`'s `getEventTripId` and `reservation-document-actions.ts`'s `getReservationTripId`
 **When** migrated
-**Then** both call sites use the shared `resolveOwningTripId()` from Story 1.2 rather than their own inline lookup (FR-8)
+**Then** both call sites use the shared `resolveOwningTripId()` from Story 5.2 rather than their own inline lookup (FR-8)
 
 **Given** any of the six migrated action files
 **When** a mutation completes
@@ -200,7 +200,7 @@ So that uploads and deletes work identically regardless of which backend is conf
 **When** migrated
 **Then** they mock `getStorageAdapter()` instead of mocking `@vercel/blob` / `UPLOAD_STUB` branching, and continue to pass with equivalent coverage
 
-### Story 1.4: E2E and lint cutover
+### Story 5.4: E2E and lint cutover
 
 As a developer maintaining Packt's storage layer,
 I want the E2E environment and lint rules to enforce the new storage abstraction exclusively,
@@ -221,7 +221,7 @@ So that tests exercise the real local adapter and no code can silently reintrodu
 **Then** `@vercel/blob` is disallowed everywhere in the codebase with no remaining exceptions, and `node:fs`/`node:fs/promises` remains disallowed outside `local-filesystem-adapter.ts` (NFR-3)
 
 **Given** `package.json`
-**When** Story 1.3's call sites no longer import `@vercel/blob` anywhere
+**When** Story 5.3's call sites no longer import `@vercel/blob` anywhere
 **Then** the `@vercel/blob` dependency is removed from `package.json` and the lockfile
 
 **Given** the affected E2E suite (`test:e2e:affected`) and unit test coverage thresholds
