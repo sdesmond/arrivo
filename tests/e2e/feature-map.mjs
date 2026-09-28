@@ -192,6 +192,10 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/cover-image-search-actions.ts",
   ]),
   entry("trip-delete", ["src/components/packt/delete-trip-alert-dialog.tsx"]),
+  entry("leave-trip", [
+    "src/components/packt/leave-trip-alert-dialog.tsx",
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+  ]),
   entry("trip-live-refresh", [
     "src/lib/live-sync-constants.ts",
     "src/lib/use-live-sync.ts",
