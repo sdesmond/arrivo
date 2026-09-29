@@ -219,7 +219,7 @@ describe("PlaceRow", () => {
   });
 
   it("shows formatted time range when startAt and endAt are present", () => {
-    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
+    render(<PlaceRow dayDate="2026-05-13" place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
     // When startAt/endAt are set the time button should NOT show "Add time"
@@ -232,7 +232,7 @@ describe("PlaceRow", () => {
 
   it("shows 'Add time' when no startAt", () => {
     const place: TripEvent = { id: "ev-2", name: "Free Time", position: 1 };
-    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+    render(<PlaceRow dayDate="2026-05-13" place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.getByRole("button", { name: /add time/i })).toBeInTheDocument();
   });
 
@@ -443,7 +443,7 @@ describe("PlaceRow", () => {
 
   it("clicking time button opens time dialog", async () => {
     const user = userEvent.setup();
-    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
+    render(<PlaceRow dayDate="2026-05-13" place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
@@ -482,22 +482,10 @@ describe("PlaceRow", () => {
     );
   });
 
-  it("picker save with no dayDate sets startAt/endAt to undefined", async () => {
-    const user = userEvent.setup();
-    const onUpdate = vi.fn();
-    render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
-      wrapper: Wrapper,
-    });
-    const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
-    await user.click(timeBtn);
-    await user.click(screen.getByRole("button", { name: "picker-save" }));
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ startAt: undefined, endAt: undefined }));
-  });
-
   it("picker clear calls onUpdate with startAt/endAt undefined", async () => {
     const user = userEvent.setup();
     const onUpdate = vi.fn();
-    render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
+    render(<PlaceRow dayDate="2026-05-13" place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
@@ -509,7 +497,7 @@ describe("PlaceRow", () => {
   it("picker close hides picker without calling onUpdate", async () => {
     const user = userEvent.setup();
     const onUpdate = vi.fn();
-    render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
+    render(<PlaceRow dayDate="2026-05-13" place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
     const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
@@ -735,7 +723,7 @@ describe("PlaceRow", () => {
 
   it("renders with only startAt (no endAt) — single-time label", () => {
     const place: TripEvent = { id: "ev-3", name: "Solo Event", startAt: "2026-05-13T14:00:00Z", position: 0 };
-    render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+    render(<PlaceRow dayDate="2026-05-13" place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     const allButtons = screen.getAllByRole("button");
     const timeBtn = allButtons.find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""));
     expect(timeBtn).toBeDefined();
@@ -1176,5 +1164,31 @@ describe("PlaceRow for a viewer", () => {
     await user.click(screen.getByTitle("Show attached documents"));
     expect(screen.getByText("Plan.pdf")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "add-doc-in-block" })).not.toBeInTheDocument();
+  });
+});
+
+describe("PlaceRow time on a day without a date", () => {
+  it("offers a date hint instead of the time dialog", () => {
+    render(
+      <PlaceRow place={{ ...basePlace, startAt: undefined, endAt: undefined }} onUpdate={vi.fn()} onDelete={vi.fn()} />,
+      {
+        wrapper: Wrapper,
+      }
+    );
+    expect(screen.getByText("Set dates to add a time")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add time/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps Add time on a dated day", () => {
+    render(
+      <PlaceRow
+        place={{ ...basePlace, startAt: undefined, endAt: undefined }}
+        dayDate="2026-05-13"
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.getByRole("button", { name: /add time/i })).toBeInTheDocument();
   });
 });

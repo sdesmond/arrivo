@@ -310,6 +310,7 @@ export function PlaceRow({
                 onOpenAddDoc={() => setShowAddDocDialog(true)}
                 onOpenMaps={place.locationAddress ? handleOpenMaps : undefined}
                 hasScheduleConflict={hasScheduleConflict}
+                hasDayDate={!!dayDate}
               />
 
               {showDocs && hasDocs && (
