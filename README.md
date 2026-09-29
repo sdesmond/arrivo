@@ -31,56 +31,17 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## Self-hosting
 
-Packt ships as a Docker Compose stack (`db` Postgres, a one-shot `migrate` job, and the `app` container). It runs anywhere Docker Compose does.
+Packt ships as a Docker Compose stack and runs on any host with Docker. **Step-by-step guide: [docs/self-hosting.md](./docs/self-hosting.md)** — requirements, configuration, HTTPS, updates, backups, and troubleshooting.
 
-**Prerequisites:** Docker with Compose v2, `openssl`
+Quick start for the impatient:
 
-1. Create `.env` next to `docker-compose.yml` and add a session secret:
-
-   ```sh
-   cp .env.example .env
-   echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)" >> .env
-   ```
-
-   Compose reads only these keys from `.env`; everything else in the file is ignored by the containers:
-
-   | Variable                                     | Purpose                                                                                                   |
-   | -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-   | `NEXTAUTH_SECRET`                            | Required. Signs session JWTs; `docker compose` refuses to start without it.                               |
-   | `NEXTAUTH_URL`                               | URL users open in their browser (default `http://localhost:3000`). Set it to the host's real address/URL. |
-   | `ALLOW_SIGNUP`                               | `true` (default) exposes the sign-up page; set `false` once your accounts exist.                          |
-   | `PACKT_PORT`                                 | Host port mapped to the app (default `3000`).                                                             |
-   | `MAPBOX_ACCESS_TOKEN`, `UNSPLASH_ACCESS_KEY` | Server-side geocoding, routes, static maps, and cover-image search. Optional; features degrade without.   |
-   | `NEXT_PUBLIC_MAPBOX_TOKEN`                   | Interactive map tab. Baked into the client bundle at **build** time — rebuild after changing it.          |
-
-2. Build and start:
-
-   ```sh
-   docker compose up -d --build
-   ```
-
-   The `migrate` service pushes the current Drizzle schema and exits; `app` starts once it succeeds.
-   This is an intentional pre-release workflow and will switch to explicit tracked migrations before general production rollout.
-
-   Uploaded documents and cover images persist in the `packt-storage` volume (see [Storage](#storage)); the database lives in `packt-pgdata`.
-
-3. (Optional) Seed demo data:
-
-   ```sh
-   docker compose run --rm migrate npm run db:seed
-   ```
-
-   Signs in as `demo@packt.local` / `demo1234`.
-
-4. Open `NEXTAUTH_URL` (default [http://localhost:3000](http://localhost:3000)).
-
-**Updating:** `git pull && docker compose up -d --build`. Volumes are untouched, so data and uploads survive.
-
-**HTTPS / reverse proxy:** point any reverse proxy at the app's host port and set `NEXTAUTH_URL` to the public `https://` URL.
-
-**Building for another machine:** `next build` needs roughly 4GB of RAM. To build on one machine and run on another (e.g. a low-memory or different-architecture host), build with `docker buildx build --platform linux/amd64` (or `linux/arm64`) for the `runner` and `tools` targets, then move the images with `docker save` / `docker load` or a registry.
-
-**Session revocation:** this app uses JWT sessions. To invalidate all active sessions, rotate `NEXTAUTH_SECRET` and restart the container.
+```sh
+git clone https://github.com/sdesmond/packt.git && cd packt
+cp .env.docker.example .env
+sed -i "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$(openssl rand -base64 32)|" .env
+# edit .env: set NEXTAUTH_URL to the address you'll open in the browser
+docker compose up -d --build
+```
 
 ## Storage
 
