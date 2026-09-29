@@ -20,6 +20,7 @@ export interface PlaceRowActionBarProps {
   onOpenAddDoc: () => void;
   onOpenMaps?: () => void;
   hasScheduleConflict?: boolean;
+  hasDayDate?: boolean;
 }
 
 export function PlaceRowActionBar({
@@ -32,6 +33,7 @@ export function PlaceRowActionBar({
   onOpenAddDoc,
   onOpenMaps,
   hasScheduleConflict,
+  hasDayDate,
 }: PlaceRowActionBarProps) {
   const canEdit = useCanEditTrip();
   const docs = place.docs ?? [];
@@ -45,6 +47,7 @@ export function PlaceRowActionBar({
         startAt={place.startAt}
         endAt={place.endAt}
         hasScheduleConflict={hasScheduleConflict}
+        hasDayDate={hasDayDate}
         onOpenTime={onOpenTime}
       />
 

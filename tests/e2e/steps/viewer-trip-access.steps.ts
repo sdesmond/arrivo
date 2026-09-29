@@ -5,6 +5,10 @@ import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioTripRecord } from "../scenario-fixture";
 
+const PLANNED_EVENT_NAME = "Tea ceremony";
+const PLANNED_TRIP_START = "2026-10-01";
+const PLANNED_TRIP_END = "2026-10-02";
+
 // Materializes a trip owned by a different (freshly created) user, with the current scenario user
 // added as a collaborator at the given role. Mirrors the raw-insert pattern used for pending
 // invitations — assertTripAccess resolves role from the `collaborators` row, so the fixture needs a
@@ -28,18 +32,23 @@ async function seedSharedTrip(
 
     const [tripRow] = await db
       .insert(trips)
-      .values({ ownerId: owner.id, name: tripName })
+      .values({
+        ownerId: owner.id,
+        name: tripName,
+        // Event times need dated days, so the planned-day trip is scheduled; the plain one stays dateless.
+        ...(withPlannedDay ? { startDate: PLANNED_TRIP_START, endDate: PLANNED_TRIP_END } : {}),
+      })
       .returning({ id: trips.id, name: trips.name, startDate: trips.startDate, endDate: trips.endDate });
 
     const [dayOne] = await db
       .insert(days)
-      .values({ tripId: tripRow.id, dayNumber: 1, date: null, label: "Day 1" })
+      .values({ tripId: tripRow.id, dayNumber: 1, date: withPlannedDay ? PLANNED_TRIP_START : null, label: "Day 1" })
       .returning({ id: days.id });
 
     if (withPlannedDay) {
       // A second day gives the last day a Remove control for editors; the first holds a fully filled
       // event (time, location, cost), an empty one, and a note, so both kinds of chip are exercised.
-      await db.insert(days).values({ tripId: tripRow.id, dayNumber: 2, date: null, label: "Day 2" });
+      await db.insert(days).values({ tripId: tripRow.id, dayNumber: 2, date: PLANNED_TRIP_END, label: "Day 2" });
       const [teaCeremony] = await db
         .insert(events)
         .values([
@@ -103,8 +112,6 @@ async function seedSharedTrip(
   scenario.setCurrentTrip(tripRecord);
   return tripRecord;
 }
-
-const PLANNED_EVENT_NAME = "Tea ceremony";
 
 Given(
   "I am a viewer on {string} owned by {string} with a planned day",
@@ -216,5 +223,4 @@ Then("I see the itinerary edit controls", async ({ page }) => {
   await expect(page.getByTitle("Delete event").first()).toBeAttached();
   await expect(page.getByRole("button", { name: /add a place/i }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Add Day" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Set trip dates/ })).toBeVisible();
 });

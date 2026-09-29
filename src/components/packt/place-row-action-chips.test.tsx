@@ -36,6 +36,29 @@ describe("PlaceRowTimeChip", () => {
     expect(toastWarning).toHaveBeenCalledOnce();
   });
 
+  describe("on a day without a date", () => {
+    it("explains that a date is needed instead of opening the time dialog", async () => {
+      const user = userEvent.setup();
+      const onOpenTime = vi.fn();
+      render(<PlaceRowTimeChip hasDayDate={false} onOpenTime={onOpenTime} />);
+
+      expect(screen.queryByRole("button", { name: /add time/i })).not.toBeInTheDocument();
+      await user.click(screen.getByText("Set dates to add a time"));
+      expect(onOpenTime).not.toHaveBeenCalled();
+    });
+
+    it("shows an existing time as text so it cannot be overwritten without a date", () => {
+      render(<PlaceRowTimeChip hasDayDate={false} startAt="2026-08-01T09:00:00Z" onOpenTime={vi.fn()} />);
+      expect(screen.getByText("9:00 AM")).toBeInTheDocument();
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("shows a viewer nothing rather than the date hint", () => {
+      const { container } = renderAsViewer(<PlaceRowTimeChip hasDayDate={false} onOpenTime={vi.fn()} />);
+      expect(container).toBeEmptyDOMElement();
+    });
+  });
+
   describe("for a viewer", () => {
     it("shows a set time as text that opens nothing", async () => {
       const user = userEvent.setup();

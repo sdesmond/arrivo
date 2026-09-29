@@ -42,11 +42,21 @@ export interface PlaceRowTimeChipProps {
   startAt?: string;
   endAt?: string;
   hasScheduleConflict?: boolean;
+  /** False on a dateless trip's day (or an unscheduled event): a time is stored as a full timestamp and needs a date. */
+  hasDayDate?: boolean;
   onOpenTime: () => void;
 }
 
-export function PlaceRowTimeChip({ startAt, endAt, hasScheduleConflict, onOpenTime }: PlaceRowTimeChipProps) {
-  const canEdit = useCanEditTrip();
+export function PlaceRowTimeChip({
+  startAt,
+  endAt,
+  hasScheduleConflict,
+  hasDayDate = true,
+  onOpenTime,
+}: PlaceRowTimeChipProps) {
+  const canEditTrip = useCanEditTrip();
+  // Saving a time without a date would store nothing, so a dateless day never opens the dialog.
+  const canEdit = canEditTrip && hasDayDate;
   const timeLabel = startAt
     ? endAt
       ? `${formatTime(toHHMM(startAt))} – ${formatTime(toHHMM(endAt))}`
@@ -87,12 +97,20 @@ export function PlaceRowTimeChip({ startAt, endAt, hasScheduleConflict, onOpenTi
       </Button>
     </ButtonGroup>
   ) : !canEdit ? (
-    timeLabel && (
+    timeLabel ? (
       <ReadOnlyChip>
         <Clock size={IconSize.actionChip} strokeWidth={1.5} />
         {timeLabel}
       </ReadOnlyChip>
-    )
+    ) : canEditTrip ? (
+      <span
+        className={CHIP_CLASS}
+        style={{ fontSize: "calc(var(--fs-action-chip) * var(--font-scale))", color: "var(--fg-4)" }}
+      >
+        <Clock size={IconSize.actionChip} strokeWidth={1.5} />
+        Set dates to add a time
+      </span>
+    ) : null
   ) : (
     <button
       onClick={onOpenTime}
