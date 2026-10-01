@@ -103,7 +103,7 @@ touches any other account in the database.
 | `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                           |
 | `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                   | `./.dev-storage`                                  |
 
-Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`. See the **[Storage](./README.md#storage)** section in README.md for how the adapter, providers, and Docker volume mount work.
+Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`. See the **[Storage](./README.md#storage)** section in README.md for how the adapter, providers, and Docker storage mount work.
 
 ---
 
@@ -124,11 +124,13 @@ psql -d postgres -c "CREATE DATABASE packt OWNER packt;"
 psql -d postgres -c "CREATE DATABASE packt_e2e OWNER packt;"
 ```
 
-If using Docker:
+If using Docker (PostgreSQL 17 on `localhost:5432`, data in a named volume):
 
 ```bash
-docker compose up -d db
+docker compose -f docker-compose.dev.yml up -d db
 ```
+
+`docker-compose.dev.yml` is the dev database only. `docker-compose.yml` is the self-hosting stack and doesn't expose the database to the host.
 
 Then finish with:
 

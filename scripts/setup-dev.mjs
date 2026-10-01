@@ -343,16 +343,20 @@ function ensureLocalPostgresDatabases() {
   }
 }
 
+// Dev uses its own compose file: docker-compose.yml is the self-hosting stack (bind mounts, no
+// published DB port), while dev needs 5432 on the host and a named volume that works on Docker Desktop.
+export const DEV_COMPOSE_ARGS = ["compose", "-f", "docker-compose.dev.yml"];
+
 function ensureDockerDatabase(rootDir) {
   if (!commandExists("docker", ["compose", "version"])) {
     fail("Docker Compose is required for Docker database setup.");
   }
 
-  runCommand("docker", ["compose", "up", "-d", "db"], { cwd: rootDir });
+  runCommand("docker", [...DEV_COMPOSE_ARGS, "up", "-d", "db"], { cwd: rootDir });
 
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
-      runCommand("docker", ["compose", "exec", "-T", "db", "pg_isready", "-U", "packt"], {
+      runCommand("docker", [...DEV_COMPOSE_ARGS, "exec", "-T", "db", "pg_isready", "-U", "packt"], {
         cwd: rootDir,
       });
       return;

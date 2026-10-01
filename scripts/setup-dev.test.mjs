@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 
 describe("setup-dev helpers", async () => {
-  const { buildSetupPlan, ensureAiToolLinks, mergeEnvForSetup } = await import("./setup-dev.mjs");
+  const { DEV_COMPOSE_ARGS, buildSetupPlan, ensureAiToolLinks, mergeEnvForSetup } = await import("./setup-dev.mjs");
+
+  it("docker mode targets the dev compose file", () => {
+    expect(DEV_COMPOSE_ARGS).toEqual(["compose", "-f", "docker-compose.dev.yml"]);
+  });
 
   it("defaults to auto database mode", () => {
     expect(buildSetupPlan([])).toEqual({
