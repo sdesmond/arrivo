@@ -6,6 +6,9 @@ node_modules
 drizzle
 .next-e2e
 .dev-storage
+data
+_bmad
+_bmad-output
 coverage
 test-results
 playwright-report

@@ -69,9 +69,9 @@ Set `STORAGE_PROVIDER` and that provider's required env vars, then redeploy — 
 
 ### Local provider
 
-Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and mounts a named volume (`packt-storage`) at that path so uploads survive container rebuilds and restarts.
+Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and bind-mounts the host folder `${PACKT_DATA_DIR:-./data}/storage` at that path so uploads survive container rebuilds and restarts and are visible to host backups.
 
-If you swap that named volume for a host bind mount, match the bind-mounted directory's owner to the container process's UID/GID (the app container runs as root by default) — an ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
+The app container runs as root by default, so it can write to that folder regardless of its owner. If you run it as a non-root `user:`, match the host folder's owner to that UID/GID — an ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
 
 ### Adding a provider
 
