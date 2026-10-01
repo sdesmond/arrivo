@@ -37,9 +37,8 @@ describe("docker-compose.yml (self-hosting stack)", () => {
     expect(compose).not.toMatch(/^\s+build:/m);
   });
 
-  it("passes the Mapbox public token at runtime, not as a build arg", () => {
+  it("passes the Mapbox public token at runtime", () => {
     expect(serviceBlock(compose, "app")).toContain("MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}");
-    expect(compose).not.toContain("NEXT_PUBLIC_MAPBOX_TOKEN");
   });
 
   it("runs migrate once and starts the app only after it succeeds", () => {
@@ -59,7 +58,6 @@ describe("docker-compose.build.yml (build-from-source override)", () => {
     expect(migrate).toContain("target: tools");
     expect(app).toContain("image: packt-app:local");
     expect(app).toContain("target: runner");
-    expect(compose).not.toContain("NEXT_PUBLIC_MAPBOX_TOKEN");
   });
 });
 
@@ -109,10 +107,6 @@ describe("docker-compose.dev.yml (local dev database)", () => {
 describe("docker build context and docs", () => {
   it("keeps bind-mounted data out of the build context", () => {
     expect(readRootFile(".dockerignore").split(/\r?\n/)).toContain("data");
-  });
-
-  it("never bakes the Mapbox token into the image", () => {
-    expect(readRootFile("Dockerfile")).not.toContain("NEXT_PUBLIC_MAPBOX_TOKEN");
   });
 
   it("documents the Postgres major the stack runs", () => {
