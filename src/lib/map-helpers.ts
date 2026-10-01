@@ -111,3 +111,10 @@ export function transformMapboxUrl(
 
   return undefined;
 }
+
+// The browser map token. MAPBOX_PUBLIC_TOKEN lets a host give browsers a URL-restricted token while the
+// server keeps an unrestricted one (restricted tokens fail server-side calls); unset, browsers reuse
+// MAPBOX_ACCESS_TOKEN, which therefore must be a public pk. token.
+export function getBrowserMapboxToken(env: { MAPBOX_PUBLIC_TOKEN?: string; MAPBOX_ACCESS_TOKEN?: string }): string {
+  return env.MAPBOX_PUBLIC_TOKEN || env.MAPBOX_ACCESS_TOKEN || "";
+}

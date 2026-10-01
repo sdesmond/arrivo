@@ -29,19 +29,19 @@ Using a stack-management tool instead of the terminal? Give it `docker-compose.y
 
 Every setting is an environment variable. Changes take effect on `docker compose up -d`.
 
-| Variable              | Default                 | Purpose                                                                                                    |
-| --------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `NEXTAUTH_SECRET`     | —                       | **Required.** Signs sessions. Keep it private; changing it logs everyone out                               |
-| `NEXTAUTH_URL`        | `http://localhost:3000` | Exact URL users open, port included. A mismatch causes sign-in loops or redirects to `localhost`           |
-| `PACKT_PORT`          | `3000`                  | Host port. The container always listens on 3000; if you change this, change the port in `NEXTAUTH_URL` too |
-| `PACKT_VERSION`       | `latest`                | Image release to run, e.g. `0.2.0`. Pinning means upgrades happen only when you change it                  |
-| `PACKT_DATA_DIR`      | `./data`                | Host folder for `pgdata/` (database) and `storage/` (uploads). Relative to the compose file's folder       |
-| `ALLOW_SIGNUP`        | `true`                  | Set `false` to close registration                                                                          |
-| `MAPBOX_ACCESS_TOKEN` | —                       | [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, and map previews       |
-| `MAPBOX_PUBLIC_TOKEN` | —                       | Public (`pk.`) Mapbox token sent to browsers for the Map tab; the same token as above works                |
-| `UNSPLASH_ACCESS_KEY` | —                       | [Unsplash](https://unsplash.com/developers) access key for cover-image search                              |
+| Variable              | Default                 | Purpose                                                                                                                          |
+| --------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXTAUTH_SECRET`     | —                       | **Required.** Signs sessions. Keep it private; changing it logs everyone out                                                     |
+| `NEXTAUTH_URL`        | `http://localhost:3000` | Exact URL users open, port included. A mismatch causes sign-in loops or redirects to `localhost`                                 |
+| `PACKT_PORT`          | `3000`                  | Host port. The container always listens on 3000; if you change this, change the port in `NEXTAUTH_URL` too                       |
+| `PACKT_VERSION`       | `latest`                | Image release to run, e.g. `0.2.0`. Pinning means upgrades happen only when you change it                                        |
+| `PACKT_DATA_DIR`      | `./data`                | Host folder for `pgdata/` (database) and `storage/` (uploads). Relative to the compose file's folder                             |
+| `ALLOW_SIGNUP`        | `true`                  | Set `false` to close registration                                                                                                |
+| `MAPBOX_ACCESS_TOKEN` | —                       | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews, and the Map tab |
+| `MAPBOX_PUBLIC_TOKEN` | `MAPBOX_ACCESS_TOKEN`   | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)              |
+| `UNSPLASH_ACCESS_KEY` | —                       | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                    |
 
-Without the Mapbox and Unsplash keys Packt still runs; those features are just unavailable.
+Without the Mapbox and Unsplash keys Packt still runs; those features are just unavailable. Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
 
 > On Docker Desktop for Windows or macOS, PostgreSQL can fail to start on a host-folder data
 > directory. Use a Linux host, or on Windows point `PACKT_DATA_DIR` into the WSL 2 filesystem.
@@ -111,7 +111,7 @@ Start with `docker compose ps -a` and `docker compose logs <app|db|migrate>`. A 
 | `migrate` shows `Exited (1)`                           | A schema change needs confirmation: run `docker compose run --rm migrate` and answer the prompt |
 | `port is already allocated`                            | Change `PACKT_PORT` and the port in `NEXTAUTH_URL`                                              |
 | Sign-in loops or redirects to `localhost`              | `NEXTAUTH_URL` doesn't match the browser's address                                              |
-| Map tab is empty                                       | `MAPBOX_PUBLIC_TOKEN` is blank or invalid                                                       |
+| Map tab is empty                                       | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                    |
 | `EACCES` / `EPERM` when uploading                      | Only if you run the app as a non-root `user:` — see [Storage](../README.md#storage)             |
 
 ## Uninstalling

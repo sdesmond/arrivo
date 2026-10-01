@@ -5,6 +5,7 @@ import { ContributorRevocationModal } from "@/components/packt/contributor-revoc
 import { InvitationLiveRefresh } from "@/components/packt/invitation-live-refresh";
 import { MapboxTokenProvider } from "@/components/providers/mapbox-token-provider";
 import { requireUser } from "@/lib/auth-helpers";
+import { getBrowserMapboxToken } from "@/lib/map-helpers";
 import { getUserById } from "@/lib/queries";
 import { getMyPendingInvitations } from "@/lib/invitations";
 
@@ -18,7 +19,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     // Read per request (this layout is dynamic via requireUser), so the token comes from the runtime env.
-    <MapboxTokenProvider token={process.env.MAPBOX_PUBLIC_TOKEN ?? ""}>
+    <MapboxTokenProvider
+      token={getBrowserMapboxToken({
+        MAPBOX_PUBLIC_TOKEN: process.env.MAPBOX_PUBLIC_TOKEN,
+        MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN,
+      })}
+    >
       <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
         {/* Desktop sidebar — hidden on mobile */}
         <div className="hidden lg:flex lg:shrink-0">

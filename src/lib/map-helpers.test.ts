@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LocatedItemPin, Reservation, TripEvent } from "@/data/types";
-import { getLocatedItemPins, separateNearbyPins, transformMapboxUrl } from "./map-helpers";
+import { getBrowserMapboxToken, getLocatedItemPins, separateNearbyPins, transformMapboxUrl } from "./map-helpers";
 
 function makeEvent(overrides: Partial<TripEvent> = {}): TripEvent {
   return {
@@ -199,5 +199,25 @@ describe("transformMapboxUrl", () => {
 
   it("leaves mapbox:// URLs untouched for resource types it doesn't handle", () => {
     expect(transformMapboxUrl("mapbox://styles/mapbox/streets-v11", "Style", accessToken)).toBeUndefined();
+  });
+});
+
+describe("getBrowserMapboxToken", () => {
+  it("prefers a dedicated public token so the browser can get a URL-restricted one", () => {
+    expect(getBrowserMapboxToken({ MAPBOX_PUBLIC_TOKEN: "pk.browser", MAPBOX_ACCESS_TOKEN: "pk.server" })).toBe(
+      "pk.browser"
+    );
+  });
+
+  it("falls back to the server token when no public token is set", () => {
+    expect(getBrowserMapboxToken({ MAPBOX_ACCESS_TOKEN: "pk.server" })).toBe("pk.server");
+  });
+
+  it("treats a blank public token as unset, as compose passes empty strings", () => {
+    expect(getBrowserMapboxToken({ MAPBOX_PUBLIC_TOKEN: "", MAPBOX_ACCESS_TOKEN: "pk.server" })).toBe("pk.server");
+  });
+
+  it("returns an empty token when neither is configured", () => {
+    expect(getBrowserMapboxToken({})).toBe("");
   });
 });
