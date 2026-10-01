@@ -136,6 +136,23 @@ describe("useLocationAutocomplete", () => {
     vi.mocked(retrieveLocation).mockResolvedValue(retrievedLocation);
   });
 
+  it("searches without crypto.randomUUID, as on a plain-HTTP origin", async () => {
+    vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+    vi.useFakeTimers();
+
+    try {
+      renderAutocomplete({ initialValue: "To", mode: "destination" });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+
+      expect(searchLocations).toHaveBeenCalledWith("To", expect.stringMatching(/^[0-9a-f-]{36}$/));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("does not search when the trimmed query is shorter than two characters", async () => {
     vi.useFakeTimers();
 

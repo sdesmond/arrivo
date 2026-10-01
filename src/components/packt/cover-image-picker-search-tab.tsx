@@ -3,6 +3,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { LoaderIcon, Search } from "lucide-react";
 import { toast } from "sonner";
+import { createRandomId } from "@/lib/utils";
 import type { CoverImageSearchResult, CoverImageSelection } from "@/data/types";
 import type { LocationSuggestion } from "@/app/(app)/trips/actions";
 import { searchLocations, retrieveLocation } from "@/app/(app)/trips/actions";
@@ -41,7 +42,7 @@ export function CoverImagePickerSearchTab({
   center: initialCenter,
   onImageSelected,
 }: CoverImagePickerSearchTabProps) {
-  const sessionTokenRef = useRef(crypto.randomUUID());
+  const sessionTokenRef = useRef(createRandomId());
   const [searchInput, setSearchInput] = useState(destinationName ?? "");
   const [activeLocation, setActiveLocation] = useState<{
     query: string;
@@ -133,7 +134,7 @@ export function CoverImagePickerSearchTab({
 
     try {
       const location = await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current);
-      sessionTokenRef.current = crypto.randomUUID();
+      sessionTokenRef.current = createRandomId();
       setActiveLocation({
         query: displayName,
         center: location.center,

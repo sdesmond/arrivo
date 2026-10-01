@@ -68,6 +68,18 @@ describe("CoverImagePickerSearchTab", () => {
     });
   });
 
+  it("renders without crypto.randomUUID, as on a plain-HTTP origin", () => {
+    vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+
+    try {
+      render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
+
+      expect(screen.getByRole("combobox")).toHaveValue("Paris");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("pre-fills the search input with destinationName", () => {
     render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
 
