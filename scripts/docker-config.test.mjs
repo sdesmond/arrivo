@@ -29,19 +29,61 @@ describe("docker-compose.yml (self-hosting stack)", () => {
     expect(compose).not.toMatch(/^volumes:/m);
   });
 
-  it("builds fixed image names from a configurable source dir", () => {
+  it("pulls published images at a configurable version instead of building", () => {
     const migrate = serviceBlock(compose, "migrate");
     const app = serviceBlock(compose, "app");
-    expect(migrate).toContain("image: packt-migrate:local");
-    expect(app).toContain("image: packt-app:local");
-    expect(migrate).toContain("context: ${PACKT_SRC_DIR:-.}");
-    expect(app).toContain("context: ${PACKT_SRC_DIR:-.}");
+    expect(migrate).toContain("image: ghcr.io/sdesmond/packt-migrate:${PACKT_VERSION:-latest}");
+    expect(app).toContain("image: ghcr.io/sdesmond/packt:${PACKT_VERSION:-latest}");
+    expect(compose).not.toMatch(/^\s+build:/m);
+  });
+
+  it("passes the Mapbox public token at runtime, not as a build arg", () => {
+    expect(serviceBlock(compose, "app")).toContain("MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}");
+    expect(compose).not.toContain("NEXT_PUBLIC_MAPBOX_TOKEN");
   });
 
   it("runs migrate once and starts the app only after it succeeds", () => {
     expect(serviceBlock(compose, "migrate")).toContain('restart: "no"');
     expect(serviceBlock(compose, "app")).toContain("condition: service_completed_successfully");
     expect(serviceBlock(compose, "app")).toContain(":3000");
+  });
+});
+
+describe("docker-compose.build.yml (build-from-source override)", () => {
+  const compose = readRootFile("docker-compose.build.yml");
+
+  it("builds both targets from the repo under local image tags", () => {
+    const migrate = serviceBlock(compose, "migrate");
+    const app = serviceBlock(compose, "app");
+    expect(migrate).toContain("image: packt-migrate:local");
+    expect(migrate).toContain("target: tools");
+    expect(app).toContain("image: packt-app:local");
+    expect(app).toContain("target: runner");
+    expect(compose).not.toContain("NEXT_PUBLIC_MAPBOX_TOKEN");
+  });
+});
+
+describe("publish-images workflow", () => {
+  const workflow = readRootFile(".github/workflows/publish-images.yml");
+
+  it("publishes on version tags and on manual dispatch", () => {
+    expect(workflow).toMatch(/tags:\n\s+- "v\*\.\*\.\*"/);
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("packages: write");
+  });
+
+  it("moves latest only for full releases, never prereleases like v1.2.0-rc.1", () => {
+    const latestRules = workflow.match(/type=raw,value=latest,enable=.*$/gm);
+    expect(latestRules).toHaveLength(2);
+    for (const rule of latestRules) expect(rule).toContain("!contains(github.ref_name, '-')");
+  });
+
+  it("builds both images for amd64 and arm64", () => {
+    expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/packt$/m);
+    expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/packt-migrate$/m);
+    expect(workflow).toContain("target: runner");
+    expect(workflow).toContain("target: tools");
+    expect(workflow.match(/platforms: linux\/amd64,linux\/arm64/g)).toHaveLength(2);
   });
 });
 
@@ -67,6 +109,10 @@ describe("docker-compose.dev.yml (local dev database)", () => {
 describe("docker build context and docs", () => {
   it("keeps bind-mounted data out of the build context", () => {
     expect(readRootFile(".dockerignore").split(/\r?\n/)).toContain("data");
+  });
+
+  it("never bakes the Mapbox token into the image", () => {
+    expect(readRootFile("Dockerfile")).not.toContain("NEXT_PUBLIC_MAPBOX_TOKEN");
   });
 
   it("documents the Postgres major the stack runs", () => {
