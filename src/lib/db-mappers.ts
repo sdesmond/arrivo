@@ -6,6 +6,7 @@ import {
   reservations,
   expenses,
   collaborators,
+  invitations,
   itineraryChecklists,
   checklistItems,
   itineraryNotes,
@@ -21,6 +22,7 @@ import {
 import { getTripStatus } from "@/lib/utils";
 import { ExpenseCategory } from "@/data/types";
 import type {
+  CollaboratorRole,
   Trip,
   UserProfile,
   TripEvent,
@@ -29,6 +31,7 @@ import type {
   ReservationType,
   Expense,
   Collaborator,
+  Invitation,
   DocPreviewLine,
   Checklist,
   ChecklistItem,
@@ -55,7 +58,8 @@ export function isTransitMode(value: string): value is TransitMode {
   return VALID_TRANSIT_MODES.some((transitMode) => transitMode === value);
 }
 
-export function dbTripToType(row: typeof trips.$inferSelect): Trip {
+export function dbTripToType(row: typeof trips.$inferSelect, options?: { role?: CollaboratorRole }): Trip {
+  const isViewer = options?.role === "viewer";
   return {
     id: row.id,
     name: row.name,
@@ -69,12 +73,13 @@ export function dbTripToType(row: typeof trips.$inferSelect): Trip {
     destinationCountry: row.destinationCountry ?? undefined,
     destinationCountryCode: row.destinationCountryCode ?? undefined,
     notes: row.notes ?? undefined,
-    budget: row.budgetTotal
-      ? {
-          currency: row.budgetCurrency ?? "USD",
-          total: Number(row.budgetTotal),
-        }
-      : undefined,
+    budget:
+      !isViewer && row.budgetTotal
+        ? {
+            currency: row.budgetCurrency ?? "USD",
+            total: Number(row.budgetTotal),
+          }
+        : undefined,
     tags: row.tags ?? [],
     transitMode: row.transitMode && isTransitMode(row.transitMode) ? row.transitMode : null,
   };
@@ -195,8 +200,22 @@ export function dbCollabToType(row: typeof collaborators.$inferSelect): Collabor
     name: row.name,
     initials: row.initials,
     role: row.role as Collaborator["role"],
+    isCreator: row.isCreator,
     tintBg: row.tintBg ?? undefined,
     tintFg: row.tintFg ?? undefined,
+  };
+}
+
+export function dbInvitationToType(row: typeof invitations.$inferSelect): Invitation {
+  return {
+    id: row.id,
+    tripId: row.tripId,
+    email: row.email,
+    role: row.role as Invitation["role"],
+    status: row.status as Invitation["status"],
+    expiresAt: row.expiresAt.toISOString(),
+    invitedBy: row.invitedBy,
+    createdAt: row.createdAt?.toISOString() ?? undefined,
   };
 }
 

@@ -60,7 +60,7 @@ When("I save the packing list as template named {string}", async ({ page }, name
   await dialog.getByLabel("Template name").fill(name);
   await dialog.getByRole("button", { name: "Save template" }).click();
   await expect(dialog).toBeHidden({ timeout: 10_000 });
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
 });
 
 When("I open the save-as-template dialog", async ({ page }) => {

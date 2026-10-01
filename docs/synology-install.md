@@ -97,7 +97,8 @@ to `docker-compose.yml` and re-create the project.
 
 Visit `http://your-nas-ip:3000`.
 
-- Sign in with the demo account (`demo@packt.local` / `demo1234`) if you seeded demo data, or
+- Sign in with the demo account (`demo@packt.local` / `demo1234`) if you seeded demo data — two more
+  accounts are seeded alongside it, see [docs/dev-seed-data.md](./dev-seed-data.md) — or
 - Sign up for your own account — `ALLOW_SIGNUP` defaults to `true` in `docker-compose.yml`. Set
   it to `false` and rebuild once you've created your account if you don't want the sign-up page
   exposed publicly.

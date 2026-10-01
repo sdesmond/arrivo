@@ -27,7 +27,7 @@ When("I navigate to the trips page", async ({ page, scenario }) => {
   await scenario.ensureCurrentTrip();
   await page.goto("/trips");
   await expect(page).toHaveURL(/\/trips/);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
 });
 
 function toReadableDate(dateStr: string, format: "MM/DD/YYYY" | "DD/MM/YYYY"): string {

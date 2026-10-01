@@ -30,6 +30,7 @@ When starting work on this Next.js project, ALWAYS call the `init` tool from `ne
 
 ## Git Workflow
 
+- Run every authenticated GitHub CLI command (`gh pr create`, `gh api`, `gh auth status`, and similar) outside the sandbox on the first attempt so Windows keyring credentials are available. Never probe GitHub authentication inside the sandbox first. The parameter differs per agent: Codex passes `sandbox_permissions: "require_escalated"`; Claude Code passes `dangerouslyDisableSandbox: true` on the Bash/PowerShell tool.
 - When committing, split staged changes into logically-sized commits by concern (e.g. schema/migration, then implementation, then tests, then docs) rather than one large commit — but don't split a single cohesive change just to manufacture multiple commits.
 - Write each commit message focused on _why_, not a restatement of the diff.
 - NEVER add `Co-Authored-By` or other Claude/AI attribution trailers to commits or PRs.
@@ -166,6 +167,20 @@ Before editing any production file, you MUST name the exact test files and scena
 **Branch-confirmation gate — NON-NEGOTIABLE:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 
+**Build stage checkpoints — NON-NEGOTIABLE:**
+bmad-build (or any equivalent plan → implement → review flow) MUST halt at each of the three boundaries below and wait for a NEW, explicit user message saying to proceed. Workflow step files attempt to advance automatically — do not let them. Answering a checkpoint prompt (e.g. "[A] Approve", "looks good") does NOT cross a boundary; the confirm must be a fresh "proceed/continue/go" typed after you post the boundary status.
+
+The three boundaries, in order:
+
+1. After planning — spec/plan written and approved, BEFORE any implementation starts.
+2. After implementation — code changes done, BEFORE code review begins.
+3. After code review — findings triaged/applied, BEFORE presenting or committing.
+
+Crossing rules:
+
+- No implementation work (source/test/E2E edits, or dispatching the implementation subagent) may occur in the same turn as, or before, the user's confirm message. Only pure status bookkeeping that records the approved spec (frontmatter status flip, baseline_commit capture, sprint-status.yaml sync) may run.
+- At each boundary, post a short status ("what finished, what's next"), then HALT with a single "Proceed?" question — no further tool calls until the user answers.
+
 **Default workflow for any coding task:**
 
 1. Ask whether the user wants a branch created before development begins
@@ -243,6 +258,7 @@ Before starting any new development task, you MUST ask the user whether they wan
 - Reusable E2E starting states belong in the mother/materializer helpers in `tests/e2e/e2e-seed-data.ts`, `tests/e2e/scenario-fixture.ts`, and related helpers — extend those instead of inventing ad hoc shared setup
 - `tests/e2e/global-setup.ts` is for minimal bootstrap data only, such as baseline auth prerequisites; do not add feature-specific shared trips, templates, documents, or profile rows there
 - Do not fix E2E flakiness with ordering tags, serial execution, or shared-record reseeding; each scenario must create the mutable rows it depends on and rely on scenario cleanup
+- A step that triggers a mutation and is followed by a reload must await the server action's POST via `waitForServerActionResponse` (`tests/e2e/server-action.ts`) before returning — arm it before the gesture (`mouse.up`/`Enter`), await it after. Optimistic UI makes the in-page assertion pass while the reload aborts the still-in-flight request, so the reordered/edited state silently never persists
 - If a scenario needs a 3-day trip, template, document set, or profile shape, clone a mother with overrides and materialize fresh rows for that scenario
 - Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
 - Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`, but treat those thresholds as backstops rather than the trigger for adding tests

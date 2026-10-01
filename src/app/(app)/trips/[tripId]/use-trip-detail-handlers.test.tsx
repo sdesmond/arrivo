@@ -65,6 +65,7 @@ vi.mock("./actions", () => ({
 }));
 
 const detail: TripDetailPayload = {
+  accessRole: "manager",
   collaborators: [],
   days: [
     {

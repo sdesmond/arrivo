@@ -89,6 +89,12 @@ export interface TripNoteSeed {
   position: number;
 }
 
+export interface PackingListSeed {
+  name: string;
+  position: number;
+  items: PackingItemSeed[];
+}
+
 export interface ExpenseSeed {
   category: ExpenseCategory;
   amount: number;
@@ -134,7 +140,9 @@ export interface TripMother {
   events: EventSeed[];
   documents: DocumentSeed[];
   packingItems: PackingItemSeed[];
+  packingLists: PackingListSeed[];
   notes: NoteSeed[];
+  tripNotes: TripNoteSeed[];
   checklists: ChecklistSeed[];
   reservations: ReservationSeed[];
   expenses: ExpenseSeed[];
@@ -164,7 +172,9 @@ export interface TripMotherOverrides {
   events?: EventSeed[];
   documents?: DocumentSeed[];
   packingItems?: PackingItemSeed[];
+  packingLists?: PackingListSeed[];
   notes?: NoteSeed[];
+  tripNotes?: TripNoteSeed[];
   checklists?: ChecklistSeed[];
   reservations?: ReservationSeed[];
   expenses?: ExpenseSeed[];
@@ -249,7 +259,9 @@ export const THREE_DAY_TRIP_MOTHER: TripMother = {
   events: [],
   documents: [],
   packingItems: [],
+  packingLists: [],
   notes: [],
+  tripNotes: [],
   checklists: [],
   reservations: [],
   expenses: [],
@@ -267,7 +279,9 @@ export const DATELESS_TRIP_MOTHER: TripMother = {
   events: [],
   documents: [],
   packingItems: [],
+  packingLists: [],
   notes: [],
+  tripNotes: [],
   checklists: [],
   reservations: [],
   expenses: [],
@@ -288,7 +302,9 @@ export const DELETE_TRIP_MOTHER: TripMother = {
   events: [],
   documents: [],
   packingItems: [],
+  packingLists: [],
   notes: [],
+  tripNotes: [],
   checklists: [],
   reservations: [],
   expenses: [],
@@ -525,7 +541,9 @@ export function cloneTripMother(
     events: overrides.events ? cloneValue(overrides.events) : base.events,
     documents: overrides.documents ? cloneValue(overrides.documents) : base.documents,
     packingItems: overrides.packingItems ? cloneValue(overrides.packingItems) : base.packingItems,
+    packingLists: overrides.packingLists ? cloneValue(overrides.packingLists) : base.packingLists,
     notes: overrides.notes ? cloneValue(overrides.notes) : base.notes,
+    tripNotes: overrides.tripNotes ? cloneValue(overrides.tripNotes) : base.tripNotes,
     checklists: overrides.checklists ? cloneValue(overrides.checklists) : base.checklists,
     reservations: overrides.reservations ? cloneValue(overrides.reservations) : base.reservations,
     expenses: overrides.expenses ? cloneValue(overrides.expenses) : base.expenses,

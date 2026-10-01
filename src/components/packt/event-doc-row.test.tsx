@@ -59,6 +59,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { EventDocRow } from "./event-doc-row";
+import { TripEditAccessProvider } from "./trip-edit-access";
 import { removeDocument, renameDocument, promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
 import { shareDoc } from "@/lib/utils";
 
@@ -340,5 +341,31 @@ describe("EventDocRow", () => {
     await act(async () => {
       resolveCall?.();
     });
+  });
+});
+
+describe("EventDocRow for a viewer", () => {
+  function renderAsViewer() {
+    return render(
+      <TripEditAccessProvider canEdit={false}>
+        <EventDocRow doc={makeDoc()} />
+      </TripEditAccessProvider>
+    );
+  }
+
+  it("keeps View and Share but drops Move to trip and Delete", () => {
+    renderAsViewer();
+    expect(screen.getByRole("button", { name: "View Boarding Pass.pdf" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Share Boarding Pass.pdf" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Move Boarding Pass.pdf to trip" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete Boarding Pass.pdf" })).not.toBeInTheDocument();
+  });
+
+  it("shows the name as text that cannot be renamed", async () => {
+    const user = userEvent.setup();
+    renderAsViewer();
+    expect(screen.queryByRole("button", { name: "Boarding Pass.pdf" })).not.toBeInTheDocument();
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

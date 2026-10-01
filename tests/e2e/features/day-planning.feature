@@ -79,6 +79,12 @@ Feature: Day Planning
     When I add a day to a dateless itinerary
     Then Day 2 is appended without a date
 
+  @dateless-trip-with-event
+  Scenario: An event on a dateless trip asks for dates instead of a time
+    Given I am on the trip detail page
+    When I open the first day
+    Then the untimed event asks for trip dates before a time
+
   @dateless-trip
   Scenario: Set trip dates CTA opens the trip edit sheet for a dateless trip
     Given I am on the trip detail page

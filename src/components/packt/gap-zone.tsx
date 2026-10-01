@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { TypePicker } from "./type-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { type ItineraryItemType } from "@/data/types";
+import { useCanEditTrip } from "./trip-edit-access";
 
 export interface GapZoneProps {
   gapKey: string;
@@ -14,7 +15,13 @@ export interface GapZoneProps {
   onOpenPackingListPicker?: () => void;
 }
 
+// Same height as the editable gap (20px trigger + py-2.5), so a viewer's items keep their spacing.
+const READ_ONLY_GAP_HEIGHT = 40;
+
 export function GapZone({ isActive, onOpen, onSelectType, onDismiss, onOpenPackingListPicker }: GapZoneProps) {
+  const canEdit = useCanEditTrip();
+  if (!canEdit) return <div aria-hidden="true" style={{ height: READ_ONLY_GAP_HEIGHT }} />;
+
   return (
     <Popover open={isActive} onOpenChange={(open) => (open ? onOpen() : onDismiss())}>
       <div className="group relative flex items-center px-3 py-2.5">

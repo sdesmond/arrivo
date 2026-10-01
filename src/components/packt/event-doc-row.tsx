@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useCanEditTrip } from "./trip-edit-access";
 
 export interface EventDocRowProps {
   doc: Document;
@@ -36,7 +37,19 @@ const compactBtn: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const nameStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: "calc(12px * var(--font-scale))",
+  color: "var(--fg)",
+  fontFamily: "var(--font-body, ui-sans-serif)",
+};
+
 export function EventDocRow({ doc }: EventDocRowProps) {
+  const canEdit = useCanEditTrip();
   const [isPending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,31 +146,19 @@ export function EventDocRow({ doc }: EventDocRowProps) {
             fontFamily: "var(--font-body, ui-sans-serif)",
           }}
         />
-      ) : (
+      ) : canEdit ? (
         <button
           type="button"
           onClick={() => {
             setEditName(displayName);
             setIsEditing(true);
           }}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            textAlign: "left",
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontSize: "calc(12px * var(--font-scale))",
-            color: "var(--fg)",
-            cursor: "text",
-            fontFamily: "var(--font-body, ui-sans-serif)",
-          }}
+          style={{ ...nameStyle, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "text" }}
         >
           {displayName}
         </button>
+      ) : (
+        <span style={nameStyle}>{displayName}</span>
       )}
 
       <button
@@ -181,25 +182,28 @@ export function EventDocRow({ doc }: EventDocRowProps) {
         <Share2 size={13} strokeWidth={1.5} />
       </button>
 
-      <button
-        title={`Move ${doc.name} to trip`}
-        aria-label={`Move ${doc.name} to trip`}
-        disabled={isPending}
-        onClick={handlePromote}
-        style={compactBtn}
-      >
-        <ArrowUpToLine size={13} strokeWidth={1.5} />
-      </button>
-
-      <button
-        onClick={() => setConfirmOpen(true)}
-        disabled={isPending}
-        title={`Delete ${doc.name}`}
-        aria-label={`Delete ${doc.name}`}
-        style={{ ...compactBtn, cursor: isPending ? "wait" : "pointer" }}
-      >
-        <Trash2 size={13} strokeWidth={1.5} />
-      </button>
+      {canEdit && (
+        <button
+          title={`Move ${doc.name} to trip`}
+          aria-label={`Move ${doc.name} to trip`}
+          disabled={isPending}
+          onClick={handlePromote}
+          style={compactBtn}
+        >
+          <ArrowUpToLine size={13} strokeWidth={1.5} />
+        </button>
+      )}
+      {canEdit && (
+        <button
+          onClick={() => setConfirmOpen(true)}
+          disabled={isPending}
+          title={`Delete ${doc.name}`}
+          aria-label={`Delete ${doc.name}`}
+          style={{ ...compactBtn, cursor: isPending ? "wait" : "pointer" }}
+        >
+          <Trash2 size={13} strokeWidth={1.5} />
+        </button>
+      )}
 
       <Dialog open={confirmOpen} onOpenChange={handleOpenChange}>
         <DialogContent showCloseButton={false}>

@@ -31,7 +31,7 @@ No sharded version. No duplicate.
 ### Epics & Stories
 
 **Whole Documents:**
-- `_bmad-output/planning-artifacts/epics-storage-adapter.md` (Epic 1: Storage Adapter Foundation, 4 stories, `stepsCompleted` through `step-04-final-validation`)
+- `_bmad-output/planning-artifacts/epics-storage-adapter.md` (Epic 5: Storage Adapter Foundation, 4 stories, renumbered from Epic 1 on 2026-09-28 to share one global sequence with Trip Contributors; `stepsCompleted` through `step-04-final-validation`)
 
 No sharded version. No duplicate. (The unrelated Trip Notes `epics.md` and its supporting PRD/UX/brainstorm/implementation artifacts were removed from the working tree during this session to eliminate confusion with this assessment.)
 
@@ -73,7 +73,7 @@ Total NFRs: 6
 
 - Structural seed: `src/lib/storage/storage-adapter.ts`, `local-filesystem-adapter.ts`, `trip-resolution.ts`, `src/app/api/storage/[...path]/route.ts`.
 - Exact interface types pinned (Web `ReadableStream<Uint8Array>`, not Node's `Readable`); raw non-percent-encoded key segments in the proxy path; `Promise.allSettled` for the one existing batch-delete call site (`reservations/actions.ts`).
-- Two gaps flagged by the architecture's adversarial review are pushed into stories rather than left open: a "key not found" error taxonomy (Story 1.1/1.2), and a singleton test-isolation reset hook for adapter-specific Vitest suites (Story 1.1).
+- Two gaps flagged by the architecture's adversarial review are pushed into stories rather than left open: a "key not found" error taxonomy (Story 5.1/5.2), and a singleton test-isolation reset hook for adapter-specific Vitest suites (Story 5.1).
 - Explicitly out of scope this round: S3-compatible adapter, migration script, image resize/optimization, a dedicated Vercel Blob adapter, Docker entrypoint/PUID-PGID remap plumbing.
 
 ### PRD Completeness Assessment
@@ -84,29 +84,29 @@ No PRD exists, by design — this is an internal/technical migration with no new
 
 ### Epic FR Coverage Extracted
 
-FR-1 through FR-10: all mapped to Epic 1 in `epics-storage-adapter.md`'s FR Coverage Map.
+FR-1 through FR-10: all mapped to Epic 5 in `epics-storage-adapter.md`'s FR Coverage Map.
 Total FRs in epics: 10
 
 ### Coverage Matrix
 
 | Requirement | Epic Coverage | Status |
 | --- | --- | --- |
-| FR-1 | Epic 1, Story 1.1 (interface shape, read type), Story 1.3 (call-site migration) | Covered |
-| FR-2 | Epic 1, Story 1.1 (local adapter write + proxy path) | Covered |
-| FR-3 | Epic 1, Story 1.1 (env-var provider selection) | Covered |
-| FR-4 | Epic 1, Story 1.2 (proxy route auth-gating) | Covered |
-| FR-5 | Epic 1, Story 1.1 (interface shape) | Covered |
-| FR-6 | Epic 1, Story 1.1 (put() URL contract) | Covered |
-| FR-7 | Epic 1, Story 1.1 (del() recognized/unrecognized behavior), Story 1.3 (guard removal) | Covered |
-| FR-8 | Epic 1, Story 1.2 (resolveOwningTripId), Story 1.3 (call-site adoption) | Covered |
-| FR-9 | Epic 1, Story 1.2 (Content-Type/Disposition) | Covered |
-| FR-10 | Epic 1, Story 1.3 (six call sites migrated) | Covered |
-| NFR-1 | Epic 1, Story 1.1 (singleton env validation) | Covered |
+| FR-1 | Epic 5, Story 5.1 (interface shape, read type), Story 5.3 (call-site migration) | Covered |
+| FR-2 | Epic 5, Story 5.1 (local adapter write + proxy path) | Covered |
+| FR-3 | Epic 5, Story 5.1 (env-var provider selection) | Covered |
+| FR-4 | Epic 5, Story 5.2 (proxy route auth-gating) | Covered |
+| FR-5 | Epic 5, Story 5.1 (interface shape) | Covered |
+| FR-6 | Epic 5, Story 5.1 (put() URL contract) | Covered |
+| FR-7 | Epic 5, Story 5.1 (del() recognized/unrecognized behavior), Story 5.3 (guard removal) | Covered |
+| FR-8 | Epic 5, Story 5.2 (resolveOwningTripId), Story 5.3 (call-site adoption) | Covered |
+| FR-9 | Epic 5, Story 5.2 (Content-Type/Disposition) | Covered |
+| FR-10 | Epic 5, Story 5.3 (six call sites migrated) | Covered |
+| NFR-1 | Epic 5, Story 5.1 (singleton env validation) | Covered |
 | NFR-2 | — | Not AC-testable — a code-review/process convention (env vars only, nothing committed), not a runtime behavior a story ships. No gap. |
-| NFR-3 | Epic 1, Story 1.1 (fs import ban), Story 1.4 (blob import ban finalized) | Covered |
-| NFR-4 | Epic 1, Story 1.4 (E2E env cutover) | Covered |
+| NFR-3 | Epic 5, Story 5.1 (fs import ban), Story 5.4 (blob import ban finalized) | Covered |
+| NFR-4 | Epic 5, Story 5.4 (E2E env cutover) | Covered |
 | NFR-5 | — | Explicit non-goal (no live mid-process switching); nothing to build. No gap. |
-| NFR-6 | Epic 1, Story 1.1 (fail-loud put()) | Covered |
+| NFR-6 | Epic 5, Story 5.1 (fail-loud put()) | Covered |
 
 ### Missing Requirements
 
@@ -139,7 +139,7 @@ None. UX/UI is not implied for this initiative: it's a storage-backend swap behi
 
 **A. User Value Focus Check** — 🟡 Minor / Documented Exception
 
-Epic 1's title ("Storage Adapter Foundation") and all four story framings ("As a developer maintaining Packt's storage layer...") are technical, not end-user-centric — on a strict reading this matches the guide's red-flag pattern ("Infrastructure Setup," "API Development"). This is a deliberate, disclosed deviation rather than an oversight: there is no PRD because this initiative has no in-app end-user-facing behavior at all — it is a pure backend storage migration. The genuine beneficiary is the operator/self-hoster (concrete, stated goal in `brainstorm-intent.md`: deploy Packt on a self-hosted Docker/NAS target without Vercel Blob lock-in), which the create-epics-and-stories process doesn't have a first-class persona for. Inventing an artificial trip-collaborator-facing framing would misrepresent the work rather than clarify it. Flagging this transparently rather than silently passing it, consistent with this step's job — not blocking, since the framing was explicit and agreed with the user before story-writing began.
+Epic 5's title ("Storage Adapter Foundation") and all four story framings ("As a developer maintaining Packt's storage layer...") are technical, not end-user-centric — on a strict reading this matches the guide's red-flag pattern ("Infrastructure Setup," "API Development"). This is a deliberate, disclosed deviation rather than an oversight: there is no PRD because this initiative has no in-app end-user-facing behavior at all — it is a pure backend storage migration. The genuine beneficiary is the operator/self-hoster (concrete, stated goal in `brainstorm-intent.md`: deploy Packt on a self-hosted Docker/NAS target without Vercel Blob lock-in), which the create-epics-and-stories process doesn't have a first-class persona for. Inventing an artificial trip-collaborator-facing framing would misrepresent the work rather than clarify it. Flagging this transparently rather than silently passing it, consistent with this step's job — not blocking, since the framing was explicit and agreed with the user before story-writing began.
 
 **B. Epic Independence Validation** — Pass
 
@@ -153,13 +153,13 @@ All 4 stories are independently completable and appropriately scoped (interface+
 
 **B. Acceptance Criteria Review** — Pass
 
-All ACs use Given/When/Then, are individually testable, and are tagged back to specific FR/NFR numbers. Error paths are explicit and non-trivial (EACCES/EPERM in 1.1, 404-vs-500 and unauthorized access in 1.2, preserved auth/revalidation contract in 1.3, stale-flag/dependency cleanup in 1.4) — no vague criteria like "storage works."
+All ACs use Given/When/Then, are individually testable, and are tagged back to specific FR/NFR numbers. Error paths are explicit and non-trivial (EACCES/EPERM in 5.1, 404-vs-500 and unauthorized access in 5.2, preserved auth/revalidation contract in 5.3, stale-flag/dependency cleanup in 5.4) — no vague criteria like "storage works."
 
 ### Dependency Analysis
 
 **A. Within-Epic Dependencies** — Pass
 
-Strict forward order: 1.1 (standalone) → 1.2 (uses 1.1's adapter) → 1.3 (uses 1.1 + 1.2) → 1.4 (uses 1.1–1.3). No story references a not-yet-built future story.
+Strict forward order: 5.1 (standalone) → 5.2 (uses 5.1's adapter) → 5.3 (uses 5.1 + 5.2) → 5.4 (uses 5.1–5.3). No story references a not-yet-built future story.
 
 **B. Database/Entity Creation Timing** — Not applicable
 
@@ -171,7 +171,7 @@ This epic creates no new DB tables/columns — `documents.url` and `trips.coverI
 
 **B. Greenfield vs. Brownfield Indicators** — Pass
 
-Correctly brownfield-shaped: Stories 1.3 and 1.4 are explicit migration/integration stories (six existing action files, existing E2E env flag, existing ESLint config) rather than fresh greenfield setup — matches the initiative's actual nature.
+Correctly brownfield-shaped: Stories 5.3 and 5.4 are explicit migration/integration stories (six existing action files, existing E2E env flag, existing ESLint config) rather than fresh greenfield setup — matches the initiative's actual nature.
 
 ### Best Practices Compliance Checklist
 
@@ -202,7 +202,7 @@ None.
 ### Recommended Next Steps
 
 1. Proceed to sprint planning (`bmad-sprint-planning`) for `epics-storage-adapter.md` — no blocking gaps found.
-2. During Story 1.1 implementation, resolve the two architecture-review-flagged decisions the epic pushed into story scope rather than leaving open: the "key not found" error taxonomy for `read()`/`del()`, and the `getStorageAdapter()` test-isolation reset mechanism. Both have ACs but no single "correct" answer was pre-selected — the dev agent should pick one, document it in the code, and apply it consistently across Stories 1.1–1.4.
+2. During Story 5.1 implementation, resolve the two architecture-review-flagged decisions the epic pushed into story scope rather than leaving open: the "key not found" error taxonomy for `read()`/`del()`, and the `getStorageAdapter()` test-isolation reset mechanism. Both have ACs but no single "correct" answer was pre-selected — the dev agent should pick one, document it in the code, and apply it consistently across Stories 5.1–5.4.
 3. No action needed on the one Minor finding (technical epic framing) — it's a disclosed, deliberate exception for a no-PRD infra migration, not a defect to fix.
 
 ### Final Note

@@ -52,11 +52,19 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/create-trip-days.ts",
   ]),
   entry("new-trip", ["src/components/packt/new-trip-dialog.tsx", "src/components/packt/new-trip-card.tsx"]),
+  // Deliberately maps no source: `src/lib/use-dashboard-live-refresh.ts` and `use-live-refresh.ts`
+  // must stay on the `src/lib/**` full-suite tier, same reasoning as use-bfcache-refresh below.
+  // The dashboard hook is mounted in the trips page-client and every scenario lands on `/trips`, so
+  // it can move any feature — naming it here would demote it to these two scenarios. The entry
+  // itself still has to exist (scripts/feature-map.test.mjs pairs every .feature with one) and
+  // `entry()` covers its own feature/step files, so editing a scenario still re-runs it.
+  entry("dashboard-live-sync", []),
   entry("day-planning", [
     "src/components/packt/day-card*.tsx",
     "src/components/packt/place-row*.tsx",
     "src/components/packt/note-item.tsx",
     "src/components/packt/checklist-item.tsx",
+    "src/components/packt/checklist-item-row.tsx",
     "src/components/packt/gap-zone.tsx",
     "src/components/packt/itinerary-cta.tsx",
     "src/components/packt/delete-event-dialog.tsx",
@@ -69,6 +77,7 @@ export const FEATURE_MAP = [
     "src/components/packt/unscheduled-section.tsx",
     "src/components/packt/type-picker.tsx",
     "src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx",
+    "src/app/(app)/trips/[tripId]/remove-last-day-dialog.tsx",
     "src/app/(app)/trips/[tripId]/unscheduled-events-section.tsx",
     "src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts",
   ]),
@@ -112,14 +121,21 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/packing-actions.ts",
   ]),
   entry("packing-lists", ["src/components/packt/packing-list*.tsx", "src/components/packt/packing-lists-view.tsx"]),
+  entry("pending-invitations", [
+    "src/components/packt/pending-invitations-list.tsx",
+    "src/components/packt/invitation-live-refresh.tsx",
+    "src/lib/invitations.ts",
+  ]),
   entry("pull-templates", ["src/components/packt/template-pull-dialog.tsx"]),
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),
-  entry("profile", [
-    "src/app/(app)/profile/**",
-    "src/components/packt/collaborators-rail.tsx",
-    "src/components/packt/avatar-stack.tsx",
-  ]),
+  entry("profile", ["src/app/(app)/profile/**", "src/components/packt/avatar-stack.tsx"]),
+  // `src/lib/revocation-ticket.ts` and `src/lib/use-bfcache-refresh.ts` are deliberately NOT listed:
+  // FEATURE_MAP is checked before SHARED_GLOBS, so naming them here would demote them out of
+  // `src/lib/**` (full suite) down to this one feature — and use-bfcache-refresh is mounted in
+  // page-client.tsx, so it can move every trip-detail feature. use-live-sync.ts stays mapped to its
+  // own features but is listed here too: the shared-channel registry exists for this modal.
+  entry("revocation-modal", ["src/components/packt/contributor-revocation-modal.tsx", "src/lib/use-live-sync.ts"]),
   entry("reservations", [
     "src/components/packt/reservation*",
     "src/components/packt/add-reservation-doc-dialog.tsx",
@@ -136,6 +152,12 @@ export const FEATURE_MAP = [
     "src/components/packt/place-row-action-bar.tsx",
     "src/lib/route.ts",
     "src/app/(app)/trips/[tripId]/route-actions.ts",
+  ]),
+  entry("sync-status", [
+    "src/components/packt/sync-status-indicator.tsx",
+    "src/lib/live-sync-constants.ts",
+    "src/lib/use-live-sync.ts",
+    "src/app/api/users/me/events/route.ts",
   ]),
   entry("spending", [
     "src/components/packt/spending-view.tsx",
@@ -176,6 +198,19 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/cover-image-search-actions.ts",
   ]),
   entry("trip-delete", ["src/components/packt/delete-trip-alert-dialog.tsx"]),
+  entry("leave-trip", [
+    "src/components/packt/leave-trip-alert-dialog.tsx",
+    "src/app/(app)/trips/[tripId]/use-leave-trip.ts",
+    "src/app/(app)/trips/[tripId]/trip-detail-dialogs.tsx",
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+  ]),
+  entry("trip-live-refresh", [
+    "src/lib/live-sync-constants.ts",
+    "src/lib/use-live-sync.ts",
+    "src/lib/use-trip-live-refresh.ts",
+    "src/app/api/trips/[tripId]/events/route.ts",
+    "src/lib/trip-events.ts",
+  ]),
   entry("trip-notes", ["src/components/packt/trip-notes-*.tsx", "src/lib/note-preview.ts"]),
   entry("trip-tabs", [
     "src/components/packt/active-trip-summary-events.ts",
@@ -183,6 +218,14 @@ export const FEATURE_MAP = [
     "src/components/packt/mobile-active-tab.tsx",
     "src/components/packt/mobile-unscheduled-tab.tsx",
     "src/components/packt/mobile-upcoming-tab.tsx",
+  ]),
+  entry("trip-sharing", [
+    "src/components/packt/trip-share-dialog.tsx",
+    "src/components/packt/trip-share-*.tsx",
+    "src/components/packt/use-trip-share-dialog-controller.ts",
+    "src/components/packt/use-share-invitation-actions.ts",
+    "src/components/packt/use-trip-share-invite-form.ts",
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
   ]),
   entry("trips", [
     "src/components/packt/currency-picker.tsx",
@@ -206,6 +249,24 @@ export const FEATURE_MAP = [
     "src/components/packt/trip-detail-crumb.tsx",
     "src/app/(app)/trips/use-trips-page-handlers.ts",
     "src/app/(app)/trips/date-sync.ts",
+  ]),
+  entry("viewer-trip-access", [
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+    "src/components/packt/trip-edit-access.tsx",
+    "src/components/packt/place-row*.tsx",
+    "src/components/packt/day-card-header.tsx",
+    "src/components/packt/day-card-sortables.tsx",
+    "src/components/packt/day-card-bottom-add.tsx",
+    "src/components/packt/gap-zone.tsx",
+    "src/components/packt/note-item.tsx",
+    "src/components/packt/checklist-item*.tsx",
+    "src/components/packt/docs-block.tsx",
+    "src/components/packt/event-doc-row.tsx",
+    "src/app/(app)/trips/[tripId]/trip-itinerary-view.tsx",
+  ]),
+  entry("editor-trip-access", [
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+    "src/components/packt/trip-edit-sheet.tsx",
   ]),
 ];
 
@@ -258,6 +319,8 @@ export const SHARED_GLOBS = [
   "tests/e2e/e2e-seed-data.ts",
   "tests/e2e/auth.setup.ts",
   "tests/e2e/steps/common.steps.ts",
+  "tests/e2e/server-action.ts",
+  "tests/e2e/live-sync.ts",
   "tests/e2e/feature-map.mjs",
   // Root config + the segmentation tooling itself
   "package.json",
@@ -296,4 +359,11 @@ export const IGNORE_GLOBS = [
   "**/*.test.ts",
   "**/*.test.tsx",
   "**/*.test.mjs",
+  // Dev-only seed data (`npm run db:seed`) — E2E seeds itself via tests/e2e/global-setup.ts and never
+  // runs db:seed, so this can't move E2E behavior even though it lives under src/db/** (a SHARED_GLOB).
+  "src/db/seed.ts",
+  "src/db/seed-runner.ts",
+  "src/db/seed-inserts-accounts.ts",
+  "src/db/seed-inserts-trip.ts",
+  "src/db/seed-data/**",
 ];

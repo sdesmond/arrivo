@@ -27,25 +27,6 @@ vi.mock("@/components/ui/date-range-picker", () => ({
   ),
 }));
 
-vi.mock("./trip-edit-collaborators", () => ({
-  TripEditCollaborators: ({
-    onRemove,
-    onUpdateRole,
-    onAdd,
-  }: {
-    collaborators: unknown[];
-    onRemove: (i: number) => void;
-    onUpdateRole: (i: number, role: string) => void;
-    onAdd: (name: string, email: string, role: string) => void;
-  }) => (
-    <div>
-      <button onClick={() => onRemove(0)}>remove-collaborator</button>
-      <button onClick={() => onUpdateRole(0, "viewer")}>update-role</button>
-      <button onClick={() => onAdd("Test User", "test@test.com", "editor")}>add-collaborator</button>
-    </div>
-  ),
-}));
-
 vi.mock("./trip-edit-destination", () => ({
   TripEditDestination: ({
     value,
@@ -232,6 +213,36 @@ describe("TripEditSheet", () => {
     expect(screen.getByRole("button", { name: /Currency: United States Dollar USD/i })).toBeInTheDocument();
   });
 
+  it.each([undefined, true])("shows the Budget section when canEditBudget is %s", (canEditBudget) => {
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        canEditBudget={canEditBudget}
+      />
+    );
+
+    expect(screen.getByText("Budget")).toBeInTheDocument();
+  });
+
+  it("hides the Budget section when canEditBudget is false", () => {
+    render(
+      <TripEditSheet
+        currencyOptions={currencyOptions}
+        trip={baseTrip}
+        open
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        canEditBudget={false}
+      />
+    );
+
+    expect(screen.queryByText("Budget")).not.toBeInTheDocument();
+  });
+
   it("Cancel button calls onClose", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -403,42 +414,6 @@ describe("TripEditSheet", () => {
     expect(screen.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ transitMode: TransitMode.Walk }));
-  });
-
-  it("addCollaborator via TripEditCollaborators callback does not crash", async () => {
-    const user = userEvent.setup();
-    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: /add-collaborator/i }));
-    expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
-  });
-
-  it("removeCollaborator via TripEditCollaborators callback does not crash", async () => {
-    const user = userEvent.setup();
-    const trip = {
-      ...baseTrip,
-      collaborators: [{ name: "Alice", email: "a@a.com", initials: "A", role: "editor" as const }],
-    };
-    render(<TripEditSheet currencyOptions={currencyOptions} trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: /remove-collaborator/i }));
-    expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
-  });
-
-  it("updateCollaboratorRole with collaborators does not crash", async () => {
-    const user = userEvent.setup();
-    const trip = {
-      ...baseTrip,
-      collaborators: [{ name: "Alice", email: "a@a.com", initials: "A", role: "editor" as const }],
-    };
-    render(<TripEditSheet currencyOptions={currencyOptions} trip={trip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: /update-role/i }));
-    expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
-  });
-
-  it("updateCollaboratorRole with no collaborators returns early without crash", async () => {
-    const user = userEvent.setup();
-    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: /update-role/i }));
-    expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
   });
 
   it("onSave includes updated end date after editing", async () => {

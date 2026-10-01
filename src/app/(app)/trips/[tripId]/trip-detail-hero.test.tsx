@@ -111,6 +111,7 @@ function buildDetail(overrides: Partial<TripDetailPayload> = {}): TripDetailPayl
     reservations: [],
     expenses: [],
     notes: [],
+    accessRole: "editor",
     ...overrides,
   };
 }
@@ -169,6 +170,159 @@ describe("TripDetailHero", () => {
     );
 
     expect(screen.getByTitle("Cover options")).toBeInTheDocument();
+  });
+
+  it("hides trip and cover editing controls from viewers", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          accessRole: "viewer",
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+            coverPhotographer: "Casey Camera",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
+  });
+
+  it("keeps editor itinerary controls while hiding Share", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "editor" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+    expect(screen.getByTitle("Cover options")).toBeInTheDocument();
+  });
+
+  it("shows Share to managers", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+  });
+
+  it("hides Share for a manager when no callback is available", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+  });
+
+  it("opens sharing controls when a manager selects Share", async () => {
+    const onShare = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={onShare}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Share" }));
+
+    expect(onShare).toHaveBeenCalledOnce();
+  });
+
+  it.each(["editor", "viewer"] as const)("offers Leave trip, not Share, to a %s", (accessRole) => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={vi.fn()}
+        onLeave={vi.fn()}
+      />
+    );
+
+    const leaveButton = screen.getByRole("button", { name: "Leave trip Summer Getaway" });
+    expect(leaveButton).toHaveTextContent("Leave trip");
+    expect(leaveButton.style.minHeight).toBe("44px");
+    expect(leaveButton.style.minWidth).toBe("44px");
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+  });
+
+  it("never offers Leave trip to a manager, even if a callback is passed", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "manager" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onShare={vi.fn()}
+        onLeave={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /Leave trip/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+  });
+
+  it("hides Leave trip when no callback is available", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "viewer" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /Leave trip/ })).not.toBeInTheDocument();
+  });
+
+  it("asks to leave when a viewer selects Leave trip", async () => {
+    const onLeave = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "viewer" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+        onLeave={onLeave}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /Leave trip/ }));
+
+    expect(onLeave).toHaveBeenCalledOnce();
   });
 
   it("shows edit only for graphic covers", () => {
@@ -357,6 +511,45 @@ describe("TripDetailHero", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Could not save cover image");
     });
+  });
+
+  it("hides the cover options trigger for a viewer when there is nothing to view", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({ accessRole: "viewer" })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
+  });
+
+  it("hides every cover option for a viewer when attribution exists", () => {
+    render(
+      <TripDetailHero
+        detail={buildDetail({
+          accessRole: "viewer",
+          trip: {
+            id: "trip-1",
+            name: "Summer Getaway",
+            status: "draft",
+            coverImageUrl: "https://images.example.com/cover.jpg",
+            coverPhotographer: "Casey Camera",
+            coverPhotographerUrl: "https://unsplash.com/@caseycamera",
+          },
+        })}
+        nowISO="2026-07-01T00:00:00Z"
+        dateFormat="MM/DD/YYYY"
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit Cover" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Cover" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Info" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Cover options")).not.toBeInTheDocument();
   });
 
   it("shows toast on removeTripCover failure", async () => {

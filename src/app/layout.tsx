@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, DM_Sans, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -29,6 +29,12 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Packt — Travel Planner",
   description: "Plan your trips with Packt",
+};
+
+// Without `viewport-fit=cover` every `env(safe-area-inset-*)` resolves to 0px, which silently
+// neutralises the notch spacers in the bottom tab bar and the sync status indicator.
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({

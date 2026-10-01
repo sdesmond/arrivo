@@ -40,4 +40,10 @@ describe("DocsBlock", () => {
     render(<DocsBlock docs={[]} onAdd={vi.fn()} />);
     expect(screen.getByRole("button", { name: /add doc/i })).toBeInTheDocument();
   });
+
+  it("offers no Add doc when adding is not allowed", () => {
+    render(<DocsBlock docs={docs} />);
+    expect(screen.getByText("Itinerary.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add doc/i })).not.toBeInTheDocument();
+  });
 });

@@ -2,16 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import type { CurrencyOption, TripDateChangeConfirmation, TripListEntry, UpdateTripPatch } from "@/data/types";
+import {
+  CollaboratorRole,
+  type CurrencyOption,
+  type TripDateChangeConfirmation,
+  type TripListEntry,
+  type UpdateTripPatch,
+} from "@/data/types";
 import { TripsPageClient } from "./page-client";
 
-const { mockUseTripsPageHandlers, tripEditSheetSpy } = vi.hoisted(() => ({
+const { mockUseDashboardLiveRefresh, mockUseTripsPageHandlers, tripEditSheetSpy } = vi.hoisted(() => ({
+  mockUseDashboardLiveRefresh: vi.fn(),
   mockUseTripsPageHandlers: vi.fn(),
   tripEditSheetSpy: vi.fn(),
 }));
 
 vi.mock("./use-trips-page-handlers", () => ({
   useTripsPageHandlers: mockUseTripsPageHandlers,
+}));
+
+vi.mock("@/lib/use-dashboard-live-refresh", () => ({
+  useDashboardLiveRefresh: mockUseDashboardLiveRefresh,
 }));
 
 vi.mock("@/components/packt/trips-desktop-layout", () => ({
@@ -48,6 +59,10 @@ vi.mock("@/components/packt/delete-trip-alert-dialog", () => ({
 
 vi.mock("@/components/packt/new-trip-dialog", () => ({
   NewTripDialog: () => <div>New trip dialog</div>,
+}));
+
+vi.mock("@/components/packt/pending-invitations-list", () => ({
+  PendingInvitationsList: () => null,
 }));
 
 vi.mock("@/components/ui/alert-dialog", () => ({
@@ -137,6 +152,21 @@ describe("TripsPageClient", () => {
     vi.clearAllMocks();
   });
 
+  it("mounts dashboard live refresh", () => {
+    mockUseTripsPageHandlers.mockReturnValue(createHandlers());
+
+    render(
+      <TripsPageClient
+        initialEntries={entries}
+        nowISO="2026-07-07T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(mockUseDashboardLiveRefresh).toHaveBeenCalledExactlyOnceWith();
+  });
+
   it("threads currency options and edit/delete handlers into the edit flow", async () => {
     const user = userEvent.setup();
     const handlers = createHandlers();
@@ -169,6 +199,54 @@ describe("TripsPageClient", () => {
     await user.click(screen.getByRole("button", { name: "Confirm trip delete" }));
     expect(handlers.handleConfirmDeleteTrip).toHaveBeenCalledWith("trip-1");
   });
+
+  it("closes the edit sheet instead of leaving it open with null trip data when the editing entry drops out of a refresh", () => {
+    const handlers = createHandlers({ editingTrip: "trip-1", editingEntry: null });
+    mockUseTripsPageHandlers.mockReturnValue(handlers);
+
+    render(
+      <TripsPageClient
+        initialEntries={entries}
+        currencyOptions={currencyOptions}
+        nowISO="2026-07-07T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+        initialViewMode="cards"
+      />
+    );
+
+    expect(tripEditSheetSpy).toHaveBeenCalledWith(expect.objectContaining({ open: false, trip: null }));
+  });
+
+  it.each([
+    ["manager", CollaboratorRole.Manager, true, true],
+    ["editor", CollaboratorRole.Editor, false, true],
+    ["viewer", CollaboratorRole.Viewer, false, false],
+  ] as const)(
+    "gates onDelete/canEditBudget on the edit sheet for a %s",
+    async (_label, accessRole, canManage, canEditBudget) => {
+      const entryWithRole: TripListEntry = { ...entries[0], trip: { ...entries[0].trip, accessRole } };
+      const handlers = createHandlers({ editingEntry: entryWithRole });
+      mockUseTripsPageHandlers.mockReturnValue(handlers);
+
+      render(
+        <TripsPageClient
+          initialEntries={entries}
+          currencyOptions={currencyOptions}
+          nowISO="2026-07-07T12:00:00.000Z"
+          dateFormat="MM/DD/YYYY"
+          initialViewMode="cards"
+        />
+      );
+
+      expect(tripEditSheetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          canEditBudget,
+          onDelete: canManage ? expect.any(Function) : undefined,
+        })
+      );
+      expect(tripEditSheetSpy).not.toHaveBeenCalledWith(expect.objectContaining({ canManage: expect.anything() }));
+    }
+  );
 
   it("shows pending long-trip warning and submits draft on continue", async () => {
     const user = userEvent.setup();

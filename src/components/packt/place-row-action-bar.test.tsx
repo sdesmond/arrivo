@@ -10,6 +10,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { PlaceRowActionBar } from "./place-row-action-bar";
+import { TripEditAccessProvider } from "./trip-edit-access";
 
 const basePlace: TripEvent = {
   id: "ev-1",
@@ -437,5 +438,87 @@ describe("PlaceRowActionBar", () => {
     const place: TripEvent = { ...basePlace, startAt: "2026-08-01T09:00:00Z", endAt: "2026-08-01T09:30:00Z" };
     render(<PlaceRowActionBar {...defaultProps} place={place} hasScheduleConflict={true} />);
     expect(screen.getByRole("button", { name: /9:00 am.*9:30 am/i })).toBeInTheDocument();
+  });
+});
+
+describe("PlaceRowActionBar for a viewer", () => {
+  function renderAsViewer(props: Partial<React.ComponentProps<typeof PlaceRowActionBar>> = {}) {
+    return render(
+      <TripEditAccessProvider canEdit={false}>
+        <PlaceRowActionBar {...defaultProps} {...props} />
+      </TripEditAccessProvider>
+    );
+  }
+
+  const filledPlace: TripEvent = {
+    ...basePlace,
+    startAt: "2026-08-01T09:00:00Z",
+    endAt: "2026-08-01T09:30:00Z",
+    locationName: "Tokyo Tower",
+    locationAddress: "4 Chome-2-8 Shibakoen, Tokyo",
+    expense: {
+      id: "expense-1",
+      tripId: "trip-1",
+      category: "shopping",
+      amount: 12.5,
+      currency: "USD",
+      date: "2026-08-01",
+    },
+  };
+
+  it("hides the Add time, Add location, Add cost and Attach controls", () => {
+    renderAsViewer();
+    expect(screen.queryByRole("button", { name: /add time/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add location/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add cost/i })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Attach document")).not.toBeInTheDocument();
+  });
+
+  it("shows a set time and cost as plain text that opens nothing", async () => {
+    const user = userEvent.setup();
+    const onOpenTime = vi.fn();
+    const onOpenCost = vi.fn();
+    renderAsViewer({ place: filledPlace, onOpenTime, onOpenCost });
+
+    expect(screen.queryByRole("button", { name: /9:00 am/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "$12.50" })).not.toBeInTheDocument();
+    await user.click(screen.getByText(/9:00 am.*9:30 am/i));
+    await user.click(screen.getByText("$12.50"));
+    expect(onOpenTime).not.toHaveBeenCalled();
+    expect(onOpenCost).not.toHaveBeenCalled();
+  });
+
+  it("keeps the directions link for a set location but drops Edit location", async () => {
+    const user = userEvent.setup();
+    const onOpenMaps = vi.fn();
+    renderAsViewer({ place: filledPlace, onOpenMaps });
+
+    expect(screen.queryByRole("button", { name: "Edit location" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open directions to Tokyo Tower" }));
+    expect(onOpenMaps).toHaveBeenCalledOnce();
+  });
+
+  it("still flags a schedule conflict next to a read-only time", () => {
+    renderAsViewer({ place: filledPlace, hasScheduleConflict: true });
+    expect(screen.getByText(/9:00 am.*9:30 am/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /9:00 am/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Schedule conflict" })).toBeInTheDocument();
+  });
+
+  it("hides an empty time when flagging a schedule conflict", () => {
+    renderAsViewer({ hasScheduleConflict: true });
+    expect(screen.queryByText(/add time/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Schedule conflict" })).toBeInTheDocument();
+  });
+
+  it("still lets a viewer expand attached documents", async () => {
+    const user = userEvent.setup();
+    const onToggleDocs = vi.fn();
+    renderAsViewer({
+      place: { ...basePlace, docs: [{ id: "d1", name: "Plan.pdf", kind: "pdf", scope: "event" }] },
+      onToggleDocs,
+    });
+    await user.click(screen.getByTitle("Show attached documents"));
+    expect(onToggleDocs).toHaveBeenCalledOnce();
   });
 });

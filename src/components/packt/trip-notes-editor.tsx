@@ -75,6 +75,9 @@ function TripNotesEditorComponent(
         void commit();
       }
     };
+    // Intentionally mount/unmount-only: this must fire once on unmount, not on every
+    // `commit` identity change (a new function every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function announce(message: string): void {

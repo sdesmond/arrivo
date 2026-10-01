@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MapPin, Trash2 } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
-import { IconSize } from "@/lib/size-tokens";
 import { type CreateExpenseInput, type Document, type Expense, type TripEvent } from "@/data/types";
 import { cn, isEventNow } from "@/lib/utils";
 import { openExternalMaps } from "@/lib/open-external-maps";
@@ -15,6 +14,8 @@ import { PlaceRowActionBar } from "./place-row-action-bar";
 import { PlaceRowDialogs } from "./place-row-dialogs";
 import { PlaceRowLinkedEvent } from "./place-row-linked-event";
 import { PlaceRowNoteEditor } from "./place-row-note-editor";
+import { PlaceRowTrailingActions } from "./place-row-trailing-actions";
+import { useCanEditTrip } from "./trip-edit-access";
 import { RESERVATION_TYPE_META, formatAnchorDateTime, formatAnchorDateTimeRange } from "./reservation-type-badge";
 
 function composeStartEndAt(dayDate: string | undefined, startHHMM: string, endHHMM: string) {
@@ -85,6 +86,7 @@ export function PlaceRow({
   const placeWithExpense = { ...place, expense };
 
   const now = useNow();
+  const canEdit = useCanEditTrip();
   const hasDocs = (place.docs?.length ?? 0) > 0;
   const isNow = isEventNow(place, now);
   const isLinkedEvent = !!place.linkedReservationId && !!place.reservationType;
@@ -308,47 +310,27 @@ export function PlaceRow({
                 onOpenAddDoc={() => setShowAddDocDialog(true)}
                 onOpenMaps={place.locationAddress ? handleOpenMaps : undefined}
                 hasScheduleConflict={hasScheduleConflict}
+                hasDayDate={!!dayDate}
               />
 
-              {showDocs && hasDocs && <DocsBlock docs={place.docs!} onAdd={() => setShowAddDocDialog(true)} />}
+              {showDocs && hasDocs && (
+                <DocsBlock docs={place.docs!} onAdd={canEdit ? () => setShowAddDocDialog(true) : undefined} />
+              )}
             </>
           )}
         </div>
 
-        {/* Drag handle — always visible on mobile, hover-only on desktop */}
-        {dragHandle && !isLinkedEvent && (
-          <span
-            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
-            style={{ color: "var(--fg-4)" }}
-          >
-            {dragHandle}
-          </span>
-        )}
-
-        {/* Trash icon — always visible on mobile, hover-only on desktop */}
         {!isLinkedEvent && (
-          <button
-            onClick={() => {
+          <PlaceRowTrailingActions
+            dragHandle={dragHandle}
+            onDelete={() => {
               if (hasDocs) {
                 setShowDeleteDialog(true);
               } else {
                 onDelete(place.id);
               }
             }}
-            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
-            style={{
-              color: "var(--fg-4)",
-              padding: 4,
-              borderRadius: 4,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-            title="Delete event"
-          >
-            <Trash2 size={IconSize.placeAction} strokeWidth={1.5} />
-          </button>
+          />
         )}
       </div>
 

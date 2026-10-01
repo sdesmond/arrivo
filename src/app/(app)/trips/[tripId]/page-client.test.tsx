@@ -1,22 +1,39 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
-import type { TripDetailPayload } from "@/data/types";
+import { LiveSyncEventType, type TripDetailPayload } from "@/data/types";
+import { clearRevocationTicket, publishRevocationTicket } from "@/lib/revocation-ticket";
 
-const { tripConfettiMock, mockPathname, mockSearchParams, mockRouterPush, mockRouterReplace, mockUseFocusScroll } =
-  vi.hoisted(() => ({
-    tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
-      void tripId;
-      return null;
-    }),
-    mockPathname: vi.fn(() => "/trips/trip-1"),
-    mockSearchParams: vi.fn(() => new URLSearchParams()),
-    mockRouterPush: vi.fn(),
-    mockRouterReplace: vi.fn(),
-    mockUseFocusScroll: vi.fn<() => string | null>(() => null),
-  }));
+const {
+  tripConfettiMock,
+  mockPathname,
+  mockSearchParams,
+  mockRouterPush,
+  mockRouterReplace,
+  mockUseFocusScroll,
+  mockUseTripLiveRefresh,
+  mockUseBfcacheRefresh,
+  mockLeaveTrip,
+  mockToastSuccess,
+  mockToastError,
+} = vi.hoisted(() => ({
+  mockLeaveTrip: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+  tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
+    void tripId;
+    return null;
+  }),
+  mockPathname: vi.fn(() => "/trips/trip-1"),
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
+  mockRouterPush: vi.fn(),
+  mockRouterReplace: vi.fn(),
+  mockUseFocusScroll: vi.fn<() => string | null>(() => null),
+  mockUseTripLiveRefresh: vi.fn(),
+  mockUseBfcacheRefresh: vi.fn(),
+}));
 
 interface TripCoverProps {
   metaTag: string;
@@ -43,8 +60,21 @@ vi.mock("@/components/packt/trip-cover", () => ({
 }));
 
 vi.mock("./trip-detail-hero", () => ({
-  TripDetailHero: ({ detail, nowISO, onEdit }: { detail: TripDetailPayload; nowISO: string; onEdit: () => void }) => {
+  TripDetailHero: ({
+    detail,
+    nowISO,
+    onEdit,
+    onShare,
+    onLeave,
+  }: {
+    detail: TripDetailPayload;
+    nowISO: string;
+    onEdit: () => void;
+    onShare?: () => void;
+    onLeave?: () => void;
+  }) => {
     const { trip, days, unscheduledEvents, docs, collaborators } = detail;
+    const leaveButton = onLeave ? <button onClick={onLeave}>Leave trip</button> : null;
     if (!trip.startDate || !trip.endDate) {
       return (
         <div>
@@ -60,6 +90,8 @@ vi.mock("./trip-detail-hero", () => ({
             {collaborators.length} {collaborators.length === 1 ? "collaborator" : "collaborators"}
           </span>
           <button onClick={onEdit}>Edit trip</button>
+          {onShare && <button onClick={onShare}>Share</button>}
+          {leaveButton}
         </div>
       );
     }
@@ -74,50 +106,84 @@ vi.mock("./trip-detail-hero", () => ({
       <div>
         {`${dayTotal} days · day ${dayNumber} today`}
         <button onClick={onEdit}>Edit trip</button>
+        {onShare && <button onClick={onShare}>Share</button>}
+        {leaveButton}
       </div>
     );
   },
 }));
 
-vi.mock("./trip-detail-tab-body", () => ({
-  TripDetailTabBody: ({
-    activeTab,
-    highlightedEventId,
-    walkThresholdMeters,
-    onActivateReservationsCta,
-    onLinkedEventTap,
-    onOpenEditDates,
-    onOpenMapTab,
-  }: {
-    activeTab: string;
-    highlightedEventId?: string | null;
-    walkThresholdMeters?: number | null;
-    onActivateReservationsCta: () => void;
-    onLinkedEventTap: (reservationId: string) => void;
-    onOpenEditDates: () => void;
-    onOpenMapTab?: (dayNumber: number) => void;
-  }) => (
-    <div
-      data-testid="trip-detail-tab-body"
-      data-highlighted-event-id={highlightedEventId ?? ""}
-      data-walk-threshold-meters={walkThresholdMeters ?? ""}
-    >
-      {activeTab}
-      <button onClick={onActivateReservationsCta}>Activate CTA</button>
-      <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
-      <button onClick={onOpenEditDates}>Open edit dates</button>
-      {onOpenMapTab && <button onClick={() => onOpenMapTab(3)}>Open map tab for day 3</button>}
-    </div>
-  ),
-}));
+vi.mock("./trip-detail-tab-body", async () => {
+  const { useCanEditTrip } = await vi.importActual<typeof import("@/components/packt/trip-edit-access")>(
+    "@/components/packt/trip-edit-access"
+  );
+  return {
+    TripDetailTabBody: ({
+      activeTab,
+      highlightedEventId,
+      walkThresholdMeters,
+      onActivateReservationsCta,
+      onLinkedEventTap,
+      onOpenEditDates,
+      onOpenMapTab,
+    }: {
+      activeTab: string;
+      highlightedEventId?: string | null;
+      walkThresholdMeters?: number | null;
+      onActivateReservationsCta: () => void;
+      onLinkedEventTap: (reservationId: string) => void;
+      onOpenEditDates: () => void;
+      onOpenMapTab?: (dayNumber: number) => void;
+    }) => {
+      // Stands in for a dialog the tab components own themselves (cost, location, delete-event, doc
+      // viewer, …). The page can only close those by unmounting this subtree, so this local state is
+      // what proves the revocation `key` remount actually discards them.
+      const [childDialogOpen, setChildDialogOpen] = useState(false);
+      const canEditTrip = useCanEditTrip();
+      return (
+        <div
+          data-testid="trip-detail-tab-body"
+          data-can-edit-trip={String(canEditTrip)}
+          data-highlighted-event-id={highlightedEventId ?? ""}
+          data-walk-threshold-meters={walkThresholdMeters ?? ""}
+        >
+          {activeTab}
+          <button onClick={onActivateReservationsCta}>Activate CTA</button>
+          <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
+          <button onClick={onOpenEditDates}>Open edit dates</button>
+          {onOpenMapTab && <button onClick={() => onOpenMapTab(3)}>Open map tab for day 3</button>}
+          <button onClick={() => setChildDialogOpen(true)}>Open child dialog</button>
+          {childDialogOpen && <div data-testid="tab-child-dialog" />}
+        </div>
+      );
+    },
+  };
+});
 
 vi.mock("@/components/packt/trip-confetti", () => ({
   TripConfetti: ({ tripId }: { tripId: string }) => tripConfettiMock({ tripId }),
 }));
 
 vi.mock("@/components/packt/trip-edit-sheet", () => ({
-  TripEditSheet: ({ open, highlightDates }: { open: boolean; highlightDates?: boolean }) =>
-    open ? <div data-testid="trip-edit-sheet" data-highlight-dates={String(!!highlightDates)} /> : null,
+  TripEditSheet: ({
+    open,
+    highlightDates,
+    canEditBudget,
+    onDelete,
+  }: {
+    open: boolean;
+    highlightDates?: boolean;
+    canEditBudget?: boolean;
+    onDelete?: () => void | Promise<void>;
+  }) =>
+    open ? (
+      <div
+        data-testid="trip-edit-sheet"
+        data-can-edit-budget={String(!!canEditBudget)}
+        data-highlight-dates={String(!!highlightDates)}
+        data-on-delete={String(typeof onDelete === "function")}
+      />
+    ) : null,
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
@@ -125,8 +191,28 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   setTripCoverWithAttribution: vi.fn(),
 }));
 
+vi.mock("@/app/(app)/trips/actions", () => ({
+  leaveTrip: mockLeaveTrip,
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: mockToastSuccess, error: mockToastError },
+}));
+
 vi.mock("@/lib/use-focus-scroll", () => ({
   useFocusScroll: mockUseFocusScroll,
+}));
+
+vi.mock("@/lib/use-trip-live-refresh", () => ({
+  useTripLiveRefresh: mockUseTripLiveRefresh,
+}));
+
+vi.mock("@/lib/use-bfcache-refresh", () => ({
+  useBfcacheRefresh: mockUseBfcacheRefresh,
+}));
+
+vi.mock("@/components/packt/trip-share-dialog", () => ({
+  TripShareDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="trip-share-dialog" /> : null),
 }));
 
 vi.mock("./use-trip-detail-handlers", () => ({
@@ -178,6 +264,7 @@ const baseDetail: TripDetailPayload = {
   reservations: [],
   expenses: [],
   notes: [],
+  accessRole: "manager",
 };
 
 describe("TripDetailClient", () => {
@@ -210,6 +297,335 @@ describe("TripDetailClient", () => {
     );
 
     expect(tripConfettiMock).not.toHaveBeenCalled();
+  });
+
+  it("mounts live refresh for the trip", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(mockUseTripLiveRefresh).toHaveBeenCalledExactlyOnceWith("trip-1", expect.any(Function));
+  });
+
+  it("mounts the bfcache refresh hook so a restored page re-runs its access check", () => {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+    expect(mockUseBfcacheRefresh).toHaveBeenCalledOnce();
+  });
+
+  describe("revocation ticket", () => {
+    afterEach(() => {
+      clearRevocationTicket();
+    });
+
+    function publishTicketForTrip(tripId: string): void {
+      act(() =>
+        publishRevocationTicket({
+          type: LiveSyncEventType.MembershipRemoved,
+          removedUserId: "user-1",
+          tripId,
+          tripName: "Tokyo Adventure",
+          removedByName: "Alex Manager",
+          removedByEmail: "alex@example.com",
+        })
+      );
+    }
+
+    it("force-closes the share dialog when a ticket names this trip", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Share" }));
+      expect(screen.getByTestId("trip-share-dialog")).toBeInTheDocument();
+
+      publishTicketForTrip("trip-1");
+
+      expect(screen.queryByTestId("trip-share-dialog")).not.toBeInTheDocument();
+    });
+
+    it("force-closes the trip edit sheet when a ticket names this trip", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open edit dates" }));
+      expect(screen.getByTestId("trip-edit-sheet")).toBeInTheDocument();
+
+      publishTicketForTrip("trip-1");
+
+      expect(screen.queryByTestId("trip-edit-sheet")).not.toBeInTheDocument();
+    });
+
+    it("discards dialogs the tab body owns by remounting it", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+
+      publishTicketForTrip("trip-1");
+
+      expect(screen.queryByTestId("tab-child-dialog")).not.toBeInTheDocument();
+    });
+
+    it("leaves dialogs open when the ticket names a different trip", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Share" }));
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+
+      publishTicketForTrip("some-other-trip");
+
+      expect(screen.getByTestId("trip-share-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+    });
+  });
+
+  describe("self role change", () => {
+    function fireSelfRoleChanged(): void {
+      const onSelfRoleChanged = mockUseTripLiveRefresh.mock.calls.at(-1)?.[1] as (() => void) | undefined;
+      if (!onSelfRoleChanged) throw new Error("useTripLiveRefresh was not called with a second argument.");
+      act(() => onSelfRoleChanged());
+    }
+
+    it("force-closes the share dialog when this session's own role changes", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Share" }));
+      expect(screen.getByTestId("trip-share-dialog")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("trip-share-dialog")).not.toBeInTheDocument();
+    });
+
+    it("force-closes the trip edit sheet when this session's own role changes", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open edit dates" }));
+      expect(screen.getByTestId("trip-edit-sheet")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("trip-edit-sheet")).not.toBeInTheDocument();
+    });
+
+    it("discards dialogs the tab body owns by remounting it", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("tab-child-dialog")).not.toBeInTheDocument();
+    });
+
+    it("remounts the tab body again on a second role change even without an intervening revocation", async () => {
+      const user = userEvent.setup();
+      render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+
+      fireSelfRoleChanged();
+      await user.click(screen.getByRole("button", { name: "Open child dialog" }));
+      expect(screen.getByTestId("tab-child-dialog")).toBeInTheDocument();
+
+      fireSelfRoleChanged();
+
+      expect(screen.queryByTestId("tab-child-dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("leave trip", () => {
+    const viewerDetail: TripDetailPayload = { ...baseDetail, accessRole: "viewer" };
+
+    function renderAs(detail: TripDetailPayload = viewerDetail) {
+      return render(<TripDetailClient detail={detail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+    }
+
+    async function openLeaveDialog(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: "Leave trip" }));
+      return screen.findByRole("alertdialog");
+    }
+
+    it.each(["editor", "viewer"] as const)("offers Leave trip to a %s and keeps Share manager-only", (accessRole) => {
+      renderAs({ ...baseDetail, accessRole });
+
+      expect(screen.getByRole("button", { name: "Leave trip" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("trip-share-dialog")).not.toBeInTheDocument();
+    });
+
+    it("does not offer Leave trip to a manager", () => {
+      renderAs(baseDetail);
+
+      expect(screen.queryByRole("button", { name: "Leave trip" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+    });
+
+    it("keeps membership and the trip view when the confirmation is cancelled", async () => {
+      const user = userEvent.setup();
+      renderAs();
+
+      await openLeaveDialog(user);
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+      expect(mockLeaveTrip).not.toHaveBeenCalled();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("leaves the trip, confirms it, and returns to the trips list on success", async () => {
+      mockLeaveTrip.mockResolvedValue({ status: "success" });
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(mockLeaveTrip).toHaveBeenCalledExactlyOnceWith("trip-1");
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastSuccess).toHaveBeenCalledWith("You left Tokyo.");
+      expect(mockToastError).not.toHaveBeenCalled();
+    });
+
+    it("shows the pending state while the leave is in flight", async () => {
+      mockLeaveTrip.mockReturnValue(new Promise(() => {}));
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(await within(dialog).findByRole("button", { name: "Leaving..." })).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("keeps the user on the trip and shows the error when the leave is rejected", async () => {
+      mockLeaveTrip.mockResolvedValue({ status: "error", message: "Managers can't leave a trip.", stale: false });
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("Managers can't leave a trip.");
+      expect(within(dialog).getByRole("button", { name: "Leave trip" })).toBeEnabled();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
+
+    it("shows a generic error and stays on the trip when the request fails", async () => {
+      mockLeaveTrip.mockRejectedValue(new Error("network down"));
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("Couldn't leave this trip. Try again.");
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("returns to the trips list without claiming success when the membership was already gone", async () => {
+      mockLeaveTrip.mockResolvedValue({ status: "error", message: "You're no longer on this trip.", stale: true });
+      const user = userEvent.setup();
+      renderAs();
+
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastError).toHaveBeenCalledWith("You're no longer on this trip.");
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
+
+    it("force-closes the leave confirmation when this session's own role changes", async () => {
+      const user = userEvent.setup();
+      renderAs();
+      await openLeaveDialog(user);
+
+      const onSelfRoleChanged = mockUseTripLiveRefresh.mock.calls.at(-1)?.[1] as () => void;
+      act(() => onSelfRoleChanged());
+
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    });
+
+    function deferLeave() {
+      let settle: { resolve: (value: unknown) => void; reject: (reason: unknown) => void } | undefined;
+      mockLeaveTrip.mockReturnValue(
+        new Promise((resolve, reject) => {
+          settle = { resolve, reject };
+        })
+      );
+      return () => settle!;
+    }
+
+    async function confirmThenForceClose(user: ReturnType<typeof userEvent.setup>) {
+      const dialog = await openLeaveDialog(user);
+      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+      await within(dialog).findByRole("button", { name: "Leaving..." });
+
+      const onSelfRoleChanged = mockUseTripLiveRefresh.mock.calls.at(-1)?.[1] as () => void;
+      act(() => onSelfRoleChanged());
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    }
+
+    it("toasts a superseded leave error instead of stashing it in the closed dialog", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().resolve({ status: "error", message: "Managers can't leave a trip.", stale: false });
+      });
+
+      expect(mockToastError).toHaveBeenCalledExactlyOnceWith("Managers can't leave a trip.");
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+
+      const reopened = await openLeaveDialog(user);
+      expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+      expect(within(reopened).getByRole("button", { name: "Leave trip" })).toBeEnabled();
+      expect(within(reopened).getByRole("button", { name: "Cancel" })).toBeEnabled();
+    });
+
+    it("toasts the generic error when a superseded leave request fails", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().reject(new Error("network down"));
+      });
+
+      expect(mockToastError).toHaveBeenCalledExactlyOnceWith("Couldn't leave this trip. Try again.");
+      const reopened = await openLeaveDialog(user);
+      expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("still returns to the trips list when a superseded leave succeeds", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().resolve({ status: "success" });
+      });
+
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastSuccess).toHaveBeenCalledWith("You left Tokyo.");
+    });
+
+    it("still returns to the trips list when a superseded leave turns out stale", async () => {
+      const settle = deferLeave();
+      const user = userEvent.setup();
+      renderAs();
+      await confirmThenForceClose(user);
+
+      await act(async () => {
+        settle().resolve({ status: "error", message: "You're no longer on this trip.", stale: true });
+      });
+
+      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
+      expect(mockToastError).toHaveBeenCalledExactlyOnceWith("You're no longer on this trip.");
+    });
   });
 
   it("shows an unscheduled hero label when the trip has no dates", () => {
@@ -328,6 +744,85 @@ describe("TripDetailClient", () => {
     );
 
     expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("docs");
+  });
+
+  it("does not render the Budget tab for a viewer", () => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Budget" })).not.toBeInTheDocument();
+  });
+
+  it("renders the Budget tab for an editor", () => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "editor" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Budget" })).toBeInTheDocument();
+  });
+
+  it("renders the Budget tab for a manager", () => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "manager" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Budget" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["manager", true, true],
+    ["editor", false, true],
+    ["viewer", false, false],
+  ] as const)("passes manager controls only for a %s", (accessRole, hasDeleteHandler, canEditBudget) => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit trip" }));
+
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-can-edit-budget", String(canEditBudget));
+    expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-on-delete", String(hasDeleteHandler));
+  });
+
+  it("falls back to the itinerary tab when a viewer's URL changes to tab=budget", () => {
+    mockSearchParams.mockReturnValue(new URLSearchParams());
+    const { rerender } = render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
+
+    mockSearchParams.mockReturnValue(new URLSearchParams("tab=budget"));
+    rerender(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveTextContent("itin");
   });
 
   it("switches to the Budget tab from the tab bar", async () => {
@@ -493,6 +988,38 @@ describe("TripDetailClient", () => {
     await user.click(screen.getByRole("button", { name: "Open edit dates" }));
 
     expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "true");
+  });
+
+  it.each([
+    ["viewer", false],
+    ["editor", true],
+    ["manager", true],
+  ] as const)("tells the tab body whether a %s may edit the itinerary", (accessRole, canEditTrip) => {
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveAttribute("data-can-edit-trip", String(canEditTrip));
+  });
+
+  it("never opens the trip edit sheet for a viewer, even if the tab body asks", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TripDetailClient
+        detail={{ ...baseDetail, accessRole: "viewer" }}
+        nowISO="2026-05-24T12:00:00.000Z"
+        dateFormat="MM/DD/YYYY"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open edit dates" }));
+
+    expect(screen.queryByTestId("trip-edit-sheet")).not.toBeInTheDocument();
   });
 
   it("opens the trip edit sheet without highlighting dates when edited via the hero pencil", async () => {

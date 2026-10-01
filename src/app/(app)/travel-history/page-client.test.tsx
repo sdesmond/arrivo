@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
+  CollaboratorRole,
   SpendingDateRange,
   type CurrencyOption,
   type SpendingSummary,
@@ -205,4 +206,35 @@ describe("TravelHistoryPageClient", () => {
     await user.click(screen.getByRole("button", { name: "Confirm delete" }));
     expect(handlers.handleConfirmDeleteTrip).toHaveBeenCalledWith("trip-1");
   });
+
+  it.each([
+    ["manager", CollaboratorRole.Manager, true, true],
+    ["editor", CollaboratorRole.Editor, false, true],
+    ["viewer", CollaboratorRole.Viewer, false, false],
+  ] as const)(
+    "gates onDelete/canEditBudget on the edit sheet for a %s",
+    async (_label, accessRole, canManage, canEditBudget) => {
+      const entryWithRole: TripListEntry = { ...entries[0], trip: { ...entries[0].trip, accessRole } };
+      const handlers = createHandlers({ editingEntry: entryWithRole });
+      mockUseTravelHistoryPageHandlers.mockReturnValue(handlers);
+
+      render(
+        <TravelHistoryPageClient
+          initialEntries={entries}
+          currencyOptions={currencyOptions}
+          nowISO="2026-07-07T12:00:00.000Z"
+          dateFormat="MM/DD/YYYY"
+          initialViewMode="list"
+        />
+      );
+
+      expect(tripEditSheetSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          canEditBudget,
+          onDelete: canManage ? expect.any(Function) : undefined,
+        })
+      );
+      expect(tripEditSheetSpy).not.toHaveBeenCalledWith(expect.objectContaining({ canManage: expect.anything() }));
+    }
+  );
 });

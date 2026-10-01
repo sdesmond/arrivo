@@ -9,8 +9,6 @@ import {
   TransitMode,
   TripCurrencyChangeMode,
   type Budget,
-  type Collaborator,
-  type CollaboratorRole,
   type CurrencyOption,
   type Expense,
   type Trip,
@@ -21,7 +19,6 @@ import {
 import { Section, Field } from "@/components/packt/form-section";
 import { GettingAroundSection } from "@/components/packt/getting-around-section";
 import { TripEditBudget } from "@/components/packt/trip-edit-budget";
-import { TripEditCollaborators } from "@/components/packt/trip-edit-collaborators";
 import { TripEditDestination } from "@/components/packt/trip-edit-destination";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
@@ -45,6 +42,7 @@ interface TripEditSheetProps {
   onDelete?: () => void | Promise<void>;
   isDeleting?: boolean;
   highlightDates?: boolean;
+  canEditBudget?: boolean;
 }
 
 export function TripEditSheet({
@@ -62,6 +60,7 @@ export function TripEditSheet({
   onDelete,
   isDeleting = false,
   highlightDates = false,
+  canEditBudget = true,
 }: TripEditSheetProps) {
   const [draft, setDraft] = useState<Trip | null>(() => createTripDraft(trip));
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -94,37 +93,6 @@ export function TripEditSheet({
       const budget = { currency: "USD", ...prev.budget, [key]: value ?? undefined };
       return { ...prev, budget };
     });
-  }
-  function removeCollaborator(index: number) {
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            collaborators: prev.collaborators?.filter((_, i) => i !== index),
-          }
-        : prev
-    );
-  }
-  function updateCollaboratorRole(index: number, role: CollaboratorRole) {
-    setDraft((prev) => {
-      if (!prev?.collaborators) return prev;
-      const updated = [...prev.collaborators];
-      updated[index] = { ...updated[index], role };
-      return { ...prev, collaborators: updated };
-    });
-  }
-  function addCollaborator(name: string, email: string, role: CollaboratorRole) {
-    const parts = name.split(" ");
-    const initials = ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
-    const collab: Collaborator = { name, email, initials, role };
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            collaborators: [...(prev.collaborators ?? []), collab],
-          }
-        : prev
-    );
   }
   function restoreSaveButtonFocus(): void {
     requestAnimationFrame(() => {
@@ -242,27 +210,21 @@ export function TripEditSheet({
               }}
               disabled={isBusy}
             />
-            <TripEditBudget
-              currencyOptions={currencyOptions}
-              currency={draft.budget?.currency}
-              total={draft.budget?.total}
-              onCurrencyChange={(currency) => setBudget("currency", currency)}
-              onTotalChange={(total) => setBudget("total", total)}
-              disabled={isBusy}
-            />
+            {canEditBudget ? (
+              <TripEditBudget
+                currencyOptions={currencyOptions}
+                currency={draft.budget?.currency}
+                total={draft.budget?.total}
+                onCurrencyChange={(currency) => setBudget("currency", currency)}
+                onTotalChange={(total) => setBudget("total", total)}
+                disabled={isBusy}
+              />
+            ) : null}
             <GettingAroundSection
               transitMode={draft.transitMode ?? TransitMode.Drive}
               onTransitModeChange={(mode) => set("transitMode", mode)}
               disabled={isBusy}
             />
-            <Section title="People">
-              <TripEditCollaborators
-                collaborators={draft.collaborators ?? []}
-                onRemove={removeCollaborator}
-                onUpdateRole={updateCollaboratorRole}
-                onAdd={addCollaborator}
-              />
-            </Section>
           </div>
 
           <DrawerFooter className="shrink-0" style={{ borderTop: "1px solid var(--line)" }}>
@@ -331,7 +293,6 @@ function createTripDraft(trip: Trip | null): Trip | null {
     ...trip,
     tags: trip.tags ? [...trip.tags] : undefined,
     budget: trip.budget ? { ...trip.budget } : undefined,
-    collaborators: trip.collaborators ? trip.collaborators.map((collaborator) => ({ ...collaborator })) : undefined,
     docs: trip.docs ? [...trip.docs] : undefined,
   };
 }
