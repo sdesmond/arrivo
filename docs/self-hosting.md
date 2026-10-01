@@ -184,8 +184,10 @@ To explore with sample trips instead of starting empty:
 docker compose run --rm migrate npm run db:seed
 ```
 
-Then sign in as `demo@packt.local` / `demo1234`. Skip this on an instance you share with others, or
-delete the demo trips afterwards — the demo password is public.
+Then sign in as `demo@packt.local` / `demo1234`. Two more accounts (`alex@packt.local`,
+`sam@packt.local`, same password) are seeded alongside it — see [dev-seed-data.md](./dev-seed-data.md).
+Skip this on an instance you share with others, or delete the demo accounts afterwards — the demo
+password is public.
 
 ---
 

@@ -1,11 +1,13 @@
 "use client";
 
 import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
+import { PendingInvitationsList } from "@/components/packt/pending-invitations-list";
 import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
 import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
 import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
 import { NewTripDialog } from "@/components/packt/new-trip-dialog";
-import { type CurrencyOption, type TripListEntry } from "@/data/types";
+import { CollaboratorRole, type CurrencyOption, type PendingInvitation, type TripListEntry } from "@/data/types";
+import { useDashboardLiveRefresh } from "@/lib/use-dashboard-live-refresh";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import {
   AlertDialog,
@@ -24,6 +26,7 @@ interface TripsPageClientProps {
   nowISO: string;
   dateFormat: string;
   initialViewMode: "cards" | "list";
+  pendingInvitations?: PendingInvitation[];
 }
 
 export function TripsPageClient({
@@ -32,13 +35,18 @@ export function TripsPageClient({
   nowISO,
   dateFormat,
   initialViewMode,
+  pendingInvitations = [],
 }: TripsPageClientProps) {
+  useDashboardLiveRefresh();
   const now = new Date(nowISO);
   const handlers = useTripsPageHandlers(initialEntries, now);
   const editingTripId = handlers.editingEntry?.trip.id;
+  const editingCanManage = handlers.editingEntry?.trip.accessRole === CollaboratorRole.Manager;
+  const editingCanEditBudget = handlers.editingEntry?.trip.accessRole !== CollaboratorRole.Viewer;
 
   return (
     <>
+      <PendingInvitationsList invitations={pendingInvitations} />
       <TripsDesktopLayout
         activeEntry={handlers.activeEntry}
         upcomingTrips={handlers.upcomingTrips}
@@ -63,7 +71,7 @@ export function TripsPageClient({
         key={handlers.editingTrip ?? "none"}
         trip={handlers.editingEntry?.trip ?? null}
         currencyOptions={currencyOptions}
-        open={handlers.editingTrip !== null}
+        open={handlers.editingEntry !== null}
         onClose={handlers.closeTripEditSheet}
         onSave={async (patch) => {
           if (!handlers.editingTrip) return;
@@ -76,7 +84,8 @@ export function TripsPageClient({
           await handlers.handleTripSaveResolution(resolution);
         }}
         onCancelDateChange={handlers.cancelTripDateChange}
-        onDelete={editingTripId ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
+        canEditBudget={editingCanEditBudget}
+        onDelete={editingTripId && editingCanManage ? () => handlers.handleConfirmDeleteTrip(editingTripId) : undefined}
         isDeleting={handlers.isDeleting}
       />
       <DeleteTripAlertDialog

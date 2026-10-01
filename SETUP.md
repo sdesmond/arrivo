@@ -65,16 +65,24 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000) and sign in with the demo credentials.
 
-Creates one demo user and two fully populated sample trips (Tokyo 2026, Lisbon 2026).
+Creates three accounts with six trips between them — an active trip, a past trip, a dateless "someday" trip,
+an upcoming trip owned by a second account and shared back to the first, another second-account past trip,
+and a second dateless trip — plus a cross-account share and a pending + a declined invitation, so the app has
+realistic data to explore out of the box. Full breakdown, including exactly what each trip contains and why:
+**[docs/dev-seed-data.md](./docs/dev-seed-data.md)**.
 
-**Demo credentials:**
+**Demo credentials** (all three accounts use the same password):
 
 ```
 Email:    demo@packt.local
 Password: demo1234
 ```
 
-The seed is idempotent — safe to run multiple times; exits early if the demo user already exists.
+Two more accounts (`alex@packt.local`, `sam@packt.local`) exist for exercising sharing and a second profile —
+see the doc above.
+
+`db:seed` wipes and reseeds just these three seed accounts on every run — safe to run repeatedly, and it never
+touches any other account in the database.
 
 ---
 
@@ -137,12 +145,12 @@ Tracked `drizzle/` migrations return at production cutover, not during day-to-da
 
 ## Database scripts
 
-| Script               | What it does                                                  |
-| -------------------- | ------------------------------------------------------------- |
-| `npm run db:push`    | Push schema to DB from `src/db/schema.ts`                     |
-| `npm run db:migrate` | Temporary alias for `db:push` until tracked migrations return |
-| `npm run db:seed`    | Insert demo user and sample trip data                         |
-| `npm run db:studio`  | Open Drizzle Studio GUI at port 4983                          |
+| Script               | What it does                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run db:push`    | Push schema to DB from `src/db/schema.ts`                                                      |
+| `npm run db:migrate` | Temporary alias for `db:push` until tracked migrations return                                  |
+| `npm run db:seed`    | Wipe + reseed the three dev seed accounts and their trips ([details](./docs/dev-seed-data.md)) |
+| `npm run db:studio`  | Open Drizzle Studio GUI at port 4983                                                           |
 
 ---
 

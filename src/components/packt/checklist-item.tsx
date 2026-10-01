@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { cn, pluralize } from "@/lib/utils";
-import { ListChecks, Trash2, ChevronDown, Check, CheckCheck } from "lucide-react";
+import { ListChecks, Trash2, ChevronDown, CheckCheck } from "lucide-react";
 import type { Checklist } from "@/data/types";
+import { ChecklistItemRow } from "./checklist-item-row";
+import { useCanEditTrip } from "./trip-edit-access";
 
 export interface ChecklistItemProps {
   checklist: Checklist;
@@ -36,12 +38,11 @@ export function ChecklistItem({
   dragHandle,
   displayOnly,
 }: ChecklistItemProps) {
+  const canEdit = useCanEditTrip();
   const [isExpanded, setIsExpanded] = useState(initiallyExpanded ?? !!isDraft);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(checklist.title ?? "");
   const [itemInput, setItemInput] = useState("");
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editingItemContent, setEditingItemContent] = useState("");
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const itemCount = checklist.items.length;
@@ -85,16 +86,9 @@ export function ChecklistItem({
     }
   }
 
-  function saveItemEdit() {
-    if (!editingItemId) return;
-    const trimmed = editingItemContent.trim();
-    if (trimmed) onUpdateItem?.(editingItemId, trimmed);
-    setEditingItemId(null);
-  }
-
   function handleWrapperBlur(event: React.FocusEvent<HTMLDivElement>) {
     const relatedTarget = event.relatedTarget as Element | null;
-    if (wrapperRef.current?.contains(relatedTarget)) return;
+    if (!canEdit || wrapperRef.current?.contains(relatedTarget)) return;
     if (isDraft) {
       const trimmed = itemInput.trim();
       if (trimmed) onCommitDraft?.(trimmed);
@@ -134,7 +128,7 @@ export function ChecklistItem({
       <button
         className={cn(
           "w-full flex items-center gap-2.5 px-3 py-2.5 text-left",
-          !isDraft && (dragHandle ? "pr-16" : "pr-9")
+          !isDraft && canEdit && (dragHandle ? "pr-16" : "pr-9")
         )}
         style={{ background: "none", border: "none", cursor: "pointer" }}
         onClick={() => {
@@ -227,6 +221,12 @@ export function ChecklistItem({
                 display: "block",
               }}
             />
+          ) : !canEdit ? (
+            checklist.title && (
+              <div style={{ fontWeight: 500, color: "var(--fg)", padding: "1px 0", marginBottom: 4 }}>
+                {checklist.title}
+              </div>
+            )
           ) : (
             <div
               role="button"
@@ -258,124 +258,41 @@ export function ChecklistItem({
 
           {/* Existing items */}
           {checklist.items.map((item) => (
-            <div key={item.id} className="group/item relative flex items-start gap-2 py-0.5">
-              <button
-                onClick={() => onToggleItem?.(item.id)}
-                title={item.isChecked ? "Uncheck item" : "Check item"}
-                aria-label={item.isChecked ? "Uncheck item" : "Check item"}
-                style={{
-                  width: 14,
-                  height: 14,
-                  border: `1.5px solid ${item.isChecked ? "var(--accent-brand)" : "var(--fg-4)"}`,
-                  borderRadius: 3,
-                  flexShrink: 0,
-                  marginTop: 1,
-                  background: item.isChecked ? "var(--accent-brand)" : "transparent",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 0,
-                  transition: "background 0.1s, border-color 0.1s",
-                }}
-              >
-                {item.isChecked && <Check size={9} strokeWidth={2.5} style={{ color: "var(--accent-fg)" }} />}
-              </button>
-              {editingItemId === item.id ? (
-                <input
-                  autoFocus
-                  value={editingItemContent}
-                  onChange={(event) => setEditingItemContent(event.target.value)}
-                  onBlur={saveItemEdit}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      saveItemEdit();
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      setEditingItemId(null);
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    fontSize: "calc(13px * var(--font-scale))",
-                    color: "var(--fg-2)",
-                    background: "transparent",
-                    border: "none",
-                    borderBottom: "1px solid var(--accent-brand)",
-                    outline: "none",
-                    fontFamily: "inherit",
-                    padding: 0,
-                  }}
-                />
-              ) : (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setEditingItemContent(item.content);
-                    setEditingItemId(item.id);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setEditingItemContent(item.content);
-                      setEditingItemId(item.id);
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    cursor: "text",
-                    color: item.isChecked ? "var(--fg-4)" : "var(--fg-2)",
-                    textDecoration: item.isChecked ? "line-through" : "none",
-                  }}
-                >
-                  {item.content}
-                </span>
-              )}
-              <button
-                onClick={() => onDeleteItem?.(item.id)}
-                title="Delete item"
-                className="opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--fg-3)",
-                  padding: "0 2px",
-                  flexShrink: 0,
-                }}
-              >
-                <Trash2 size={11} strokeWidth={1.5} />
-              </button>
-            </div>
+            <ChecklistItemRow
+              key={item.id}
+              item={item}
+              onToggle={onToggleItem}
+              onUpdate={onUpdateItem}
+              onDelete={onDeleteItem}
+            />
           ))}
 
           {/* Persistent add-item row */}
-          <input
-            autoFocus={!!isDraft}
-            value={itemInput}
-            placeholder="Add an item…"
-            onChange={(event) => setItemInput(event.target.value)}
-            onKeyDown={handleItemKeyDown}
-            onBlur={!isDraft ? commitNewItem : undefined}
-            style={{
-              fontSize: "calc(13px * var(--font-scale))",
-              color: "var(--fg-2)",
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              width: "100%",
-              fontFamily: "inherit",
-              padding: "2px 0",
-            }}
-          />
+          {canEdit && (
+            <input
+              autoFocus={!!isDraft}
+              value={itemInput}
+              placeholder="Add an item…"
+              onChange={(event) => setItemInput(event.target.value)}
+              onKeyDown={handleItemKeyDown}
+              onBlur={!isDraft ? commitNewItem : undefined}
+              style={{
+                fontSize: "calc(13px * var(--font-scale))",
+                color: "var(--fg-2)",
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontFamily: "inherit",
+                padding: "2px 0",
+              }}
+            />
+          )}
         </div>
       )}
 
       {/* Drag handle — always visible on mobile, hover-only on desktop */}
-      {!isDraft && dragHandle && (
+      {canEdit && !isDraft && dragHandle && (
         <span
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-2 flex items-center"
           style={{ right: 32, color: "var(--fg-4)", padding: 4 }}
@@ -385,7 +302,7 @@ export function ChecklistItem({
       )}
 
       {/* Delete button */}
-      {!isDraft && (
+      {canEdit && !isDraft && (
         <button
           onClick={() => onDelete?.(checklist.id)}
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-2 top-2"

@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TripConfetti } from "@/components/packt/trip-confetti";
+import { TripEditAccessProvider } from "@/components/packt/trip-edit-access";
 import { TripDetailTabBar } from "./trip-detail-tab-bar";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";
-import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { BudgetStatus, TripDetailTab } from "@/data/types";
+import { TripDetailDialogs } from "./trip-detail-dialogs";
+import { useLeaveTrip } from "./use-leave-trip";
+import { BudgetStatus, CollaboratorRole, LiveSyncEventType, TripDetailTab } from "@/data/types";
 import {
   calculateActual,
   calculateBudgetStatus,
@@ -26,6 +28,9 @@ import type {
   CurrencyOption,
 } from "@/data/types";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
+import { useTripLiveRefresh } from "@/lib/use-trip-live-refresh";
+import { useBfcacheRefresh } from "@/lib/use-bfcache-refresh";
+import { getRevocationTicket, getServerRevocationTicket, subscribeRevocation } from "@/lib/revocation-ticket";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import {
   buildReservationsDeepLinkHref,
@@ -82,6 +87,7 @@ export function TripDetailClient({
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TripDetailTabValue>(initialActiveTab);
   const [editingTrip, setEditingTrip] = useState(false);
+  const [sharingTrip, setSharingTrip] = useState(false);
   const [highlightTripDates, setHighlightTripDates] = useState(false);
   const [pendingTripPatch, setPendingTripPatch] = useState<UpdateTripPatch | null>(null);
   const [pendingCurrencyChangeMode, setPendingCurrencyChangeMode] = useState<TripCurrencyChangeMode | undefined>(
@@ -92,7 +98,31 @@ export function TripDetailClient({
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes } = detail;
+  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes, accessRole } =
+    detail;
+
+  const [dialogResetNonce, setDialogResetNonce] = useState(0);
+
+  const leave = useLeaveTrip({ tripId: trip.id, tripName: trip.name });
+
+  function forceCloseRoleGatedDialogs(): void {
+    setSharingTrip(false);
+    leave.forceCloseLeaveDialog();
+    setEditingTrip(false);
+    setPendingTripPatch(null);
+    setPendingCurrencyChangeMode(undefined);
+    setTripDateConfirmation(null);
+    setDialogResetNonce((current) => current + 1);
+  }
+
+  useTripLiveRefresh(trip.id, forceCloseRoleGatedDialogs);
+  useBfcacheRefresh();
+
+  const revocationTicket = useSyncExternalStore(subscribeRevocation, getRevocationTicket, getServerRevocationTicket);
+
+  const tabs = accessRole === CollaboratorRole.Viewer ? TABS.filter((tab) => tab.id !== TripDetailTab.Budget) : TABS;
+  const canManage = accessRole === CollaboratorRole.Manager;
+  const canEditTrip = accessRole !== CollaboratorRole.Viewer;
 
   const hasBudget = !!trip.budget && (trip.budget.total ?? 0) > 0 && !!trip.budget.currency;
   const budgetActual = hasBudget ? calculateActual(expenses, trip.budget!.currency) : 0;
@@ -113,13 +143,37 @@ export function TripDetailClient({
 
   useEffect(() => {
     function handlePopState(): void {
-      const nextTab = resolveTripDetailTab(new URLSearchParams(window.location.search).get("tab"));
+      const nextTab = resolveTripDetailTab(new URLSearchParams(window.location.search).get("tab"), accessRole);
       setActiveTab(nextTab);
     }
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [accessRole]);
+
+  // A self-targeted membership-removed ticket for this trip means ContributorRevocationModal is
+  // about to be (or already is) the sole surface on screen. Every dialog on the page has to go so
+  // staged changes are discarded rather than left open behind the modal, and that takes two steps
+  // because dialog state lives in two places: the trip-level state below, and state owned by the
+  // tab components themselves (cost/location/delete-event, add-doc, reservation dialogs, the doc
+  // viewer). `isRevoked` remounts the tab body to clear the latter — see its `key` prop.
+  const isRevoked =
+    !!revocationTicket &&
+    revocationTicket.type === LiveSyncEventType.MembershipRemoved &&
+    revocationTicket.tripId === trip.id;
+
+  // Reads the latest dialog closers without making the effect re-run whenever they change identity.
+  const closeDialogsOnRevocation = useEffectEvent(forceCloseRoleGatedDialogs);
+
+  useEffect(() => {
+    if (!isRevoked) return;
+
+    // Deliberate reaction to an external store (the revocation ticket), not state derivable from
+    // this render — mirrors the same justified use in use-live-sync.ts.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    closeDialogsOnRevocation();
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [isRevoked]);
 
   // Child components (CTA, linked-event taps, ReservationsTab) navigate via next/navigation's router
   // rather than raw history APIs, so this syncs activeTab from the live search params instead of
@@ -127,14 +181,14 @@ export function TripDetailClient({
   useEffect(() => {
     if (previousTabParamRef.current === tabParam) return;
     previousTabParamRef.current = tabParam;
-    const nextTab = resolveTripDetailTab(tabParam);
+    const nextTab = resolveTripDetailTab(tabParam, accessRole);
     setActiveTab(nextTab);
     if (nextTab === TripDetailTab.Reservations && pendingCtaAnnouncementRef.current) {
       setAnnouncementId((current) => current + 1);
       setReservationsAnnouncement("Reservations tab");
     }
     pendingCtaAnnouncementRef.current = false;
-  }, [tabParam]);
+  }, [tabParam, accessRole]);
 
   function navigateToReservations(target: ReservationsDeepLinkTarget): void {
     if (target.kind === "add-reservation") {
@@ -202,10 +256,17 @@ export function TripDetailClient({
         <span key={announcementId}>{reservationsAnnouncement}</span>
       </div>
 
-      <TripDetailHero detail={detail} nowISO={nowISO} dateFormat={dateFormat} onEdit={() => setEditingTrip(true)} />
+      <TripDetailHero
+        detail={detail}
+        nowISO={nowISO}
+        dateFormat={dateFormat}
+        onEdit={() => setEditingTrip(true)}
+        onShare={canManage ? () => setSharingTrip(true) : undefined}
+        onLeave={canManage ? undefined : leave.openLeaveDialog}
+      />
 
       <TripDetailTabBar
-        tabs={TABS}
+        tabs={tabs}
         activeTab={activeTab}
         budgetStatus={budgetStatus}
         budgetActual={budgetActual}
@@ -216,95 +277,107 @@ export function TripDetailClient({
       {/* Body */}
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
-          <TripDetailTabBody
-            tripId={trip.id}
-            trip={trip}
-            defaultExpenseCurrency={defaultExpenseCurrency}
-            warningThreshold={warningThreshold}
-            dangerThreshold={dangerThreshold}
-            walkThresholdMeters={walkThresholdMeters}
-            activeTab={activeTab}
-            days={days}
-            unscheduledEvents={unscheduledEvents}
-            docs={docs}
-            packingItems={packingItems}
-            packingLists={packingLists}
-            reservations={reservations}
-            expenses={expenses}
-            notes={notes}
-            templates={templates}
-            dateFormat={dateFormat}
-            initialExpandedDayNumber={initialExpandedDayNumber}
-            highlightedEventId={highlightedEventId}
-            isNew={isNew}
-            newlyCreatedChecklistId={handlers.newlyCreatedChecklistId ?? undefined}
-            onUpdateEvent={handlers.handleEventUpdate}
-            onDeleteEvent={handlers.handleEventDelete}
-            onReorderDayItems={handlers.handleDayItemsReorder}
-            onUpdateDay={handlers.handleDayUpdate}
-            onAddEvent={handlers.handleAddEvent}
-            onAddNote={handlers.handleAddNote}
-            onUpdateNote={handlers.handleUpdateNote}
-            onDeleteNote={handlers.handleDeleteNote}
-            onAddChecklist={handlers.handleAddChecklist}
-            onUpdateChecklistTitle={handlers.handleUpdateChecklistTitle}
-            onDeleteChecklist={handlers.handleDeleteChecklist}
-            onAddChecklistItem={handlers.handleAddChecklistItem}
-            onUpdateChecklistItem={handlers.handleUpdateChecklistItem}
-            onDeleteChecklistItem={handlers.handleDeleteChecklistItem}
-            onToggleChecklistItem={handlers.handleToggleChecklistItem}
-            onAddPackingItem={(name, isLabel, afterItemId, beforeItemId, labelId, listId) =>
-              handlers.handleAddPackingItem(name, isLabel, afterItemId, beforeItemId, labelId, listId)
-            }
-            onRemovePackingItem={handlers.handleRemovePackingItem}
-            onRemovePackingSection={(id, input) => handlers.handleRemovePackingSection(id, input.mode)}
-            onTogglePackingItem={handlers.handleTogglePackingItem}
-            onReorderPackingItems={handlers.handleReorderPackingItems}
-            onEditPackingItem={handlers.handleUpdatePackingItem}
-            onPullTemplates={handlers.handlePullTemplates}
-            onSaveAsTemplate={handlers.handleSaveAsTemplate}
-            onCreatePackingList={handlers.handleCreatePackingList}
-            onRenamePackingList={handlers.handleRenamePackingList}
-            onDeletePackingList={handlers.handleDeletePackingList}
-            onInsertFromPackingSource={handlers.handleInsertFromPackingSource}
-            isDateless={!trip.startDate}
-            onOpenEditDates={() => {
-              setEditingTrip(true);
-              setHighlightTripDates(true);
-            }}
-            onOpenEditBudget={() => {
-              setEditingTrip(true);
-            }}
-            onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
-            onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
-            onOpenMapTab={handleOpenMapTab}
-            onAddDay={handlers.handleAddDay}
-            onRemoveLastDay={handlers.handleRemoveLastDay}
-            addingDay={handlers.addingDay}
-            removingDay={handlers.removingDay}
-          />
+          <TripEditAccessProvider canEdit={canEditTrip}>
+            <TripDetailTabBody
+              // Remounting on revocation, or on a self-targeted role change, is what discards dialog
+              // state the tab components own themselves — unmounting them is the only handle this
+              // page has on it. `dialogResetNonce` also covers a role change while already revoked
+              // isn't possible, but distinguishes repeat role changes from one another.
+              key={isRevoked ? "revoked" : `active-${dialogResetNonce}`}
+              tripId={trip.id}
+              trip={trip}
+              defaultExpenseCurrency={defaultExpenseCurrency}
+              warningThreshold={warningThreshold}
+              dangerThreshold={dangerThreshold}
+              walkThresholdMeters={walkThresholdMeters}
+              activeTab={activeTab}
+              days={days}
+              unscheduledEvents={unscheduledEvents}
+              docs={docs}
+              packingItems={packingItems}
+              packingLists={packingLists}
+              reservations={reservations}
+              expenses={expenses}
+              notes={notes}
+              templates={templates}
+              dateFormat={dateFormat}
+              initialExpandedDayNumber={initialExpandedDayNumber}
+              highlightedEventId={highlightedEventId}
+              isNew={isNew}
+              newlyCreatedChecklistId={handlers.newlyCreatedChecklistId ?? undefined}
+              onUpdateEvent={handlers.handleEventUpdate}
+              onDeleteEvent={handlers.handleEventDelete}
+              onReorderDayItems={handlers.handleDayItemsReorder}
+              onUpdateDay={handlers.handleDayUpdate}
+              onAddEvent={handlers.handleAddEvent}
+              onAddNote={handlers.handleAddNote}
+              onUpdateNote={handlers.handleUpdateNote}
+              onDeleteNote={handlers.handleDeleteNote}
+              onAddChecklist={handlers.handleAddChecklist}
+              onUpdateChecklistTitle={handlers.handleUpdateChecklistTitle}
+              onDeleteChecklist={handlers.handleDeleteChecklist}
+              onAddChecklistItem={handlers.handleAddChecklistItem}
+              onUpdateChecklistItem={handlers.handleUpdateChecklistItem}
+              onDeleteChecklistItem={handlers.handleDeleteChecklistItem}
+              onToggleChecklistItem={handlers.handleToggleChecklistItem}
+              onAddPackingItem={(name, isLabel, afterItemId, beforeItemId, labelId, listId) =>
+                handlers.handleAddPackingItem(name, isLabel, afterItemId, beforeItemId, labelId, listId)
+              }
+              onRemovePackingItem={handlers.handleRemovePackingItem}
+              onRemovePackingSection={(id, input) => handlers.handleRemovePackingSection(id, input.mode)}
+              onTogglePackingItem={handlers.handleTogglePackingItem}
+              onReorderPackingItems={handlers.handleReorderPackingItems}
+              onEditPackingItem={handlers.handleUpdatePackingItem}
+              onPullTemplates={handlers.handlePullTemplates}
+              onSaveAsTemplate={handlers.handleSaveAsTemplate}
+              onCreatePackingList={handlers.handleCreatePackingList}
+              onRenamePackingList={handlers.handleRenamePackingList}
+              onDeletePackingList={handlers.handleDeletePackingList}
+              onInsertFromPackingSource={handlers.handleInsertFromPackingSource}
+              isDateless={!trip.startDate}
+              onOpenEditDates={() => {
+                if (!canEditTrip) return;
+                setEditingTrip(true);
+                setHighlightTripDates(true);
+              }}
+              onOpenEditBudget={() => {
+                if (canEditTrip) setEditingTrip(true);
+              }}
+              onActivateReservationsCta={() => navigateToReservations({ kind: "add-reservation" })}
+              onLinkedEventTap={(reservationId) => navigateToReservations({ kind: "highlight", reservationId })}
+              onOpenMapTab={handleOpenMapTab}
+              onAddDay={handlers.handleAddDay}
+              onRemoveLastDay={handlers.handleRemoveLastDay}
+              addingDay={handlers.addingDay}
+              removingDay={handlers.removingDay}
+            />
+          </TripEditAccessProvider>
         </div>
       </div>
 
-      <TripEditSheet
-        key={trip.id}
+      <TripDetailDialogs
         trip={trip}
         currencyOptions={currencyOptions}
         expenses={expenses}
-        open={editingTrip}
-        onClose={() => {
+        dateFormat={dateFormat}
+        canManage={canManage}
+        canEditBudget={canEditTrip}
+        editingTrip={editingTrip}
+        highlightTripDates={highlightTripDates}
+        onCloseEdit={() => {
           setEditingTrip(false);
           setHighlightTripDates(false);
         }}
-        highlightDates={highlightTripDates}
-        onSave={handleTripSave}
-        saving={handlers.savingTrip}
-        dateFormat={dateFormat}
-        dateChangeConfirmation={tripDateConfirmation}
+        onSaveTrip={handleTripSave}
+        savingTrip={handlers.savingTrip}
+        tripDateConfirmation={tripDateConfirmation}
         onResolveDateChange={handleTripDateResolution}
         onCancelDateChange={handleTripDateResolutionCancel}
-        onDelete={handlers.handleDeleteTrip}
+        onDeleteTrip={handlers.handleDeleteTrip}
         isDeleting={handlers.isDeleting}
+        sharingTrip={sharingTrip}
+        onSharingTripChange={setSharingTrip}
+        leave={leave}
       />
       {isNew ? <TripConfetti tripId={trip.id} /> : null}
     </div>

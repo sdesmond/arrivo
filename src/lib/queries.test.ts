@@ -1,10 +1,19 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { and, ne } from "drizzle-orm";
+import { CollaboratorRole } from "@/data/types";
 
-const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, schemaTokens } = vi.hoisted(() => ({
+const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToType, schemaTokens } = vi.hoisted(() => ({
   mockAssertTripAccess: vi.fn(),
   mockDbSelect: vi.fn(),
   mockDbTripNoteToType: vi.fn((tripNote: { id: string; tripId: string; position: number }) => tripNote),
+  mockDbTripToType: vi.fn((trip: { id: string; name: string; startDate: string | null; endDate: string | null }) => ({
+    id: trip.id,
+    name: trip.name,
+    startDate: trip.startDate ?? undefined,
+    endDate: trip.endDate ?? undefined,
+    status: "upcoming" as const,
+  })),
   schemaTokens: {
     trips: { id: "trips.id", name: "trips.name", startDate: "trips.startDate", endDate: "trips.endDate" },
     days: { tripId: "days.tripId" },
@@ -16,7 +25,8 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, schemaTokens }
       addedAt: "documents.addedAt",
       id: "documents.id",
     },
-    collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId" },
+    collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId", role: "collaborators.role" },
+    invitations: { tripId: "invitations.tripId", status: "invitations.status", expiresAt: "invitations.expiresAt" },
     reservations: { tripId: "reservations.tripId" },
     expenses: { tripId: "expenses.tripId" },
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
@@ -56,20 +66,16 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn(() => "eq"),
   inArray: vi.fn(() => "inArray"),
   isNull: vi.fn(() => "isNull"),
+  ne: vi.fn(() => "ne"),
   sql: vi.fn(() => "sql"),
 }));
 
 vi.mock("@/lib/db-mappers", () => ({
-  dbTripToType: vi.fn((trip: { id: string; name: string; startDate: string | null; endDate: string | null }) => ({
-    id: trip.id,
-    name: trip.name,
-    startDate: trip.startDate ?? undefined,
-    endDate: trip.endDate ?? undefined,
-    status: "upcoming" as const,
-  })),
+  dbTripToType: mockDbTripToType,
   dbEventToType: vi.fn((event: unknown) => event),
   dbDocToType: vi.fn((doc: unknown) => doc),
   dbCollabToType: vi.fn((collaborator: unknown) => collaborator),
+  dbInvitationToType: vi.fn((invitation: unknown) => invitation),
   dbReservationToType: vi.fn((reservation: unknown) => reservation),
   dbExpenseToType: vi.fn((expense: { id: string }) => ({ id: expense.id })),
   dbChecklistToType: vi.fn(),
@@ -83,7 +89,60 @@ vi.mock("@/lib/db-mappers", () => ({
   dbTemplateItemToType: vi.fn(),
 }));
 
-import { getTripDetail, listExpensesForUserInRange, listTripsForUser } from "./queries";
+import { getContributorsAndInvitations, getTripDetail, listExpensesForUserInRange, listTripsForUser } from "./queries";
+
+describe("getContributorsAndInvitations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("requires manager access before loading sharing data", async () => {
+    mockAssertTripAccess.mockImplementation(async () => {
+      expect(mockDbSelect).not.toHaveBeenCalled();
+      return CollaboratorRole.Manager;
+    });
+    mockDbSelect
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    await expect(getContributorsAndInvitations("trip-1", "user-1")).resolves.toEqual({
+      collaborators: [],
+      currentCollaboratorId: null,
+      invitations: [],
+    });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", CollaboratorRole.Manager);
+  });
+
+  it("returns the caller collaborator row id beside mapped sharing data", async () => {
+    mockAssertTripAccess.mockResolvedValue(CollaboratorRole.Manager);
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            { id: "creator-1", userId: "owner-1" },
+            { id: "manager-1", userId: "user-1" },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    await expect(getContributorsAndInvitations("trip-1", "user-1")).resolves.toMatchObject({
+      currentCollaboratorId: "manager-1",
+    });
+  });
+
+  it("returns a null caller row id when no collaborator row matches", async () => {
+    mockAssertTripAccess.mockResolvedValue(CollaboratorRole.Manager);
+    mockDbSelect
+      .mockReturnValueOnce({ from: () => ({ where: async () => [{ id: "creator-1", userId: "owner-1" }] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    await expect(getContributorsAndInvitations("trip-1", "missing-user")).resolves.toMatchObject({
+      currentCollaboratorId: null,
+    });
+  });
+});
 
 describe("listTripsForUser", () => {
   beforeEach(() => {
@@ -163,6 +222,143 @@ describe("listTripsForUser", () => {
       })
     );
     expect(result[0].summaryEvents).toEqual([]);
+  });
+
+  it("stamps the caller's collaborator role onto the returned trip as accessRole", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            orderBy: async () => [
+              {
+                trip: {
+                  id: "trip-1",
+                  name: "Editor's Trip",
+                  startDate: null,
+                  endDate: null,
+                },
+                accessRole: "editor",
+              },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      });
+
+    const result = await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
+
+    expect(result[0].trip.accessRole).toBe("editor");
+    expect(mockDbTripToType).toHaveBeenCalledWith(expect.objectContaining({ id: "trip-1" }), { role: "editor" });
+  });
+
+  it("omits budget from a viewer-role trip in the list payload", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            orderBy: async () => [
+              {
+                trip: {
+                  id: "trip-1",
+                  name: "Viewer's Trip",
+                  startDate: null,
+                  endDate: null,
+                },
+                accessRole: "viewer",
+              },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      });
+
+    await listTripsForUser("user-1", new Date("2026-05-13T12:00:00.000Z"));
+
+    expect(mockDbTripToType).toHaveBeenCalledWith(expect.objectContaining({ id: "trip-1" }), { role: "viewer" });
   });
 
   it("keeps todayEvents current-day only while summaryEvents include future active-trip events", async () => {
@@ -476,6 +672,262 @@ describe("getTripDetail", () => {
     expect(result?.expenses.map((expense) => expense.id)).toEqual(["expense-event", "expense-unlinked"]);
   });
 
+  it("threads the resolved role into the trip mapper and returns it as accessRole", async () => {
+    mockAssertTripAccess.mockResolvedValue("editor");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(mockDbTripToType).toHaveBeenCalledWith(expect.objectContaining({ id: "trip-1" }), {
+      role: "editor",
+    });
+    expect(result?.accessRole).toBe("editor");
+  });
+
+  it("omits the expenses list and reservation-linked expense for a viewer role", async () => {
+    mockAssertTripAccess.mockResolvedValue("viewer");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            { id: "res-1", tripId: "trip-1", type: "flight", provider: "Acme", startAt: null, endAt: null },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "expense-1",
+              tripId: "trip-1",
+              eventId: null,
+              reservationId: "res-1",
+              category: "food",
+              amount: "50",
+              currency: "USD",
+              date: "2026-08-01",
+            },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(result?.expenses).toEqual([]);
+    expect(result?.reservations[0]?.expense).toBeUndefined();
+    expect(result?.reservations[0]).not.toHaveProperty("expense");
+    expect(result?.accessRole).toBe("viewer");
+  });
+
+  it("includes the expenses list and reservation-linked expense for an editor role", async () => {
+    mockAssertTripAccess.mockResolvedValue("editor");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            { id: "res-1", tripId: "trip-1", type: "flight", provider: "Acme", startAt: null, endAt: null },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "expense-1",
+              tripId: "trip-1",
+              eventId: null,
+              reservationId: "res-1",
+              category: "food",
+              amount: "50",
+              currency: "USD",
+              date: "2026-08-01",
+            },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(result?.expenses).toEqual([{ id: "expense-1" }]);
+    expect(result?.reservations[0]?.expense).toEqual({ id: "expense-1" });
+  });
+
+  it("omits an unscheduled event's linked expense for a viewer role", async () => {
+    mockAssertTripAccess.mockResolvedValue("viewer");
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            orderBy: async () => [
+              {
+                id: "event-1",
+                dayId: null,
+                tripId: "trip-1",
+                name: "Museum",
+                position: 0,
+                startAt: null,
+                endAt: null,
+                displacedDate: null,
+              },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [
+            {
+              id: "expense-1",
+              tripId: "trip-1",
+              eventId: "event-1",
+              reservationId: null,
+              category: "food",
+              amount: "20",
+              currency: "USD",
+              date: "2026-08-01",
+            },
+          ],
+        }),
+      })
+      .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+    const result = await getTripDetail("trip-1", "user-1");
+
+    expect(result?.unscheduledEvents[0]?.expense).toBeUndefined();
+    expect(result?.unscheduledEvents[0]).not.toHaveProperty("expense");
+  });
+
+  it("attaches or omits a day-scheduled event's linked expense based on role", async () => {
+    async function runForRole(role: string) {
+      mockAssertTripAccess.mockResolvedValue(role);
+
+      mockDbSelect
+        .mockReturnValueOnce({
+          from: () => ({
+            where: async () => [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }],
+          }),
+        })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              orderBy: async () => [{ id: "day-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" }],
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () => ({
+              orderBy: async () => [
+                {
+                  id: "event-1",
+                  dayId: "day-1",
+                  tripId: "trip-1",
+                  name: "Museum",
+                  position: 0,
+                  startAt: null,
+                  endAt: null,
+                  displacedDate: null,
+                },
+              ],
+            }),
+          }),
+        })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: async () => [] }) })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: async () => [
+              {
+                id: "expense-1",
+                tripId: "trip-1",
+                eventId: "event-1",
+                reservationId: null,
+                category: "food",
+                amount: "20",
+                currency: "USD",
+                date: "2026-08-01",
+              },
+            ],
+          }),
+        })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) })
+        .mockReturnValueOnce({ from: () => ({ where: async () => [] }) });
+
+      return getTripDetail("trip-1", "user-1");
+    }
+
+    const viewerResult = await runForRole("viewer");
+    expect(viewerResult?.days[0]?.events[0]?.expense).toBeUndefined();
+    expect(viewerResult?.days[0]?.events[0]).not.toHaveProperty("expense");
+
+    vi.clearAllMocks();
+    mockAssertTripAccess.mockResolvedValue("editor");
+
+    const editorResult = await runForRole("editor");
+    expect(editorResult?.days[0]?.events[0]?.expense).toEqual({ id: "expense-1" });
+  });
+
   it("maps trip notes into the payload in persisted position order", async () => {
     const noteRows = [
       { id: "note-newest", tripId: "trip-1", position: 0 },
@@ -595,6 +1047,137 @@ describe("listExpensesForUserInRange", () => {
     const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
 
     expect(result.trips).toEqual([expect.objectContaining({ id: "trip-1", name: "Flex Trip", dayTotal: 3 })]);
+  });
+
+  it("applies a ne(role, viewer) predicate to the collaborator join condition", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Editor Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(ne).toHaveBeenCalledWith(schemaTokens.collaborators.role, "viewer");
+    expect(and).toHaveBeenCalledWith("eq", "eq", "ne");
+    expect(result.trips).toEqual([expect.objectContaining({ id: "trip-1" })]);
+    expect(result.expenses).toEqual([]);
+  });
+
+  it("returns every non-viewer trip when a call spans both an editor and a manager trip", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-editor", name: "Editor Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+              { trip: { id: "trip-manager", name: "Manager Trip", startDate: "2026-06-01", endDate: "2026-06-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result.trips.map((trip) => trip.id)).toEqual(["trip-editor", "trip-manager"]);
+  });
+
+  it("dedupes a trip that matches twice because the user has two collaborator rows on it", async () => {
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Shared Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+              { trip: { id: "trip-1", name: "Shared Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+
+    expect(result.trips.map((trip) => trip.id)).toEqual(["trip-1"]);
+  });
+
+  it("includes a trip on the next call once the user's role is no longer viewer", async () => {
+    mockDbSelect.mockReturnValueOnce({
+      from: () => ({
+        innerJoin: () => ({
+          where: async () => [],
+        }),
+      }),
+    });
+
+    const whileViewer = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+    expect(whileViewer.trips).toEqual([]);
+
+    mockDbSelect
+      .mockReturnValueOnce({
+        from: () => ({
+          innerJoin: () => ({
+            where: async () => [
+              { trip: { id: "trip-1", name: "Promoted Trip", startDate: "2026-05-01", endDate: "2026-05-10" } },
+            ],
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: async () => [],
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+          }),
+        }),
+      });
+
+    const afterPromotion = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
+    expect(afterPromotion.trips).toEqual([expect.objectContaining({ id: "trip-1" })]);
   });
 
   it("returns empty trips and expenses when the user has no trips in range", async () => {

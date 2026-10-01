@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Key screen — Share dialog</title>
+<style>
+/*
+  Governed by: EXPERIENCE.md > Information Architecture (Share dialog row), Component Patterns
+  (Share dialog, Pending invitation row, Creator row, Role pill / dropdown), State Patterns
+  (No contributors yet / Unsaved staged changes / Invitation sent-resent rows), Key Flow 1 (Priya).
+  Tokens: DESIGN.md frontmatter (colors, rounded, components.share-dialog / role-pill /
+  pending-invite-badge / remove-control). Light theme only, one canonical state + one alternate
+  (discard-confirm) rendered as a second panel per key-screens.md.
+*/
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, sans-serif;
+  background: #efefec;
+  padding: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: flex-start;
+}
+.caption { font-size: 12px; color: #7a7a72; margin: 0 0 8px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+.browser-frame {
+  width: 480px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.04);
+  background: #fff;
+}
+.browser-chrome {
+  height: 32px;
+  background: #e6e6e2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #d0d0cb; }
+
+/* ── dialog ── */
+.dialog-backdrop { background: rgba(20,20,18,0.32); padding: 28px 20px; }
+.dialog {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid rgba(20,20,18,0.08);
+  overflow: hidden;
+}
+.dialog-header { padding: 18px 20px 14px; border-bottom: 1px solid rgba(20,20,18,0.08); }
+.dialog-title { font-size: 16px; font-weight: 600; color: #131311; margin: 0; }
+.dialog-sub { font-size: 12.5px; color: #7a7a72; margin: 3px 0 0; }
+
+.invite-form { padding: 14px 20px; border-bottom: 1px solid rgba(20,20,18,0.08); background: #f6f6f4; }
+.invite-row { display: flex; gap: 8px; }
+.input {
+  flex: 1;
+  height: 36px;
+  border: 1px solid rgba(20,20,18,0.14);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #131311;
+  background: #fff;
+}
+.select {
+  width: 96px;
+  height: 36px;
+  border: 1px solid rgba(20,20,18,0.14);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: #4a4a45;
+  background: #fff;
+}
+.btn-send {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: #0e8b80;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.row-list { max-height: 260px; overflow-y: auto; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(20,20,18,0.06);
+}
+.row.pending { background: #efefec; }
+.avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+  background: #d6efec; color: #0a4a44; flex-shrink: 0;
+}
+.who { flex: 1; min-width: 0; }
+.who-name { font-size: 14px; font-weight: 500; color: #131311; }
+.who-meta { font-size: 11px; color: #7a7a72; margin-top: 1px; }
+.pill {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  padding: 3px 9px; border-radius: 999px; flex-shrink: 0;
+}
+.pill-manager { background: #d6efec; color: #0a4a44; }
+.pill-neutral { background: #efefec; color: #4a4a45; }
+.pill-pending { background: #fbeacb; color: #6b4406; }
+.icon-btn {
+  width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent;
+  display: flex; align-items: center; justify-content: center; color: #7a7a72; flex-shrink: 0;
+}
+.icon-btn.danger-hover { color: #7a261d; }
+.lock { color: #a0a098; flex-shrink: 0; }
+
+.dialog-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px; border-top: 1px solid rgba(20,20,18,0.08);
+}
+.btn-cancel {
+  height: 36px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid rgba(20,20,18,0.14); background: #fff; color: #4a4a45; font-size: 13px; font-weight: 500;
+}
+.btn-save {
+  height: 36px; padding: 0 14px; border-radius: 8px; border: none;
+  background: #0e8b80; color: #fff; font-size: 13px; font-weight: 600;
+}
+
+/* ── discard-confirm alternate state (swaps dialog content, never a stacked dialog) ── */
+.discard-body { padding: 28px 20px; text-align: center; }
+.discard-title { font-size: 15px; font-weight: 600; color: #131311; margin: 0 0 6px; }
+.discard-sub { font-size: 13px; color: #4a4a45; margin: 0 0 20px; line-height: 1.5; }
+.discard-actions { display: flex; justify-content: center; gap: 8px; }
+.btn-discard {
+  height: 36px; padding: 0 16px; border-radius: 8px; border: none;
+  background: oklch(0.577 0.245 27.325); color: #fff; font-size: 13px; font-weight: 600;
+}
+.btn-keep {
+  height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid rgba(20,20,18,0.14);
+  background: #fff; color: #4a4a45; font-size: 13px; font-weight: 500;
+}
+</style>
+</head>
+<body>
+
+<div>
+  <p class="caption">Share dialog — at rest, one staged change pending</p>
+  <div class="browser-frame">
+    <div class="browser-chrome"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="dialog-backdrop">
+      <div class="dialog">
+        <div class="dialog-header">
+          <p class="dialog-title">Share "Lisbon, May 2026"</p>
+          <p class="dialog-sub">Invite people to view or help plan this trip.</p>
+        </div>
+
+        <div class="invite-form">
+          <div class="invite-row">
+            <input class="input" placeholder="Email address" value="" />
+            <select class="select"><option>Viewer</option></select>
+            <button class="btn-send">Send Invite</button>
+          </div>
+        </div>
+
+        <div class="row-list">
+          <div class="row">
+            <span class="avatar">PN</span>
+            <div class="who">
+              <div class="who-name">Priya Nair (you)</div>
+              <div class="who-meta">priya@example.com</div>
+            </div>
+            <span class="pill pill-manager">Manager</span>
+            <span class="lock" title="Trip creator — cannot be removed">🔒</span>
+          </div>
+
+          <div class="row">
+            <span class="avatar">DM</span>
+            <div class="who">
+              <div class="who-name">Devon M.</div>
+              <div class="who-meta">devon@example.com</div>
+            </div>
+            <select class="select" style="width:88px;"><option>Editor</option></select>
+            <button class="icon-btn danger-hover" title="Remove Devon M.">🗑</button>
+          </div>
+
+          <div class="row pending">
+            <span class="avatar" style="background:#fbeacb;color:#6b4406;">S</span>
+            <div class="who">
+              <div class="who-name">sister@example.com</div>
+              <div class="who-meta">Invited 2 minutes ago · expires in 72h</div>
+            </div>
+            <span class="pill pill-pending">Pending</span>
+            <button class="icon-btn" title="Resend invitation to sister@example.com">↻</button>
+            <button class="icon-btn danger-hover" title="Rescind invitation to sister@example.com">✕</button>
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <button class="btn-cancel">Cancel</button>
+          <button class="btn-save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <p class="caption">Discard-confirm — alternate state (Esc / backdrop-click with a staged change)</p>
+  <div class="browser-frame">
+    <div class="browser-chrome"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="dialog-backdrop">
+      <div class="dialog">
+        <div class="dialog-header">
+          <p class="dialog-title">Share "Lisbon, May 2026"</p>
+          <p class="dialog-sub">Invite people to view or help plan this trip.</p>
+        </div>
+        <div class="discard-body">
+          <p class="discard-title">Discard unsaved changes?</p>
+          <p class="discard-sub">You changed Devon M.'s role to Editor.<br>This change hasn't been saved yet.</p>
+          <div class="discard-actions">
+            <button class="btn-keep">Keep editing</button>
+            <button class="btn-discard">Discard</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

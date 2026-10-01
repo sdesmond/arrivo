@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlaceRowNameField } from "./place-row-name-field";
+import { TripEditAccessProvider } from "./trip-edit-access";
 
 const defaultProps = {
   isEditingName: false,
@@ -73,5 +74,22 @@ describe("PlaceRowNameField", () => {
   it("shows placeholder when isDraft is true and editing", () => {
     render(<PlaceRowNameField {...defaultProps} isEditingName isDraft draftName="" />);
     expect(screen.getByPlaceholderText("Event name")).toBeInTheDocument();
+  });
+});
+
+describe("PlaceRowNameField for a viewer", () => {
+  it("shows the name as plain text that never enters edit mode", async () => {
+    const user = userEvent.setup();
+    const onStartEdit = vi.fn();
+    render(
+      <TripEditAccessProvider canEdit={false}>
+        <PlaceRowNameField {...defaultProps} onStartEdit={onStartEdit} />
+      </TripEditAccessProvider>
+    );
+
+    expect(screen.queryByRole("button", { name: "Tokyo Tower" })).not.toBeInTheDocument();
+    await user.click(screen.getByText("Tokyo Tower"));
+    fireEvent.keyDown(screen.getByText("Tokyo Tower"), { key: "Enter" });
+    expect(onStartEdit).not.toHaveBeenCalled();
   });
 });

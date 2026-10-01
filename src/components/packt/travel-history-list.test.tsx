@@ -44,13 +44,27 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { TravelHistoryList } from "./travel-history-list";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import type { Trip } from "@/data/types";
+import { CollaboratorRole, type Trip } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
 const pastTrips: Trip[] = [
-  { id: "trip-past-1", name: "Berlin Tour", status: "past", startDate: "2026-01-01", endDate: "2026-01-10" },
-  { id: "trip-past-2", name: "Lisbon Escape", status: "past", startDate: "2025-09-01", endDate: "2025-09-07" },
+  {
+    id: "trip-past-1",
+    name: "Berlin Tour",
+    status: "past",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    accessRole: CollaboratorRole.Manager,
+  },
+  {
+    id: "trip-past-2",
+    name: "Lisbon Escape",
+    status: "past",
+    startDate: "2025-09-01",
+    endDate: "2025-09-07",
+    accessRole: CollaboratorRole.Manager,
+  },
 ];
 
 function Wrapper({ children }: { children: React.ReactNode }) {
@@ -139,6 +153,14 @@ describe("TravelHistoryList", () => {
     );
     fireEvent.click(screen.getAllByRole("button", { name: /edit trip/i })[0]);
     expect(onEditTrip).toHaveBeenCalledWith(pastTrips[0]);
+  });
+
+  it("hides delete for a past trip where the viewer is not a manager", () => {
+    const trips = [{ ...pastTrips[0], accessRole: CollaboratorRole.Editor }];
+    render(<TravelHistoryList trips={trips} dateFormat="MM/DD/YYYY" onEditTrip={vi.fn()} onDeleteTrip={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
   });
 
   it("calls onDeleteTrip when a delete action is triggered", () => {

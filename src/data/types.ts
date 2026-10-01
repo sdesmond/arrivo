@@ -32,11 +32,20 @@ export const ItineraryItemType = {
 export type ItineraryItemType = (typeof ItineraryItemType)[keyof typeof ItineraryItemType];
 
 export const CollaboratorRole = {
-  Owner: "owner",
+  Manager: "manager",
   Editor: "editor",
   Viewer: "viewer",
 } as const;
 export type CollaboratorRole = (typeof CollaboratorRole)[keyof typeof CollaboratorRole];
+
+export const InvitationStatus = {
+  Pending: "pending",
+  Accepted: "accepted",
+  Declined: "declined",
+  Expired: "expired",
+  Rescinded: "rescinded",
+} as const;
+export type InvitationStatus = (typeof InvitationStatus)[keyof typeof InvitationStatus];
 
 // kind = the file format
 export const DocKind = {
@@ -509,6 +518,7 @@ export interface Collaborator {
   email: string;
   initials: string;
   role: CollaboratorRole;
+  isCreator?: boolean;
   tint?: {
     bg: string;
     fg: string;
@@ -517,6 +527,49 @@ export interface Collaborator {
   tintBg?: string;
   tintFg?: string;
 }
+
+export interface Invitation {
+  id: string;
+  tripId: string;
+  email: string;
+  role: CollaboratorRole;
+  status: InvitationStatus;
+  expiresAt: string;
+  invitedBy: string;
+  createdAt?: string;
+}
+
+export interface PendingInvitation {
+  id: string;
+  tripId: string;
+  tripName: string;
+  inviterName: string;
+  inviterEmail: string;
+  role: CollaboratorRole;
+  expiresAt: string;
+}
+
+export type AcceptInvitationResult = { status: "accepted"; tripId: string } | { status: "error"; message: string };
+
+export type DeclineInvitationResult = { status: "declined" } | { status: "error"; message: string };
+
+export type RescindInvitationResult = { status: "success" } | { status: "error"; message: string };
+
+export type DismissInvitationResult = { status: "success" } | { status: "error"; message: string };
+
+export type ResendInvitationResult = { status: "success"; expiresAt: string } | { status: "error"; message: string };
+
+export type ContributorChange =
+  | { type: "role"; collaboratorId: string; fromRole: CollaboratorRole; toRole: CollaboratorRole }
+  | { type: "remove"; collaboratorId: string };
+
+export type SaveContributorChangesResult =
+  | { status: "success" }
+  | { status: "error"; message: string; stale?: boolean };
+
+// `stale` marks a caller whose membership was already gone (concurrent removal, forged trip id) —
+// the client returns to the trips list rather than reporting a successful exit.
+export type LeaveTripResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
@@ -567,6 +620,10 @@ export interface Trip {
 
   createdAt?: string;
   updatedAt?: string;
+
+  // Set only by list-context queries (listTripsForUser) — the current viewer's
+  // role on this trip, for gating manager-only controls in list/card UI.
+  accessRole?: CollaboratorRole;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -617,6 +674,45 @@ export interface CreatePackingTemplateInput {
 export interface UpdatePackingTemplatePatch {
   name: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SYNC EVENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const LiveSyncEventType = {
+  ItineraryChanged: "itinerary-changed",
+  MembershipChanged: "membership-changed",
+  MembershipRemoved: "membership-removed",
+  // Personal-channel only: the signed-in user left a trip themselves (from another tab or this one).
+  // Distinct from MembershipRemoved, whose modal claims a manager removed them.
+  MembershipLeft: "membership-left",
+  // Personal-channel only: an invitation addressed to this user was created, resent or rescinded.
+  InvitationChanged: "invitation-changed",
+  TripDeleted: "trip-deleted",
+} as const;
+export type LiveSyncEventType = (typeof LiveSyncEventType)[keyof typeof LiveSyncEventType];
+
+export const SyncConnectionStatus = {
+  Connected: "connected",
+  Reconnecting: "reconnecting",
+  Offline: "offline",
+} as const;
+export type SyncConnectionStatus = (typeof SyncConnectionStatus)[keyof typeof SyncConnectionStatus];
+
+export type LiveSyncEvent =
+  | { type: typeof LiveSyncEventType.ItineraryChanged; tripId: string }
+  | { type: typeof LiveSyncEventType.MembershipChanged; tripId: string }
+  | {
+      type: typeof LiveSyncEventType.MembershipRemoved;
+      removedUserId: string;
+      tripId: string;
+      tripName: string;
+      removedByName: string;
+      removedByEmail: string;
+    }
+  | { type: typeof LiveSyncEventType.MembershipLeft; tripId: string }
+  | { type: typeof LiveSyncEventType.InvitationChanged; tripId: string }
+  | { type: typeof LiveSyncEventType.TripDeleted; tripId: string };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PACKING TEMPLATE ITEM
@@ -678,6 +774,7 @@ export interface TripDetailPayload {
   reservations: Reservation[];
   expenses: Expense[];
   notes: TripNote[];
+  accessRole: CollaboratorRole;
 }
 
 export interface NewTripDraft {
@@ -799,14 +896,22 @@ export interface RemoveLastDayResult {
   hasPlannedContent?: boolean;
 }
 
-export interface AddCollaboratorInput {
+export interface InviteContributorInput {
   email: string;
-  name: string;
-  initials: string;
-  role: "editor" | "viewer";
-  tintBg?: string;
-  tintFg?: string;
+  role?: CollaboratorRole;
 }
+
+export type InviteContributorErrorCode =
+  | "invalid-role"
+  | "self-invite"
+  | "no-account"
+  | "already-collaborator"
+  | "invite-conflict";
+
+export type InviteContributorResult =
+  | { status: "invited" }
+  | { status: "resent" }
+  | { status: "error"; message: string; errorCode: InviteContributorErrorCode };
 
 export interface AddDocumentInput {
   tripId?: string;

@@ -1,25 +1,14 @@
 "use client";
 
-import { Clock, MapPin, DollarSign, FileText, ChevronDown, Paperclip, Pencil, TriangleAlert } from "lucide-react";
-import { toast } from "sonner";
+import { MapPin, DollarSign, FileText, ChevronDown, Paperclip, Pencil } from "lucide-react";
 import type { TripEvent } from "@/data/types";
-import { toHHMM, pluralize, getLocationDisplayLabel } from "@/lib/utils";
+import { cn, pluralize, getLocationDisplayLabel } from "@/lib/utils";
 import { IconSize } from "@/lib/size-tokens";
 import { formatCurrencyChipAmount } from "@/lib/currencies";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-
-const SCHEDULE_CONFLICT_MESSAGE =
-  "Not enough travel time between the end of the previous stop and the start of this one.";
-
-function formatTime(timeStr: string): string {
-  if (!timeStr) return "—";
-  const [hour24, minute] = timeStr.split(":").map(Number);
-  if (isNaN(hour24) || isNaN(minute)) return "—";
-  const suffix = hour24 >= 12 ? "PM" : "AM";
-  const hour = hour24 % 12 || 12;
-  return `${hour}:${String(minute).padStart(2, "0")} ${suffix}`;
-}
+import { CHIP_CLASS, PlaceRowTimeChip, ReadOnlyChip } from "./place-row-action-chips";
+import { useCanEditTrip } from "./trip-edit-access";
 
 export interface PlaceRowActionBarProps {
   place: TripEvent;
@@ -31,6 +20,7 @@ export interface PlaceRowActionBarProps {
   onOpenAddDoc: () => void;
   onOpenMaps?: () => void;
   hasScheduleConflict?: boolean;
+  hasDayDate?: boolean;
 }
 
 export function PlaceRowActionBar({
@@ -43,61 +33,23 @@ export function PlaceRowActionBar({
   onOpenAddDoc,
   onOpenMaps,
   hasScheduleConflict,
+  hasDayDate,
 }: PlaceRowActionBarProps) {
+  const canEdit = useCanEditTrip();
   const docs = place.docs ?? [];
   const hasDocs = docs.length > 0;
 
-  const timeLabel = place.startAt
-    ? place.endAt
-      ? `${formatTime(toHHMM(place.startAt))} – ${formatTime(toHHMM(place.endAt))}`
-      : formatTime(toHHMM(place.startAt))
-    : null;
   const locationLabel = getLocationDisplayLabel(place.locationName, place.locationAddress);
 
   return (
     <div className="flex items-center gap-2 flex-wrap mt-2">
-      {/* Time */}
-      {hasScheduleConflict ? (
-        <ButtonGroup
-          orientation="horizontal"
-          className="overflow-hidden rounded-full"
-          style={{ background: "var(--warning-soft)", color: "var(--warning-ink)" }}
-        >
-          <Button
-            variant="ghost"
-            size="lg"
-            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
-            onClick={onOpenTime}
-          >
-            <Clock size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-            {timeLabel ?? "Add time"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-lg"
-            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
-            onClick={() => toast.warning(SCHEDULE_CONFLICT_MESSAGE)}
-            aria-label="Schedule conflict"
-            title="Schedule conflict"
-          >
-            <TriangleAlert size={IconSize.actionChip} strokeWidth={1.5} />
-          </Button>
-        </ButtonGroup>
-      ) : (
-        <button
-          onClick={onOpenTime}
-          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
-          style={{
-            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-            color: place.startAt ? "var(--accent-ink)" : "var(--fg-4)",
-            background: place.startAt ? "var(--accent-soft)" : "none",
-            border: "1px solid transparent",
-          }}
-        >
-          <Clock size={IconSize.actionChip} strokeWidth={1.5} />
-          {timeLabel ?? "Add time"}
-        </button>
-      )}
+      <PlaceRowTimeChip
+        startAt={place.startAt}
+        endAt={place.endAt}
+        hasScheduleConflict={hasScheduleConflict}
+        hasDayDate={hasDayDate}
+        onOpenTime={onOpenTime}
+      />
 
       {/* Location */}
       {place.locationAddress ? (
@@ -118,21 +70,32 @@ export function PlaceRowActionBar({
               {locationLabel}
             </span>
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-lg"
-            className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
-            onClick={onOpenLocation}
-            aria-label="Edit location"
-            title="Edit location"
-          >
-            <Pencil size={IconSize.actionChip} strokeWidth={1.5} />
-          </Button>
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              className="hover:bg-surface-2 dark:hover:bg-surface-2 hover:text-inherit focus-visible:ring-inset"
+              onClick={onOpenLocation}
+              aria-label="Edit location"
+              title="Edit location"
+            >
+              <Pencil size={IconSize.actionChip} strokeWidth={1.5} />
+            </Button>
+          )}
         </ButtonGroup>
+      ) : !canEdit ? (
+        locationLabel && (
+          <ReadOnlyChip>
+            <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+            <span className="truncate" style={{ maxWidth: 160 }}>
+              {locationLabel}
+            </span>
+          </ReadOnlyChip>
+        )
       ) : (
         <button
           onClick={onOpenLocation}
-          className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
+          className={cn(CHIP_CLASS, "transition-colors hover:bg-surface-2")}
           style={{
             fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
             color: "var(--fg-4)",
@@ -146,25 +109,31 @@ export function PlaceRowActionBar({
       )}
 
       {/* Cost */}
-      <button
-        onClick={onOpenCost}
-        className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"
-        style={{
-          fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-          color: place.expense ? "var(--accent-ink)" : "var(--fg-4)",
-          background: place.expense ? "var(--accent-soft)" : "none",
-          border: "1px solid transparent",
-        }}
-      >
-        {place.expense ? (
-          formatCurrencyChipAmount(place.expense.amount, place.expense.currency)
-        ) : (
-          <>
-            <DollarSign size={IconSize.actionChip} strokeWidth={1.5} />
-            Add cost
-          </>
-        )}
-      </button>
+      {!canEdit ? (
+        place.expense && (
+          <ReadOnlyChip>{formatCurrencyChipAmount(place.expense.amount, place.expense.currency)}</ReadOnlyChip>
+        )
+      ) : (
+        <button
+          onClick={onOpenCost}
+          className={cn(CHIP_CLASS, "transition-colors hover:bg-surface-2")}
+          style={{
+            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
+            color: place.expense ? "var(--accent-ink)" : "var(--fg-4)",
+            background: place.expense ? "var(--accent-soft)" : "none",
+            border: "1px solid transparent",
+          }}
+        >
+          {place.expense ? (
+            formatCurrencyChipAmount(place.expense.amount, place.expense.currency)
+          ) : (
+            <>
+              <DollarSign size={IconSize.actionChip} strokeWidth={1.5} />
+              Add cost
+            </>
+          )}
+        </button>
+      )}
 
       {/* Docs toggle */}
       {hasDocs && (
@@ -193,7 +162,7 @@ export function PlaceRowActionBar({
       )}
 
       {/* Attach button — only when no docs */}
-      {!hasDocs && (
+      {canEdit && !hasDocs && (
         <button
           onClick={onOpenAddDoc}
           className="flex h-11 items-center gap-1 rounded-full px-3 py-0.5 transition-colors hover:bg-surface-2"

@@ -8,6 +8,7 @@ import {
   documents,
   reservations,
   collaborators,
+  invitations,
   packingItems,
   tripPackingLists,
   itineraryNotes,
@@ -21,7 +22,7 @@ import {
   packingTemplates,
   packingTemplateItems,
 } from "@/db/schema";
-import { eq, and, or, sql, inArray, asc, count, isNull } from "drizzle-orm";
+import { eq, and, or, sql, inArray, asc, count, isNull, ne } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { deriveLinkedEvents } from "@/lib/linked-events";
 import {
@@ -31,6 +32,7 @@ import {
   dbReservationToType,
   dbExpenseToType,
   dbCollabToType,
+  dbInvitationToType,
   dbChecklistToType,
   dbTripNoteToType,
   dbLoyaltyToType,
@@ -42,7 +44,7 @@ import {
   dbTemplateItemToType,
   isTransitMode,
 } from "@/lib/db-mappers";
-import { CoverType } from "@/data/types";
+import { CollaboratorRole, CoverType } from "@/data/types";
 import { getTripStatus, getWallClockDateKey, toLocalDateKey } from "@/lib/utils";
 import type {
   PackingTemplate,
@@ -52,6 +54,8 @@ import type {
   UserProfile,
   Trip,
   Expense,
+  Collaborator,
+  Invitation,
 } from "@/data/types";
 
 const VALID_COVER_TYPES = Object.values(CoverType) as string[];
@@ -124,7 +128,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
 
 export async function listTripsForUser(userId: string, now: Date): Promise<TripListEntry[]> {
   const rows = await db
-    .select({ trip: trips })
+    .select({ trip: trips, accessRole: collaborators.role })
     .from(trips)
     .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
     .orderBy(sql`${trips.startDate} NULLS FIRST`, trips.name);
@@ -206,11 +210,11 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     return acc;
   }, {});
 
-  return rows.map(({ trip }) => {
+  return rows.map(({ trip, accessRole }) => {
     const packAgg = packingByTrip[trip.id];
     const packingProgress =
       packAgg && packAgg.total > 0 ? { checked: packAgg.checked, total: packAgg.total } : undefined;
-    const tripEntry = dbTripToType(trip);
+    const tripEntry = dbTripToType(trip, { role: accessRole as CollaboratorRole });
 
     const linkedEventsForTrip = deriveLinkedEvents((reservationsByTrip[trip.id] ?? []).map(dbReservationToType));
     const todayLinkedEvents = linkedEventsForTrip.filter(
@@ -232,6 +236,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
     return {
       trip: {
         ...tripEntry,
+        accessRole: accessRole as CollaboratorRole,
         dayTotal: dayTotalsByTrip[trip.id] ?? tripEntry.dayTotal,
         packingProgress,
         docs: (docsByTrip[trip.id] ?? []).map(dbDocToType),
@@ -253,7 +258,16 @@ export async function listExpensesForUserInRange(
   const tripRows = await db
     .select({ trip: trips })
     .from(trips)
-    .innerJoin(collaborators, and(eq(collaborators.tripId, trips.id), eq(collaborators.userId, userId)))
+    // Viewers must never see a shared trip's financial data anywhere they can reach it,
+    // including this personal expense report — exclude viewer-role rows at the join.
+    .innerJoin(
+      collaborators,
+      and(
+        eq(collaborators.tripId, trips.id),
+        eq(collaborators.userId, userId),
+        ne(collaborators.role, CollaboratorRole.Viewer)
+      )
+    )
     .where(
       or(
         isNull(trips.startDate),
@@ -262,7 +276,9 @@ export async function listExpensesForUserInRange(
       )
     );
 
-  const tripList = tripRows.map(({ trip }) => trip);
+  // A user can hold two collaborator rows on the same trip (the unique constraint is on
+  // (tripId, email), not (tripId, userId)), which would otherwise duplicate that trip here.
+  const tripList = Array.from(new Map(tripRows.map(({ trip }) => [trip.id, trip])).values());
   if (tripList.length === 0) {
     return { trips: [], expenses: [] };
   }
@@ -326,8 +342,32 @@ export async function getTemplateWithItems(
   };
 }
 
+export async function getContributorsAndInvitations(
+  tripId: string,
+  userId: string
+): Promise<{ collaborators: Collaborator[]; currentCollaboratorId: string | null; invitations: Invitation[] }> {
+  await assertTripAccess(tripId, userId, CollaboratorRole.Manager);
+
+  const [collaboratorRows, invitationRows] = await Promise.all([
+    db.select().from(collaborators).where(eq(collaborators.tripId, tripId)),
+    db
+      .select()
+      .from(invitations)
+      .where(
+        and(eq(invitations.tripId, tripId), or(eq(invitations.status, "pending"), eq(invitations.status, "declined")))
+      ),
+  ]);
+
+  return {
+    collaborators: collaboratorRows.map(dbCollabToType),
+    currentCollaboratorId: collaboratorRows.find((collaborator) => collaborator.userId === userId)?.id ?? null,
+    invitations: invitationRows.map(dbInvitationToType),
+  };
+}
+
 export async function getTripDetail(tripId: string, userId: string): Promise<TripDetailPayload | null> {
-  await assertTripAccess(tripId, userId);
+  const accessRole = await assertTripAccess(tripId, userId);
+  const isViewer = accessRole === CollaboratorRole.Viewer;
 
   const [trip] = await db.select().from(trips).where(eq(trips.id, tripId));
   if (!trip) return null;
@@ -395,7 +435,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
 
   const reservationsDomain = tripReservations.map((row) => ({
     ...dbReservationToType(row),
-    expense: expensesByReservationId.get(row.id) ? dbExpenseToType(expensesByReservationId.get(row.id)!) : undefined,
+    ...(!isViewer && expensesByReservationId.get(row.id)
+      ? { expense: dbExpenseToType(expensesByReservationId.get(row.id)!) }
+      : {}),
     documents: (docsByReservationId.get(row.id) ?? []).map(dbDocToType),
   }));
   const linkedEvents = deriveLinkedEvents(reservationsDomain);
@@ -491,7 +533,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
   }
 
   return {
-    trip: dbTripToType(trip),
+    trip: dbTripToType(trip, { role: accessRole }),
     days: tripDays.map((day) => ({
       id: day.id,
       dayNumber: day.dayNumber,
@@ -506,7 +548,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
         ),
         ...(eventsByDay.get(day.id) ?? []).map((event) => ({
           ...dbEventToType(event),
-          expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
+          ...(!isViewer && expensesByEventId.get(event.id)
+            ? { expense: dbExpenseToType(expensesByEventId.get(event.id)!) }
+            : {}),
           docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
         })),
       ].sort((first, second) => first.position - second.position),
@@ -521,7 +565,9 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     })),
     unscheduledEvents: unscheduledEvents.map((event) => ({
       ...dbEventToType(event),
-      expense: expensesByEventId.get(event.id) ? dbExpenseToType(expensesByEventId.get(event.id)!) : undefined,
+      ...(!isViewer && expensesByEventId.get(event.id)
+        ? { expense: dbExpenseToType(expensesByEventId.get(event.id)!) }
+        : {}),
       docs: (docsByEventId.get(event.id) ?? []).map(dbDocToType),
     })),
     docs: tripDocs.map(dbDocToType),
@@ -529,7 +575,8 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     packingItems: tripPackingItems.map(dbPackingItemToType),
     packingLists: tripPackingListRows.map(dbPackingListToType),
     reservations: reservationsDomain,
-    expenses: tripExpenses.map(dbExpenseToType),
+    expenses: isViewer ? [] : tripExpenses.map(dbExpenseToType),
     notes: tripNotes.map(dbTripNoteToType),
+    accessRole,
   };
 }

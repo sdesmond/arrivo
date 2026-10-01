@@ -19,8 +19,17 @@ import {
 import { eq, and, max, gte, sql, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { getContributorsAndInvitations } from "@/lib/queries";
+import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
+import { publishTripEvent } from "@/lib/trip-events";
+import { LiveSyncEventType } from "@/data/types";
+import {
+  dismissInvitation,
+  rescindInvitation,
+  saveContributorChanges as saveContributorChangesAction,
+} from "../actions";
 import {
   uploadDocument as uploadTripDocumentAction,
   uploadDocumentToEvent as uploadEventDocumentAction,
@@ -36,15 +45,58 @@ import type {
   CreateTripNoteInput,
   UpdateTripNoteInput,
   ReorderTripNotesInput,
+  ContributorChange,
 } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
 const CONCURRENT_MODIFICATION_ERROR = "CONCURRENT_MODIFICATION";
 
+export async function getShareDialogData(tripId: string) {
+  const user = await requireUser();
+  return getContributorsAndInvitations(tripId, user.id!);
+}
+
+export async function resendShareInvitation(tripId: string, invitationId: string) {
+  const user = await requireUser();
+  const result = await resendInvitation(invitationId, tripId, user.id!);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
+}
+
+export async function rescindShareInvitation(tripId: string, invitationId: string) {
+  const result = await rescindInvitation(tripId, invitationId);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
+}
+
+export async function dismissShareInvitation(tripId: string, invitationId: string) {
+  const result = await dismissInvitation(tripId, invitationId);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
+}
+
+export async function saveContributorChanges(tripId: string, changes: ContributorChange[]) {
+  const result = await saveContributorChangesAction(tripId, changes);
+  if (result.status === "success") {
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return result;
+}
+
 type PositionExecutor = Pick<DbTransaction, "select" | "update" | "insert">;
 
 function buildDayItemKey(type: "event" | "note" | "checklist", id: string): string {
   return `${type}:${id}`;
+}
+
+function publishItineraryChanged(tripId: string): void {
+  publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
 }
 
 function nextCalendarDate(date: string): string {
@@ -174,6 +226,7 @@ export async function createEvent(dayId: string, input: CreateEventInput): Promi
     await transaction.insert(events).values({ ...values, position: appendPos });
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -194,6 +247,7 @@ export async function updateEvent(eventId: string, patch: UpdateEventPatch): Pro
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -217,6 +271,7 @@ export async function deleteEvent(eventId: string): Promise<void> {
     );
   }
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -248,6 +303,7 @@ export async function deleteEventWithDocDecision(eventId: string, keepDocs: bool
     );
   }
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -301,6 +357,7 @@ export async function reorderDayItems(input: ReorderDayItemsInput): Promise<void
       }
     }
   });
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -309,6 +366,7 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch): Promise<v
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(days).set(patch).where(eq(days.id, dayId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -354,6 +412,7 @@ export async function addDay(tripId: string): Promise<void> {
     }
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
 }
@@ -427,6 +486,7 @@ export async function removeLastDay(tripId: string, confirmedDestructiveRemoval 
     );
   }
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
   return result;
@@ -448,6 +508,7 @@ export async function setTripCoverWithAttribution(
       coverPhotographerUrl: coverPhotographerUrl ?? null,
     })
     .where(eq(trips.id, tripId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -471,6 +532,7 @@ export async function removeTripCover(tripId: string): Promise<void> {
       .where(eq(trips.id, tripId));
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -491,6 +553,7 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
     size: input.size,
     url: input.url,
   });
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -513,6 +576,7 @@ export async function createNote(dayId: string, content: string, insertAtPositio
     await transaction.insert(itineraryNotes).values({ dayId, content, position: appendPos });
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -523,6 +587,7 @@ export async function updateNote(noteId: string, content: string): Promise<void>
   const tripId = await getDayTripId(note.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(itineraryNotes).set({ content, updatedAt: new Date() }).where(eq(itineraryNotes.id, noteId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -533,6 +598,7 @@ export async function deleteNote(noteId: string): Promise<void> {
   const tripId = await getDayTripId(note.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -555,6 +621,7 @@ export async function createTripNote(tripId: string, input: CreateTripNoteInput)
     await transaction.insert(notes).values({ tripId, position: 0, title, body });
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -579,6 +646,7 @@ export async function updateTripNote(noteId: string, input: UpdateTripNoteInput)
   if (body !== undefined) updateValues.body = body;
 
   await db.update(notes).set(updateValues).where(eq(notes.id, noteId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -589,6 +657,7 @@ export async function deleteTripNote(noteId: string): Promise<void> {
 
   await assertTripAccess(note.tripId, user.id!, "editor");
   await db.delete(notes).where(eq(notes.id, noteId));
+  publishItineraryChanged(note.tripId);
   revalidatePath(`/trips/${note.tripId}`);
 }
 
@@ -618,6 +687,7 @@ export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<vo
     }
   });
 
+  publishItineraryChanged(input.tripId);
   revalidatePath(`/trips/${input.tripId}`);
 }
 
@@ -633,6 +703,7 @@ export async function createChecklist(dayId: string, insertAtPosition: number): 
     await transaction.insert(itineraryChecklists).values({ dayId, position: insertAtPosition });
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -659,6 +730,7 @@ export async function createChecklistWithItem(
     return newChecklist.id;
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   return checklistId;
 }
@@ -672,6 +744,7 @@ export async function updateChecklistTitle(checklistId: string, title: string | 
     .update(itineraryChecklists)
     .set({ title: title ?? null, updatedAt: new Date() })
     .where(eq(itineraryChecklists.id, checklistId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -681,6 +754,7 @@ export async function deleteChecklist(checklistId: string): Promise<void> {
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(itineraryChecklists).where(eq(itineraryChecklists.id, checklistId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -690,6 +764,7 @@ export async function createChecklistItem(checklistId: string, content: string):
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.insert(checklistItems).values({ checklistId, content });
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -698,6 +773,7 @@ export async function updateChecklistItem(itemId: string, content: string): Prom
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(checklistItems).set({ content }).where(eq(checklistItems.id, itemId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -709,6 +785,7 @@ export async function toggleChecklistItem(itemId: string): Promise<void> {
     .update(checklistItems)
     .set({ isChecked: sql`NOT ${checklistItems.isChecked}` })
     .where(eq(checklistItems.id, itemId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -717,6 +794,7 @@ export async function deleteChecklistItem(itemId: string): Promise<void> {
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(checklistItems).where(eq(checklistItems.id, itemId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -733,6 +811,7 @@ export async function removeDocument(docId: string): Promise<void> {
       .catch((error) => console.warn(`Cleanup failed for ${doc.url}`, error));
   }
   await db.delete(documents).where(eq(documents.id, docId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -744,6 +823,7 @@ export async function renameDocument(docId: string, newName: string): Promise<vo
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -752,6 +832,7 @@ export async function attachTripDocToEvent(docId: string, eventId: string): Prom
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ eventId }).where(eq(documents.id, docId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -763,6 +844,7 @@ export async function promoteEventDocToTrip(docId: string): Promise<void> {
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ eventId: null }).where(eq(documents.id, docId));
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -831,6 +913,7 @@ export async function addChecklistFromPackingSource(
     return newChecklist.id;
   });
 
+  publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   return checklistId;
 }

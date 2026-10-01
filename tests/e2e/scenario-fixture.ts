@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { and, eq } from "drizzle-orm";
-import type { Page, TestInfo } from "@playwright/test";
+import type { BrowserContext, Page, TestInfo } from "@playwright/test";
 import { TransitMode } from "../../src/data/types";
 import {
   checklistItems,
@@ -12,10 +12,12 @@ import {
   expenses,
   itineraryChecklists,
   itineraryNotes,
+  notes,
   packingItems,
   packingTemplateItems,
   packingTemplates,
   reservations,
+  tripPackingLists,
   trips,
   userCompanions,
   userLoyaltyNumbers,
@@ -102,17 +104,33 @@ export interface ScenarioFixtureContext {
   ): Promise<ScenarioTemplateRecord>;
   signIn(page: Page): Promise<void>;
   signInAsBaseline(page: Page): Promise<void>;
+  /** Plain email/password sign-in, for a session other than the scenario's own current user. */
+  signInAsUser(page: Page, email: string): Promise<void>;
   signOut(): void;
   gotoCurrentTrip(page: Page): Promise<void>;
   uniqueName(label: string): string;
   uniqueEmail(label?: string): string;
-  refreshCurrentPage(page: Page): Promise<void>;
   rememberTripByName(name: string): Promise<ScenarioTripRecord>;
+  /** Materializes a user and seeds them as a collaborator on `tripId` — a second session's account. */
+  seedCollaborator(
+    tripId: string,
+    name: string,
+    initials: string,
+    role: "editor" | "manager"
+  ): Promise<ScenarioUserRecord>;
+  /** Opens a fresh browser context + page from `page`'s browser, for a second concurrent session. */
+  openSecondSession(page: Page): Promise<{ context: BrowserContext; page: Page }>;
   setCurrentTrip(nextTrip: ScenarioTripRecord | undefined): void;
   setCurrentUser(nextUser: ScenarioUserRecord | undefined): void;
   setValue<T>(key: string, value: T): void;
   getValue<T>(key: string): T | undefined;
   clearValue(key: string): void;
+  /**
+   * Registers a raw-seeded row for scenario cleanup. Deleting a "user" cascades its owned trips and
+   * invitations via FK, so a step that seeds a second (non-current) account only needs to register
+   * that user — it does not need its own trip/invitation cleanup handles.
+   */
+  registerCleanup(handle: CleanupHandle): void;
 }
 
 interface MutableScenarioState {
@@ -320,7 +338,8 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         email: ownerUser.email,
         name: ownerUser.name,
         initials: ownerUser.initials,
-        role: "owner",
+        role: "manager",
+        isCreator: true,
       });
 
       const insertedDays =
@@ -379,6 +398,39 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           content: noteSeed.content,
           position: noteSeed.position,
         });
+      }
+
+      for (const listSeed of seed.packingLists) {
+        const [packingList] = await db
+          .insert(tripPackingLists)
+          .values({ tripId: trip.id, name: listSeed.name, position: listSeed.position })
+          .returning({ id: tripPackingLists.id });
+        const listLabelIdsByName = new Map<string, string>();
+        for (const item of listSeed.items) {
+          const [packingRow] = await db
+            .insert(packingItems)
+            .values({
+              tripId: trip.id,
+              listId: packingList.id,
+              name: item.name,
+              isLabel: item.isLabel,
+              done: item.done,
+              position: item.position,
+              labelId: item.isLabel ? null : item.under ? (listLabelIdsByName.get(item.under) ?? null) : null,
+            })
+            .returning({ id: packingItems.id });
+          if (item.isLabel) listLabelIdsByName.set(item.name, packingRow.id);
+        }
+      }
+
+      if (seed.tripNotes.length > 0) {
+        await db.insert(notes).values(
+          seed.tripNotes.map((noteSeed) => ({
+            tripId: trip.id,
+            title: noteSeed.title,
+            position: noteSeed.position,
+          }))
+        );
       }
 
       for (const checklistSeed of seed.checklists) {
@@ -635,6 +687,13 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
       state.signedInEmail = BASELINE_E2E_USER.email;
       state.currentUser = await loadUserByEmail(BASELINE_E2E_USER.email);
     },
+    async signInAsUser(page: Page, email: string): Promise<void> {
+      await page.goto("/sign-in");
+      await page.getByRole("textbox", { name: "Email" }).fill(email);
+      await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
+      await page.getByRole("button", { name: "Sign in" }).click();
+      await page.waitForURL("**/trips");
+    },
     signOut(): void {
       state.signedInEmail = undefined;
     },
@@ -645,9 +704,38 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     },
     uniqueName,
     uniqueEmail,
-    async refreshCurrentPage(page: Page): Promise<void> {
-      await page.reload();
-      await page.waitForLoadState("networkidle");
+    async seedCollaborator(
+      tripId: string,
+      name: string,
+      initials: string,
+      role: "editor" | "manager"
+    ): Promise<ScenarioUserRecord> {
+      const { user: contributor } = await context.materialize({
+        user: { overrides: { user: { name, initials } }, setCurrent: false },
+      });
+      if (!contributor) throw new Error(`Failed to materialize the ${role} user "${name}".`);
+
+      await withE2EDb(async (db) => {
+        await db.insert(collaborators).values({
+          tripId,
+          userId: contributor.id,
+          email: contributor.email,
+          name: contributor.name,
+          initials: contributor.initials,
+          role,
+          isCreator: false,
+        });
+      });
+
+      return contributor;
+    },
+    async openSecondSession(page: Page): Promise<{ context: BrowserContext; page: Page }> {
+      const browser = page.context().browser();
+      if (!browser) throw new Error("No browser is available to open a second session.");
+
+      const browserContext = await browser.newContext();
+      const secondPage = await browserContext.newPage();
+      return { context: browserContext, page: secondPage };
     },
     async rememberTripByName(name: string): Promise<ScenarioTripRecord> {
       const owner =
@@ -687,6 +775,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     clearValue(key: string): void {
       state.values.delete(key);
     },
+    registerCleanup,
   };
 
   (context as ScenarioFixtureContext & { cleanup?: () => Promise<void> }).cleanup = cleanup;

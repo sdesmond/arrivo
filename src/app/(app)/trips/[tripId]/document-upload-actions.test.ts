@@ -9,6 +9,7 @@ const {
   documentsTable,
   eventsTable,
   getStorageAdapter,
+  publishTripEvent,
   requireUser,
   revalidatePath,
 } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const {
   documentsTable: {},
   eventsTable: { id: "events.id", tripId: "events.tripId" },
   getStorageAdapter: vi.fn(),
+  publishTripEvent: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -48,7 +50,12 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
+vi.mock("@/lib/trip-events", () => ({
+  publishTripEvent,
+}));
+
 import { uploadDocument, uploadDocumentToEvent } from "./document-upload-actions";
+import { LiveSyncEventType } from "@/data/types";
 
 function makeFile(name: string, type: string, size = 100): File {
   const file = new File(["x"], name, { type });
@@ -104,6 +111,10 @@ describe("uploadDocument", () => {
       url: "https://blob.example.com/doc.pdf",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
   });
 });
 
@@ -162,6 +173,10 @@ describe("uploadDocumentToEvent", () => {
       url: "https://blob.example.com/event-doc.png",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId: "trip-1",
+    });
   });
 
   it("throws when the owning event cannot be resolved", async () => {

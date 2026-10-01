@@ -26,9 +26,10 @@ function getInitials(user: UserProfile): string {
 
 export interface SidebarNavProps {
   user: UserProfile | null;
+  invitationCount?: number;
 }
 
-export function SidebarNav({ user }: SidebarNavProps) {
+export function SidebarNav({ user, invitationCount }: SidebarNavProps) {
   const pathname = usePathname();
   const initials = user ? getInitials(user) : "?";
   const avatarTint = getAvatarTint(initials);
@@ -79,6 +80,9 @@ export function SidebarNav({ user }: SidebarNavProps) {
             icon={item.icon}
             label={item.label}
             href={item.href}
+            count={item.id === "trips" ? invitationCount : undefined}
+            countLabel="pending invitations"
+            countTint={item.id === "trips" && invitationCount ? "warning" : undefined}
             active={
               pathname === item.href ||
               (item.href === "/trips" && pathname.startsWith("/trips")) ||

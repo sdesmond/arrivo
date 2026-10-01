@@ -141,6 +141,23 @@ describe("budget actions", () => {
     expect(result.conversionError).toBeUndefined();
   });
 
+  it("propagates denied access (e.g. a viewer) without creating an expense", async () => {
+    assertTripAccess.mockRejectedValue(new Error("denied"));
+
+    await expect(
+      createExpense("trip-1", {
+        eventId: "event-1",
+        category: ExpenseCategory.Activity,
+        amount: 120.5,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    ).rejects.toThrow("denied");
+
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
   it("creates an unlinked expense with no eventId or reservationId", async () => {
     mockCurrencyLookups("USD", "USD");
 

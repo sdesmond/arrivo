@@ -15,7 +15,7 @@ import { AvatarStack } from "./avatar-stack";
 import { NowCardEventRow } from "./now-card-event-row";
 import { useRouteForEvent } from "./use-route-for-event";
 import { openExternalMaps } from "@/lib/open-external-maps";
-import { TransitMode, type Trip, type TripEvent } from "@/data/types";
+import { CollaboratorRole, TransitMode, type Trip, type TripEvent } from "@/data/types";
 import { cn, getTripStatus, formatDate } from "@/lib/utils";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { getActiveTripSummarySelection } from "./active-trip-summary-events";
@@ -41,6 +41,8 @@ export function NowCard({
 }: NowCardProps) {
   const now = useNow();
   const router = useRouter();
+  const canManage = trip.accessRole === CollaboratorRole.Manager;
+  const canEdit = trip.accessRole !== CollaboratorRole.Viewer;
   const status = getTripStatus(trip.startDate, trip.endDate, now);
   const statusLabel = status === "active" ? "ACTIVE TRIP" : status === "upcoming" ? "UPCOMING TRIP" : "PAST TRIP";
   const sub = status === "upcoming" ? (trip.startDate ?? "") : status === "past" ? (trip.endDate ?? "") : "";
@@ -122,7 +124,7 @@ export function NowCard({
             <MoreHorizontal size={18} strokeWidth={1.5} />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="bottom" align="end">
-            {onEditTrip && (
+            {onEditTrip && canEdit && (
               <DropdownMenuItem
                 onClick={(event) => {
                   event.preventDefault();
@@ -134,7 +136,7 @@ export function NowCard({
                 Edit trip
               </DropdownMenuItem>
             )}
-            {onDeleteTrip && (
+            {onDeleteTrip && canManage && (
               <DropdownMenuItem
                 variant="destructive"
                 onClick={(event) => {

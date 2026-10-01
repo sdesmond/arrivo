@@ -45,12 +45,19 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 import { TripsActiveEntryPanel } from "./trips-active-entry-panel";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import type { TripListEntry } from "@/data/types";
+import { CollaboratorRole, type TripListEntry } from "@/data/types";
 
 const NOW_ISO = "2026-05-13T12:00:00.000Z";
 
 const activeEntry: TripListEntry = {
-  trip: { id: "trip-1", name: "Tokyo Adventure", status: "active", startDate: "2026-05-10", endDate: "2026-05-20" },
+  trip: {
+    id: "trip-1",
+    name: "Tokyo Adventure",
+    status: "active",
+    startDate: "2026-05-10",
+    endDate: "2026-05-20",
+    accessRole: CollaboratorRole.Manager,
+  },
   todayEvents: [
     {
       id: "linked-1",
@@ -130,6 +137,23 @@ describe("TripsActiveEntryPanel", () => {
 
     await user.click(screen.getByRole("button", { name: /delete trip/i }));
     expect(onDeleteTrip).toHaveBeenCalledWith(activeEntry.trip);
+  });
+
+  it("hides Delete trip when the active entry's accessRole is not manager", () => {
+    const editorEntry: TripListEntry = {
+      ...activeEntry,
+      trip: { ...activeEntry.trip, accessRole: CollaboratorRole.Editor },
+    };
+    render(
+      <TripsActiveEntryPanel
+        activeEntry={editorEntry}
+        dateFormat="MM/DD/YYYY"
+        onEditTrip={vi.fn()}
+        onDeleteTrip={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    expect(screen.queryByRole("button", { name: /delete trip/i })).not.toBeInTheDocument();
   });
 
   it("navigates to the Reservations highlight deep link when a linked event is tapped", async () => {

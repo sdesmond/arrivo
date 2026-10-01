@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NoteItem } from "./note-item";
+import { TripEditAccessProvider } from "./trip-edit-access";
 import type { ItineraryNote } from "@/data/types";
 
 const note: ItineraryNote = {
@@ -166,5 +167,26 @@ describe("NoteItem", () => {
       />
     );
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+  });
+});
+
+describe("NoteItem for a viewer", () => {
+  it("shows the note as text without edit, drag or delete controls", async () => {
+    const user = userEvent.setup();
+    render(
+      <TripEditAccessProvider canEdit={false}>
+        <NoteItem
+          note={note}
+          onUpdate={vi.fn()}
+          onDelete={vi.fn()}
+          dragHandle={<span data-testid="drag-handle">drag</span>}
+        />
+      </TripEditAccessProvider>
+    );
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Remember to bring sunscreen"));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

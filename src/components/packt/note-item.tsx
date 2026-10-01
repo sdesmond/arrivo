@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ItineraryNote } from "@/data/types";
+import { useCanEditTrip } from "./trip-edit-access";
 
 interface NoteItemProps {
   note: ItineraryNote;
@@ -26,6 +27,7 @@ export function NoteItem({
   dragHandle,
   displayOnly,
 }: NoteItemProps) {
+  const canEdit = useCanEditTrip();
   const [isEditing, setIsEditing] = useState(isDraft ?? false);
   const [draft, setDraft] = useState(note.content);
 
@@ -105,6 +107,8 @@ export function NoteItem({
             padding: "2px 0",
           }}
         />
+      ) : !canEdit ? (
+        <span style={{ flex: 1, lineHeight: 1.5, paddingTop: 2 }}>{note.content}</span>
       ) : (
         <span
           role="button"
@@ -119,7 +123,7 @@ export function NoteItem({
         </span>
       )}
 
-      {!isEditing && !isDraft && dragHandle && (
+      {canEdit && !isEditing && !isDraft && dragHandle && (
         <span
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-2 flex items-center"
           style={{ right: 32, color: "var(--fg-4)", padding: 4 }}
@@ -128,7 +132,7 @@ export function NoteItem({
         </span>
       )}
 
-      {!isEditing && (
+      {canEdit && !isEditing && (
         <button
           onClick={() => onDelete?.(note.id)}
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-2 top-2"

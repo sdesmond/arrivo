@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Trash2,
   Info,
+  LogOut,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -36,7 +37,7 @@ import { CoverImagePicker } from "@/components/packt/cover-image-picker";
 
 import { removeTripCover, setTripCoverWithAttribution } from "@/app/(app)/trips/[tripId]/actions";
 
-import type { CoverImageSelection, CoverType, TripDetailPayload } from "@/data/types";
+import { CollaboratorRole, type CoverImageSelection, type CoverType, type TripDetailPayload } from "@/data/types";
 
 import { getTripStatus, getTripDays, formatDate, parseGraphicCover, pluralize } from "@/lib/utils";
 
@@ -48,6 +49,10 @@ interface TripDetailHeroProps {
   dateFormat: string;
 
   onEdit: () => void;
+
+  onShare?: () => void;
+
+  onLeave?: () => void;
 }
 
 function getCoverType(coverImageUrl?: string): CoverType {
@@ -62,10 +67,20 @@ function getCoverType(coverImageUrl?: string): CoverType {
   return "photo";
 }
 
-export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetailHeroProps): ReactElement {
+export function TripDetailHero({
+  detail,
+  nowISO,
+  dateFormat,
+  onEdit,
+  onShare,
+  onLeave,
+}: TripDetailHeroProps): ReactElement {
   const now = new Date(nowISO);
 
-  const { trip, days, unscheduledEvents, docs, collaborators } = detail;
+  const { trip, days, unscheduledEvents, docs, collaborators, accessRole } = detail;
+
+  const canEdit = accessRole !== CollaboratorRole.Viewer;
+  const canManage = accessRole === CollaboratorRole.Manager;
 
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
@@ -96,6 +111,8 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
   const canRemoveCover = coverType === "photo" || coverType === "map";
 
   const canShowAttribution = coverType === "photo" && !!trip.coverPhotographer;
+
+  const showCoverMenu = canEdit;
 
   function handleCoverSelection(image: CoverImageSelection) {
     startTransition(async () => {
@@ -153,61 +170,83 @@ export function TripDetailHero({ detail, nowISO, dateFormat, onEdit }: TripDetai
         <span className="flex-1" />
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Pencil size={13} strokeWidth={1.5} />
-            Edit
-          </Button>
+          {canEdit ? (
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil size={13} strokeWidth={1.5} />
+              Edit
+            </Button>
+          ) : null}
 
-          <Button variant="outline" size="sm">
-            <Share2 size={13} strokeWidth={1.5} />
-            Share
-          </Button>
+          {canManage && onShare ? (
+            <Button variant="outline" size="sm" onClick={onShare}>
+              <Share2 size={13} strokeWidth={1.5} />
+              Share
+            </Button>
+          ) : null}
+
+          {/* Self-exit for editors/viewers only — managers (including the creator) never get it. */}
+          {!canManage && onLeave ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onLeave}
+              aria-label={`Leave trip ${trip.name}`}
+              style={{ minHeight: 44, minWidth: 44 }}
+            >
+              <LogOut size={13} strokeWidth={1.5} />
+              Leave trip
+            </Button>
+          ) : null}
         </div>
       </div>
 
       {/* Hero */}
 
       <div className="relative shrink-0" style={{ minHeight: 260 }}>
-        <div className="absolute right-2 top-2 z-10">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              title="Cover options"
-              disabled={isPending}
-              className="rounded-[6px] bg-black/25 p-2 text-white backdrop-blur-sm transition-colors hover:bg-black/45"
-              onClick={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              <MoreHorizontal size={18} strokeWidth={1.5} />
-            </DropdownMenuTrigger>
+        {showCoverMenu ? (
+          <div className="absolute right-2 top-2 z-10">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                title="Cover options"
+                disabled={isPending}
+                className="rounded-[6px] bg-black/25 p-2 text-white backdrop-blur-sm transition-colors hover:bg-black/45"
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+              >
+                <MoreHorizontal size={18} strokeWidth={1.5} />
+              </DropdownMenuTrigger>
 
-            <DropdownMenuContent
-              side="bottom"
-              align="end"
-              className="rounded-xl shadow-3"
-              style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
-            >
-              <DropdownMenuItem disabled={isPending} onClick={() => setIsPickerOpen(true)}>
-                <Pencil size={13} strokeWidth={1.5} />
-                Edit Cover
-              </DropdownMenuItem>
+              <DropdownMenuContent
+                side="bottom"
+                align="end"
+                className="rounded-xl shadow-3"
+                style={{ background: "var(--bg)", border: "1px solid var(--line)" }}
+              >
+                {canEdit ? (
+                  <DropdownMenuItem disabled={isPending} onClick={() => setIsPickerOpen(true)}>
+                    <Pencil size={13} strokeWidth={1.5} />
+                    Edit Cover
+                  </DropdownMenuItem>
+                ) : null}
 
-              {canRemoveCover ? (
-                <DropdownMenuItem variant="destructive" disabled={isPending} onClick={handleRemoveCover}>
-                  <Trash2 size={13} strokeWidth={1.5} />
-                  Remove Cover
-                </DropdownMenuItem>
-              ) : null}
+                {canEdit && canRemoveCover ? (
+                  <DropdownMenuItem variant="destructive" disabled={isPending} onClick={handleRemoveCover}>
+                    <Trash2 size={13} strokeWidth={1.5} />
+                    Remove Cover
+                  </DropdownMenuItem>
+                ) : null}
 
-              {canShowAttribution ? (
-                <DropdownMenuItem disabled={isPending} onClick={() => setIsAttributionOpen(true)}>
-                  <Info size={13} strokeWidth={1.5} />
-                  Info
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                {canShowAttribution ? (
+                  <DropdownMenuItem disabled={isPending} onClick={() => setIsAttributionOpen(true)}>
+                    <Info size={13} strokeWidth={1.5} />
+                    Info
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
 
         <TripCover
           name={trip.name}

@@ -123,4 +123,21 @@ describe("SidebarNav", () => {
     const signOutButton = screen.getByTitle("Sign out");
     expect(profileLink).not.toContainElement(signOutButton);
   });
+
+  it("shows a pending-invitations badge on the Trips nav item when invitationCount is positive", () => {
+    render(<SidebarNav user={baseUser} invitationCount={2} />);
+    const tripsLink = screen.getByRole("link", { name: "Trips, 2 pending invitations" });
+    expect(tripsLink).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("renders no badge on the Trips nav item when invitationCount is zero", () => {
+    render(<SidebarNav user={baseUser} invitationCount={0} />);
+    expect(screen.getByRole("link", { name: "Trips" })).toBeInTheDocument();
+  });
+
+  it("renders no badge on the Trips nav item when invitationCount is omitted", () => {
+    render(<SidebarNav user={baseUser} />);
+    expect(screen.getByRole("link", { name: "Trips" })).toBeInTheDocument();
+  });
 });

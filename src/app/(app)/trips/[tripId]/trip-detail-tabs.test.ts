@@ -13,6 +13,20 @@ describe("resolveTripDetailTab", () => {
     expect(resolveTripDetailTab("budget")).toBe("budget");
     expect(resolveTripDetailTab("docs")).toBe("docs");
   });
+
+  it("resolves budget for a non-viewer accessRole", () => {
+    expect(resolveTripDetailTab("budget", "editor")).toBe("budget");
+    expect(resolveTripDetailTab("budget", "manager")).toBe("budget");
+  });
+
+  it("falls back to itinerary when a viewer requests the budget tab", () => {
+    expect(resolveTripDetailTab("budget", "viewer")).toBe("itin");
+  });
+
+  it("leaves non-budget tabs unaffected by a viewer accessRole", () => {
+    expect(resolveTripDetailTab("docs", "viewer")).toBe("docs");
+    expect(resolveTripDetailTab("res", "viewer")).toBe("res");
+  });
 });
 
 describe("buildTripDetailTabHref", () => {

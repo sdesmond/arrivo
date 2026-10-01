@@ -196,6 +196,17 @@ Before({ tags: "@dateless-trip" }, async ({ scenario }) => {
   });
 });
 
+Before({ tags: "@dateless-trip-with-event" }, async ({ scenario }) => {
+  await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "datelessTrip",
+      overrides: { events: [{ ...E2E_EVENT_UNTIMED, dayNumber: 1 }] },
+      setCurrent: true,
+    },
+  });
+});
+
 Before({ tags: "@day-remove-populated" }, async ({ scenario }) => {
   await scenario.materialize({
     user: { setCurrent: true },
@@ -851,3 +862,14 @@ Then(
     await expectControlAtLeast44px(row.getByRole("button", { name: /add location/i }));
   }
 );
+
+Then("the untimed event asks for trip dates before a time", async ({ page }) => {
+  // A time is stored as a full timestamp, so a day without a date can't hold one; the chip says so
+  // instead of opening a dialog whose save would be silently dropped.
+  await expect(page.getByText("Set dates to add a time")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Add time$/ })).toHaveCount(0);
+});
+
+When("I open the first day", async ({ page }) => {
+  await openFirstDay(page);
+});

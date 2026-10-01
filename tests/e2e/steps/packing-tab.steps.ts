@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { packingItems, tripPackingLists } from "../../../src/db/schema";
 import { type E2EDb, withE2EDb } from "../e2e-db";
+import { waitForServerActionResponse } from "../server-action";
 import {
   E2E_PACKING_CONTEXTUAL_ADD_ITEMS,
   E2E_PACKING_DELETE_LABEL_ITEMS,
@@ -15,7 +16,7 @@ import {
   E2E_PACKING_REORDER_ITEMS,
   E2E_PACKING_STRIKETHROUGH_ITEMS,
 } from "../e2e-seed-data";
-import { Given, Then, When } from "../fixtures";
+import { Before, Given, Then, When } from "../fixtures";
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
@@ -74,29 +75,41 @@ async function seedPackingItems(db: E2EDb, tripId: string, itemsToSeed: typeof E
   }
 }
 
-type GroupedSeedItem = { name: string; isLabel: boolean; done: boolean; position: number; under?: string };
+Before({ tags: "@packing-drag-grouped" }, async ({ scenario }) => {
+  const result = await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { packingLists: [{ name: "Main", position: 0, items: E2E_PACKING_DRAG_ITEMS }] },
+      setCurrent: true,
+    },
+  });
+  if (!result.user || !result.trip) throw new Error("Failed to materialize grouped packing drag fixtures.");
+});
 
-// Explicit grouping: `under` links a non-label item to its section label by name;
-// items without `under` are ungrouped. Lets us seed ungrouped items that sort
-// after a section.
-async function seedGroupedPackingItems(db: E2EDb, tripId: string, itemsToSeed: GroupedSeedItem[]): Promise<void> {
-  await db.delete(packingItems).where(eq(packingItems.tripId, tripId));
-  const listId = await createMainList(db, tripId);
-  const labelIdsByName = new Map<string, string>();
-  for (const item of itemsToSeed) {
-    const labelId = item.under ? (labelIdsByName.get(item.under) ?? null) : null;
-    const id = await insertPackingItem(db, {
-      name: item.name,
-      isLabel: item.isLabel,
-      done: item.done,
-      position: item.position,
-      tripId,
-      labelId: item.isLabel ? null : labelId,
-      listId,
-    });
-    if (item.isLabel) labelIdsByName.set(item.name, id);
-  }
-}
+Before({ tags: "@packing-drag-empty-ungrouped" }, async ({ scenario }) => {
+  const result = await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { packingLists: [{ name: "Main", position: 0, items: E2E_PACKING_DRAG_EMPTY_UNGROUPED }] },
+      setCurrent: true,
+    },
+  });
+  if (!result.user || !result.trip) throw new Error("Failed to materialize empty-Ungrouped packing fixtures.");
+});
+
+Before({ tags: "@packing-drag-two-sections" }, async ({ scenario }) => {
+  const result = await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { packingLists: [{ name: "Main", position: 0, items: E2E_PACKING_DRAG_TWO_SECTIONS }] },
+      setCurrent: true,
+    },
+  });
+  if (!result.user || !result.trip) throw new Error("Failed to materialize two-section packing fixtures.");
+});
 
 async function dragItemOntoTarget(page: Page, sourceName: string, target: ReturnType<Page["locator"]>): Promise<void> {
   const targetContainer = target.locator("xpath=ancestor::*[@data-packing-container][1]");
@@ -137,7 +150,14 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
     }
     await page.mouse.move(lastBox.x + lastBox.width / 2, lastBox.y + lastBox.height / 2, { steps: 3 });
     await page.waitForTimeout(60);
+
+    // The drop fires the reorder server action. Wait for that POST to resolve so a later reload
+    // cannot out-race persistence. Armed per attempt, since each retry fires its own reorder —
+    // and not required, because an attempt whose drop misses the target fires no POST and is
+    // expected to fall through to the retry below.
+    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
     await page.mouse.up();
+    await reorderResponse;
   }
 
   await performDrag();
@@ -178,7 +198,9 @@ async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<vo
     await page.mouse.move(targetPointX, targetPointY, { steps: 8 });
     if ((await previewItem.count()) === 1) {
       await page.waitForTimeout(60);
+      const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
       await page.mouse.up();
+      await reorderResponse;
       return;
     }
     await page.waitForTimeout(90);
@@ -188,7 +210,9 @@ async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<vo
 
   await expect(previewItem).toHaveCount(1, { timeout: 2_000 });
   await page.waitForTimeout(60);
+  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
   await page.mouse.up();
+  await reorderResponse;
 }
 
 async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promise<void> {
@@ -227,7 +251,7 @@ async function waitForPackingItemPosition(
 
 async function keyboardMovePackingItemDownOnePosition(page: Page, name: string): Promise<void> {
   const dragHandle = page.getByTitle(`Reorder ${name}`);
-  const statusEl = page.getByRole("status");
+  const statusEl = page.getByRole("status").filter({ hasText: "was moved over" });
 
   for (let attemptIndex = 0; attemptIndex < 3; attemptIndex += 1) {
     await expect(dragHandle).toBeVisible({ timeout: 10_000 });
@@ -253,11 +277,7 @@ async function keyboardMovePackingItemDownOnePosition(page: Page, name: string):
     // response returns — so a later reload cannot out-race persistence. A move
     // that registers as a no-op fires no POST, so tolerate a timeout and fall
     // through to the position check / retry.
-    const reorderResponse = page
-      .waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/trips/"), {
-        timeout: 5_000,
-      })
-      .catch(() => null);
+    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
     await dragHandle.press("Enter");
     await reorderResponse;
 
@@ -595,37 +615,7 @@ Then("the section label {string} should not be visible", async ({ page }, name: 
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0);
 });
 
-// ── Drag-and-drop regression seeds & steps ───────────────────────────────────
-
-Given("I have pre-seeded a section with items and ungrouped items", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await withE2EDb(async (db) => {
-    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_ITEMS);
-  });
-  await page.goto(page.url());
-  await page.waitForURL(/\/trips/);
-});
-
-Given("I have pre-seeded a section with no ungrouped items", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await withE2EDb(async (db) => {
-    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_EMPTY_UNGROUPED);
-  });
-  await page.goto(page.url());
-  await page.waitForURL(/\/trips/);
-});
-
-Given("I have pre-seeded two packing sections", async ({ page, scenario }) => {
-  const currentTrip = scenario.currentTrip;
-  if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await withE2EDb(async (db) => {
-    await seedGroupedPackingItems(db, currentTrip.id, E2E_PACKING_DRAG_TWO_SECTIONS);
-  });
-  await page.goto(page.url());
-  await page.waitForURL(/\/trips/);
-});
+// ── Drag-and-drop regression steps ───────────────────────────────────────────
 
 When("I drag the packing item {string} into the Ungrouped area", async ({ page }, name: string) => {
   await dragItemIntoUngroupedArea(page, name);

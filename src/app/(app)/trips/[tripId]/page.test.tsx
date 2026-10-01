@@ -74,6 +74,7 @@ const baseDetail: TripDetailPayload = {
   reservations: [],
   expenses: [],
   notes: [],
+  accessRole: "manager",
 };
 
 describe("TripDetailPage", () => {
@@ -190,6 +191,32 @@ describe("TripDetailPage", () => {
         isNew: false,
       })
     );
+  });
+
+  it("falls back to the itinerary tab when a viewer deep-links to the budget tab", async () => {
+    mockGetTripDetail.mockResolvedValue({ ...baseDetail, accessRole: "viewer" });
+
+    const page = await TripDetailPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ tab: "budget" }),
+    });
+
+    render(page);
+
+    expect(tripDetailClientSpy).toHaveBeenCalledWith(expect.objectContaining({ initialActiveTab: "itin" }));
+  });
+
+  it("keeps the budget tab for an editor deep-linking to it", async () => {
+    mockGetTripDetail.mockResolvedValue({ ...baseDetail, accessRole: "editor" });
+
+    const page = await TripDetailPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ tab: "budget" }),
+    });
+
+    render(page);
+
+    expect(tripDetailClientSpy).toHaveBeenCalledWith(expect.objectContaining({ initialActiveTab: "budget" }));
   });
 
   it("converts missing trips into notFound", async () => {

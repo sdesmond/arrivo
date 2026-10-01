@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 export default defineConfig({
   resolve: {
     alias: {
+      "next/server": resolve("./node_modules/next/server.js"),
       "server-only": resolve("./tests/support/server-only.ts"),
     },
   },
@@ -20,6 +21,11 @@ export default defineConfig({
     // — two concurrent Vitest processes race Vite's shared temp dir and intermittently crash both.
     include: ["src/**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{test,spec}.mjs"],
     setupFiles: ["./vitest.setup.mts"],
+    server: {
+      deps: {
+        inline: ["next-auth"],
+      },
+    },
     coverage: {
       provider: "istanbul",
       thresholds: { lines: 95, functions: 95, branches: 90 },

@@ -142,9 +142,8 @@ Feature: Packing tab
     Then the section label "Documents" should not be visible
     And the packing list should not contain "Passport"
 
-  @retry(2)
+  @packing-drag-grouped
   Scenario: Dragging an item out to Ungrouped and back leaves other ungrouped items in place
-    Given I have pre-seeded a section with items and ungrouped items
     When I open the Packing tab
     And I pointer-drag the packing item "Shirt" into the Ungrouped area
     Then the packing item "Shirt" should be in the Ungrouped section
@@ -156,16 +155,16 @@ Feature: Packing tab
     Then the packing item "Charger" should be in the Ungrouped section
     And the packing item "Adapter" should be in the Ungrouped section
 
+  @packing-drag-empty-ungrouped
   Scenario: Dragging an item into an empty Ungrouped area moves it there
-    Given I have pre-seeded a section with no ungrouped items
     When I open the Packing tab
     And I pointer-drag the packing item "Shirt" into the Ungrouped area
     Then the packing item "Shirt" should be in the Ungrouped section
     When I reload the trip page
     Then the packing item "Shirt" should be in the Ungrouped section
 
+  @packing-drag-two-sections
   Scenario: Dragging an item across the add input does not pull a neighbor across the section boundary
-    Given I have pre-seeded two packing sections
     When I open the Packing tab
     And I pointer-drag the packing item "Toothbrush" onto the packing item "Pants"
     Then the packing item "Toothbrush" should be in the "Clothes" section

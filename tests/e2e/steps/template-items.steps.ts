@@ -5,6 +5,7 @@ import { withE2EDb } from "../e2e-db";
 import { type TemplateItemSeed } from "../e2e-seed-data";
 import { type ScenarioFixtureContext } from "../scenario-fixture";
 import { Given, Then, When } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
 
 async function getTemplateEditorId(userId: string, name: string): Promise<string> {
   return withE2EDb(async (db) => {
@@ -41,9 +42,7 @@ async function dragTemplateItemOntoTarget(
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
   await page.mouse.move(destination.x + destination.width / 2, destination.y + destination.height / 2, { steps: 12 });
   await page.waitForTimeout(80);
-  const reorderResponse = page.waitForResponse(
-    (response) => response.request().method() === "POST" && response.url().includes("/packing/")
-  );
+  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/packing/" });
   await page.mouse.up();
   await reorderResponse;
 }
