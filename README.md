@@ -31,43 +31,17 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## Self-hosting
 
-**Prerequisites:** Docker, Docker Compose, `openssl`
+Packt ships as a Docker Compose stack and runs on any host with Docker. **Step-by-step guide: [docs/self-hosting.md](./docs/self-hosting.md)** — requirements, configuration, HTTPS, updates, backups, and troubleshooting.
 
-1. Copy the env file and fill in a secret:
+Quick start for the impatient:
 
-   ```sh
-   cp .env.example .env
-   echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)" >> .env
-   ```
-
-2. Build and start:
-
-   ```sh
-   docker compose up -d --build
-   ```
-
-   The app pushes the current Drizzle schema automatically at boot.
-   This is an intentional pre-release workflow and will switch to explicit tracked migrations before general production rollout.
-
-   Uploaded documents and cover images persist in the `packt-storage` volume (see [Storage](#storage)).
-
-3. (Optional) Seed demo data:
-
-   ```sh
-   docker compose exec app npm run db:seed
-   ```
-
-   Creates three accounts (`demo@packt.local`, `alex@packt.local`, `sam@packt.local`, all `demo1234`) with
-   six trips between them, including a cross-account share. See
-   **[docs/dev-seed-data.md](./docs/dev-seed-data.md)** for the full picture. Re-running `db:seed` wipes and
-   reseeds just these three accounts — safe to run again.
-
-4. Open [http://localhost:3000](http://localhost:3000).
-
-For a Synology NAS walkthrough (Container Manager, no CLI Docker experience required), see
-**[docs/synology-install.md](./docs/synology-install.md)**.
-
-**Session revocation:** this app uses JWT sessions. To invalidate all active sessions, rotate `NEXTAUTH_SECRET` and restart the container.
+```sh
+git clone https://github.com/sdesmond/packt.git && cd packt
+cp .env.docker.example .env
+sed -i "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$(openssl rand -base64 32)|" .env
+# edit .env: set NEXTAUTH_URL to the address you'll open in the browser
+docker compose up -d --build
+```
 
 ## Storage
 

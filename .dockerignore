@@ -4,3 +4,8 @@ node_modules
 *.local
 .git
 drizzle
+.next-e2e
+.dev-storage
+coverage
+test-results
+playwright-report

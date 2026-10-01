@@ -12,22 +12,42 @@ services:
       interval: 5s
       retries: 10
 
-  app:
-    build: .
+  # Pre-release bootstrap: pushes the Drizzle schema, then exits. Replaced by tracked migrations later.
+  migrate:
+    build:
+      context: .
+      target: tools
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://packt:packt@db:5432/packt
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      ALLOW_SIGNUP: "true"
+
+  app:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://packt:packt@db:5432/packt
+      # Auth.js rejects non-localhost hosts in production unless told to trust the Host header.
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET must be set in .env}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN:-}
+      UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY:-}
       STORAGE_PROVIDER: local
       STORAGE_LOCAL_ROOT_DIR: /app/storage
     volumes:
       - packt-storage:/app/storage
     ports:
-      - "3000:3000"
+      - "${PACKT_PORT:-3000}:3000"
+    restart: unless-stopped
 
 volumes:
   packt-pgdata:
