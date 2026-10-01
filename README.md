@@ -31,17 +31,9 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## Self-hosting
 
-Packt ships as a Docker Compose stack and runs on any host with Docker. **Step-by-step guide: [docs/self-hosting.md](./docs/self-hosting.md)** — requirements, configuration, HTTPS, updates, backups, and troubleshooting.
+Packt ships as a Docker Compose stack of prebuilt images and runs on any host with Docker — download one compose file, set two variables, `docker compose up -d`. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
 
-Quick start for the impatient:
-
-```sh
-git clone https://github.com/sdesmond/packt.git && cd packt
-cp .env.docker.example .env
-sed -i "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$(openssl rand -base64 32)|" .env
-# edit .env: set NEXTAUTH_URL to the address you'll open in the browser
-docker compose up -d --build
-```
+To build from source instead, see [Building from source](./docs/building-from-source.md).
 
 ## Storage
 
