@@ -1,23 +1,23 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-When starting work on this Next.js project, ALWAYS call the `init` tool from `next-devtools-mcp` FIRST to establish proper context and documentation requirements.
+Next.js 16 ships version-matched docs in `node_modules/next/dist/docs/`; read the relevant guide there before writing Next.js code.
 
 <!-- END:nextjs-agent-rules -->
 
-## Response Style Rules (NON NEGOTIABLE)
+## Response Style Rules
 
-**You MUST respond according to these rules unless explicitly instructed otherwise! Never stray from the style in the bullet points below.**
+Use this style unless told otherwise:
 
 - Drop: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly/of course/happy to), hedging.
 - Fragments OK. Short synonyms (big not extensive, fix not "implement a solution for").
-- No tool-call narration, no decorative tables/emoji, no dumping long raw error logs unless asked — quote shortest decisive line.
+- No per-tool-call narration, no decorative tables/emoji, no dumping long raw error logs unless asked — quote shortest decisive line.
 - Standard well-known tech acronyms OK (DB/API/HTTP); never invent new abbreviations reader can't decode.
 - Technical terms exact. Code blocks unchanged. Errors quoted exact.
-- One sentence per mid-task update; state the action or finding only
+- Mid-task: one-sentence update when starting a new phase or after a finding — don't go silent through long tool runs
 - No end-of-turn summary unless explicitly asked — if the result is visible in the diff, don't restate it
 - No introductions, filler, or pleasantries
 - Code requests: output code only, no preamble
-- Exploratory questions ("what should we do?"): 2–3 sentences max, recommendation + tradeoff, no headers
+- Exploratory questions ("what should we do?"): brief — recommendation + main tradeoff, no headers
 - NEVER add `Co-Authored-By` trailers to commits or pull requests — omit them entirely
 
 ## Windows Shell Rules
@@ -58,7 +58,7 @@ Packt is a travel itinerary planning app built with Next.js (App Router), TypeSc
 | `npm run test:e2e:ui`       | Playwright E2E with interactive UI                                                          |
 | `npm run db:migrate:e2e`    | Push schema to the E2E database (run once after schema changes)                             |
 
-Coverage thresholds: 95% lines/functions, 90% branches (enforced in CI).
+Coverage thresholds: 95% lines/functions, 90% branches (enforced by `npm run test:coverage` via `packt-build-validator`).
 
 ### E2E Segmentation
 
@@ -93,7 +93,7 @@ E2E tests run against a dedicated `packt_e2e` database (isolated from dev). One-
 2. Push the schema: `npm run db:migrate:e2e`
 3. Ensure `.env` contains `E2E_DATABASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD` — see `.env.example`
 
-`tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and re-seeds with fixed data from `e2e-seed-data.ts` (user `e2e@packt.local`, one trip, three days). Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
+`tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and inserts only the baseline E2E user (`e2e@packt.local`); scenarios create their own trips from the mothers in `e2e-seed-data.ts`. Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
 
 ## Directory Structure
 
@@ -108,8 +108,7 @@ packt/                          ← git root = Next.js project root
 │   │   ├── packt/              ← domain components; *.test.tsx lives next to source
 │   │   └── ui/                 ← reusable primitives (button, badge, dialog, etc.)
 │   ├── data/
-│   │   ├── types.ts            ← ALL canonical TypeScript types live here
-│   │   └── *.ts                ← sample trip data
+│   │   └── types.ts            ← ALL canonical TypeScript types live here
 │   └── lib/
 │       ├── utils.ts            ← cn(), isEventPast(), isEventNow()
 │       └── *.test.ts           ← unit tests colocated with source files
@@ -123,11 +122,9 @@ packt/                          ← git root = Next.js project root
 │       └── e2e-seed-data.ts    ← seed constants (E2E user, trip, days)
 ├── .agents/
 │   ├── skills/                 ← source of truth for shared skills
-│   ├── agents/                 ← source of truth for shared agents
 │   └── memories/               ← source of truth for shared project memories
 ├── .claude/
 │   ├── skills/                 ← compatibility link to .agents/skills
-│   ├── agents/                 ← compatibility link to .agents/agents
 │   └── memory/                 ← compatibility link to .agents/memories
 ├── vitest.config.mts           ← Vitest + Istanbul coverage config
 ├── vitest.setup.mts            ← global mocks (next/navigation, next/headers)
@@ -136,17 +133,15 @@ packt/                          ← git root = Next.js project root
 └── eslint.config.mjs
 ```
 
-## Quality Agents — When to Use Them
+## Quality Skills — When to Use Them
 
-These agents enforce project standards. Use them as described below — don't skip them.
+These skills enforce project standards. Use them as described below.
 
-### Post-implementation agents
+### Post-implementation
 
-| Agent                   | When to invoke                                                                                                                                                                                                                                                                                                                                               |
+| Skill                   | When to invoke                                                                                                                                                                                                                                                                                                                                               |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `packt-build-validator` | After completing the final code for a change. It runs ESLint, TypeScript checking, Vitest coverage, the production build, and (affected) Playwright E2E. It **self-skips via a fingerprint marker**: re-invoking on an unchanged tree is a no-op, so you never need to guard against double-runs — just invoke it and it decides whether real work is needed |
-| `desktop-reviewer`      | After visual changes when browser validation is needed; run sequentially with `mobile-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                                                                                                                        |
-| `mobile-reviewer`       | After visual changes when browser validation is needed; run sequentially with `desktop-reviewer` (NOT in parallel — they share one Playwright browser)                                                                                                                                                                                                       |
 
 **Pre-implementation gate — NON-NEGOTIABLE:**
 Before presenting a **story file or implementation-ready plan file** to the user, you MUST run the packt-plan-reviewer. This gate applies only to fully fleshed-out artifacts that will be handed directly to a developer — not to PRDs, UX specs, architecture docs, brainstorming outputs, or other intermediate planning artifacts.
@@ -159,12 +154,12 @@ Pass the original request as context so scope and test checks have what they nee
 
 **This step is not optional.** Presenting an un-reviewed story or plan is a process failure — the same severity as shipping untested code. If you catch yourself about to present a story/plan file without having run the reviewer, stop and run it first.
 
-**Testing-first gate — NON-NEGOTIABLE:**
+**Testing-first gate:**
 For every coding change, tests are first-class deliverables, not cleanup work after implementation. A change is incomplete until the required unit/component tests and any required E2E coverage have been identified, authored, and run in the same change. Coverage thresholds and validator failures are enforcement backstops, not the reason tests get written. If you cannot name the tests you will add or update before coding, stop and resolve that first.
 
-Before editing any production file, you MUST name the exact test files and scenarios you expect to touch. For runtime code changes, the first code edit should be in those tests unless the task is docs-only, copy-only, or pure config with no runtime behavior change. If you choose not to start with a failing or expanded test, you must be able to explain why that was not practical for that task.
+Before editing any production file, you MUST name the exact test files and scenarios you expect to touch. For runtime code changes, the first code edit should be in those tests unless the task is docs-only, copy-only, styling-only, or pure config with no runtime behavior change. If you choose not to start with a failing or expanded test, you must be able to explain why that was not practical for that task.
 
-**Branch-confirmation gate — NON-NEGOTIABLE:**
+**Branch-confirmation gate:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 
 **Build stage checkpoints — NON-NEGOTIABLE:**
@@ -196,7 +191,7 @@ Crossing rules:
    - For unit or component work, run matching Vitest files first
    - For user-facing flow changes, run affected Playwright coverage first when practical
    - Do not treat `packt-build-validator` as first signal that tests were missing
-5. Run `packt-build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (dev-story, quick-dev, story-automator, etc.) must **not** invoke it themselves
+5. Run `packt-build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (bmad-build, bmad-build-auto, story-automator, etc.) must **not** invoke it themselves
 6. If the validator flags issues, fix them and run `packt-build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. Agents always run the affected subset (via the validator) and never the full suite as a gate; running the full E2E suite (`npm run test:e2e`) is the user's call — do not launch it automatically before commit/push/PR
 
 ## Key Conventions
