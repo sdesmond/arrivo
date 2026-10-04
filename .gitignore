@@ -55,6 +55,9 @@ next-env.d.ts
 .ui-review-screenshots
 .claude/settings.local.json
 
+# personal, never-committed notes
+.local/
+
 # legacy local upload data
 /public/uploads/
 /drizzle/

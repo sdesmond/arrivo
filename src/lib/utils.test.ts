@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   cn,
+  createRandomId,
   getTripStatus,
   isEventPast,
   isEventNow,
@@ -679,5 +680,31 @@ describe("getLocationDisplayLabel", () => {
 
   it("returns an empty string when neither value is available", () => {
     expect(getLocationDisplayLabel(undefined, undefined)).toBe("");
+  });
+});
+
+describe("createRandomId", () => {
+  const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("delegates to crypto.randomUUID when the browser provides it", () => {
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue("11111111-1111-4111-8111-111111111111");
+
+    expect(createRandomId()).toBe("11111111-1111-4111-8111-111111111111");
+  });
+
+  it("falls back to a v4 UUID from getRandomValues outside a secure context", () => {
+    // Plain-HTTP pages (e.g. a LAN IP) expose crypto.getRandomValues but not crypto.randomUUID.
+    vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+
+    const first = createRandomId();
+    const second = createRandomId();
+
+    expect(first).toMatch(uuidV4Pattern);
+    expect(second).toMatch(uuidV4Pattern);
+    expect(first).not.toBe(second);
   });
 });

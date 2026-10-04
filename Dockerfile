@@ -14,9 +14,6 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# NEXT_PUBLIC_* values are inlined into the client bundle at build time, not read at runtime.
-ARG NEXT_PUBLIC_MAPBOX_TOKEN
-ENV NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN
 # public/ is optional in the repo; ensure it exists so the runner COPY never breaks.
 RUN mkdir -p public && npm run build
 

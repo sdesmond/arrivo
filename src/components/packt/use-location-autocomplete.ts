@@ -2,6 +2,7 @@
 
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { createRandomId } from "@/lib/utils";
 import {
   retrieveLocation,
   searchAddressLocations,
@@ -59,7 +60,7 @@ export function useLocationAutocomplete({
 
   useEffect(() => {
     if (!sessionTokenRef.current) {
-      sessionTokenRef.current = crypto.randomUUID();
+      sessionTokenRef.current = createRandomId();
     }
   }, []);
 
@@ -156,7 +157,7 @@ export function useLocationAutocomplete({
         toast.error(retrieveErrorMessage);
       }
     } finally {
-      sessionTokenRef.current = crypto.randomUUID();
+      sessionTokenRef.current = createRandomId();
       if (!cancelRetrieveRef.current) {
         setRetrieveLoading(false);
       }
@@ -201,7 +202,7 @@ export function useLocationAutocomplete({
   function reset(): void {
     clearResolvedState("");
     setSuggestionsLoading(false);
-    sessionTokenRef.current = crypto.randomUUID();
+    sessionTokenRef.current = createRandomId();
   }
 
   return {

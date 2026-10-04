@@ -12,6 +12,7 @@ import type { DayItinerary, LocatedItemPin, Reservation, TripEvent } from "@/dat
 import { getLocatedItemPins, separateNearbyPins, transformMapboxUrl } from "@/lib/map-helpers";
 import { openExternalMaps } from "@/lib/open-external-maps";
 import { RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
+import { useMapboxToken } from "@/components/providers/mapbox-token-provider";
 
 export interface MapTabProps {
   events: TripEvent[];
@@ -165,6 +166,7 @@ export function MapTab({
   const resultsRegionId = useId();
   const [selectedPin, setSelectedPin] = useState<LocatedItemPin | null>(null);
   const router = useRouter();
+  const accessToken = useMapboxToken();
 
   const validSelectedDayNumber = useMemo(() => {
     if (selectedDayNumber === null) return null;
@@ -280,7 +282,6 @@ export function MapTab({
     if (!mapContainerRef.current) return;
 
     if (!mapRef.current) {
-      const accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
       const map = new maplibregl.Map({
         container: mapContainerRef.current,
         style: `${MAP_STYLE_URL}?access_token=${accessToken}`,
@@ -318,7 +319,7 @@ export function MapTab({
         .setLngLat([pin.lng, pin.lat])
         .addTo(map)
     );
-  }, [filteredPins, pinSequenceNumbers]);
+  }, [accessToken, filteredPins, pinSequenceNumbers]);
 
   // Runs whenever the selection changes *or* markers get rebuilt (day-scope change), so a
   // still-selected pin's ring survives a marker rebuild instead of only applying once.

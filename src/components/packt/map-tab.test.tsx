@@ -76,6 +76,7 @@ vi.mock("maplibre-gl", () => {
   };
 });
 
+import { MapboxTokenProvider } from "@/components/providers/mapbox-token-provider";
 import { MapTab } from "./map-tab";
 
 function makeEvent(overrides: Partial<TripEvent> = {}): TripEvent {
@@ -208,6 +209,18 @@ describe("MapTab", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Whole Trip" }));
     expect(markerLabels().sort()).toEqual(["1. Eiffel Tower", "2. Louvre"].sort());
+  });
+
+  it("builds the map with the runtime token from MapboxTokenProvider", () => {
+    render(
+      <MapboxTokenProvider token="pk.test">
+        <MapTab events={[makeEvent({ locationLat: 48.8584, locationLng: 2.2945 })]} tripId="trip-1" />
+      </MapboxTokenProvider>
+    );
+
+    expect(mapConstructorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ style: expect.stringContaining("access_token=pk.test") })
+    );
   });
 
   it("does not render a day selector when days are not provided", () => {

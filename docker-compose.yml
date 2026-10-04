@@ -1,34 +1,35 @@
+# Self-hosting stack. Pulls published images, so this file plus its variables is all a host needs.
+# Works from the CLI (values from .env next to this file) or from any tool that runs `docker compose`
+# (values from its environment settings). To build from source instead, add docker-compose.build.yml.
+# See docs/self-hosting.md.
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: packt
       POSTGRES_PASSWORD: packt
       POSTGRES_DB: packt
     volumes:
-      - packt-pgdata:/var/lib/postgresql/data
+      # Host folder, so host-level backups see it. Back up with pg_dump, never by copying it live.
+      - ${PACKT_DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U packt"]
+      test: ["CMD-SHELL", "pg_isready -d packt -U packt"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
 
   # Pre-release bootstrap: pushes the Drizzle schema, then exits. Replaced by tracked migrations later.
   migrate:
-    build:
-      context: .
-      target: tools
+    image: ghcr.io/sdesmond/packt-migrate:${PACKT_VERSION:-latest}
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://packt:packt@db:5432/packt
+    restart: "no"
 
   app:
-    build:
-      context: .
-      target: runner
-      args:
-        NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+    image: ghcr.io/sdesmond/packt:${PACKT_VERSION:-latest}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -37,18 +38,16 @@ services:
       # Auth.js rejects non-localhost hosts in production unless told to trust the Host header.
       AUTH_TRUST_HOST: "true"
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET must be set in .env}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET must be set}
       ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
       MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN:-}
+      MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}
       UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY:-}
       STORAGE_PROVIDER: local
       STORAGE_LOCAL_ROOT_DIR: /app/storage
     volumes:
-      - packt-storage:/app/storage
+      - ${PACKT_DATA_DIR:-./data}/storage:/app/storage
     ports:
+      # Host port is configurable; the container always listens on 3000.
       - "${PACKT_PORT:-3000}:3000"
     restart: unless-stopped
-
-volumes:
-  packt-pgdata:
-  packt-storage:

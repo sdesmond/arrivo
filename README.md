@@ -31,17 +31,9 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## Self-hosting
 
-Packt ships as a Docker Compose stack and runs on any host with Docker. **Step-by-step guide: [docs/self-hosting.md](./docs/self-hosting.md)** — requirements, configuration, HTTPS, updates, backups, and troubleshooting.
+Packt ships as a Docker Compose stack of prebuilt images and runs on any host with Docker — download one compose file, set two variables, `docker compose up -d`. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
 
-Quick start for the impatient:
-
-```sh
-git clone https://github.com/sdesmond/packt.git && cd packt
-cp .env.docker.example .env
-sed -i "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$(openssl rand -base64 32)|" .env
-# edit .env: set NEXTAUTH_URL to the address you'll open in the browser
-docker compose up -d --build
-```
+To build from source instead, see [Building from source](./docs/building-from-source.md).
 
 ## Storage
 
@@ -69,9 +61,9 @@ Set `STORAGE_PROVIDER` and that provider's required env vars, then redeploy — 
 
 ### Local provider
 
-Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and mounts a named volume (`packt-storage`) at that path so uploads survive container rebuilds and restarts.
+Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and bind-mounts the host folder `${PACKT_DATA_DIR:-./data}/storage` at that path so uploads survive container rebuilds and restarts and are visible to host backups.
 
-If you swap that named volume for a host bind mount, match the bind-mounted directory's owner to the container process's UID/GID (the app container runs as root by default) — an ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
+The app container runs as root by default, so it can write to that folder regardless of its owner. If you run it as a non-root `user:`, match the host folder's owner to that UID/GID — an ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
 
 ### Adding a provider
 
