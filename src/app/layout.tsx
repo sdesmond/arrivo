@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, DM_Sans, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,22 +8,27 @@ import { DevDatePicker } from "@/components/packt/dev-date-picker";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const manrope = Manrope({
+// Vendored variable fonts (latin subset): the build must not fetch from Google, which content
+// filters and offline CI block. Source: @fontsource-variable/*, OFL-licensed.
+const manrope = localFont({
+  src: "./fonts/manrope-latin-wght-normal.woff2",
   variable: "--font-heading-family",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: "200 800",
+  display: "swap",
 });
 
-const dmSans = DM_Sans({
+const dmSans = localFont({
+  src: "./fonts/dm-sans-latin-wght-normal.woff2",
   variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "100 1000",
+  display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-latin-wght-normal.woff2",
   variable: "--font-mono-family",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: "100 800",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
