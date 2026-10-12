@@ -80,3 +80,8 @@ _bmad/custom/*.user.toml
 .claude/agents
 
 /coverage-out
+
+# Machine-local TLS-interception CA + compose override (not for published images)
+/certs/
+/docker-compose.local.yml
+/data/
