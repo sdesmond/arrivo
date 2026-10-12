@@ -96,9 +96,9 @@ describe("docker-compose.dev.yml (local dev database)", () => {
     expect(serviceBlock(compose, "db")).toContain("image: postgres:17-alpine");
   });
 
-  it("publishes 5432 for host-side dev tooling and keeps data in a named volume", () => {
+  it("publishes 5433 (not 5432, which a host Postgres usually owns) and keeps data in a named volume", () => {
     const db = serviceBlock(compose, "db");
-    expect(db).toContain('"5432:5432"');
+    expect(db).toContain('"5433:5432"');
     expect(db).toContain("packt-dev-pgdata:/var/lib/postgresql/data");
     expect(compose).toMatch(/^volumes:\n  packt-dev-pgdata:/m);
   });

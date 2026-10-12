@@ -4,7 +4,16 @@ import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 
 describe("setup-dev helpers", async () => {
-  const { DEV_COMPOSE_ARGS, buildSetupPlan, ensureAiToolLinks, mergeEnvForSetup } = await import("./setup-dev.mjs");
+  const { DEV_COMPOSE_ARGS, buildDockerE2eDatabaseArgs, buildSetupPlan, ensureAiToolLinks, mergeEnvForSetup } =
+    await import("./setup-dev.mjs");
+
+  it("docker mode checks for, then creates, the E2E database the compose file doesn't provision", () => {
+    const { check, create } = buildDockerE2eDatabaseArgs();
+
+    expect(check.slice(0, 4)).toEqual(["compose", "-f", "docker-compose.dev.yml", "exec"]);
+    expect(check.join(" ")).toContain("FROM pg_database WHERE datname='packt_e2e'");
+    expect(create.join(" ")).toContain("CREATE DATABASE packt_e2e OWNER packt");
+  });
 
   it("docker mode targets the dev compose file", () => {
     expect(DEV_COMPOSE_ARGS).toEqual(["compose", "-f", "docker-compose.dev.yml"]);
@@ -67,6 +76,14 @@ describe("setup-dev helpers", async () => {
     const secret = secretLine?.slice("NEXTAUTH_SECRET=".length) ?? "";
     expect(secret).not.toBe("change-me-32-bytes-min");
     expect(secret.length).toBeGreaterThanOrEqual(43);
+  });
+
+  it("points docker mode at the dev container's published port, overriding a stale .env", () => {
+    const example = "DATABASE_URL=postgres://packt:packt@localhost:5432/packt\n";
+    const merged = mergeEnvForSetup(example, "DATABASE_URL=postgres://packt:packt@localhost:5432/packt\n", "docker");
+
+    expect(merged).toContain("DATABASE_URL=postgres://packt:packt@localhost:5433/packt");
+    expect(merged).toContain("E2E_DATABASE_URL=postgres://packt:packt@localhost:5433/packt_e2e");
   });
 
   it("preserves an existing local storage root", () => {

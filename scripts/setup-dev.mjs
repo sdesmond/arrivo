@@ -37,8 +37,17 @@ const DEFAULT_ENV_VALUES = {
   STORAGE_LOCAL_ROOT_DIR: "./.dev-storage",
 };
 
-const LOCAL_DATABASE_URL = "postgres://packt:packt@localhost:5432/packt";
-const LOCAL_E2E_DATABASE_URL = "postgres://packt:packt@localhost:5432/packt_e2e";
+// A host Postgres usually owns 5432, so the dev container publishes 5433 to keep the two databases apart.
+const DATABASE_URLS = {
+  local: {
+    app: "postgres://packt:packt@localhost:5432/packt",
+    e2e: "postgres://packt:packt@localhost:5432/packt_e2e",
+  },
+  docker: {
+    app: "postgres://packt:packt@localhost:5433/packt",
+    e2e: "postgres://packt:packt@localhost:5433/packt_e2e",
+  },
+};
 
 function log(message) {
   console.log(`[setup-dev] ${message}`);
@@ -201,14 +210,14 @@ function needsGeneratedSecret(value) {
   return value === "change-me-32-bytes-min";
 }
 
-function createEnvValues(existingValues) {
+function createEnvValues(existingValues, databaseMode) {
   const nextValues = { ...existingValues };
 
   delete nextValues.UPLOAD_STUB;
   delete nextValues.BLOB_READ_WRITE_TOKEN;
 
-  nextValues.DATABASE_URL = LOCAL_DATABASE_URL;
-  nextValues.E2E_DATABASE_URL = LOCAL_E2E_DATABASE_URL;
+  nextValues.DATABASE_URL = DATABASE_URLS[databaseMode].app;
+  nextValues.E2E_DATABASE_URL = DATABASE_URLS[databaseMode].e2e;
 
   for (const [key, value] of Object.entries(DEFAULT_ENV_VALUES)) {
     if (!nextValues[key]) {
@@ -234,12 +243,12 @@ function serializeEnv(values) {
   return `${orderedKeys.map((key) => `${key}=${quoteEnvValue(values[key] ?? "")}`).join("\n")}\n`;
 }
 
-function ensureEnvFile(rootDir) {
+function ensureEnvFile(rootDir, databaseMode) {
   const examplePath = join(rootDir, ".env.example");
   const envPath = join(rootDir, ".env");
   const exampleValues = parseEnv(readFileSync(examplePath, "utf8"));
   const currentValues = existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
-  const mergedValues = createEnvValues({ ...exampleValues, ...currentValues });
+  const mergedValues = createEnvValues({ ...exampleValues, ...currentValues }, databaseMode);
 
   writeFileSync(envPath, serializeEnv(mergedValues), "utf8");
   return mergedValues;
@@ -344,8 +353,26 @@ function ensureLocalPostgresDatabases() {
 }
 
 // Dev uses its own compose file: docker-compose.yml is the self-hosting stack (bind mounts, no
-// published DB port), while dev needs 5432 on the host and a named volume that works on Docker Desktop.
+// published DB port), while dev needs 5433 on the host and a named volume that works on Docker Desktop.
 export const DEV_COMPOSE_ARGS = ["compose", "-f", "docker-compose.dev.yml"];
+
+// docker-compose.dev.yml only provisions POSTGRES_DB=packt, so the E2E database is created on demand.
+export function buildDockerE2eDatabaseArgs() {
+  const psql = [...DEV_COMPOSE_ARGS, "exec", "-T", "db", "psql", "-U", "packt", "-d", "postgres"];
+  return {
+    check: [...psql, "-tAc", "SELECT 1 FROM pg_database WHERE datname='packt_e2e'"],
+    create: [...psql, "-c", "CREATE DATABASE packt_e2e OWNER packt"],
+  };
+}
+
+function ensureDockerE2eDatabase(rootDir) {
+  const { check, create } = buildDockerE2eDatabaseArgs();
+
+  if (runCommand("docker", check, { cwd: rootDir, captureOutput: true }).stdout !== "1") {
+    log("Creating Docker PostgreSQL database packt_e2e");
+    runCommand("docker", create, { cwd: rootDir });
+  }
+}
 
 function ensureDockerDatabase(rootDir) {
   if (!commandExists("docker", ["compose", "version"])) {
@@ -354,18 +381,24 @@ function ensureDockerDatabase(rootDir) {
 
   runCommand("docker", [...DEV_COMPOSE_ARGS, "up", "-d", "db"], { cwd: rootDir });
 
+  let ready = false;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
       runCommand("docker", [...DEV_COMPOSE_ARGS, "exec", "-T", "db", "pg_isready", "-U", "packt"], {
         cwd: rootDir,
       });
-      return;
+      ready = true;
+      break;
     } catch {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
     }
   }
 
-  fail("Docker database did not become ready in time.");
+  if (!ready) {
+    fail("Docker database did not become ready in time.");
+  }
+
+  ensureDockerE2eDatabase(rootDir);
 }
 
 function installDependencies(rootDir) {
@@ -403,10 +436,10 @@ export function buildSetupPlan(argv, platform = process.platform) {
   };
 }
 
-export function mergeEnvForSetup(exampleContent, currentContent) {
+export function mergeEnvForSetup(exampleContent, currentContent, databaseMode = "local") {
   const exampleValues = parseEnv(exampleContent);
   const currentValues = currentContent ? parseEnv(currentContent) : {};
-  return serializeEnv(createEnvValues({ ...exampleValues, ...currentValues }));
+  return serializeEnv(createEnvValues({ ...exampleValues, ...currentValues }, databaseMode));
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -426,7 +459,7 @@ export async function main(argv = process.argv.slice(2)) {
     ensureLocalPostgresDatabases();
   }
 
-  const envValues = ensureEnvFile(rootDir);
+  const envValues = ensureEnvFile(rootDir, databaseMode);
   applyDatabaseSetup(rootDir, envValues);
 
   log("Setup complete");
