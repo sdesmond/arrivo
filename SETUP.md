@@ -105,6 +105,30 @@ touches any other account in the database.
 
 Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`. See the **[Storage](./README.md#storage)** section in README.md for how the adapter, providers, and Docker storage mount work.
 
+The table shows the local PostgreSQL defaults (port `5432`). With `--db=docker`, `setup:dev` writes port `5433` instead.
+
+### Which database am I using?
+
+The port in `DATABASE_URL` tells you:
+
+| Port   | Database                                                          |
+| ------ | ----------------------------------------------------------------- |
+| `5433` | Docker container `packt-dev-db-1` (from `docker-compose.dev.yml`) |
+| `5432` | PostgreSQL installed on your machine                              |
+
+Check it without printing the password:
+
+```powershell
+(Select-String .env -Pattern '^DATABASE_URL=').Line -replace ':[^:@/]*@',':***@'
+```
+
+The Docker container publishes `5433` on purpose. A host PostgreSQL normally owns `5432`, and both can listen on it at once on Windows, so `localhost:5432` may silently reach the host database instead of the container.
+
+- **The container must be running.** Check with `docker ps`. If it's stopped (after a reboot, for example), start it with `docker compose -f docker-compose.dev.yml up -d db`. The app does not fall back to the host database.
+- **The E2E database is created for you.** `--db=docker` creates `packt_e2e` in the container if it's missing, because the compose file only provisions `packt`.
+- **Switching databases means signing in again.** Each database has its own user IDs, so a session from one database shows "trip not found" against the other. Sign out and back in, or clear the `localhost:3000` cookies.
+- **Re-running `setup:dev` rewrites the URLs** to match the mode you pass (`--db=docker` or `--db=local`). With `--db=auto`, Docker is used when the daemon is reachable.
+
 ---
 
 ## 4. Manual fallback
@@ -124,10 +148,11 @@ psql -d postgres -c "CREATE DATABASE packt OWNER packt;"
 psql -d postgres -c "CREATE DATABASE packt_e2e OWNER packt;"
 ```
 
-If using Docker (PostgreSQL 17 on `localhost:5432`, data in a named volume):
+If using Docker (PostgreSQL 17 on `localhost:5433`, data in a named volume; `npm run setup:dev -- --db=docker` writes the matching `DATABASE_URL`/`E2E_DATABASE_URL` to `.env`, otherwise set them to port `5433` yourself):
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d db
+docker compose -f docker-compose.dev.yml exec -T db psql -U packt -d postgres -c "CREATE DATABASE packt_e2e OWNER packt;"
 ```
 
 `docker-compose.dev.yml` is the dev database only. `docker-compose.yml` is the self-hosting stack and doesn't expose the database to the host.
