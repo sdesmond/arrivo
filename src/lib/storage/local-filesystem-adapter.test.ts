@@ -35,7 +35,7 @@ describe("createLocalFileSystemAdapter", () => {
   let rootDir: string;
 
   beforeEach(async () => {
-    rootDir = await mkdtemp(join(tmpdir(), "packt-storage-test-"));
+    rootDir = await mkdtemp(join(tmpdir(), "storage-test-"));
     unlinkMock.mockClear();
     writeFileMock.mockClear();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);

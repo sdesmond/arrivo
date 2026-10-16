@@ -31,7 +31,7 @@ vi.mock("@/components/ui/date-picker", () => ({
   ),
 }));
 
-vi.mock("@/components/packt/form-section", () => ({
+vi.mock("@/components/arrivo/form-section", () => ({
   Section: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Field: ({
     children,

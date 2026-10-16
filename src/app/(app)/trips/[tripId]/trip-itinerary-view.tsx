@@ -3,10 +3,10 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { CalendarDays, Plus } from "lucide-react";
-import { DayCard } from "@/components/packt/day-card";
+import { DayCard } from "@/components/arrivo/day-card";
 import { Button } from "@/components/ui/button";
-import { PackingListPickerDialog } from "@/components/packt/packing-list-picker-dialog";
-import { ItineraryCta } from "@/components/packt/itinerary-cta";
+import { PackingListPickerDialog } from "@/components/arrivo/packing-list-picker-dialog";
+import { ItineraryCta } from "@/components/arrivo/itinerary-cta";
 import type {
   DayItinerary,
   TripEvent,
@@ -16,7 +16,7 @@ import type {
   PackingTemplate,
   TransitMode,
 } from "@/data/types";
-import { useCanEditTrip } from "@/components/packt/trip-edit-access";
+import { useCanEditTrip } from "@/components/arrivo/trip-edit-access";
 import { UnscheduledEventsSection } from "./unscheduled-events-section";
 import { RemoveLastDayDialog } from "./remove-last-day-dialog";
 

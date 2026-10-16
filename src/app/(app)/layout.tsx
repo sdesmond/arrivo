@@ -1,8 +1,8 @@
-import { SidebarNav } from "@/components/packt/sidebar-nav";
-import { BottomTabBar } from "@/components/packt/bottom-tab-bar";
-import { SyncStatusIndicator } from "@/components/packt/sync-status-indicator";
-import { ContributorRevocationModal } from "@/components/packt/contributor-revocation-modal";
-import { InvitationLiveRefresh } from "@/components/packt/invitation-live-refresh";
+import { SidebarNav } from "@/components/arrivo/sidebar-nav";
+import { BottomTabBar } from "@/components/arrivo/bottom-tab-bar";
+import { SyncStatusIndicator } from "@/components/arrivo/sync-status-indicator";
+import { ContributorRevocationModal } from "@/components/arrivo/contributor-revocation-modal";
+import { InvitationLiveRefresh } from "@/components/arrivo/invitation-live-refresh";
 import { MapboxTokenProvider } from "@/components/providers/mapbox-token-provider";
 import { requireUser } from "@/lib/auth-helpers";
 import { getBrowserMapboxToken } from "@/lib/map-helpers";

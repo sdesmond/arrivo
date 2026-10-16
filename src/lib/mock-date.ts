@@ -1,4 +1,4 @@
-const KEY = "__packt_mock_date__";
+const KEY = "__mock_date__";
 
 export function getNow(): Date {
   if (process.env.NODE_ENV !== "development") return new Date();
@@ -19,6 +19,6 @@ export function setMockDate(iso: string | null): void {
 
 export function getMockDateISO(): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)__packt_mock_date__=([^;]*)/);
+  const match = document.cookie.match(/(?:^|;\s*)__mock_date__=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
 }

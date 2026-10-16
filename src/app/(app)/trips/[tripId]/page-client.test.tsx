@@ -50,7 +50,7 @@ vi.mock("next/link", () => ({
   default: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
 
-vi.mock("@/components/packt/trip-cover", () => ({
+vi.mock("@/components/arrivo/trip-cover", () => ({
   TripCover: ({ metaTag, name }: TripCoverProps) => (
     <div>
       <span>{name}</span>
@@ -114,8 +114,8 @@ vi.mock("./trip-detail-hero", () => ({
 }));
 
 vi.mock("./trip-detail-tab-body", async () => {
-  const { useCanEditTrip } = await vi.importActual<typeof import("@/components/packt/trip-edit-access")>(
-    "@/components/packt/trip-edit-access"
+  const { useCanEditTrip } = await vi.importActual<typeof import("@/components/arrivo/trip-edit-access")>(
+    "@/components/arrivo/trip-edit-access"
   );
   return {
     TripDetailTabBody: ({
@@ -160,11 +160,11 @@ vi.mock("./trip-detail-tab-body", async () => {
   };
 });
 
-vi.mock("@/components/packt/trip-confetti", () => ({
+vi.mock("@/components/arrivo/trip-confetti", () => ({
   TripConfetti: ({ tripId }: { tripId: string }) => tripConfettiMock({ tripId }),
 }));
 
-vi.mock("@/components/packt/trip-edit-sheet", () => ({
+vi.mock("@/components/arrivo/trip-edit-sheet", () => ({
   TripEditSheet: ({
     open,
     highlightDates,
@@ -211,7 +211,7 @@ vi.mock("@/lib/use-bfcache-refresh", () => ({
   useBfcacheRefresh: mockUseBfcacheRefresh,
 }));
 
-vi.mock("@/components/packt/trip-share-dialog", () => ({
+vi.mock("@/components/arrivo/trip-share-dialog", () => ({
   TripShareDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="trip-share-dialog" /> : null),
 }));
 

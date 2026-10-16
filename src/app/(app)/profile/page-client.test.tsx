@@ -17,7 +17,7 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn() }),
 }));
 
-vi.mock("@/components/packt/theme-select", () => ({
+vi.mock("@/components/arrivo/theme-select", () => ({
   ThemeSelect: () => <div data-testid="theme-select">Theme selector</div>,
 }));
 

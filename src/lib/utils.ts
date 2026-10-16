@@ -35,7 +35,7 @@ function asFloatingUtc(date: Date): Date {
 /**
  * The wall-clock calendar date of `now` as a `YYYY-MM-DD` key.
  *
- * Packt is timezone-naive: stored event/reservation times are wall-clock strings
+ * Arrivo is timezone-naive: stored event/reservation times are wall-clock strings
  * and "now" is read in the runtime's local frame (see {@link isEventNow}). Derive
  * "today" from local components — never `toISOString()`/`getUTC*`, which convert to
  * UTC and roll the date forward an evening west of UTC, dropping the current day's

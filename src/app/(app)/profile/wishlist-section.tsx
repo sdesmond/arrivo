@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { X, Plus } from "lucide-react";
-import { Section } from "@/components/packt/form-section";
+import { Section } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { addWishlistDestination, deleteWishlistDestination } from "./actions";
 import type { WishlistDestination } from "@/data/types";

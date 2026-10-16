@@ -1,11 +1,11 @@
 "use client";
 
-import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
-import { PendingInvitationsList } from "@/components/packt/pending-invitations-list";
-import { TripsDesktopLayout } from "@/components/packt/trips-desktop-layout";
-import { TripsMobileLayout } from "@/components/packt/trips-mobile-layout";
-import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { NewTripDialog } from "@/components/packt/new-trip-dialog";
+import { DeleteTripAlertDialog } from "@/components/arrivo/delete-trip-alert-dialog";
+import { PendingInvitationsList } from "@/components/arrivo/pending-invitations-list";
+import { TripsDesktopLayout } from "@/components/arrivo/trips-desktop-layout";
+import { TripsMobileLayout } from "@/components/arrivo/trips-mobile-layout";
+import { TripEditSheet } from "@/components/arrivo/trip-edit-sheet";
+import { NewTripDialog } from "@/components/arrivo/new-trip-dialog";
 import { CollaboratorRole, type CurrencyOption, type PendingInvitation, type TripListEntry } from "@/data/types";
 import { useDashboardLiveRefresh } from "@/lib/use-dashboard-live-refresh";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";

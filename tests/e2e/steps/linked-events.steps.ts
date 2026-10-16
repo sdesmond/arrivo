@@ -234,7 +234,7 @@ When("I view the Itinerary tab", async ({ page }) => {
 When("I view the trip list", async ({ page }) => {
   await page.context().addCookies([
     {
-      name: "__packt_mock_date__",
+      name: "__mock_date__",
       value: encodeURIComponent(new Date().toISOString()),
       url: "http://localhost:3001",
     },

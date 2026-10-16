@@ -1,6 +1,6 @@
 "use client";
 
-import { TabStatusIcon } from "@/components/packt/tab-status-icon";
+import { TabStatusIcon } from "@/components/arrivo/tab-status-icon";
 import { BudgetStatus, TripDetailTab, type TripDetailTab as TripDetailTabValue } from "@/data/types";
 
 export interface TripDetailTabBarProps {

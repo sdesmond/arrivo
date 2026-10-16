@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
-import { REQUIRES_END_AT } from "@/components/packt/reservation-type-badge";
+import { REQUIRES_END_AT } from "@/components/arrivo/reservation-type-badge";
 import { extendTripDateRange } from "./reservation-date-range";
 
 export async function createReservation(tripId: string, input: CreateReservationInput): Promise<void> {

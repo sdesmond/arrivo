@@ -3,9 +3,9 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createTemplate, deleteTemplate, renameTemplate } from "./actions";
-import { DeleteTemplateAlertDialog } from "@/components/packt/delete-template-alert-dialog";
-import { TemplateFormDialog } from "@/components/packt/template-form-dialog";
-import { TemplateLibrary } from "@/components/packt/template-library";
+import { DeleteTemplateAlertDialog } from "@/components/arrivo/delete-template-alert-dialog";
+import { TemplateFormDialog } from "@/components/arrivo/template-form-dialog";
+import { TemplateLibrary } from "@/components/arrivo/template-library";
 import type { PackingTemplate } from "@/data/types";
 
 export interface TemplatesPageClientProps {

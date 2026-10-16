@@ -777,7 +777,7 @@ export async function inviteContributor(
     .from(users)
     .where(hasNormalizedEmail(users.email, normalizedEmail));
   if (!invitee) {
-    return { status: "error", message: "No Packt account found for this email", errorCode: "no-account" };
+    return { status: "error", message: "No account found for this email", errorCode: "no-account" };
   }
 
   const expiresAt = getInvitationExpiry();

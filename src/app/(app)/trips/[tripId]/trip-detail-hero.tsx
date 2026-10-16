@@ -29,11 +29,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { TripCover } from "@/components/packt/trip-cover";
+import { TripCover } from "@/components/arrivo/trip-cover";
 
-import { CoverAttributionDialog } from "@/components/packt/cover-attribution-dialog";
+import { CoverAttributionDialog } from "@/components/arrivo/cover-attribution-dialog";
 
-import { CoverImagePicker } from "@/components/packt/cover-image-picker";
+import { CoverImagePicker } from "@/components/arrivo/cover-image-picker";
 
 import { removeTripCover, setTripCoverWithAttribution } from "@/app/(app)/trips/[tripId]/actions";
 

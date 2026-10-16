@@ -88,7 +88,7 @@ describe("lib/currency", () => {
 
   describe("convertDual", () => {
     it("uses deterministic rates without fetch in E2E mode", async () => {
-      vi.stubEnv("PACKT_E2E", "true");
+      vi.stubEnv("E2E_MODE", "true");
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       const result = await convertDual(200, "USD", ["EUR", "GBP"], PAST);

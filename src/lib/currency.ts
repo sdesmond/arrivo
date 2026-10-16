@@ -59,7 +59,7 @@ const resolveLookupDate = (date: string): string => {
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
 
 async function fetchRates(fromCurrency: string, toCurrencies: string[], date: string): Promise<Record<string, number>> {
-  if (process.env.PACKT_E2E === "true") {
+  if (process.env.E2E_MODE === "true") {
     const baseRates = E2E_RATES_BY_BASE[fromCurrency] ?? {};
     return Object.fromEntries(toCurrencies.map((currency) => [currency, baseRates[currency] ?? 1]));
   }

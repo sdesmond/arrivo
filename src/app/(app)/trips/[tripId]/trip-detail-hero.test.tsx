@@ -8,11 +8,11 @@ import { TripDetailHero } from "./trip-detail-hero";
 const mockRemoveTripCover = vi.fn();
 const mockSetTripCoverWithAttribution = vi.fn();
 
-vi.mock("@/components/packt/trip-cover", () => ({
+vi.mock("@/components/arrivo/trip-cover", () => ({
   TripCover: () => <div data-testid="trip-cover" />,
 }));
 
-vi.mock("@/components/packt/cover-image-picker", () => ({
+vi.mock("@/components/arrivo/cover-image-picker", () => ({
   CoverImagePicker: ({
     onImageSelected,
   }: {
@@ -34,7 +34,7 @@ vi.mock("@/components/packt/cover-image-picker", () => ({
   ),
 }));
 
-vi.mock("@/components/packt/cover-attribution-dialog", () => ({
+vi.mock("@/components/arrivo/cover-attribution-dialog", () => ({
   CoverAttributionDialog: ({
     open,
     photographer,

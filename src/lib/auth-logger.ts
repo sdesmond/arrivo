@@ -3,7 +3,7 @@ import { AuthError } from "@auth/core/errors";
 const CREDENTIALS_SIGNIN_ERROR = "CredentialsSignin";
 
 export function shouldSuppressAuthError(error: Error): boolean {
-  return process.env.PACKT_E2E === "true" && error instanceof AuthError && error.type === CREDENTIALS_SIGNIN_ERROR;
+  return process.env.E2E_MODE === "true" && error instanceof AuthError && error.type === CREDENTIALS_SIGNIN_ERROR;
 }
 
 export function formatAuthError(error: Error): string {

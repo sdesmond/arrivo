@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
-import { Field } from "@/components/packt/form-section";
+import { Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -25,7 +25,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
   const [passportExpiry, setPassportExpiry] = useState<string | undefined>(companion.passportExpiry ?? undefined);
   const [passportNationality, setPassportNationality] = useState(companion.passportNationality ?? "");
   const [knownTravelerNumber, setKnownTravelerNumber] = useState(companion.knownTravelerNumber ?? "");
-  const [packtUsername, setPacktUsername] = useState(companion.packtUsername ?? "");
+  const [username, setUsername] = useState(companion.username ?? "");
 
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
@@ -75,7 +75,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
         passportExpiry: passportExpiry,
         passportNationality: passportNationality || undefined,
         knownTravelerNumber: knownTravelerNumber || undefined,
-        packtUsername: packtUsername || undefined,
+        username: username || undefined,
       };
       const result = await updateCompanion(companion.id, patch);
       if (result?.error) {
@@ -225,12 +225,12 @@ export function CompanionRow({ companion }: CompanionRowProps) {
             </Field>
           </div>
 
-          <Field label="Packt username (optional)" htmlFor={`companion-packt-${companion.id}`}>
+          <Field label="Username (optional)" htmlFor={`companion-username-${companion.id}`}>
             <Input
-              id={`companion-packt-${companion.id}`}
+              id={`companion-username-${companion.id}`}
               type="text"
-              value={packtUsername}
-              onChange={(event) => setPacktUsername(event.target.value)}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
               placeholder="@username"
               autoComplete="off"
             />

@@ -22,7 +22,7 @@ vi.mock("./use-travel-history-page-handlers", () => ({
   useTravelHistoryPageHandlers: mockUseTravelHistoryPageHandlers,
 }));
 
-vi.mock("@/components/packt/travel-history-list", () => ({
+vi.mock("@/components/arrivo/travel-history-list", () => ({
   TravelHistoryList: ({
     trips,
     onEditTrip,
@@ -40,7 +40,7 @@ vi.mock("@/components/packt/travel-history-list", () => ({
   ),
 }));
 
-vi.mock("@/components/packt/spending-view", () => ({
+vi.mock("@/components/arrivo/spending-view", () => ({
   SpendingView: (props: unknown) => {
     spendingViewSpy(props);
     const { onRangeChange } = props as { onRangeChange: (range: SpendingDateRange) => void };
@@ -48,14 +48,14 @@ vi.mock("@/components/packt/spending-view", () => ({
   },
 }));
 
-vi.mock("@/components/packt/trip-edit-sheet", () => ({
+vi.mock("@/components/arrivo/trip-edit-sheet", () => ({
   TripEditSheet: (props: unknown) => {
     tripEditSheetSpy(props);
     return <div data-testid="trip-edit-sheet" />;
   },
 }));
 
-vi.mock("@/components/packt/delete-trip-alert-dialog", () => ({
+vi.mock("@/components/arrivo/delete-trip-alert-dialog", () => ({
   DeleteTripAlertDialog: ({ onConfirm }: { onConfirm: () => void }) => (
     <button onClick={onConfirm}>Confirm delete</button>
   ),

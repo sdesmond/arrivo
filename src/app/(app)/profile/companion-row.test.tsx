@@ -30,7 +30,7 @@ vi.mock("@/components/ui/date-picker", () => ({
   ),
 }));
 
-vi.mock("@/components/packt/form-section", () => ({
+vi.mock("@/components/arrivo/form-section", () => ({
   Field: ({
     children,
     label,
@@ -60,7 +60,7 @@ const baseCompanion: Companion = {
   passportExpiry: "2028-06-01",
   passportNationality: "American",
   knownTravelerNumber: undefined,
-  packtUsername: undefined,
+  username: undefined,
   position: 0,
 };
 

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
-import { DevDatePicker } from "@/components/packt/dev-date-picker";
+import { DevDatePicker } from "@/components/arrivo/dev-date-picker";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -32,8 +32,8 @@ const jetbrainsMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Packt — Travel Planner",
-  description: "Plan your trips with Packt",
+  title: "Arrivo — Travel Planner",
+  description: "Plan your trips with Arrivo",
 };
 
 // Without `viewport-fit=cover` every `env(safe-area-inset-*)` resolves to 0px, which silently
@@ -48,7 +48,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const mockISO =
-    process.env.NODE_ENV === "development" ? ((await cookies()).get("__packt_mock_date__")?.value ?? null) : null;
+    process.env.NODE_ENV === "development" ? ((await cookies()).get("__mock_date__")?.value ?? null) : null;
 
   return (
     <html

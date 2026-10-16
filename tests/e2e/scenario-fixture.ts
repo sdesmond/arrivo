@@ -218,7 +218,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
 
   function uniqueEmail(label = "user"): string {
     const suffix = `${scenarioSeed}-${nextCounter(label)}`;
-    return `e2e+${slugify(label)}-${suffix}@packt.local`;
+    return `e2e+${slugify(label)}-${suffix}@arrivo.com`;
   }
 
   function registerCleanup(handle: CleanupHandle): void {

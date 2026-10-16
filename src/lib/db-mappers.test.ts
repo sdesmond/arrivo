@@ -1121,7 +1121,7 @@ const BASE_COMPANION: CompanionRow = {
   passportExpiry: null,
   passportNationality: null,
   knownTravelerNumber: null,
-  packtUsername: null,
+  username: null,
   position: 0,
   createdAt: null,
 };
@@ -1141,7 +1141,7 @@ describe("dbCompanionToType", () => {
     expect(result.passportExpiry).toBeUndefined();
     expect(result.passportNationality).toBeUndefined();
     expect(result.knownTravelerNumber).toBeUndefined();
-    expect(result.packtUsername).toBeUndefined();
+    expect(result.username).toBeUndefined();
   });
 
   it("maps all travel-doc fields when present", () => {
@@ -1152,14 +1152,14 @@ describe("dbCompanionToType", () => {
       passportExpiry: "2030-06-15",
       passportNationality: "United States",
       knownTravelerNumber: "KTN-9876",
-      packtUsername: "alex.smith",
+      username: "alex.smith",
     });
     expect(result.age).toBe(30);
     expect(result.passportNumber).toBe("P12345678");
     expect(result.passportExpiry).toBe("2030-06-15");
     expect(result.passportNationality).toBe("United States");
     expect(result.knownTravelerNumber).toBe("KTN-9876");
-    expect(result.packtUsername).toBe("alex.smith");
+    expect(result.username).toBe("alex.smith");
   });
 
   it("maps non-zero position", () => {

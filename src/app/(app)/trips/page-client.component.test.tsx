@@ -25,7 +25,7 @@ vi.mock("@/lib/use-dashboard-live-refresh", () => ({
   useDashboardLiveRefresh: mockUseDashboardLiveRefresh,
 }));
 
-vi.mock("@/components/packt/trips-desktop-layout", () => ({
+vi.mock("@/components/arrivo/trips-desktop-layout", () => ({
   TripsDesktopLayout: ({
     onEditTrip,
     onDeleteTrip,
@@ -40,28 +40,28 @@ vi.mock("@/components/packt/trips-desktop-layout", () => ({
   ),
 }));
 
-vi.mock("@/components/packt/trips-mobile-layout", () => ({
+vi.mock("@/components/arrivo/trips-mobile-layout", () => ({
   TripsMobileLayout: ({ mobileTab }: { mobileTab: string }) => <div>{`Mobile ${mobileTab}`}</div>,
 }));
 
-vi.mock("@/components/packt/trip-edit-sheet", () => ({
+vi.mock("@/components/arrivo/trip-edit-sheet", () => ({
   TripEditSheet: (props: unknown) => {
     tripEditSheetSpy(props);
     return <div data-testid="trip-edit-sheet" />;
   },
 }));
 
-vi.mock("@/components/packt/delete-trip-alert-dialog", () => ({
+vi.mock("@/components/arrivo/delete-trip-alert-dialog", () => ({
   DeleteTripAlertDialog: ({ onConfirm }: { onConfirm: () => void }) => (
     <button onClick={onConfirm}>Confirm trip delete</button>
   ),
 }));
 
-vi.mock("@/components/packt/new-trip-dialog", () => ({
+vi.mock("@/components/arrivo/new-trip-dialog", () => ({
   NewTripDialog: () => <div>New trip dialog</div>,
 }));
 
-vi.mock("@/components/packt/pending-invitations-list", () => ({
+vi.mock("@/components/arrivo/pending-invitations-list", () => ({
   PendingInvitationsList: () => null,
 }));
 

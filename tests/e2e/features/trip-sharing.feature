@@ -38,9 +38,9 @@ Feature: Trip sharing dialog
     When I go to the shared trip
     Then I do not see the trip Share control
 
-  Scenario: A manager invites an existing Packt user to the trip
+  Scenario: A manager invites an existing user to the trip
     Given I have a trip with sharing rows
-    And there is a Packt user I can invite
+    And there is a registered user I can invite
     When I go to the current trip
     And I open the sharing dialog
     And I invite that user to the trip as an editor

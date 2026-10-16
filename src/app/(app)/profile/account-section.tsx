@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { Section, Field } from "@/components/packt/form-section";
+import { Section, Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

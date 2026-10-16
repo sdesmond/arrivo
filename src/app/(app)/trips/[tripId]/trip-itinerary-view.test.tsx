@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { DayItinerary, TransitMode } from "@/data/types";
-import { TripEditAccessProvider } from "@/components/packt/trip-edit-access";
+import { TripEditAccessProvider } from "@/components/arrivo/trip-edit-access";
 import { TripItineraryView, type TripItineraryViewProps } from "./trip-itinerary-view";
 
 interface MockDayCardProps {
@@ -21,7 +21,7 @@ interface MockPlaceRowProps {
   place: { id: string; name: string };
 }
 
-vi.mock("@/components/packt/day-card", () => ({
+vi.mock("@/components/arrivo/day-card", () => ({
   DayCard: ({
     day,
     tripId,
@@ -51,11 +51,11 @@ vi.mock("@/components/packt/day-card", () => ({
   ),
 }));
 
-vi.mock("@/components/packt/packing-list-picker-dialog", () => ({
+vi.mock("@/components/arrivo/packing-list-picker-dialog", () => ({
   PackingListPickerDialog: () => null,
 }));
 
-vi.mock("@/components/packt/place-row", () => ({
+vi.mock("@/components/arrivo/place-row", () => ({
   PlaceRow: ({ place }: MockPlaceRowProps) => <div>{place.name}</div>,
 }));
 
