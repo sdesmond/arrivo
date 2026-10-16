@@ -8,8 +8,8 @@
       "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_take_screenshot",
       "mcp__playwright__browser_wait_for",
-      "Skill(bmad-quick-dev)",
-      "Skill(bmad-agent-builder)",
+      "Skill(bmad-build)",
+      "Skill(bmad-toolsmith)",
       "Skill(bmad-brainstorming)"
     ]
   },

@@ -9,4 +9,4 @@ Run `plan-reviewer` only on story files and fully fleshed-out implementation-rea
 
 **Why:** The reviewer checks implementation-readiness (test coverage, scope, architecture fit). That check is meaningless on a PRD, UX spec, architecture doc, or brainstorming output — those aren't ready for code yet.
 
-**How to apply:** Skip the reviewer after `bmad-create-prd`, `bmad-create-ux-design`, `bmad-brainstorming`, or any other intermediate planning skill. Run it only after `bmad-create-story`, `bmad-dev-story` plan files, or equivalent implementation-ready artifacts.
+**How to apply:** Skip the reviewer after `bmad-prd`, `bmad-ux`, `bmad-brainstorming`, or any other intermediate planning skill. Run it only after `bmad-build` plan files, or equivalent implementation-ready artifacts.
