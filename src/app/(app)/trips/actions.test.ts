@@ -10,6 +10,7 @@ import {
   invitations,
   itineraryChecklists,
   itineraryNotes,
+  reservations,
   trips,
   users,
 } from "@/db/schema";
@@ -698,8 +699,26 @@ interface TransactionFixture {
   existingDays: Array<{ id: string; tripId: string; dayNumber: number; date: string | null; label: string }>;
   expenseRows?: unknown[];
   noteRows?: Array<{ id: string }>;
+  reservationDocs?: Array<{ eventId: string | null; url: string | null }>;
+  reservationRows?: Array<{ id: string; provider: string; type: string; startAt: Date | null; endAt: Date | null }>;
   removedEvents?: Array<{ id: string; name: string; dayId: string | null; position: number }>;
   tripRow?: { id: string; startDate: string | null; endDate: string | null };
+}
+
+function collectSqlParams(node: unknown, found: unknown[] = []): unknown[] {
+  if (node === null || typeof node !== "object") return found;
+  if (Array.isArray(node)) {
+    for (const item of node) collectSqlParams(item, found);
+    return found;
+  }
+  const record = node as { queryChunks?: unknown[]; value?: unknown };
+  if (Array.isArray(record.queryChunks)) {
+    for (const chunk of record.queryChunks) collectSqlParams(chunk, found);
+  } else if (node.constructor?.name === "Param") {
+    collectSqlParams(record.value, found);
+    if (!Array.isArray(record.value)) found.push(record.value);
+  }
+  return found;
 }
 
 function createTransactionMock({
@@ -708,11 +727,15 @@ function createTransactionMock({
   existingDays,
   expenseRows = [],
   noteRows = [],
+  reservationDocs = [],
+  reservationRows = [],
   removedEvents = [],
   tripRow = { id: "trip-1", startDate: "2026-08-01", endDate: "2026-08-02" },
 }: TransactionFixture) {
+  let documentReads = 0;
   const operations = {
     deletes: [] as unknown[],
+    deleteConditions: [] as Array<{ table: unknown; condition: unknown }>,
     inserts: [] as Array<{ table: unknown; values: unknown }>,
     updates: [] as Array<{ table: unknown; values: unknown }>,
   };
@@ -743,7 +766,12 @@ function createTransactionMock({
 
         if (table === documents) {
           return {
-            where: async () => eventDocs,
+            where: async () => {
+              documentReads += 1;
+              // Event docs are read first (only when events were removed), then reservation docs.
+              const eventDocsRead = removedEvents.length > 0 ? 1 : 0;
+              return documentReads <= eventDocsRead ? eventDocs : reservationDocs;
+            },
           };
         }
 
@@ -765,6 +793,12 @@ function createTransactionMock({
           };
         }
 
+        if (table === reservations) {
+          return {
+            where: async () => reservationRows,
+          };
+        }
+
         throw new Error("Unexpected table read in test fixture.");
       },
     }),
@@ -776,7 +810,8 @@ function createTransactionMock({
       }),
     }),
     delete: (table: unknown) => ({
-      where: async () => {
+      where: async (condition: unknown) => {
+        operations.deleteConditions.push({ table, condition });
         operations.deletes.push(table);
       },
     }),
@@ -1089,6 +1124,16 @@ describe("buildTripDateChangeConfirmation", () => {
       eventDocumentCount: 2,
     });
   });
+
+  it("includes reservations only when some are affected", () => {
+    const reservationPreview = { id: "res-1", provider: "Delta", type: "flight" as const, date: "2026-07-04" };
+    expect(
+      buildTripDateChangeConfirmation(["2026-07-04"], undefined, [], 0, 0, 0, [reservationPreview]).reservations
+    ).toEqual([reservationPreview]);
+    expect(buildTripDateChangeConfirmation(["2026-07-04"], undefined, [], 0, 0, 0, [])).not.toHaveProperty(
+      "reservations"
+    );
+  });
 });
 
 describe("updateTripMetadata", () => {
@@ -1211,6 +1256,292 @@ describe("updateTripMetadata", () => {
     expect(operations.updates.some((entry) => entry.table === trips)).toBe(true);
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("requires confirmation when a removed date holds a reservation and lists it", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      reservationRows: [
+        {
+          id: "res-1",
+          provider: "Delta",
+          type: "flight",
+          startAt: new Date("2026-08-02T10:00:00.000Z"),
+          endAt: new Date("2026-08-02T12:00:00.000Z"),
+        },
+        {
+          id: "res-2",
+          provider: "Hilton",
+          type: "hotel",
+          startAt: new Date("2026-08-01T15:00:00.000Z"),
+          endAt: new Date("2026-08-01T16:00:00.000Z"),
+        },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
+
+    expect(result).toEqual({
+      status: "confirmation-required",
+      confirmation: expect.objectContaining({
+        removedDates: ["2026-08-02"],
+        reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-08-02" }],
+      }),
+    });
+    expect(operations.deletes).toEqual([]);
+  });
+
+  it("deletes out-of-range reservations when the user chooses to remove", async () => {
+    const reservationRows = [
+      {
+        id: "res-1",
+        provider: "Delta",
+        type: "flight",
+        startAt: new Date("2026-08-02T10:00:00.000Z"),
+        endAt: null,
+      },
+      {
+        id: "res-keep",
+        provider: "Hilton",
+        type: "lodging",
+        startAt: new Date("2026-08-01T10:00:00.000Z"),
+        endAt: new Date("2026-08-01T12:00:00.000Z"),
+      },
+    ];
+    const confirmation: TripDateChangeConfirmation = {
+      removedDates: ["2026-08-02"],
+      removedDayLabels: undefined,
+      events: [],
+      noteCount: 0,
+      checklistCount: 0,
+      eventDocumentCount: 0,
+      reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-08-02" }],
+    };
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      reservationRows,
+      reservationDocs: [{ eventId: null, url: "https://example.com/boarding-pass.pdf" }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata(
+      "trip-1",
+      { startDate: "2026-08-01", endDate: "2026-08-01" },
+      TripDateConflictResolution.DeleteEvents,
+      confirmation
+    );
+
+    expect(result).toEqual({ status: "saved" });
+    expect(operations.deletes).toContain(reservations);
+    expect(operations.deletes).toContain(days);
+    const reservationDelete = operations.deleteConditions.find((entry) => entry.table === reservations);
+    const deleteParams = collectSqlParams(reservationDelete?.condition);
+    expect(deleteParams).toContain("res-1");
+    expect(deleteParams).not.toContain("res-keep");
+    expect(deleteParams).toContain("trip-1");
+    expect(adapterDel).toHaveBeenCalledWith("https://example.com/boarding-pass.pdf");
+  });
+
+  it("keeps out-of-range reservations when the user chooses to keep", async () => {
+    const confirmation: TripDateChangeConfirmation = {
+      removedDates: ["2026-08-02"],
+      removedDayLabels: undefined,
+      events: [],
+      noteCount: 0,
+      checklistCount: 0,
+      eventDocumentCount: 0,
+      reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-08-02" }],
+    };
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      reservationRows: [
+        { id: "res-1", provider: "Delta", type: "flight", startAt: new Date("2026-08-02T10:00:00.000Z"), endAt: null },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata(
+      "trip-1",
+      { startDate: "2026-08-01", endDate: "2026-08-01" },
+      TripDateConflictResolution.KeepAsUnscheduled,
+      confirmation
+    );
+
+    expect(result).toEqual({ status: "saved" });
+    expect(operations.deletes).not.toContain(reservations);
+    expect(operations.deletes).toContain(days);
+  });
+
+  it("flags a reservation whose endAt alone falls on a removed date", async () => {
+    const { transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      reservationRows: [
+        {
+          id: "res-1",
+          provider: "Hilton",
+          type: "lodging",
+          startAt: new Date("2026-08-01T15:00:00.000Z"),
+          endAt: new Date("2026-08-02T11:00:00.000Z"),
+        },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
+
+    expect(result).toEqual({
+      status: "confirmation-required",
+      confirmation: expect.objectContaining({
+        reservations: [{ id: "res-1", provider: "Hilton", type: "lodging", date: "2026-08-02" }],
+      }),
+    });
+  });
+
+  it("flags a stay that spans a removed date without either endpoint landing on it", async () => {
+    const { transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: "2026-08-02", endDate: "2026-08-04" },
+      existingDays: [2, 3, 4].map((dayNumber) => ({
+        id: `day-${dayNumber}`,
+        tripId: "trip-1",
+        dayNumber: dayNumber - 1,
+        date: `2026-08-0${dayNumber}`,
+        label: `Day ${dayNumber - 1}`,
+      })),
+      reservationRows: [
+        {
+          id: "res-1",
+          provider: "Hilton",
+          type: "lodging",
+          startAt: new Date("2026-08-01T15:00:00.000Z"),
+          endAt: new Date("2026-08-05T11:00:00.000Z"),
+        },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    // The stay (Aug 1-5) was kept earlier while the trip shrank to Aug 2-4; dropping Aug 4 now cuts through it.
+    const result = await updateTripMetadata("trip-1", { startDate: "2026-08-02", endDate: "2026-08-03" });
+
+    expect(result).toEqual({
+      status: "confirmation-required",
+      confirmation: expect.objectContaining({
+        reservations: [{ id: "res-1", provider: "Hilton", type: "lodging", date: "2026-08-04" }],
+      }),
+    });
+  });
+
+  it("ignores reservations with no dates and reservations entirely inside the kept range", async () => {
+    const { transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      reservationRows: [
+        { id: "res-undated", provider: "Amtrak", type: "train", startAt: null, endAt: null },
+        {
+          id: "res-kept",
+          provider: "Hilton",
+          type: "lodging",
+          startAt: new Date("2026-08-01T10:00:00.000Z"),
+          endAt: new Date("2026-08-01T12:00:00.000Z"),
+        },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
+
+    expect(result).toEqual({ status: "saved" });
+  });
+
+  it("rejects a stale confirmation when a reservation appeared after the preview", async () => {
+    const { operations, transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      removedEvents: [{ id: "event-1", name: "Dinner", dayId: "day-2", position: 0 }],
+      reservationRows: [
+        {
+          id: "res-new",
+          provider: "Delta",
+          type: "flight",
+          startAt: new Date("2026-08-02T10:00:00.000Z"),
+          endAt: null,
+        },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(
+      updateTripMetadata(
+        "trip-1",
+        { startDate: "2026-08-01", endDate: "2026-08-01" },
+        TripDateConflictResolution.DeleteEvents,
+        {
+          removedDates: ["2026-08-02"],
+          removedDayLabels: undefined,
+          events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-08-02", docCount: 0 }],
+          noteCount: 0,
+          checklistCount: 0,
+          eventDocumentCount: 0,
+        }
+      )
+    ).rejects.toThrow(/review the date change again/i);
+    expect(operations.deletes).toEqual([]);
+  });
+
+  it("does not look for reservations when dateless days overflow into a dated range", async () => {
+    const { transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" },
+      ],
+      reservationRows: [
+        {
+          id: "res-1",
+          provider: "Delta",
+          type: "flight",
+          startAt: new Date("2026-08-02T10:00:00.000Z"),
+          endAt: null,
+        },
+      ],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
+
+    expect(result).toEqual({ status: "saved" });
   });
 
   it("rejects a stale confirmation payload instead of deleting newly changed content", async () => {

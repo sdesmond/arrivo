@@ -14,8 +14,10 @@ import {
 import {
   TripDateConflictResolution,
   type TripDateChangeConfirmation,
+  type TripDateChangePreviewReservation,
   type TripDateConflictResolution as TripDateConflictResolutionValue,
 } from "@/data/types";
+import { RESERVATION_TYPE_META } from "@/components/packt/reservation-type-badge";
 import { formatDate } from "@/lib/utils";
 
 interface TripDateChangeConfirmationDialogProps {
@@ -24,6 +26,12 @@ interface TripDateChangeConfirmationDialogProps {
   saving?: boolean;
   onResolveDateChange?: (resolution: TripDateConflictResolutionValue) => void | Promise<void>;
   onCancelDateChange?: () => void;
+}
+
+function formatReservationName(reservation: TripDateChangePreviewReservation): string {
+  const typeLabel = RESERVATION_TYPE_META[reservation.type]?.label ?? reservation.type;
+  const provider = reservation.provider.trim();
+  return provider ? `${provider} (${typeLabel})` : typeLabel;
 }
 
 export function TripDateChangeConfirmationDialog({
@@ -84,6 +92,18 @@ export function TripDateChangeConfirmationDialog({
     await onResolveDateChange?.(resolution);
   }
 
+  const affectedReservations = dateChangeConfirmation?.reservations ?? [];
+  const hasReservations = affectedReservations.length > 0;
+  const affectsOnlyReservations =
+    hasReservations &&
+    (dateChangeConfirmation?.events.length ?? 0) === 0 &&
+    (dateChangeConfirmation?.noteCount ?? 0) === 0 &&
+    (dateChangeConfirmation?.checklistCount ?? 0) === 0;
+  const removedDatesLabel = formatRemovedDates(
+    dateChangeConfirmation?.removedDates ?? [],
+    dateChangeConfirmation?.removedDayLabels
+  );
+
   return (
     <AlertDialog
       open={dateChangeConfirmation !== null}
@@ -97,12 +117,31 @@ export function TripDateChangeConfirmationDialog({
         <AlertDialogHeader className="place-items-start text-left">
           <AlertDialogTitle>Confirm Date Change</AlertDialogTitle>
           <AlertDialogDescription className="text-left">
-            Your new trip dates will remove events (along with their notes and documents) you had planned for{" "}
-            <strong className="font-semibold text-foreground">
-              {formatRemovedDates(dateChangeConfirmation?.removedDates ?? [], dateChangeConfirmation?.removedDayLabels)}
-            </strong>
-            . Do you want to move those events to unscheduled or just remove them entirely?
+            {affectsOnlyReservations ? (
+              <>Your new trip dates will remove reservations you had booked for </>
+            ) : (
+              <>Your new trip dates will remove events (along with their notes and documents) you had planned for </>
+            )}
+            <strong className="font-semibold text-foreground">{removedDatesLabel}</strong>
+            {affectsOnlyReservations
+              ? ". Do you want to keep them in the Reservations tab or remove them entirely?"
+              : ". Do you want to move those events to unscheduled or just remove them entirely?"}
           </AlertDialogDescription>
+          {hasReservations && (
+            <div className="text-left text-sm text-muted-foreground">
+              <p>
+                Reservations on removed dates will leave the itinerary. Keeping them lets them stay in the Reservations
+                tab; removing them deletes them:
+              </p>
+              <ul className="mt-1 list-disc pl-5">
+                {affectedReservations.map((reservation) => (
+                  <li key={reservation.id}>
+                    {formatReservationName(reservation)} — {formatDate(reservation.date, dateFormat)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </AlertDialogHeader>
 
         <AlertDialogFooter className="grid-cols-1 gap-2 sm:flex sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between">
@@ -114,7 +153,7 @@ export function TripDateChangeConfirmationDialog({
               void handleResolution(TripDateConflictResolution.DeleteEvents);
             }}
           >
-            Remove Events
+            {hasReservations ? "Remove All" : "Remove Events"}
           </AlertDialogAction>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <AlertDialogCancel variant="ghost" disabled={saving} onClick={onCancelDateChange}>

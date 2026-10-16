@@ -1,4 +1,9 @@
-import type { TripDateChangeConfirmation, TripDateChangePreviewEvent, UpdateTripPatch } from "@/data/types";
+import type {
+  TripDateChangeConfirmation,
+  TripDateChangePreviewEvent,
+  TripDateChangePreviewReservation,
+  UpdateTripPatch,
+} from "@/data/types";
 
 export interface ResolvedDateRange {
   startDate?: string;
@@ -42,12 +47,14 @@ export function buildTripDateChangeConfirmation(
   eventsToMove: TripDateChangePreviewEvent[],
   noteCount: number,
   checklistCount: number,
-  eventDocumentCount: number
+  eventDocumentCount: number,
+  reservationsToRemove: TripDateChangePreviewReservation[] = []
 ): TripDateChangeConfirmation {
   return {
     removedDates,
     removedDayLabels,
     events: eventsToMove,
+    ...(reservationsToRemove.length > 0 ? { reservations: reservationsToRemove } : {}),
     noteCount,
     checklistCount,
     eventDocumentCount,
