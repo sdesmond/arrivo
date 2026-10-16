@@ -279,9 +279,10 @@ function ensureDirectoryLink(rootDir, linkPath, targetPath, options = {}) {
   ensureDirectory(targetPath);
   ensureDirectory(dirname(linkPath));
 
-  if (existsSync(linkPath)) {
-    const stats = lstatSync(linkPath);
+  // lstat, not existsSync: existsSync follows links, so a dangling link (repo moved or renamed) looks absent.
+  const stats = lstatSync(linkPath, { throwIfNoEntry: false });
 
+  if (stats) {
     if (stats.isSymbolicLink()) {
       rmSync(linkPath, { recursive: true, force: true });
     } else if (migrateExistingDirectory) {

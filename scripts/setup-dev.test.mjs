@@ -1,4 +1,13 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
@@ -108,6 +117,29 @@ describe("setup-dev helpers", async () => {
       expect(readFileSync(migratedMemoryPath, "utf8")).toBe("remember this\n");
       expect(lstatSync(join(rootDir, ".claude", "memory")).isSymbolicLink()).toBe(true);
       expect(existsSync(join(rootDir, ".claude", "memory", "legacy-note.md"))).toBe(true);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("replaces a dangling link left behind by a moved or renamed repo", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "setup-dev-"));
+    const staleTargetDir = join(rootDir, "old-location", "skills");
+    const skillsLinkPath = join(rootDir, ".claude", "skills");
+
+    mkdirSync(staleTargetDir, { recursive: true });
+    mkdirSync(join(rootDir, ".claude"), { recursive: true });
+    symlinkSync(staleTargetDir, skillsLinkPath, "junction");
+    rmSync(join(rootDir, "old-location"), { recursive: true, force: true });
+
+    try {
+      expect(existsSync(skillsLinkPath)).toBe(false);
+      expect(lstatSync(skillsLinkPath).isSymbolicLink()).toBe(true);
+
+      ensureAiToolLinks(rootDir);
+
+      expect(lstatSync(skillsLinkPath).isSymbolicLink()).toBe(true);
+      expect(existsSync(skillsLinkPath)).toBe(true);
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
     }
