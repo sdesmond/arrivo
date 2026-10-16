@@ -95,44 +95,6 @@ E2E tests run against a dedicated `arrivo_e2e` database (isolated from dev). One
 
 `tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and inserts only the baseline E2E user (`e2e@arrivo.com`); scenarios create their own trips from the mothers in `e2e-seed-data.ts`. Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
 
-## Directory Structure
-
-```
-arrivo/                          ← git root = Next.js project root
-├── src/
-│   ├── app/
-│   │   ├── globals.css         ← theme tokens + custom utilities
-│   │   ├── layout.tsx          ← font setup, providers
-│   │   └── (app)/trips/        ← main app routes
-│   ├── components/
-│   │   ├── arrivo/              ← domain components; *.test.tsx lives next to source
-│   │   └── ui/                 ← reusable primitives (button, badge, dialog, etc.)
-│   ├── data/
-│   │   └── types.ts            ← ALL canonical TypeScript types live here
-│   └── lib/
-│       ├── utils.ts            ← cn(), isEventPast(), isEventNow()
-│       └── *.test.ts           ← unit tests colocated with source files
-├── tests/
-│   └── e2e/
-│       ├── features/           ← Gherkin .feature files (BDD scenarios)
-│       ├── steps/              ← step definitions (TypeScript)
-│       ├── fixtures.ts         ← shared Playwright fixtures
-│       ├── auth.setup.ts       ← auth state setup (runs before chromium project)
-│       ├── global-setup.ts     ← wipes & re-seeds E2E DB before each run
-│       └── e2e-seed-data.ts    ← seed constants (E2E user, trip, days)
-├── .agents/
-│   ├── skills/                 ← source of truth for shared skills
-│   └── memories/               ← source of truth for shared project memories
-├── .claude/
-│   ├── skills/                 ← compatibility link to .agents/skills
-│   └── memory/                 ← compatibility link to .agents/memories
-├── vitest.config.mts           ← Vitest + Istanbul coverage config
-├── vitest.setup.mts            ← global mocks (next/navigation, next/headers)
-├── playwright.config.ts        ← Playwright BDD config (playwright-bdd)
-├── tsconfig.json               ← strict: true, path alias @/* → ./src/*
-└── eslint.config.mjs
-```
-
 ## Quality Skills — When to Use Them
 
 These skills enforce project standards. Use them as described below.
@@ -230,13 +192,6 @@ Crossing rules:
 
   Menu/dropdown items: `py-1.5 px-2`. Custom clickable rows or inline controls that don't use a `src/components/ui/` primitive must still meet 44×44px minimum. Never drop below `h-11` for any interactive target.
 
-### File Placement
-
-- Domain logic → `src/components/arrivo/`
-- Reusable primitives → `src/components/ui/`
-- New types → `src/data/types.ts`
-- New utilities → `src/lib/utils.ts`
-
 ### Testing
 
 - Tests are first-class deliverables for every coding change; do not defer them until a validator, coverage report, or reviewer points out they are missing
@@ -257,6 +212,35 @@ Crossing rules:
 - If a scenario needs a 3-day trip, template, document set, or profile shape, clone a mother with overrides and materialize fresh rows for that scenario
 - Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
 - Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/arrivo/**`, but treat those thresholds as backstops rather than the trigger for adding tests
-- `src/components/ui/**`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, and `src/lib/server-now.ts` are excluded from coverage
+- Excluded from coverage (see `vitest.config.mts`): `src/app/**`, `src/components/ui/**`, `src/components/providers/**`, `src/components/arrivo/trip-rail.tsx`, `src/components/arrivo/trips-mobile-tabs.tsx`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, `src/lib/server-now.ts`
 - E2E tests run against the `arrivo_e2e` database — `global-setup.ts` seeds it fresh before each run; do not assume any pre-existing state in step definitions
 - The E2E webServer runs on port 3001 with `DATABASE_URL` pointed at `E2E_DATABASE_URL` and `NEXT_DISTDIR=.next-e2e` (separate build cache from dev)
+
+<!-- bmad:context -->
+<!-- Verified 2026-10-16 against ba7407c. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
+
+## Arrivo
+
+Travel itinerary planner. Next.js 16 App Router, React 19, TypeScript strict, Tailwind v4, Base UI + shadcn, Drizzle on Postgres, Auth.js v5. Node 22 (Dockerfile).
+
+## Policy
+
+- Never commit directly to `main`, `feat/*`, or `feature/*`; branch off and open a PR into them.
+
+## Where things are
+
+- `page.tsx` is the Server Component (data, auth); `page-client.tsx` is the `"use client"` half. Keep that split in `src/app/(app)/trips/**`.
+- DB schema `src/db/schema.ts`; server actions sit beside their route as `actions.ts`.
+
+## Conventions that differ from defaults
+
+- Server actions: call `requireUser()`, then `assertTripAccess(tripId, user.id, minRole)` (`viewer` < `editor` < `manager`), before any read or write, then `revalidatePath`. Denied access calls `notFound()`, so don't catch it.
+- Never import `src/lib/queries.ts` or `src/lib/auth-helpers.ts` from client components (`server-only`).
+- Files go through `getStorageAdapter()` (`src/lib/storage/`); ESLint blocks direct `fs` and blob imports in `src/**`.
+- Read DB rows through `src/lib/db-mappers.ts`, never raw. Numeric columns (cost, budget) are strings in Postgres: `.toString()` on write, parse in the mapper. Keep `position` consistent when creating or reordering events.
+- Use the `src/db/index.ts` client singleton; a second postgres connection leaks in dev.
+- Trip status is always `getTripStatus(start, end, now)`; never store or seed it.
+- "Now" comes from `getNow()` (`src/lib/mock-date.ts`) on the server and `useNow()` in components, not `new Date()`, so the dev date picker and tests stay deterministic.
+- `<Toaster>` is mounted once in `src/app/layout.tsx`; call `toast` from `sonner` everywhere else.
+
+<!-- /bmad:context -->
