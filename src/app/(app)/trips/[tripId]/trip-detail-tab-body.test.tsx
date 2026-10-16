@@ -28,36 +28,36 @@ vi.mock("./trip-itinerary-view", () => ({
   },
 }));
 
-vi.mock("@/components/packt/trip-docs-tab", () => ({
+vi.mock("@/components/arrivo/trip-docs-tab", () => ({
   TripDocsTab: ({ docs }: { docs: Document[] }) => <div>{`Docs ${docs.length}`}</div>,
 }));
 
-vi.mock("@/components/packt/trip-budget-tab", () => ({
+vi.mock("@/components/arrivo/trip-budget-tab", () => ({
   TripBudgetTab: (props: unknown) => {
     tripBudgetTabSpy(props);
     return <div>Budget tab</div>;
   },
 }));
 
-vi.mock("@/components/packt/packing-lists-view", () => ({
+vi.mock("@/components/arrivo/packing-lists-view", () => ({
   PackingListsView: () => <div>Packing tab</div>,
 }));
 
-vi.mock("@/components/packt/reservations-tab", () => ({
+vi.mock("@/components/arrivo/reservations-tab", () => ({
   ReservationsTab: (props: unknown) => {
     reservationsTabSpy(props);
     return <div>Reservations tab</div>;
   },
 }));
 
-vi.mock("@/components/packt/trip-notes-tab", () => ({
+vi.mock("@/components/arrivo/trip-notes-tab", () => ({
   TripNotesTab: (props: unknown) => {
     tripNotesTabSpy(props);
     return <div>Notes tab</div>;
   },
 }));
 
-vi.mock("@/components/packt/map-tab", () => ({
+vi.mock("@/components/arrivo/map-tab", () => ({
   MapTab: (props: unknown) => {
     mapTabSpy(props);
     return <div>Map tab</div>;

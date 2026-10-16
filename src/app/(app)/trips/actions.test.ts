@@ -1956,12 +1956,12 @@ describe("inviteContributor", () => {
     }
   });
 
-  it("returns an error without writing when no Packt account matches", async () => {
+  it("returns an error without writing when no account matches", async () => {
     const operations = setupInviteContributorDb({ userRows: [] });
 
     await expect(inviteContributor("trip-1", "missing@example.com")).resolves.toEqual({
       status: "error",
-      message: "No Packt account found for this email",
+      message: "No account found for this email",
       errorCode: "no-account",
     });
 

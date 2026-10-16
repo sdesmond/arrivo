@@ -270,7 +270,7 @@ export function dbCompanionToType(row: typeof userCompanions.$inferSelect): Comp
     passportExpiry: row.passportExpiry ?? undefined,
     passportNationality: row.passportNationality ?? undefined,
     knownTravelerNumber: row.knownTravelerNumber ?? undefined,
-    packtUsername: row.packtUsername ?? undefined,
+    username: row.username ?? undefined,
     position: row.position,
   };
 }

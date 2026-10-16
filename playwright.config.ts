@@ -30,7 +30,7 @@ export default defineConfig({
       DATABASE_URL: process.env.E2E_DATABASE_URL!,
       NEXTAUTH_URL: "http://localhost:3001",
       NEXT_DISTDIR: ".next-e2e",
-      PACKT_E2E: "true",
+      E2E_MODE: "true",
       E2E_MAPBOX_STUB: "true",
       E2E_UNSPLASH_STUB: "true",
       STORAGE_PROVIDER: "local",
@@ -39,7 +39,7 @@ export default defineConfig({
   },
   projects: [
     { name: "setup", testMatch: /.*\.setup\.ts/, testDir: "tests/e2e" },
-    // Scenario-fixture self-tests. They hit the live packt_e2e DB directly (no browser/auth) and
+    // Scenario-fixture self-tests. They hit the live arrivo_e2e DB directly (no browser/auth) and
     // run here instead of as a second Vitest process so only one Vitest runs under the validator.
     { name: "fixtures", testMatch: /scenario-fixture\.spec\.ts/, testDir: "tests/e2e" },
     {

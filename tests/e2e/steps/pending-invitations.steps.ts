@@ -137,7 +137,7 @@ async function openManagerShareDialog(page: Page, scenario: ScenarioFixtureConte
   await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
 }
 
-Given("a Packt user is watching their dashboard in their own session", async ({ page, scenario }) => {
+Given("a registered user is watching their dashboard in their own session", async ({ page, scenario }) => {
   await scenario.ensureCurrentTrip();
   const { user: watchingUser } = await scenario.materialize({
     user: { overrides: { user: { name: "Watching Invitee", initials: "WI" } }, setCurrent: false },

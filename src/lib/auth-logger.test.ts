@@ -10,7 +10,7 @@ describe("auth logger", () => {
   });
 
   it("suppresses CredentialsSignin noise during E2E runs", () => {
-    vi.stubEnv("PACKT_E2E", "true");
+    vi.stubEnv("E2E_MODE", "true");
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const error = new CredentialsSignin();
 
@@ -22,7 +22,7 @@ describe("auth logger", () => {
   });
 
   it("logs CredentialsSignin outside E2E runs", () => {
-    vi.stubEnv("PACKT_E2E", "false");
+    vi.stubEnv("E2E_MODE", "false");
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const error = new CredentialsSignin();
 
@@ -37,7 +37,7 @@ describe("auth logger", () => {
   });
 
   it("keeps non-auth errors visible during E2E runs", () => {
-    vi.stubEnv("PACKT_E2E", "true");
+    vi.stubEnv("E2E_MODE", "true");
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const error = new Error("boom");
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CurrencyPicker } from "@/components/packt/currency-picker";
-import { Section, Field } from "@/components/packt/form-section";
+import { CurrencyPicker } from "@/components/arrivo/currency-picker";
+import { Section, Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

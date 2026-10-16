@@ -247,7 +247,7 @@ export async function updateCompanion(id: string, patch: UpdateCompanionPatch): 
         passportExpiry: patch.passportExpiry ?? null,
         passportNationality: patch.passportNationality ?? null,
         knownTravelerNumber: patch.knownTravelerNumber ?? null,
-        packtUsername: patch.packtUsername ?? null,
+        username: patch.username ?? null,
       })
       .where(and(eq(userCompanions.id, id), eq(userCompanions.userId, session.id!)))
       .returning({ id: userCompanions.id });

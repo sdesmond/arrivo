@@ -30,7 +30,7 @@ const ENV_ORDER = [
 const DEFAULT_ENV_VALUES = {
   NEXTAUTH_URL: "http://localhost:3000",
   ALLOW_SIGNUP: "true",
-  E2E_EMAIL: "e2e@packt.local",
+  E2E_EMAIL: "e2e@arrivo.com",
   E2E_PASSWORD: "e2e1234",
   HIDE_OVERLAY: "true",
   STORAGE_PROVIDER: "local",
@@ -40,12 +40,12 @@ const DEFAULT_ENV_VALUES = {
 // A host Postgres usually owns 5432, so the dev container publishes 5433 to keep the two databases apart.
 const DATABASE_URLS = {
   local: {
-    app: "postgres://packt:packt@localhost:5432/packt",
-    e2e: "postgres://packt:packt@localhost:5432/packt_e2e",
+    app: "postgres://arrivo:arrivo@localhost:5432/arrivo",
+    e2e: "postgres://arrivo:arrivo@localhost:5432/arrivo_e2e",
   },
   docker: {
-    app: "postgres://packt:packt@localhost:5433/packt",
-    e2e: "postgres://packt:packt@localhost:5433/packt_e2e",
+    app: "postgres://arrivo:arrivo@localhost:5433/arrivo",
+    e2e: "postgres://arrivo:arrivo@localhost:5433/arrivo_e2e",
   },
 };
 
@@ -279,9 +279,10 @@ function ensureDirectoryLink(rootDir, linkPath, targetPath, options = {}) {
   ensureDirectory(targetPath);
   ensureDirectory(dirname(linkPath));
 
-  if (existsSync(linkPath)) {
-    const stats = lstatSync(linkPath);
+  // lstat, not existsSync: existsSync follows links, so a dangling link (repo moved or renamed) looks absent.
+  const stats = lstatSync(linkPath, { throwIfNoEntry: false });
 
+  if (stats) {
     if (stats.isSymbolicLink()) {
       rmSync(linkPath, { recursive: true, force: true });
     } else if (migrateExistingDirectory) {
@@ -330,16 +331,16 @@ function ensureLocalPostgresDatabases() {
   }
 
   const roleExists =
-    runCommand("psql", ["-d", "postgres", "-tAc", "SELECT 1 FROM pg_roles WHERE rolname='packt'"], {
+    runCommand("psql", ["-d", "postgres", "-tAc", "SELECT 1 FROM pg_roles WHERE rolname='arrivo'"], {
       captureOutput: true,
     }).stdout === "1";
 
   if (!roleExists) {
-    log("Creating local PostgreSQL role packt");
-    runCommand("psql", ["-d", "postgres", "-c", "CREATE ROLE packt LOGIN PASSWORD 'packt'"]);
+    log("Creating local PostgreSQL role arrivo");
+    runCommand("psql", ["-d", "postgres", "-c", "CREATE ROLE arrivo LOGIN PASSWORD 'arrivo'"]);
   }
 
-  for (const databaseName of ["packt", "packt_e2e"]) {
+  for (const databaseName of ["arrivo", "arrivo_e2e"]) {
     const dbExists =
       runCommand("psql", ["-d", "postgres", "-tAc", `SELECT 1 FROM pg_database WHERE datname='${databaseName}'`], {
         captureOutput: true,
@@ -347,7 +348,7 @@ function ensureLocalPostgresDatabases() {
 
     if (!dbExists) {
       log(`Creating local PostgreSQL database ${databaseName}`);
-      runCommand("psql", ["-d", "postgres", "-c", `CREATE DATABASE ${databaseName} OWNER packt`]);
+      runCommand("psql", ["-d", "postgres", "-c", `CREATE DATABASE ${databaseName} OWNER arrivo`]);
     }
   }
 }
@@ -356,12 +357,12 @@ function ensureLocalPostgresDatabases() {
 // published DB port), while dev needs 5433 on the host and a named volume that works on Docker Desktop.
 export const DEV_COMPOSE_ARGS = ["compose", "-f", "docker-compose.dev.yml"];
 
-// docker-compose.dev.yml only provisions POSTGRES_DB=packt, so the E2E database is created on demand.
+// docker-compose.dev.yml only provisions POSTGRES_DB=arrivo, so the E2E database is created on demand.
 export function buildDockerE2eDatabaseArgs() {
-  const psql = [...DEV_COMPOSE_ARGS, "exec", "-T", "db", "psql", "-U", "packt", "-d", "postgres"];
+  const psql = [...DEV_COMPOSE_ARGS, "exec", "-T", "db", "psql", "-U", "arrivo", "-d", "postgres"];
   return {
-    check: [...psql, "-tAc", "SELECT 1 FROM pg_database WHERE datname='packt_e2e'"],
-    create: [...psql, "-c", "CREATE DATABASE packt_e2e OWNER packt"],
+    check: [...psql, "-tAc", "SELECT 1 FROM pg_database WHERE datname='arrivo_e2e'"],
+    create: [...psql, "-c", "CREATE DATABASE arrivo_e2e OWNER arrivo"],
   };
 }
 
@@ -369,7 +370,7 @@ function ensureDockerE2eDatabase(rootDir) {
   const { check, create } = buildDockerE2eDatabaseArgs();
 
   if (runCommand("docker", check, { cwd: rootDir, captureOutput: true }).stdout !== "1") {
-    log("Creating Docker PostgreSQL database packt_e2e");
+    log("Creating Docker PostgreSQL database arrivo_e2e");
     runCommand("docker", create, { cwd: rootDir });
   }
 }
@@ -384,7 +385,7 @@ function ensureDockerDatabase(rootDir) {
   let ready = false;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
-      runCommand("docker", [...DEV_COMPOSE_ARGS, "exec", "-T", "db", "pg_isready", "-U", "packt"], {
+      runCommand("docker", [...DEV_COMPOSE_ARGS, "exec", "-T", "db", "pg_isready", "-U", "arrivo"], {
         cwd: rootDir,
       });
       ready = true;
@@ -464,7 +465,7 @@ export async function main(argv = process.argv.slice(2)) {
 
   log("Setup complete");
   log("Start the app with: npm run dev");
-  log("Sign in with: demo@packt.local / demo1234 (see docs/dev-seed-data.md for two more seed accounts)");
+  log("Sign in with: demo@arrivo.com / demo1234 (see docs/dev-seed-data.md for two more seed accounts)");
   log(`Storage: ${envValues.STORAGE_PROVIDER} (${envValues.STORAGE_LOCAL_ROOT_DIR})`);
 }
 

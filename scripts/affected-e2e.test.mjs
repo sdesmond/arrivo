@@ -6,11 +6,11 @@ describe("affected-e2e helpers", async () => {
   const FEATURE_MAP = [
     {
       tag: "@feat:packing-tab",
-      sourceGlobs: ["src/components/packt/packing-*", "tests/e2e/features/packing-tab.feature"],
+      sourceGlobs: ["src/components/arrivo/packing-*", "tests/e2e/features/packing-tab.feature"],
     },
-    { tag: "@feat:packing-lists", sourceGlobs: ["src/components/packt/packing-list*.tsx"] },
+    { tag: "@feat:packing-lists", sourceGlobs: ["src/components/arrivo/packing-list*.tsx"] },
     { tag: "@feat:reservations", sourceGlobs: ["src/app/(app)/trips/[tripId]/reservations/**"] },
-    { tag: "@feat:trips", sourceGlobs: ["src/components/packt/trip-card.tsx"] },
+    { tag: "@feat:trips", sourceGlobs: ["src/components/arrivo/trip-card.tsx"] },
     // Feature-owned file that also lives under a SHARED directory — exercises feature-first precedence.
     { tag: "@feat:spending", sourceGlobs: ["src/lib/spending.ts"] },
   ];
@@ -20,8 +20,8 @@ describe("affected-e2e helpers", async () => {
 
   describe("globToRegExp", () => {
     it("matches a single segment with * but not across slashes", () => {
-      expect(globToRegExp("src/components/packt/packing-*").test("src/components/packt/packing-item.tsx")).toBe(true);
-      expect(globToRegExp("src/components/packt/packing-*").test("src/components/packt/sub/x.tsx")).toBe(false);
+      expect(globToRegExp("src/components/arrivo/packing-*").test("src/components/arrivo/packing-item.tsx")).toBe(true);
+      expect(globToRegExp("src/components/arrivo/packing-*").test("src/components/arrivo/sub/x.tsx")).toBe(false);
     });
 
     it("matches across segments with ** and escapes route-group parens", () => {
@@ -46,21 +46,21 @@ describe("affected-e2e helpers", async () => {
     it("returns none when every changed file is ignored (docs + unit tests only)", () => {
       expect(
         mapChangedFilesToTags(
-          ["_bmad-output/story-2-1.md", "AGENTS.md", "src/components/packt/trip-card.test.tsx"],
+          ["_bmad-output/story-2-1.md", "AGENTS.md", "src/components/arrivo/trip-card.test.tsx"],
           maps
         )
       ).toEqual({ mode: "none" });
     });
 
     it("drops ignored files but still scopes the mapped source alongside them", () => {
-      expect(mapChangedFilesToTags(["_bmad-output/story.md", "src/components/packt/trip-card.tsx"], maps)).toEqual({
+      expect(mapChangedFilesToTags(["_bmad-output/story.md", "src/components/arrivo/trip-card.tsx"], maps)).toEqual({
         mode: "tags",
         tags: ["@feat:trips"],
       });
     });
 
     it("returns full when any changed runtime file is shared", () => {
-      expect(mapChangedFilesToTags(["src/components/packt/trip-card.tsx", "src/lib/utils.ts"], maps)).toEqual({
+      expect(mapChangedFilesToTags(["src/components/arrivo/trip-card.tsx", "src/lib/utils.ts"], maps)).toEqual({
         mode: "full",
       });
     });
@@ -71,7 +71,7 @@ describe("affected-e2e helpers", async () => {
 
     it("scopes only the mapped file when an unmapped runtime file changes alongside it", () => {
       expect(
-        mapChangedFilesToTags(["src/app/(app)/whats-new/page.tsx", "src/components/packt/trip-card.tsx"], maps)
+        mapChangedFilesToTags(["src/app/(app)/whats-new/page.tsx", "src/components/arrivo/trip-card.tsx"], maps)
       ).toEqual({ mode: "tags", tags: ["@feat:trips"] });
     });
 
@@ -88,12 +88,15 @@ describe("affected-e2e helpers", async () => {
 
     it("unions tags across feature-only changes, sorted and deduped", () => {
       expect(
-        mapChangedFilesToTags(["src/components/packt/packing-list-row.tsx", "src/components/packt/trip-card.tsx"], maps)
+        mapChangedFilesToTags(
+          ["src/components/arrivo/packing-list-row.tsx", "src/components/arrivo/trip-card.tsx"],
+          maps
+        )
       ).toEqual({ mode: "tags", tags: ["@feat:packing-lists", "@feat:packing-tab", "@feat:trips"] });
     });
 
     it("a file matching several feature globs yields all their tags", () => {
-      expect(mapChangedFilesToTags(["src/components/packt/packing-list-row.tsx"], maps)).toEqual({
+      expect(mapChangedFilesToTags(["src/components/arrivo/packing-list-row.tsx"], maps)).toEqual({
         mode: "tags",
         tags: ["@feat:packing-lists", "@feat:packing-tab"],
       });

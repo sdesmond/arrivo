@@ -74,11 +74,11 @@ realistic data to explore out of the box. Full breakdown, including exactly what
 **Demo credentials** (all three accounts use the same password):
 
 ```
-Email:    demo@packt.local
+Email:    demo@arrivo.com
 Password: demo1234
 ```
 
-Two more accounts (`alex@packt.local`, `sam@packt.local`) exist for exercising sharing and a second profile —
+Two more accounts (`alex@arrivo.com`, `sam@arrivo.com`) exist for exercising sharing and a second profile —
 see the doc above.
 
 `db:seed` wipes and reseeds just these three seed accounts on every run — safe to run repeatedly, and it never
@@ -90,18 +90,18 @@ touches any other account in the database.
 
 `npm run setup:dev` creates `.env` from `.env.example`, preserves existing non-empty values, generates `NEXTAUTH_SECRET` when needed, and sets database URLs for the selected backend.
 
-| Variable                 | Description                                    | Example default                                   |
-| ------------------------ | ---------------------------------------------- | ------------------------------------------------- |
-| `DATABASE_URL`           | PostgreSQL connection string                   | `postgres://packt:packt@localhost:5432/packt`     |
-| `E2E_DATABASE_URL`       | Dedicated PostgreSQL connection string for E2E | `postgres://packt:packt@localhost:5432/packt_e2e` |
-| `NEXTAUTH_URL`           | Full URL of the app                            | `http://localhost:3000`                           |
-| `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                       | generated automatically                           |
-| `ALLOW_SIGNUP`           | Expose the sign-up page                        | `true`                                            |
-| `E2E_EMAIL`              | E2E login email                                | `e2e@packt.local`                                 |
-| `E2E_PASSWORD`           | E2E login password                             | `e2e1234`                                         |
-| `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator        | `true`                                            |
-| `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                           |
-| `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                   | `./.dev-storage`                                  |
+| Variable                 | Description                                    | Example default                                      |
+| ------------------------ | ---------------------------------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`           | PostgreSQL connection string                   | `postgres://arrivo:arrivo@localhost:5432/arrivo`     |
+| `E2E_DATABASE_URL`       | Dedicated PostgreSQL connection string for E2E | `postgres://arrivo:arrivo@localhost:5432/arrivo_e2e` |
+| `NEXTAUTH_URL`           | Full URL of the app                            | `http://localhost:3000`                              |
+| `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                       | generated automatically                              |
+| `ALLOW_SIGNUP`           | Expose the sign-up page                        | `true`                                               |
+| `E2E_EMAIL`              | E2E login email                                | `e2e@arrivo.com`                                     |
+| `E2E_PASSWORD`           | E2E login password                             | `e2e1234`                                            |
+| `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator        | `true`                                               |
+| `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                              |
+| `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                   | `./.dev-storage`                                     |
 
 Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`. See the **[Storage](./README.md#storage)** section in README.md for how the adapter, providers, and Docker storage mount work.
 
@@ -111,10 +111,10 @@ The table shows the local PostgreSQL defaults (port `5432`). With `--db=docker`,
 
 The port in `DATABASE_URL` tells you:
 
-| Port   | Database                                                          |
-| ------ | ----------------------------------------------------------------- |
-| `5433` | Docker container `packt-dev-db-1` (from `docker-compose.dev.yml`) |
-| `5432` | PostgreSQL installed on your machine                              |
+| Port   | Database                                                           |
+| ------ | ------------------------------------------------------------------ |
+| `5433` | Docker container `arrivo-dev-db-1` (from `docker-compose.dev.yml`) |
+| `5432` | PostgreSQL installed on your machine                               |
 
 Check it without printing the password:
 
@@ -125,7 +125,7 @@ Check it without printing the password:
 The Docker container publishes `5433` on purpose. A host PostgreSQL normally owns `5432`, and both can listen on it at once on Windows, so `localhost:5432` may silently reach the host database instead of the container.
 
 - **The container must be running.** Check with `docker ps`. If it's stopped (after a reboot, for example), start it with `docker compose -f docker-compose.dev.yml up -d db`. The app does not fall back to the host database.
-- **The E2E database is created for you.** `--db=docker` creates `packt_e2e` in the container if it's missing, because the compose file only provisions `packt`.
+- **The E2E database is created for you.** `--db=docker` creates `arrivo_e2e` in the container if it's missing, because the compose file only provisions `arrivo`.
 - **Switching databases means signing in again.** Each database has its own user IDs, so a session from one database shows "trip not found" against the other. Sign out and back in, or clear the `localhost:3000` cookies.
 - **Re-running `setup:dev` rewrites the URLs** to match the mode you pass (`--db=docker` or `--db=local`). With `--db=auto`, Docker is used when the daemon is reachable.
 
@@ -143,16 +143,16 @@ cp .env.example .env
 If using local PostgreSQL and the default connection string:
 
 ```bash
-psql -d postgres -c "CREATE ROLE packt LOGIN PASSWORD 'packt';"
-psql -d postgres -c "CREATE DATABASE packt OWNER packt;"
-psql -d postgres -c "CREATE DATABASE packt_e2e OWNER packt;"
+psql -d postgres -c "CREATE ROLE arrivo LOGIN PASSWORD 'arrivo';"
+psql -d postgres -c "CREATE DATABASE arrivo OWNER arrivo;"
+psql -d postgres -c "CREATE DATABASE arrivo_e2e OWNER arrivo;"
 ```
 
 If using Docker (PostgreSQL 17 on `localhost:5433`, data in a named volume; `npm run setup:dev -- --db=docker` writes the matching `DATABASE_URL`/`E2E_DATABASE_URL` to `.env`, otherwise set them to port `5433` yourself):
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d db
-docker compose -f docker-compose.dev.yml exec -T db psql -U packt -d postgres -c "CREATE DATABASE packt_e2e OWNER packt;"
+docker compose -f docker-compose.dev.yml exec -T db psql -U arrivo -d postgres -c "CREATE DATABASE arrivo_e2e OWNER arrivo;"
 ```
 
 `docker-compose.dev.yml` is the dev database only. `docker-compose.yml` is the self-hosting stack and doesn't expose the database to the host.
@@ -196,8 +196,8 @@ All child tables cascade-delete from `trips`.
 ## Resetting to a clean state
 
 ```bash
-psql -d postgres -c "DROP DATABASE packt;"
-psql -d postgres -c "CREATE DATABASE packt OWNER packt;"
+psql -d postgres -c "DROP DATABASE arrivo;"
+psql -d postgres -c "CREATE DATABASE arrivo OWNER arrivo;"
 npm run db:push
 npm run db:seed
 ```

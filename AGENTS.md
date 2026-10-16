@@ -43,7 +43,7 @@ Read and write all project memories in `.agents/memories/`. Treat `.claude/memor
 
 ## Project Overview
 
-Packt is a travel itinerary planning app built with Next.js (App Router), TypeScript, Tailwind CSS v4, and shadcn/Base UI components. The Next.js project lives at the repo root.
+Arrivo is a travel itinerary planning app built with Next.js (App Router), TypeScript, Tailwind CSS v4, and shadcn/Base UI components. The Next.js project lives at the repo root.
 
 **Run the dev server:** `npm run dev`
 
@@ -58,7 +58,7 @@ Packt is a travel itinerary planning app built with Next.js (App Router), TypeSc
 | `npm run test:e2e:ui`       | Playwright E2E with interactive UI                                                          |
 | `npm run db:migrate:e2e`    | Push schema to the E2E database (run once after schema changes)                             |
 
-Coverage thresholds: 95% lines/functions, 90% branches (enforced by `npm run test:coverage` via `packt-build-validator`).
+Coverage thresholds: 95% lines/functions, 90% branches (enforced by `npm run test:coverage` via `build-validator`).
 
 ### E2E Segmentation
 
@@ -81,57 +81,19 @@ must stay complete — the full suite (`npm run test:e2e`) is the user-initiated
 
 `scripts/feature-map.test.mjs` enforces this contract (it runs in the coverage worker): a
 `tests/e2e/features/*.feature` without its `@feat:` tag, a dead path in the map, a
-`src/components/packt/*` component that no glob covers, or an `src/app/(app)/**` server action that
+`src/components/arrivo/*` component that no glob covers, or an `src/app/(app)/**` server action that
 no glob covers all turn the build red until you register it in `feature-map.mjs` (under a feature, or
 in `SHARED_GLOBS` if it's cross-cutting).
 
 ### E2E Database Setup
 
-E2E tests run against a dedicated `packt_e2e` database (isolated from dev). One-time setup:
+E2E tests run against a dedicated `arrivo_e2e` database (isolated from dev). One-time setup:
 
-1. Create the database: `createdb packt_e2e` (or equivalent)
+1. Create the database: `createdb arrivo_e2e` (or equivalent)
 2. Push the schema: `npm run db:migrate:e2e`
 3. Ensure `.env` contains `E2E_DATABASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD` — see `.env.example`
 
-`tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and inserts only the baseline E2E user (`e2e@packt.local`); scenarios create their own trips from the mothers in `e2e-seed-data.ts`. Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
-
-## Directory Structure
-
-```
-packt/                          ← git root = Next.js project root
-├── src/
-│   ├── app/
-│   │   ├── globals.css         ← theme tokens + custom utilities
-│   │   ├── layout.tsx          ← font setup, providers
-│   │   └── (app)/trips/        ← main app routes
-│   ├── components/
-│   │   ├── packt/              ← domain components; *.test.tsx lives next to source
-│   │   └── ui/                 ← reusable primitives (button, badge, dialog, etc.)
-│   ├── data/
-│   │   └── types.ts            ← ALL canonical TypeScript types live here
-│   └── lib/
-│       ├── utils.ts            ← cn(), isEventPast(), isEventNow()
-│       └── *.test.ts           ← unit tests colocated with source files
-├── tests/
-│   └── e2e/
-│       ├── features/           ← Gherkin .feature files (BDD scenarios)
-│       ├── steps/              ← step definitions (TypeScript)
-│       ├── fixtures.ts         ← shared Playwright fixtures
-│       ├── auth.setup.ts       ← auth state setup (runs before chromium project)
-│       ├── global-setup.ts     ← wipes & re-seeds E2E DB before each run
-│       └── e2e-seed-data.ts    ← seed constants (E2E user, trip, days)
-├── .agents/
-│   ├── skills/                 ← source of truth for shared skills
-│   └── memories/               ← source of truth for shared project memories
-├── .claude/
-│   ├── skills/                 ← compatibility link to .agents/skills
-│   └── memory/                 ← compatibility link to .agents/memories
-├── vitest.config.mts           ← Vitest + Istanbul coverage config
-├── vitest.setup.mts            ← global mocks (next/navigation, next/headers)
-├── playwright.config.ts        ← Playwright BDD config (playwright-bdd)
-├── tsconfig.json               ← strict: true, path alias @/* → ./src/*
-└── eslint.config.mjs
-```
+`tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and inserts only the baseline E2E user (`e2e@arrivo.com`); scenarios create their own trips from the mothers in `e2e-seed-data.ts`. Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
 
 ## Quality Skills — When to Use Them
 
@@ -139,15 +101,15 @@ These skills enforce project standards. Use them as described below.
 
 ### Post-implementation
 
-| Skill                   | When to invoke                                                                                                                                                                                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `packt-build-validator` | After completing the final code for a change. It runs ESLint, TypeScript checking, Vitest coverage, the production build, and (affected) Playwright E2E. It **self-skips via a fingerprint marker**: re-invoking on an unchanged tree is a no-op, so you never need to guard against double-runs — just invoke it and it decides whether real work is needed |
+| Skill             | When to invoke                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `build-validator` | After completing the final code for a change. It runs ESLint, TypeScript checking, Vitest coverage, the production build, and (affected) Playwright E2E. It **self-skips via a fingerprint marker**: re-invoking on an unchanged tree is a no-op, so you never need to guard against double-runs — just invoke it and it decides whether real work is needed |
 
 **Pre-implementation gate — NON-NEGOTIABLE:**
-Before presenting a **story file or implementation-ready plan file** to the user, you MUST run the packt-plan-reviewer. This gate applies only to fully fleshed-out artifacts that will be handed directly to a developer — not to PRDs, UX specs, architecture docs, brainstorming outputs, or other intermediate planning artifacts.
+Before presenting a **story file or implementation-ready plan file** to the user, you MUST run the plan-reviewer. This gate applies only to fully fleshed-out artifacts that will be handed directly to a developer — not to PRDs, UX specs, architecture docs, brainstorming outputs, or other intermediate planning artifacts.
 
 ```
-/packt-plan-reviewer <artifact-path>
+/plan-reviewer <artifact-path>
 ```
 
 Pass the original request as context so scope and test checks have what they need. Address every BLOCKING finding by editing the artifact in place. Do not move or recreate the artifact — it stays wherever the planning skill saved it.
@@ -180,7 +142,7 @@ Crossing rules:
 
 1. Ask whether the user wants a branch created before development begins
 2. Name the exact tests you will add or update before touching production code
-   - New/modified file in `src/lib/**` or `src/components/packt/**` → update or create the matching colocated `*.test.ts` / `*.test.tsx` alongside it in the same change
+   - New/modified file in `src/lib/**` or `src/components/arrivo/**` → update or create the matching colocated `*.test.ts` / `*.test.tsx` alongside it in the same change
    - New user-facing flow (auth, trip CRUD, day planning) → add or extend the `.feature` file and matching step definitions in `tests/e2e/` in the same change
    - If you cannot name the exact tests you are adding or updating, pause and resolve that before editing production code
 3. Start implementation by creating or updating those tests first whenever runtime behavior is changing
@@ -190,9 +152,9 @@ Crossing rules:
 4. Run targeted tests for touched areas before running broad validation
    - For unit or component work, run matching Vitest files first
    - For user-facing flow changes, run affected Playwright coverage first when practical
-   - Do not treat `packt-build-validator` as first signal that tests were missing
-5. Run `packt-build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (bmad-build, bmad-build-auto, story-automator, etc.) must **not** invoke it themselves
-6. If the validator flags issues, fix them and run `packt-build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. Agents always run the affected subset (via the validator) and never the full suite as a gate; running the full E2E suite (`npm run test:e2e`) is the user's call — do not launch it automatically before commit/push/PR
+   - Do not treat `build-validator` as first signal that tests were missing
+5. Run `build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (bmad-build, bmad-build-auto, etc.) must **not** invoke it themselves
+6. If the validator flags issues, fix them and run `build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. Agents always run the affected subset (via the validator) and never the full suite as a gate; running the full E2E suite (`npm run test:e2e`) is the user's call — do not launch it automatically before commit/push/PR
 
 ## Key Conventions
 
@@ -230,20 +192,13 @@ Crossing rules:
 
   Menu/dropdown items: `py-1.5 px-2`. Custom clickable rows or inline controls that don't use a `src/components/ui/` primitive must still meet 44×44px minimum. Never drop below `h-11` for any interactive target.
 
-### File Placement
-
-- Domain logic → `src/components/packt/`
-- Reusable primitives → `src/components/ui/`
-- New types → `src/data/types.ts`
-- New utilities → `src/lib/utils.ts`
-
 ### Testing
 
 - Tests are first-class deliverables for every coding change; do not defer them until a validator, coverage report, or reviewer points out they are missing
 - Before touching production code, name exact test files and E2E scenarios that will change; if you cannot name them, stop and resolve that first
 - For runtime behavior changes, start by editing tests first unless task is docs-only, copy-only, styling-only, or config-only
 - Unit test files live **next to their source file** (`foo.tsx` → `foo.test.tsx`); never under a separate `__tests__/` directory
-- Any edit in `src/lib/**` or `src/components/packt/**` must include the matching colocated test edit in the same change
+- Any edit in `src/lib/**` or `src/components/arrivo/**` must include the matching colocated test edit in the same change
 - E2E goes in `tests/e2e/` only — Gherkin features in `features/`, step definitions in `steps/`
 - Any new or materially changed user-facing flow must include the `.feature` update and matching step-definition update in the same change
 - Use Vitest (`vitest`, `@testing-library/react`) for unit/component tests
@@ -256,7 +211,36 @@ Crossing rules:
 - A step that triggers a mutation and is followed by a reload must await the server action's POST via `waitForServerActionResponse` (`tests/e2e/server-action.ts`) before returning — arm it before the gesture (`mouse.up`/`Enter`), await it after. Optimistic UI makes the in-page assertion pass while the reload aborts the still-in-flight request, so the reordered/edited state silently never persists
 - If a scenario needs a 3-day trip, template, document set, or profile shape, clone a mother with overrides and materialize fresh rows for that scenario
 - Global mocks for `next/navigation` and `next/headers` are in `vitest.setup.mts` — don't re-mock per-file
-- Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/packt/**`, but treat those thresholds as backstops rather than the trigger for adding tests
-- `src/components/ui/**`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, and `src/lib/server-now.ts` are excluded from coverage
-- E2E tests run against the `packt_e2e` database — `global-setup.ts` seeds it fresh before each run; do not assume any pre-existing state in step definitions
+- Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/arrivo/**`, but treat those thresholds as backstops rather than the trigger for adding tests
+- Excluded from coverage (see `vitest.config.mts`): `src/app/**`, `src/components/ui/**`, `src/components/providers/**`, `src/components/arrivo/trip-rail.tsx`, `src/components/arrivo/trips-mobile-tabs.tsx`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, `src/lib/server-now.ts`
+- E2E tests run against the `arrivo_e2e` database — `global-setup.ts` seeds it fresh before each run; do not assume any pre-existing state in step definitions
 - The E2E webServer runs on port 3001 with `DATABASE_URL` pointed at `E2E_DATABASE_URL` and `NEXT_DISTDIR=.next-e2e` (separate build cache from dev)
+
+<!-- bmad:context -->
+<!-- Verified 2026-10-16 against ba7407c. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
+
+## Arrivo
+
+Travel itinerary planner. Next.js 16 App Router, React 19, TypeScript strict, Tailwind v4, Base UI + shadcn, Drizzle on Postgres, Auth.js v5. Node 22 (Dockerfile).
+
+## Policy
+
+- Never commit directly to `main`, `feat/*`, or `feature/*`; branch off and open a PR into them.
+
+## Where things are
+
+- `page.tsx` is the Server Component (data, auth); `page-client.tsx` is the `"use client"` half. Keep that split in `src/app/(app)/trips/**`.
+- DB schema `src/db/schema.ts`; server actions sit beside their route as `actions.ts`.
+
+## Conventions that differ from defaults
+
+- Server actions: call `requireUser()`, then `assertTripAccess(tripId, user.id, minRole)` (`viewer` < `editor` < `manager`), before any read or write, then `revalidatePath`. Denied access calls `notFound()`, so don't catch it.
+- Never import `src/lib/queries.ts` or `src/lib/auth-helpers.ts` from client components (`server-only`).
+- Files go through `getStorageAdapter()` (`src/lib/storage/`); ESLint blocks direct `fs` and blob imports in `src/**`.
+- Read DB rows through `src/lib/db-mappers.ts`, never raw. Numeric columns (cost, budget) are strings in Postgres: `.toString()` on write, parse in the mapper. Keep `position` consistent when creating or reordering events.
+- Use the `src/db/index.ts` client singleton; a second postgres connection leaks in dev.
+- Trip status is always `getTripStatus(start, end, now)`; never store or seed it.
+- "Now" comes from `getNow()` (`src/lib/mock-date.ts`) on the server and `useNow()` in components, not `new Date()`, so the dev date picker and tests stay deterministic.
+- `<Toaster>` is mounted once in `src/app/layout.tsx`; call `toast` from `sonner` everywhere else.
+
+<!-- /bmad:context -->

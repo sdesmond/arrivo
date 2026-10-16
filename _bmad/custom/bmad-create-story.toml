@@ -8,4 +8,4 @@
 # Apply every BLOCKING fix directly to the artifact, then present the
 # final clean (or warning-only) artifact. Do NOT spawn a subagent.
 
-on_complete = "Run /packt-plan-reviewer on the saved story file path (inline, not as a subagent). Read each reference file for the checks being run. Apply every BLOCKING fix directly to the artifact in place before presenting to the user. Present the reviewed, corrected artifact only after all blocking issues are resolved."
+on_complete = "Run /plan-reviewer on the saved story file path (inline, not as a subagent). Read each reference file for the checks being run. Apply every BLOCKING fix directly to the artifact in place before presenting to the user. Present the reviewed, corrected artifact only after all blocking issues are resolved."

@@ -38,7 +38,7 @@ Feature: Pending Invitations
     Then I see no pending invitation row for "Private Trip"
 
   Scenario: A new invitation appears on the invitee's dashboard without a reload
-    Given a Packt user is watching their dashboard in their own session
+    Given a registered user is watching their dashboard in their own session
     When I invite the watching user to my trip as an editor
     Then the watching user sees my trip invitation without reloading
     And the watching user's Trips nav badge shows "1" pending invitation

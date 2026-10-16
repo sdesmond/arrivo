@@ -1,9 +1,9 @@
 "use client";
 
 import type { ReactElement } from "react";
-import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
-import { TripShareDialog } from "@/components/packt/trip-share-dialog";
-import { LeaveTripAlertDialog } from "@/components/packt/leave-trip-alert-dialog";
+import { TripEditSheet } from "@/components/arrivo/trip-edit-sheet";
+import { TripShareDialog } from "@/components/arrivo/trip-share-dialog";
+import { LeaveTripAlertDialog } from "@/components/arrivo/leave-trip-alert-dialog";
 import type {
   CurrencyOption,
   Expense,

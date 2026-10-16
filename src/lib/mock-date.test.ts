@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getNow, setMockDate, getMockDateISO } from "@/lib/mock-date";
 
-const KEY = "__packt_mock_date__";
+const KEY = "__mock_date__";
 
 // Minimal document.cookie implementation backed by an in-memory store.
 function makeCookieDocument() {

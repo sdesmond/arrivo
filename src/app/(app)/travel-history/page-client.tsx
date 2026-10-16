@@ -1,9 +1,9 @@
 "use client";
 
-import { DeleteTripAlertDialog } from "@/components/packt/delete-trip-alert-dialog";
-import { SpendingView } from "@/components/packt/spending-view";
-import { TravelHistoryList } from "@/components/packt/travel-history-list";
-import { TripEditSheet } from "@/components/packt/trip-edit-sheet";
+import { DeleteTripAlertDialog } from "@/components/arrivo/delete-trip-alert-dialog";
+import { SpendingView } from "@/components/arrivo/spending-view";
+import { TravelHistoryList } from "@/components/arrivo/travel-history-list";
+import { TripEditSheet } from "@/components/arrivo/trip-edit-sheet";
 import {
   CollaboratorRole,
   SpendingDateRange,

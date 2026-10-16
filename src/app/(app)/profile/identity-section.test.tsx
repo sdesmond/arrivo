@@ -11,7 +11,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-vi.mock("@/components/packt/form-section", () => ({
+vi.mock("@/components/arrivo/form-section", () => ({
   Section: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Field: ({
     children,

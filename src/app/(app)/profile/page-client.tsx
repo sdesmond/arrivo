@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Section } from "@/components/packt/form-section";
-import { ThemeSelect } from "@/components/packt/theme-select";
-import { FontSizeSelect } from "@/components/packt/font-size-select";
+import { Section } from "@/components/arrivo/form-section";
+import { ThemeSelect } from "@/components/arrivo/theme-select";
+import { FontSizeSelect } from "@/components/arrivo/font-size-select";
 import { ProfileIdentitySection } from "./identity-section";
 import { LoyaltySection } from "./loyalty-section";
 import { PassportSection } from "./passport-section";

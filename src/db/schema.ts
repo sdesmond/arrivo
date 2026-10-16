@@ -436,7 +436,7 @@ export const userCompanions = pgTable(
     passportExpiry: date("passport_expiry"),
     passportNationality: text("passport_nationality"),
     knownTravelerNumber: text("known_traveler_number"),
-    packtUsername: text("packt_username"),
+    username: text("username"),
     position: integer("position").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
   },

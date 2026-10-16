@@ -1,5 +1,5 @@
 import { ReservationType, type Reservation, type TripEvent } from "@/data/types";
-import { ANCHOR_LABELS } from "@/components/packt/reservation-type-badge";
+import { ANCHOR_LABELS } from "@/components/arrivo/reservation-type-badge";
 import { toLocalDateKey } from "@/lib/utils";
 
 // Manual events/notes/checklists share one small-sequential-integer position space (see

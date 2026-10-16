@@ -1,4 +1,4 @@
-import { SignInForm } from "@/components/packt/auth-forms";
+import { SignInForm } from "@/components/arrivo/auth-forms";
 import { signInAction } from "../actions";
 
 export default function SignInPage() {

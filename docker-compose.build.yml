@@ -3,13 +3,13 @@
 # Local tags keep source builds distinct from the published ghcr.io images.
 services:
   migrate:
-    image: packt-migrate:local
+    image: arrivo-migrate:local
     build:
       context: .
       target: tools
 
   app:
-    image: packt-app:local
+    image: arrivo-app:local
     build:
       context: .
       target: runner

@@ -10,7 +10,7 @@ import {
   updateTemplateItem,
 } from "./actions";
 import { renameTemplate } from "../actions";
-import { TemplateEditorView } from "@/components/packt/template-editor-view";
+import { TemplateEditorView } from "@/components/arrivo/template-editor-view";
 import type { PackingTemplate, PackingTemplateItem, RemovePackingSectionInput } from "@/data/types";
 
 export interface TemplateEditorClientProps {

@@ -41,7 +41,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
-vi.mock("@/components/packt/template-editor-view", () => ({
+vi.mock("@/components/arrivo/template-editor-view", () => ({
   TemplateEditorView: ({
     items,
     isAdding,

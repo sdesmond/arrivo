@@ -19,7 +19,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
-vi.mock("@/components/packt/template-library", () => ({
+vi.mock("@/components/arrivo/template-library", () => ({
   TemplateLibrary: ({
     templates,
     onDelete,
@@ -39,7 +39,7 @@ vi.mock("@/components/packt/template-library", () => ({
   ),
 }));
 
-vi.mock("@/components/packt/template-form-dialog", () => ({
+vi.mock("@/components/arrivo/template-form-dialog", () => ({
   TemplateFormDialog: ({
     mode,
     open,
@@ -61,7 +61,7 @@ vi.mock("@/components/packt/template-form-dialog", () => ({
     ) : null,
 }));
 
-vi.mock("@/components/packt/delete-template-alert-dialog", () => ({
+vi.mock("@/components/arrivo/delete-template-alert-dialog", () => ({
   DeleteTemplateAlertDialog: ({
     open,
     onConfirm,

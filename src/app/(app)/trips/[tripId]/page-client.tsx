@@ -3,8 +3,8 @@
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { TripConfetti } from "@/components/packt/trip-confetti";
-import { TripEditAccessProvider } from "@/components/packt/trip-edit-access";
+import { TripConfetti } from "@/components/arrivo/trip-confetti";
+import { TripEditAccessProvider } from "@/components/arrivo/trip-edit-access";
 import { TripDetailTabBar } from "./trip-detail-tab-bar";
 import { TripDetailTabBody } from "./trip-detail-tab-body";
 import { TripDetailHero } from "./trip-detail-hero";

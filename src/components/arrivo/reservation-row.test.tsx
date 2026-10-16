@@ -1,0 +1,993 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
+import { ReservationRow } from "./reservation-row";
+import {
+  createExpense,
+  deleteExpense as deleteExpenseAction,
+  updateExpense,
+} from "@/app/(app)/trips/[tripId]/budget/actions";
+import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { ReservationType, type Document, type Reservation } from "@/data/types";
+import { formatReservationDateRange } from "./reservation-type-badge";
+import { PLACEHOLDER_STYLE } from "./reservation-inline-text-field";
+import type { CostDialogProps } from "@/components/arrivo/cost-dialog";
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
+  updateReservation: vi.fn(),
+  deleteReservation: vi.fn(),
+}));
+
+vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
+  createExpense: vi.fn(),
+  deleteExpense: vi.fn(),
+  updateExpense: vi.fn(),
+}));
+
+vi.mock("./reservation-docs-block", () => ({
+  ReservationDocsBlock: ({ docs, onAdd }: { docs: Document[]; onAdd: () => void }) => (
+    <div>
+      {docs.map((doc) => (
+        <span key={doc.id}>{doc.name}</span>
+      ))}
+      <button onClick={onAdd}>Add doc</button>
+    </div>
+  ),
+}));
+
+vi.mock("./add-reservation-doc-dialog", () => ({
+  AddReservationDocDialog: ({ open, reservationId }: { open: boolean; reservationId: string }) =>
+    open ? <div data-testid="add-doc-dialog">Add doc dialog for {reservationId}</div> : null,
+}));
+
+vi.mock("@/components/ui/alert-dialog", () => ({
+  AlertDialog: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div>
+        {children}
+        <button onClick={() => onOpenChange(false)}>dismiss-dialog</button>
+      </div>
+    ) : null,
+  AlertDialogContent: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogHeader: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogTitle: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogDescription: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogFooter: (props: { children: React.ReactNode }) => <>{props.children}</>,
+  AlertDialogCancel: ({ children, disabled }: { children: React.ReactNode; disabled?: boolean }) => (
+    <button disabled={disabled}>{children}</button>
+  ),
+  AlertDialogAction: ({
+    children,
+    disabled,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    disabled?: boolean;
+    onClick?: () => void;
+  }) => (
+    <button disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("@/components/ui/date-picker", () => ({
+  DatePicker: ({
+    value,
+    onChange,
+    "aria-label": ariaLabel,
+  }: {
+    value?: string;
+    onChange: (value: string | undefined) => void;
+    "aria-label"?: string;
+  }) => (
+    <input aria-label={ariaLabel} value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)} />
+  ),
+}));
+
+vi.mock("@/components/ui/time-picker", () => ({
+  TimePicker: ({
+    value,
+    onChange,
+    "aria-label": ariaLabel,
+  }: {
+    value?: string;
+    onChange: (value: string | undefined) => void;
+    "aria-label"?: string;
+  }) => (
+    <input aria-label={ariaLabel} value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)} />
+  ),
+}));
+
+vi.mock("./reservation-field-dialog", () => ({
+  ReservationFieldDialog: ({
+    title,
+    open,
+    onOpenChange,
+    onSave,
+    mode,
+  }: {
+    title: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: (value?: string | { address: string; name?: string; lat?: number; lng?: number }) => void;
+    mode?: "text" | "location";
+  }) =>
+    open ? (
+      <div>
+        <p data-testid="dialog-title">{title}</p>
+        <button
+          onClick={() => {
+            onSave(
+              mode === "location"
+                ? {
+                    address: "Updated value",
+                    name: "Updated place",
+                    lat: 40.7128,
+                    lng: -74.006,
+                  }
+                : "Updated value"
+            );
+            onOpenChange(false);
+          }}
+        >
+          dialog-save
+        </button>
+        <button
+          onClick={() => {
+            onSave(undefined);
+            onOpenChange(false);
+          }}
+        >
+          dialog-remove
+        </button>
+        <button onClick={() => onOpenChange(false)}>dialog-cancel</button>
+      </div>
+    ) : null,
+}));
+
+vi.mock("@/components/arrivo/cost-dialog", () => ({
+  CostDialog: ({ open, onOpenChange, onSave, onRemove }: CostDialogProps) =>
+    open ? (
+      <div>
+        <button
+          onClick={() => {
+            void Promise.resolve(
+              onSave({ category: "food", amount: 199.99, currency: "USD", date: "2026-08-01" })
+            ).catch(() => undefined);
+            onOpenChange(false);
+          }}
+        >
+          dialog-save
+        </button>
+        <button
+          onClick={() => {
+            if (onRemove) {
+              void Promise.resolve(onRemove()).catch(() => undefined);
+            }
+            onOpenChange(false);
+          }}
+        >
+          dialog-remove
+        </button>
+        <button onClick={() => onOpenChange(false)}>dialog-cancel</button>
+      </div>
+    ) : null,
+}));
+
+const populatedReservation: Reservation = {
+  id: "res-1",
+  tripId: "trip-1",
+  type: ReservationType.Lodging,
+  provider: "Grand Hotel",
+  startAt: "2026-08-01T15:00:00.000Z",
+  endAt: "2026-08-05T11:00:00.000Z",
+  startAddress: "123 Airport Rd, New York",
+  startLocationName: "JFK Airport",
+  startLocationLat: 40.6413,
+  startLocationLng: -73.7781,
+  endAddress: "456 Hotel Ave, Paris",
+  endLocationName: "Grand Hotel Paris",
+  endLocationLat: 48.8566,
+  endLocationLng: 2.3522,
+  expense: {
+    id: "expense-1",
+    tripId: "trip-1",
+    reservationId: "res-1",
+    category: "lodging",
+    amount: 499,
+    currency: "USD",
+    date: "2026-08-01",
+  },
+  confirmationCode: "ABC123",
+  notes: "Late checkout requested",
+  documents: [],
+};
+
+const emptyReservation: Reservation = {
+  id: "res-2",
+  tripId: "trip-1",
+  type: ReservationType.Other,
+  provider: "Misc Booking",
+};
+
+const populatedFlightReservation: Reservation = {
+  id: "res-3",
+  tripId: "trip-1",
+  type: ReservationType.Flight,
+  provider: "Acme Air",
+  startAt: "2026-08-01T10:00:00.000Z",
+  endAt: "2026-08-01T12:00:00.000Z",
+  confirmationCode: "ABC123",
+  serviceNumber: "AA123",
+};
+
+const withDocReservation: Reservation = {
+  ...populatedReservation,
+  documents: [
+    {
+      id: "doc-1",
+      name: "confirmation.pdf",
+      kind: "pdf",
+      size: "1 KB",
+      scope: "reservation",
+
+      addedAt: "2026-08-01T00:00:00.000Z",
+    },
+  ],
+};
+
+function getDeleteLabel(reservation: Reservation, position = 1, total = 1): string {
+  const dateRange = formatReservationDateRange(reservation.startAt, reservation.endAt);
+  if (dateRange) return `Delete ${reservation.provider} reservation for ${dateRange}`;
+  return total > 1
+    ? `Delete ${reservation.provider} reservation (${position} of ${total})`
+    : `Delete ${reservation.provider}`;
+}
+
+describe("ReservationRow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(updateReservation).mockResolvedValue(undefined);
+    vi.mocked(createExpense).mockResolvedValue({ id: "expense-new" });
+    vi.mocked(updateExpense).mockResolvedValue(undefined);
+    vi.mocked(deleteExpenseAction).mockResolvedValue(undefined);
+  });
+
+  it("renders all fields with values for a populated reservation", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const provider = screen.getByRole("button", { name: "Grand Hotel" });
+    expect(provider).toBeInTheDocument();
+    expect(provider).toHaveStyle({ fontWeight: 600 });
+
+    const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    expect(screen.getByRole("button", { name: expectedRange })).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: "Check-in · JFK Airport" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "$499.00" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ABC123" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Late checkout requested" })).toBeInTheDocument();
+  });
+
+  it("renders placeholders for a mostly-empty reservation with the generic 'Other' anchor labels", () => {
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    expect(screen.getByRole("button", { name: "Misc Booking" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add dates" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add start" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add end" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add start address" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add end address" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add cost" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add confirmation code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add notes" })).toBeInTheDocument();
+  });
+
+  it("uses the shared placeholder style for the date placeholder button", () => {
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    expect(screen.getByRole("button", { name: "Add dates" })).toHaveStyle({
+      color: PLACEHOLDER_STYLE.color!,
+      fontSize: "13px",
+      fontStyle: PLACEHOLDER_STYLE.fontStyle!,
+    });
+  });
+
+  describe("editing dates inline", () => {
+    it("saves both start and end when both are valid and closes the editor", async () => {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+      await user.click(screen.getByRole("button", { name: "Add dates" }));
+      await user.type(screen.getByLabelText("Start date"), "2026-08-01");
+      await user.type(screen.getByLabelText("Start time"), "10:00");
+      await user.type(screen.getByLabelText("End date"), "2026-08-02");
+      await user.type(screen.getByLabelText("End time"), "12:00");
+      await user.tab();
+
+      expect(updateReservation).toHaveBeenCalledWith("res-2", {
+        startAt: "2026-08-01T10:00:00.000Z",
+        endAt: "2026-08-02T12:00:00.000Z",
+      });
+      expect(screen.queryByLabelText("Start date")).not.toBeInTheDocument();
+    });
+
+    it("saves a valid start change even when the end draft is incomplete, without closing the editor", async () => {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+      await user.click(screen.getByRole("button", { name: "Add dates" }));
+      await user.type(screen.getByLabelText("Start date"), "2026-08-01");
+      await user.type(screen.getByLabelText("Start time"), "10:00");
+      await user.type(screen.getByLabelText("End date"), "2026-08-02");
+      await user.tab();
+      await user.tab();
+
+      expect(updateReservation).toHaveBeenCalledWith("res-2", {
+        startAt: "2026-08-01T10:00:00.000Z",
+      });
+      expect(screen.getByText("Enter both a date and a time.")).toBeInTheDocument();
+      expect(screen.getByLabelText("Start date")).toBeInTheDocument();
+    });
+
+    it("blocks saving either anchor when the end is before the start", async () => {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+      await user.click(screen.getByRole("button", { name: "Add dates" }));
+      await user.type(screen.getByLabelText("Start date"), "2026-08-02");
+      await user.type(screen.getByLabelText("Start time"), "10:00");
+      await user.type(screen.getByLabelText("End date"), "2026-08-01");
+      await user.type(screen.getByLabelText("End time"), "09:00");
+      await user.tab();
+
+      expect(updateReservation).not.toHaveBeenCalled();
+      expect(screen.getByText("End must be after start.")).toBeInTheDocument();
+    });
+  });
+
+  it("renders a confirmation-code chip with the wallet icon when present", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const chip = screen.getByRole("button", { name: "ABC123" });
+    expect(chip).toBeInTheDocument();
+    expect(chip.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("updates only the provider's displayed value after a successful edit, leaving other fields unchanged", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Grand Hotel" }));
+    const input = screen.getByRole("textbox", { name: "Provider" });
+    await user.clear(input);
+    await user.type(input, "New Hotel Name");
+    await user.keyboard("{Enter}");
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", { provider: "New Hotel Name" });
+    expect(await screen.findByRole("button", { name: "New Hotel Name" })).toBeInTheDocument();
+
+    const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    expect(screen.getByRole("button", { name: expectedRange })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ABC123" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Late checkout requested" })).toBeInTheDocument();
+  });
+
+  it("trims surrounding whitespace from the provider's displayed value after a successful edit", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Grand Hotel" }));
+    const input = screen.getByRole("textbox", { name: "Provider" });
+    await user.clear(input);
+    await user.type(input, "  Trimmed Hotel  ");
+    await user.keyboard("{Enter}");
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", { provider: "Trimmed Hotel" });
+    expect(await screen.findByRole("button", { name: "Trimmed Hotel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "  Trimmed Hotel  " })).not.toBeInTheDocument();
+  });
+
+  it("clicking the date range enters edit mode with direct date/time inputs", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    await user.click(screen.getByRole("button", { name: expectedRange }));
+
+    expect(screen.getByLabelText("Check-in date")).toBeInTheDocument();
+    expect(screen.getByLabelText("Check-in time")).toBeInTheDocument();
+    expect(screen.getByLabelText("Check-out date")).toBeInTheDocument();
+    expect(screen.getByLabelText("Check-out time")).toBeInTheDocument();
+  });
+
+  it("populates the date/time drafts with the literal stored digits under a non-UTC viewer timezone", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    try {
+      const user = userEvent.setup();
+      render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+      const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+      await user.click(screen.getByRole("button", { name: expectedRange }));
+
+      expect(screen.getByLabelText("Check-in date")).toHaveValue("2026-08-01");
+      expect(screen.getByLabelText("Check-in time")).toHaveValue("15:00");
+      expect(screen.getByLabelText("Check-out date")).toHaveValue("2026-08-05");
+      expect(screen.getByLabelText("Check-out time")).toHaveValue("11:00");
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  it("clicking away collapses back to the combined date range display", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />
+        <button type="button">Outside</button>
+      </div>
+    );
+
+    const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    await user.click(screen.getByRole("button", { name: expectedRange }));
+    await user.click(screen.getByRole("button", { name: "Outside" }));
+
+    expect(screen.getByRole("button", { name: expectedRange })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Check-in date")).not.toBeInTheDocument();
+  });
+
+  it("clicking away saves updated startAt and collapses to combined view", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />
+        <button type="button">Outside</button>
+      </div>
+    );
+
+    const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    await user.click(screen.getByRole("button", { name: expectedRange }));
+
+    const timeInput = screen.getByLabelText("Check-in time");
+    await user.clear(timeInput);
+    await user.type(timeInput, "10:00");
+    await user.click(screen.getByRole("button", { name: "Outside" }));
+
+    const expectedIso = "2026-08-01T10:00:00.000Z";
+    expect(updateReservation).toHaveBeenCalledWith("res-1", { startAt: expectedIso });
+
+    const newRange = formatReservationDateRange(expectedIso, populatedReservation.endAt);
+    expect(await screen.findByRole("button", { name: newRange })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Check-in date")).not.toBeInTheDocument();
+  });
+
+  it("clicking the start address chip opens a dialog with the correct title", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
+
+    expect(screen.getByTestId("dialog-title")).toHaveTextContent("Check-in address");
+  });
+
+  it("clicking the end address chip opens a dialog with the correct title", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" }));
+
+    expect(screen.getByTestId("dialog-title")).toHaveTextContent("Check-out address");
+  });
+
+  it("updates startAddress after saving through the dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", {
+      startAddress: "Updated value",
+      startLocationName: "Updated place",
+      startLocationLat: 40.7128,
+      startLocationLng: -74.006,
+    });
+    expect(screen.getByRole("button", { name: "Check-in · Updated place" })).toBeInTheDocument();
+  });
+
+  it("clears startAddress when Remove is clicked in the dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
+    await user.click(screen.getByRole("button", { name: "dialog-remove" }));
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", { startAddress: "" });
+    expect(screen.getByRole("button", { name: "Add check-in address" })).toBeInTheDocument();
+  });
+
+  it("updates endAddress after saving through the dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", {
+      endAddress: "Updated value",
+      endLocationName: "Updated place",
+      endLocationLat: 40.7128,
+      endLocationLng: -74.006,
+    });
+    expect(screen.getByRole("button", { name: "Check-out · Updated place" })).toBeInTheDocument();
+  });
+
+  it("updates linked expense after saving through the cost dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "$499.00" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    expect(updateExpense).toHaveBeenCalledWith(
+      "expense-1",
+      expect.objectContaining({
+        reservationId: "res-1",
+        category: "food",
+        amount: 199.99,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "$199.99",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("clears linked expense when Remove is clicked in the cost dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "$499.00" }));
+    await user.click(screen.getByRole("button", { name: "dialog-remove" }));
+
+    expect(deleteExpenseAction).toHaveBeenCalledWith("expense-1");
+    expect(screen.getByRole("button", { name: "Add cost" })).toBeInTheDocument();
+  });
+
+  it("shows the saved expense currency on the reservation cost chip", () => {
+    render(
+      <ReservationRow
+        reservation={{
+          ...populatedReservation,
+          expense: {
+            ...populatedReservation.expense!,
+            currency: "AED",
+            amount: 499,
+          },
+        }}
+        type={ReservationType.Lodging}
+        isLast={false}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "AED 499.00" })).toBeInTheDocument();
+  });
+
+  it("updates confirmation code after saving through the dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "ABC123" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", { confirmationCode: "Updated value" });
+    expect(screen.getByRole("button", { name: "Updated value" })).toBeInTheDocument();
+  });
+
+  it("shows a toast when a dialog save fails with an Error", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("shows a generic toast when a dialog save fails with a non-Error", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce("oops");
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Failed to save."));
+  });
+
+  it("shows a toast when saving the end address dialog fails", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("shows a toast when saving the cost dialog fails", async () => {
+    vi.mocked(updateExpense).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "$499.00" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("shows a toast when saving the confirmation code dialog fails", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "ABC123" }));
+    await user.click(screen.getByRole("button", { name: "dialog-save" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("does not render a service number field for a reservation type with no label (lodging)", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.queryByRole("button", { name: "Flight number" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add .* number/ })).not.toBeInTheDocument();
+  });
+
+  it("renders a placeholder in the title to add a flight number when absent for a flight reservation", () => {
+    render(
+      <ReservationRow
+        reservation={{ ...populatedFlightReservation, serviceNumber: undefined }}
+        type={ReservationType.Flight}
+        isLast={false}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Add flight number" })).toBeInTheDocument();
+  });
+
+  it("renders the flight number in the title alongside the provider when present", () => {
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    const provider = screen.getByRole("button", { name: "Acme Air" });
+    const serviceNumber = screen.getByRole("button", { name: "AA123" });
+    expect(provider).toBeInTheDocument();
+    expect(serviceNumber).toBeInTheDocument();
+    expect(serviceNumber).toHaveStyle({ fontWeight: 600 });
+  });
+
+  it("updates the flight number after an inline edit", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "AA123" }));
+    const input = screen.getByRole("textbox", { name: "Flight number" });
+    await user.clear(input);
+    await user.type(input, "DL456");
+    await user.keyboard("{Enter}");
+
+    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: "DL456" });
+    expect(await screen.findByRole("button", { name: "DL456" })).toBeInTheDocument();
+  });
+
+  it("clears the flight number after an inline edit to an empty value", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "AA123" }));
+    const input = screen.getByRole("textbox", { name: "Flight number" });
+    await user.clear(input);
+    await user.keyboard("{Enter}");
+
+    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: undefined });
+    expect(await screen.findByRole("button", { name: "Add flight number" })).toBeInTheDocument();
+  });
+
+  it("shows a toast when saving the flight number inline edit fails", async () => {
+    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "AA123" }));
+    const input = screen.getByRole("textbox", { name: "Flight number" });
+    await user.clear(input);
+    await user.type(input, "DL456");
+    await user.keyboard("{Enter}");
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+  });
+
+  it("updates notes after a successful inline edit", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Late checkout requested" }));
+    const notesInput = screen.getByRole("textbox", { name: "Notes" });
+    await user.clear(notesInput);
+    await user.type(notesInput, "Updated notes");
+    await user.tab();
+
+    expect(updateReservation).toHaveBeenCalledWith("res-1", { notes: "Updated notes" });
+    expect(await screen.findByRole("button", { name: "Updated notes" })).toBeInTheDocument();
+  });
+
+  it("disambiguates delete button labels when providers share a name", () => {
+    const secondReservation = {
+      ...populatedReservation,
+      id: "res-4",
+      startAt: "2026-08-06T15:00:00.000Z",
+      endAt: "2026-08-07T11:00:00.000Z",
+    };
+
+    render(
+      <div>
+        <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />
+        <ReservationRow reservation={secondReservation} type={ReservationType.Lodging} isLast />
+      </div>
+    );
+
+    const firstRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    const secondRange = formatReservationDateRange(secondReservation.startAt, secondReservation.endAt);
+
+    expect(
+      screen.getByRole("button", { name: `Delete Grand Hotel reservation for ${firstRange}` })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Delete Grand Hotel reservation for ${secondRange}` })
+    ).toBeInTheDocument();
+  });
+
+  it("disambiguates delete button labels for dateless reservations sharing a provider", () => {
+    const firstDateless = { ...populatedReservation, id: "res-5", startAt: undefined, endAt: undefined };
+    const secondDateless = { ...populatedReservation, id: "res-6", startAt: undefined, endAt: undefined };
+
+    render(
+      <div>
+        <ReservationRow
+          reservation={firstDateless}
+          type={ReservationType.Lodging}
+          isLast={false}
+          position={1}
+          total={2}
+        />
+        <ReservationRow reservation={secondDateless} type={ReservationType.Lodging} isLast position={2} total={2} />
+      </div>
+    );
+
+    expect(screen.getByRole("button", { name: "Delete Grand Hotel reservation (1 of 2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Grand Hotel reservation (2 of 2)" })).toBeInTheDocument();
+  });
+
+  it("keeps the plain delete label for a single dateless reservation", () => {
+    const dateless = { ...populatedReservation, startAt: undefined, endAt: undefined };
+    render(<ReservationRow reservation={dateless} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByRole("button", { name: "Delete Grand Hotel" })).toBeInTheDocument();
+  });
+
+  it("opens the delete confirmation dialog when the delete button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
+
+    expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
+  });
+
+  it("closes the dialog without calling deleteReservation when dismissed", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
+    expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "dismiss-dialog" }));
+
+    expect(screen.queryByText(/Delete\s+Grand Hotel\?/)).not.toBeInTheDocument();
+    expect(deleteReservation).not.toHaveBeenCalled();
+  });
+
+  it("calls deleteReservation with the reservation id when confirmed", async () => {
+    vi.mocked(deleteReservation).mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(deleteReservation).toHaveBeenCalledWith("res-1");
+  });
+
+  it("ignores a second inline date-save blur while the first save is still in flight", async () => {
+    let resolveUpdate: (() => void) | undefined;
+    vi.mocked(updateReservation).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUpdate = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />
+        <button type="button">Outside</button>
+      </div>
+    );
+
+    const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
+    await user.click(screen.getByRole("button", { name: expectedRange }));
+    const timeInput = screen.getByLabelText("Check-in time");
+    await user.clear(timeInput);
+    await user.type(timeInput, "10:00");
+
+    const outsideButton = screen.getByRole("button", { name: "Outside" });
+    fireEvent.blur(timeInput, { relatedTarget: outsideButton });
+    fireEvent.blur(timeInput, { relatedTarget: outsideButton });
+
+    expect(updateReservation).toHaveBeenCalledTimes(1);
+
+    resolveUpdate?.();
+    const nextRange = formatReservationDateRange("2026-08-01T10:00:00.000Z", populatedReservation.endAt);
+    await waitFor(() => expect(screen.getByRole("button", { name: nextRange })).toBeInTheDocument());
+  });
+
+  it("closes the dialog after a successful delete", async () => {
+    vi.mocked(deleteReservation).mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await vi.waitFor(() => {
+      expect(screen.queryByText(/Delete\s+Grand Hotel\?/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows a toast error and keeps the dialog open when deleteReservation throws", async () => {
+    vi.mocked(deleteReservation).mockRejectedValueOnce(new Error("Network error"));
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await vi.waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Network error"));
+    expect(screen.getByText(/Delete\s+Grand Hotel\?/)).toBeInTheDocument();
+  });
+
+  it("shows an 'Attach' chip when there are no documents", () => {
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    expect(screen.getByRole("button", { name: "Attach" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /doc/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the AddReservationDocDialog when the 'Attach' chip is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
+
+    expect(screen.queryByTestId("add-doc-dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Attach" }));
+
+    expect(screen.getByTestId("add-doc-dialog")).toHaveTextContent("res-2");
+  });
+
+  it("shows a docs count chip instead of the Attach chip when documents exist", () => {
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByRole("button", { name: /doc/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Attach" })).not.toBeInTheDocument();
+  });
+
+  it("does not show the ReservationDocsBlock until the docs chip is expanded", () => {
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.queryByText("confirmation.pdf")).not.toBeInTheDocument();
+  });
+
+  it("expands the ReservationDocsBlock when the docs chip is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const docsChip = screen.getByRole("button", { name: /doc/i });
+    expect(docsChip).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(docsChip);
+
+    expect(docsChip).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("confirmation.pdf")).toBeInTheDocument();
+  });
+
+  it("collapses the ReservationDocsBlock when the docs chip is clicked again", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const docsChip = screen.getByRole("button", { name: /doc/i });
+    await user.click(docsChip);
+    expect(screen.getByText("confirmation.pdf")).toBeInTheDocument();
+
+    await user.click(docsChip);
+
+    expect(screen.queryByText("confirmation.pdf")).not.toBeInTheDocument();
+  });
+
+  it("opens the AddReservationDocDialog from the 'Add doc' button inside the expanded block", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={withDocReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: /doc/i }));
+    expect(screen.queryByTestId("add-doc-dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add doc" }));
+
+    expect(screen.getByTestId("add-doc-dialog")).toHaveTextContent("res-1");
+  });
+
+  it("exposes a stable, focusable scroll/highlight target keyed by reservation id", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    const root = screen.getByTestId("reservation-row-res-1");
+    expect(root).toHaveAttribute("id", "reservation-res-1");
+    expect(root).toHaveAttribute("tabIndex", "-1");
+  });
+
+  it("applies a non-color-only highlight affordance when highlighted is true", () => {
+    render(
+      <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} highlighted />
+    );
+
+    expect(screen.getByTestId("reservation-row-res-1")).toHaveStyle({ outline: "2px solid var(--accent-brand)" });
+  });
+
+  it("does not apply the highlight affordance by default", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByTestId("reservation-row-res-1")).not.toHaveStyle({ outline: "2px solid var(--accent-brand)" });
+  });
+
+  it("applies the background pulse animation class when highlighted is true", () => {
+    render(
+      <ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} highlighted />
+    );
+
+    expect(screen.getByTestId("reservation-row-res-1")).toHaveClass("highlight-pulse-bg");
+  });
+
+  it("does not apply the background pulse animation class by default", () => {
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    expect(screen.getByTestId("reservation-row-res-1")).not.toHaveClass("highlight-pulse-bg");
+  });
+});

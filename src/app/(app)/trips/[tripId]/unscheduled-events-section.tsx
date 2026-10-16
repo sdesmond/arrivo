@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { PlaceRow } from "@/components/packt/place-row";
+import { PlaceRow } from "@/components/arrivo/place-row";
 import type { Document, TripEvent } from "@/data/types";
 import { formatDate, pluralize } from "@/lib/utils";
 

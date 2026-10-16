@@ -1,24 +1,24 @@
 # Local development database only (used by setup-dev --db=docker). The app runs on the host via
 # `npm run dev`. A named volume, not a bind mount, so Postgres works on Docker Desktop for Windows/macOS.
 # Own project name so it never shares containers with docker-compose.yml run from the same folder.
-name: packt-dev
+name: arrivo-dev
 
 services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: packt
-      POSTGRES_PASSWORD: packt
-      POSTGRES_DB: packt
+      POSTGRES_USER: arrivo
+      POSTGRES_PASSWORD: arrivo
+      POSTGRES_DB: arrivo
     volumes:
-      - packt-dev-pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     ports:
       # 5433, not 5432: a host Postgres usually owns 5432 and would silently win `localhost` connections.
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d packt -U packt"]
+      test: ["CMD-SHELL", "pg_isready -d arrivo -U arrivo"]
       interval: 5s
       retries: 10
 
 volumes:
-  packt-dev-pgdata:
+  pgdata:

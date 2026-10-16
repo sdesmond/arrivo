@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 describe("feature-map consistency", async () => {
   const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
   const FEATURES_DIR = join(ROOT, "tests", "e2e", "features");
-  const PACKT_DIR = join(ROOT, "src", "components", "packt");
+  const ARRIVO_DIR = join(ROOT, "src", "components", "arrivo");
   const APP_DIR = join(ROOT, "src", "app", "(app)");
 
   const { matchesAnyGlob } = await import("./affected-e2e.mjs");
@@ -55,13 +55,13 @@ describe("feature-map consistency", async () => {
     expect(tags).toEqual(expectedTags);
   });
 
-  it("no packt component is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
-    const orphans = readdirSync(PACKT_DIR)
+  it("no arrivo component is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
+    const orphans = readdirSync(ARRIVO_DIR)
       .filter((name) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name))
-      .filter((name) => !matchesAnyGlob(`src/components/packt/${name}`, mappedOrSharedGlobs));
+      .filter((name) => !matchesAnyGlob(`src/components/arrivo/${name}`, mappedOrSharedGlobs));
     expect(
       orphans,
-      `Unmapped packt components — add each to a feature entry or SHARED_GLOBS in tests/e2e/feature-map.mjs: ${orphans.join(", ")}`
+      `Unmapped arrivo components — add each to a feature entry or SHARED_GLOBS in tests/e2e/feature-map.mjs: ${orphans.join(", ")}`
     ).toEqual([]);
   });
 
@@ -82,10 +82,10 @@ describe("feature-map consistency", async () => {
 
   // Footgun guard: IGNORE_GLOBS must only swallow non-runtime files (docs, unit tests). If an ignore
   // pattern ever matched a real mapped component, that component's edits would silently skip E2E.
-  it("IGNORE_GLOBS never swallows a mapped (non-test) packt component", () => {
-    const swallowed = readdirSync(PACKT_DIR)
+  it("IGNORE_GLOBS never swallows a mapped (non-test) arrivo component", () => {
+    const swallowed = readdirSync(ARRIVO_DIR)
       .filter((name) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name))
-      .filter((name) => matchesAnyGlob(`src/components/packt/${name}`, IGNORE_GLOBS));
+      .filter((name) => matchesAnyGlob(`src/components/arrivo/${name}`, IGNORE_GLOBS));
     expect(swallowed, `IGNORE_GLOBS matches runtime components (they would skip E2E): ${swallowed.join(", ")}`).toEqual(
       []
     );

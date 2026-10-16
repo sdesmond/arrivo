@@ -144,7 +144,7 @@ Then("I can rescind the expired pending sharing invitation", async ({ page }) =>
   await expect(page.getByTitle(`Rescind invitation to ${EXPIRED_PENDING_EMAIL}`)).toBeEnabled();
 });
 
-Given("there is a Packt user I can invite", async ({ scenario }) => {
+Given("there is a registered user I can invite", async ({ scenario }) => {
   const { user } = await scenario.materialize({
     user: { overrides: { user: { name: "Invitable Person", initials: "IP" } }, setCurrent: false },
   });

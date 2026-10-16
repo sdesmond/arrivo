@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
-import { Section } from "@/components/packt/form-section";
+import { Section } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { addCompanion } from "./actions";

@@ -7,7 +7,7 @@ import { E2E_TRIP_START_DATE, THREE_DAY_TRIP_MOTHER, cloneTripMother, cloneUserM
 
 // Self-tests for the scenario-fixture infrastructure (mothers, unique naming, materialize/cleanup).
 // These run as their own Playwright project (see playwright.config.ts) rather than a second Vitest
-// process: the DB-backed cases need the live packt_e2e schema, and running them under Playwright —
+// process: the DB-backed cases need the live arrivo_e2e schema, and running them under Playwright —
 // after global-setup has migrated and seeded the DB — keeps them out of the hermetic unit/coverage
 // Vitest run and avoids two concurrent Vitest processes racing Vite's shared temp dir.
 test.describe("E2E scenario fixtures", () => {
@@ -31,7 +31,7 @@ test.describe("E2E scenario fixtures", () => {
 
     expect(firstName).not.toBe(secondName);
     expect(firstEmail).not.toBe(secondEmail);
-    expect(firstEmail).toMatch(/@packt\.local$/);
+    expect(firstEmail).toMatch(/@arrivo\.com$/);
 
     await cleanupScenarioFixtureContext(context);
   });
@@ -39,7 +39,7 @@ test.describe("E2E scenario fixtures", () => {
   test("materializes scenario-owned rows and cleans up only owned rows", async () => {
     const context = createScenarioFixtureContext(test.info());
     const foreignUser = cloneUserMother("default");
-    const foreignEmail = `foreign-${Date.now()}@packt.local`;
+    const foreignEmail = `foreign-${Date.now()}@arrivo.com`;
 
     const [foreignRow] = await withE2EDb(async (db) =>
       db

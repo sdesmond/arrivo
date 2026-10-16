@@ -36,7 +36,7 @@ jobs:
       - id: app-meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/sdesmond/packt
+          images: ghcr.io/sdesmond/arrivo
           flavor: latest=false
           tags: |
             type=semver,pattern={{version}}
@@ -47,7 +47,7 @@ jobs:
       - id: migrate-meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/sdesmond/packt-migrate
+          images: ghcr.io/sdesmond/arrivo-migrate
           flavor: latest=false
           tags: |
             type=semver,pattern={{version}}

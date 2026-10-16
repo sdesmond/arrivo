@@ -30,7 +30,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Packt extended tokens */
+  /* Arrivo extended tokens */
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -103,7 +103,7 @@
   --fs-nav-badge: 11px;
   /* sidebar nav count badge */
 
-  /* Packt design tokens — light */
+  /* Arrivo design tokens — light */
   --bg: #ffffff;
   --surface: #f6f6f4;
   --surface-2: #efefec;
@@ -140,7 +140,7 @@
   --shadow-2: 0 1px 0 rgba(0, 0, 0, 0.02), 0 6px 24px rgba(0, 0, 0, 0.06);
   --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
 
-  /* shadcn semantic tokens — Packt values */
+  /* shadcn semantic tokens — Arrivo values */
   --background: #ffffff;
   --foreground: #131311;
   --card: #ffffff;
@@ -199,7 +199,7 @@ html[data-font-size="large"] {
 
 /* ─── Dark theme ─── */
 .dark {
-  /* Packt design tokens — dark */
+  /* Arrivo design tokens — dark */
   --bg: #0e1014;
   --surface: #161922;
   --surface-2: #1d212c;

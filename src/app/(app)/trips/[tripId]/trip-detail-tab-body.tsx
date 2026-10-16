@@ -3,12 +3,12 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { TripItineraryView } from "./trip-itinerary-view";
-import { TripDocsTab } from "@/components/packt/trip-docs-tab";
-import { TripBudgetTab } from "@/components/packt/trip-budget-tab";
-import { PackingListsView } from "@/components/packt/packing-lists-view";
-import { ReservationsTab } from "@/components/packt/reservations-tab";
-import { MapTab } from "@/components/packt/map-tab";
-import { TripNotesTab } from "@/components/packt/trip-notes-tab";
+import { TripDocsTab } from "@/components/arrivo/trip-docs-tab";
+import { TripBudgetTab } from "@/components/arrivo/trip-budget-tab";
+import { PackingListsView } from "@/components/arrivo/packing-lists-view";
+import { ReservationsTab } from "@/components/arrivo/reservations-tab";
+import { MapTab } from "@/components/arrivo/map-tab";
+import { TripNotesTab } from "@/components/arrivo/trip-notes-tab";
 import { TransitMode } from "@/data/types";
 import type {
   DayItinerary,

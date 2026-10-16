@@ -9,7 +9,7 @@ function baseWorld(): SeedWorld {
     users: [
       {
         key: "owner",
-        email: "owner@packt.local",
+        email: "owner@arrivo.com",
         name: "Owner",
         initials: "OW",
         currency: "USD",
@@ -17,7 +17,7 @@ function baseWorld(): SeedWorld {
       },
       {
         key: "other",
-        email: "other@packt.local",
+        email: "other@arrivo.com",
         name: "Other",
         initials: "OT",
         currency: "USD",
@@ -41,9 +41,9 @@ describe("validateSeedWorld — the real dev seed", () => {
   it("seeds three accounts", () => {
     expect(DEV_SEED.users).toHaveLength(3);
     expect(DEV_SEED.users.map((seedUser) => seedUser.email).sort()).toEqual([
-      "alex@packt.local",
-      "demo@packt.local",
-      "sam@packt.local",
+      "alex@arrivo.com",
+      "demo@arrivo.com",
+      "sam@arrivo.com",
     ]);
   });
 
@@ -85,9 +85,9 @@ describe("validateSeedWorld — the real dev seed", () => {
     const pending = DEV_SEED.invitations.find((invitation) => invitation.status === "pending")!;
     const declined = DEV_SEED.invitations.find((invitation) => invitation.status === "declined")!;
 
-    expect(pending.email).toBe("sam@packt.local");
+    expect(pending.email).toBe("sam@arrivo.com");
     expect(DEV_SEED.users.some((seedUser) => seedUser.email === pending.email)).toBe(true);
-    expect(declined.email).toBe("jordan@packt.local");
+    expect(declined.email).toBe("jordan@arrivo.com");
     expect(DEV_SEED.users.some((seedUser) => seedUser.email === declined.email)).toBe(false);
   });
 

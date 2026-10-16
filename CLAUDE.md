@@ -1,3 +1,3 @@
-# Packt — Claude Code Instructions
+# Arrivo — Claude Code Instructions
 
 @AGENTS.md

@@ -1,5 +1,5 @@
 // =============================================================================
-// Canonical data model for Packt.
+// Canonical data model for Arrivo.
 //
 // All domain types live here. Data files import from this module;
 // components import types from here or re-exported from their data file.
@@ -216,7 +216,7 @@ export interface Companion {
   passportExpiry?: string;
   passportNationality?: string;
   knownTravelerNumber?: string;
-  packtUsername?: string;
+  username?: string;
   position: number;
 }
 
@@ -232,7 +232,7 @@ export interface UpdateCompanionPatch {
   passportExpiry?: string;
   passportNationality?: string;
   knownTravelerNumber?: string;
-  packtUsername?: string;
+  username?: string;
 }
 
 export const ProfileSection = {

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { X, Plus, Copy, Check } from "lucide-react";
-import { Section } from "@/components/packt/form-section";
+import { Section } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { addLoyaltyNumber, deleteLoyaltyNumber } from "./actions";
 import type { LoyaltyNumber } from "@/data/types";

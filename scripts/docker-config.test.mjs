@@ -20,20 +20,20 @@ describe("docker-compose.yml (self-hosting stack)", () => {
     const db = serviceBlock(compose, "db");
     expect(db).toContain("image: postgres:17-alpine");
     expect(db).toContain("restart: unless-stopped");
-    expect(db).toContain("pg_isready -d packt -U packt");
+    expect(db).toContain("pg_isready -d arrivo -U arrivo");
   });
 
-  it("stores data in host bind mounts under PACKT_DATA_DIR", () => {
-    expect(serviceBlock(compose, "db")).toContain("${PACKT_DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data");
-    expect(serviceBlock(compose, "app")).toContain("${PACKT_DATA_DIR:-./data}/storage:/app/storage");
+  it("stores data in host bind mounts under DATA_DIR", () => {
+    expect(serviceBlock(compose, "db")).toContain("${DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data");
+    expect(serviceBlock(compose, "app")).toContain("${DATA_DIR:-./data}/storage:/app/storage");
     expect(compose).not.toMatch(/^volumes:/m);
   });
 
   it("pulls published images at a configurable version instead of building", () => {
     const migrate = serviceBlock(compose, "migrate");
     const app = serviceBlock(compose, "app");
-    expect(migrate).toContain("image: ghcr.io/sdesmond/packt-migrate:${PACKT_VERSION:-latest}");
-    expect(app).toContain("image: ghcr.io/sdesmond/packt:${PACKT_VERSION:-latest}");
+    expect(migrate).toContain("image: ghcr.io/sdesmond/arrivo-migrate:${VERSION:-latest}");
+    expect(app).toContain("image: ghcr.io/sdesmond/arrivo:${VERSION:-latest}");
     expect(compose).not.toMatch(/^\s+build:/m);
   });
 
@@ -54,9 +54,9 @@ describe("docker-compose.build.yml (build-from-source override)", () => {
   it("builds both targets from the repo under local image tags", () => {
     const migrate = serviceBlock(compose, "migrate");
     const app = serviceBlock(compose, "app");
-    expect(migrate).toContain("image: packt-migrate:local");
+    expect(migrate).toContain("image: arrivo-migrate:local");
     expect(migrate).toContain("target: tools");
-    expect(app).toContain("image: packt-app:local");
+    expect(app).toContain("image: arrivo-app:local");
     expect(app).toContain("target: runner");
   });
 });
@@ -77,8 +77,8 @@ describe("publish-images workflow", () => {
   });
 
   it("builds both images for amd64 and arm64", () => {
-    expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/packt$/m);
-    expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/packt-migrate$/m);
+    expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/arrivo$/m);
+    expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/arrivo-migrate$/m);
     expect(workflow).toContain("target: runner");
     expect(workflow).toContain("target: tools");
     expect(workflow.match(/platforms: linux\/amd64,linux\/arm64/g)).toHaveLength(2);
@@ -89,7 +89,7 @@ describe("docker-compose.dev.yml (local dev database)", () => {
   const compose = readRootFile("docker-compose.dev.yml");
 
   it("uses its own project name so it never replaces the self-hosting stack's db", () => {
-    expect(compose).toMatch(/^name: packt-dev$/m);
+    expect(compose).toMatch(/^name: arrivo-dev$/m);
   });
 
   it("uses the same Postgres major as the self-hosting stack", () => {
@@ -99,8 +99,8 @@ describe("docker-compose.dev.yml (local dev database)", () => {
   it("publishes 5433 (not 5432, which a host Postgres usually owns) and keeps data in a named volume", () => {
     const db = serviceBlock(compose, "db");
     expect(db).toContain('"5433:5432"');
-    expect(db).toContain("packt-dev-pgdata:/var/lib/postgresql/data");
-    expect(compose).toMatch(/^volumes:\n  packt-dev-pgdata:/m);
+    expect(db).toContain("pgdata:/var/lib/postgresql/data");
+    expect(compose).toMatch(/^volumes:\n  pgdata:/m);
   });
 });
 

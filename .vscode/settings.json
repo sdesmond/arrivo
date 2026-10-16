@@ -1,11 +1,5 @@
 {
-    "cSpell.words": [
-        "Packt"
-    ],
-    "cucumber.glue": [
-        "tests/e2e/steps/**/*.ts"
-    ],
-    "cucumber.features": [
-        "tests/e2e/features/**/*.feature"
-    ]
+  "cSpell.words": ["Arrivo"],
+  "cucumber.glue": ["tests/e2e/steps/**/*.ts"],
+  "cucumber.features": ["tests/e2e/features/**/*.feature"]
 }

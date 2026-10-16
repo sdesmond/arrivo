@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-If `packt-build-validator` reports COVERAGE or E2E FAIL with one of these errors, suspect two Vitest processes running at once — NOT a config bug (every suite passes standalone):
+If `build-validator` reports COVERAGE or E2E FAIL with one of these errors, suspect two Vitest processes running at once — NOT a config bug (every suite passes standalone):
 
 - `Coverage must be initialized with a path or an object` (istanbul `getCoverageMapForUncoveredFiles`)
 - every test file showing `(0 test)` / all queued, none executed

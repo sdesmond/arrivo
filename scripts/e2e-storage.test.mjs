@@ -14,7 +14,7 @@ describe("resetE2EStorage", async () => {
   });
 
   function createProjectRoot() {
-    const rootDir = mkdtempSync(join(tmpdir(), "packt-e2e-storage-"));
+    const rootDir = mkdtempSync(join(tmpdir(), "e2e-storage-"));
     tempRoots.push(rootDir);
     return rootDir;
   }

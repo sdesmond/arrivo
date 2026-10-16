@@ -1,6 +1,6 @@
 # Drizzle Workflow
 
-Packt is currently on a pre-release Drizzle workflow.
+Arrivo is currently on a pre-release Drizzle workflow.
 
 ## Current default
 

@@ -1,6 +1,6 @@
 ---
 name: bmad-customize
-description: Authors and updates customization overrides for installed BMad skills. Use when the user says 'customize bmad', 'override a skill', 'change agent behavior', or 'customize a workflow'.
+description: Authors and updates customization overrides for installed BMad skills. Use when the user says 'customize bmad', 'override a skill', 'change agent behavior', or 'customize a workflow'
 ---
 
 # BMad Customize
@@ -13,13 +13,13 @@ When the target's `customize.toml` doesn't expose what the user wants, say so pl
 
 ## Preflight
 
-- No `{project-root}/_bmad/` → BMad isn't installed. Say so, stop.
+- No `{project-root}/_bmad/` → BMad is not set up here. Offer to run the `bmad` skill's setup, installing `bmad` first if you do not have it (`npx skills add bmad-code-org/BMAD-METHOD --skill bmad`). Stop if the user declines.
 - `{project-root}/_bmad/scripts/resolve_customization.py` missing → continue, but Step 6 verify falls back to manual merge.
 - Both present → proceed.
 
 ## Activation
 
-Load `_bmad/config.toml` and `_bmad/config.user.toml` from `{project-root}` for `user_name` (default `BMad`) and `communication_language` (default `English`). Greet. If the user's invocation already names a target skill AND a specific change, jump to Step 3.
+Greet the user. If the user's invocation already names a target skill AND a specific change, jump to Step 3.
 
 ## Step 1: Classify intent
 
@@ -59,7 +59,7 @@ If a team or user override already exists, read it first and summarize what's al
 
 When ambiguous, present both with tradeoff, recommend one, let the user decide.
 
-Intent outside the exposed surface (step logic, ordering, anything not in `customize.toml`): say so; offer `activation_steps_prepend`/`append` or `persistent_facts` as approximations, or recommend `bmad-builder` to create a custom skill.
+Intent outside the exposed surface (step logic, ordering, anything not in `customize.toml`): say so; offer `activation_steps_prepend`/`append` or `persistent_facts` as approximations, or, if the BMad Builder module is installed, recommend `bmad-workflow-builder` to create a custom skill.
 
 ## Step 4: Compose the override
 
@@ -92,7 +92,7 @@ Default by character (policy → team, personal → user), confirm before writin
 4. Verify:
 
    ```
-   uv run {project-root}/_bmad/scripts/resolve_customization.py --skill <install-path> --key <agent-or-workflow>
+   uv run {project-root}/_bmad/scripts/resolve_customization.py --skill <install-path> --project-root {project-root} --key <agent-or-workflow>
    ```
 
    Show the merged output, point out the changed fields.
@@ -114,5 +114,5 @@ Otherwise the skill isn't done — finish or tell the user they're exiting incom
 ## When this skill can't help
 
 - **Central config** (`{project-root}/_bmad/custom/config.toml`) — see the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
-- **Step logic, ordering, behavior not in `customize.toml`** — open a feature request, or use `bmad-builder` to create a custom skill. Offer to help with either.
+- **Step logic, ordering, behavior not in `customize.toml`** — open a feature request, or, if the BMad Builder module is installed, use `bmad-workflow-builder` to create a custom skill. Offer to help with either.
 - **Skills without a `customize.toml`** — not customizable.
