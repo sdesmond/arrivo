@@ -9,7 +9,7 @@ Grep `src/` to check whether test files already exist before flagging a file as 
 Under coverage enforcement (≥95% lines/functions, ≥90% branches):
 
 - `src/lib/**` — utilities and helpers
-- `src/components/packt/**` — all domain components
+- `src/components/arrivo/**` — all domain components
 
 **Excluded from coverage** — no test requirement:
 
@@ -23,7 +23,7 @@ Under coverage enforcement (≥95% lines/functions, ≥90% branches):
 
 **Colocated unit tests for every covered source file**
 
-For each file the plan proposes creating or modifying in `src/lib/**` or `src/components/packt/**`:
+For each file the plan proposes creating or modifying in `src/lib/**` or `src/components/arrivo/**`:
 
 - Does the plan include a step to create or update the colocated test file (`foo.ts` → `foo.test.ts`, `foo.tsx` → `foo.test.tsx`)?
 - If new exported functions, branches, or component props are added, are they mentioned for testing?
@@ -41,7 +41,7 @@ Always BLOCKING if a new or significantly changed user-facing flow has no E2E co
 
 **Test file placement**
 
-- Unit/component tests must be colocated: `src/components/packt/foo.test.tsx` next to `src/components/packt/foo.tsx` — never in a separate `__tests__/` directory.
+- Unit/component tests must be colocated: `src/components/arrivo/foo.test.tsx` next to `src/components/arrivo/foo.tsx` — never in a separate `__tests__/` directory.
 - E2E tests must go in `tests/e2e/features/` (Gherkin) and `tests/e2e/steps/` (step definitions).
 
 Flag wrong placement as BLOCKING.
@@ -62,7 +62,7 @@ Original request: [one-sentence summary]
 
 COVERED FILES
   src/lib/foo.ts                      → test step planned ✓ / MISSING ✗
-  src/components/packt/bar.tsx        → test step planned ✓ / MISSING ✗
+  src/components/arrivo/bar.tsx        → test step planned ✓ / MISSING ✗
 
 NEW USER-FACING FLOWS
   [flow name]                         → E2E planned ✓ / MISSING ✗
@@ -72,7 +72,7 @@ FINDINGS
 [finding]
   Severity: BLOCKING / WARNING
   File: [path]
-  Suggested Fix: [concrete change — e.g., "Add a step: 'Update src/components/packt/event-card.test.tsx to cover the new `compact` prop — test both compact=true and compact=false render output.'" or "Add a .feature file in tests/e2e/features/collaborator-invite.feature covering the invite flow."]
+  Suggested Fix: [concrete change — e.g., "Add a step: 'Update src/components/arrivo/event-card.test.tsx to cover the new `compact` prop — test both compact=true and compact=false render output.'" or "Add a .feature file in tests/e2e/features/collaborator-invite.feature covering the invite flow."]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BLOCKING: N  |  WARNINGS: M

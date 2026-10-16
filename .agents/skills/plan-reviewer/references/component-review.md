@@ -7,7 +7,7 @@ Grep both `src/components/` and `src/app/` to check for existing components befo
 ## Project Component Structure
 
 ```
-src/components/packt/   ← domain components (trip/event/day data, business logic)
+src/components/arrivo/   ← domain components (trip/event/day data, business logic)
 src/components/ui/      ← reusable primitives (no business logic, generic)
 src/app/                ← route-level components (page.tsx, page-client.tsx, etc.)
 ```
@@ -30,7 +30,7 @@ Grep for existing component names and patterns. If a proposed component closely 
 
 **File placement**
 
-- Domain component (receives or renders trip/event/day data, calls domain utilities) → `src/components/packt/`
+- Domain component (receives or renders trip/event/day data, calls domain utilities) → `src/components/arrivo/`
 - Generic primitive (button, badge, dialog shell, list — no business logic) → `src/components/ui/`
 - Flag misplacements.
 
@@ -63,11 +63,11 @@ src/app/(app)/trips/page-client.tsx — 647 lines ✗ TOO LARGE
 PROPOSED COMPONENTS
 
 ComponentName
-  Placement:   ✓ OK / ✗ WRONG — should be in packt/ not ui/ [or vice versa]
+  Placement:   ✓ OK / ✗ WRONG — should be in arrivo/ not ui/ [or vice versa]
   Size:        ✓ OK / ✗ TOO LARGE — suggested split: [SubA, SubB]
   Interface:   ✓ OK / ✗ MISSING ComponentNameProps interface
   use client:  ✓ OK / ✗ MISSING — component has [onClick handlers / useState / etc.]
-  Reuse:       ✓ OK / ✗ DUPLICATE of src/components/packt/existing.tsx
+  Reuse:       ✓ OK / ✗ DUPLICATE of src/components/arrivo/existing.tsx
   Suggested Fix: [concrete change if any field above is ✗]
 
 [repeat for each proposed component]

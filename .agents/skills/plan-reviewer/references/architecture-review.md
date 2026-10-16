@@ -1,6 +1,6 @@
 # Architecture Review
 
-Assess the structural decisions in the plan against Packt's architecture invariants. Flag anything that would require significant rework post-implementation. Grep the codebase to verify whether utilities, types, or components already exist before flagging duplication.
+Assess the structural decisions in the plan against Arrivo's architecture invariants. Flag anything that would require significant rework post-implementation. Grep the codebase to verify whether utilities, types, or components already exist before flagging duplication.
 
 ## Project Architecture Context
 

@@ -1,0 +1,11 @@
+# Agent customization surface for plan-reviewer.
+# Team overrides:     {project-root}/_bmad/custom/plan-reviewer.toml
+# Personal overrides: {project-root}/_bmad/custom/plan-reviewer.user.toml
+
+[agent]
+code = "plan-reviewer"
+name = "Plan Reviewer"
+title = "Plan Quality Reviewer"
+icon = "🔍"
+description = "Reviews Arrivo planning artifacts for scope, architecture, component, accessibility, and test issues before implementation."
+agent_type = "stateless"
