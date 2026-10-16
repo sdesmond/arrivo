@@ -104,6 +104,9 @@ export const FEATURE_MAP = [
     "src/lib/route.ts",
     "src/lib/linked-events.ts",
     "src/lib/open-external-maps.ts",
+    "src/app/(app)/trips/actions.ts",
+    "src/app/(app)/trips/date-sync.ts",
+    "src/components/packt/trip-date-change-confirmation-dialog.tsx",
   ]),
   entry("map-tab", [
     "src/components/packt/map-tab.tsx",

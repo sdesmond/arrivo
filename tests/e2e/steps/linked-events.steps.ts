@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { asc, eq } from "drizzle-orm";
-import { days } from "../../../src/db/schema";
+import { days, reservations, trips } from "../../../src/db/schema";
 import {
   E2E_TRIP_START_DATE,
   E2E_TRIP_SECOND_DATE,
@@ -380,3 +380,81 @@ Then(
     await expect(row).toBeFocused({ timeout: 10_000 });
   }
 );
+
+Then("the trip edit warning lists the {string} reservation", async ({ page }, provider: string) => {
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(provider)).toBeVisible();
+});
+
+When("I remove the displaced events and reservations", async ({ page }) => {
+  await page.getByRole("button", { name: "Remove All" }).click();
+  await expect(page.getByRole("alertdialog")).not.toBeVisible({ timeout: 10_000 });
+});
+
+async function countReservationsByProvider(tripId: string, provider: string): Promise<number> {
+  return withE2EDb(async (database) => {
+    const rows = await database
+      .select({ provider: reservations.provider })
+      .from(reservations)
+      .where(eq(reservations.tripId, tripId));
+    return rows.filter((row) => row.provider === provider).length;
+  });
+}
+
+Then("the {string} reservation still exists", async ({ scenario }, provider: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Missing current scenario trip.");
+  await expect.poll(() => countReservationsByProvider(currentTrip.id, provider)).toBe(1);
+});
+
+Then("the {string} reservation no longer exists", async ({ scenario }, provider: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Missing current scenario trip.");
+  await expect.poll(() => countReservationsByProvider(currentTrip.id, provider)).toBe(0);
+});
+
+Then("I see the {string} reservation in the Reservations tab", async ({ page }, provider: string) => {
+  const section = page.getByRole("button", { name: /^Lodging, / });
+  await expect(section).toBeVisible({ timeout: 10_000 });
+  if ((await section.getAttribute("aria-expanded")) === "false") {
+    await section.click();
+  }
+  await expect(page.getByText(provider).first()).toBeVisible({ timeout: 10_000 });
+});
+
+When("I move the reservation check-out to two days after the trip's last day", async ({ page }) => {
+  const section = page.getByRole("button", { name: /^Lodging, / });
+  await expect(section).toBeVisible({ timeout: 10_000 });
+  if ((await section.getAttribute("aria-expanded")) === "false") {
+    await section.click();
+  }
+  const row = page.locator('[data-testid^="reservation-row-"]').first();
+  // The row's delete button also carries the date in its label, so anchor on the visible date range.
+  await page
+    .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ })
+    .first()
+    .click();
+  await selectCalendarDate(page, "Check-out date", e2eTripDate(4));
+  // Click a neutral point inside the row so blur saves the dates.
+  await row.click({ position: { x: 8, y: 8 } });
+  await expect(page.getByLabel("Check-out date")).not.toBeVisible({ timeout: 10_000 });
+});
+
+Then("the trip now ends two days after its original last day", async ({ scenario }) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Missing current scenario trip.");
+
+  await expect
+    .poll(async () =>
+      withE2EDb(async (database) => {
+        const [trip] = await database
+          .select({ endDate: trips.endDate })
+          .from(trips)
+          .where(eq(trips.id, currentTrip.id));
+        const tripDays = await database.select({ id: days.id }).from(days).where(eq(days.tripId, currentTrip.id));
+        return { endDate: trip.endDate, dayCount: tripDays.length };
+      })
+    )
+    .toEqual({ endDate: e2eTripDate(4), dayCount: 5 });
+});
