@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 describe("run-e2e helpers", async () => {
-  const { buildRunE2EPlan, buildPlaywrightArgs, isManagedPacktServer, interpretAffectedOutput } =
+  const { buildRunE2EPlan, buildPlaywrightArgs, isManagedAppServer, interpretAffectedOutput } =
     await import("./run-e2e.mjs");
 
   it("defaults to kill mode on port 3001", () => {
@@ -60,16 +60,16 @@ describe("run-e2e helpers", async () => {
     ]);
   });
 
-  it("recognizes a Packt-owned Next server on the target port", () => {
-    const rootDir = "C:/Users/spenc/dev/packt";
+  it("recognizes an Arrivo-owned Next server on the target port", () => {
+    const rootDir = "C:/Users/spenc/dev/arrivo";
 
     expect(
-      isManagedPacktServer(
+      isManagedAppServer(
         {
           pid: 1234,
           name: "node.exe",
           commandLine:
-            '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\spenc\\dev\\packt\\node_modules\\next\\dist\\bin\\next dev -p 3001',
+            '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\spenc\\dev\\arrivo\\node_modules\\next\\dist\\bin\\next dev -p 3001',
         },
         rootDir
       )
@@ -77,15 +77,15 @@ describe("run-e2e helpers", async () => {
   });
 
   it("recognizes Next's start-server.js child even though its command line omits the port", () => {
-    const rootDir = "C:/Users/spenc/dev/packt";
+    const rootDir = "C:/Users/spenc/dev/arrivo";
 
     expect(
-      isManagedPacktServer(
+      isManagedAppServer(
         {
           pid: 4321,
           name: "node.exe",
           commandLine:
-            '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\spenc\\dev\\packt\\node_modules\\next\\dist\\server\\lib\\start-server.js',
+            '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\spenc\\dev\\arrivo\\node_modules\\next\\dist\\server\\lib\\start-server.js',
         },
         rootDir
       )
@@ -93,10 +93,10 @@ describe("run-e2e helpers", async () => {
   });
 
   it("refuses to manage a foreign process on the port", () => {
-    const rootDir = "C:/Users/spenc/dev/packt";
+    const rootDir = "C:/Users/spenc/dev/arrivo";
 
     expect(
-      isManagedPacktServer(
+      isManagedAppServer(
         {
           pid: 5678,
           name: "python.exe",

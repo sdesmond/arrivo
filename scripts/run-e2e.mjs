@@ -84,7 +84,7 @@ function normalizePath(value) {
   return value.replace(/\\/g, "/").toLowerCase();
 }
 
-export function isManagedPacktServer(listener, rootDir) {
+export function isManagedAppServer(listener, rootDir) {
   if (!listener) return false;
 
   const normalizedCommandLine = normalizePath(listener.commandLine ?? "");
@@ -231,22 +231,22 @@ function prepareServerPort({ serverMode, port, rootDir }) {
   }
 
   if (serverMode === SERVER_MODE_REUSE) {
-    if (!isManagedPacktServer(listeningProcess, rootDir)) {
+    if (!isManagedAppServer(listeningProcess, rootDir)) {
       fail(
-        `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to reuse a non-Packt process.`
+        `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to reuse a non-Arrivo process.`
       );
     }
     log(`Reusing existing process ${listeningProcess.pid} on port ${port}.`);
     return;
   }
 
-  if (!isManagedPacktServer(listeningProcess, rootDir)) {
+  if (!isManagedAppServer(listeningProcess, rootDir)) {
     fail(
-      `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to terminate a non-Packt process.`
+      `Port ${port} is occupied by pid ${listeningProcess.pid} (${listeningProcess.name}). Refusing to terminate a non-Arrivo process.`
     );
   }
 
-  log(`Stopping existing Packt server pid ${listeningProcess.pid} on port ${port}.`);
+  log(`Stopping existing Arrivo server pid ${listeningProcess.pid} on port ${port}.`);
   stopListeningProcess(listeningProcess.pid);
   waitForPortToClear(port);
 }

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(SCRIPT_DIR, "..");
-const MARKER_PATH = join(ROOT_DIR, "node_modules", ".cache", "packt-build-validator", "last-pass.json");
+const MARKER_PATH = join(ROOT_DIR, "node_modules", ".cache", "build-validator", "last-pass.json");
 
 const FULL_SCOPE = "full";
 const NONE_SCOPE = "none";

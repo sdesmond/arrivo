@@ -6,35 +6,35 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: packt
-      POSTGRES_PASSWORD: packt
-      POSTGRES_DB: packt
+      POSTGRES_USER: arrivo
+      POSTGRES_PASSWORD: arrivo
+      POSTGRES_DB: arrivo
     volumes:
       # Host folder, so host-level backups see it. Back up with pg_dump, never by copying it live.
-      - ${PACKT_DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data
+      - ${DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d packt -U packt"]
+      test: ["CMD-SHELL", "pg_isready -d arrivo -U arrivo"]
       interval: 5s
       retries: 10
     restart: unless-stopped
 
   # Pre-release bootstrap: pushes the Drizzle schema, then exits. Replaced by tracked migrations later.
   migrate:
-    image: ghcr.io/sdesmond/packt-migrate:${PACKT_VERSION:-latest}
+    image: ghcr.io/sdesmond/arrivo-migrate:${VERSION:-latest}
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://packt:packt@db:5432/packt
+      DATABASE_URL: postgres://arrivo:arrivo@db:5432/arrivo
     restart: "no"
 
   app:
-    image: ghcr.io/sdesmond/packt:${PACKT_VERSION:-latest}
+    image: ghcr.io/sdesmond/arrivo:${VERSION:-latest}
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://packt:packt@db:5432/packt
+      DATABASE_URL: postgres://arrivo:arrivo@db:5432/arrivo
       # Auth.js rejects non-localhost hosts in production unless told to trust the Host header.
       AUTH_TRUST_HOST: "true"
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
@@ -46,8 +46,8 @@ services:
       STORAGE_PROVIDER: local
       STORAGE_LOCAL_ROOT_DIR: /app/storage
     volumes:
-      - ${PACKT_DATA_DIR:-./data}/storage:/app/storage
+      - ${DATA_DIR:-./data}/storage:/app/storage
     ports:
       # Host port is configurable; the container always listens on 3000.
-      - "${PACKT_PORT:-3000}:3000"
+      - "${HOST_PORT:-3000}:3000"
     restart: unless-stopped
