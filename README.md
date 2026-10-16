@@ -1,4 +1,4 @@
-# Packt
+# Arrivo
 
 A travel itinerary planning app built with Next.js (App Router), TypeScript, Tailwind CSS v4, PostgreSQL, and Drizzle ORM.
 
@@ -9,7 +9,7 @@ npm run setup:dev
 npm run dev
 ```
 
-Sign in at [http://localhost:3000](http://localhost:3000) with `demo@packt.local` / `demo1234` (two more seed accounts, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
+Sign in at [http://localhost:3000](http://localhost:3000) with `demo@arrivo.com` / `demo1234` (two more seed accounts, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
 
 `npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the schema, seeds demo data, and installs the Playwright Chromium browser.
 
@@ -31,13 +31,13 @@ For the current Drizzle schema workflow and the planned migration cutover, see *
 
 ## Self-hosting
 
-Packt ships as a Docker Compose stack of prebuilt images and runs on any host with Docker — download one compose file, set two variables, `docker compose up -d`. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
+Arrivo ships as a Docker Compose stack of prebuilt images and runs on any host with Docker — download one compose file, set two variables, `docker compose up -d`. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
 
 To build from source instead, see [Building from source](./docs/building-from-source.md).
 
 ## Storage
 
-Packt stores uploaded documents and trip cover images through a pluggable `StorageAdapter` port (`src/lib/storage/storage-adapter.ts`) instead of calling any storage backend SDK directly. The active backend is chosen by environment variable and is swappable without code changes.
+Arrivo stores uploaded documents and trip cover images through a pluggable `StorageAdapter` port (`src/lib/storage/storage-adapter.ts`) instead of calling any storage backend SDK directly. The active backend is chosen by environment variable and is swappable without code changes.
 
 ### Providers
 
@@ -61,7 +61,7 @@ Set `STORAGE_PROVIDER` and that provider's required env vars, then redeploy — 
 
 ### Local provider
 
-Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and bind-mounts the host folder `${PACKT_DATA_DIR:-./data}/storage` at that path so uploads survive container rebuilds and restarts and are visible to host backups.
+Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and bind-mounts the host folder `${DATA_DIR:-./data}/storage` at that path so uploads survive container rebuilds and restarts and are visible to host backups.
 
 The app container runs as root by default, so it can write to that folder regardless of its owner. If you run it as a non-root `user:`, match the host folder's owner to that UID/GID — an ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
 

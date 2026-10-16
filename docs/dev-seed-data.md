@@ -24,11 +24,11 @@ no matter when you seed.
 
 All three share the password `demo1234`.
 
-| Account            | Name        | Profile                                                                                                                        | Why                                                                                                        |
-| ------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `demo@packt.local` | Demo User   | USD, `MM/DD/YYYY`, passport + known traveler number, 2 loyalty numbers, 2 wishlist destinations, 1 companion, thresholds 80/90 | The primary account — README/SETUP have always pointed here                                                |
-| `alex@packt.local` | Alex Rivera | EUR, `DD/MM/YYYY`, `defaultCoverType: "map"`, 1 loyalty number, thresholds 70/85                                               | Exercises the non-default currency, date format, cover type, and threshold paths                           |
-| `sam@packt.local`  | Sam Chen    | USD, owns no trips                                                                                                             | Receives a pending invitation — exercises the invitee-side pending-invitations flow on `/trips` end to end |
+| Account           | Name        | Profile                                                                                                                        | Why                                                                                                        |
+| ----------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `demo@arrivo.com` | Demo User   | USD, `MM/DD/YYYY`, passport + known traveler number, 2 loyalty numbers, 2 wishlist destinations, 1 companion, thresholds 80/90 | The primary account — README/SETUP have always pointed here                                                |
+| `alex@arrivo.com` | Alex Rivera | EUR, `DD/MM/YYYY`, `defaultCoverType: "map"`, 1 loyalty number, thresholds 70/85                                               | Exercises the non-default currency, date format, cover type, and threshold paths                           |
+| `sam@arrivo.com`  | Sam Chen    | USD, owns no trips                                                                                                             | Receives a pending invitation — exercises the invitee-side pending-invitations flow on `/trips` end to end |
 
 ## Trips
 
@@ -60,8 +60,8 @@ new trip has no cover image yet.
 
 | Email                                   | Role   | Status   | Expires                 |
 | --------------------------------------- | ------ | -------- | ----------------------- |
-| `sam@packt.local`                       | Editor | Pending  | 72h after the seed run  |
-| `jordan@packt.local` (no Packt account) | Viewer | Declined | 24h before the seed run |
+| `sam@arrivo.com`                        | Editor | Pending  | 72h after the seed run  |
+| `jordan@arrivo.com` (no Arrivo account) | Viewer | Declined | 24h before the seed run |
 
 Opening Tokyo's share dialog as Demo renders all three non-creator row states at once: an active collaborator
 (Alex · Editor), a Pending row (Sam), and a Declined row (Jordan) — alongside Demo's own creator row.
