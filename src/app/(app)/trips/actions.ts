@@ -12,6 +12,7 @@ import {
   expenses,
   itineraryNotes,
   itineraryChecklists,
+  reservations,
   users,
   invitations,
 } from "@/db/schema";
@@ -29,14 +30,15 @@ import type {
   LeaveTripResult,
   RescindInvitationResult,
   SaveContributorChangesResult,
+  ReservationType,
   TripDateChangeConfirmation,
-  TripDateConflictResolution,
+  TripDateChangePreviewReservation,
   UpdateTripMetadataResult,
 } from "@/data/types";
-import { CollaboratorRole, TransitMode } from "@/data/types";
+import { CollaboratorRole, TransitMode, TripDateConflictResolution } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import { deriveGraphicCover, detectPreferredCurrency, stableStringify } from "@/lib/utils";
+import { deriveGraphicCover, detectPreferredCurrency, stableStringify, toLocalDateKey } from "@/lib/utils";
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
 import { recalculateAll } from "@/lib/currency";
 import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
@@ -132,11 +134,14 @@ interface RemovedDayContentSummary {
     position: number;
   }[];
   eventDocumentUrls: string[];
+  reservationIds: string[];
+  reservationDocumentUrls: string[];
   requiresConfirmation: boolean;
 }
 
 async function summarizeRemovedDayContent(
   transaction: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tripId: string,
   removedDays: (typeof days.$inferSelect)[]
 ): Promise<RemovedDayContentSummary> {
   const removedDayIds = removedDays.map((day) => day.id);
@@ -184,6 +189,51 @@ async function summarizeRemovedDayContent(
           .from(itineraryChecklists)
           .where(inArray(itineraryChecklists.dayId, removedDayIds));
 
+  const removedDateSet = new Set(removedDays.map((day) => day.date).filter((date): date is string => !!date));
+  const tripReservations =
+    removedDateSet.size === 0
+      ? []
+      : await transaction
+          .select({
+            id: reservations.id,
+            provider: reservations.provider,
+            type: reservations.type,
+            startAt: reservations.startAt,
+            endAt: reservations.endAt,
+          })
+          .from(reservations)
+          .where(eq(reservations.tripId, tripId));
+  const sortedRemovedDates = [...removedDateSet].sort();
+  const affectedReservations: TripDateChangePreviewReservation[] = [];
+  for (const reservation of tripReservations) {
+    const dateKeys = [reservation.startAt, reservation.endAt]
+      .filter((value): value is Date => !!value)
+      .map((value) => toLocalDateKey(value.toISOString()))
+      .sort();
+    if (dateKeys.length === 0) continue;
+    const firstKey = dateKeys[0];
+    const lastKey = dateKeys[dateKeys.length - 1];
+    // A reservation overlaps a removed day when that day sits anywhere in [start, end], not just on an endpoint.
+    const affectedDate = sortedRemovedDates.find((date) => date >= firstKey && date <= lastKey);
+    if (affectedDate) {
+      affectedReservations.push({
+        id: reservation.id,
+        provider: reservation.provider,
+        type: reservation.type as ReservationType,
+        date: affectedDate,
+      });
+    }
+  }
+  const affectedReservationIds = affectedReservations.map((reservation) => reservation.id);
+  const reservationDocs =
+    affectedReservationIds.length === 0
+      ? []
+      : await transaction
+          .select({ eventId: documents.eventId, url: documents.url })
+          .from(documents)
+          .where(inArray(documents.reservationId, affectedReservationIds));
+  affectedReservations.sort((first, second) => first.date.localeCompare(second.date));
+
   const docCountByEventId = new Map<string, number>();
   for (const eventDoc of eventDocs) {
     if (!eventDoc.eventId) continue;
@@ -212,7 +262,8 @@ async function summarizeRemovedDayContent(
       previewEvents,
       dayNotes.length,
       dayChecklists.length,
-      eventDocs.length
+      eventDocs.length,
+      affectedReservations
     ),
     events: removedEvents
       .filter((event): event is { id: string; name: string; dayId: string; position: number } => !!event.dayId)
@@ -230,7 +281,10 @@ async function summarizeRemovedDayContent(
         return first.position - second.position;
       }),
     eventDocumentUrls: eventDocs.map((eventDoc) => eventDoc.url).filter((url): url is string => !!url),
-    requiresConfirmation: removedEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0,
+    reservationIds: affectedReservationIds,
+    reservationDocumentUrls: reservationDocs.map((doc) => doc.url).filter((url): url is string => !!url),
+    requiresConfirmation:
+      removedEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0 || affectedReservations.length > 0,
   };
 }
 
@@ -449,7 +503,7 @@ export async function updateTripMetadata(
     if (isCurrentlyDateless && desiredRange.startDate) {
       const mappedDays = existingDays.slice(0, desiredDayRows.length);
       const overflowDays = existingDays.slice(desiredDayRows.length);
-      const overflowContent = await summarizeRemovedDayContent(transaction, overflowDays);
+      const overflowContent = await summarizeRemovedDayContent(transaction, tripId, overflowDays);
 
       if (overflowContent.requiresConfirmation && !resolution) {
         confirmation = overflowContent.confirmation;
@@ -538,7 +592,7 @@ export async function updateTripMetadata(
     const currentDayByDate = new Map(existingDays.map((day) => [day.date!, day]));
     const removedDays = existingDays.filter((day) => syncPlan.removedDates.includes(day.date!));
     const survivingDays = existingDays.filter((day) => desiredDateSet.has(day.date!));
-    const removedContent = await summarizeRemovedDayContent(transaction, removedDays);
+    const removedContent = await summarizeRemovedDayContent(transaction, tripId, removedDays);
 
     if (removedContent.requiresConfirmation && !resolution) {
       confirmation = removedContent.confirmation;
@@ -574,6 +628,13 @@ export async function updateTripMetadata(
           removedContent.events.map((event) => event.id)
         )
       );
+    }
+
+    if (resolution === TripDateConflictResolution.DeleteEvents && removedContent.reservationIds.length > 0) {
+      eventDocumentUrlsToCleanup = [...eventDocumentUrlsToCleanup, ...removedContent.reservationDocumentUrls];
+      await transaction
+        .delete(reservations)
+        .where(and(eq(reservations.tripId, tripId), inArray(reservations.id, removedContent.reservationIds)));
     }
 
     if (removedDays.length > 0) {

@@ -832,10 +832,18 @@ export interface TripDateChangePreviewEvent {
   docCount: number;
 }
 
+export interface TripDateChangePreviewReservation {
+  id: string;
+  provider: string;
+  type: ReservationType;
+  date: string;
+}
+
 export interface TripDateChangeConfirmation {
   removedDates: string[];
   removedDayLabels?: string[];
   events: TripDateChangePreviewEvent[];
+  reservations?: TripDateChangePreviewReservation[];
   noteCount: number;
   checklistCount: number;
   eventDocumentCount: number;

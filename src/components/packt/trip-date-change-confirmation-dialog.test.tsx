@@ -200,4 +200,78 @@ describe("TripDateChangeConfirmationDialog", () => {
 
     expect(screen.getByText(/Day 3, Day 5/)).toBeInTheDocument();
   });
+
+  it("lists affected reservations and explains keep vs remove", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          reservations: [
+            { id: "res-1", provider: "Delta", type: "flight", date: "2026-06-03" },
+            { id: "res-2", provider: "Hilton", type: "lodging", date: "2026-06-04" },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Delta/)).toBeInTheDocument();
+    expect(screen.getByText(/Hilton/)).toBeInTheDocument();
+    expect(screen.getByText(/stay in the Reservations tab/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /remove all/i })).toBeInTheDocument();
+  });
+
+  it("omits the reservations section when none are affected", () => {
+    render(<TripDateChangeConfirmationDialog {...defaultProps} />);
+    expect(screen.queryByText(/Reservations tab/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^remove events$/i })).toBeInTheDocument();
+  });
+
+  it("uses reservation-only wording when no events, notes or checklists are affected", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-06-03" }],
+        }}
+      />
+    );
+
+    expect(screen.queryByText(/move those events to unscheduled/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/your new trip dates will remove reservations/i)).toBeInTheDocument();
+  });
+
+  it("keeps the event wording when events are affected alongside reservations", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-06-03", docCount: 0 }],
+          reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-06-03" }],
+        }}
+      />
+    );
+
+    expect(screen.getByText(/move those events to unscheduled/i)).toBeInTheDocument();
+  });
+
+  it("shows a readable type label and falls back to it when the provider is blank", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          reservations: [
+            { id: "res-1", provider: "Avis", type: "rental-car", date: "2026-06-03" },
+            { id: "res-2", provider: "  ", type: "lodging", date: "2026-06-04" },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Avis \(Rental Car\)/)).toBeInTheDocument();
+    expect(screen.getByText(/^Lodging — /)).toBeInTheDocument();
+  });
 });
