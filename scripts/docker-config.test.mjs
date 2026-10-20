@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const rootDir = join(import.meta.dirname, "..");
+const readRawRootFile = (name) => readFileSync(join(rootDir, name), "utf8");
 // Normalize CRLF: Windows checkouts with core.autocrlf rewrite these files' line endings.
-const readRootFile = (name) => readFileSync(join(rootDir, name), "utf8").replace(/\r\n/g, "\n");
+const readRootFile = (name) => readRawRootFile(name).replace(/\r\n/g, "\n");
 
 // Returns the indented block for one top-level-service key, e.g. serviceBlock(compose, "db").
 function serviceBlock(compose, service) {
@@ -13,8 +14,22 @@ function serviceBlock(compose, service) {
   return match[1];
 }
 
+// Returns the body of one Dockerfile stage, e.g. dockerfileStage(dockerfile, "runner").
+function dockerfileStage(dockerfile, stage) {
+  return dockerfile.match(new RegExp(`^FROM .* AS ${stage}\\n([\\s\\S]*?)(?=^FROM |(?![\\s\\S]))`, "m"))?.[1] ?? "";
+}
+
 describe("docker-compose.yml (self-hosting stack)", () => {
   const compose = readRootFile("docker-compose.yml");
+
+  it("runs just the database and the app; the app migrates itself on start", () => {
+    expect(compose.match(/^ {2}\w[\w-]*:$/gm)).toEqual(["  db:", "  app:"]);
+  });
+
+  it("is self-contained, so it can be pasted into a stack tool without a .env file", () => {
+    expect(compose).not.toContain("${");
+    expect(existsSync(join(rootDir, ".env.docker.example"))).toBe(false);
+  });
 
   it("pins Postgres 17 and restarts the database with the host", () => {
     const db = serviceBlock(compose, "db");
@@ -23,41 +38,122 @@ describe("docker-compose.yml (self-hosting stack)", () => {
     expect(db).toContain("pg_isready -d arrivo -U arrivo");
   });
 
-  it("stores data in host bind mounts under DATA_DIR", () => {
-    expect(serviceBlock(compose, "db")).toContain("${DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data");
-    expect(serviceBlock(compose, "app")).toContain("${DATA_DIR:-./data}/storage:/app/storage");
+  it("stores data in host bind mounts under ./data", () => {
+    expect(serviceBlock(compose, "db")).toContain("./data/pgdata:/var/lib/postgresql/data");
+    expect(serviceBlock(compose, "app")).toContain("./data/storage:/app/storage");
     expect(compose).not.toMatch(/^volumes:/m);
   });
 
-  it("pulls published images at a configurable version instead of building", () => {
-    const migrate = serviceBlock(compose, "migrate");
-    const app = serviceBlock(compose, "app");
-    expect(migrate).toContain("image: ghcr.io/sdesmond/arrivo-migrate:${VERSION:-latest}");
-    expect(app).toContain("image: ghcr.io/sdesmond/arrivo:${VERSION:-latest}");
+  it("pulls the published image instead of building", () => {
+    expect(serviceBlock(compose, "app")).toContain("image: ghcr.io/sdesmond/arrivo:latest");
     expect(compose).not.toMatch(/^\s+build:/m);
   });
 
-  it("passes the Mapbox public token at runtime", () => {
-    expect(serviceBlock(compose, "app")).toContain("MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}");
+  it("starts the app once the database is healthy, on port 3550", () => {
+    const app = serviceBlock(compose, "app");
+    expect(app).toContain("condition: service_healthy");
+    expect(app).toContain('"3550:3550"');
+    expect(app).toContain("restart: unless-stopped");
   });
 
-  it("runs migrate once and starts the app only after it succeeds", () => {
-    expect(serviceBlock(compose, "migrate")).toContain('restart: "no"');
-    expect(serviceBlock(compose, "app")).toContain("condition: service_completed_successfully");
-    expect(serviceBlock(compose, "app")).toContain(":3000");
+  it("sets the owner of the uploads folder with PUID/PGID", () => {
+    const app = serviceBlock(compose, "app");
+    expect(app).toMatch(/PUID: \d+/);
+    expect(app).toMatch(/PGID: \d+/);
+  });
+
+  it("passes the Mapbox public token at runtime", () => {
+    expect(serviceBlock(compose, "app")).toContain("MAPBOX_PUBLIC_TOKEN:");
+  });
+
+  it("needs no secret up front: the image generates and persists one", () => {
+    expect(compose).not.toMatch(/^\s+NEXTAUTH_SECRET:/m);
   });
 });
 
 describe("docker-compose.build.yml (build-from-source override)", () => {
   const compose = readRootFile("docker-compose.build.yml");
 
-  it("builds both targets from the repo under local image tags", () => {
-    const migrate = serviceBlock(compose, "migrate");
+  it("builds the runner target from the repo under a local image tag", () => {
     const app = serviceBlock(compose, "app");
-    expect(migrate).toContain("image: arrivo-migrate:local");
-    expect(migrate).toContain("target: tools");
     expect(app).toContain("image: arrivo-app:local");
     expect(app).toContain("target: runner");
+    expect(compose).not.toMatch(/^ {2}migrate:/m);
+  });
+});
+
+describe("Dockerfile", () => {
+  const dockerfile = readRootFile("Dockerfile");
+  const runner = dockerfileStage(dockerfile, "runner");
+
+  it("has no separate tools stage", () => {
+    expect(dockerfile).not.toMatch(/ AS tools$/m);
+  });
+
+  it("bundles the migrator and ships the committed drizzle/ migrations", () => {
+    expect(dockerfileStage(dockerfile, "builder")).toContain("src/db/migrate-cli.ts");
+    expect(runner).toMatch(/COPY --from=builder \/app\/dist\/migrate\.mjs/);
+    expect(runner).toMatch(/COPY --from=builder \/app\/drizzle/);
+    const lines = (name) =>
+      readRootFile(name)
+        .split("\n")
+        .map((line) => line.trim());
+    expect(lines(".dockerignore")).not.toContain("drizzle");
+    expect(lines(".gitignore")).not.toContain("/drizzle/");
+    expect(lines(".gitignore")).not.toContain("drizzle");
+  });
+
+  it("listens on 3550 on all interfaces", () => {
+    expect(runner).toMatch(/PORT=3550/);
+    expect(runner).toMatch(/HOSTNAME=0\.0\.0\.0/);
+    expect(runner).toContain("EXPOSE 3550");
+  });
+
+  it("bakes in the defaults compose would otherwise repeat", () => {
+    expect(runner).toContain("AUTH_TRUST_HOST=true");
+    expect(runner).toContain("STORAGE_PROVIDER=local");
+    expect(runner).toContain("STORAGE_LOCAL_ROOT_DIR=/app/storage");
+  });
+
+  it("runs the entrypoint under tini and drops privileges with su-exec", () => {
+    expect(runner).toMatch(/apk add --no-cache .*tini/);
+    expect(runner).toMatch(/apk add --no-cache .*su-exec/);
+    expect(runner).toContain('ENTRYPOINT ["/sbin/tini", "--", "/app/docker/entrypoint.sh"]');
+    expect(runner).toContain('CMD ["node", "server.js"]');
+  });
+
+  it("health-checks the response body, since wget follows a sign-in redirect to a 200", () => {
+    expect(runner).toMatch(/HEALTHCHECK .*http:\/\/127\.0\.0\.1:3550\/api\/health .*grep -q '"status":"ok"'/);
+  });
+
+  it("declares no VOLUME, which would create anonymous volumes", () => {
+    expect(runner).not.toMatch(/^VOLUME/m);
+  });
+});
+
+describe("docker/entrypoint.sh", () => {
+  const entrypoint = readRootFile("docker/entrypoint.sh");
+
+  it("is a strict POSIX shell script with LF line endings in every checkout", () => {
+    expect(entrypoint.startsWith("#!/bin/sh\n")).toBe(true);
+    expect(entrypoint).toContain("set -eu");
+    expect(readRootFile(".gitattributes")).toMatch(/^\*\.sh text eol=lf$/m);
+  });
+
+  it("re-owns the storage folder to PUID:PGID and drops privileges", () => {
+    expect(entrypoint).toContain('-exec chown "$PUID:$PGID"');
+    expect(entrypoint).toContain("su-exec");
+  });
+
+  it("generates the auth secret once and persists it under the storage folder", () => {
+    expect(entrypoint).toContain(".arrivo/auth-secret");
+    expect(entrypoint).toContain("/dev/urandom");
+    expect(entrypoint).toContain("export NEXTAUTH_SECRET");
+  });
+
+  it("migrates before exec-ing the server", () => {
+    expect(entrypoint.indexOf("migrate.mjs")).toBeGreaterThan(-1);
+    expect(entrypoint.indexOf("migrate.mjs")).toBeLessThan(entrypoint.lastIndexOf("exec "));
   });
 });
 
@@ -72,16 +168,16 @@ describe("publish-images workflow", () => {
 
   it("moves latest only for full releases, never prereleases like v1.2.0-rc.1", () => {
     const latestRules = workflow.match(/type=raw,value=latest,enable=.*$/gm);
-    expect(latestRules).toHaveLength(2);
-    for (const rule of latestRules) expect(rule).toContain("!contains(github.ref_name, '-')");
+    expect(latestRules).toHaveLength(1);
+    expect(latestRules[0]).toContain("!contains(github.ref_name, '-')");
   });
 
-  it("builds both images for amd64 and arm64", () => {
+  it("builds the single app image for amd64 and arm64", () => {
     expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/arrivo$/m);
-    expect(workflow).toMatch(/images: ghcr\.io\/sdesmond\/arrivo-migrate$/m);
+    expect(workflow).not.toContain("arrivo-migrate");
     expect(workflow).toContain("target: runner");
-    expect(workflow).toContain("target: tools");
-    expect(workflow.match(/platforms: linux\/amd64,linux\/arm64/g)).toHaveLength(2);
+    expect(workflow).not.toContain("target: tools");
+    expect(workflow.match(/platforms: linux\/amd64,linux\/arm64/g)).toHaveLength(1);
   });
 });
 
@@ -110,11 +206,31 @@ describe("ci workflow (migration safety)", () => {
     expect(workflow).toMatch(/diff .*migrated.*pushed/);
   });
 
-  it("applies migrations to an empty Postgres 17 twice, from source and from the image", () => {
-    expect(workflow.match(/image: postgres:17-alpine/g)).toHaveLength(2);
+  it("applies migrations from source to an empty Postgres 17 twice", () => {
+    expect(workflow.match(/image: postgres:17-alpine/g)).toHaveLength(1);
     expect(workflow.match(/run: npm run db:migrate$/gm)).toHaveLength(2);
-    expect(workflow).toContain("target: tools");
-    expect(workflow.match(/docker run --rm --network host -e DATABASE_URL/g)).toHaveLength(2);
+  });
+
+  it("smoke-tests the real compose stack built from source", () => {
+    expect(workflow).toMatch(/^ {2}docker-smoke:$/m);
+    expect(workflow).not.toMatch(/^ {2}migrate-image:$/m);
+    expect(workflow).toContain("COMPOSE_FILE: docker-compose.yml:docker-compose.build.yml");
+    expect(workflow).toContain("docker compose up -d --wait");
+  });
+
+  it("checks health unauthenticated without following redirects, so a sign-in redirect fails", () => {
+    expect(workflow).toContain("--max-redirs 0");
+    expect(workflow).toContain("http://localhost:3550/api/health");
+  });
+
+  it("checks the sign-in redirect uses the browser's Host, not the server's listen address", () => {
+    expect(workflow).toContain("-H 'Host: 192.168.1.50:3550'");
+    expect(workflow).toContain("http://192.168.1.50:3550/sign-in");
+  });
+
+  it("restarts the app and checks the generated secret survives", () => {
+    expect(workflow).toContain("docker compose restart app");
+    expect(workflow).toContain(".arrivo/auth-secret");
   });
 });
 
@@ -133,27 +249,7 @@ describe("docker-compose.dev.yml (local dev database)", () => {
     const db = serviceBlock(compose, "db");
     expect(db).toContain('"5433:5432"');
     expect(db).toContain("pgdata:/var/lib/postgresql/data");
-    expect(compose).toMatch(/^volumes:\n  pgdata:/m);
-  });
-});
-
-describe("Dockerfile tools stage (migrations)", () => {
-  const dockerfile = readRootFile("Dockerfile");
-  const toolsStage = dockerfile.match(/^FROM .* AS tools\n([\s\S]*?)(?=^FROM )/m)?.[1] ?? "";
-
-  it("applies tracked migrations instead of pushing the schema", () => {
-    expect(toolsStage).toContain('CMD ["npx", "drizzle-kit", "migrate"]');
-    expect(toolsStage).not.toContain("push");
-  });
-
-  it("ships the committed drizzle/ migrations in the image", () => {
-    const ignored = (name) =>
-      readRootFile(name)
-        .split("\n")
-        .map((line) => line.trim());
-    expect(ignored(".dockerignore")).not.toContain("drizzle");
-    expect(ignored(".gitignore")).not.toContain("/drizzle/");
-    expect(ignored(".gitignore")).not.toContain("drizzle");
+    expect(compose).toMatch(/^volumes:\n {2}pgdata:/m);
   });
 });
 
@@ -183,10 +279,12 @@ describe("Node version", () => {
 
 describe("docker build context and docs", () => {
   it("keeps bind-mounted data out of the build context", () => {
-    expect(readRootFile(".dockerignore").split(/\r?\n/)).toContain("data");
+    expect(readRootFile(".dockerignore").split("\n")).toContain("data");
   });
 
-  it("documents the Postgres major the stack runs", () => {
-    expect(readRootFile("docs/self-hosting.md")).toContain("PostgreSQL 17");
+  it("documents the Postgres major and port the stack runs", () => {
+    const doc = readRootFile("docs/self-hosting.md");
+    expect(doc).toContain("PostgreSQL 17");
+    expect(doc).toContain("3550");
   });
 });

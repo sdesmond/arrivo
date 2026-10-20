@@ -1,13 +1,7 @@
 # Build-from-source override. Layer it on top of docker-compose.yml from the cloned repo:
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
-# Local tags keep source builds distinct from the published ghcr.io images.
+# A local tag keeps source builds distinct from the published ghcr.io image.
 services:
-  migrate:
-    image: arrivo-migrate:local
-    build:
-      context: .
-      target: tools
-
   app:
     image: arrivo-app:local
     build:

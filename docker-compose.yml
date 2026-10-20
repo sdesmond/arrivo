@@ -1,53 +1,47 @@
-# Self-hosting stack. Pulls published images, so this file plus its variables is all a host needs.
-# Works from the CLI (values from .env next to this file) or from any tool that runs `docker compose`
-# (values from its environment settings). To build from source instead, add docker-compose.build.yml.
-# See docs/self-hosting.md.
+# Arrivo self-hosting stack: https://github.com/sdesmond/arrivo (setup guide: docs/self-hosting.md)
+# Self-contained: paste it into Container Manager, Portainer or Dockge, or run `docker compose up -d`
+# next to it. Change the values marked below, then open http://<your-server>:3550.
 services:
   db:
     image: postgres:17-alpine
+    container_name: arrivo-db
     environment:
       POSTGRES_USER: arrivo
-      POSTGRES_PASSWORD: arrivo
+      POSTGRES_PASSWORD: arrivo # if you change it, change it in DATABASE_URL below too
       POSTGRES_DB: arrivo
     volumes:
-      # Host folder, so host-level backups see it. Back up with pg_dump, never by copying it live.
-      - ${DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data
+      # Back up with pg_dump, never by copying this folder while it runs.
+      - ./data/pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d arrivo -U arrivo"]
       interval: 5s
       retries: 10
     restart: unless-stopped
 
-  # Applies the committed Drizzle migrations (drizzle/), then exits. The app starts only if this succeeds.
-  migrate:
-    image: ghcr.io/sdesmond/arrivo-migrate:${VERSION:-latest}
+  app:
+    image: ghcr.io/sdesmond/arrivo:latest # or pin a release, e.g. ghcr.io/sdesmond/arrivo:0.4.0
+    container_name: arrivo
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://arrivo:arrivo@db:5432/arrivo
-    restart: "no"
-
-  app:
-    image: ghcr.io/sdesmond/arrivo:${VERSION:-latest}
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    environment:
-      DATABASE_URL: postgres://arrivo:arrivo@db:5432/arrivo
-      # Auth.js rejects non-localhost hosts in production unless told to trust the Host header.
-      AUTH_TRUST_HOST: "true"
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET must be set}
-      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
-      MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN:-}
-      MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}
-      UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY:-}
-      STORAGE_PROVIDER: local
-      STORAGE_LOCAL_ROOT_DIR: /app/storage
+      # Owner of ./data/storage on the host. Run `id` on the host to see yours (Synology: often 1026 / 100).
+      PUID: 1000
+      PGID: 1000
+      # Set to "false" once everyone has an account.
+      ALLOW_SIGNUP: "true"
+      # Optional. Public (pk.) Mapbox token for place search, routes and maps.
+      MAPBOX_ACCESS_TOKEN: ""
+      # Optional. Separate URL-restricted token for browsers only; blank reuses the one above.
+      MAPBOX_PUBLIC_TOKEN: ""
+      # Optional. Unsplash access key for trip cover-image search.
+      UNSPLASH_ACCESS_KEY: ""
+      # Optional. Only if sign-in redirects go to the wrong address (e.g. behind some proxies).
+      # NEXTAUTH_URL: https://arrivo.example.com
     volumes:
-      - ${DATA_DIR:-./data}/storage:/app/storage
+      # Uploads, plus the generated sign-in secret in .arrivo/. Back it up with the database.
+      - ./data/storage:/app/storage
     ports:
-      # Host port is configurable; the container always listens on 3000.
-      - "${HOST_PORT:-3000}:3000"
+      - "3550:3550" # host:container; change the left number if 3550 is taken
     restart: unless-stopped
