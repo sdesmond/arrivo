@@ -10,6 +10,7 @@ const { db, eventsTable, reservationsTable } = vi.hoisted(() => ({
 vi.mock("@/db", () => ({ db }));
 vi.mock("@/db/schema", () => ({ events: eventsTable, reservations: reservationsTable }));
 
+import { MalformedKeyError } from "@/lib/upload-policy";
 import { resolveOwningTripId } from "./trip-resolution";
 
 describe("resolveOwningTripId", () => {
@@ -69,5 +70,11 @@ describe("resolveOwningTripId", () => {
 
   it("throws on a malformed key (delegated to parseUploadStorageName)", async () => {
     await expect(resolveOwningTripId("not-a-scope/foo/bar.jpg")).rejects.toThrow();
+  });
+
+  // The container keeps its generated auth secret under the storage root; the proxy must never serve it.
+  it("rejects the container's persisted auth secret as a malformed key", async () => {
+    await expect(resolveOwningTripId(".arrivo/auth-secret")).rejects.toBeInstanceOf(MalformedKeyError);
+    expect(db.select).not.toHaveBeenCalled();
   });
 });
