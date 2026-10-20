@@ -88,9 +88,10 @@ describe("publish-images workflow", () => {
 describe("ci workflow (migration safety)", () => {
   const workflow = readRootFile(".github/workflows/ci.yml");
 
-  it("runs on pull requests and pushes to main", () => {
+  // Branches must be up to date before merging (ruleset), so a post-merge run would re-test the same tree.
+  it("runs on pull requests only", () => {
     expect(workflow).toContain("pull_request:");
-    expect(workflow).toMatch(/push:\n\s+branches: \[main\]/);
+    expect(workflow).not.toMatch(/^\s+push:/m);
   });
 
   it("fails when schema.ts changes without a generated migration", () => {
