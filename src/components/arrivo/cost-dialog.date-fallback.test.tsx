@@ -23,6 +23,7 @@ vi.mock("@/components/ui/date-picker", () => ({
 }));
 
 import { CostDialog } from "./cost-dialog";
+import { pickSelectOption } from "@/test-utils/pick-select-option";
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <MockDateProvider initialISO="2026-08-02T12:00:00.000Z">{children}</MockDateProvider>;
@@ -35,8 +36,7 @@ describe("CostDialog date fallback", () => {
     render(<CostDialog open onOpenChange={vi.fn()} onSave={onSave} />, { wrapper: Wrapper });
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
     await user.click(screen.getByRole("button", { name: "clear-date" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
 

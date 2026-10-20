@@ -3,6 +3,10 @@ import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { resolve } from "node:path";
 
+// Unit tests assume one local timezone (e.g. a flight that departs and lands on the same local day). Pin it so
+// results do not change between a developer machine and a UTC CI runner.
+process.env.TZ = "America/Denver";
+
 export default defineConfig({
   resolve: {
     alias: {
