@@ -136,47 +136,57 @@ jobs:
       - name: Production build
         run: npm run build
 
-  migrate-image:
-    # The published arrivo-migrate image is what self-hosters run on every `docker compose up`.
+  docker-smoke:
+    # Boots the self-hosting compose stack on this commit's image: a fresh install, then a restart.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: arrivo
-          POSTGRES_PASSWORD: arrivo
-          POSTGRES_DB: arrivo
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U arrivo -d arrivo"
-          --health-interval 5s
-          --health-retries 10
+    timeout-minutes: 30
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.build.yml
     steps:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build migrate image
+      - name: Build app image
         uses: docker/build-push-action@v6
         with:
           context: .
-          target: tools
+          target: runner
           load: true
-          tags: arrivo-migrate:ci
-          cache-from: type=gha,scope=tools
-          cache-to: type=gha,mode=max,scope=tools
+          tags: arrivo-app:local
+          cache-from: type=gha,scope=runner
+          cache-to: type=gha,mode=max,scope=runner
 
-      - name: Run migrate image (first boot)
-        run: docker run --rm --network host -e DATABASE_URL="$DATABASE_URL" arrivo-migrate:ci
+      - name: Start the stack (first boot)
+        run: docker compose up -d --wait --wait-timeout 180
 
-      - name: Run migrate image again (every later boot)
-        run: docker run --rm --network host -e DATABASE_URL="$DATABASE_URL" arrivo-migrate:ci
-
-      - name: Expected tables exist
-        env:
-          PGPASSWORD: arrivo
+      # No redirect following: if middleware sends /api/health to /sign-in, this must fail, not see a 200.
+      - name: Health endpoint answers without signing in
         run: |
-          trips=$(psql -h localhost -U arrivo -d arrivo -tAc "select to_regclass('public.trips') is not null")
-          [ "$trips" = "t" ] || { echo "::error::public.trips missing after migrate"; exit 1; }
+          code=$(curl -sS -o health.json -w '%{http_code}' --max-redirs 0 http://localhost:3550/api/health)
+          [ "$code" = "200" ] && grep -q '"status":"ok"' health.json || { echo "::error::health returned $code"; cat health.json; exit 1; }
+
+      # Standalone Next reports its own listen address in req.url; the redirect must use the browser's Host.
+      - name: Sign-in redirect keeps the address the browser used
+        run: |
+          location=$(curl -sS -o /dev/null -w '%{redirect_url}' -H 'Host: 192.168.1.50:3550' http://localhost:3550/trips)
+          [ "$location" = "http://192.168.1.50:3550/sign-in" ] || { echo "::error::redirected to $location"; exit 1; }
+
+      - name: Migrations ran, uploads folder re-owned, secret generated
+        run: |
+          trips=$(docker compose exec -T db psql -U arrivo -d arrivo -tAc "select to_regclass('public.trips') is not null")
+          [ "$trips" = "t" ] || { echo "::error::public.trips missing after first boot"; exit 1; }
+          [ "$(sudo stat -c '%u:%g' data/storage)" = "1000:1000" ] || { echo "::error::data/storage not owned by PUID:PGID"; exit 1; }
+          sudo test -s data/storage/.arrivo/auth-secret || { echo "::error::no generated auth secret"; exit 1; }
+          sudo sha256sum data/storage/.arrivo/auth-secret > secret.sha
+
+      - name: Restart keeps the secret and re-runs migrations cleanly
+        run: |
+          docker compose restart app
+          docker compose up -d --wait --wait-timeout 180
+          sudo sha256sum -c secret.sha
+          curl -fsS --max-redirs 0 http://localhost:3550/api/health | grep -q '"status":"ok"'
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs
