@@ -60,7 +60,6 @@ next-env.d.ts
 
 # legacy local upload data
 /public/uploads/
-/drizzle/
 
 # storage adapter local roots
 /.e2e-storage/

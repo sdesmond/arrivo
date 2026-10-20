@@ -85,6 +85,38 @@ describe("publish-images workflow", () => {
   });
 });
 
+describe("ci workflow (migration safety)", () => {
+  const workflow = readRootFile(".github/workflows/ci.yml");
+
+  it("runs on pull requests and pushes to main", () => {
+    expect(workflow).toContain("pull_request:");
+    expect(workflow).toMatch(/push:\n\s+branches: \[main\]/);
+  });
+
+  it("fails when schema.ts changes without a generated migration", () => {
+    expect(workflow).toContain("npx drizzle-kit generate");
+    expect(workflow).toContain("git status --porcelain -- drizzle");
+  });
+
+  it("cannot hang on drizzle-kit's interactive rename prompt", () => {
+    expect(workflow).toMatch(/Migrations are up to date with schema\.ts\n\s+timeout-minutes: \d+/);
+    expect(workflow).toContain("npx drizzle-kit generate </dev/null");
+  });
+
+  it("diffs the migrated schema against one built straight from schema.ts", () => {
+    expect(workflow).toContain("npx drizzle-kit push --force");
+    expect(workflow).toContain("pg_dump -s");
+    expect(workflow).toMatch(/diff .*migrated.*pushed/);
+  });
+
+  it("applies migrations to an empty Postgres 17 twice, from source and from the image", () => {
+    expect(workflow.match(/image: postgres:17-alpine/g)).toHaveLength(2);
+    expect(workflow.match(/run: npm run db:migrate$/gm)).toHaveLength(2);
+    expect(workflow).toContain("target: tools");
+    expect(workflow.match(/docker run --rm --network host -e DATABASE_URL/g)).toHaveLength(2);
+  });
+});
+
 describe("docker-compose.dev.yml (local dev database)", () => {
   const compose = readRootFile("docker-compose.dev.yml");
 
@@ -101,6 +133,26 @@ describe("docker-compose.dev.yml (local dev database)", () => {
     expect(db).toContain('"5433:5432"');
     expect(db).toContain("pgdata:/var/lib/postgresql/data");
     expect(compose).toMatch(/^volumes:\n  pgdata:/m);
+  });
+});
+
+describe("Dockerfile tools stage (migrations)", () => {
+  const dockerfile = readRootFile("Dockerfile");
+  const toolsStage = dockerfile.match(/^FROM .* AS tools\n([\s\S]*?)(?=^FROM )/m)?.[1] ?? "";
+
+  it("applies tracked migrations instead of pushing the schema", () => {
+    expect(toolsStage).toContain('CMD ["npx", "drizzle-kit", "migrate"]');
+    expect(toolsStage).not.toContain("push");
+  });
+
+  it("ships the committed drizzle/ migrations in the image", () => {
+    const ignored = (name) =>
+      readRootFile(name)
+        .split("\n")
+        .map((line) => line.trim());
+    expect(ignored(".dockerignore")).not.toContain("drizzle");
+    expect(ignored(".gitignore")).not.toContain("/drizzle/");
+    expect(ignored(".gitignore")).not.toContain("drizzle");
   });
 });
 

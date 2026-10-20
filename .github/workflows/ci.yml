@@ -1,0 +1,134 @@
+name: CI
+
+# Static checks, unit tests and the build, plus guards that keep src/db/schema.ts and the committed
+# drizzle/ migrations in lockstep. Playwright E2E stays local (build-validator, `test:e2e:affected`).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgres://arrivo:arrivo@localhost:5432/arrivo
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: arrivo
+          POSTGRES_PASSWORD: arrivo
+          POSTGRES_DB: arrivo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arrivo -d arrivo"
+          --health-interval 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # schema.ts changed without `npm run db:generate`: generate would write a new migration.
+      - name: Migrations are up to date with schema.ts
+        timeout-minutes: 5
+        run: |
+          # No stdin: an ambiguous rename would otherwise wait on drizzle-kit's interactive prompt.
+          npx drizzle-kit generate </dev/null
+          if [ -n "$(git status --porcelain -- drizzle)" ]; then
+            echo "::error::src/db/schema.ts has changes with no migration. Run 'npm run db:generate' and commit drizzle/."
+            git status --porcelain -- drizzle
+            exit 1
+          fi
+
+      - name: Migrations apply to an empty database
+        run: npm run db:migrate
+
+      - name: Migrations are safe to re-run
+        run: npm run db:migrate
+
+      # A hand-edited migration can drift from schema.ts without touching the snapshot, so compare the
+      # migrated schema to one that drizzle-kit builds straight from schema.ts.
+      - name: Migrated schema matches schema.ts
+        run: |
+          pg() { docker run --rm --network host -e PGPASSWORD=arrivo postgres:17-alpine "$@"; }
+          pg psql -h localhost -U arrivo -d arrivo -c "create database arrivo_push"
+          DATABASE_URL=postgres://arrivo:arrivo@localhost:5432/arrivo_push npx drizzle-kit push --force </dev/null
+          # pg_dump 17 adds a random restrict token per dump; the drizzle schema holds only the journal.
+          dump() { pg pg_dump -s --no-owner --no-privileges -N drizzle -h localhost -U arrivo -d "$1" | grep -v '^.\(un\)\?restrict'; }
+          dump arrivo > migrated.sql
+          dump arrivo_push > pushed.sql
+          diff -u migrated.sql pushed.sql || { echo "::error::Migrations do not produce the schema in src/db/schema.ts"; exit 1; }
+
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Production build
+        run: npm run build
+
+  migrate-image:
+    # The published arrivo-migrate image is what self-hosters run on every `docker compose up`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: arrivo
+          POSTGRES_PASSWORD: arrivo
+          POSTGRES_DB: arrivo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arrivo -d arrivo"
+          --health-interval 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build migrate image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: tools
+          load: true
+          tags: arrivo-migrate:ci
+          cache-from: type=gha,scope=tools
+          cache-to: type=gha,mode=max,scope=tools
+
+      - name: Run migrate image (first boot)
+        run: docker run --rm --network host -e DATABASE_URL="$DATABASE_URL" arrivo-migrate:ci
+
+      - name: Run migrate image again (every later boot)
+        run: docker run --rm --network host -e DATABASE_URL="$DATABASE_URL" arrivo-migrate:ci
+
+      - name: Expected tables exist
+        env:
+          PGPASSWORD: arrivo
+        run: |
+          trips=$(psql -h localhost -U arrivo -d arrivo -tAc "select to_regclass('public.trips') is not null")
+          [ "$trips" = "t" ] || { echo "::error::public.trips missing after migrate"; exit 1; }
