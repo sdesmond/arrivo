@@ -4,8 +4,6 @@ name: CI
 # drizzle/ migrations in lockstep. Playwright E2E stays local (build-validator, `test:e2e:affected`).
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
