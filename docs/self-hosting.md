@@ -1,123 +1,158 @@
 # Self-hosting Arrivo
 
-Arrivo runs as three containers from prebuilt images: PostgreSQL 17 (`db`), a one-shot migration job
-(`migrate`), and the web app (`app`). Any Linux host with Docker Engine and Compose v2 works, on
-amd64 or ARM64.
+Arrivo runs as two containers: the app (`ghcr.io/sdesmond/arrivo`) and PostgreSQL 17. The app
+prepares its own database on every start, so there is nothing else to run. Any host with Docker
+Engine and Compose v2 works, on amd64 or ARM64: a Linux server, a Synology or other NAS, a Raspberry Pi.
 
-## Quick start
+Everything is in one file, [`docker-compose.yml`](../docker-compose.yml). There is no `.env` file
+and no secret to generate.
+
+## Quick start (command line)
 
 ```sh
 mkdir -p ~/arrivo && cd ~/arrivo
 curl -fsSLO https://raw.githubusercontent.com/sdesmond/arrivo/main/docker-compose.yml
-curl -fsSL https://raw.githubusercontent.com/sdesmond/arrivo/main/.env.docker.example -o .env
-```
-
-Edit `.env`: set `NEXTAUTH_SECRET` to the output of `openssl rand -base64 32`, and `NEXTAUTH_URL` to
-the address you'll open in the browser, port included (e.g. `http://192.168.1.50:3000`). Then:
-
-```sh
 docker compose up -d
 ```
 
-Open `NEXTAUTH_URL`, sign up, and once everyone has an account set `ALLOW_SIGNUP=false` and run
-`docker compose up -d` again.
+Open `http://<your-server>:3550`, create your account, and you're done. When everyone has an account,
+set `ALLOW_SIGNUP: "false"` in the file and run `docker compose up -d` again.
 
-Using a stack-management tool instead of the terminal? Give it `docker-compose.yml` and enter the
-`.env` variables in its environment settings — the file is the same either way.
+Before starting, check `PUID` and `PGID` in the file match your user (`id` prints them). They decide
+who owns uploaded files in `./data/storage`.
+
+## Synology NAS (Container Manager)
+
+1. Install **Container Manager** from Package Center.
+2. In **File Station**, open the `docker` shared folder and create a folder `arrivo`. Inside it,
+   create `pgdata` and `storage`.
+3. Find your user's IDs: in **Control Panel → Terminal & SNMP**, enable SSH, connect, and run `id`.
+   Note `uid` (often `1026`) and `gid` (often `100`).
+4. In Container Manager, open **Project → Create**. Name it `arrivo`, set the path to
+   `/docker/arrivo`, and choose **Create docker-compose.yml**.
+5. Paste [`docker-compose.yml`](../docker-compose.yml), then change:
+   - `./data/pgdata` to `/volume1/docker/arrivo/pgdata`
+   - `./data/storage` to `/volume1/docker/arrivo/storage`
+   - `PUID` and `PGID` to the values from step 3
+6. Click **Next**, skip the web portal settings, then **Done**. The images download and both
+   containers start.
+7. Open `http://<your-NAS-IP>:3550` and create your account.
+
+Portainer and Dockge work the same way: create a stack, paste the file, and adjust the paths and
+`PUID`/`PGID`.
 
 ## Configuration
 
-Every setting is an environment variable. Changes take effect on `docker compose up -d`.
+All settings are environment variables on the `app` service. After you change one, run
+`docker compose up -d`, or use **Build** in Container Manager.
 
-| Variable              | Default                 | Purpose                                                                                                                          |
-| --------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXTAUTH_SECRET`     | —                       | **Required.** Signs sessions. Keep it private; changing it logs everyone out                                                     |
-| `NEXTAUTH_URL`        | `http://localhost:3000` | Exact URL users open, port included. A mismatch causes sign-in loops or redirects to `localhost`                                 |
-| `HOST_PORT`           | `3000`                  | Host port. The container always listens on 3000; if you change this, change the port in `NEXTAUTH_URL` too                       |
-| `VERSION`             | `latest`                | Image release to run, e.g. `0.2.0`. Pinning means upgrades happen only when you change it                                        |
-| `DATA_DIR`            | `./data`                | Host folder for `pgdata/` (database) and `storage/` (uploads). Relative to the compose file's folder                             |
-| `ALLOW_SIGNUP`        | `true`                  | Set `false` to close registration                                                                                                |
-| `MAPBOX_ACCESS_TOKEN` | —                       | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews, and the Map tab |
-| `MAPBOX_PUBLIC_TOKEN` | `MAPBOX_ACCESS_TOKEN`   | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)              |
-| `UNSPLASH_ACCESS_KEY` | —                       | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                    |
+| Variable              | Default          | Purpose                                                                                                                         |
+| --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                              |
+| `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                        |
+| `ALLOW_SIGNUP`        | `true`           | Set `"false"` to close registration                                                                                             |
+| `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab |
+| `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)             |
+| `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                   |
+| `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`               |
+| `NEXTAUTH_URL`        | from the request | Only needed if sign-in redirects go to the wrong address, e.g. behind a proxy that rewrites `Host`                              |
 
-Without the Mapbox and Unsplash keys Arrivo still runs; those features are just unavailable. Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
+Without the Mapbox and Unsplash keys Arrivo still runs; those features are just unavailable.
+Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
+
+To use a different host port, change the left number in `"3550:3550"`, e.g. `"8080:3550"`. To run a
+fixed release instead of the newest, change the image tag, e.g. `ghcr.io/sdesmond/arrivo:0.4.0`. Then
+upgrades happen only when you change it.
 
 > On Docker Desktop for Windows or macOS, PostgreSQL can fail to start on a host-folder data
-> directory. Use a Linux host, or on Windows point `DATA_DIR` into the WSL 2 filesystem.
+> directory. Use a Linux host or NAS, or on Windows keep the folder inside the WSL 2 filesystem.
 
 ## HTTPS
 
-Arrivo serves plain HTTP. For HTTPS or access from outside your network, put a reverse proxy in front
-(Caddy, nginx, Traefik, a NAS's built-in proxy, Cloudflare Tunnel, …) that forwards the `Host` header
-and sets `X-Forwarded-Proto`, then set `NEXTAUTH_URL` to the public URL. With Caddy:
+Arrivo serves plain HTTP. For HTTPS or access from outside your network, put a reverse proxy in front.
+That can be Synology's **Login Portal → Reverse Proxy**, Caddy, nginx, Traefik, Nginx Proxy Manager
+or Cloudflare Tunnel. Forward to port 3550 and pass the `Host` header and `X-Forwarded-Proto`. With
+Caddy:
 
 ```
 arrivo.example.com {
-    reverse_proxy 127.0.0.1:3000
+    reverse_proxy 127.0.0.1:3550
 }
 ```
 
-If the proxy runs on the same host, change the `ports` line to
-`"127.0.0.1:${HOST_PORT:-3000}:3000"` so the app isn't reachable around it.
+If the proxy runs on the same host, change the port line to `"127.0.0.1:3550:3550"` so the app
+isn't reachable around it.
 
 ## Updating
-
-Set `VERSION` to the new release if you pin one, then:
 
 ```sh
 docker compose pull && docker compose up -d
 ```
 
-`migrate` runs again automatically and applies any new migrations; data in `DATA_DIR` is untouched.
-Take a `pg_dump` first when upgrading across releases (see Backup and restore below). In a
-stack-management tool, use its pull-and-redeploy action — a plain redeploy keeps the old image.
+In Container Manager: **Project → arrivo → Action → Stop**, then **Image → Update** (or **Clean**)
+for `ghcr.io/sdesmond/arrivo`, then start the project. In Portainer or Dockge, use the
+pull-and-redeploy action; a plain redeploy keeps the old image.
+
+The app applies any database changes as it starts. Take a backup first when upgrading across
+releases (see below).
 
 ## Backup and restore
 
-Back up the database with `pg_dump`. **Never copy or archive `pgdata/` while it runs** — a mid-write
-copy can be unrestorable. If a host backup job covers `DATA_DIR`, run the dump before it.
+Back up the database with `pg_dump`, and the `storage` folder as files. **Never copy `pgdata` while
+it runs**, because a mid-write copy can be unrestorable. If a host backup job (e.g. Hyper Backup)
+covers the folder, run the dump before it.
 
 ```sh
-docker compose exec -T db pg_dump -U arrivo -d arrivo -Fc > arrivo-db-$(date +%F).dump
+docker exec arrivo-db pg_dump -U arrivo -d arrivo -Fc > arrivo-db-$(date +%F).dump
 tar czf arrivo-storage-$(date +%F).tgz -C data/storage .
 ```
+
+The `storage` backup includes `.arrivo/auth-secret`. Without it, a restored install signs everyone
+out, but no data is lost.
 
 Restore onto a running install:
 
 ```sh
-docker compose stop app
-docker compose exec -T db pg_restore -U arrivo -d arrivo --clean --if-exists < arrivo-db-YYYY-MM-DD.dump
-rm -rf data/storage/* && tar xzf arrivo-storage-YYYY-MM-DD.tgz -C data/storage
-docker compose start app
+docker stop arrivo
+docker exec -i arrivo-db pg_restore -U arrivo -d arrivo --clean --if-exists < arrivo-db-YYYY-MM-DD.dump
+rm -rf data/storage/* data/storage/.arrivo && tar xzf arrivo-storage-YYYY-MM-DD.tgz -C data/storage
+docker start arrivo
 ```
 
-Substitute your `DATA_DIR` for `data` if you changed it.
-
-## Demo data
-
-To explore with sample trips: `docker compose run --rm migrate npm run db:seed`, then sign in as
-`demo@arrivo.com` / `demo1234` (see [dev-seed-data.md](./dev-seed-data.md)). The password is public,
-so don't do this on a shared instance.
+Use your own folder paths in place of `data/...` if you changed them.
 
 ## Troubleshooting
 
-Start with `docker compose ps -a` and `docker compose logs <app|db|migrate>`. A healthy stack shows
-`db` healthy, `app` up, and `migrate` **Exited (0)** — it's a one-shot job.
+Start with `docker ps -a` and `docker logs arrivo`. A healthy install shows `arrivo` as
+**Up (healthy)** and `arrivo-db` as **Up (healthy)**.
 
-| Symptom                                                | Fix                                                                                             |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `required variable NEXTAUTH_SECRET is missing a value` | `.env` is missing, not next to `docker-compose.yml`, or the secret is empty                     |
-| `manifest unknown` when pulling                        | `VERSION` names a release that doesn't exist                                                    |
-| `migrate` shows `Exited (1)`                           | A migration failed: read `docker compose logs migrate`; the app stays stopped until it succeeds |
-| `port is already allocated`                            | Change `HOST_PORT` and the port in `NEXTAUTH_URL`                                               |
-| Sign-in loops or redirects to `localhost`              | `NEXTAUTH_URL` doesn't match the browser's address                                              |
-| Map tab is empty                                       | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                    |
-| `EACCES` / `EPERM` when uploading                      | Only if you run the app as a non-root `user:` — see [Storage](../README.md#storage)             |
+| Symptom                                       | Fix                                                                                                         |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `arrivo` keeps restarting                     | Read `docker logs arrivo`. A failed database update or wrong `DATABASE_URL` stops it before it serves pages |
+| `manifest unknown` when pulling               | The image tag names a release that doesn't exist                                                            |
+| `port is already allocated`                   | Change the left number in the `ports` line                                                                  |
+| Sign-in redirects to `localhost` or loops     | Set `NEXTAUTH_URL` to the exact address you open, port included                                             |
+| Everyone was signed out after a restore/move  | `storage/.arrivo/auth-secret` wasn't carried over; sign in again                                            |
+| Map tab is empty                              | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                                |
+| `EACCES` / `permission denied` when uploading | `PUID`/`PGID` don't match a user that can write the `storage` folder                                        |
+
+## Upgrading from 0.3 or earlier
+
+Earlier releases used a separate `arrivo-migrate` container, a `.env` file and port 3000. To move to
+the single-image setup:
+
+1. Take a backup (see above).
+2. Replace your `docker-compose.yml` with the current one. Keep your data paths: the old default
+   `./data/pgdata` and `./data/storage` are unchanged.
+3. Copy `NEXTAUTH_SECRET` from your old `.env` into the `app` environment, or leave it out and
+   everyone signs in once more.
+4. Run `docker compose up -d --remove-orphans`. The old `migrate` container is removed, and the
+   storage folder is re-owned to `PUID`/`PGID` on first start.
+5. Arrivo now listens on **3550**: update bookmarks, reverse-proxy targets and any `NEXTAUTH_URL`.
 
 ## Uninstalling
 
-`docker compose down` removes the containers. Data stays in `DATA_DIR` (even with `-v`); delete
-that folder to remove it for good.
+`docker compose down` removes the containers. Data stays in `./data` (even with `-v`); delete that
+folder to remove it for good.
 
 To run unreleased code, see [building-from-source.md](./building-from-source.md).

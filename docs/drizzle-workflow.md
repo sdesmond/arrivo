@@ -31,16 +31,19 @@ database: if it was ever built with `push`, run `npm run db:reset:e2e` before `n
 
 ## Self-hosting
 
-The `arrivo-migrate` image runs `drizzle-kit migrate` on every `docker compose up`. It applies only the
-migrations not yet recorded, then exits; `app` starts only after it succeeds. A failed migration leaves
-the app stopped and the error in `docker compose logs migrate`.
+The app image applies migrations each time it starts, before the server listens
+(`docker/entrypoint.sh` runs `src/db/migrate.ts`, bundled to `/app/migrate.mjs`). It uses drizzle-orm's
+migrator under a Postgres advisory lock, so two containers starting together don't race. It writes the same
+`drizzle.__drizzle_migrations` journal as `drizzle-kit migrate` and applies only migrations not yet recorded.
+A failed migration stops the container before it serves anything, and the error is in `docker logs arrivo`.
 
 ## Safety checks
 
 - `.github/workflows/ci.yml` runs `drizzle-kit generate` and fails if it writes anything, so a
   `schema.ts` change without a migration cannot merge.
-- CI applies the migrations to an empty Postgres 17 twice (first boot, re-run), both from source and
-  from the built `arrivo-migrate` image.
+- CI applies the migrations to an empty Postgres 17 twice from source (first boot, re-run). Its
+  `docker-smoke` job then boots the compose stack on the built image, restarts it, and checks the
+  app is healthy both times.
 - `scripts/migrations.test.mjs` checks the journal, SQL files and snapshots agree.
-- `scripts/docker-config.test.mjs` checks the image runs `migrate` and that `drizzle/` is neither
-  git-ignored nor docker-ignored.
+- `scripts/docker-config.test.mjs` checks the image bundles the migrator, ships `drizzle/`, and
+  migrates before starting the server, and that `drizzle/` is neither git-ignored nor docker-ignored.

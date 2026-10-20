@@ -31,7 +31,7 @@ For how schema changes and migrations work (generate, review, commit `drizzle/`)
 
 ## Self-hosting
 
-Arrivo ships as a Docker Compose stack of prebuilt images and runs on any host with Docker — download one compose file, set two variables, `docker compose up -d`. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
+Arrivo ships as one prebuilt image plus PostgreSQL and runs on any host with Docker, including a Synology NAS. Download one compose file and run `docker compose up -d`; nothing else to configure. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
 
 To build from source instead, see [Building from source](./docs/building-from-source.md).
 
@@ -61,9 +61,9 @@ Set `STORAGE_PROVIDER` and that provider's required env vars, then redeploy — 
 
 ### Local provider
 
-Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, `docker-compose.yml` sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and bind-mounts the host folder `${DATA_DIR:-./data}/storage` at that path so uploads survive container rebuilds and restarts and are visible to host backups.
+Files are written under `STORAGE_LOCAL_ROOT_DIR` and served back through `/api/storage/...`. Under Docker, the image sets `STORAGE_LOCAL_ROOT_DIR=/app/storage` and `docker-compose.yml` bind-mounts the host folder `./data/storage` at that path so uploads survive container rebuilds and restarts and are visible to host backups.
 
-The app container runs as root by default, so it can write to that folder regardless of its owner. If you run it as a non-root `user:`, match the host folder's owner to that UID/GID — an ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
+The container starts as root only to re-own that folder to `PUID`/`PGID` (default `1000`/`1000`), then runs the app as that user. If you instead set a non-root `user:` in compose, the re-owning step is skipped, so match the host folder's owner to that UID/GID yourself. An ownership mismatch surfaces as an `EACCES`/`EPERM` error naming the failing path on the next write.
 
 ### Adding a provider
 
