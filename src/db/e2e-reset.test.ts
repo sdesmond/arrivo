@@ -19,8 +19,13 @@ describe("getRequiredE2EConnectionString", () => {
 });
 
 describe("E2E_RESET_STATEMENTS", () => {
+  it("drops drizzle's migration journal with the tables, so migrate re-applies from scratch", () => {
+    expect(E2E_RESET_STATEMENTS).toContain("DROP SCHEMA IF EXISTS drizzle CASCADE");
+  });
+
   it("rebuilds the public schema before extensions are restored", () => {
     expect(E2E_RESET_STATEMENTS).toEqual([
+      "DROP SCHEMA IF EXISTS drizzle CASCADE",
       "DROP SCHEMA IF EXISTS public CASCADE",
       "CREATE SCHEMA public",
       "GRANT ALL ON SCHEMA public TO CURRENT_USER",

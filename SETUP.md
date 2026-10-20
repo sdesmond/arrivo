@@ -2,7 +2,7 @@
 
 > For Docker / self-hosting setup, see the **Self-hosting** section in [README.md](./README.md).
 >
-> For the current pre-release Drizzle policy and the later migration cutover, see [docs/drizzle-workflow.md](./docs/drizzle-workflow.md).
+> For how schema changes and migrations work, see [docs/drizzle-workflow.md](./docs/drizzle-workflow.md).
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ The script:
 - creates or updates `.env`
 - configures `.claude/skills`, `.claude/agents`, and `.claude/memory` to point at `.agents/*`
 - prepares the main and E2E databases
-- runs `npm run db:push`
+- runs `npm run db:migrate`
 - runs `npm run db:seed`
 - runs `npm run db:migrate:e2e`
 
@@ -160,24 +160,24 @@ docker compose -f docker-compose.dev.yml exec -T db psql -U arrivo -d postgres -
 Then finish with:
 
 ```bash
-npm run db:push
+npm run db:migrate
 npm run db:seed
 npm run db:migrate:e2e
 ```
 
-This repo is intentionally using a pre-release `push` workflow right now.
-Tracked `drizzle/` migrations return at production cutover, not during day-to-day local setup.
+Schema changes are tracked as committed SQL migrations in `drizzle/`; see [docs/drizzle-workflow.md](./docs/drizzle-workflow.md).
 
 ---
 
 ## Database scripts
 
-| Script               | What it does                                                                                   |
-| -------------------- | ---------------------------------------------------------------------------------------------- |
-| `npm run db:push`    | Push schema to DB from `src/db/schema.ts`                                                      |
-| `npm run db:migrate` | Temporary alias for `db:push` until tracked migrations return                                  |
-| `npm run db:seed`    | Wipe + reseed the three dev seed accounts and their trips ([details](./docs/dev-seed-data.md)) |
-| `npm run db:studio`  | Open Drizzle Studio GUI at port 4983                                                           |
+| Script                | What it does                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run db:migrate`  | Apply the committed `drizzle/` migrations to the DB                                            |
+| `npm run db:generate` | Generate a migration from `src/db/schema.ts` changes (commit the result)                       |
+| `npm run db:push`     | Sync schema straight from `src/db/schema.ts`, no migration. Throwaway local DBs only           |
+| `npm run db:seed`     | Wipe + reseed the three dev seed accounts and their trips ([details](./docs/dev-seed-data.md)) |
+| `npm run db:studio`   | Open Drizzle Studio GUI at port 4983                                                           |
 
 ---
 
@@ -198,6 +198,6 @@ All child tables cascade-delete from `trips`.
 ```bash
 psql -d postgres -c "DROP DATABASE arrivo;"
 psql -d postgres -c "CREATE DATABASE arrivo OWNER arrivo;"
-npm run db:push
+npm run db:migrate
 npm run db:seed
 ```

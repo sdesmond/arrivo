@@ -56,7 +56,7 @@ Arrivo is a travel itinerary planning app built with Next.js (App Router), TypeS
 | `npm run test:e2e`          | Full Playwright BDD E2E suite (headless) — user-initiated; run manually for a complete pass |
 | `npm run test:e2e:affected` | Only the E2E features the current change set impacts — what agents always run               |
 | `npm run test:e2e:ui`       | Playwright E2E with interactive UI                                                          |
-| `npm run db:migrate:e2e`    | Push schema to the E2E database (run once after schema changes)                             |
+| `npm run db:migrate:e2e`    | Apply migrations to the E2E database (run once after schema changes)                        |
 
 Coverage thresholds: 95% lines/functions, 90% branches (enforced by `npm run test:coverage` via `build-validator`).
 
@@ -90,7 +90,7 @@ in `SHARED_GLOBS` if it's cross-cutting).
 E2E tests run against a dedicated `arrivo_e2e` database (isolated from dev). One-time setup:
 
 1. Create the database: `createdb arrivo_e2e` (or equivalent)
-2. Push the schema: `npm run db:migrate:e2e`
+2. Apply migrations: `npm run db:migrate:e2e`
 3. Ensure `.env` contains `E2E_DATABASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD` — see `.env.example`
 
 `tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and inserts only the baseline E2E user (`e2e@arrivo.com`); scenarios create their own trips from the mothers in `e2e-seed-data.ts`. Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
@@ -231,6 +231,7 @@ Travel itinerary planner. Next.js 16 App Router, React 19, TypeScript strict, Ta
 
 - `page.tsx` is the Server Component (data, auth); `page-client.tsx` is the `"use client"` half. Keep that split in `src/app/(app)/trips/**`.
 - DB schema `src/db/schema.ts`; server actions sit beside their route as `actions.ts`.
+- Every `src/db/schema.ts` change ships with a generated migration in the same change: `npm run db:generate`, review the SQL (renames come out as drop+add), commit `drizzle/`. Never edit an applied migration. CI fails on drift.
 
 ## Conventions that differ from defaults
 

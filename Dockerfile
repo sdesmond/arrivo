@@ -3,12 +3,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Full toolchain (drizzle-kit, tsx) for one-shot schema push and seeding — never serves traffic.
+# Full toolchain (drizzle-kit, tsx) for one-shot migrations and seeding — never serves traffic.
 FROM node:22-alpine AS tools
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-CMD ["npx", "drizzle-kit", "push"]
+CMD ["npx", "drizzle-kit", "migrate"]
 
 FROM node:22-alpine AS builder
 WORKDIR /app

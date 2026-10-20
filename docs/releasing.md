@@ -4,13 +4,13 @@ Self-hosted instances run the images that `.github/workflows/publish-images.yml`
 GitHub Container Registry:
 
 - `ghcr.io/sdesmond/arrivo` — the web app (`runner` target)
-- `ghcr.io/sdesmond/arrivo-migrate` — the schema push / seed tools (`tools` target)
+- `ghcr.io/sdesmond/arrivo-migrate` — the migration / seed tools (`tools` target)
 
 Both are built for `linux/amd64` and `linux/arm64`.
 
 ## Cut a release
 
-From an up-to-date `main` with a clean working tree:
+From an up-to-date `main` with a clean working tree and a green [CI](../.github/workflows/ci.yml) run on its latest commit. The publish workflow does not wait for CI, and the `arrivo-migrate` image applies the `drizzle/` migrations to every self-hosted database on its next update:
 
 ```sh
 npm version minor   # or patch / major — bumps package.json and creates the vX.Y.Z tag

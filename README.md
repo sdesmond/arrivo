@@ -11,7 +11,7 @@ npm run dev
 
 Sign in at [http://localhost:3000](http://localhost:3000) with `demo@arrivo.com` / `demo1234` (two more seed accounts, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
 
-`npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the schema, seeds demo data, and installs the Playwright Chromium browser.
+`npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the database migrations, seeds demo data, and installs the Playwright Chromium browser.
 
 To force a database mode:
 
@@ -23,7 +23,7 @@ npm run setup:dev -- --db=local
 Native wrappers are also available as `./setup-dev.sh [auto|docker|local]` and `./setup-dev.ps1 -Db auto|docker|local`.
 
 For prerequisites, manual fallback steps, and reset instructions see **[SETUP.md](./SETUP.md)**.
-For the current Drizzle schema workflow and the planned migration cutover, see **[docs/drizzle-workflow.md](./docs/drizzle-workflow.md)**.
+For how schema changes and migrations work (generate, review, commit `drizzle/`), see **[docs/drizzle-workflow.md](./docs/drizzle-workflow.md)**.
 
 ## AI Skills & Agents Setup
 

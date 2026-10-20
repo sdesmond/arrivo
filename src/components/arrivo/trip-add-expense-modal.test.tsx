@@ -5,6 +5,7 @@ import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { TripAddExpenseModal } from "./trip-add-expense-modal";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
+import { pickSelectOption } from "@/test-utils/pick-select-option";
 
 const { createExpense, updateExpense, deleteExpense } = vi.hoisted(() => ({
   createExpense: vi.fn(),
@@ -121,8 +122,7 @@ describe("TripAddExpenseModal", () => {
     const user = userEvent.setup();
     render(<TripAddExpenseModal tripId="trip-1" open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
 
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(screen.getByText("Amount must be greater than 0.")).toBeInTheDocument());
@@ -134,8 +134,7 @@ describe("TripAddExpenseModal", () => {
     render(<TripAddExpenseModal tripId="trip-1" open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "50000.01");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(screen.getByText("Amount must be 50,000 or less.")).toBeInTheDocument());
@@ -164,8 +163,7 @@ describe("TripAddExpenseModal", () => {
     });
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "14");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
 
     expect(screen.queryByText("Amount must be greater than 0.")).not.toBeInTheDocument();
     expect(screen.queryByText("Category is required.")).not.toBeInTheDocument();
@@ -180,8 +178,7 @@ describe("TripAddExpenseModal", () => {
     });
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "120.50");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Activity" }));
+    await pickSelectOption(user, /select category/i, "Activity");
     await user.type(screen.getByRole("textbox", { name: "Note" }), "Visa fee");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -208,8 +205,7 @@ describe("TripAddExpenseModal", () => {
     const { toast } = await import("sonner");
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Couldn't convert currency — try again."));
@@ -227,8 +223,7 @@ describe("TripAddExpenseModal", () => {
     const { toast } = await import("sonner");
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Network error"));

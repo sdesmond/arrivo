@@ -424,7 +424,7 @@ function applyDatabaseSetup(rootDir, envValues) {
     STORAGE_LOCAL_ROOT_DIR: envValues.STORAGE_LOCAL_ROOT_DIR,
   };
 
-  runPackageCommand("npm", ["run", "db:push"], { cwd: rootDir, env });
+  runPackageCommand("npm", ["run", "db:migrate"], { cwd: rootDir, env });
   runPackageCommand("npm", ["run", "db:seed"], { cwd: rootDir, env });
   runPackageCommand("npm", ["run", "db:migrate:e2e"], { cwd: rootDir, env });
 }

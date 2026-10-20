@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { CostDialog } from "./cost-dialog";
+import { pickSelectOption } from "@/test-utils/pick-select-option";
 
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
@@ -71,8 +72,7 @@ describe("CostDialog", () => {
     render(<CostDialog open defaultCurrency="USD" onOpenChange={vi.fn()} onSave={onSave} />, { wrapper: Wrapper });
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
     await user.type(screen.getByRole("textbox", { name: "Note" }), "Lunch");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -145,8 +145,7 @@ describe("CostDialog", () => {
     });
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "14");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
 
     expect(screen.queryByText("Amount is required.")).not.toBeInTheDocument();
     expect(screen.queryByText("Category is required.")).not.toBeInTheDocument();
@@ -212,8 +211,7 @@ describe("CostDialog", () => {
     render(<CostDialog open onOpenChange={onOpenChange} onSave={onSave} />, { wrapper: Wrapper });
 
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
-    await user.click(screen.getByRole("button", { name: /select category/i }));
-    await user.click(screen.getByRole("option", { name: "Food" }));
+    await pickSelectOption(user, /select category/i, "Food");
     await user.type(screen.getByRole("textbox", { name: "Amount" }), "{Enter}");
 
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce());

@@ -18,7 +18,7 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # Pre-release bootstrap: pushes the Drizzle schema, then exits. Replaced by tracked migrations later.
+  # Applies the committed Drizzle migrations (drizzle/), then exits. The app starts only if this succeeds.
   migrate:
     image: ghcr.io/sdesmond/arrivo-migrate:${VERSION:-latest}
     depends_on:
