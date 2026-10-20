@@ -1,6 +1,6 @@
 # Self-hosting Arrivo
 
-Arrivo runs as three containers from prebuilt images: PostgreSQL 17 (`db`), a one-shot schema push
+Arrivo runs as three containers from prebuilt images: PostgreSQL 17 (`db`), a one-shot migration job
 (`migrate`), and the web app (`app`). Any Linux host with Docker Engine and Compose v2 works, on
 amd64 or ARM64.
 
@@ -69,7 +69,8 @@ Set `VERSION` to the new release if you pin one, then:
 docker compose pull && docker compose up -d
 ```
 
-The schema push runs again automatically; data in `DATA_DIR` is untouched. In a
+`migrate` runs again automatically and applies any new migrations; data in `DATA_DIR` is untouched.
+Take a `pg_dump` first when upgrading across releases (see Backup and restore below). In a
 stack-management tool, use its pull-and-redeploy action — a plain redeploy keeps the old image.
 
 ## Backup and restore
@@ -108,7 +109,7 @@ Start with `docker compose ps -a` and `docker compose logs <app|db|migrate>`. A 
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | `required variable NEXTAUTH_SECRET is missing a value` | `.env` is missing, not next to `docker-compose.yml`, or the secret is empty                     |
 | `manifest unknown` when pulling                        | `VERSION` names a release that doesn't exist                                                    |
-| `migrate` shows `Exited (1)`                           | A schema change needs confirmation: run `docker compose run --rm migrate` and answer the prompt |
+| `migrate` shows `Exited (1)`                           | A migration failed: read `docker compose logs migrate`; the app stays stopped until it succeeds |
 | `port is already allocated`                            | Change `HOST_PORT` and the port in `NEXTAUTH_URL`                                               |
 | Sign-in loops or redirects to `localhost`              | `NEXTAUTH_URL` doesn't match the browser's address                                              |
 | Map tab is empty                                       | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                    |
