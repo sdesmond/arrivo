@@ -19,9 +19,39 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
-  checks:
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-alpine
@@ -44,12 +74,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Type check
-        run: npx tsc --noEmit
 
       # schema.ts changed without `npm run db:generate`: generate would write a new migration.
       - name: Migrations are up to date with schema.ts
@@ -82,11 +106,60 @@ jobs:
           dump arrivo_push > pushed.sql
           diff -u migrated.sql pushed.sql || { echo "::error::Migrations do not produce the schema in src/db/schema.ts"; exit 1; }
 
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
       - name: Unit tests with coverage
         run: npm run test:coverage
 
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: arrivo
+          POSTGRES_PASSWORD: arrivo
+          POSTGRES_DB: arrivo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arrivo -d arrivo"
+          --health-interval 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
       - name: Production build
         run: npm run build
+
+  # Single stable required status check, so the branch ruleset needn't list every job above.
+  checks:
+    if: always()
+    needs: [lint, typecheck, migrations, unit-tests, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All checks passed
+        run: |
+          [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "false" ] || exit 1
 
   migrate-image:
     # The published arrivo-migrate image is what self-hosters run on every `docker compose up`.
