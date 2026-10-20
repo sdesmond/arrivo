@@ -1,6 +1,8 @@
 import postgres from "postgres";
 
 export const E2E_RESET_STATEMENTS = [
+  // Migration journal lives outside public; leaving it makes `migrate` skip the baseline on an empty DB.
+  "DROP SCHEMA IF EXISTS drizzle CASCADE",
   "DROP SCHEMA IF EXISTS public CASCADE",
   "CREATE SCHEMA public",
   "GRANT ALL ON SCHEMA public TO CURRENT_USER",
