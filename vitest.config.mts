@@ -31,7 +31,7 @@ export default defineConfig({
       },
     },
     coverage: {
-      provider: "istanbul",
+      provider: "v8",
       thresholds: { lines: 95, functions: 95, branches: 90 },
       include: ["src/lib/**", "src/components/**"],
       exclude: [
