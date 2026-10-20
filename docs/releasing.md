@@ -4,9 +4,6 @@ Self-hosted instances run the image that `.github/workflows/publish-images.yml` 
 GitHub Container Registry: `ghcr.io/sdesmond/arrivo` (the `runner` target), built for `linux/amd64`
 and `linux/arm64`. It applies database migrations itself on start.
 
-Releases up to 0.3.0 also published `ghcr.io/sdesmond/arrivo-migrate`. It is no longer built; the old
-tags stay in the registry so older compose files keep working.
-
 ## Cut a release
 
 Bump the version on a branch and merge it through a PR, since `main` only accepts changes that passed

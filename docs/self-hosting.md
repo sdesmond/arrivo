@@ -136,20 +136,6 @@ Start with `docker ps -a` and `docker logs arrivo`. A healthy install shows `arr
 | Map tab is empty                              | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                                |
 | `EACCES` / `permission denied` when uploading | `PUID`/`PGID` don't match a user that can write the `storage` folder                                        |
 
-## Upgrading from 0.3 or earlier
-
-Earlier releases used a separate `arrivo-migrate` container, a `.env` file and port 3000. To move to
-the single-image setup:
-
-1. Take a backup (see above).
-2. Replace your `docker-compose.yml` with the current one. Keep your data paths: the old default
-   `./data/pgdata` and `./data/storage` are unchanged.
-3. Copy `NEXTAUTH_SECRET` from your old `.env` into the `app` environment, or leave it out and
-   everyone signs in once more.
-4. Run `docker compose up -d --remove-orphans`. The old `migrate` container is removed, and the
-   storage folder is re-owned to `PUID`/`PGID` on first start.
-5. Arrivo now listens on **3550**: update bookmarks, reverse-proxy targets and any `NEXTAUTH_URL`.
-
 ## Uninstalling
 
 `docker compose down` removes the containers. Data stays in `./data` (even with `-v`); delete that
