@@ -156,6 +156,30 @@ describe("Dockerfile tools stage (migrations)", () => {
   });
 });
 
+describe("Node version", () => {
+  const nodeMajor = readRootFile(".nvmrc").trim();
+
+  it("pins a single major in .nvmrc", () => {
+    expect(nodeMajor).toMatch(/^\d+$/);
+  });
+
+  it("takes Node from one base stage on that major, which every other stage builds on", () => {
+    const froms = readRootFile("Dockerfile").match(/^FROM \S+( AS \S+)?$/gm) ?? [];
+    const nodeFroms = froms.filter((line) => line.startsWith("FROM node:"));
+
+    expect(nodeFroms).toEqual([`FROM node:${nodeMajor}-alpine AS base`]);
+    expect(
+      froms.filter((line) => !line.startsWith("FROM node:")).every((line) => line.startsWith("FROM base AS "))
+    ).toBe(true);
+  });
+
+  it("runs CI on the version in .nvmrc instead of its own copy", () => {
+    const workflow = readRootFile(".github/workflows/ci.yml");
+    expect(workflow).toContain("node-version-file: .nvmrc");
+    expect(workflow).not.toMatch(/node-version: /);
+  });
+});
+
 describe("docker build context and docs", () => {
   it("keeps bind-mounted data out of the build context", () => {
     expect(readRootFile(".dockerignore").split(/\r?\n/)).toContain("data");
