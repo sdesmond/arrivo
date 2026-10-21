@@ -83,12 +83,19 @@ function sign(payload: string): string {
   return createHmac("sha256", ticketSecret()).update(payload).digest("base64url");
 }
 
-export function createMfaTicket(userId: string, now = Date.now()): string {
-  const payload = Buffer.from(JSON.stringify({ userId, expiresAt: now + MFA_TICKET_TTL_MS })).toString("base64url");
+export interface MfaTicket {
+  userId: string;
+  keepSignedIn: boolean;
+}
+
+export function createMfaTicket(userId: string, { keepSignedIn }: { keepSignedIn: boolean }, now = Date.now()): string {
+  const payload = Buffer.from(JSON.stringify({ userId, keepSignedIn, expiresAt: now + MFA_TICKET_TTL_MS })).toString(
+    "base64url"
+  );
   return `${payload}.${sign(payload)}`;
 }
 
-export function verifyMfaTicket(ticket: string, now = Date.now()): string | null {
+export function verifyMfaTicket(ticket: string, now = Date.now()): MfaTicket | null {
   const [payload, signature] = ticket.split(".");
   if (!payload || !signature) return null;
 
@@ -97,9 +104,9 @@ export function verifyMfaTicket(ticket: string, now = Date.now()): string | null
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
 
   try {
-    const { userId, expiresAt } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    const { userId, expiresAt, keepSignedIn } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (typeof userId !== "string" || typeof expiresAt !== "number" || expiresAt < now) return null;
-    return userId;
+    return { userId, keepSignedIn: keepSignedIn !== false };
   } catch {
     return null;
   }

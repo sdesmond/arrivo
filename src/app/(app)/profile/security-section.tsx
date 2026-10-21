@@ -23,6 +23,7 @@ import { disableMfa, regenerateRecoveryCodes, signOutEverywhere } from "./securi
 interface ProfileSecuritySectionProps {
   status: MfaStatus;
   devices: TrustedDeviceSummary[];
+  encryptionConfigured: boolean;
 }
 
 type ConfirmKind = "regenerate" | "disable";
@@ -42,7 +43,7 @@ const CONFIRM_COPY: Record<ConfirmKind, { title: string; description: string; ac
   },
 };
 
-export function ProfileSecuritySection({ status, devices }: ProfileSecuritySectionProps) {
+export function ProfileSecuritySection({ status, devices, encryptionConfigured }: ProfileSecuritySectionProps) {
   const router = useRouter();
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [codesFromEnrollment, setCodesFromEnrollment] = useState(false);
@@ -108,14 +109,21 @@ export function ProfileSecuritySection({ status, devices }: ProfileSecuritySecti
             <p role="status" style={TEXT_STYLE}>
               Two-factor authentication is off.
             </p>
-            <MfaEnrollment onEnrolled={handleEnrolled} />
+            {encryptionConfigured ? (
+              <MfaEnrollment onEnrolled={handleEnrolled} />
+            ) : (
+              <p style={TEXT_STYLE}>
+                Setting it up needs DATA_ENCRYPTION_KEY set on the server. Ask whoever runs this Arrivo install.
+              </p>
+            )}
           </>
         )}
       </Section>
 
-      <Section title="Remembered browsers">
+      <Section title="Your browsers">
         <p style={TEXT_STYLE}>
-          Failed sign-ins elsewhere never lock you out of these. Forget any you don&apos;t recognize.
+          Browsers you&apos;ve signed in from. Failed sign-ins elsewhere never lock you out of these. Remove any you
+          don&apos;t recognize; removing one signs it out.
         </p>
         <TrustedDevicesList devices={devices} />
       </Section>

@@ -53,7 +53,7 @@ function mockSelectRows(rows: unknown[]) {
 
 function recordWrites() {
   const updateSet = vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) }));
-  const insertValues = vi.fn().mockResolvedValue([]);
+  const insertValues = vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: "device-new" }]) }));
   const deleteWhere = vi.fn().mockResolvedValue([]);
   db.update.mockReturnValue({ set: updateSet });
   db.insert.mockReturnValue({ values: insertValues });
@@ -155,7 +155,10 @@ describe("rememberDevice", () => {
     mockSelectRows([device()]);
     const { updateSet, insertValues } = recordWrites();
 
-    await expect(rememberDevice({ ...base, existingToken: "token-1", rememberMfa: false })).resolves.toBe("token-1");
+    await expect(rememberDevice({ ...base, existingToken: "token-1", rememberMfa: false })).resolves.toEqual({
+      token: "token-1",
+      deviceId: "device-1",
+    });
 
     expect(updateSet).toHaveBeenCalledWith({ lastUsedAt: NOW, label: "Firefox on Windows" });
     expect(insertValues).not.toHaveBeenCalled();
@@ -176,8 +179,9 @@ describe("rememberDevice", () => {
     mockSelectRows([device({ sessionVersion: 1 })]);
     const { insertValues, deleteWhere } = recordWrites();
 
-    const token = await rememberDevice({ ...base, existingToken: "token-1", rememberMfa: false });
+    const { token, deviceId } = await rememberDevice({ ...base, existingToken: "token-1", rememberMfa: false });
 
+    expect(deviceId).toBe("device-new");
     expect(token).not.toBe("token-1");
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     // Old token's row, then rows unused for a year.
@@ -240,10 +244,18 @@ describe("listing and forgetting", () => {
     expect(summary.isCurrent).toBe(false);
   });
 
-  it("forgets a device only for its owner", async () => {
-    const { deleteWhere } = recordWrites();
-    await forgetTrustedDevice("user-1", "device-1");
+  it("forgets a device only for its owner and says whether it was this browser", async () => {
+    const returning = vi.fn().mockResolvedValue([{ tokenHash: hashDeviceToken("token-1") }]);
+    db.delete.mockReturnValue({ where: vi.fn(() => ({ returning })) });
+
+    await expect(forgetTrustedDevice("user-1", "device-1", "token-1")).resolves.toEqual({ wasCurrent: true });
     expect(db.delete).toHaveBeenCalledWith(schema.trustedDevices);
-    expect(deleteWhere).toHaveBeenCalled();
+    await expect(forgetTrustedDevice("user-1", "device-1", "other-token")).resolves.toEqual({ wasCurrent: false });
+    await expect(forgetTrustedDevice("user-1", "device-1", undefined)).resolves.toEqual({ wasCurrent: false });
+  });
+
+  it("reports nothing current when no row matched", async () => {
+    db.delete.mockReturnValue({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })) });
+    await expect(forgetTrustedDevice("user-1", "missing", "token-1")).resolves.toEqual({ wasCurrent: false });
   });
 });

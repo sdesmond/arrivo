@@ -1,9 +1,10 @@
 // @vitest-environment node
 import { randomBytes } from "node:crypto";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { decryptField, isEncryptedField } from "@/lib/field-encryption";
 
-vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
+const TEST_KEY = randomBytes(32).toString("base64");
+vi.stubEnv("DATA_ENCRYPTION_KEY", TEST_KEY);
 
 const { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser, mockTransaction, mockRevalidatePath } =
   vi.hoisted(() => {
@@ -346,6 +347,38 @@ describe("updateProfile — travel documents are encrypted at rest", () => {
     const written = mockSet.mock.calls[0][0];
     expect("passportNumber" in written).toBe(false);
     expect("knownTravelerNumber" in written).toBe(false);
+  });
+});
+
+describe("travel documents without DATA_ENCRYPTION_KEY", () => {
+  const NEEDS_KEY = "Saving travel documents needs DATA_ENCRYPTION_KEY set on the server.";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("DATA_ENCRYPTION_KEY", "");
+    mockUpdate.mockReturnValue({ set: mockSet });
+    mockSet.mockReturnValue({ where: mockWhere });
+    mockWhere.mockReturnValue({ returning: mockReturning });
+    mockReturning.mockResolvedValue([{ id: "companion-1" }]);
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  afterEach(() => vi.stubEnv("DATA_ENCRYPTION_KEY", TEST_KEY));
+
+  it("refuses to save a passport number on the profile instead of failing", async () => {
+    await expect(updateProfile({ passportNumber: "X1" })).resolves.toEqual({ error: NEEDS_KEY });
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  it("refuses to save a companion's known traveler number instead of failing", async () => {
+    await expect(updateCompanion("companion-1", { name: "Al", knownTravelerNumber: "K1" })).resolves.toEqual({
+      error: NEEDS_KEY,
+    });
+  });
+
+  it("still saves everything else, including clearing the fields", async () => {
+    await expect(updateProfile({ name: "Alice", passportNumber: null })).resolves.toEqual({});
+    await expect(updateCompanion("companion-1", { name: "Al" })).resolves.toEqual({});
   });
 });
 

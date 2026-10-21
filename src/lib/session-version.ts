@@ -1,7 +1,8 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { trustedDevices, users } from "@/db/schema";
+import type { SessionState } from "./session-policy";
 
 // Every sign-in token carries the user's session version (see the jwt callback in src/auth.ts); bumping it
 // invalidates every token issued before, i.e. signs the user out on all devices.
@@ -12,7 +13,25 @@ export async function bumpSessionVersion(userId: string): Promise<void> {
     .where(eq(users.id, userId));
 }
 
-export async function getSessionVersion(userId: string): Promise<number | undefined> {
-  const [row] = await db.select({ sessionVersion: users.sessionVersion }).from(users).where(eq(users.id, userId));
-  return row?.sessionVersion;
+// One lookup per auth() call: the user's session version, and whether the browser the token came from is still
+// remembered at that version (see isTokenRevoked in src/lib/session-policy.ts).
+export async function getSessionState(userId: string, deviceId: string | undefined): Promise<SessionState | undefined> {
+  if (!deviceId) {
+    const [row] = await db.select({ sessionVersion: users.sessionVersion }).from(users).where(eq(users.id, userId));
+    return row && { sessionVersion: row.sessionVersion, deviceActive: false };
+  }
+
+  const [row] = await db
+    .select({ sessionVersion: users.sessionVersion, deviceId: trustedDevices.id })
+    .from(users)
+    .leftJoin(
+      trustedDevices,
+      and(
+        eq(trustedDevices.id, deviceId),
+        eq(trustedDevices.userId, users.id),
+        eq(trustedDevices.sessionVersion, users.sessionVersion)
+      )
+    )
+    .where(eq(users.id, userId));
+  return row && { sessionVersion: row.sessionVersion, deviceActive: row.deviceId !== null };
 }

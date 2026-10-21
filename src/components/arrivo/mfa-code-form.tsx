@@ -56,7 +56,7 @@ export function MfaCodeForm({ action, onBack }: MfaCodeFormProps) {
           </div>
           <label className="flex min-h-11 items-center gap-2">
             <input type="checkbox" name="remember" className="size-5" style={{ accentColor: "var(--accent-brand)" }} />
-            Remember this computer for 30 days
+            Don&apos;t ask for a code on this browser for 30 days
           </label>
           <AuthSubmitButton label="Verify" />
           <button

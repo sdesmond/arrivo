@@ -7,6 +7,7 @@ import {
   encryptField,
   encryptOptionalField,
   isEncryptedField,
+  isFieldEncryptionConfigured,
 } from "./field-encryption";
 
 const TEST_KEY = randomBytes(32).toString("base64");
@@ -81,5 +82,13 @@ describe("field encryption", () => {
     const encrypted = encryptOptionalField("TT-1");
     expect(isEncryptedField(encrypted!)).toBe(true);
     expect(decryptOptionalField(encrypted)).toBe("TT-1");
+  });
+
+  it("reports whether a usable key is configured, without throwing", () => {
+    expect(isFieldEncryptionConfigured()).toBe(true);
+    vi.stubEnv("DATA_ENCRYPTION_KEY", "");
+    expect(isFieldEncryptionConfigured()).toBe(false);
+    vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(16).toString("base64"));
+    expect(isFieldEncryptionConfigured()).toBe(false);
   });
 });

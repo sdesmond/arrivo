@@ -6,7 +6,6 @@ import { mfaRecoveryCodes, users } from "../../../src/db/schema";
 import { encryptField } from "../../../src/lib/field-encryption";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
-import { waitForServerActionResponse } from "../server-action";
 
 const TOTP_SECRET_KEY = "mfa:totp-secret";
 const RECOVERY_CODE_KEY = "mfa:recovery-code";
@@ -102,17 +101,20 @@ When("I enter the next code from my authenticator app", async ({ page, scenario 
   await submitCode(page, nextCode(totpSecret(scenario)));
 });
 
-When("I enter the next code from my authenticator app and remember this computer", async ({ page, scenario }) => {
-  await expect(page.getByRole("textbox", { name: "Authentication code" })).toBeVisible();
-  await page.getByRole("checkbox", { name: "Remember this computer for 30 days" }).check();
-  await submitCode(page, nextCode(totpSecret(scenario)));
-});
+When(
+  "I enter the next code from my authenticator app and ask not to be asked again on this browser",
+  async ({ page, scenario }) => {
+    await expect(page.getByRole("textbox", { name: "Authentication code" })).toBeVisible();
+    await page.getByRole("checkbox", { name: "Don't ask for a code on this browser for 30 days" }).check();
+    await submitCode(page, nextCode(totpSecret(scenario)));
+  }
+);
 
-When("I forget this browser", async ({ page }) => {
-  const response = waitForServerActionResponse(page, { pathIncludes: "/profile" });
-  await page.getByRole("button", { name: /^Forget .* \(this browser\)$/ }).click();
-  await response;
-  await expect(page.getByRole("button", { name: /\(this browser\)$/ })).toHaveCount(0);
+When("I remove this browser", async ({ page, scenario }) => {
+  // Removing the browser you're on signs it out straight away.
+  await page.getByRole("button", { name: /^Remove .* \(this browser\)$/ }).click();
+  await page.waitForURL("**/sign-in");
+  scenario.signOut();
 });
 
 When("I enter a recovery code", async ({ page, scenario }) => {

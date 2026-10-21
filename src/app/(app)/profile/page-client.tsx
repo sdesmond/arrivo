@@ -29,9 +29,10 @@ interface ProfilePageClientProps {
   user: UserProfile;
   mfaStatus: MfaStatus;
   trustedDevices: TrustedDeviceSummary[];
+  encryptionConfigured: boolean;
 }
 
-export function ProfilePageClient({ user, mfaStatus, trustedDevices }: ProfilePageClientProps) {
+export function ProfilePageClient({ user, mfaStatus, trustedDevices, encryptionConfigured }: ProfilePageClientProps) {
   const [activeSection, setActiveSection] = useState<ProfileSection>("identity");
 
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
@@ -144,7 +145,11 @@ export function ProfilePageClient({ user, mfaStatus, trustedDevices }: ProfilePa
             </TabsContent>
 
             <TabsContent value="security" className="w-full">
-              <ProfileSecuritySection status={mfaStatus} devices={trustedDevices} />
+              <ProfileSecuritySection
+                status={mfaStatus}
+                devices={trustedDevices}
+                encryptionConfigured={encryptionConfigured}
+              />
             </TabsContent>
 
             <TabsContent value="account" className="w-full">

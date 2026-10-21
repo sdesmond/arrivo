@@ -89,18 +89,20 @@ isn't reachable around it.
   also limited to 30 failures per 15 minutes across all accounts. That per-address limit needs the reverse
   proxy to send `X-Forwarded-For` (Caddy and most proxies do); without a proxy only the per-email limit
   applies. Set `AUTH_MAX_FAILURES` or `AUTH_IP_MAX_FAILURES` to change the thresholds.
-- **Remembered browsers**: a browser that has signed in successfully is remembered, and failed sign-ins from
-  anywhere else never lock its owner out there (it gets its own five-guess limit instead). Users see and
-  forget these under **Profile → Security**.
+- **Your browsers**: every browser that signs in successfully is recognized, and failed sign-ins from
+  anywhere else never lock its owner out there (it gets its own five-guess limit instead). Users see these
+  under **Profile → Security** and can remove any they don't recognize, which also signs that browser out.
+- **Keep me signed in**: ticked at sign-in, a session lasts 30 days from the last visit; unticked, it ends
+  12 hours after signing in.
 - **Two-factor authentication**: each user can turn it on under **Profile → Security** with any
-  authenticator app, and gets ten one-time recovery codes. Ticking **Remember this computer for 30 days**
-  at the code prompt skips the code on that browser; anyone with that browser and the password can then sign
-  in without a code until it's forgotten or the user signs out all devices. If someone loses both their
-  phone and their codes, turn it off for them with `docker exec arrivo node /app/mfa-reset.mjs
-user@example.com`.
+  authenticator app, and gets ten one-time recovery codes. Ticking **Don't ask for a code on this browser
+  for 30 days** at the code prompt skips the code there; anyone with that browser and the password can then
+  sign in without a code until the browser is removed or the user signs out all devices. If someone loses
+  both their phone and their codes, turn it off for them with
+  `docker exec arrivo node /app/mfa-reset.mjs user@example.com`.
 - **Signing out other devices**: changing a password, turning two-factor on or off, or choosing **Sign out
   all devices** under **Profile → Security** ends that user's sessions everywhere and forgets their
-  remembered browsers.
+  browsers.
 
 ## Updating
 

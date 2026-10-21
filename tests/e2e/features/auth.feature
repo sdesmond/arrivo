@@ -34,3 +34,8 @@ Feature: Authentication
     When someone enters the wrong password for my account 5 times on another browser
     And I sign in to my account with the correct password
     Then I should be redirected to the trips page
+
+  Scenario: Keep me signed in
+    Given I am on the sign-in page
+    When I sign in to my account with Keep me signed in ticked
+    Then I should be redirected to the trips page

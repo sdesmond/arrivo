@@ -3,21 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-const { signIn, signOut, db, selectWhere, rememberDevice, verifyMfaTicket } = vi.hoisted(() => {
-  const selectWhere = vi.fn();
-  return {
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    selectWhere,
-    rememberDevice: vi.fn(),
-    verifyMfaTicket: vi.fn(),
-    db: {
-      insert: vi.fn(),
-      update: vi.fn(),
-      select: vi.fn(() => ({ from: () => ({ where: selectWhere }) })),
-    },
-  };
-});
+const { signIn, signOut, db } = vi.hoisted(() => ({
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  db: {
+    insert: vi.fn(),
+    update: vi.fn(),
+  },
+}));
 
 vi.mock("@/auth", () => ({
   signIn,
@@ -32,21 +25,10 @@ vi.mock("next-auth", async () => ({
   AuthError: (await import("@auth/core/errors")).AuthError,
 }));
 
-vi.mock("@/lib/trusted-devices", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/trusted-devices")>()),
-  rememberDevice,
-}));
-
-vi.mock("@/lib/mfa", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/mfa")>()),
-  verifyMfaTicket,
-}));
-
 import { CredentialsSignin } from "@auth/core/errors";
 import { collaborators, users } from "@/db/schema";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE } from "@/lib/mfa";
-import { DEVICE_COOKIE } from "@/lib/trusted-devices";
 import { signInAction, signOutAction, signUpAction, verifyMfaAction } from "./actions";
 
 function cookieJar(values: Record<string, string> = {}) {
@@ -114,6 +96,8 @@ describe("auth actions", () => {
       })
     );
     expect(signIn).toHaveBeenCalled();
+    // A brand-new account stays signed in on the browser that created it.
+    expect((signIn.mock.calls[0][1] as FormData).get("keepSignedIn")).toBe("true");
   });
 
   it("signs out to the sign-in page", async () => {
@@ -125,37 +109,26 @@ describe("auth actions", () => {
 describe("signInAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(headers).mockResolvedValue(new Headers({ "user-agent": "Firefox" }));
-    selectWhere.mockResolvedValue([{ id: "user-1", sessionVersion: 3 }]);
-    rememberDevice.mockResolvedValue("device-token");
+    vi.unstubAllEnvs();
+    vi.mocked(headers).mockResolvedValue(new Headers());
   });
 
-  it("signs in, trusts this browser, then lands on trips", async () => {
-    const jar = cookieJar({ [DEVICE_COOKIE]: "old-token" });
-    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }));
-
-    expect(signIn).toHaveBeenCalledWith("credentials", { email: "a@example.com", password: "pw", redirect: false });
-    expect(rememberDevice).toHaveBeenCalledWith({
-      userId: "user-1",
-      sessionVersion: 3,
-      existingToken: "old-token",
-      userAgent: "Firefox",
-      rememberMfa: false,
-    });
-    expect(jar.set).toHaveBeenCalledWith(
-      DEVICE_COOKIE,
-      "device-token",
-      expect.objectContaining({ httpOnly: true, sameSite: "lax", secure: false, maxAge: 365 * 24 * 60 * 60 })
-    );
-    expect(redirect).toHaveBeenCalledWith("/trips");
-  });
-
-  it("still lands on trips if the user row vanished between steps", async () => {
+  it("signs in with the submitted credentials and Keep me signed in, then lands on trips", async () => {
     cookieJar();
-    selectWhere.mockResolvedValue([]);
-    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }));
-    expect(rememberDevice).not.toHaveBeenCalled();
+    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw", keepSignedIn: "on" }));
+    expect(signIn).toHaveBeenCalledWith("credentials", {
+      email: "a@example.com",
+      password: "pw",
+      keepSignedIn: "true",
+      redirect: false,
+    });
     expect(redirect).toHaveBeenCalledWith("/trips");
+  });
+
+  it("sends an unticked Keep me signed in as false", async () => {
+    cookieJar();
+    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }));
+    expect(signIn).toHaveBeenCalledWith("credentials", expect.objectContaining({ keepSignedIn: "false" }));
   });
 
   it("returns a generic error for bad credentials", async () => {
@@ -163,7 +136,6 @@ describe("signInAction", () => {
     await expect(signInAction(undefined, signInForm({ email: "a@example.com", password: "x" }))).resolves.toEqual({
       error: "Invalid email or password.",
     });
-    expect(rememberDevice).not.toHaveBeenCalled();
   });
 
   it("tells a locked-out user how long to wait", async () => {
@@ -184,23 +156,14 @@ describe("signInAction", () => {
       "signed-ticket",
       expect.objectContaining({ httpOnly: true, sameSite: "lax", secure: false, maxAge: 300 })
     );
-    expect(rememberDevice).not.toHaveBeenCalled();
   });
 
-  it("marks cookies secure behind an HTTPS proxy", async () => {
+  it("marks the ticket cookie secure behind an HTTPS proxy", async () => {
     vi.mocked(headers).mockResolvedValue(new Headers({ "x-forwarded-proto": "https" }));
     const jar = cookieJar();
     signIn.mockRejectedValueOnce(new MfaRequiredError("signed-ticket"));
     await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }));
     expect(jar.set).toHaveBeenCalledWith(MFA_COOKIE, "signed-ticket", expect.objectContaining({ secure: true }));
-  });
-
-  it("marks cookies secure when NEXTAUTH_URL is https and no proxy header is sent", async () => {
-    vi.stubEnv("NEXTAUTH_URL", "https://arrivo.example.com");
-    const jar = cookieJar();
-    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }));
-    expect(jar.set).toHaveBeenCalledWith(DEVICE_COOKIE, "device-token", expect.objectContaining({ secure: true }));
-    vi.unstubAllEnvs();
   });
 
   it("rethrows non-auth errors", async () => {
@@ -214,36 +177,25 @@ describe("verifyMfaAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(headers).mockResolvedValue(new Headers());
-    selectWhere.mockResolvedValue([{ id: "user-1", sessionVersion: 3 }]);
-    rememberDevice.mockResolvedValue("device-token");
-    verifyMfaTicket.mockReturnValue("user-1");
   });
 
-  it("signs in with the ticket and code, clears the ticket, trusts the browser, then lands on trips", async () => {
+  it("signs in with the ticket and code, clears the ticket, then lands on trips", async () => {
     const jar = cookieJar({ [MFA_COOKIE]: "signed-ticket" });
     await verifyMfaAction(undefined, signInForm({ code: "123456" }));
     expect(signIn).toHaveBeenCalledWith("credentials", {
       mfaTicket: "signed-ticket",
       code: "123456",
+      remember: "false",
       redirect: false,
     });
     expect(jar.delete).toHaveBeenCalledWith(MFA_COOKIE);
-    expect(rememberDevice).toHaveBeenCalledWith(expect.objectContaining({ userId: "user-1", rememberMfa: false }));
     expect(redirect).toHaveBeenCalledWith("/trips");
   });
 
-  it("remembers the browser for two-factor when the box is ticked", async () => {
+  it("passes on Don't ask for a code on this browser", async () => {
     cookieJar({ [MFA_COOKIE]: "signed-ticket" });
     await verifyMfaAction(undefined, signInForm({ code: "123456", remember: "on" }));
-    expect(rememberDevice).toHaveBeenCalledWith(expect.objectContaining({ rememberMfa: true }));
-  });
-
-  it("skips trusting the browser if the ticket can no longer be read", async () => {
-    cookieJar({ [MFA_COOKIE]: "signed-ticket" });
-    verifyMfaTicket.mockReturnValue(null);
-    await verifyMfaAction(undefined, signInForm({ code: "123456" }));
-    expect(rememberDevice).not.toHaveBeenCalled();
-    expect(redirect).toHaveBeenCalledWith("/trips");
+    expect(signIn).toHaveBeenCalledWith("credentials", expect.objectContaining({ remember: "true" }));
   });
 
   it("asks the user to start over when the ticket cookie is gone", async () => {

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   disableMfa: vi.fn(),
   regenerateRecoveryCodes: vi.fn(),
   signOutEverywhere: vi.fn(),
-  forgetTrustedDevice: vi.fn(),
+  removeTrustedDevice: vi.fn(),
 }));
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 
@@ -60,7 +60,7 @@ const OFF = { enabled: false, recoveryCodesRemaining: 0 };
 
 async function openDialog(name: string) {
   const user = userEvent.setup();
-  render(<ProfileSecuritySection status={ON} devices={[]} />);
+  render(<ProfileSecuritySection status={ON} devices={[]} encryptionConfigured />);
   await user.click(screen.getByRole("button", { name }));
   return user;
 }
@@ -75,24 +75,26 @@ describe("ProfileSecuritySection", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("describes the off state in text and offers setup", () => {
-    render(<ProfileSecuritySection status={OFF} devices={[]} />);
+    render(<ProfileSecuritySection status={OFF} devices={[]} encryptionConfigured />);
     expect(screen.getByText("Two-factor authentication is off.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Finish enrollment" })).toBeInTheDocument();
   });
 
   it("describes the on state with its date and remaining codes", () => {
-    render(<ProfileSecuritySection status={ON} devices={[]} />);
+    render(<ProfileSecuritySection status={ON} devices={[]} encryptionConfigured />);
     expect(screen.getByText(/is on \(since Oct 1, 2026\)\. 1 recovery code left\./)).toBeInTheDocument();
   });
 
   it("pluralizes remaining codes and tolerates a missing date", () => {
-    render(<ProfileSecuritySection status={{ enabled: true, recoveryCodesRemaining: 4 }} devices={[]} />);
+    render(
+      <ProfileSecuritySection status={{ enabled: true, recoveryCodesRemaining: 4 }} devices={[]} encryptionConfigured />
+    );
     expect(screen.getByText(/is on\. 4 recovery codes left\./)).toBeInTheDocument();
   });
 
   it("shows codes after enrollment, then signs in again once saved", async () => {
     const user = userEvent.setup();
-    render(<ProfileSecuritySection status={OFF} devices={[]} />);
+    render(<ProfileSecuritySection status={OFF} devices={[]} encryptionConfigured />);
     await user.click(screen.getByRole("button", { name: "Finish enrollment" }));
     expect(screen.getByText("Codes: aaaaa-bbbbb")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "I saved these" }));
@@ -154,21 +156,28 @@ describe("ProfileSecuritySection", () => {
     expect(screen.getByRole("button", { name: "Regenerate recovery codes" })).toHaveFocus();
   });
 
-  it("lists remembered browsers", () => {
+  it("explains that two-factor needs the server's encryption key instead of offering setup", () => {
+    render(<ProfileSecuritySection status={OFF} devices={[]} encryptionConfigured={false} />);
+    expect(screen.getByText(/needs DATA_ENCRYPTION_KEY set on the server/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finish enrollment" })).not.toBeInTheDocument();
+  });
+
+  it("lists your browsers", () => {
     render(
       <ProfileSecuritySection
         status={OFF}
         devices={[
           { id: "device-1", label: "Firefox on Linux", lastUsedAt: "2026-10-21T12:00:00.000Z", isCurrent: true },
         ]}
+        encryptionConfigured
       />
     );
-    expect(screen.getByRole("list", { name: "Remembered browsers" })).toHaveTextContent("Firefox on Linux");
+    expect(screen.getByRole("list", { name: "Your browsers" })).toHaveTextContent("Firefox on Linux");
   });
 
   it("signs out all devices", async () => {
     const user = userEvent.setup();
-    render(<ProfileSecuritySection status={OFF} devices={[]} />);
+    render(<ProfileSecuritySection status={OFF} devices={[]} encryptionConfigured />);
     await user.click(screen.getByRole("button", { name: "Sign out all devices" }));
     expect(mocks.signOutEverywhere).toHaveBeenCalledOnce();
   });

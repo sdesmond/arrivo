@@ -109,3 +109,10 @@ Feature: User profile page
     Then I should be redirected to the sign-in page
     And I should see the sign-in notice "Signed out on all devices"
     And my second device should be signed out
+
+  Scenario: Removing a browser signs it out
+    Given I am on the profile page
+    And I am also signed in on a second device
+    When I open the Security section
+    And I remove my other browser
+    Then my second device should be signed out

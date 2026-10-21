@@ -88,7 +88,7 @@ touches any other account in the database.
 
 ## 3. Environment variables
 
-`npm run setup:dev` creates `.env` from `.env.example`, preserves existing non-empty values, generates `NEXTAUTH_SECRET` when needed, and sets database URLs for the selected backend.
+`npm run setup:dev` creates `.env` from `.env.example`, preserves existing non-empty values, generates `NEXTAUTH_SECRET` and `DATA_ENCRYPTION_KEY` when needed, and sets database URLs for the selected backend.
 
 | Variable                 | Description                                    | Example default                                      |
 | ------------------------ | ---------------------------------------------- | ---------------------------------------------------- |
@@ -96,12 +96,20 @@ touches any other account in the database.
 | `E2E_DATABASE_URL`       | Dedicated PostgreSQL connection string for E2E | `postgres://arrivo:arrivo@localhost:5432/arrivo_e2e` |
 | `NEXTAUTH_URL`           | Full URL of the app                            | `http://localhost:3000`                              |
 | `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                       | generated automatically                              |
+| `DATA_ENCRYPTION_KEY`    | Encrypts passport numbers and 2FA secrets      | generated automatically; never change it once set    |
 | `ALLOW_SIGNUP`           | Expose the sign-up page                        | `true`                                               |
 | `E2E_EMAIL`              | E2E login email                                | `e2e@arrivo.com`                                     |
 | `E2E_PASSWORD`           | E2E login password                             | `e2e1234`                                            |
 | `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator        | `true`                                               |
 | `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                              |
 | `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                   | `./.dev-storage`                                     |
+
+A `.env` created before `DATA_ENCRYPTION_KEY` existed has no key, and the dev server prints a warning at startup;
+saving a passport number or setting up two-factor won't work until it's set. Add one (and keep it) with:
+
+```bash
+node -e "console.log('DATA_ENCRYPTION_KEY=' + require('crypto').randomBytes(32).toString('base64'))" >> .env
+```
 
 Local uploads are written under `STORAGE_LOCAL_ROOT_DIR` and served through `/api/storage/...`. See the **[Storage](./README.md#storage)** section in README.md for how the adapter, providers, and Docker storage mount work.
 

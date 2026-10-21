@@ -97,6 +97,21 @@ function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps)
           aria-describedby={hasError ? "form-error" : undefined}
         />
       </div>
+      <div className="flex flex-col">
+        <label className="flex min-h-11 items-center gap-2">
+          <input
+            type="checkbox"
+            name="keepSignedIn"
+            aria-describedby="keep-signed-in-hint"
+            className="size-5"
+            style={{ accentColor: "var(--accent-brand)" }}
+          />
+          Keep me signed in
+        </label>
+        <span id="keep-signed-in-hint" className="text-sm" style={{ color: "var(--fg-3)" }}>
+          Otherwise you&apos;re signed out after 12 hours.
+        </span>
+      </div>
       <AuthSubmitButton label="Sign in" />
       <p className="text-center text-sm">
         Need an account?{" "}

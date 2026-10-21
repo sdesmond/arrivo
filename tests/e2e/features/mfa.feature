@@ -37,17 +37,17 @@ Feature: Two-factor authentication
     When I sign in with my password
     Then I should be redirected to the trips page
 
-  Scenario: Remember this computer skips the code next time
+  Scenario: Don't ask for a code on this browser skips it next time
     Given my account has two-factor authentication on
     And I am on the sign-in page
     When I sign in with my password
-    And I enter the next code from my authenticator app and remember this computer
+    And I enter the next code from my authenticator app and ask not to be asked again on this browser
     Then I should be redirected to the trips page
     When I sign out
     And I sign in with my password
     Then I should be redirected to the trips page
     When I open my profile's Security section
-    And I forget this browser
-    And I sign out
-    And I sign in with my password
+    And I remove this browser
+    Then I should be redirected to the sign-in page
+    When I sign in with my password
     Then I should be asked for an authentication code

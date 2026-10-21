@@ -4,17 +4,23 @@ import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/db";
 import { logAuthError } from "@/lib/auth-logger";
 import { authorizeCredentials, type AuthorizedUser } from "@/lib/authorize-credentials";
-import { getSessionVersion } from "@/lib/session-version";
+import { isTokenRevoked, type SessionTokenFields } from "@/lib/session-policy";
+import { getSessionState } from "@/lib/session-version";
 
 declare module "next-auth" {
   interface User {
     sessionVersion?: number;
+    deviceId?: string;
+    keepSignedIn?: boolean;
   }
 }
 
 declare module "@auth/core/jwt" {
   interface JWT {
-    sessionVersion?: number;
+    sessionVersion?: SessionTokenFields["sessionVersion"];
+    deviceId?: SessionTokenFields["deviceId"];
+    keepSignedIn?: SessionTokenFields["keepSignedIn"];
+    signedInAt?: SessionTokenFields["signedInAt"];
   }
 }
 
@@ -34,16 +40,18 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
       if (user?.id) {
         token.sub = user.id;
         token.sessionVersion = user.sessionVersion ?? 0;
+        token.deviceId = user.deviceId;
+        token.keepSignedIn = user.keepSignedIn ?? true;
+        token.signedInAt = Date.now();
         return token;
       }
       if (!token.sub) return token;
 
-      // Runs on every auth() call (proxy.ts, pages, actions, route handlers). A token from before the last
-      // password change, two-factor change or "sign out all devices" — or for a deleted user — is dropped.
-      // Tokens issued before session versions existed carry none and count as version 0, the column default.
-      const currentVersion = await getSessionVersion(token.sub);
-      if (currentVersion === undefined || currentVersion !== (token.sessionVersion ?? 0)) return null;
-      return token;
+      // Runs on every auth() call (proxy.ts, pages, actions, route handlers). Drops the token for a deleted user,
+      // after a password/two-factor change or "sign out all devices", when its browser was removed, or 12 hours
+      // after an unticked "Keep me signed in" (see src/lib/session-policy.ts).
+      const state = await getSessionState(token.sub, token.deviceId);
+      return isTokenRevoked(token, state) ? null : token;
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;

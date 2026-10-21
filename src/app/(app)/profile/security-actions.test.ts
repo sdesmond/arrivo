@@ -62,15 +62,21 @@ vi.mock("@/lib/mfa-store", () => ({
   replaceRecoveryCodes: mocks.replaceRecoveryCodes,
 }));
 vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mocks.bumpSessionVersion }));
-vi.mock("@/lib/trusted-devices", () => ({ forgetTrustedDevice: mocks.deleteTrustedDevice }));
+vi.mock("@/lib/trusted-devices", () => ({
+  DEVICE_COOKIE: "arrivo_device",
+  forgetTrustedDevice: mocks.deleteTrustedDevice,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
 import { decryptField, encryptField, isEncryptedField } from "@/lib/field-encryption";
+import { cookies } from "next/headers";
 import { SignInNotice } from "@/data/types";
+const MFA_NEEDS_KEY =
+  "Two-factor authentication needs DATA_ENCRYPTION_KEY set on the server. Ask whoever runs this Arrivo install.";
 import {
   confirmMfaEnrollment,
   disableMfa,
-  forgetTrustedDevice,
+  removeTrustedDevice,
   regenerateRecoveryCodes,
   signOutEverywhere,
   startMfaEnrollment,
@@ -231,10 +237,42 @@ describe("session exits", () => {
   });
 });
 
-describe("forgetTrustedDevice", () => {
-  it("deletes the device for the signed-in user only and refreshes the profile", async () => {
-    await forgetTrustedDevice("device-1");
-    expect(mocks.deleteTrustedDevice).toHaveBeenCalledWith("user-1", "device-1");
+describe("removeTrustedDevice", () => {
+  function mockCookieJar(token?: string) {
+    const jar = { get: vi.fn(() => (token ? { value: token } : undefined)), delete: vi.fn(), set: vi.fn() };
+    vi.mocked(cookies).mockResolvedValue(jar as never);
+    return jar;
+  }
+
+  it("removes another browser for the signed-in user only and refreshes the list", async () => {
+    mockCookieJar("this-token");
+    mocks.deleteTrustedDevice.mockResolvedValue({ wasCurrent: false });
+    await removeTrustedDevice("device-1");
+    expect(mocks.deleteTrustedDevice).toHaveBeenCalledWith("user-1", "device-1", "this-token");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/profile");
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it("signs this browser out when it removes itself", async () => {
+    const jar = mockCookieJar("this-token");
+    mocks.deleteTrustedDevice.mockResolvedValue({ wasCurrent: true });
+    await removeTrustedDevice("device-1");
+    expect(jar.delete).toHaveBeenCalledWith("arrivo_device");
+    expect(mocks.signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+  });
+});
+
+describe("without DATA_ENCRYPTION_KEY", () => {
+  beforeEach(() => vi.stubEnv("DATA_ENCRYPTION_KEY", ""));
+
+  it("explains why two-factor setup can't start instead of failing", async () => {
+    mocks.selectWhere.mockResolvedValue([{ mfaEnabledAt: null }]);
+    await expect(startMfaEnrollment()).resolves.toEqual({ error: MFA_NEEDS_KEY });
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+  });
+
+  it("explains why two-factor setup can't finish instead of failing", async () => {
+    await expect(confirmMfaEnrollment("123456")).resolves.toEqual({ error: MFA_NEEDS_KEY });
+    expect(mocks.selectWhere).not.toHaveBeenCalled();
   });
 });

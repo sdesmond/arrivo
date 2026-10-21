@@ -116,3 +116,11 @@ When("I sign in to my account with the correct password", async ({ page, scenari
 Then("I should see a sign-in lockout message", async ({ page }) => {
   await expectLockoutMessage(page);
 });
+
+When("I sign in to my account with Keep me signed in ticked", async ({ page, scenario }) => {
+  const user = await scenario.ensureCurrentUser();
+  await page.getByRole("textbox", { name: "Email" }).fill(user.email);
+  await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
+  await page.getByRole("checkbox", { name: "Keep me signed in" }).check();
+  await page.getByRole("button", { name: "Sign in" }).click();
+});

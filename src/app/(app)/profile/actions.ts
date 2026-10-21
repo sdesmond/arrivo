@@ -9,7 +9,7 @@ import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
 import { CoverType, SignInNotice, TransitMode } from "@/data/types";
 import { lockUserForUpdate } from "@/lib/server-action-locks";
-import { encryptOptionalField } from "@/lib/field-encryption";
+import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
 import { bumpSessionVersion } from "@/lib/session-version";
 import type {
@@ -22,6 +22,12 @@ import type {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COMPANION_LIMIT_EXCEEDED = "CAP_EXCEEDED";
+const TRAVEL_DOCUMENTS_NEED_KEY = "Saving travel documents needs DATA_ENCRYPTION_KEY set on the server.";
+
+// Passport and Known Traveler Numbers are stored encrypted; clearing them (null/"") needs no key.
+function travelDocumentsNeedKey(patch: { passportNumber?: string | null; knownTravelerNumber?: string | null }) {
+  return !!(patch.passportNumber || patch.knownTravelerNumber) && !isFieldEncryptionConfigured();
+}
 
 export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ error?: string }> {
   const session = await requireUser();
@@ -86,6 +92,8 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
       return { error: "Warning threshold must be less than danger threshold." };
     }
   }
+
+  if (travelDocumentsNeedKey(patch)) return { error: TRAVEL_DOCUMENTS_NEED_KEY };
 
   const dbPatch: Omit<UpdateUserProfilePatch, "name"> & { name?: string | null } = { ...patch };
   if (trimmedName !== undefined) dbPatch.name = trimmedName || null;
@@ -256,6 +264,8 @@ export async function updateCompanion(id: string, patch: UpdateCompanionPatch): 
   if (patch.passportExpiry !== undefined && !DATE_RE.test(patch.passportExpiry)) {
     return { error: "Passport expiry must be a valid date (YYYY-MM-DD)." };
   }
+
+  if (travelDocumentsNeedKey(patch)) return { error: TRAVEL_DOCUMENTS_NEED_KEY };
 
   let updated: { id: string }[];
   try {

@@ -8,20 +8,32 @@ const ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
+export const MISSING_KEY_MESSAGE =
+  "DATA_ENCRYPTION_KEY env var is missing or invalid — it must be 32 random bytes, base64-encoded. Generate one with " +
+  "`node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"` (or run `npm run setup:dev`) " +
+  "and never change it once set.";
+
 let cachedKey: { source: string; key: Buffer } | undefined;
 
-function getKey(): Buffer {
+function readKey(): Buffer | undefined {
   const source = process.env.DATA_ENCRYPTION_KEY ?? "";
   if (cachedKey?.source === source) return cachedKey.key;
 
   const key = Buffer.from(source, "base64");
-  if (key.length !== 32) {
-    throw new Error(
-      "DATA_ENCRYPTION_KEY env var is missing or invalid — it must be 32 random bytes, base64-encoded (e.g. `openssl rand -base64 32`)."
-    );
-  }
+  if (key.length !== 32) return undefined;
   cachedKey = { source, key };
   return key;
+}
+
+function getKey(): Buffer {
+  const key = readKey();
+  if (!key) throw new Error(MISSING_KEY_MESSAGE);
+  return key;
+}
+
+// Lets features that store encrypted data explain what's wrong instead of failing with a 500.
+export function isFieldEncryptionConfigured(): boolean {
+  return readKey() !== undefined;
 }
 
 export function isEncryptedField(value: string): boolean {

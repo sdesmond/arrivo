@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   verifyMfaTicket: vi.fn(),
   createMfaTicket: vi.fn(() => "signed-ticket"),
   findTrustedDevice: vi.fn(),
+  rememberDevice: vi.fn(),
+  cookieSet: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -29,8 +31,10 @@ vi.mock("./mfa", () => ({ createMfaTicket: mocks.createMfaTicket, verifyMfaTicke
 vi.mock("./trusted-devices", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./trusted-devices")>()),
   findTrustedDevice: mocks.findTrustedDevice,
+  rememberDevice: mocks.rememberDevice,
 }));
 
+import { cookies } from "next/headers";
 import { AuthErrorCode } from "@/data/types";
 import { LockedOutError, MfaRequiredError, authorizeCredentials } from "./authorize-credentials";
 
@@ -43,6 +47,19 @@ const USER = {
   mfaEnabledAt: null as Date | null,
   totpSecret: null as string | null,
   totpLastStep: null as number | null,
+};
+
+beforeEach(() => {
+  mocks.rememberDevice.mockResolvedValue({ token: "device-token", deviceId: "device-9" });
+  vi.mocked(cookies).mockResolvedValue({ set: mocks.cookieSet, get: vi.fn(), delete: vi.fn() } as never);
+});
+
+const SIGNED_IN = {
+  id: "user-1",
+  email: "alice@example.com",
+  name: "Alice",
+  sessionVersion: 2,
+  deviceId: "device-9",
 };
 
 function request(headers: Record<string, string> = {}) {
@@ -63,7 +80,7 @@ describe("authorizeCredentials — password step", () => {
   it("returns the user with their session version on a correct password", async () => {
     await expect(
       authorizeCredentials({ email: "alice@example.com", password: "pw" }, request({ "x-forwarded-for": "1.2.3.4" }))
-    ).resolves.toEqual({ id: "user-1", email: "alice@example.com", name: "Alice", sessionVersion: 2 });
+    ).resolves.toEqual({ ...SIGNED_IN, keepSignedIn: false });
     expect(targetKeys(mocks.checkThrottle.mock.calls[0])).toEqual(["email:alice@example.com", "ip:1.2.3.4"]);
     // Only the account key is cleared; the IP budget is never refunded.
     expect(targetKeys(mocks.clearFailures.mock.calls[0])).toEqual(["email:alice@example.com"]);
@@ -107,7 +124,65 @@ describe("authorizeCredentials — password step", () => {
     const attempt = authorizeCredentials({ email: "alice@example.com", password: "pw" }, request());
     await expect(attempt).rejects.toBeInstanceOf(MfaRequiredError);
     await expect(attempt).rejects.toMatchObject({ code: AuthErrorCode.MfaRequired, ticket: "signed-ticket" });
-    expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1");
+    expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: false });
+    expect(mocks.rememberDevice).not.toHaveBeenCalled();
+  });
+});
+
+describe("authorizeCredentials — remembering the browser and session length", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.checkThrottle.mockResolvedValue({ locked: false });
+    mocks.selectWhere.mockResolvedValue([USER]);
+    mocks.compare.mockResolvedValue(true);
+    mocks.findTrustedDevice.mockResolvedValue(null);
+    mocks.rememberDevice.mockResolvedValue({ token: "device-token", deviceId: "device-9" });
+    vi.mocked(cookies).mockResolvedValue({ set: mocks.cookieSet, get: vi.fn(), delete: vi.fn() } as never);
+  });
+
+  it("remembers every browser it signs in, keeping an existing token and labeling it from the user agent", async () => {
+    await authorizeCredentials(
+      { email: "alice@example.com", password: "pw" },
+      request({ cookie: "arrivo_device=old-token", "user-agent": "Firefox/131" })
+    );
+    expect(mocks.rememberDevice).toHaveBeenCalledWith({
+      userId: "user-1",
+      sessionVersion: 2,
+      existingToken: "old-token",
+      userAgent: "Firefox/131",
+      rememberMfa: false,
+    });
+    expect(mocks.cookieSet).toHaveBeenCalledWith(
+      "arrivo_device",
+      "device-token",
+      expect.objectContaining({ httpOnly: true, sameSite: "lax", secure: false, path: "/" })
+    );
+  });
+
+  it("marks the browser cookie secure behind an HTTPS proxy", async () => {
+    await authorizeCredentials(
+      { email: "alice@example.com", password: "pw" },
+      request({ "x-forwarded-proto": "https" })
+    );
+    expect(mocks.cookieSet).toHaveBeenCalledWith(
+      "arrivo_device",
+      "device-token",
+      expect.objectContaining({ secure: true })
+    );
+  });
+
+  it("passes Keep me signed in through to the session", async () => {
+    await expect(
+      authorizeCredentials({ email: "alice@example.com", password: "pw", keepSignedIn: "true" }, request())
+    ).resolves.toMatchObject({ keepSignedIn: true });
+  });
+
+  it("carries Keep me signed in through the two-factor ticket", async () => {
+    mocks.selectWhere.mockResolvedValue([{ ...USER, mfaEnabledAt: new Date(), totpSecret: "enc" }]);
+    await expect(
+      authorizeCredentials({ email: "alice@example.com", password: "pw", keepSignedIn: "true" }, request())
+    ).rejects.toBeInstanceOf(MfaRequiredError);
+    expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: true });
   });
 });
 
@@ -174,23 +249,27 @@ describe("authorizeCredentials — two-factor step", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.checkThrottle.mockResolvedValue({ locked: false });
-    mocks.verifyMfaTicket.mockReturnValue("user-1");
+    mocks.verifyMfaTicket.mockReturnValue({ userId: "user-1", keepSignedIn: true });
     mocks.selectWhere.mockResolvedValue([MFA_USER]);
     mocks.verifySecondFactor.mockResolvedValue(true);
   });
 
   it("signs in with a valid ticket and code", async () => {
     await expect(authorizeCredentials({ mfaTicket: "t", code: "123456" }, request())).resolves.toEqual({
-      id: "user-1",
-      email: "alice@example.com",
-      name: "Alice",
-      sessionVersion: 2,
+      ...SIGNED_IN,
+      keepSignedIn: true,
     });
+    expect(mocks.rememberDevice).toHaveBeenCalledWith(expect.objectContaining({ rememberMfa: false }));
     expect(mocks.verifySecondFactor).toHaveBeenCalledWith(
       { id: "user-1", totpSecret: "enc", totpLastStep: 10 },
       "123456"
     );
     expect(targetKeys(mocks.clearFailures.mock.calls[0])).toEqual(["mfa:user-1"]);
+  });
+
+  it("skips the code on this browser for 30 days when asked", async () => {
+    await authorizeCredentials({ mfaTicket: "t", code: "123456", remember: "true" }, request());
+    expect(mocks.rememberDevice).toHaveBeenCalledWith(expect.objectContaining({ rememberMfa: true }));
   });
 
   it("rejects a forged or expired ticket", async () => {

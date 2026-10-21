@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import type { TrustedDeviceSummary } from "@/data/types";
-import { forgetTrustedDevice } from "./security-actions";
+import { removeTrustedDevice } from "./security-actions";
 
 interface TrustedDevicesListProps {
   devices: TrustedDeviceSummary[];
@@ -18,11 +18,11 @@ export function TrustedDevicesList({ devices }: TrustedDevicesListProps) {
   const [isPending, startTransition] = useTransition();
 
   if (devices.length === 0) {
-    return <p style={DETAIL_STYLE}>No remembered browsers yet. Browsers you sign in from appear here.</p>;
+    return <p style={DETAIL_STYLE}>No browsers yet.</p>;
   }
 
   return (
-    <ul aria-label="Remembered browsers" className="flex flex-col gap-2">
+    <ul aria-label="Your browsers" className="flex flex-col gap-2">
       {devices.map((device) => (
         <li
           key={device.id}
@@ -42,11 +42,11 @@ export function TrustedDevicesList({ devices }: TrustedDevicesListProps) {
           <Button
             variant="outline"
             className="h-11 shrink-0"
-            aria-label={`Forget ${device.label}${device.isCurrent ? " (this browser)" : ""}`}
+            aria-label={`Remove ${device.label}${device.isCurrent ? " (this browser)" : ""}`}
             disabled={isPending}
-            onClick={() => startTransition(() => forgetTrustedDevice(device.id))}
+            onClick={() => startTransition(() => removeTrustedDevice(device.id))}
           >
-            Forget
+            Remove
           </Button>
         </li>
       ))}

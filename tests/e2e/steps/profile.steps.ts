@@ -1,5 +1,6 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
 
 Given("I am on the profile page", async ({ page, scenario }) => {
   await scenario.signIn(page);
@@ -227,4 +228,19 @@ Then("my second device should be signed out", async ({ scenario }) => {
   } finally {
     await secondDevice.context.close();
   }
+});
+
+When("I remove my other browser", async ({ page }) => {
+  // The list was rendered before the second device signed in.
+  await page.reload();
+  await page.getByRole("tab", { name: "Security" }).click();
+  const otherBrowser = page
+    .getByRole("list", { name: "Your browsers" })
+    .getByRole("listitem")
+    .filter({ hasNotText: "This browser" });
+  await expect(otherBrowser).toHaveCount(1);
+  const response = waitForServerActionResponse(page, { pathIncludes: "/profile" });
+  await otherBrowser.getByRole("button", { name: /^Remove / }).click();
+  await response;
+  await expect(otherBrowser).toHaveCount(0);
 });

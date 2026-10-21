@@ -80,7 +80,8 @@ interface RememberDeviceInput {
   now?: Date;
 }
 
-// Called after every successful sign-in; returns the token the browser should hold from now on.
+// Called on every successful sign-in; returns the token the browser should hold from now on and the device id the
+// session token records, so removing the browser under Profile → Security signs it out.
 export async function rememberDevice({
   userId,
   sessionVersion,
@@ -88,7 +89,7 @@ export async function rememberDevice({
   userAgent,
   rememberMfa,
   now = new Date(),
-}: RememberDeviceInput): Promise<string> {
+}: RememberDeviceInput): Promise<{ token: string; deviceId: string }> {
   const label = describeUserAgent(userAgent);
   const mfaRememberedUntil = rememberMfa ? new Date(now.getTime() + MFA_REMEMBER_MS) : undefined;
 
@@ -98,7 +99,7 @@ export async function rememberDevice({
       .update(trustedDevices)
       .set({ lastUsedAt: now, label, ...(mfaRememberedUntil && { mfaRememberedUntil }) })
       .where(eq(trustedDevices.id, current.id));
-    return existingToken;
+    return { token: existingToken, deviceId: current.id };
   }
 
   // The browser's old token is stale (revoked) or another account's; one cookie slot, so it's replaced.
@@ -106,16 +107,19 @@ export async function rememberDevice({
     await db.delete(trustedDevices).where(eq(trustedDevices.tokenHash, hashDeviceToken(existingToken)));
   }
   const token = randomBytes(32).toString("base64url");
-  await db.insert(trustedDevices).values({
-    userId,
-    tokenHash: hashDeviceToken(token),
-    label,
-    sessionVersion,
-    mfaRememberedUntil: mfaRememberedUntil ?? null,
-    lastUsedAt: now,
-  });
+  const [created] = await db
+    .insert(trustedDevices)
+    .values({
+      userId,
+      tokenHash: hashDeviceToken(token),
+      label,
+      sessionVersion,
+      mfaRememberedUntil: mfaRememberedUntil ?? null,
+      lastUsedAt: now,
+    })
+    .returning({ id: trustedDevices.id });
   await db.delete(trustedDevices).where(lt(trustedDevices.lastUsedAt, new Date(now.getTime() - STALE_DEVICE_MS)));
-  return token;
+  return { token, deviceId: created.id };
 }
 
 export async function listTrustedDevices(
@@ -147,6 +151,16 @@ export async function listTrustedDevices(
   }));
 }
 
-export async function forgetTrustedDevice(userId: string, deviceId: string): Promise<void> {
-  await db.delete(trustedDevices).where(and(eq(trustedDevices.id, deviceId), eq(trustedDevices.userId, userId)));
+// Removing a browser also signs it out: its session token names this device, and the jwt callback drops tokens
+// whose device is gone. `wasCurrent` tells the caller it just removed the browser making the request.
+export async function forgetTrustedDevice(
+  userId: string,
+  deviceId: string,
+  currentToken: string | undefined
+): Promise<{ wasCurrent: boolean }> {
+  const [removed] = await db
+    .delete(trustedDevices)
+    .where(and(eq(trustedDevices.id, deviceId), eq(trustedDevices.userId, userId)))
+    .returning({ tokenHash: trustedDevices.tokenHash });
+  return { wasCurrent: !!removed && !!currentToken && removed.tokenHash === hashDeviceToken(currentToken) };
 }

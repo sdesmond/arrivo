@@ -32,9 +32,9 @@ describe("MfaCodeForm", () => {
     expect(screen.getByRole("button", { name: "Verify" })).toBeInTheDocument();
   });
 
-  it("offers an unticked, labeled remember-this-computer box", () => {
+  it("offers an unticked, labeled don't-ask-again box", () => {
     render(<MfaCodeForm action={noopAction} onBack={vi.fn()} />);
-    const remember = screen.getByRole("checkbox", { name: "Remember this computer for 30 days" });
+    const remember = screen.getByRole("checkbox", { name: "Don't ask for a code on this browser for 30 days" });
     expect(remember).not.toBeChecked();
     expect(remember).toHaveAttribute("name", "remember");
   });

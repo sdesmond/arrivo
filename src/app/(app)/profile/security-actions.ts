@@ -3,26 +3,31 @@
 import bcrypt from "bcryptjs";
 import QRCode from "qrcode";
 import { eq, sql } from "drizzle-orm";
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { db } from "@/db";
 import { mfaRecoveryCodes, users } from "@/db/schema";
 import { SignInNotice, type MfaEnrollmentStart, type SecondFactorInput } from "@/data/types";
 import { requireUser } from "@/lib/auth-helpers";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
-import { decryptField, encryptField } from "@/lib/field-encryption";
+import { decryptField, encryptField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { generateTotpSecret, totpUri, verifyTotp } from "@/lib/mfa";
 import { replaceRecoveryCodes, verifySecondFactor } from "@/lib/mfa-store";
 import { bumpSessionVersion } from "@/lib/session-version";
-import { forgetTrustedDevice as deleteTrustedDevice } from "@/lib/trusted-devices";
-import { revalidatePath } from "next/cache";
+import { DEVICE_COOKIE, forgetTrustedDevice } from "@/lib/trusted-devices";
 
 type RecoveryCodesResult = { recoveryCodes?: string[]; error?: string };
 
 const ALREADY_ON = "Two-factor authentication is already on.";
+// TOTP secrets are stored encrypted, so setup can't work until the install has a data encryption key.
+const NEEDS_KEY =
+  "Two-factor authentication needs DATA_ENCRYPTION_KEY set on the server. Ask whoever runs this Arrivo install.";
 
 export async function startMfaEnrollment(): Promise<MfaEnrollmentStart | { error: string }> {
   const session = await requireUser();
   const userId = session.id!;
+  if (!isFieldEncryptionConfigured()) return { error: NEEDS_KEY };
 
   const [user] = await db.select({ mfaEnabledAt: users.mfaEnabledAt }).from(users).where(eq(users.id, userId));
   if (user?.mfaEnabledAt) return { error: ALREADY_ON };
@@ -41,6 +46,7 @@ export async function startMfaEnrollment(): Promise<MfaEnrollmentStart | { error
 export async function confirmMfaEnrollment(code: string): Promise<RecoveryCodesResult> {
   const session = await requireUser();
   const userId = session.id!;
+  if (!isFieldEncryptionConfigured()) return { error: NEEDS_KEY };
   const throttleTargets = [accountTarget("mfa", userId)];
 
   const throttle = await checkThrottle(throttleTargets);
@@ -148,8 +154,16 @@ export async function signOutEverywhere(): Promise<void> {
   await signOut({ redirectTo: `/sign-in?notice=${SignInNotice.SignedOutEverywhere}` });
 }
 
-export async function forgetTrustedDevice(deviceId: string): Promise<void> {
+// Removing a browser signs it out too (its session token names the device). Removing the one making this request
+// signs this session out right away instead of leaving it to fail on the next page.
+export async function removeTrustedDevice(deviceId: string): Promise<void> {
   const session = await requireUser();
-  await deleteTrustedDevice(session.id!, deviceId);
+  const cookieJar = await cookies();
+  const { wasCurrent } = await forgetTrustedDevice(session.id!, deviceId, cookieJar.get(DEVICE_COOKIE)?.value);
+  if (wasCurrent) {
+    cookieJar.delete(DEVICE_COOKIE);
+    await signOut({ redirectTo: "/sign-in" });
+    return;
+  }
   revalidatePath("/profile");
 }

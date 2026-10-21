@@ -66,6 +66,14 @@ describe("SignInForm", () => {
 });
 
 describe("SignInForm — security flows", () => {
+  it("offers an unticked Keep me signed in box that explains the shorter session", () => {
+    render(<SignInForm action={noopAction} mfaAction={noopAction} />);
+    const keep = screen.getByRole("checkbox", { name: "Keep me signed in" });
+    expect(keep).not.toBeChecked();
+    expect(keep).toHaveAttribute("name", "keepSignedIn");
+    expect(keep).toHaveAccessibleDescription("Otherwise you're signed out after 12 hours.");
+  });
+
   it("switches to the code step when the password step asks for a second factor", () => {
     mockState.value = { mfaRequired: true };
     render(<SignInForm action={noopAction} mfaAction={noopAction} />);
