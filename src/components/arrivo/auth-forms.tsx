@@ -98,7 +98,7 @@ function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps)
         />
       </div>
       <div className="flex flex-col">
-        <label className="flex min-h-11 items-center gap-2">
+        <label className="flex min-h-11 items-center gap-2 self-start">
           <input
             type="checkbox"
             name="keepSignedIn"

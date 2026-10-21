@@ -54,7 +54,7 @@ export function MfaCodeForm({ action, onBack }: MfaCodeFormProps) {
               aria-describedby={hasError ? "mfa-instructions mfa-error" : "mfa-instructions"}
             />
           </div>
-          <label className="flex min-h-11 items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2 self-start">
             <input type="checkbox" name="remember" className="size-5" style={{ accentColor: "var(--accent-brand)" }} />
             Don&apos;t ask for a code on this browser for 30 days
           </label>
