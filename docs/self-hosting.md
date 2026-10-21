@@ -2,7 +2,7 @@
 
 Arrivo runs as two containers: the app (`ghcr.io/sdesmond/arrivo`) and PostgreSQL 17. The app
 prepares its own database on every start, so there is nothing else to run. Any host with Docker
-Engine and Compose v2 works, on amd64 or ARM64: a Linux server, a Synology or other NAS, a Raspberry Pi.
+Engine and Compose v2 works, on amd64 or ARM64: a Linux server or VM, a NAS, a Raspberry Pi.
 
 Everything is in one file, [`docker-compose.yml`](../docker-compose.yml). There is no `.env` file
 and no secret to generate.
@@ -21,30 +21,28 @@ set `ALLOW_SIGNUP: "false"` in the file and run `docker compose up -d` again.
 Before starting, check `PUID` and `PGID` in the file match your user (`id` prints them). They decide
 who owns uploaded files in `./data/storage`.
 
-## Synology NAS (Container Manager)
+## Container manager UIs (Portainer, Dockge, NAS apps)
 
-1. Install **Container Manager** from Package Center.
-2. In **File Station**, open the `docker` shared folder and create a folder `arrivo`. Inside it,
-   create `pgdata` and `storage`.
-3. Find your user's IDs: in **Control Panel → Terminal & SNMP**, enable SSH, connect, and run `id`.
-   Note `uid` (often `1026`) and `gid` (often `100`).
-4. In Container Manager, open **Project → Create**. Name it `arrivo`, set the path to
-   `/docker/arrivo`, and choose **Create docker-compose.yml**.
-5. Paste [`docker-compose.yml`](../docker-compose.yml), then change:
-   - `./data/pgdata` to `/volume1/docker/arrivo/pgdata`
-   - `./data/storage` to `/volume1/docker/arrivo/storage`
-   - `PUID` and `PGID` to the values from step 3
-6. Click **Next**, skip the web portal settings, then **Done**. The images download and both
-   containers start.
-7. Open `http://<your-NAS-IP>:3550` and create your account.
+Any tool that deploys a compose file works the same way, whether that's Portainer, Dockge or the
+container app built into a NAS.
 
-Portainer and Dockge work the same way: create a stack, paste the file, and adjust the paths and
-`PUID`/`PGID`.
+1. On the host, create a folder for Arrivo, e.g. `/srv/arrivo`, with `pgdata` and `storage`
+   folders inside it.
+2. Find the IDs of the user that should own uploaded files: run `id` on the host, and note `uid`
+   and `gid`. Many NAS systems use IDs other than `1000`.
+3. Create a new stack or project and paste [`docker-compose.yml`](../docker-compose.yml) into it.
+4. Change:
+   - `./data/pgdata` and `./data/storage` to the absolute paths from step 1, e.g.
+     `/srv/arrivo/pgdata` and `/srv/arrivo/storage`. Many of these tools don't resolve relative
+     paths against your folder.
+   - `PUID` and `PGID` to the values from step 2.
+5. Deploy it. The images download and both containers start.
+6. Open `http://<your-server>:3550` and create your account.
 
 ## Configuration
 
 All settings are environment variables on the `app` service. After you change one, run
-`docker compose up -d`, or use **Build** in Container Manager.
+`docker compose up -d`, or redeploy the stack in your container manager.
 
 | Variable              | Default          | Purpose                                                                                                                         |
 | --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,7 +59,7 @@ Without the Mapbox and Unsplash keys Arrivo still runs; those features are just 
 Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
 
 To use a different host port, change the left number in `"3550:3550"`, e.g. `"8080:3550"`. To run a
-fixed release instead of the newest, change the image tag, e.g. `ghcr.io/sdesmond/arrivo:0.4.0`. Then
+fixed release instead of the newest, change the image tag, e.g. `ghcr.io/sdesmond/arrivo:0.4.1`. Then
 upgrades happen only when you change it.
 
 > On Docker Desktop for Windows or macOS, PostgreSQL can fail to start on a host-folder data
@@ -70,8 +68,8 @@ upgrades happen only when you change it.
 ## HTTPS
 
 Arrivo serves plain HTTP. For HTTPS or access from outside your network, put a reverse proxy in front.
-That can be Synology's **Login Portal → Reverse Proxy**, Caddy, nginx, Traefik, Nginx Proxy Manager
-or Cloudflare Tunnel. Forward to port 3550 and pass the `Host` header and `X-Forwarded-Proto`. With
+That can be Caddy, nginx, Traefik, Nginx Proxy Manager, Cloudflare Tunnel or a reverse proxy built
+into your NAS. Forward to port 3550 and pass the `Host` header and `X-Forwarded-Proto`. With
 Caddy:
 
 ```
@@ -89,9 +87,8 @@ isn't reachable around it.
 docker compose pull && docker compose up -d
 ```
 
-In Container Manager: **Project → arrivo → Action → Stop**, then **Image → Update** (or **Clean**)
-for `ghcr.io/sdesmond/arrivo`, then start the project. In Portainer or Dockge, use the
-pull-and-redeploy action; a plain redeploy keeps the old image.
+In a container manager, use its action that pulls the latest image and redeploys (in Portainer,
+**Update the stack** with **Re-pull image** enabled). A plain restart or redeploy keeps the old image.
 
 The app applies any database changes as it starts. Take a backup first when upgrading across
 releases (see below).
@@ -99,7 +96,7 @@ releases (see below).
 ## Backup and restore
 
 Back up the database with `pg_dump`, and the `storage` folder as files. **Never copy `pgdata` while
-it runs**, because a mid-write copy can be unrestorable. If a host backup job (e.g. Hyper Backup)
+it runs**, because a mid-write copy can be unrestorable. If a scheduled host or NAS backup job
 covers the folder, run the dump before it.
 
 ```sh

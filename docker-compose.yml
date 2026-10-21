@@ -1,5 +1,5 @@
 # Arrivo self-hosting stack: https://github.com/sdesmond/arrivo (setup guide: docs/self-hosting.md)
-# Self-contained: paste it into Container Manager, Portainer or Dockge, or run `docker compose up -d`
+# Self-contained: paste it into Portainer, Dockge or your NAS's container app, or run `docker compose up -d`
 # next to it. Change the values marked below, then open http://<your-server>:3550.
 services:
   db:
@@ -19,14 +19,14 @@ services:
     restart: unless-stopped
 
   app:
-    image: ghcr.io/sdesmond/arrivo:latest # or pin a release, e.g. ghcr.io/sdesmond/arrivo:0.4.0
+    image: ghcr.io/sdesmond/arrivo:latest # or pin a release, e.g. ghcr.io/sdesmond/arrivo:0.4.1
     container_name: arrivo
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://arrivo:arrivo@db:5432/arrivo
-      # Owner of ./data/storage on the host. Run `id` on the host to see yours (Synology: often 1026 / 100).
+      # Owner of ./data/storage on the host. Run `id` on the host to see yours; many NAS systems don't use 1000.
       PUID: 1000
       PGID: 1000
       # Set to "false" once everyone has an account.
