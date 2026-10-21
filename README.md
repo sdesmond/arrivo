@@ -31,7 +31,7 @@ For how schema changes and migrations work (generate, review, commit `drizzle/`)
 
 ## Self-hosting
 
-Arrivo ships as one prebuilt image plus PostgreSQL and runs on any host with Docker, including a Synology NAS. Download one compose file and run `docker compose up -d`; nothing else to configure. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
+Arrivo ships as one prebuilt image plus PostgreSQL and runs on any host with Docker: a Linux server, a NAS or a Raspberry Pi. Download one compose file and run `docker compose up -d`; nothing else to configure. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
 
 To build from source instead, see [Building from source](./docs/building-from-source.md).
 
