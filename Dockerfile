@@ -1,11 +1,15 @@
 FROM node:22-alpine AS base
+# Node crashes intermittently under QEMU, so npm and next build always run on the build machine's own platform;
+# only the runner stage is assembled per target arch, and it runs no Node.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build-base
 
-FROM base AS deps
+FROM build-base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM base AS builder
+FROM build-base AS builder
+ARG TARGETARCH
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -14,6 +18,17 @@ RUN mkdir -p public && npm run build
 # The standalone output only traces what the app imports, so bundle the migrator and its deps into one file.
 RUN npx esbuild src/db/migrate-cli.ts --bundle --platform=node --format=esm --outfile=dist/migrate.mjs \
   --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
+# sharp is the standalone output's only native module, and the trace picked the build machine's binaries.
+# Swap in the target arch's prebuilt packages, at the versions this sharp release pins.
+RUN set -e; \
+  arch=$(if [ "$TARGETARCH" = amd64 ]; then echo x64; else echo "$TARGETARCH"; fi); \
+  rm -rf .next/standalone/node_modules/@img/sharp-*; \
+  for pkg in "sharp-linuxmusl-$arch" "sharp-libvips-linuxmusl-$arch"; do \
+    version=$(node -p "require('/app/node_modules/sharp/package.json').optionalDependencies['@img/$pkg']"); \
+    npm pack "@img/$pkg@$version" --pack-destination /tmp; \
+    tar -xzf "/tmp/img-$pkg-$version.tgz" -C /tmp; \
+    mv /tmp/package ".next/standalone/node_modules/@img/$pkg"; \
+  done
 
 FROM base AS runner
 WORKDIR /app
