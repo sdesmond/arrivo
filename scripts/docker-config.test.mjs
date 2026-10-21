@@ -129,6 +129,22 @@ describe("Dockerfile", () => {
   it("declares no VOLUME, which would create anonymous volumes", () => {
     expect(runner).not.toMatch(/^VOLUME/m);
   });
+
+  // Node crashes intermittently under QEMU, so npm and next build run natively and only the runner is per-arch.
+  it("builds on the build machine's platform and only assembles the runner per target", () => {
+    expect(dockerfile).toMatch(/^FROM --platform=\$BUILDPLATFORM node:\S+ AS build-base$/m);
+    expect(dockerfile).toMatch(/^FROM build-base AS deps$/m);
+    expect(dockerfile).toMatch(/^FROM build-base AS builder$/m);
+    expect(dockerfile).toMatch(/^FROM base AS runner$/m);
+  });
+
+  it("swaps the traced sharp binaries for the target arch's", () => {
+    const builder = dockerfileStage(dockerfile, "builder");
+    expect(builder).toContain("ARG TARGETARCH");
+    expect(builder).toContain("rm -rf .next/standalone/node_modules/@img/sharp-");
+    expect(builder).toContain('"sharp-linuxmusl-$arch" "sharp-libvips-linuxmusl-$arch"');
+    expect(builder).toContain('npm pack "@img/$pkg@$version"');
+  });
 });
 
 describe("docker/entrypoint.sh", () => {
@@ -178,6 +194,13 @@ describe("publish-images workflow", () => {
     expect(workflow).toContain("target: runner");
     expect(workflow).not.toContain("target: tools");
     expect(workflow.match(/platforms: linux\/amd64,linux\/arm64/g)).toHaveLength(1);
+  });
+
+  // Only the runner's apk add and file copies run under QEMU now, so a hang should fail fast.
+  it("times out well before a hung emulated build would", () => {
+    const timeout = Number(workflow.match(/timeout-minutes: (\d+)/)?.[1]);
+    expect(timeout).toBeGreaterThan(0);
+    expect(timeout).toBeLessThanOrEqual(30);
   });
 });
 
@@ -260,13 +283,16 @@ describe("Node version", () => {
     expect(nodeMajor).toMatch(/^\d+$/);
   });
 
-  it("takes Node from one base stage on that major, which every other stage builds on", () => {
-    const froms = readRootFile("Dockerfile").match(/^FROM \S+( AS \S+)?$/gm) ?? [];
-    const nodeFroms = froms.filter((line) => line.startsWith("FROM node:"));
+  it("takes Node from the base stages on that major, which every other stage builds on", () => {
+    const froms = readRootFile("Dockerfile").match(/^FROM .*$/gm) ?? [];
+    const nodeFroms = froms.filter((line) => / node:/.test(line));
 
-    expect(nodeFroms).toEqual([`FROM node:${nodeMajor}-alpine AS base`]);
+    expect(nodeFroms).toEqual([
+      `FROM node:${nodeMajor}-alpine AS base`,
+      `FROM --platform=$BUILDPLATFORM node:${nodeMajor}-alpine AS build-base`,
+    ]);
     expect(
-      froms.filter((line) => !line.startsWith("FROM node:")).every((line) => line.startsWith("FROM base AS "))
+      froms.filter((line) => !/ node:/.test(line)).every((line) => /^FROM (base|build-base) AS \S+$/.test(line))
     ).toBe(true);
   });
 
