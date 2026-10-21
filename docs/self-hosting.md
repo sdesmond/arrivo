@@ -44,16 +44,17 @@ container app built into a NAS.
 All settings are environment variables on the `app` service. After you change one, run
 `docker compose up -d`, or redeploy the stack in your container manager.
 
-| Variable              | Default          | Purpose                                                                                                                         |
-| --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                              |
-| `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                        |
-| `ALLOW_SIGNUP`        | `true`           | Set `"false"` to close registration                                                                                             |
-| `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab |
-| `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)             |
-| `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                   |
-| `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`               |
-| `NEXTAUTH_URL`        | from the request | Only needed if sign-in redirects go to the wrong address, e.g. behind a proxy that rewrites `Host`                              |
+| Variable              | Default          | Purpose                                                                                                                                  |
+| --------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                                       |
+| `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                                 |
+| `ALLOW_SIGNUP`        | `true`           | Set `"false"` to close registration                                                                                                      |
+| `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab          |
+| `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)                      |
+| `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                            |
+| `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`                        |
+| `DATA_ENCRYPTION_KEY` | generated        | Encrypts passport numbers, Known Traveler Numbers and two-factor secrets. Leave it unset: one is generated in `storage/.arrivo/data-key` |
+| `NEXTAUTH_URL`        | from the request | Only needed if sign-in redirects go to the wrong address, e.g. behind a proxy that rewrites `Host`                                       |
 
 Without the Mapbox and Unsplash keys Arrivo still runs; those features are just unavailable.
 Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
@@ -81,6 +82,26 @@ arrivo.example.com {
 If the proxy runs on the same host, change the port line to `"127.0.0.1:3550:3550"` so the app
 isn't reachable around it.
 
+## Account security
+
+- **Failed sign-ins**: five wrong passwords for one email within 15 minutes lock that email for 15 minutes
+  on browsers it hasn't signed in from before; each repeat lockout doubles, up to an hour. One address is
+  also limited to 30 failures per 15 minutes across all accounts. That per-address limit needs the reverse
+  proxy to send `X-Forwarded-For` (Caddy and most proxies do); without a proxy only the per-email limit
+  applies. Set `AUTH_MAX_FAILURES` or `AUTH_IP_MAX_FAILURES` to change the thresholds.
+- **Remembered browsers**: a browser that has signed in successfully is remembered, and failed sign-ins from
+  anywhere else never lock its owner out there (it gets its own five-guess limit instead). Users see and
+  forget these under **Profile → Security**.
+- **Two-factor authentication**: each user can turn it on under **Profile → Security** with any
+  authenticator app, and gets ten one-time recovery codes. Ticking **Remember this computer for 30 days**
+  at the code prompt skips the code on that browser; anyone with that browser and the password can then sign
+  in without a code until it's forgotten or the user signs out all devices. If someone loses both their
+  phone and their codes, turn it off for them with `docker exec arrivo node /app/mfa-reset.mjs
+user@example.com`.
+- **Signing out other devices**: changing a password, turning two-factor on or off, or choosing **Sign out
+  all devices** under **Profile → Security** ends that user's sessions everywhere and forgets their
+  remembered browsers.
+
 ## Updating
 
 ```sh
@@ -104,8 +125,9 @@ docker exec arrivo-db pg_dump -U arrivo -d arrivo -Fc > arrivo-db-$(date +%F).du
 tar czf arrivo-storage-$(date +%F).tgz -C data/storage .
 ```
 
-The `storage` backup includes `.arrivo/auth-secret`. Without it, a restored install signs everyone
-out, but no data is lost.
+The `storage` backup includes `.arrivo/auth-secret` and `.arrivo/data-key`. Without the auth secret, a
+restored install signs everyone out, but no data is lost. Without the data key, saved passport and Known
+Traveler Numbers can't be read and two-factor sign-in stops working, so always back the two up together.
 
 Restore onto a running install:
 
@@ -130,6 +152,7 @@ Start with `docker ps -a` and `docker logs arrivo`. A healthy install shows `arr
 | `port is already allocated`                   | Change the left number in the `ports` line                                                                  |
 | Sign-in redirects to `localhost` or loops     | Set `NEXTAUTH_URL` to the exact address you open, port included                                             |
 | Everyone was signed out after a restore/move  | `storage/.arrivo/auth-secret` wasn't carried over; sign in again                                            |
+| Someone is locked out of two-factor sign-in   | `docker exec arrivo node /app/mfa-reset.mjs their@email` turns it off for that account                      |
 | Map tab is empty                              | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                                |
 | `EACCES` / `permission denied` when uploading | `PUID`/`PGID` don't match a user that can write the `storage` folder                                        |
 
