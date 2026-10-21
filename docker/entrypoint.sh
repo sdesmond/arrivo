@@ -6,6 +6,7 @@ PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 STORAGE_DIR="${STORAGE_LOCAL_ROOT_DIR:-/app/storage}"
 SECRET_FILE="$STORAGE_DIR/.arrivo/auth-secret"
+DATA_KEY_FILE="$STORAGE_DIR/.arrivo/data-key"
 
 is_root() {
   [ "$(id -u)" = "0" ]
@@ -37,6 +38,18 @@ if [ -z "${NEXTAUTH_SECRET:-}" ] && [ -z "${AUTH_SECRET:-}" ]; then
   fi
   NEXTAUTH_SECRET="$(cat "$SECRET_FILE")"
   export NEXTAUTH_SECRET
+fi
+
+# Same pattern for the key that encrypts passport numbers and MFA secrets. Losing it loses that data, so it
+# lives with the uploads and is never regenerated once it exists.
+if [ -z "${DATA_ENCRYPTION_KEY:-}" ]; then
+  if [ ! -s "$DATA_KEY_FILE" ]; then
+    as_app_user mkdir -p "$(dirname "$DATA_KEY_FILE")"
+    as_app_user sh -c 'umask 077 && head -c 32 /dev/urandom | base64 > "$1"' sh "$DATA_KEY_FILE"
+    echo "Generated a data encryption key in $DATA_KEY_FILE; keep it in your backups."
+  fi
+  DATA_ENCRYPTION_KEY="$(cat "$DATA_KEY_FILE")"
+  export DATA_ENCRYPTION_KEY
 fi
 
 as_app_user node /app/migrate.mjs

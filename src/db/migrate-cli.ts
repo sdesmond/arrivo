@@ -1,5 +1,8 @@
-// Container entrypoint step, bundled to /app/migrate.mjs: applies drizzle/ migrations before the server starts.
+// Container entrypoint step, bundled to /app/migrate.mjs: applies drizzle/ migrations, then encrypts any
+// travel-document values left over from before field encryption, before the server starts.
+import postgres from "postgres";
 import { runMigrations } from "./migrate";
+import { encryptLegacyPii } from "./encrypt-pii";
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -9,6 +12,13 @@ async function main() {
   }
 
   await runMigrations({ databaseUrl, migrationsFolder: process.env.MIGRATIONS_FOLDER ?? "./drizzle" });
+
+  const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
+  try {
+    await encryptLegacyPii(sql);
+  } finally {
+    await sql.end();
+  }
   process.exit(0);
 }
 

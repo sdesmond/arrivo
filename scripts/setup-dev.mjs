@@ -19,6 +19,7 @@ const ENV_ORDER = [
   "E2E_DATABASE_URL",
   "NEXTAUTH_URL",
   "NEXTAUTH_SECRET",
+  "DATA_ENCRYPTION_KEY",
   "ALLOW_SIGNUP",
   "E2E_EMAIL",
   "E2E_PASSWORD",
@@ -229,6 +230,11 @@ function createEnvValues(existingValues, databaseMode) {
     nextValues.NEXTAUTH_SECRET = randomBytes(32).toString("base64");
   }
 
+  // Never regenerate an existing key: rows encrypted with it would become unreadable.
+  if (!nextValues.DATA_ENCRYPTION_KEY) {
+    nextValues.DATA_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+  }
+
   return nextValues;
 }
 
@@ -416,6 +422,7 @@ function applyDatabaseSetup(rootDir, envValues) {
     E2E_DATABASE_URL: envValues.E2E_DATABASE_URL,
     NEXTAUTH_URL: envValues.NEXTAUTH_URL,
     NEXTAUTH_SECRET: envValues.NEXTAUTH_SECRET,
+    DATA_ENCRYPTION_KEY: envValues.DATA_ENCRYPTION_KEY,
     ALLOW_SIGNUP: envValues.ALLOW_SIGNUP,
     E2E_EMAIL: envValues.E2E_EMAIL,
     E2E_PASSWORD: envValues.E2E_PASSWORD,

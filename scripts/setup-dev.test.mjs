@@ -85,6 +85,16 @@ describe("setup-dev helpers", async () => {
     const secret = secretLine?.slice("NEXTAUTH_SECRET=".length) ?? "";
     expect(secret).not.toBe("change-me-32-bytes-min");
     expect(secret.length).toBeGreaterThanOrEqual(43);
+
+    const keyLine = merged.split("\n").find((line) => line.startsWith("DATA_ENCRYPTION_KEY="));
+    const key = JSON.parse(keyLine?.slice("DATA_ENCRYPTION_KEY=".length) ?? '""');
+    expect(Buffer.from(key, "base64")).toHaveLength(32);
+  });
+
+  it("keeps an existing data encryption key so encrypted rows stay readable", () => {
+    const existingKey = Buffer.alloc(32, 7).toString("base64");
+    const merged = mergeEnvForSetup("DATA_ENCRYPTION_KEY=\n", `DATA_ENCRYPTION_KEY=${existingKey}\n`);
+    expect(merged).toContain(`DATA_ENCRYPTION_KEY=${JSON.stringify(existingKey)}`);
   });
 
   it("points docker mode at the dev container's published port, overriding a stale .env", () => {
