@@ -19,9 +19,9 @@ git switch main && git pull
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-The workflow publishes the image as `X.Y.Z`, `X.Y`, `latest` and `sha-<commit>`. The arm64 half
-builds under emulation, so a release takes roughly 20–40 minutes; follow it under the repository's
-**Actions** tab.
+The workflow publishes the image as `X.Y.Z`, `X.Y`, `latest` and `sha-<commit>`. npm and
+`next build` run natively for both architectures (only the arm64 runner stage's package install is
+emulated), so a release takes roughly 10–15 minutes; follow it under the repository's **Actions** tab.
 
 Hosts pinned to a release upgrade when they change the image tag; hosts on `latest` pick up the
 release on their next pull (see [self-hosting.md](./self-hosting.md#updating)).
