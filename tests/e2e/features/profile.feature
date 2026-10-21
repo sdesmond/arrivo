@@ -91,3 +91,21 @@ Feature: User profile page
     When I navigate to the Companions section
     And I remove the companion "Alex Companion"
     Then the companion "Alex Companion" should not be visible
+
+  Scenario: Changing my password signs out my other sessions
+    Given I am on the profile page
+    And I am also signed in on a second device
+    When I navigate to the Account section
+    And I change my password to "new-password-123"
+    Then I should be redirected to the sign-in page
+    And I should see the sign-in notice "Password changed"
+    And my second device should be signed out
+
+  Scenario: Sign out all devices
+    Given I am on the profile page
+    And I am also signed in on a second device
+    When I open the Security section
+    And I sign out all devices
+    Then I should be redirected to the sign-in page
+    And I should see the sign-in notice "Signed out on all devices"
+    And my second device should be signed out

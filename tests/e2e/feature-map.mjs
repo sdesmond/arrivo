@@ -41,9 +41,24 @@ export const FEATURE_MAP = [
   ]),
   entry("auth", [
     "src/components/arrivo/auth-forms.tsx",
+    "src/components/arrivo/auth-submit-button.tsx",
+    "src/components/arrivo/mfa-code-form.tsx",
     "src/app/(auth)/sign-in/**",
     "src/app/(auth)/sign-up/**",
     "src/app/(auth)/actions.ts",
+  ]),
+  entry("mfa", [
+    "src/components/arrivo/auth-forms.tsx",
+    "src/components/arrivo/auth-submit-button.tsx",
+    "src/components/arrivo/mfa-code-form.tsx",
+    "src/app/(auth)/actions.ts",
+    "src/app/(auth)/sign-in/**",
+    "src/app/(app)/profile/security-*",
+    "src/app/(app)/profile/mfa-enrollment.tsx",
+    "src/app/(app)/profile/recovery-codes-dialog.tsx",
+    "src/app/(app)/profile/trusted-devices-list.tsx",
+    // mfa.feature reuses the Security-tab and sign-in-notice steps defined there.
+    "tests/e2e/steps/profile.steps.ts",
   ]),
   entry("create-trip", [
     "src/components/arrivo/new-trip-card.tsx",
@@ -280,7 +295,7 @@ export const SHARED_GLOBS = [
   "src/db/**",
   "src/data/**",
   "src/lib/**",
-  "src/middleware.ts",
+  "proxy.ts",
   "src/auth*",
   // App shell + API + cross-cutting orchestration
   "src/app/layout.tsx",

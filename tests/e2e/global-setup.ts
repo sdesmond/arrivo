@@ -16,7 +16,8 @@ export default async function globalSetup() {
   await db.execute(sql`
     TRUNCATE users, accounts, sessions, verification_tokens,
              trips, days, events, documents, collaborators, packing_items, packing_templates, packing_template_items,
-             itinerary_checklists, checklist_items, itinerary_notes, user_loyalty_numbers, user_companions
+             itinerary_checklists, checklist_items, itinerary_notes, user_loyalty_numbers, user_companions,
+             auth_throttle, mfa_recovery_codes, trusted_devices
     CASCADE
   `);
 
