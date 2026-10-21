@@ -9,20 +9,91 @@ import { AuthError } from "next-auth";
 import { headers } from "next/headers";
 import { detectPreferredCurrency } from "@/lib/utils";
 
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import type { SQL } from "drizzle-orm";
+import type { MfaActionState, SignInActionState } from "@/data/types";
+import { lockoutMessage } from "@/lib/auth-throttle";
+import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
+import { MFA_COOKIE, MFA_TICKET_TTL_MS, verifyMfaTicket } from "@/lib/mfa";
+import { DEVICE_COOKIE, DEVICE_COOKIE_MAX_AGE_SECONDS, rememberDevice } from "@/lib/trusted-devices";
+
 type ActionState = { error?: string } | undefined;
 
-export async function signInAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const signInFormData = new FormData();
-  signInFormData.set("email", String(formData.get("email") ?? ""));
-  signInFormData.set("password", String(formData.get("password") ?? ""));
-  signInFormData.set("redirectTo", "/trips");
+// Mirrors Auth.js: cookies are Secure only when the browser reached us over HTTPS, so plain-HTTP LAN installs work.
+function isHttps(requestHeaders: Headers): boolean {
+  const forwardedProto = requestHeaders.get("x-forwarded-proto")?.split(",")[0].trim();
+  if (forwardedProto) return forwardedProto === "https";
+  return (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").startsWith("https:");
+}
+
+// After a successful sign-in, mark this browser as one the user signs in from (see src/lib/trusted-devices.ts).
+async function trustThisBrowser(userFilter: SQL | undefined, rememberMfa: boolean): Promise<void> {
+  const [user] = await db.select({ id: users.id, sessionVersion: users.sessionVersion }).from(users).where(userFilter);
+  if (!user) return;
+
+  const requestHeaders = await headers();
+  const cookieJar = await cookies();
+  const token = await rememberDevice({
+    userId: user.id,
+    sessionVersion: user.sessionVersion,
+    existingToken: cookieJar.get(DEVICE_COOKIE)?.value,
+    userAgent: requestHeaders.get("user-agent"),
+    rememberMfa,
+  });
+  cookieJar.set(DEVICE_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isHttps(requestHeaders),
+    path: "/",
+    maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
+  });
+}
+
+export async function signInAction(_prev: SignInActionState, formData: FormData): Promise<SignInActionState> {
+  const email = String(formData.get("email") ?? "");
+  const password = String(formData.get("password") ?? "");
 
   try {
-    await signIn("credentials", signInFormData);
+    await signIn("credentials", { email, password, redirect: false });
   } catch (err) {
+    if (err instanceof MfaRequiredError) {
+      (await cookies()).set(MFA_COOKIE, err.ticket, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isHttps(await headers()),
+        path: "/",
+        maxAge: MFA_TICKET_TTL_MS / 1000,
+      });
+      return { mfaRequired: true };
+    }
+    if (err instanceof LockedOutError) return { error: lockoutMessage(err.retryAfterSeconds) };
     if (err instanceof AuthError) return { error: "Invalid email or password." };
     throw err;
   }
+
+  await trustThisBrowser(eq(users.email, email), false);
+  redirect("/trips");
+}
+
+export async function verifyMfaAction(_prev: MfaActionState, formData: FormData): Promise<MfaActionState> {
+  const cookieJar = await cookies();
+  const ticket = cookieJar.get(MFA_COOKIE)?.value;
+  if (!ticket) return { error: "Your sign-in timed out. Enter your email and password again.", expired: true };
+
+  try {
+    await signIn("credentials", { mfaTicket: ticket, code: String(formData.get("code") ?? ""), redirect: false });
+  } catch (err) {
+    if (err instanceof LockedOutError) return { error: lockoutMessage(err.retryAfterSeconds) };
+    if (err instanceof AuthError) return { error: "That code didn't work. Try again." };
+    throw err;
+  }
+
+  cookieJar.delete(MFA_COOKIE);
+  // signIn just verified the ticket, so it names the user who passed both steps.
+  const userId = verifyMfaTicket(ticket);
+  if (userId) await trustThisBrowser(eq(users.id, userId), formData.get("remember") === "on");
+  redirect("/trips");
 }
 
 export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

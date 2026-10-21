@@ -103,6 +103,11 @@ describe("Dockerfile", () => {
     expect(lines(".gitignore")).not.toContain("drizzle");
   });
 
+  it("bundles the two-factor reset tool for lost-phone recovery", () => {
+    expect(dockerfileStage(dockerfile, "builder")).toContain("src/db/mfa-reset-cli.ts");
+    expect(runner).toMatch(/COPY --from=builder \/app\/dist\/mfa-reset\.mjs/);
+  });
+
   it("listens on 3550 on all interfaces", () => {
     expect(runner).toMatch(/PORT=3550/);
     expect(runner).toMatch(/HOSTNAME=0\.0\.0\.0/);
@@ -165,6 +170,12 @@ describe("docker/entrypoint.sh", () => {
     expect(entrypoint).toContain(".arrivo/auth-secret");
     expect(entrypoint).toContain("/dev/urandom");
     expect(entrypoint).toContain("export NEXTAUTH_SECRET");
+  });
+
+  it("generates the data encryption key once and persists it beside the auth secret", () => {
+    expect(entrypoint).toContain(".arrivo/data-key");
+    expect(entrypoint).toContain("export DATA_ENCRYPTION_KEY");
+    expect(entrypoint.indexOf("export DATA_ENCRYPTION_KEY")).toBeLessThan(entrypoint.indexOf("migrate.mjs"));
   });
 
   it("migrates before exec-ing the server", () => {

@@ -2,35 +2,47 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/db";
-import { users } from "@/db/schema";
 import { logAuthError } from "@/lib/auth-logger";
-import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { authorizeCredentials, type AuthorizedUser } from "@/lib/authorize-credentials";
+import { getSessionVersion } from "@/lib/session-version";
+
+declare module "next-auth" {
+  interface User {
+    sessionVersion?: number;
+  }
+}
+
+declare module "@auth/core/jwt" {
+  interface JWT {
+    sessionVersion?: number;
+  }
+}
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
   adapter: DrizzleAdapter(db),
   session: { strategy: "jwt" },
   logger: { error: logAuthError },
-  // JWT avoids per-request DB session hit; revocation requires NEXTAUTH_SECRET rotation.
+  // JWT avoids a session table; revocation works through users.session_version (see the jwt callback).
   providers: [
     Credentials({
-      credentials: { email: {}, password: {} },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, credentials.email as string));
-        if (!user?.passwordHash) return null;
-        const valid = await bcrypt.compare(credentials.password as string, user.passwordHash);
-        if (!valid) return null;
-        return { id: user.id, email: user.email, name: user.name };
-      },
+      credentials: { email: {}, password: {}, mfaTicket: {}, code: {} },
+      authorize: (credentials, request): Promise<AuthorizedUser | null> => authorizeCredentials(credentials, request),
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user?.id) token.sub = user.id;
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+        token.sessionVersion = user.sessionVersion ?? 0;
+        return token;
+      }
+      if (!token.sub) return token;
+
+      // Runs on every auth() call (proxy.ts, pages, actions, route handlers). A token from before the last
+      // password change, two-factor change or "sign out all devices" — or for a deleted user — is dropped.
+      // Tokens issued before session versions existed carry none and count as version 0, the column default.
+      const currentVersion = await getSessionVersion(token.sub);
+      if (currentVersion === undefined || currentVersion !== (token.sessionVersion ?? 0)) return null;
       return token;
     },
     session({ session, token }) {

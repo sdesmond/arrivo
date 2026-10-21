@@ -7,8 +7,11 @@ import { eq, and, not, exists, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import { CoverType, TransitMode } from "@/data/types";
+import { CoverType, SignInNotice, TransitMode } from "@/data/types";
 import { lockUserForUpdate } from "@/lib/server-action-locks";
+import { encryptOptionalField } from "@/lib/field-encryption";
+import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
+import { bumpSessionVersion } from "@/lib/session-version";
 import type {
   UpdateUserProfilePatch,
   AddLoyaltyNumberInput,
@@ -86,6 +89,10 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
 
   const dbPatch: Omit<UpdateUserProfilePatch, "name"> & { name?: string | null } = { ...patch };
   if (trimmedName !== undefined) dbPatch.name = trimmedName || null;
+  if (patch.passportNumber !== undefined) dbPatch.passportNumber = encryptOptionalField(patch.passportNumber);
+  if (patch.knownTravelerNumber !== undefined) {
+    dbPatch.knownTravelerNumber = encryptOptionalField(patch.knownTravelerNumber);
+  }
 
   try {
     await db.update(users).set(dbPatch).where(eq(users.id, session.id!));
@@ -159,21 +166,35 @@ export async function changePassword({
   newPassword: string;
 }): Promise<{ error?: string }> {
   const session = await requireUser();
-  const [user] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, session.id!));
+  const userId = session.id!;
+  const throttleTargets = [accountTarget("pwchange", userId)];
+
+  const throttle = await checkThrottle(throttleTargets);
+  if (throttle.locked) return { error: lockoutMessage(throttle.retryAfterSeconds) };
+
+  const [user] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId));
 
   if (!user?.passwordHash) return { error: "No password set on this account." };
 
   const match = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!match) return { error: "Current password is incorrect." };
+  if (!match) {
+    await recordFailure(throttleTargets);
+    return { error: "Current password is incorrect." };
+  }
+  await clearFailures(throttleTargets);
 
   if (newPassword.length < 8) return { error: "New password must be at least 8 characters." };
 
   const hash = await bcrypt.hash(newPassword, 10);
   try {
-    await db.update(users).set({ passwordHash: hash }).where(eq(users.id, session.id!));
+    await db.update(users).set({ passwordHash: hash }).where(eq(users.id, userId));
   } catch {
     return { error: "Something went wrong." };
   }
+
+  // Anyone holding a session from before the change (including whoever learned the old password) is out.
+  await bumpSessionVersion(userId);
+  await signOut({ redirectTo: `/sign-in?notice=${SignInNotice.PasswordChanged}` });
   return {};
 }
 
@@ -243,10 +264,10 @@ export async function updateCompanion(id: string, patch: UpdateCompanionPatch): 
       .set({
         name: trimmedName,
         age: patch.age ?? null,
-        passportNumber: patch.passportNumber ?? null,
+        passportNumber: encryptOptionalField(patch.passportNumber) ?? null,
         passportExpiry: patch.passportExpiry ?? null,
         passportNationality: patch.passportNationality ?? null,
-        knownTravelerNumber: patch.knownTravelerNumber ?? null,
+        knownTravelerNumber: encryptOptionalField(patch.knownTravelerNumber) ?? null,
         username: patch.username ?? null,
       })
       .where(and(eq(userCompanions.id, id), eq(userCompanions.userId, session.id!)))

@@ -19,7 +19,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const mockState = vi.hoisted(() => ({ value: undefined as { error?: string } | undefined }));
+const mockState = vi.hoisted(() => ({ value: undefined as { error?: string; mfaRequired?: boolean } | undefined }));
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
@@ -30,6 +30,7 @@ vi.mock("react", async (importOriginal) => {
 });
 
 import { SignInForm, SignUpForm } from "./auth-forms";
+import { SignInNotice } from "@/data/types";
 
 const noopAction = vi.fn(async () => undefined);
 
@@ -39,28 +40,56 @@ afterEach(() => {
 
 describe("SignInForm", () => {
   it("renders email and password fields", () => {
-    render(<SignInForm action={noopAction} />);
+    render(<SignInForm action={noopAction} mfaAction={noopAction} />);
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 
   it("renders submit button", () => {
-    render(<SignInForm action={noopAction} />);
+    render(<SignInForm action={noopAction} mfaAction={noopAction} />);
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 
   it("shows error alert when state has error", () => {
     mockState.value = { error: "Invalid credentials" };
-    render(<SignInForm action={noopAction} />);
+    render(<SignInForm action={noopAction} mfaAction={noopAction} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Invalid credentials")).toBeInTheDocument();
   });
 
   it("sets aria-invalid on inputs when there is an error", () => {
     mockState.value = { error: "Wrong password" };
-    render(<SignInForm action={noopAction} />);
+    render(<SignInForm action={noopAction} mfaAction={noopAction} />);
     expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+describe("SignInForm — security flows", () => {
+  it("switches to the code step when the password step asks for a second factor", () => {
+    mockState.value = { mfaRequired: true };
+    render(<SignInForm action={noopAction} mfaAction={noopAction} />);
+    expect(screen.getByLabelText("Authentication code")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+  });
+
+  it("explains why the user was sent back to sign in", () => {
+    render(<SignInForm action={noopAction} mfaAction={noopAction} notice={SignInNotice.PasswordChanged} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Password changed. Sign in with your new password.");
+  });
+
+  it.each([
+    [SignInNotice.MfaEnabled, "Two-factor authentication is on."],
+    [SignInNotice.MfaDisabled, "Two-factor authentication is off."],
+    [SignInNotice.SignedOutEverywhere, "Signed out on all devices."],
+  ])("shows the %s notice", (notice, text) => {
+    render(<SignInForm action={noopAction} mfaAction={noopAction} notice={notice} />);
+    expect(screen.getByRole("status")).toHaveTextContent(text);
+  });
+
+  it("ignores unknown notices", () => {
+    render(<SignInForm action={noopAction} mfaAction={noopAction} notice="<script>" />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
 

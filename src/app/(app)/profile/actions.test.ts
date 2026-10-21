@@ -1,5 +1,9 @@
 // @vitest-environment node
+import { randomBytes } from "node:crypto";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { decryptField, isEncryptedField } from "@/lib/field-encryption";
+
+vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
 
 const { mockReturning, mockWhere, mockSet, mockUpdate, mockRequireUser, mockTransaction, mockRevalidatePath } =
   vi.hoisted(() => {
@@ -18,7 +22,11 @@ vi.mock("@/lib/auth-helpers", () => ({
 }));
 
 vi.mock("@/db", () => ({
-  db: { update: mockUpdate, transaction: mockTransaction },
+  db: {
+    update: mockUpdate,
+    transaction: mockTransaction,
+    select: vi.fn(() => ({ from: () => ({ where: mockSelectWhere }) })),
+  },
 }));
 
 vi.mock("next/cache", () => ({
@@ -42,14 +50,36 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(),
 }));
 
+const { mockSignOut, mockSelectWhere, mockCheckThrottle, mockRecordFailure, mockClearFailures, mockBump } = vi.hoisted(
+  () => ({
+    mockSignOut: vi.fn(),
+    mockSelectWhere: vi.fn(),
+    mockCheckThrottle: vi.fn(),
+    mockRecordFailure: vi.fn(),
+    mockClearFailures: vi.fn(),
+    mockBump: vi.fn(),
+  })
+);
+
 vi.mock("@/auth", () => ({
-  signOut: vi.fn(),
+  signOut: mockSignOut,
 }));
 
 vi.mock("bcryptjs", () => ({
   default: { compare: vi.fn(), hash: vi.fn() },
 }));
 
+vi.mock("@/lib/auth-throttle", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth-throttle")>()),
+  checkThrottle: mockCheckThrottle,
+  recordFailure: mockRecordFailure,
+  clearFailures: mockClearFailures,
+}));
+
+vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mockBump }));
+
+import bcrypt from "bcryptjs";
+import { changePassword } from "./actions";
 import { addCompanion, addLoyaltyNumber, addWishlistDestination, updateProfile, updateCompanion } from "./actions";
 
 interface RecordedInsert {
@@ -285,6 +315,40 @@ describe("updateProfile — server-side validation (AC10)", () => {
   });
 });
 
+describe("updateProfile — travel documents are encrypted at rest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdate.mockReturnValue({ set: mockSet });
+    mockSet.mockReturnValue({ where: mockWhere });
+    mockWhere.mockResolvedValue(undefined);
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+  });
+
+  it("encrypts passport and known traveler numbers before writing", async () => {
+    await updateProfile({ passportNumber: "X1234567", knownTravelerNumber: "TT-1", passportNationality: "US" });
+    const written = mockSet.mock.calls[0][0];
+    expect(isEncryptedField(written.passportNumber)).toBe(true);
+    expect(decryptField(written.passportNumber)).toBe("X1234567");
+    expect(isEncryptedField(written.knownTravelerNumber)).toBe(true);
+    expect(decryptField(written.knownTravelerNumber)).toBe("TT-1");
+    expect(written.passportNationality).toBe("US");
+  });
+
+  it("writes null when clearing travel documents", async () => {
+    await updateProfile({ passportNumber: null, knownTravelerNumber: null });
+    const written = mockSet.mock.calls[0][0];
+    expect(written.passportNumber).toBeNull();
+    expect(written.knownTravelerNumber).toBeNull();
+  });
+
+  it("leaves travel documents untouched when the patch omits them", async () => {
+    await updateProfile({ name: "Alice" });
+    const written = mockSet.mock.calls[0][0];
+    expect("passportNumber" in written).toBe(false);
+    expect("knownTravelerNumber" in written).toBe(false);
+  });
+});
+
 describe("updateCompanion — passportExpiry validation, zero-row detection, exception safety", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -313,6 +377,15 @@ describe("updateCompanion — passportExpiry validation, zero-row detection, exc
   it("returns error when passportExpiry is a free-form string", async () => {
     const result = await updateCompanion("companion-1", { passportExpiry: "next year" });
     expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
+  });
+
+  it("encrypts companion passport and known traveler numbers before writing", async () => {
+    await updateCompanion("companion-1", { name: "Alice", passportNumber: "P1", knownTravelerNumber: "K1" });
+    const written = mockSet.mock.calls[0][0];
+    expect(decryptField(written.passportNumber)).toBe("P1");
+    expect(isEncryptedField(written.passportNumber)).toBe(true);
+    expect(decryptField(written.knownTravelerNumber)).toBe("K1");
+    expect(isEncryptedField(written.knownTravelerNumber)).toBe(true);
   });
 
   it("returns not-found error when update affects zero rows", async () => {
@@ -409,5 +482,53 @@ describe("profile action transactions", () => {
 
     expect(result).toEqual({ error: "Companion limit reached (20 maximum)." });
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("changePassword — throttling and session revocation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdate.mockReturnValue({ set: mockSet });
+    mockSet.mockReturnValue({ where: mockWhere });
+    mockWhere.mockResolvedValue(undefined);
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockSelectWhere.mockResolvedValue([{ passwordHash: "hash" }]);
+    mockCheckThrottle.mockResolvedValue({ locked: false });
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    vi.mocked(bcrypt.hash).mockResolvedValue("new-hash" as never);
+  });
+
+  it("updates the hash, signs out every device and sends the user to sign in again", async () => {
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({});
+    expect(mockSet).toHaveBeenCalledWith({ passwordHash: "new-hash" });
+    expect(mockBump).toHaveBeenCalledWith("user-1");
+    expect(mockClearFailures).toHaveBeenCalledWith([expect.objectContaining({ key: "pwchange:user-1" })]);
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?notice=password-changed" });
+  });
+
+  it("records a failure when the current password is wrong", async () => {
+    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+    await expect(changePassword({ currentPassword: "bad", newPassword: "new-password" })).resolves.toEqual({
+      error: "Current password is incorrect.",
+    });
+    expect(mockRecordFailure).toHaveBeenCalledWith([expect.objectContaining({ key: "pwchange:user-1" })]);
+    expect(mockBump).not.toHaveBeenCalled();
+  });
+
+  it("refuses to check the password while locked out", async () => {
+    mockCheckThrottle.mockResolvedValue({ locked: true, retryAfterSeconds: 900 });
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
+      error: "Too many attempts. Try again in 15 minutes.",
+    });
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+  });
+
+  it("does not revoke sessions when the update fails", async () => {
+    mockWhere.mockRejectedValueOnce(new Error("db down"));
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
+      error: "Something went wrong.",
+    });
+    expect(mockBump).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 });

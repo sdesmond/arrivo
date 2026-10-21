@@ -1,43 +1,69 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
-import { useFormStatus } from "react-dom";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
+import { SignInNotice, type MfaActionState, type SignInActionState } from "@/data/types";
+import { AuthSubmitButton } from "./auth-submit-button";
+import { MfaCodeForm } from "./mfa-code-form";
 
 type ActionState = { error?: string } | undefined;
 interface SignInFormProps {
-  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  action: (prev: SignInActionState, formData: FormData) => Promise<SignInActionState>;
+  mfaAction: (prev: MfaActionState, formData: FormData) => Promise<MfaActionState>;
+  notice?: string;
 }
 interface SignUpFormProps {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
 }
 
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
+const NOTICE_TEXT: Record<SignInNotice, string> = {
+  [SignInNotice.PasswordChanged]: "Password changed. Sign in with your new password.",
+  [SignInNotice.MfaEnabled]: "Two-factor authentication is on. Sign in again with a code from your app.",
+  [SignInNotice.MfaDisabled]: "Two-factor authentication is off. Sign in again.",
+  [SignInNotice.SignedOutEverywhere]: "Signed out on all devices. Sign in again.",
+};
+
+function noticeText(notice: string | undefined): string | undefined {
+  return notice && notice in NOTICE_TEXT ? NOTICE_TEXT[notice as SignInNotice] : undefined;
+}
+
+// "Back to sign in" from the code step remounts the password step, which resets its action state.
+export function SignInForm({ action, mfaAction, notice }: SignInFormProps) {
+  const [attempt, setAttempt] = useState(0);
   return (
-    <button
-      type="submit"
-      aria-busy={pending}
-      disabled={pending}
-      className="h-11 w-full rounded-lg px-4 font-medium"
-      style={{ background: "var(--accent-brand)", color: "var(--fg-on-accent)" }}
-    >
-      {pending ? "Please wait…" : label}
-    </button>
+    <SignInSteps
+      key={attempt}
+      action={action}
+      mfaAction={mfaAction}
+      notice={attempt === 0 ? notice : undefined}
+      onRestart={() => setAttempt((current) => current + 1)}
+    />
   );
 }
 
-export function SignInForm({ action }: SignInFormProps) {
+interface SignInStepsProps extends SignInFormProps {
+  onRestart: () => void;
+}
+
+function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps) {
   const [state, formAction] = useActionState(action, undefined);
   const hasError = !!state?.error;
+  const noticeMessage = noticeText(notice);
 
   useEffect(() => {
     const h1 = document.querySelector("h1");
     (h1 as HTMLElement)?.focus();
   }, []);
 
+  if (state?.mfaRequired) return <MfaCodeForm action={mfaAction} onBack={onRestart} />;
+
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      {noticeMessage && !hasError && (
+        <p role="status" style={{ color: "var(--fg-2)" }}>
+          {noticeMessage}
+        </p>
+      )}
       {hasError && (
         <p id="form-error" role="alert" aria-live="polite" style={{ color: "var(--destructive)" }}>
           {state!.error}
@@ -71,7 +97,7 @@ export function SignInForm({ action }: SignInFormProps) {
           aria-describedby={hasError ? "form-error" : undefined}
         />
       </div>
-      <SubmitButton label="Sign in" />
+      <AuthSubmitButton label="Sign in" />
       <p className="text-center text-sm">
         Need an account?{" "}
         <Link href="/sign-up" className="underline" style={{ color: "var(--accent-brand)" }}>
@@ -138,7 +164,7 @@ export function SignUpForm({ action }: SignUpFormProps) {
           aria-describedby={hasError ? "form-error" : undefined}
         />
       </div>
-      <SubmitButton label="Create account" />
+      <AuthSubmitButton label="Create account" />
       <p className="text-center text-sm">
         Have an account?{" "}
         <Link href="/sign-in" className="underline" style={{ color: "var(--accent-brand)" }}>
