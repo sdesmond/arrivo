@@ -40,6 +40,13 @@ export const users = pgTable("users", {
   defaultCoverType: text("default_cover_type"),
   warningThreshold: integer("warning_threshold").default(80).notNull(),
   dangerThreshold: integer("danger_threshold").default(90).notNull(),
+  // Baked into every sign-in token; bumping it signs the user out on every device.
+  sessionVersion: integer("session_version").default(0).notNull(),
+  // TOTP secrets are stored encrypted (src/lib/field-encryption.ts). Two-factor is on iff mfaEnabledAt is set.
+  totpSecret: text("totp_secret"),
+  totpPendingSecret: text("totp_pending_secret"),
+  totpLastStep: integer("totp_last_step"),
+  mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
 });
 
 export const accounts = pgTable(
@@ -489,4 +496,55 @@ export const idempotencyKeys = pgTable(
       .notNull(),
   },
   (table) => [primaryKey({ columns: [table.key, table.userId] })]
+);
+
+// Failed-attempt counters for sign-in, password change and two-factor codes, keyed by e.g. "email:<address>".
+export const authThrottle = pgTable("auth_throttle", {
+  key: text("key").primaryKey(),
+  failures: integer("failures").default(0).notNull(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  lockCount: integer("lock_count").default(0).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const mfaRecoveryCodes = pgTable(
+  "mfa_recovery_codes",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+  },
+  (table) => [index("mfa_recovery_codes_user_id_idx").on(table.userId)]
+);
+
+// Browsers a user has signed in from (OWASP "device cookies"). Failed sign-ins elsewhere can't lock the user out
+// on these, and they can skip the two-factor code while mfaRememberedUntil is in the future. Only valid while
+// sessionVersion matches the user's, so password/two-factor changes and "sign out all devices" forget them all.
+export const trustedDevices = pgTable(
+  "trusted_devices",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    label: text("label").notNull(),
+    sessionVersion: integer("session_version").notNull(),
+    mfaRememberedUntil: timestamp("mfa_remembered_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`now()`)
+      .notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true })
+      .default(sql`now()`)
+      .notNull(),
+  },
+  (table) => [index("trusted_devices_user_id_idx").on(table.userId)]
 );
