@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-22
+
+### Changed
+
+- Arrivo has a logo. It appears with the app name in the sidebar and on the sign-in and sign-up pages, and
+  replaces the default browser tab icon.
+
 ## [0.5.0] - 2026-10-22
 
 ### Upgrading
@@ -42,5 +49,6 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/sdesmond/arrivo/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/sdesmond/arrivo/compare/v0.4.1...v0.5.0
