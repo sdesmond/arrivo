@@ -61,15 +61,16 @@ When("I open my profile's Security section", async ({ page }) => {
 
 When("I set up two-factor authentication with my authenticator app", async ({ page, scenario }) => {
   await page.getByRole("button", { name: "Set up two-factor authentication" }).click();
-  await expect(page.getByAltText("QR code for your authenticator app")).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Set up two-factor authentication" });
+  await expect(dialog.getByAltText("QR code for your authenticator app")).toBeVisible();
 
-  const secret = (await page.getByTestId("mfa-setup-key").textContent())?.trim() ?? "";
+  const secret = (await dialog.getByTestId("mfa-setup-key").textContent())?.trim() ?? "";
   expect(secret).toMatch(/^[A-Z2-7]{32}$/);
   scenario.setValue(TOTP_SECRET_KEY, secret);
 
   const now = new TOTP({ secret: Secret.fromBase32(secret), digits: 6, period: 30 }).generate();
-  await page.getByLabel("Code from your app").fill(now);
-  await page.getByRole("button", { name: "Turn on" }).click();
+  await dialog.getByLabel("Code from your app").fill(now);
+  await dialog.getByRole("button", { name: "Turn on" }).click();
 });
 
 Then("I should see {int} recovery codes", async ({ page }, count: number) => {

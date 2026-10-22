@@ -5,6 +5,14 @@ import { toast } from "sonner";
 import { Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { MfaEnrollmentStart } from "@/data/types";
 import { confirmMfaEnrollment, startMfaEnrollment } from "./security-actions";
 
@@ -15,18 +23,24 @@ interface MfaEnrollmentProps {
 const HINT_STYLE: React.CSSProperties = { fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" };
 
 export function MfaEnrollment({ onEnrolled }: MfaEnrollmentProps) {
+  // Kept after closing so the dialog doesn't empty out while it animates shut; the next start replaces it.
   const [setup, setSetup] = useState<MfaEnrollmentStart | null>(null);
+  const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const startRef = useRef<HTMLButtonElement>(null);
+  const codeInputRef = useRef<HTMLInputElement>(null);
 
   function handleStart() {
     setError(null);
     startTransition(async () => {
       const result = await startMfaEnrollment();
       if ("error" in result) setError(result.error);
-      else setSetup(result);
+      else {
+        setSetup(result);
+        setOpen(true);
+      }
     });
   }
 
@@ -34,13 +48,21 @@ export function MfaEnrollment({ onEnrolled }: MfaEnrollmentProps) {
     setError(null);
     startTransition(async () => {
       const result = await confirmMfaEnrollment(code);
-      if (result.recoveryCodes) onEnrolled(result.recoveryCodes);
-      else setError(result.error ?? "Something went wrong.");
+      if (result.recoveryCodes) {
+        // Closed first, so it's never open together with the recovery codes dialog.
+        setOpen(false);
+        onEnrolled(result.recoveryCodes);
+      } else setError(result.error ?? "Something went wrong.");
     });
   }
 
+  function handleOpenChange(nextOpen: boolean) {
+    // A code check in flight finishes enrollment either way; keep the dialog until it lands.
+    if (!nextOpen && !isPending) handleCancel();
+  }
+
   function handleCancel() {
-    setSetup(null);
+    setOpen(false);
     setCode("");
     setError(null);
     requestAnimationFrame(() => startRef.current?.focus());
@@ -61,61 +83,72 @@ export function MfaEnrollment({ onEnrolled }: MfaEnrollmentProps) {
     </p>
   );
 
-  if (!setup) {
-    return (
-      <div className="flex flex-col items-start gap-3">
-        <p style={HINT_STYLE}>
-          Add a code from an authenticator app (such as 1Password, Google Authenticator or Authy) to every sign-in.
-        </p>
-        {errorMessage}
-        <Button ref={startRef} className="h-11" onClick={handleStart} disabled={isPending}>
-          {isPending ? "Preparing…" : "Set up two-factor authentication"}
-        </Button>
-      </div>
-    );
-  }
-
+  // Setup opens in a dialog so the QR code and code field don't push the rest of the page down.
   return (
-    <div className="flex flex-col gap-4">
-      <p style={HINT_STYLE}>Scan this QR code with your authenticator app, then enter the 6-digit code it shows.</p>
-      {/* eslint-disable-next-line @next/next/no-img-element -- a generated data URL; next/image adds nothing here */}
-      <img src={setup.qrDataUrl} alt="QR code for your authenticator app" width={200} height={200} />
-      <div className="flex flex-wrap items-center gap-2" style={HINT_STYLE}>
-        <span>Can&apos;t scan it? Enter this key:</span>
-        <code
-          data-testid="mfa-setup-key"
-          style={{ fontFamily: "var(--font-mono-family, ui-monospace)", color: "var(--fg)", wordBreak: "break-all" }}
-        >
-          {setup.secret}
-        </code>
-        <Button variant="outline" className="h-11" onClick={handleCopyKey}>
-          Copy key
-        </Button>
-      </div>
-      <Field label="Code from your app" htmlFor="mfa-enroll-code">
-        <Input
-          id="mfa-enroll-code"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          autoFocus
-          aria-invalid={!!error || undefined}
-        />
-      </Field>
-      {errorMessage}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" className="h-11" onClick={handleCancel} disabled={isPending}>
-          Cancel
-        </Button>
-        <Button
-          className="h-11"
-          onClick={handleConfirm}
-          disabled={isPending || !/^\d{6}$/.test(code.replace(/\s/g, ""))}
-        >
-          {isPending ? "Checking…" : "Turn on"}
-        </Button>
-      </div>
+    <div className="flex flex-col items-start gap-3">
+      <p style={HINT_STYLE}>
+        Add a code from an authenticator app (such as 1Password, Google Authenticator or Authy) to every sign-in.
+      </p>
+      {!open && errorMessage}
+      <Button ref={startRef} className="h-11" onClick={handleStart} disabled={isPending && !open}>
+        {isPending && !open ? "Preparing…" : "Set up two-factor authentication"}
+      </Button>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent initialFocus={codeInputRef}>
+          <DialogHeader>
+            <DialogTitle>Set up two-factor authentication</DialogTitle>
+            <DialogDescription>
+              Scan this QR code with your authenticator app, then enter the 6-digit code it shows.
+            </DialogDescription>
+          </DialogHeader>
+          {setup && (
+            <div className="flex flex-col gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a generated data URL; next/image adds nothing here */}
+              <img src={setup.qrDataUrl} alt="QR code for your authenticator app" width={200} height={200} />
+              <div className="flex flex-wrap items-center gap-2" style={HINT_STYLE}>
+                <span>Can&apos;t scan it? Enter this key:</span>
+                <code
+                  data-testid="mfa-setup-key"
+                  style={{
+                    fontFamily: "var(--font-mono-family, ui-monospace)",
+                    color: "var(--fg)",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {setup.secret}
+                </code>
+                <Button variant="outline" className="h-11" onClick={handleCopyKey}>
+                  Copy key
+                </Button>
+              </div>
+              <Field label="Code from your app" htmlFor="mfa-enroll-code">
+                <Input
+                  ref={codeInputRef}
+                  id="mfa-enroll-code"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  aria-invalid={!!error || undefined}
+                />
+              </Field>
+              {errorMessage}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" className="h-11" onClick={handleCancel} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button
+              className="h-11"
+              onClick={handleConfirm}
+              disabled={isPending || !/^\d{6}$/.test(code.replace(/\s/g, ""))}
+            >
+              {isPending ? "Checking…" : "Turn on"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

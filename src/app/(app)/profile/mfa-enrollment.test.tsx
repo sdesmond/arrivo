@@ -1,5 +1,6 @@
+import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +14,38 @@ vi.mock("./security-actions", () => ({
   confirmMfaEnrollment: mocks.confirmMfaEnrollment,
 }));
 vi.mock("sonner", () => ({ toast: mocks.toast }));
+
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-labelledby="dialog-title">
+        {children}
+        <button onClick={() => onOpenChange(false)}>Escape</button>
+      </div>
+    ) : null,
+  DialogContent: ({
+    children,
+    initialFocus,
+  }: {
+    children: React.ReactNode;
+    initialFocus?: React.RefObject<HTMLElement | null>;
+  }) => {
+    React.useEffect(() => initialFocus?.current?.focus(), [initialFocus]);
+    return <div>{children}</div>;
+  },
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2 id="dialog-title">{children}</h2>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
 
 import { MfaEnrollment } from "./mfa-enrollment";
 
@@ -30,11 +63,44 @@ async function openSetup() {
 describe("MfaEnrollment", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows the QR code with alt text, the manual key and a labeled code field", async () => {
+  it("shows the QR code with alt text, the manual key and a labeled code field in a dialog", async () => {
     await openSetup();
-    expect(screen.getByAltText("QR code for your authenticator app")).toHaveAttribute("src", SETUP.qrDataUrl);
-    expect(screen.getByTestId("mfa-setup-key")).toHaveTextContent(SETUP.secret);
-    expect(screen.getByLabelText("Code from your app")).toHaveFocus();
+    const dialog = screen.getByRole("dialog", { name: "Set up two-factor authentication" });
+    expect(within(dialog).getByAltText("QR code for your authenticator app")).toHaveAttribute("src", SETUP.qrDataUrl);
+    expect(within(dialog).getByTestId("mfa-setup-key")).toHaveTextContent(SETUP.secret);
+    expect(within(dialog).getByLabelText("Code from your app")).toHaveFocus();
+    // The start button stays put behind the dialog, so the page doesn't reflow.
+    expect(screen.getByRole("button", { name: "Set up two-factor authentication" })).toBeInTheDocument();
+  });
+
+  it("cancels when the dialog is dismissed and returns focus to the start button", async () => {
+    const { user } = await openSetup();
+    await user.click(screen.getByRole("button", { name: "Escape" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(screen.getByRole("button", { name: "Set up two-factor authentication" })).toHaveFocus();
+    expect(mocks.confirmMfaEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed restart's error inline after a cancelled setup", async () => {
+    const { user } = await openSetup();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    mocks.startMfaEnrollment.mockResolvedValue({ error: "Two-factor authentication is already on." });
+    await user.click(screen.getByRole("button", { name: "Set up two-factor authentication" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("already on");
+  });
+
+  it("stays open if dismissed while the code is being checked", async () => {
+    const { user, onEnrolled } = await openSetup();
+    let resolveConfirm: (value: { recoveryCodes: string[] }) => void = () => {};
+    mocks.confirmMfaEnrollment.mockReturnValue(new Promise((resolve) => (resolveConfirm = resolve)));
+    await user.type(screen.getByLabelText("Code from your app"), "123456");
+    await user.click(screen.getByRole("button", { name: "Turn on" }));
+    await user.click(screen.getByRole("button", { name: "Escape" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await act(async () => resolveConfirm({ recoveryCodes: ["aaaaa-bbbbb"] }));
+    expect(onEnrolled).toHaveBeenCalledWith(["aaaaa-bbbbb"]);
   });
 
   it("shows an error when setup can't start", async () => {
@@ -86,6 +152,7 @@ describe("MfaEnrollment", () => {
     await user.click(screen.getByRole("button", { name: "Turn on" }));
     expect(mocks.confirmMfaEnrollment).toHaveBeenCalledWith("123456");
     expect(onEnrolled).toHaveBeenCalledWith(["aaaaa-bbbbb"]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("falls back to a generic error when confirm returns nothing useful", async () => {
