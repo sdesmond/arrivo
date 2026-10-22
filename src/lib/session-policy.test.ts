@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { SHORT_SESSION_MS, isTokenRevoked } from "./session-policy";
+import { SHORT_SESSION_MS, isShortSessionExpired, isTokenRevoked } from "./session-policy";
 
 const NOW = Date.UTC(2026, 9, 21, 12);
 const CURRENT = { sessionVersion: 2, deviceActive: true };
@@ -44,5 +44,23 @@ describe("isTokenRevoked", () => {
     expect(isTokenRevoked({ sessionVersion: 2, keepSignedIn: true, signedInAt: 0 }, CURRENT, NOW)).toBe(false);
     expect(isTokenRevoked({ sessionVersion: 2, signedInAt: 0 }, CURRENT, NOW)).toBe(false);
     expect(isTokenRevoked({ sessionVersion: 2, keepSignedIn: false }, CURRENT, NOW)).toBe(false);
+  });
+});
+
+// The proxy applies this one alone: it has no database, so it can't check versions or browsers.
+describe("isShortSessionExpired", () => {
+  it("ends an unticked session 12 hours after sign-in", () => {
+    expect(isShortSessionExpired({ keepSignedIn: false, signedInAt: NOW - SHORT_SESSION_MS + 1000 }, NOW)).toBe(false);
+    expect(isShortSessionExpired({ keepSignedIn: false, signedInAt: NOW - SHORT_SESSION_MS - 1000 }, NOW)).toBe(true);
+  });
+
+  it("never ends a kept session, or one from before the choice existed", () => {
+    expect(isShortSessionExpired({ keepSignedIn: true, signedInAt: 0 }, NOW)).toBe(false);
+    expect(isShortSessionExpired({ signedInAt: 0 }, NOW)).toBe(false);
+    expect(isShortSessionExpired({ keepSignedIn: false }, NOW)).toBe(false);
+  });
+
+  it("ignores session version and browser, which need the database", () => {
+    expect(isShortSessionExpired({ sessionVersion: 99, deviceId: "gone" }, NOW)).toBe(false);
   });
 });

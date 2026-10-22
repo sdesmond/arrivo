@@ -67,8 +67,8 @@ export async function confirmMfaEnrollment(code: string): Promise<RecoveryCodesR
   await clearFailures(throttleTargets);
 
   // Bumping the session version here signs out every session that never passed a second factor, this one
-  // included. The client shows the codes, then sends the user to sign in again (proxy.ts would reject any
-  // further request on this session, so that last step can't be a server action).
+  // included. The client shows the codes, then sends the user to sign in again (requireUser() would reject any
+  // further server action on this session, so that last step can't be one).
   const recoveryCodes = await db.transaction(async (transaction) => {
     await transaction
       .update(users)

@@ -295,7 +295,8 @@ export const SHARED_GLOBS = [
   "src/db/**",
   "src/data/**",
   "src/lib/**",
-  "proxy.ts",
+  "src/proxy.ts",
+  "src/instrumentation.ts",
   "src/auth*",
   // App shell + API + cross-cutting orchestration
   "src/app/layout.tsx",
