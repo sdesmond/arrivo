@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Briefcase, Search, Clock, LogOut, LayoutTemplate } from "lucide-react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { getAvatarTint } from "@/lib/trip-tints";
+import { ArrivoBrand } from "./arrivo-brand";
 import { NavItem } from "./nav-item";
 import type { UserProfile } from "@/data/types";
 
@@ -42,34 +43,8 @@ export function SidebarNav({ user, invitationCount }: SidebarNavProps) {
       aria-label="Main navigation"
     >
       {/* Brand row */}
-      <Link
-        href="/trips"
-        className="flex items-center gap-2 px-4 py-4"
-        style={{
-          fontFamily: "var(--font-heading-family, ui-sans-serif)",
-          fontWeight: 700,
-          fontSize: "calc(16px * var(--font-scale))",
-          letterSpacing: "-0.02em",
-          textDecoration: "none",
-          color: "inherit",
-        }}
-      >
-        <span
-          className="relative grid place-items-center rounded-[5px]"
-          style={{ width: 18, height: 18, background: "var(--fg)" }}
-        >
-          <span
-            className="absolute"
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 2,
-              background: "var(--accent-brand)",
-              transform: "rotate(45deg)",
-            }}
-          />
-        </span>
-        Arrivo
+      <Link href="/trips" className="flex items-center px-4 py-4" style={{ textDecoration: "none" }}>
+        <ArrivoBrand />
       </Link>
 
       {/* Nav items */}

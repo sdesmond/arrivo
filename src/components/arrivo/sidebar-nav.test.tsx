@@ -75,6 +75,13 @@ describe("SidebarNav", () => {
     expect(screen.getByText("Arrivo")).toBeInTheDocument();
   });
 
+  it("renders the logo inside the brand link to /trips", () => {
+    render(<SidebarNav user={baseUser} />);
+    const brandLink = screen.getByText("Arrivo").closest("a");
+    expect(brandLink).toHaveAttribute("href", "/trips");
+    expect(brandLink?.querySelector("img")).toBeInTheDocument();
+  });
+
   it("renders sign out button", () => {
     render(<SidebarNav user={baseUser} />);
     expect(screen.getByTitle("Sign out")).toBeInTheDocument();
