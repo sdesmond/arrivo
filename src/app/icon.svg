@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<title>Arrivo icon (small sizes)</title>
+<g id="logo" transform="translate(256 256) scale(1.17) translate(-214 -293.5)"><path id="tag" transform="translate(256 256) rotate(40) scale(1.25) translate(-256 -256)" fill="#0e8b80" fill-rule="evenodd" d="M233.03 117.35 A30 30 0 0 1 278.97 117.35 L351.63 203.84 A40 40 0 0 1 361.00 229.57 L361.00 392.00 A28 28 0 0 1 333.00 420.00 L179.00 420.00 A28 28 0 0 1 151.00 392.00 L151.00 229.57 A40 40 0 0 1 160.37 203.84 Z M256 154 a17 17 0 1 0 0.01 0 Z"/><path id="pin" transform="translate(213.74 304) scale(1.12) translate(-213.74 -304)" fill="#ffffff" fill-rule="evenodd" d="m 169.09756,321.79667 a 52,52 0 1 1 89.28,0 l -33.03,55.3 a 13.52,13.52 0 0 1 -23.22,0 z m 44.64,-45.39 a 18.72,18.72 0 1 0 0.01,0 z"/></g>
+</svg>
