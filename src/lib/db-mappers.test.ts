@@ -1,5 +1,7 @@
 // @vitest-environment node
-import { describe, it, expect } from "vitest";
+import { randomBytes } from "node:crypto";
+import { describe, it, expect, vi } from "vitest";
+import { encryptField } from "./field-encryption";
 import {
   dbTripToType,
   dbExpenseToType,
@@ -761,6 +763,11 @@ const BASE_USER: UserRow = {
   walkThresholdMeters: null,
   warningThreshold: 80,
   dangerThreshold: 90,
+  sessionVersion: 0,
+  totpSecret: null,
+  totpPendingSecret: null,
+  totpLastStep: null,
+  mfaEnabledAt: null,
 };
 
 describe("dbUserToType", () => {
@@ -776,6 +783,23 @@ describe("dbUserToType", () => {
     expect(result.passportExpiry).toBeNull();
     expect(result.passportNationality).toBeNull();
     expect(result.knownTravelerNumber).toBeNull();
+  });
+
+  it("decrypts encrypted passport and known traveler numbers", () => {
+    vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
+    const result = dbUserToType({
+      ...BASE_USER,
+      passportNumber: encryptField("X1234567"),
+      knownTravelerNumber: encryptField("TT-98765432"),
+    });
+    expect(result.passportNumber).toBe("X1234567");
+    expect(result.knownTravelerNumber).toBe("TT-98765432");
+    vi.unstubAllEnvs();
+  });
+
+  it("passes legacy plaintext travel documents through", () => {
+    const result = dbUserToType({ ...BASE_USER, passportNumber: "X1234567" });
+    expect(result.passportNumber).toBe("X1234567");
   });
 
   it("maps threshold fields correctly", () => {
@@ -1160,6 +1184,18 @@ describe("dbCompanionToType", () => {
     expect(result.passportNationality).toBe("United States");
     expect(result.knownTravelerNumber).toBe("KTN-9876");
     expect(result.username).toBe("alex.smith");
+  });
+
+  it("decrypts encrypted travel-doc fields", () => {
+    vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
+    const result = dbCompanionToType({
+      ...BASE_COMPANION,
+      passportNumber: encryptField("P12345678"),
+      knownTravelerNumber: encryptField("KTN-9876"),
+    });
+    expect(result.passportNumber).toBe("P12345678");
+    expect(result.knownTravelerNumber).toBe("KTN-9876");
+    vi.unstubAllEnvs();
   });
 
   it("maps non-zero position", () => {

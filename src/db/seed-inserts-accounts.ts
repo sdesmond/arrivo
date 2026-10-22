@@ -3,6 +3,7 @@
 // src/db/seed-runner.ts. Trip/day/event insert logic lives in src/db/seed-inserts-trip.ts.
 import { inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { encryptOptionalField } from "../lib/field-encryption";
 import type { db as liveDb } from "./index";
 import {
   collaborators,
@@ -54,9 +55,9 @@ export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Prom
         defaultCoverType: seedUser.defaultCoverType ?? null,
         warningThreshold: seedUser.warningThreshold ?? 80,
         dangerThreshold: seedUser.dangerThreshold ?? 90,
-        passportNumber: seedUser.passportNumber ?? null,
+        passportNumber: encryptOptionalField(seedUser.passportNumber) ?? null,
         passportNationality: seedUser.passportNationality ?? null,
-        knownTravelerNumber: seedUser.knownTravelerNumber ?? null,
+        knownTravelerNumber: encryptOptionalField(seedUser.knownTravelerNumber) ?? null,
       })
       .returning({ id: users.id, email: users.email, name: users.name });
 

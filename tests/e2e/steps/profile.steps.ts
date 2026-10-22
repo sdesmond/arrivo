@@ -1,5 +1,6 @@
-import { expect } from "@playwright/test";
+import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
 
 Given("I am on the profile page", async ({ page, scenario }) => {
   await scenario.signIn(page);
@@ -176,4 +177,70 @@ When("I remove the companion {string}", async ({ page }, name: string) => {
 
 Then("the companion {string} should not be visible", async ({ page }, name: string) => {
   await expect(page.getByText(name)).not.toBeVisible();
+});
+
+// ── Security tab and session revocation (also used by mfa.feature) ──────────
+
+const SECOND_DEVICE_KEY = "profile:second-device";
+
+When("I navigate to the Account section", async ({ page }) => {
+  await page.getByRole("tab", { name: "Account" }).click();
+  await expect(page.getByRole("tabpanel", { name: "Account" })).toBeVisible();
+});
+
+When("I open the Security section", async ({ page }) => {
+  await page.getByRole("tab", { name: "Security" }).click();
+  await expect(page.getByRole("tabpanel", { name: "Security" })).toBeVisible();
+});
+
+Given("I am also signed in on a second device", async ({ page, scenario }) => {
+  const user = await scenario.ensureCurrentUser();
+  const secondDevice = await scenario.openSecondSession(page);
+  scenario.setValue(SECOND_DEVICE_KEY, secondDevice);
+  await scenario.signInAsUser(secondDevice.page, user.email);
+});
+
+When("I change my password to {string}", async ({ page, scenario }, newPassword: string) => {
+  await page.getByLabel("Current password").fill(process.env.E2E_PASSWORD!);
+  await page.getByLabel("New password", { exact: true }).fill(newPassword);
+  await page.getByLabel("Confirm new password").fill(newPassword);
+  await page.getByRole("button", { name: "Update password" }).click();
+  await page.waitForURL("**/sign-in?notice=*");
+  scenario.signOut();
+});
+
+When("I sign out all devices", async ({ page, scenario }) => {
+  await page.getByRole("button", { name: "Sign out all devices" }).click();
+  await page.waitForURL("**/sign-in?notice=*");
+  scenario.signOut();
+});
+
+Then("I should see the sign-in notice {string}", async ({ page }, text: string) => {
+  await expect(page.getByRole("status")).toContainText(text);
+});
+
+Then("my second device should be signed out", async ({ scenario }) => {
+  const secondDevice = scenario.getValue<{ context: BrowserContext; page: Page }>(SECOND_DEVICE_KEY);
+  if (!secondDevice) throw new Error("No second device was opened in this scenario.");
+  try {
+    await secondDevice.page.goto("/trips");
+    await expect(secondDevice.page).toHaveURL(/\/sign-in/);
+  } finally {
+    await secondDevice.context.close();
+  }
+});
+
+When("I remove my other browser", async ({ page }) => {
+  // The list was rendered before the second device signed in.
+  await page.reload();
+  await page.getByRole("tab", { name: "Security" }).click();
+  const otherBrowser = page
+    .getByRole("list", { name: "Your browsers" })
+    .getByRole("listitem")
+    .filter({ hasNotText: "This browser" });
+  await expect(otherBrowser).toHaveCount(1);
+  const response = waitForServerActionResponse(page, { pathIncludes: "/profile" });
+  await otherBrowser.getByRole("button", { name: /^Remove / }).click();
+  await response;
+  await expect(otherBrowser).toHaveCount(0);
 });

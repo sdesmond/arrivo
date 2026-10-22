@@ -241,6 +241,7 @@ export const ProfileSection = {
   companions: "companions",
   preferences: "preferences",
   appearance: "appearance",
+  security: "security",
   account: "account",
 } as const;
 export type ProfileSection = (typeof ProfileSection)[keyof typeof ProfileSection];
@@ -1043,4 +1044,50 @@ export interface PullTemplatesResult {
 
 export interface SaveTripAsTemplateResult {
   templateId: string;
+}
+
+// ── Account security ─────────────────────────────────────────────────────────
+
+// `code` values on the CredentialsSignin errors thrown from authorize(). They appear in Auth.js error URLs,
+// so they must never carry anything secret.
+export const AuthErrorCode = {
+  Locked: "locked",
+  MfaRequired: "mfa_required",
+} as const;
+export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
+
+// Why a security change sent the user back to /sign-in (?notice=...).
+export const SignInNotice = {
+  PasswordChanged: "password-changed",
+  MfaEnabled: "mfa-enabled",
+  MfaDisabled: "mfa-disabled",
+  SignedOutEverywhere: "signed-out-everywhere",
+} as const;
+export type SignInNotice = (typeof SignInNotice)[keyof typeof SignInNotice];
+
+export type SignInActionState = { error?: string; mfaRequired?: boolean } | undefined;
+export type MfaActionState = { error?: string; expired?: boolean } | undefined;
+
+export interface MfaStatus {
+  enabled: boolean;
+  enabledAt?: string;
+  recoveryCodesRemaining: number;
+}
+
+export interface MfaEnrollmentStart {
+  secret: string;
+  qrDataUrl: string;
+}
+
+export interface SecondFactorInput {
+  password: string;
+  code: string;
+}
+
+export interface TrustedDeviceSummary {
+  id: string;
+  label: string;
+  lastUsedAt: string;
+  mfaRememberedUntil?: string;
+  isCurrent: boolean;
 }

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { browserUrl } from "./request-origin";
+import { browserUrl, isHttpsRequest } from "./request-origin";
 
 // What the standalone server reports in req.url: its own listen address, not the browser's.
 const SERVER_URL = "http://localhost:3550/trips";
@@ -48,5 +48,21 @@ describe("browserUrl", () => {
 
   it("falls back to req.url when no host header is present", () => {
     expect(browserUrl("/sign-in", request({}), {}).href).toBe("http://localhost:3550/sign-in");
+  });
+});
+
+describe("isHttpsRequest", () => {
+  it("trusts the first X-Forwarded-Proto entry", () => {
+    expect(isHttpsRequest(new Headers({ "x-forwarded-proto": "https, http" }), {})).toBe(true);
+    expect(isHttpsRequest(new Headers({ "x-forwarded-proto": "http" }), { NEXTAUTH_URL: "https://a.example" })).toBe(
+      false
+    );
+  });
+
+  it("falls back to NEXTAUTH_URL or AUTH_URL", () => {
+    expect(isHttpsRequest(new Headers(), { NEXTAUTH_URL: "https://a.example" })).toBe(true);
+    expect(isHttpsRequest(new Headers(), { AUTH_URL: "https://a.example" })).toBe(true);
+    expect(isHttpsRequest(new Headers(), { NEXTAUTH_URL: "http://a.example" })).toBe(false);
+    expect(isHttpsRequest(new Headers(), {})).toBe(false);
   });
 });

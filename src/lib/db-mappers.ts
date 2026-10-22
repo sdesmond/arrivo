@@ -46,6 +46,7 @@ import type {
   TripPackingList,
 } from "@/data/types";
 import { CoverType, TransitMode } from "@/data/types";
+import { decryptOptionalField } from "@/lib/field-encryption";
 
 const VALID_COVER_TYPES = Object.values(CoverType);
 const VALID_TRANSIT_MODES = Object.values(TransitMode);
@@ -97,10 +98,10 @@ export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
     distanceUnit: row.distanceUnit ?? null,
     transitMode: row.transitMode && isTransitMode(row.transitMode) ? row.transitMode : null,
     walkThresholdMeters: row.walkThresholdMeters ?? null,
-    passportNumber: row.passportNumber ?? null,
+    passportNumber: decryptOptionalField(row.passportNumber),
     passportExpiry: row.passportExpiry ?? null,
     passportNationality: row.passportNationality ?? null,
-    knownTravelerNumber: row.knownTravelerNumber ?? null,
+    knownTravelerNumber: decryptOptionalField(row.knownTravelerNumber),
     defaultCoverType: isCoverType(defaultCoverType) ? defaultCoverType : undefined,
     warningThreshold: row.warningThreshold,
     dangerThreshold: row.dangerThreshold,
@@ -266,10 +267,10 @@ export function dbCompanionToType(row: typeof userCompanions.$inferSelect): Comp
     id: row.id,
     name: row.name,
     age: row.age ?? undefined,
-    passportNumber: row.passportNumber ?? undefined,
+    passportNumber: decryptOptionalField(row.passportNumber) ?? undefined,
     passportExpiry: row.passportExpiry ?? undefined,
     passportNationality: row.passportNationality ?? undefined,
-    knownTravelerNumber: row.knownTravelerNumber ?? undefined,
+    knownTravelerNumber: decryptOptionalField(row.knownTravelerNumber) ?? undefined,
     username: row.username ?? undefined,
     position: row.position,
   };

@@ -6,23 +6,63 @@ import { users, collaborators } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { detectPreferredCurrency } from "@/lib/utils";
+import type { MfaActionState, SignInActionState } from "@/data/types";
+import { lockoutMessage } from "@/lib/auth-throttle";
+import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
+import { MFA_COOKIE, MFA_TICKET_TTL_MS } from "@/lib/mfa";
+import { isHttpsRequest } from "@/lib/request-origin";
 
 type ActionState = { error?: string } | undefined;
 
-export async function signInAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const signInFormData = new FormData();
-  signInFormData.set("email", String(formData.get("email") ?? ""));
-  signInFormData.set("password", String(formData.get("password") ?? ""));
-  signInFormData.set("redirectTo", "/trips");
+export async function signInAction(_prev: SignInActionState, formData: FormData): Promise<SignInActionState> {
+  const email = String(formData.get("email") ?? "");
+  const password = String(formData.get("password") ?? "");
+  const keepSignedIn = String(formData.get("keepSignedIn") === "on");
 
   try {
-    await signIn("credentials", signInFormData);
+    await signIn("credentials", { email, password, keepSignedIn, redirect: false });
   } catch (err) {
+    if (err instanceof MfaRequiredError) {
+      (await cookies()).set(MFA_COOKIE, err.ticket, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isHttpsRequest(await headers()),
+        path: "/",
+        maxAge: MFA_TICKET_TTL_MS / 1000,
+      });
+      return { mfaRequired: true };
+    }
+    if (err instanceof LockedOutError) return { error: lockoutMessage(err.retryAfterSeconds) };
     if (err instanceof AuthError) return { error: "Invalid email or password." };
     throw err;
   }
+
+  redirect("/trips");
+}
+
+export async function verifyMfaAction(_prev: MfaActionState, formData: FormData): Promise<MfaActionState> {
+  const cookieJar = await cookies();
+  const ticket = cookieJar.get(MFA_COOKIE)?.value;
+  if (!ticket) return { error: "Your sign-in timed out. Enter your email and password again.", expired: true };
+
+  try {
+    await signIn("credentials", {
+      mfaTicket: ticket,
+      code: String(formData.get("code") ?? ""),
+      remember: String(formData.get("remember") === "on"),
+      redirect: false,
+    });
+  } catch (err) {
+    if (err instanceof LockedOutError) return { error: lockoutMessage(err.retryAfterSeconds) };
+    if (err instanceof AuthError) return { error: "That code didn't work. Try again." };
+    throw err;
+  }
+
+  cookieJar.delete(MFA_COOKIE);
+  redirect("/trips");
 }
 
 export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -57,6 +97,8 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
   signInFormData.set("email", email);
   signInFormData.set("password", password);
   signInFormData.set("redirectTo", "/trips");
+  // A brand-new account on the browser that created it stays signed in like a ticked "Keep me signed in".
+  signInFormData.set("keepSignedIn", "true");
 
   await signIn("credentials", signInFormData);
 }

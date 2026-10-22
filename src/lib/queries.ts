@@ -24,6 +24,7 @@ import {
 } from "@/db/schema";
 import { eq, and, or, sql, inArray, asc, count, isNull, ne } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
+import { decryptOptionalField } from "@/lib/field-encryption";
 import { deriveLinkedEvents } from "@/lib/linked-events";
 import {
   dbTripToType,
@@ -118,6 +119,8 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
   return {
     ...user,
     email: user.email,
+    passportNumber: decryptOptionalField(user.passportNumber),
+    knownTravelerNumber: decryptOptionalField(user.knownTravelerNumber),
     defaultCoverType: parseCoverType(user.defaultCoverType),
     transitMode: parseTransitMode(user.transitMode),
     loyaltyNumbers: loyaltyRows.map(dbLoyaltyToType),

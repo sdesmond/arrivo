@@ -25,3 +25,10 @@ export function browserUrl(path: string, request: RequestLike, env: OriginEnv = 
     firstValue(request.headers.get("x-forwarded-proto")) ?? new URL(request.url).protocol.replace(":", "");
   return new URL(path, `${protocol}://${host}`);
 }
+
+// Mirrors Auth.js: cookies are Secure only when the browser reached us over HTTPS, so plain-HTTP LAN installs work.
+export function isHttpsRequest(headers: Headers, env: OriginEnv = process.env): boolean {
+  const forwardedProto = firstValue(headers.get("x-forwarded-proto"));
+  if (forwardedProto) return forwardedProto === "https";
+  return (env.NEXTAUTH_URL ?? env.AUTH_URL ?? "").startsWith("https:");
+}

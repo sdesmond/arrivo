@@ -2,41 +2,40 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { logAuthError } from "@/lib/auth-logger";
-import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { authConfig } from "@/auth.config";
+import { authorizeCredentials, type AuthorizedUser } from "@/lib/authorize-credentials";
+import { isTokenRevoked } from "@/lib/session-policy";
+import { getSessionState } from "@/lib/session-version";
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
+  ...authConfig,
   adapter: DrizzleAdapter(db),
-  session: { strategy: "jwt" },
-  logger: { error: logAuthError },
-  // JWT avoids per-request DB session hit; revocation requires NEXTAUTH_SECRET rotation.
+  // JWT avoids a session table; revocation works through users.session_version (see the jwt callback).
   providers: [
     Credentials({
-      credentials: { email: {}, password: {} },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, credentials.email as string));
-        if (!user?.passwordHash) return null;
-        const valid = await bcrypt.compare(credentials.password as string, user.passwordHash);
-        if (!valid) return null;
-        return { id: user.id, email: user.email, name: user.name };
-      },
+      credentials: { email: {}, password: {}, mfaTicket: {}, code: {} },
+      authorize: (credentials, request): Promise<AuthorizedUser | null> => authorizeCredentials(credentials, request),
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user?.id) token.sub = user.id;
-      return token;
-    },
-    session({ session, token }) {
-      if (token.sub) session.user.id = token.sub;
-      return session;
+    ...authConfig.callbacks,
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+        token.sessionVersion = user.sessionVersion ?? 0;
+        token.deviceId = user.deviceId;
+        token.keepSignedIn = user.keepSignedIn ?? true;
+        token.signedInAt = Date.now();
+        return token;
+      }
+      if (!token.sub) return token;
+
+      // Runs on every auth() call from pages, actions and route handlers (src/proxy.ts uses the database-free
+      // src/auth.config.ts instead). Drops the token for a deleted user, after a password/two-factor change or
+      // "sign out all devices", when its browser was removed, or 12 hours after an unticked "Keep me signed in"
+      // (see src/lib/session-policy.ts).
+      const state = await getSessionState(token.sub, token.deviceId);
+      return isTokenRevoked(token, state) ? null : token;
     },
   },
-  pages: { signIn: "/sign-in" },
 });

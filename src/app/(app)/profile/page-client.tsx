@@ -12,7 +12,8 @@ import { WishlistSection } from "./wishlist-section";
 import { CompanionsSection } from "./companions-section";
 import { ProfilePreferencesSection } from "./preferences-section";
 import { ProfileAccountSection } from "./account-section";
-import type { UserProfile, ProfileSection } from "@/data/types";
+import { ProfileSecuritySection } from "./security-section";
+import type { MfaStatus, TrustedDeviceSummary, UserProfile, ProfileSection } from "@/data/types";
 
 const NAV_ITEMS: { value: ProfileSection; label: string }[] = [
   { value: "identity", label: "Identity" },
@@ -20,14 +21,18 @@ const NAV_ITEMS: { value: ProfileSection; label: string }[] = [
   { value: "companions", label: "Companions" },
   { value: "preferences", label: "Preferences" },
   { value: "appearance", label: "Appearance" },
+  { value: "security", label: "Security" },
   { value: "account", label: "Account" },
 ];
 
 interface ProfilePageClientProps {
   user: UserProfile;
+  mfaStatus: MfaStatus;
+  trustedDevices: TrustedDeviceSummary[];
+  encryptionConfigured: boolean;
 }
 
-export function ProfilePageClient({ user }: ProfilePageClientProps) {
+export function ProfilePageClient({ user, mfaStatus, trustedDevices, encryptionConfigured }: ProfilePageClientProps) {
   const [activeSection, setActiveSection] = useState<ProfileSection>("identity");
 
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
@@ -137,6 +142,14 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
                   </div>
                 </div>
               </Section>
+            </TabsContent>
+
+            <TabsContent value="security" className="w-full">
+              <ProfileSecuritySection
+                status={mfaStatus}
+                devices={trustedDevices}
+                encryptionConfigured={encryptionConfigured}
+              />
             </TabsContent>
 
             <TabsContent value="account" className="w-full">
