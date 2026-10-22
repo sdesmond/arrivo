@@ -87,9 +87,17 @@ vi.mock("@/lib/db-mappers", () => ({
   dbPackingListToType: vi.fn(),
   dbTemplateToType: vi.fn(),
   dbTemplateItemToType: vi.fn(),
+  isTransitMode: vi.fn((value: string) => value === "driving"),
 }));
 
-import { getContributorsAndInvitations, getTripDetail, listExpensesForUserInRange, listTripsForUser } from "./queries";
+import { encryptField } from "./field-encryption";
+import {
+  getContributorsAndInvitations,
+  getTripDetail,
+  getUserById,
+  listExpensesForUserInRange,
+  listTripsForUser,
+} from "./queries";
 
 describe("getContributorsAndInvitations", () => {
   beforeEach(() => {
@@ -1192,5 +1200,56 @@ describe("listExpensesForUserInRange", () => {
     const result = await listExpensesForUserInRange("user-1", "2026-01-01", "2026-12-31");
 
     expect(result).toEqual({ trips: [], expenses: [] });
+  });
+});
+
+describe("getUserById", () => {
+  const userRow = {
+    id: "user-1",
+    name: "Ada",
+    email: "ada@example.com",
+    dateFormat: "MDY",
+    currency: "USD",
+    distanceUnit: "mi",
+    passportNumber: null as string | null,
+    passportExpiry: null,
+    passportNationality: null,
+    knownTravelerNumber: null as string | null,
+    defaultCoverType: "photo",
+    warningThreshold: 80,
+    dangerThreshold: 100,
+    transitMode: "driving",
+    walkThresholdMeters: 800,
+  };
+
+  function mockUserRow(row: typeof userRow | undefined) {
+    mockDbSelect.mockReturnValueOnce({ from: () => ({ where: async () => (row ? [row] : []) }) });
+    for (let i = 0; i < 3; i++) {
+      mockDbSelect.mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) });
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("DATA_ENCRYPTION_KEY", Buffer.alloc(32, 7).toString("base64"));
+  });
+
+  it("decrypts the passport and Known Traveler Numbers it returns", async () => {
+    mockUserRow({ ...userRow, passportNumber: encryptField("X1234567"), knownTravelerNumber: encryptField("KTN-42") });
+    const user = await getUserById("user-1");
+    expect(user?.passportNumber).toBe("X1234567");
+    expect(user?.knownTravelerNumber).toBe("KTN-42");
+  });
+
+  it("passes plaintext from before encryption through, and keeps empty values empty", async () => {
+    mockUserRow({ ...userRow, passportNumber: "LEGACY99" });
+    const user = await getUserById("user-1");
+    expect(user?.passportNumber).toBe("LEGACY99");
+    expect(user?.knownTravelerNumber).toBeNull();
+  });
+
+  it("returns null for an unknown user", async () => {
+    mockUserRow(undefined);
+    expect(await getUserById("missing")).toBeNull();
   });
 });
