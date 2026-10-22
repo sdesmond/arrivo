@@ -1,3 +1,6 @@
+# check=skip=SecretsUsedInArgOrEnv
+# (Parser directive; it must stay the first line.) The check flags any ARG/ENV whose name contains AUTH, so it
+# misreads AUTH_TRUST_HOST=true below, a plain flag. Real secrets come from the environment at run time.
 FROM node:22-alpine AS base
 # Node crashes intermittently under QEMU, so npm and next build always run on the build machine's own platform;
 # only the runner stage is assembled per target arch, and it runs no Node.
