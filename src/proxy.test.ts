@@ -36,12 +36,17 @@ describe("proxy", () => {
     expect(request("/trips", { user: { id: "user-1" } })).toBeUndefined();
   });
 
-  it.each(["/sign-in", "/sign-up", "/api/auth/session", "/api/health", "/_next/data/x.json", "/favicon.svg"])(
-    "leaves %s public",
-    (path) => {
-      expect(request(path)).toBeUndefined();
-    }
-  );
+  it.each([
+    "/sign-in",
+    "/sign-up",
+    "/api/auth/session",
+    "/api/health",
+    "/_next/data/x.json",
+    "/favicon.svg",
+    "/icon.svg",
+  ])("leaves %s public", (path) => {
+    expect(request(path)).toBeUndefined();
+  });
 
   it("skips static assets entirely", () => {
     const matcher = new RegExp(`^${config.matcher[0]}$`);

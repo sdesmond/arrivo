@@ -14,7 +14,8 @@ export default auth((req) => {
   const isPublic =
     PUBLIC_PATHS.some((path) => pathname.startsWith(path)) ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon");
+    pathname.startsWith("/favicon") ||
+    pathname === "/icon.svg";
   if (!req.auth && !isPublic) {
     return NextResponse.redirect(browserUrl("/sign-in", req));
   }
