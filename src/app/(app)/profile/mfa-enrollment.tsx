@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
@@ -104,22 +105,31 @@ export function MfaEnrollment({ onEnrolled }: MfaEnrollmentProps) {
           {setup && (
             <div className="flex flex-col gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element -- a generated data URL; next/image adds nothing here */}
-              <img src={setup.qrDataUrl} alt="QR code for your authenticator app" width={200} height={200} />
-              <div className="flex flex-wrap items-center gap-2" style={HINT_STYLE}>
+              <img
+                src={setup.qrDataUrl}
+                alt="QR code for your authenticator app"
+                width={200}
+                height={200}
+                className="self-center"
+              />
+              <div className="flex flex-col gap-1" style={HINT_STYLE}>
                 <span>Can&apos;t scan it? Enter this key:</span>
-                <code
-                  data-testid="mfa-setup-key"
-                  style={{
-                    fontFamily: "var(--font-mono-family, ui-monospace)",
-                    color: "var(--fg)",
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {setup.secret}
-                </code>
-                <Button variant="outline" className="h-11" onClick={handleCopyKey}>
-                  Copy key
-                </Button>
+                <div className="flex items-center gap-2">
+                  <code
+                    data-testid="mfa-setup-key"
+                    className="min-w-0 flex-1"
+                    style={{
+                      fontFamily: "var(--font-mono-family, ui-monospace)",
+                      color: "var(--fg)",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {setup.secret}
+                  </code>
+                  <Button variant="ghost" size="icon-lg" title="Copy key" aria-label="Copy key" onClick={handleCopyKey}>
+                    <Copy strokeWidth={1.5} />
+                  </Button>
+                </div>
               </div>
               <Field label="Code from your app" htmlFor="mfa-enroll-code">
                 <Input

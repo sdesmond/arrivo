@@ -57,6 +57,8 @@ async function openSetup() {
   mocks.startMfaEnrollment.mockResolvedValue(SETUP);
   render(<MfaEnrollment onEnrolled={onEnrolled} />);
   await user.click(screen.getByRole("button", { name: "Set up two-factor authentication" }));
+  // startMfaEnrollment resolves inside a transition; wait for the dialog rather than racing it.
+  await screen.findByRole("dialog");
   return { user, onEnrolled };
 }
 
@@ -87,8 +89,8 @@ describe("MfaEnrollment", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     mocks.startMfaEnrollment.mockResolvedValue({ error: "Two-factor authentication is already on." });
     await user.click(screen.getByRole("button", { name: "Set up two-factor authentication" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("already on");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("already on");
   });
 
   it("stays open if dismissed while the code is being checked", async () => {
@@ -166,7 +168,12 @@ describe("MfaEnrollment", () => {
   it("copies the setup key", async () => {
     const { user } = await openSetup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    await user.click(screen.getByRole("button", { name: "Copy key" }));
+    const copy = screen.getByRole("button", { name: "Copy key" });
+    // An icon button trailing the key: titled for pointer users, 44×44 (size-11) for touch.
+    expect(copy).toHaveAttribute("title", "Copy key");
+    expect(copy).toHaveTextContent("");
+    expect(copy).toHaveClass("size-11");
+    await user.click(copy);
     expect(writeText).toHaveBeenCalledWith(SETUP.secret);
     expect(mocks.toast.success).toHaveBeenCalled();
   });
