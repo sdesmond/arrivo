@@ -31,6 +31,8 @@ Then publish the release notes: on GitHub, **Releases → Draft a new release**,
 under **Unreleased** in the same PR as any change someone running Arrivo would notice, grouped as Added,
 Changed, Deprecated, Removed, Fixed or Security. Write it for the people running Arrivo, not as a commit log.
 Anything they must do when they update goes under **Upgrading** at the top of the version.
+The `pr-review` workflow warns (without failing) when a PR changes user-facing files such as `src/app/**`, the
+Dockerfile or `drizzle/` migrations and leaves `CHANGELOG.md` untouched.
 
 The workflow publishes the image as `X.Y.Z`, `X.Y`, `latest` and `sha-<commit>`. npm and
 `next build` run natively for both architectures (only the arm64 runner stage's package install is

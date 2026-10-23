@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildPacket, checkTests, classifyFile, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
+import {
+  buildPacket,
+  checkChangelog,
+  checkTests,
+  classifyFile,
+  findSecrets,
+  parseDiff,
+  scopeStats,
+} from "./checks.mjs";
 
 // Builds a unified diff for one file. `lines` are added lines; `removed` are removed lines.
 function fileDiff(path, { lines = [], removed = [], status = "modified", oldPath } = {}) {
@@ -279,6 +287,63 @@ describe("checkTests", () => {
     );
 
     expect(checkTests(files).missing).toHaveLength(10);
+  });
+});
+
+describe("checkChangelog", () => {
+  it("passes when nothing user-facing changed", () => {
+    const files = parse(
+      fileDiff("scripts/pr-review/review.mjs", { lines: ["x"] }),
+      fileDiff(".github/workflows/ci.yml", { lines: ["x"] }),
+      fileDiff("evals/pr-reviewer/run-eval.mjs", { lines: ["x"] }),
+      fileDiff("tests/e2e/features/trips.feature", { lines: ["x"] }),
+      fileDiff("src/lib/format.ts", { lines: ["x"] }),
+      fileDiff("src/app/(app)/trips/page.test.tsx", { lines: ["x"] }),
+      fileDiff("docs/releasing.md", { lines: ["x"] })
+    );
+
+    expect(checkChangelog(files)).toEqual({ status: "PASS", files: [], updated: false });
+  });
+
+  it.each([
+    "src/app/(app)/profile/page.tsx",
+    "src/components/arrivo/trip-card.tsx",
+    "Dockerfile",
+    "docker-compose.yml",
+    "SETUP.md",
+    "docs/self-hosting.md",
+    "drizzle/0005_new.sql",
+  ])("warns when %s changes without a changelog entry", (path) => {
+    const files = parse(fileDiff(path, { lines: ["x"] }));
+
+    expect(checkChangelog(files)).toEqual({ status: "WARN", files: [path], updated: false });
+  });
+
+  it("passes when CHANGELOG.md changes in the same PR", () => {
+    const files = parse(
+      fileDiff("src/app/(app)/profile/page.tsx", { lines: ["x"] }),
+      fileDiff("CHANGELOG.md", { lines: ["- Added a thing."] })
+    );
+
+    expect(checkChangelog(files)).toEqual({ status: "PASS", files: [], updated: true });
+  });
+
+  it("ignores dev-only compose files, assets and tests inside user-facing directories", () => {
+    const files = parse(
+      fileDiff("docker-compose.dev.yml", { lines: ["x"] }),
+      fileDiff("src/app/fonts/dm-sans.woff2", { status: "binary" }),
+      fileDiff("src/components/arrivo/trip-card.test.tsx", { lines: ["x"] })
+    );
+
+    expect(checkChangelog(files).status).toBe("PASS");
+  });
+
+  it("lists at most five files", () => {
+    const files = parse(
+      ...Array.from({ length: 8 }, (_unused, index) => fileDiff(`src/app/page${index}.tsx`, { lines: ["x"] }))
+    );
+
+    expect(checkChangelog(files).files).toHaveLength(5);
   });
 });
 
