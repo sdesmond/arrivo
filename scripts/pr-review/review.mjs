@@ -8,6 +8,7 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { structureVerdicts } from "./structure.mjs";
 import { buildPacket, checkChangelog, checkTests, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
 
 const MARKER = "<!-- pr-review:v1";
@@ -228,6 +229,19 @@ export async function evaluate({ title, body, diff }, { runModel, previous = nul
     }
   }
   return { result: combine({ secrets, tests, model, changelog }), packet, hash, model, usage, ranModel, modelError };
+}
+
+// The same review with no model at all: title/description and scope come from scripted rules (structure.mjs).
+export function evaluateDeterministic({ title, body, diff }) {
+  const files = parseDiff(diff);
+  const structure = structureVerdicts({ title, body, files });
+  const result = combine({
+    secrets: findSecrets(files),
+    tests: checkTests(files),
+    model: null,
+    changelog: checkChangelog(files),
+  });
+  return { ...result, title: structure.title, scope: structure.scope };
 }
 
 function run(file, args) {

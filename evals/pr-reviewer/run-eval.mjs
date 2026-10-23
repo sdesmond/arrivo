@@ -7,6 +7,7 @@
 //   --runner  "opencode" (default: free Zen models, one big prompt) or "pipeline" (scripts/pr-review: deterministic
 //             secrets/tests checks + one `claude -p` call on your subscription; --model is then a Claude model id,
 //             default claude-haiku-5-5, and --effort defaults to low)
+//   --runner deterministic: the same scripted checks with title/description and scope done by rules instead of a model.
 //   MAX_DIFF_LINES env (default 4000) truncates diffs the way a real runner would (opencode runner only).
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,18 +22,19 @@ const args = Object.fromEntries(
     .reduce((acc, token, index, all) => (token.startsWith("--") ? [...acc, [token.slice(2), all[index + 1]]] : acc), [])
 );
 const runner = args.runner ?? "opencode";
-const model = args.model ?? (runner === "pipeline" ? "claude-haiku-5-5" : undefined);
-const promptName = runner === "pipeline" ? "pipeline" : (args.prompt ?? "current");
+const model =
+  args.model ?? (runner === "pipeline" ? "claude-haiku-5-5" : runner === "deterministic" ? "none" : undefined);
+const promptName = runner === "opencode" ? (args.prompt ?? "current") : runner;
 if (!model) throw new Error("--model required");
-const modelLabel = runner === "pipeline" ? model : `opencode/${model}`;
+const modelLabel = runner === "opencode" ? `opencode/${model}` : model;
 const concurrency = Number(args.concurrency ?? 2);
 const runs = Number(args.runs ?? 1);
 const maxDiffLines = Number(process.env.MAX_DIFF_LINES ?? 4000);
 const timeoutMs = Number(process.env.CASE_TIMEOUT_MS ?? 240000);
 const only = args.only?.split(",");
 
-const prompt = runner === "pipeline" ? "" : readFileSync(join(root, "prompts", `${promptName}.txt`), "utf8");
-const pipeline = runner === "pipeline" ? await import("../../scripts/pr-review/review.mjs") : null;
+const prompt = runner !== "opencode" ? "" : readFileSync(join(root, "prompts", `${promptName}.txt`), "utf8");
+const pipeline = runner !== "opencode" ? await import("../../scripts/pr-review/review.mjs") : null;
 const casesRoot = join(root, "cases");
 const cases = readdirSync(casesRoot)
   .map((id) => ({
@@ -172,9 +174,29 @@ async function runPipeline(entry) {
   return { parsed, output, usage, error: outcome.modelError, ms: Date.now() - started };
 }
 
+// Scripted rules only (no model): what dropping the LLM check would look like.
+function runDeterministic(entry) {
+  const started = Date.now();
+  const result = pipeline.evaluateDeterministic({ title: entry.title, body: entry.body, diff: entry.diff });
+  const parsed = {
+    title: result.title.verdict,
+    scope: result.scope.verdict,
+    secrets: result.secrets.verdict,
+    tests: result.tests.verdict,
+    overall: result.overall,
+    declined: false,
+  };
+  return {
+    parsed,
+    output: pipeline.renderComment(result, { hash: "deterministic" }),
+    usage: null,
+    ms: Date.now() - started,
+  };
+}
+
 async function runOne(entry, run) {
   if (pipeline) {
-    const piped = await runPipeline(entry);
+    const piped = runner === "deterministic" ? runDeterministic(entry) : await runPipeline(entry);
     return {
       id: entry.id,
       run,

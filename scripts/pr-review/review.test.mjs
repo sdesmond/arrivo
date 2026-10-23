@@ -5,6 +5,7 @@ import {
   buildClaudeArgs,
   combine,
   evaluate,
+  evaluateDeterministic,
   extractState,
   packetHash,
   parseClaudeOutput,
@@ -415,5 +416,29 @@ describe("evaluate", () => {
     expect(outcome.result.title.verdict).toBe("SKIP");
     expect(outcome.modelError).toBe("rate limited");
     expect(outcome.result.overall).toBe("PASS");
+  });
+});
+
+describe("evaluateDeterministic", () => {
+  it("needs no model: title and scope come from the scripted rules", () => {
+    const diff = fileDiff("src/lib/format.ts", ["x"]) + fileDiff("src/lib/format.test.ts", ["y"]);
+
+    const result = evaluateDeterministic({ title: "bug fixes", body: "", diff });
+
+    expect(result.title.verdict).toBe("WARN");
+    expect(result.scope.verdict).toBe("PASS");
+    expect(result.secrets.verdict).toBe("PASS");
+    expect(result.tests.verdict).toBe("PASS");
+    expect(result.overall).toBe("PASS");
+  });
+
+  it("still fails on secrets and missing tests", () => {
+    const diff = fileDiff("src/lib/a.ts", ['const apiKey = "7f3a9c1e5b2d48a6b0c9e1f4a7d2c8b3";']);
+
+    const result = evaluateDeterministic({ title: "Add the thing to profile", body: "x".repeat(60), diff });
+
+    expect(result.secrets.verdict).toBe("FAIL");
+    expect(result.tests.verdict).toBe("FAIL");
+    expect(result.overall).toBe("FAIL");
   });
 });
