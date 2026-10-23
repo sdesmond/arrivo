@@ -8,11 +8,15 @@ on:
 
 jobs:
   opencode:
+    # Only the repository owner can start this. The repository is public and this job holds an opencode key, so a
+    # stranger commenting "/oc" must not run it. scripts/workflow-guards.test.mjs enforces the gate.
     if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, ' /opencode') ||
-      startsWith(github.event.comment.body, '/opencode')
+      github.actor == github.repository_owner && (
+        contains(github.event.comment.body, ' /oc') ||
+        startsWith(github.event.comment.body, '/oc') ||
+        contains(github.event.comment.body, ' /opencode') ||
+        startsWith(github.event.comment.body, '/opencode')
+      )
     runs-on: ubuntu-latest
     permissions:
       id-token: write
