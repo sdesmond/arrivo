@@ -187,28 +187,6 @@ export function checkTests(files) {
   return { status: review.length > 0 ? "REVIEW" : "PASS", missing: [], review };
 }
 
-// Paths whose changes a person running Arrivo would notice. Dev-only files (docker-compose.dev.yml, tests, assets) are not.
-const USER_FACING_PATHS = [
-  /^src\/(app|components)\//,
-  /^drizzle\/.*\.sql$/,
-  /^Dockerfile$/,
-  /^docker-compose\.yml$/,
-  /^SETUP\.md$/,
-  /^docs\/self-hosting\.md$/,
-];
-const MAX_CHANGELOG_FILES = 5;
-
-export function checkChangelog(files) {
-  if (files.some((file) => file.path === "CHANGELOG.md")) return { status: "PASS", files: [], updated: true };
-  const hits = files
-    .filter((file) => USER_FACING_PATHS.some((pattern) => pattern.test(file.path)))
-    .filter((file) => file.path.startsWith("drizzle/") || !["test", "noise"].includes(classifyFile(file.path)))
-    .map((file) => file.path);
-  return hits.length > 0
-    ? { status: "WARN", files: hits.slice(0, MAX_CHANGELOG_FILES), updated: false }
-    : { status: "PASS", files: [], updated: false };
-}
-
 function areaOf(path) {
   const parts = path.split("/");
   return parts[0] === "src" && parts.length > 2 ? `src/${parts[1]}` : parts[0];

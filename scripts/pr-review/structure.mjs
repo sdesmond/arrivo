@@ -14,13 +14,12 @@ const GENERIC_TITLE =
 const FILLER_WORD = /\b(stuff|misc|wip)\b/i;
 const AI_ATTRIBUTION = /generated with \[?claude|co-authored-by:\s*claude|noreply@anthropic\.com/i;
 
-// The description minus what a template contributes on its own: HTML comments, headings and the changelog checkboxes
+// The description minus what a template contributes on its own: HTML comments and headings
 // (see .github/PULL_REQUEST_TEMPLATE.md). An untouched template therefore counts as empty.
 function cleanBody(body) {
   return body
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/^\s*#{1,6}\s.*$/gm, "")
-    .replace(/^\s*[-*]\s*\[[ xX]\]\s*This change is (not )?visible.*$/gm, "")
     .trim();
 }
 

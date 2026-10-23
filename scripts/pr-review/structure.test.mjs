@@ -59,9 +59,6 @@ describe("checkDescription", () => {
       "## Test plan",
       "<!-- How you checked it. -->",
       "",
-      "## Changelog",
-      "- [ ] This change is visible to people running Arrivo and I added an entry under `[Unreleased]`",
-      "- [ ] This change is not visible to them (refactor, tests, tooling, internal docs)",
     ].join("\n");
 
     const result = checkDescription({ title: "Move the container's default port to 4850", body: template });

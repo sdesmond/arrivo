@@ -27,12 +27,15 @@ Then publish the release notes: on GitHub, **Releases → Draft a new release**,
 
 ## Changelog
 
-[CHANGELOG.md](../CHANGELOG.md) follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Add an entry
-under **Unreleased** in the same PR as any change someone running Arrivo would notice, grouped as Added,
-Changed, Deprecated, Removed, Fixed or Security. Write it for the people running Arrivo, not as a commit log.
-Anything they must do when they update goes under **Upgrading** at the top of the version.
-The `pr-review` workflow warns (without failing) when a PR changes user-facing files such as `src/app/**`, the
-Dockerfile or `drizzle/` migrations and leaves `CHANGELOG.md` untouched.
+[CHANGELOG.md](../CHANGELOG.md) follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), grouped as
+Added, Changed, Deprecated, Removed, Fixed or Security, written for the people running Arrivo rather than as a commit
+log. Anything they must do when they update goes under **Upgrading** at the top of the version.
+
+Feature PRs don't edit the file, so parallel and stacked PRs never conflict over it. When cutting a release, run the
+`release-changelog` skill (`.agents/skills/release-changelog/`). It reads the PRs merged since the last tag, drafts the
+entries under **Unreleased** and lists the PRs it treated as internal. Read the draft, fix anything it got wrong, then
+carry on with the steps above. PR descriptions that say what operators will notice, and what they must do, make the
+draft better.
 
 The workflow publishes the image as `X.Y.Z`, `X.Y`, `latest` and `sha-<commit>`. npm and
 `next build` run natively for both architectures (only the arm64 runner stage's package install is

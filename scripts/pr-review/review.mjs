@@ -6,7 +6,7 @@
 // fails. PR text is only ever data here: it is never executed or interpolated into a shell command.
 import { execFile } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { checkChangelog, checkTests, findSecrets, parseDiff } from "./checks.mjs";
+import { checkTests, findSecrets, parseDiff } from "./checks.mjs";
 import { structureVerdicts } from "./structure.mjs";
 
 const MARKER = "<!-- pr-review:v2 -->";
@@ -25,7 +25,6 @@ export function evaluate({ title, body, diff }) {
   const files = parseDiff(diff);
   const secrets = findSecrets(files);
   const tests = checkTests(files);
-  const changelog = checkChangelog(files);
   const structure = structureVerdicts({ title, body, files });
 
   let testsResult;
@@ -47,7 +46,6 @@ export function evaluate({ title, body, diff }) {
     scope: structure.scope,
     secrets: secretsResult,
     tests: testsResult,
-    changelog: { verdict: changelog.status, files: changelog.files, updated: changelog.updated },
     overall: secretsResult.verdict === "FAIL" || testsResult.verdict === "FAIL" ? "FAIL" : "PASS",
   };
 }
@@ -55,16 +53,6 @@ export function evaluate({ title, body, diff }) {
 function line(label, check, detail) {
   const suffix = detail ? ` — ${detail}` : "";
   return `- ${label}: ${check.verdict}${suffix}`;
-}
-
-function changelogRows(changelog) {
-  if (changelog.verdict === "WARN") {
-    return [
-      "- Changelog: WARN — user-facing files changed with no CHANGELOG.md entry (ignore if the change isn't visible to people running Arrivo)",
-      ...changelog.files.map((file) => `  - \`${file}\``),
-    ];
-  }
-  return [`- Changelog: PASS — ${changelog.updated ? "CHANGELOG.md updated" : "no user-facing files changed"}`];
 }
 
 export function renderComment(result) {
@@ -78,7 +66,6 @@ export function renderComment(result) {
     ...result.secrets.findings.map((finding) => `  - \`${finding.path}:${finding.line}\` (${finding.pattern})`),
     line("Tests", result.tests, result.tests.reason),
     ...result.tests.files.map((file) => `  - \`${file}\``),
-    ...changelogRows(result.changelog),
     "",
     `Overall: ${result.overall}`,
   ];
