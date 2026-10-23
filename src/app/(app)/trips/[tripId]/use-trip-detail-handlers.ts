@@ -201,7 +201,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
           if (firstItemContent) {
             const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent);
             packingHandlers.setNewlyCreatedChecklistId(id);
-            setTimeout(() => packingHandlers.setNewlyCreatedChecklistId(null), 1000);
           } else {
             await createChecklist(day.id!, insertAtPosition);
           }

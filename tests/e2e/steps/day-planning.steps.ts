@@ -588,9 +588,15 @@ When("I check all items in the checklist", async ({ page }) => {
   const uncheckedCount = await uncheckedButtons.count();
   for (let checkedCount = 1; checkedCount <= uncheckedCount; checkedCount += 1) {
     await uncheckedButtons.first().click();
-    await expect(checklist.getByRole("button", { name: "Uncheck item" })).toHaveCount(checkedCount, {
-      timeout: 10_000,
-    });
+    if (checkedCount === uncheckedCount) {
+      // The last check completes the checklist, which auto-collapses 600ms later and unmounts the
+      // item rows, so a row count can miss that window under load. The header badge persists.
+      await expect(checklist.getByLabel("Complete")).toBeVisible({ timeout: 10_000 });
+    } else {
+      await expect(checklist.getByRole("button", { name: "Uncheck item" })).toHaveCount(checkedCount, {
+        timeout: 10_000,
+      });
+    }
   }
 });
 
@@ -601,6 +607,12 @@ Then("the checklist should show the completion badge", async ({ page }) => {
 When("I collapse the checklist", async ({ page }) => {
   const checklist = getLatestChecklist(page);
   const addInput = checklist.locator('[placeholder="Add an item…"]');
+  if (await checklist.getByLabel("Complete").isVisible()) {
+    // Completing a checklist auto-collapses it 600ms later (checklist-item.tsx). A header click
+    // inside that window races the timer and can toggle it back open, so wait for the collapse.
+    await expect(addInput).toBeHidden();
+    return;
+  }
   const isExpanded = await addInput.isVisible().catch(() => false);
   if (isExpanded) {
     await checklist.getByRole("button").first().click();
