@@ -1,5 +1,9 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { and, eq } from "drizzle-orm";
+import { collaborators, invitations, trips } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
+import type { ScenarioUserRecord } from "../scenario-fixture";
 import { waitForServerActionResponse } from "../server-action";
 
 Given("I am on the profile page", async ({ page, scenario }) => {
@@ -243,4 +247,121 @@ When("I remove my other browser", async ({ page }) => {
   await otherBrowser.getByRole("button", { name: /^Remove / }).click();
   await response;
   await expect(otherBrowser).toHaveCount(0);
+});
+
+const SHARED_TRIP_COLLABORATORS_KEY = "sharedTripCollaborators";
+
+function requireSharedTripId(scenario: { currentTrip?: { id: string } }): string {
+  const tripId = scenario.currentTrip?.id;
+  if (!tripId) throw new Error("No shared trip was seeded in this scenario.");
+  return tripId;
+}
+
+Given(
+  "I own the shared trip {string} with editor {string} and viewer {string}",
+  async ({ scenario }, tripName: string, editorName: string, viewerName: string) => {
+    const trip = await scenario.ensureCurrentTrip("datelessTrip", { trip: { name: tripName } });
+    const editor = await scenario.seedCollaborator(trip.id, editorName, editorName.slice(0, 2).toUpperCase(), "editor");
+    // seedCollaborator only seeds editors/managers; the viewer is a second materialized account added by hand.
+    const { user: viewer } = await scenario.materialize({
+      user: {
+        overrides: { user: { name: viewerName, initials: viewerName.slice(0, 2).toUpperCase() } },
+        setCurrent: false,
+      },
+    });
+    if (!viewer) throw new Error(`Failed to materialize the viewer "${viewerName}".`);
+    await withE2EDb(async (db) => {
+      await db.insert(collaborators).values({
+        tripId: trip.id,
+        userId: viewer.id,
+        email: viewer.email,
+        name: viewer.name,
+        initials: viewer.initials,
+        role: "viewer",
+        isCreator: false,
+      });
+    });
+    scenario.setValue<Record<string, ScenarioUserRecord>>(SHARED_TRIP_COLLABORATORS_KEY, {
+      [editorName]: editor,
+      [viewerName]: viewer,
+    });
+  }
+);
+
+Given("I have a pending invite out on my shared trip", async ({ scenario }) => {
+  const inviter = await scenario.ensureCurrentUser();
+  const tripId = requireSharedTripId(scenario);
+  await withE2EDb(async (db) => {
+    await db.insert(invitations).values({
+      tripId,
+      email: scenario.uniqueEmail("pending-invitee"),
+      role: "editor",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      invitedBy: inviter.id,
+    });
+  });
+});
+
+When("I open the delete account dialog", async ({ page }) => {
+  await page.getByRole("button", { name: "Delete account" }).click();
+  await expect(page.getByRole("dialog", { name: "Delete account?" })).toBeVisible();
+});
+
+When("I choose {string} for {string}", async ({ page }, optionLabel: string, tripName: string) => {
+  const picker = page.getByRole("dialog").getByRole("combobox", { name: new RegExp(tripName) });
+  await picker.click();
+  await page.getByRole("option", { name: optionLabel }).click();
+  await expect(picker).toContainText(optionLabel);
+});
+
+When("I confirm deleting my account", async ({ page, scenario }) => {
+  await page.getByRole("dialog").getByRole("button", { name: "Delete account" }).click();
+  // Success answers the action POST with signOut's 303, sent only after the transaction commits, so
+  // landing on sign-in already proves persistence (waitForServerActionResponse would reject the 303).
+  await page.waitForURL("**/sign-in**", { timeout: 15_000 });
+  // The root <Toaster> survives the SPA navigation, so a swallowed redirect would still show here. A
+  // retrying "count is 0" check would pass once the toast auto-dismisses, so fail if it ever appears.
+  const failureToastAppeared = await page
+    .getByText("Couldn't delete your account. Try again.")
+    .waitFor({ state: "visible", timeout: 2_000 })
+    .then(() => true)
+    .catch(() => false);
+  expect(failureToastAppeared).toBe(false);
+  scenario.signOut();
+});
+
+Then("{string} should own my shared trip as its manager", async ({ scenario }, heirName: string) => {
+  const tripId = requireSharedTripId(scenario);
+  const heir = scenario.getValue<Record<string, ScenarioUserRecord>>(SHARED_TRIP_COLLABORATORS_KEY)?.[heirName];
+  if (!heir) throw new Error(`"${heirName}" was not seeded on the shared trip.`);
+
+  const { trip, heirMembership } = await withE2EDb(async (db) => {
+    const [tripRow] = await db.select({ ownerId: trips.ownerId }).from(trips).where(eq(trips.id, tripId));
+    const [membership] = await db
+      .select({ role: collaborators.role, isCreator: collaborators.isCreator })
+      .from(collaborators)
+      .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, heir.id)));
+    return { trip: tripRow, heirMembership: membership };
+  });
+
+  expect(trip?.ownerId).toBe(heir.id);
+  expect(heirMembership).toEqual({ role: "manager", isCreator: true });
+});
+
+Then("my shared trip should have no pending invites", async ({ scenario }) => {
+  const tripId = requireSharedTripId(scenario);
+  const pending = await withE2EDb((db) =>
+    db
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(and(eq(invitations.tripId, tripId), eq(invitations.status, "pending")))
+  );
+  expect(pending).toEqual([]);
+});
+
+Then("my shared trip should no longer exist", async ({ scenario }) => {
+  const tripId = requireSharedTripId(scenario);
+  const remaining = await withE2EDb((db) => db.select({ id: trips.id }).from(trips).where(eq(trips.id, tripId)));
+  expect(remaining).toEqual([]);
 });

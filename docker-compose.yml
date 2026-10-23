@@ -1,6 +1,6 @@
 # Arrivo self-hosting stack: https://github.com/sdesmond/arrivo (setup guide: docs/self-hosting.md)
 # Self-contained: paste it into Portainer, Dockge or your NAS's container app, or run `docker compose up -d`
-# next to it. Change the values marked below, then open http://<your-server>:3550.
+# next to it. Change the values marked below, then open http://<your-server>:4850.
 services:
   db:
     image: postgres:17-alpine
@@ -43,5 +43,5 @@ services:
       # Uploads, plus the generated sign-in secret and data encryption key in .arrivo/. Back it up with the database.
       - ./data/storage:/app/storage
     ports:
-      - "3550:3550" # host:container; change the left number if 3550 is taken
+      - "4850:4850" # host:container; change the left number if 4850 is taken
     restart: unless-stopped

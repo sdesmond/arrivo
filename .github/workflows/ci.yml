@@ -163,14 +163,14 @@ jobs:
       # No redirect following: if middleware sends /api/health to /sign-in, this must fail, not see a 200.
       - name: Health endpoint answers without signing in
         run: |
-          code=$(curl -sS -o health.json -w '%{http_code}' --max-redirs 0 http://localhost:3550/api/health)
+          code=$(curl -sS -o health.json -w '%{http_code}' --max-redirs 0 http://localhost:4850/api/health)
           [ "$code" = "200" ] && grep -q '"status":"ok"' health.json || { echo "::error::health returned $code"; cat health.json; exit 1; }
 
       # Standalone Next reports its own listen address in req.url; the redirect must use the browser's Host.
       - name: Sign-in redirect keeps the address the browser used
         run: |
-          location=$(curl -sS -o /dev/null -w '%{redirect_url}' -H 'Host: 192.168.1.50:3550' http://localhost:3550/trips)
-          [ "$location" = "http://192.168.1.50:3550/sign-in" ] || { echo "::error::redirected to $location"; exit 1; }
+          location=$(curl -sS -o /dev/null -w '%{redirect_url}' -H 'Host: 192.168.1.50:4850' http://localhost:4850/trips)
+          [ "$location" = "http://192.168.1.50:4850/sign-in" ] || { echo "::error::redirected to $location"; exit 1; }
 
       - name: Migrations ran, uploads folder re-owned, secret generated
         run: |
@@ -185,7 +185,7 @@ jobs:
           docker compose restart app
           docker compose up -d --wait --wait-timeout 180
           sudo sha256sum -c secret.sha
-          curl -fsS --max-redirs 0 http://localhost:3550/api/health | grep -q '"status":"ok"'
+          curl -fsS --max-redirs 0 http://localhost:4850/api/health | grep -q '"status":"ok"'
 
       - name: Stack logs
         if: failure()

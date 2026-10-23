@@ -116,3 +116,25 @@ Feature: User profile page
     When I open the Security section
     And I remove my other browser
     Then my second device should be signed out
+
+  Scenario: Deleting my account hands a shared trip to the collaborator I pick
+    Given I own the shared trip "Handoff Lisbon Escape" with editor "Bo Nilsen" and viewer "Ada Lovelace"
+    And I have a pending invite out on my shared trip
+    And I am on the profile page
+    When I navigate to the Account section
+    And I open the delete account dialog
+    And I choose "Transfer to Ada Lovelace · viewer" for "Handoff Lisbon Escape"
+    And I confirm deleting my account
+    Then I should be redirected to the sign-in page
+    And "Ada Lovelace" should own my shared trip as its manager
+    And my shared trip should have no pending invites
+
+  Scenario: Deleting my account can delete a shared trip on purpose
+    Given I own the shared trip "Handoff Kyoto Adventure" with editor "Grace Hopper" and viewer "Marie Curie"
+    And I am on the profile page
+    When I navigate to the Account section
+    And I open the delete account dialog
+    And I choose "Delete this trip" for "Handoff Kyoto Adventure"
+    And I confirm deleting my account
+    Then I should be redirected to the sign-in page
+    And my shared trip should no longer exist

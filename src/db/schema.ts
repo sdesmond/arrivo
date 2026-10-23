@@ -268,6 +268,10 @@ export const collaborators = pgTable(
     isCreator: boolean("is_creator").notNull().default(false),
     tintBg: text("tint_bg"),
     tintFg: text("tint_fg"),
+    // Orders the successor when an owner deletes their account (role first, then earliest added).
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (table) => [unique().on(table.tripId, table.email)]
 );

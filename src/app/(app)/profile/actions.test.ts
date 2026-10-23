@@ -35,20 +35,45 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  users: {},
-  collaborators: {},
-  trips: {},
+  users: { tableName: "users" },
+  collaborators: { tableName: "collaborators" },
+  trips: { tableName: "trips" },
+  documents: { tableName: "documents" },
+  invitations: { tableName: "invitations" },
   userLoyaltyNumbers: {},
   userWishlistDestinations: {},
   userCompanions: {},
 }));
 
+// Conditions come back as plain tuples so tests can assert which rows a statement targeted.
 vi.mock("drizzle-orm", () => ({
-  eq: vi.fn(),
-  and: vi.fn(),
-  not: vi.fn(),
-  exists: vi.fn(),
+  eq: vi.fn((_column: unknown, value: unknown) => ["eq", value]),
+  and: vi.fn((...conditions: unknown[]) => ["and", ...conditions]),
+  inArray: vi.fn((_column: unknown, values: unknown) => ["inArray", values]),
   sql: vi.fn(),
+}));
+
+const { mockStorageDel, mockPublishTripEvent, mockPublishUserEvent, mockPurgeTripTopic, mockPublishInvitationChanged } =
+  vi.hoisted(() => ({
+    mockStorageDel: vi.fn(),
+    mockPublishTripEvent: vi.fn(),
+    mockPublishUserEvent: vi.fn(),
+    mockPurgeTripTopic: vi.fn(),
+    mockPublishInvitationChanged: vi.fn(),
+  }));
+
+vi.mock("@/lib/storage/storage-adapter", () => ({
+  getStorageAdapter: () => ({ del: mockStorageDel }),
+}));
+
+vi.mock("@/lib/trip-events", () => ({
+  publishTripEvent: mockPublishTripEvent,
+  publishUserEvent: mockPublishUserEvent,
+  purgeTripTopic: mockPurgeTripTopic,
+}));
+
+vi.mock("@/lib/invitations", () => ({
+  publishInvitationChanged: mockPublishInvitationChanged,
 }));
 
 const { mockSignOut, mockSelectWhere, mockCheckThrottle, mockRecordFailure, mockClearFailures, mockBump } = vi.hoisted(
@@ -80,7 +105,9 @@ vi.mock("@/lib/auth-throttle", async (importOriginal) => ({
 vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mockBump }));
 
 import bcrypt from "bcryptjs";
-import { changePassword } from "./actions";
+import { changePassword, deleteAccount } from "./actions";
+import { collaborators, documents, invitations, trips, users } from "@/db/schema";
+import { CollaboratorRole, InvitationStatus, LiveSyncEventType, TripDeletionAction } from "@/data/types";
 import { addCompanion, addLoyaltyNumber, addWishlistDestination, updateProfile, updateCompanion } from "./actions";
 
 interface RecordedInsert {
@@ -562,6 +589,278 @@ describe("changePassword — throttling and session revocation", () => {
       error: "Something went wrong.",
     });
     expect(mockBump).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+});
+
+interface RecordedStatement {
+  op: "update" | "delete";
+  table: unknown;
+  set?: unknown;
+  where: unknown;
+}
+
+interface DeletionFixture {
+  ownedTrips?: { id: string; name: string; coverImageUrl: string | null }[];
+  members?: {
+    id: string;
+    tripId: string;
+    userId: string | null;
+    name: string;
+    role: string;
+    addedAt: Date | null;
+  }[];
+  tripDocuments?: { url: string | null }[];
+  rescindedInvitations?: { email: string; tripId: string }[];
+  departedMemberships?: { tripId: string }[];
+}
+
+// Records every write in order and answers selects/returning() by table, so a test can assert both
+// what a statement changed and that it ran before another one.
+function createDeletionTransactionMock(fixture: DeletionFixture) {
+  const statements: RecordedStatement[] = [];
+  const selectResults = new Map<unknown, unknown[]>([
+    [trips, fixture.ownedTrips ?? []],
+    [collaborators, fixture.members ?? []],
+    [documents, fixture.tripDocuments ?? []],
+  ]);
+  const returningResults = new Map<unknown, unknown[]>([
+    [invitations, fixture.rescindedInvitations ?? []],
+    [collaborators, fixture.departedMemberships ?? []],
+  ]);
+
+  function recordWhere(statement: Omit<RecordedStatement, "where">) {
+    return vi.fn((where: unknown) => {
+      statements.push({ ...statement, where });
+      return Object.assign(Promise.resolve(undefined), {
+        returning: vi.fn(async () => returningResults.get(statement.table) ?? []),
+      });
+    });
+  }
+
+  const transaction = {
+    execute: vi.fn().mockResolvedValue([{ id: "locked" }]),
+    select: vi.fn(() => ({
+      from: vi.fn((table: unknown) => ({
+        where: vi.fn(async () => selectResults.get(table) ?? []),
+      })),
+    })),
+    update: vi.fn((table: unknown) => ({
+      set: vi.fn((set: unknown) => ({ where: recordWhere({ op: "update", table, set }) })),
+    })),
+    delete: vi.fn((table: unknown) => ({ where: recordWhere({ op: "delete", table }) })),
+  };
+
+  mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+    callback(transaction)
+  );
+
+  return { statements, transaction };
+}
+
+const SOLO_TRIP = { id: "trip-solo", name: "Weekend in Porto", coverImageUrl: "/api/storage/covers/porto.jpg" };
+const SHARED_TRIP = { id: "trip-shared", name: "Lisbon Escape", coverImageUrl: null };
+const SHARED_TRIP_MEMBERS = [
+  {
+    id: "collab-me",
+    tripId: SHARED_TRIP.id,
+    userId: "user-1",
+    name: "Me",
+    role: CollaboratorRole.Manager,
+    addedAt: new Date("2026-01-01T00:00:00.000Z"),
+  },
+  {
+    id: "collab-bo",
+    tripId: SHARED_TRIP.id,
+    userId: "user-bo",
+    name: "Bo",
+    role: CollaboratorRole.Editor,
+    addedAt: new Date("2026-02-01T00:00:00.000Z"),
+  },
+  {
+    id: "collab-ada",
+    tripId: SHARED_TRIP.id,
+    userId: "user-ada",
+    name: "Ada",
+    role: CollaboratorRole.Viewer,
+    addedAt: new Date("2026-03-01T00:00:00.000Z"),
+  },
+];
+
+describe("deleteAccount — shared trip handoff", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockStorageDel.mockResolvedValue(undefined);
+    mockPublishInvitationChanged.mockResolvedValue(undefined);
+  });
+
+  it("deletes a trip only the user is on and cleans up its files after commit", async () => {
+    const { statements } = createDeletionTransactionMock({
+      ownedTrips: [SOLO_TRIP],
+      members: [{ ...SHARED_TRIP_MEMBERS[0], tripId: SOLO_TRIP.id }],
+      tripDocuments: [{ url: "/api/storage/docs/ticket.pdf" }, { url: null }],
+    });
+
+    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+
+    expect(statements).toContainEqual({ op: "delete", table: trips, where: ["inArray", [SOLO_TRIP.id]] });
+    expect(mockStorageDel).toHaveBeenCalledTimes(2);
+    expect(mockStorageDel).toHaveBeenCalledWith("/api/storage/docs/ticket.pdf");
+    expect(mockStorageDel).toHaveBeenCalledWith(SOLO_TRIP.coverImageUrl);
+    expect(mockPublishTripEvent).toHaveBeenCalledWith(SOLO_TRIP.id, {
+      type: LiveSyncEventType.TripDeleted,
+      tripId: SOLO_TRIP.id,
+    });
+    expect(mockPurgeTripTopic).toHaveBeenCalledWith(SOLO_TRIP.id);
+  });
+
+  it("does not fail the deletion when a file cleanup rejects", async () => {
+    createDeletionTransactionMock({ ownedTrips: [SOLO_TRIP], tripDocuments: [{ url: "/api/storage/docs/a.pdf" }] });
+    mockStorageDel.mockRejectedValue(new Error("disk gone"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    warn.mockRestore();
+  });
+
+  it("hands a shared trip to the chosen collaborator, promoting them to manager and creator", async () => {
+    const { statements, transaction } = createDeletionTransactionMock({
+      ownedTrips: [SHARED_TRIP],
+      members: SHARED_TRIP_MEMBERS,
+      departedMemberships: [{ tripId: SHARED_TRIP.id }],
+    });
+
+    await expect(
+      deleteAccount([{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-ada" }])
+    ).resolves.toEqual({ status: "success" });
+
+    // One lock for the user row, one for the owned trip.
+    expect(transaction.execute).toHaveBeenCalledTimes(2);
+    expect(statements).toContainEqual({
+      op: "update",
+      table: trips,
+      set: { ownerId: "user-ada" },
+      where: ["eq", SHARED_TRIP.id],
+    });
+    expect(statements).toContainEqual({
+      op: "update",
+      table: collaborators,
+      set: { role: CollaboratorRole.Manager, isCreator: true },
+      where: ["and", ["eq", SHARED_TRIP.id], ["eq", "user-ada"]],
+    });
+    expect(statements.some((statement) => statement.op === "delete" && statement.table === trips)).toBe(false);
+    expect(mockStorageDel).not.toHaveBeenCalled();
+    expect(mockPublishTripEvent).toHaveBeenCalledWith(SHARED_TRIP.id, {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: SHARED_TRIP.id,
+    });
+    // The new owner's other sessions (e.g. their dashboard) only listen on their personal channel.
+    expect(mockPublishUserEvent).toHaveBeenCalledWith("user-ada", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: SHARED_TRIP.id,
+    });
+  });
+
+  it("deletes a shared trip on purpose and tells its other members", async () => {
+    const { statements } = createDeletionTransactionMock({
+      ownedTrips: [SHARED_TRIP],
+      members: SHARED_TRIP_MEMBERS,
+      tripDocuments: [{ url: "/api/storage/docs/lisbon.pdf" }],
+    });
+
+    await expect(deleteAccount([{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Delete }])).resolves.toEqual({
+      status: "success",
+    });
+
+    expect(statements).toContainEqual({ op: "delete", table: trips, where: ["inArray", [SHARED_TRIP.id]] });
+    expect(mockStorageDel).toHaveBeenCalledWith("/api/storage/docs/lisbon.pdf");
+    for (const userId of ["user-bo", "user-ada"]) {
+      expect(mockPublishUserEvent).toHaveBeenCalledWith(userId, {
+        type: LiveSyncEventType.TripDeleted,
+        tripId: SHARED_TRIP.id,
+      });
+    }
+    expect(mockPublishUserEvent).not.toHaveBeenCalledWith("user-1", expect.anything());
+  });
+
+  it("removes the user's collaborator rows, then the user, before signing out", async () => {
+    const { statements } = createDeletionTransactionMock({});
+
+    await deleteAccount([]);
+
+    const writes = statements.map((statement) => [statement.op, statement.table, statement.where]);
+    expect(writes.slice(-2)).toEqual([
+      ["delete", collaborators, ["eq", "user-1"]],
+      ["delete", users, ["eq", "user-1"]],
+    ]);
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    expect(mockSignOut.mock.invocationCallOrder[0]).toBeGreaterThan(mockTransaction.mock.invocationCallOrder[0]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips");
+  });
+
+  it("cancels the user's pending invitations before ownership moves, then notifies invitees", async () => {
+    const { statements } = createDeletionTransactionMock({
+      ownedTrips: [SHARED_TRIP],
+      members: SHARED_TRIP_MEMBERS,
+      rescindedInvitations: [{ email: "grace@example.com", tripId: SHARED_TRIP.id }],
+    });
+
+    await deleteAccount([{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-bo" }]);
+
+    const rescindIndex = statements.findIndex((statement) => statement.table === invitations);
+    const transferIndex = statements.findIndex((statement) => statement.op === "update" && statement.table === trips);
+    expect(statements[rescindIndex]).toEqual({
+      op: "update",
+      table: invitations,
+      set: { status: InvitationStatus.Rescinded },
+      where: ["and", ["eq", "user-1"], ["eq", InvitationStatus.Pending]],
+    });
+    expect(rescindIndex).toBeGreaterThanOrEqual(0);
+    expect(rescindIndex).toBeLessThan(transferIndex);
+    expect(mockPublishInvitationChanged).toHaveBeenCalledWith("grace@example.com", SHARED_TRIP.id);
+  });
+
+  it.each([
+    ["no decision for a shared trip", []],
+    [
+      "a transfer to someone not on the trip",
+      [{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-stranger" }],
+    ],
+  ])("returns stale and changes nothing when the choices have %s", async (_label, choices) => {
+    const { statements } = createDeletionTransactionMock({ ownedTrips: [SHARED_TRIP], members: SHARED_TRIP_MEMBERS });
+
+    await expect(deleteAccount(choices as Parameters<typeof deleteAccount>[0])).resolves.toEqual({
+      status: "error",
+      message: "Your shared trips changed. Review them and try again.",
+      stale: true,
+    });
+
+    expect(statements).toEqual([]);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockStorageDel).not.toHaveBeenCalled();
+  });
+
+  it("returns stale for a malformed choices payload", async () => {
+    createDeletionTransactionMock({});
+
+    await expect(deleteAccount("everything" as unknown as Parameters<typeof deleteAccount>[0])).resolves.toEqual(
+      expect.objectContaining({ stale: true })
+    );
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("skips cleanup, notifications and sign-out when the transaction fails", async () => {
+    createDeletionTransactionMock({ ownedTrips: [SOLO_TRIP], tripDocuments: [{ url: "/api/storage/docs/a.pdf" }] });
+    mockTransaction.mockRejectedValueOnce(new Error("db down"));
+
+    await expect(deleteAccount([])).rejects.toThrow("db down");
+
+    expect(mockStorageDel).not.toHaveBeenCalled();
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(mockPublishInvitationChanged).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,13 @@ import { E2E_STORAGE_DIRECTORY } from "./scripts/e2e-storage.mjs";
 
 dotenv.config();
 
+// E2E assumes one local timezone, same as Vitest (vitest.config.mts): Linked Events and day bucketing use the
+// server's local date, steps compute floating "now" in the runner, and client components read browser-local time.
+// Pin all three so results do not change between a developer machine and a UTC host. A reused server
+// (E2E_REUSE_SERVER) keeps whatever timezone it was started with.
+const E2E_TIMEZONE = "America/Denver";
+process.env.TZ = E2E_TIMEZONE;
+
 const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? "4");
 const reuseExistingServer = process.env.E2E_REUSE_SERVER === "true";
 
@@ -20,6 +27,7 @@ export default defineConfig({
   workers,
   use: {
     baseURL: "http://localhost:3001",
+    timezoneId: E2E_TIMEZONE,
   },
   webServer: {
     command: "npm run dev -- -p 3001",
@@ -27,6 +35,7 @@ export default defineConfig({
     reuseExistingServer,
     timeout: 300_000,
     env: {
+      TZ: E2E_TIMEZONE,
       DATABASE_URL: process.env.E2E_DATABASE_URL!,
       NEXTAUTH_URL: "http://localhost:3001",
       NEXT_DISTDIR: ".next-e2e",

@@ -13,7 +13,7 @@ import { CompanionsSection } from "./companions-section";
 import { ProfilePreferencesSection } from "./preferences-section";
 import { ProfileAccountSection } from "./account-section";
 import { ProfileSecuritySection } from "./security-section";
-import type { MfaStatus, TrustedDeviceSummary, UserProfile, ProfileSection } from "@/data/types";
+import type { AccountDeletionTrip, MfaStatus, TrustedDeviceSummary, UserProfile, ProfileSection } from "@/data/types";
 
 const NAV_ITEMS: { value: ProfileSection; label: string }[] = [
   { value: "identity", label: "Identity" },
@@ -30,9 +30,16 @@ interface ProfilePageClientProps {
   mfaStatus: MfaStatus;
   trustedDevices: TrustedDeviceSummary[];
   encryptionConfigured: boolean;
+  sharedOwnedTrips: AccountDeletionTrip[];
 }
 
-export function ProfilePageClient({ user, mfaStatus, trustedDevices, encryptionConfigured }: ProfilePageClientProps) {
+export function ProfilePageClient({
+  user,
+  mfaStatus,
+  trustedDevices,
+  encryptionConfigured,
+  sharedOwnedTrips,
+}: ProfilePageClientProps) {
   const [activeSection, setActiveSection] = useState<ProfileSection>("identity");
 
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
@@ -155,6 +162,7 @@ export function ProfilePageClient({ user, mfaStatus, trustedDevices, encryptionC
             <TabsContent value="account" className="w-full">
               <ProfileAccountSection
                 key={resetKeys.account ?? 0}
+                sharedOwnedTrips={sharedOwnedTrips}
                 onDirtyChange={(dirty) => handleDirtyChange("account", dirty)}
               />
             </TabsContent>
