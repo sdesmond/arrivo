@@ -93,6 +93,7 @@ vi.mock("@/lib/db-mappers", () => ({
 import { encryptField } from "./field-encryption";
 import {
   getContributorsAndInvitations,
+  getSharedOwnedTrips,
   getTripDetail,
   getUserById,
   listExpensesForUserInRange,
@@ -1251,5 +1252,58 @@ describe("getUserById", () => {
   it("returns null for an unknown user", async () => {
     mockUserRow(undefined);
     expect(await getUserById("missing")).toBeNull();
+  });
+});
+
+describe("getSharedOwnedTrips", () => {
+  function mockOwnedTrips(rows: { id: string; name: string }[]) {
+    mockDbSelect.mockReturnValueOnce({ from: () => ({ where: () => ({ orderBy: async () => rows }) }) });
+  }
+
+  function mockMembers(rows: unknown[]) {
+    mockDbSelect.mockReturnValueOnce({ from: () => ({ where: async () => rows }) });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // clearAllMocks keeps queued mockReturnValueOnce results, and earlier suites leave some behind.
+    mockDbSelect.mockReset();
+  });
+
+  it("returns only owned trips someone else is on, with that trip's suggested new owner", async () => {
+    mockOwnedTrips([
+      { id: "trip-shared", name: "Lisbon Escape" },
+      { id: "trip-solo", name: "Weekend in Porto" },
+    ]);
+    mockMembers([
+      { id: "c1", tripId: "trip-shared", userId: "user-1", name: "Me", role: CollaboratorRole.Manager, addedAt: null },
+      {
+        id: "c2",
+        tripId: "trip-shared",
+        userId: "user-bo",
+        name: "Bo",
+        role: CollaboratorRole.Editor,
+        addedAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+      { id: "c3", tripId: "trip-solo", userId: "user-1", name: "Me", role: CollaboratorRole.Manager, addedAt: null },
+    ]);
+
+    await expect(getSharedOwnedTrips("user-1")).resolves.toEqual([
+      {
+        tripId: "trip-shared",
+        name: "Lisbon Escape",
+        memberCount: 2,
+        collaborators: [{ userId: "user-bo", name: "Bo", role: CollaboratorRole.Editor }],
+        suggestedHeirUserId: "user-bo",
+      },
+    ]);
+    expect(mockDbSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips the member lookup when the user owns no trips", async () => {
+    mockOwnedTrips([]);
+
+    await expect(getSharedOwnedTrips("user-1")).resolves.toEqual([]);
+    expect(mockDbSelect).toHaveBeenCalledTimes(1);
   });
 });
