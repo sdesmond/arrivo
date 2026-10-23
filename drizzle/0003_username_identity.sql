@@ -38,6 +38,28 @@ UPDATE "collaborators" SET "user_id" = "users"."id" FROM "users"
       SELECT 1 FROM "collaborators" AS "existing"
       WHERE "existing"."trip_id" = "collaborators"."trip_id" AND "existing"."user_id" = "users"."id"
     );--> statement-breakpoint
+-- Rows were unique per (trip, email), so one account could hold two seats on a trip (emails differing in case).
+-- Keep the creator seat, else the highest role, else the earliest added, before (trip, user) becomes unique.
+DELETE FROM "collaborators" WHERE "id" IN (
+  SELECT "id" FROM (
+    SELECT "id", row_number() OVER (
+      PARTITION BY "trip_id", "user_id"
+      ORDER BY "is_creator" DESC,
+        CASE "role" WHEN 'manager' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END,
+        "added_at", "id"
+    ) AS "seat"
+    FROM "collaborators" WHERE "user_id" IS NOT NULL
+  ) AS "ranked" WHERE "seat" > 1
+);--> statement-breakpoint
+-- Likewise keep only the latest-expiring pending invitation per (trip, invitee).
+DELETE FROM "invitations" WHERE "id" IN (
+  SELECT "id" FROM (
+    SELECT "id", row_number() OVER (
+      PARTITION BY "trip_id", "invitee_id" ORDER BY "expires_at" DESC, "id"
+    ) AS "duplicate"
+    FROM "invitations" WHERE "status" = 'pending'
+  ) AS "ranked" WHERE "duplicate" > 1
+);--> statement-breakpoint
 -- Sign-in failure counters were keyed by the typed email; they're keyed by username from now on.
 DELETE FROM "auth_throttle" WHERE "key" LIKE 'email:%';--> statement-breakpoint
 ALTER TABLE "collaborators" DROP CONSTRAINT "collaborators_trip_id_email_unique";--> statement-breakpoint
