@@ -28,8 +28,8 @@ export function generateTotpSecret(): string {
   return new Secret({ size: 20 }).base32;
 }
 
-export function totpUri(email: string, secretBase32: string): string {
-  return buildTotp(secretBase32, email).toString();
+export function totpUri(username: string, secretBase32: string): string {
+  return buildTotp(secretBase32, username).toString();
 }
 
 export type TotpResult = { ok: true; step: number } | { ok: false };

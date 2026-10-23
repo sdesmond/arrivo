@@ -22,7 +22,7 @@ function getInitials(user: UserProfile): string {
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     return parts[0][0].toUpperCase();
   }
-  return user.email[0].toUpperCase();
+  return user.username[0].toUpperCase();
 }
 
 export interface SidebarNavProps {
@@ -92,10 +92,10 @@ export function SidebarNav({ user, invitationCount }: SidebarNavProps) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-medium text-fg truncate" style={{ fontSize: "calc(13px * var(--font-scale))" }}>
-              {user?.name ?? user?.email ?? "—"}
+              {user?.name ?? user?.username ?? "—"}
             </div>
             <div className="text-fg-3 truncate" style={{ fontSize: "calc(11px * var(--font-scale))" }}>
-              {user?.email ?? ""}
+              {user ? `@${user.username}` : ""}
             </div>
           </div>
         </Link>

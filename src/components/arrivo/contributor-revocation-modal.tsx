@@ -69,8 +69,8 @@ export function ContributorRevocationModal({ userId }: ContributorRevocationModa
         <AlertDialogHeader>
           <AlertDialogTitle>Removed from {ticket.tripName}</AlertDialogTitle>
           <AlertDialogDescription>
-            {ticket.removedByName} ({ticket.removedByEmail}) removed you as a contributor on this trip. You no longer
-            have access to it.
+            {ticket.removedByName} (@{ticket.removedByUsername}) removed you as a contributor on this trip. You no
+            longer have access to it.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

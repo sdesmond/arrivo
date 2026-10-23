@@ -74,7 +74,11 @@ export function TripShareCollaboratorRow({
             </span>
           ) : null}
         </div>
-        <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>{collaborator.email}</div>
+        {collaborator.username ? (
+          <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>
+            @{collaborator.username}
+          </div>
+        ) : null}
       </div>
       {isLocked ? (
         <span

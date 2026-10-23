@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
 import { authThrottle } from "@/db/schema";
+import { normalizeUsername } from "@/lib/username";
 
 // Failed-attempt limits for sign-in, password change and two-factor codes, kept in Postgres so they survive
 // restarts. Times use the real clock (`new Date()`), not getNow(): the dev date picker must not move a lockout.
@@ -25,8 +26,8 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const STALE_ROW_MS = 24 * HOUR_MS;
 
-// Per account (email, password change, two-factor) and per trusted browser: each repeat lockout doubles, up to
-// an hour, so someone who knows an email can't keep its owner locked out for long. A browser the owner has
+// Per account (username, password change, two-factor) and per trusted browser: each repeat lockout doubles, up to
+// an hour, so someone who knows a username can't keep its owner locked out for long. A browser the owner has
 // signed in from before is limited by its own key instead (see authorize-credentials.ts).
 export const ACCOUNT_POLICY: ThrottlePolicy = {
   maxFailures: 5,
@@ -56,9 +57,9 @@ export function getIpPolicy(): ThrottlePolicy {
   return { ...IP_POLICY, maxFailures: positiveIntFromEnv("AUTH_IP_MAX_FAILURES") ?? IP_POLICY.maxFailures };
 }
 
-// Keyed by the typed address, not the user id, so unknown emails lock too and nothing reveals which exist.
-export function signInTargets(email: string, ip: string | undefined): ThrottleTarget[] {
-  const targets = [{ key: `email:${email.trim().toLowerCase()}`, policy: getAccountPolicy() }];
+// Keyed by the typed username, not the user id, so unknown usernames lock too and nothing reveals which exist.
+export function signInTargets(username: string, ip: string | undefined): ThrottleTarget[] {
+  const targets = [{ key: `username:${normalizeUsername(username)}`, policy: getAccountPolicy() }];
   if (ip) targets.push({ key: `ip:${ip}`, policy: getIpPolicy() });
   return targets;
 }

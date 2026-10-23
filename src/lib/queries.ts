@@ -22,7 +22,7 @@ import {
   packingTemplates,
   packingTemplateItems,
 } from "@/db/schema";
-import { eq, and, or, sql, inArray, asc, count, isNull, ne } from "drizzle-orm";
+import { eq, and, or, sql, inArray, asc, count, isNull, ne, getTableColumns } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { decryptOptionalField } from "@/lib/field-encryption";
 import { deriveLinkedEvents } from "@/lib/linked-events";
@@ -109,12 +109,19 @@ export async function getSharedOwnedTrips(userId: string): Promise<AccountDeleti
   return buildSharedOwnedTrips(ownedTrips, members, userId);
 }
 
+function selectCollaboratorsWithUsername() {
+  return db
+    .select({ ...getTableColumns(collaborators), username: users.username })
+    .from(collaborators)
+    .leftJoin(users, eq(collaborators.userId, users.id));
+}
+
 export async function getUserById(id: string): Promise<UserProfile | null> {
   const [user] = await db
     .select({
       id: users.id,
       name: users.name,
-      email: users.email,
+      username: users.username,
       dateFormat: users.dateFormat,
       currency: users.currency,
       distanceUnit: users.distanceUnit,
@@ -131,7 +138,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
     .from(users)
     .where(eq(users.id, id));
 
-  if (!user || !user.email) return null;
+  if (!user) return null;
 
   const [loyaltyRows, wishlistRows, companionRows] = await Promise.all([
     db
@@ -149,7 +156,6 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
 
   return {
     ...user,
-    email: user.email,
     passportNumber: decryptOptionalField(user.passportNumber),
     knownTravelerNumber: decryptOptionalField(user.knownTravelerNumber),
     defaultCoverType: parseCoverType(user.defaultCoverType),
@@ -205,7 +211,7 @@ export async function listTripsForUser(userId: string, now: Date): Promise<TripL
         .select()
         .from(documents)
         .where(and(inArray(documents.tripId, tripIds), isNull(documents.eventId))),
-      db.select().from(collaborators).where(inArray(collaborators.tripId, tripIds)),
+      selectCollaboratorsWithUsername().where(inArray(collaborators.tripId, tripIds)),
       db.select().from(reservations).where(inArray(reservations.tripId, tripIds)),
     ]);
 
@@ -310,8 +316,7 @@ export async function listExpensesForUserInRange(
       )
     );
 
-  // A user can hold two collaborator rows on the same trip (the unique constraint is on
-  // (tripId, email), not (tripId, userId)), which would otherwise duplicate that trip here.
+  // Defensive: a trip joined twice here would otherwise show up twice.
   const tripList = Array.from(new Map(tripRows.map(({ trip }) => [trip.id, trip])).values());
   if (tripList.length === 0) {
     return { trips: [], expenses: [] };
@@ -383,10 +388,11 @@ export async function getContributorsAndInvitations(
   await assertTripAccess(tripId, userId, CollaboratorRole.Manager);
 
   const [collaboratorRows, invitationRows] = await Promise.all([
-    db.select().from(collaborators).where(eq(collaborators.tripId, tripId)),
+    selectCollaboratorsWithUsername().where(eq(collaborators.tripId, tripId)),
     db
-      .select()
+      .select({ ...getTableColumns(invitations), inviteeUsername: users.username })
       .from(invitations)
+      .innerJoin(users, eq(invitations.inviteeId, users.id))
       .where(
         and(eq(invitations.tripId, tripId), or(eq(invitations.status, "pending"), eq(invitations.status, "declined")))
       ),
@@ -415,7 +421,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
     .from(documents)
     .where(eq(documents.tripId, tripId))
     .orderBy(sql`${documents.addedAt} desc nulls last`, asc(documents.id));
-  const tripCollaborators = (await db.select().from(collaborators).where(eq(collaborators.tripId, tripId))).filter(
+  const tripCollaborators = (await selectCollaboratorsWithUsername().where(eq(collaborators.tripId, tripId))).filter(
     (collaborator) => collaborator.userId !== userId
   );
   const tripPackingItems = await db

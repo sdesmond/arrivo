@@ -165,7 +165,7 @@ export interface WishlistDestination {
 export interface UserProfile {
   id: string;
   name: string | null;
-  email: string;
+  username: string;
   dateFormat: string | null;
   currency: string | null;
   distanceUnit: string | null;
@@ -185,6 +185,7 @@ export interface UserProfile {
 
 export interface UpdateUserProfilePatch {
   name?: string;
+  username?: string;
   dateFormat?: string;
   currency?: string;
   distanceUnit?: string;
@@ -516,7 +517,8 @@ export interface DayItinerary {
 export interface Collaborator {
   id?: string;
   name: string;
-  email: string;
+  // Absent once the collaborator's account was deleted.
+  username?: string;
   initials: string;
   role: CollaboratorRole;
   isCreator?: boolean;
@@ -532,7 +534,7 @@ export interface Collaborator {
 export interface Invitation {
   id: string;
   tripId: string;
-  email: string;
+  inviteeUsername: string;
   role: CollaboratorRole;
   status: InvitationStatus;
   expiresAt: string;
@@ -545,7 +547,7 @@ export interface PendingInvitation {
   tripId: string;
   tripName: string;
   inviterName: string;
-  inviterEmail: string;
+  inviterUsername: string;
   role: CollaboratorRole;
   expiresAt: string;
 }
@@ -742,7 +744,7 @@ export type LiveSyncEvent =
       tripId: string;
       tripName: string;
       removedByName: string;
-      removedByEmail: string;
+      removedByUsername: string;
     }
   | { type: typeof LiveSyncEventType.MembershipLeft; tripId: string }
   | { type: typeof LiveSyncEventType.InvitationChanged; tripId: string }
@@ -939,7 +941,7 @@ export interface RemoveLastDayResult {
 }
 
 export interface InviteContributorInput {
-  email: string;
+  username: string;
   role?: CollaboratorRole;
 }
 

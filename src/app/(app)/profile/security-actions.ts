@@ -29,7 +29,10 @@ export async function startMfaEnrollment(): Promise<MfaEnrollmentStart | { error
   const userId = session.id!;
   if (!isFieldEncryptionConfigured()) return { error: NEEDS_KEY };
 
-  const [user] = await db.select({ mfaEnabledAt: users.mfaEnabledAt }).from(users).where(eq(users.id, userId));
+  const [user] = await db
+    .select({ mfaEnabledAt: users.mfaEnabledAt, username: users.username })
+    .from(users)
+    .where(eq(users.id, userId));
   if (user?.mfaEnabledAt) return { error: ALREADY_ON };
 
   // Held as pending until the user proves their app has it, so a half-finished setup never locks them out.
@@ -39,7 +42,7 @@ export async function startMfaEnrollment(): Promise<MfaEnrollmentStart | { error
     .set({ totpPendingSecret: encryptField(secret) })
     .where(eq(users.id, userId));
 
-  const qrDataUrl = await QRCode.toDataURL(totpUri(session.email ?? "", secret), { margin: 1, width: 200 });
+  const qrDataUrl = await QRCode.toDataURL(totpUri(user?.username ?? "", secret), { margin: 1, width: 200 });
   return { secret, qrDataUrl };
 }
 

@@ -18,7 +18,7 @@ async function main() {
   );
   console.log(`All accounts share the password: ${SEED_PASSWORD}`);
   for (const seedUser of DEV_SEED.users) {
-    console.log(`  ${seedUser.email}`);
+    console.log(`  ${seedUser.username}`);
   }
   console.log("See docs/dev-seed-data.md for what each account and trip is for.");
   process.exit(0);

@@ -13,7 +13,7 @@ import { publishTripEvent, publishUserEvent } from "@/lib/trip-events";
 type InvitationExecutor = Pick<DbTransaction, "select" | "update">;
 
 type AppliedInvitationResend =
-  | { status: "success"; expiresAt: string; inviteeEmail: string }
+  | { status: "success"; expiresAt: string; inviteeId: string }
   | Extract<ResendInvitationResult, { status: "error" }>;
 
 export const INVITE_TTL_HOURS = 72;
@@ -22,36 +22,30 @@ export function getInvitationExpiry(now = getNow()): Date {
   return new Date(now.getTime() + INVITE_TTL_HOURS * 60 * 60 * 1000);
 }
 
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 /**
- * Case- and whitespace-insensitive equality condition against `emailColumn`. `email` must already
- * be normalized by the caller (via `normalizeEmail`) — this only normalizes the column side.
+ * Case-insensitive equality condition against `usernameColumn`, matching the lower(username) unique
+ * index. `username` must already be normalized by the caller (via `normalizeUsername`).
  *
  * Lives outside `actions.ts` deliberately: that file carries a top-level `"use server"` directive,
  * and Next requires every export from such a file to be an async Server Action. This is a plain
  * query-builder helper, not an action, so it belongs in a non-`"use server"` module.
  */
-export function hasNormalizedEmail(emailColumn: AnyPgColumn, email: string) {
-  return sql`lower(trim(${emailColumn})) = ${email}`;
+export function hasNormalizedUsername(usernameColumn: AnyPgColumn, username: string) {
+  return sql`lower(${usernameColumn}) = ${username}`;
 }
 
 /**
- * Pending, unexpired invitations addressed to `userEmail`. Single source of truth for both the
+ * Pending, unexpired invitations addressed to `userId`. Single source of truth for both the
  * dashboard "Invitations" list and the sidebar nav badge count — no parallel count query.
  */
-export async function getMyPendingInvitations(userEmail: string): Promise<PendingInvitation[]> {
-  const normalizedEmail = normalizeEmail(userEmail);
-
+export async function getMyPendingInvitations(userId: string): Promise<PendingInvitation[]> {
   const rows = await db
     .select({
       id: invitations.id,
       tripId: invitations.tripId,
       tripName: trips.name,
       inviterName: users.name,
-      inviterEmail: users.email,
+      inviterUsername: users.username,
       role: invitations.role,
       expiresAt: invitations.expiresAt,
     })
@@ -59,19 +53,15 @@ export async function getMyPendingInvitations(userEmail: string): Promise<Pendin
     .innerJoin(trips, eq(invitations.tripId, trips.id))
     .innerJoin(users, eq(invitations.invitedBy, users.id))
     .where(
-      and(
-        hasNormalizedEmail(invitations.email, normalizedEmail),
-        eq(invitations.status, "pending"),
-        sql`${invitations.expiresAt} > now()`
-      )
+      and(eq(invitations.inviteeId, userId), eq(invitations.status, "pending"), sql`${invitations.expiresAt} > now()`)
     );
 
   return rows.map((row) => ({
     id: row.id,
     tripId: row.tripId,
     tripName: row.tripName,
-    inviterName: row.inviterName ?? row.inviterEmail ?? "",
-    inviterEmail: row.inviterEmail ?? "",
+    inviterName: row.inviterName ?? row.inviterUsername,
+    inviterUsername: row.inviterUsername,
     role: row.role as CollaboratorRole,
     expiresAt: row.expiresAt.toISOString(),
   }));
@@ -94,10 +84,10 @@ export async function applyInvitationResend(
     .update(invitations)
     .set(role ? { expiresAt, role } : { expiresAt })
     .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), eq(invitations.status, "pending")))
-    .returning({ id: invitations.id, email: invitations.email });
+    .returning({ id: invitations.id, inviteeId: invitations.inviteeId });
 
   if (resentInvitation) {
-    return { status: "success", expiresAt: expiresAt.toISOString(), inviteeEmail: resentInvitation.email };
+    return { status: "success", expiresAt: expiresAt.toISOString(), inviteeId: resentInvitation.inviteeId };
   }
 
   const [invitation] = await executor
@@ -122,26 +112,14 @@ export async function resendInvitation(
 
   // Trip channel: other managers' open share dialogs pick up the new expiry.
   publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  await publishInvitationChanged(result.inviteeEmail, tripId);
+  publishInvitationChanged(result.inviteeId, tripId);
   return { status: "success", expiresAt: result.expiresAt };
 }
 
 /**
  * Tells the invitee's open sessions (dashboard list, sidebar badge) that an invitation addressed to
- * them changed. Invitations are keyed by email, so this resolves the account first; an email with
- * no account has no personal channel to notify. Callers run this after their mutation commits, so a
- * failed lookup is logged and swallowed — a missed live nudge must never fail the mutation itself.
+ * them changed. Callers run this after their mutation commits.
  */
-export async function publishInvitationChanged(inviteeEmail: string, tripId: string): Promise<void> {
-  try {
-    const [invitee] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(hasNormalizedEmail(users.email, normalizeEmail(inviteeEmail)));
-    if (!invitee) return;
-
-    publishUserEvent(invitee.id, { type: LiveSyncEventType.InvitationChanged, tripId });
-  } catch (error) {
-    console.warn("Could not notify the invitee that their invitation changed", error);
-  }
+export function publishInvitationChanged(inviteeId: string, tripId: string): void {
+  publishUserEvent(inviteeId, { type: LiveSyncEventType.InvitationChanged, tripId });
 }

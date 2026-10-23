@@ -4,8 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { inviteContributor } from "@/app/(app)/trips/actions";
 import { CollaboratorRole } from "@/data/types";
-
-const EMAIL_FORMAT_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { validateUsername } from "@/lib/username";
 
 interface UseTripShareInviteFormOptions {
   tripId: string;
@@ -14,24 +13,25 @@ interface UseTripShareInviteFormOptions {
 }
 
 export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTripShareInviteFormOptions) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [role, setRole] = useState<CollaboratorRole>(CollaboratorRole.Viewer);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   async function handleInvite(): Promise<void> {
-    if (isBlocked() || !email.trim()) return;
-    if (!EMAIL_FORMAT_PATTERN.test(email.trim())) {
-      setInviteError("Enter a valid email address.");
+    if (isBlocked() || !username.trim()) return;
+    const usernameError = validateUsername(username);
+    if (usernameError) {
+      setInviteError(usernameError);
       return;
     }
     setInviteLoading(true);
     setInviteError(null);
     try {
-      const result = await inviteContributor(tripId, email, role);
+      const result = await inviteContributor(tripId, username, role);
       if (result.status === "error") {
         if (result.errorCode === "no-account") {
-          setInviteError("No account found for this email.");
+          setInviteError("No account found for this username.");
         } else {
           toast.error(result.message);
         }
@@ -39,7 +39,7 @@ export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTrip
       }
       toast.success(result.status === "resent" ? "Invitation resent." : "Invitation sent.");
       await onInvited();
-      setEmail("");
+      setUsername("");
       setRole(CollaboratorRole.Viewer);
     } catch (error) {
       console.error("Failed to send trip invitation", error);
@@ -49,5 +49,5 @@ export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTrip
     }
   }
 
-  return { email, handleInvite, inviteError, inviteLoading, role, setEmail, setInviteError, setRole };
+  return { username, handleInvite, inviteError, inviteLoading, role, setUsername, setInviteError, setRole };
 }

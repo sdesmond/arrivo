@@ -16,10 +16,10 @@ export interface SeedSummary {
 /** Pure structural validation — throws with a specific message on the first problem found. No DB access. */
 export function validateSeedWorld(world: SeedWorld): void {
   const userKeys = new Set(world.users.map((seedUser) => seedUser.key));
-  const emails = new Set<string>();
+  const usernames = new Set<string>();
   for (const seedUser of world.users) {
-    if (emails.has(seedUser.email)) throw new Error(`Duplicate seed user email: "${seedUser.email}".`);
-    emails.add(seedUser.email);
+    if (usernames.has(seedUser.username)) throw new Error(`Duplicate seed username: "${seedUser.username}".`);
+    usernames.add(seedUser.username);
   }
 
   if (!world.trips.some((trip) => trip.startOffsetDays === null && trip.endOffsetDays === null)) {
@@ -61,10 +61,15 @@ export function validateSeedWorld(world: SeedWorld): void {
     if (!userKeys.has(invitation.invitedByUserKey)) {
       throw new Error(`Invitation references unknown invitedByUserKey "${invitation.invitedByUserKey}".`);
     }
+    if (!userKeys.has(invitation.inviteeUserKey)) {
+      throw new Error(`Invitation references unknown inviteeUserKey "${invitation.inviteeUserKey}".`);
+    }
     if (invitation.status === "pending") {
-      const dedupeKey = `${invitation.tripKey}:${invitation.email.toLowerCase()}`;
+      const dedupeKey = `${invitation.tripKey}:${invitation.inviteeUserKey}`;
       if (pendingInvitationKeys.has(dedupeKey)) {
-        throw new Error(`Duplicate pending invitation for "${invitation.email}" on trip "${invitation.tripKey}".`);
+        throw new Error(
+          `Duplicate pending invitation for "${invitation.inviteeUserKey}" on trip "${invitation.tripKey}".`
+        );
       }
       pendingInvitationKeys.add(dedupeKey);
     }
@@ -130,7 +135,7 @@ export async function seedDevDatabase(
   return database.transaction(async (tx) => {
     await deleteSeedAccounts(
       tx,
-      world.users.map((seedUser) => seedUser.email)
+      world.users.map((seedUser) => seedUser.username)
     );
 
     const usersByKey = await insertUsers(tx, world.users);

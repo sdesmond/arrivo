@@ -9,10 +9,10 @@ import { CollaboratorRole } from "@/data/types";
 
 interface TripShareInviteFormProps {
   disabled?: boolean;
-  email: string;
+  username: string;
   error: string | null;
   isLoading: boolean;
-  onEmailChange: (email: string) => void;
+  onUsernameChange: (username: string) => void;
   onInvite: () => void;
   onRoleChange: (role: CollaboratorRole) => void;
   role: CollaboratorRole;
@@ -20,10 +20,10 @@ interface TripShareInviteFormProps {
 
 export function TripShareInviteForm({
   disabled = false,
-  email,
+  username,
   error,
   isLoading,
-  onEmailChange,
+  onUsernameChange,
   onInvite,
   onRoleChange,
   role,
@@ -37,18 +37,20 @@ export function TripShareInviteForm({
     >
       <span style={{ color: "var(--fg)", fontWeight: 500 }}>Invite person</span>
       <Input
-        aria-label="Invite email"
-        aria-describedby={error ? "invite-email-error" : undefined}
+        aria-label="Invite username"
+        aria-describedby={error ? "invite-username-error" : undefined}
+        autoCapitalize="none"
         className="h-11"
         disabled={controlsDisabled}
-        onChange={(event) => onEmailChange(event.target.value)}
-        placeholder="Email"
-        type="email"
-        value={email}
+        onChange={(event) => onUsernameChange(event.target.value)}
+        placeholder="Username"
+        spellCheck={false}
+        type="text"
+        value={username}
       />
       {error ? (
         <p
-          id="invite-email-error"
+          id="invite-username-error"
           role="alert"
           style={{ color: "var(--danger)", fontSize: "calc(12px * var(--font-scale))" }}
         >
