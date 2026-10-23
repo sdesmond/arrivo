@@ -91,9 +91,9 @@ E2E tests run against a dedicated `arrivo_e2e` database (isolated from dev). One
 
 1. Create the database: `createdb arrivo_e2e` (or equivalent)
 2. Apply migrations: `npm run db:migrate:e2e`
-3. Ensure `.env` contains `E2E_DATABASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD` — see `.env.example`
+3. Ensure `.env` contains `E2E_DATABASE_URL`, `E2E_USERNAME`, and `E2E_PASSWORD` — see `.env.example`
 
-`tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and inserts only the baseline E2E user (`e2e@arrivo.com`); scenarios create their own trips from the mothers in `e2e-seed-data.ts`. Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
+`tests/e2e/global-setup.ts` runs automatically before every E2E suite: it truncates all tables and inserts only the baseline E2E user (username `e2e`); scenarios create their own trips from the mothers in `e2e-seed-data.ts`. Re-run `db:migrate:e2e` whenever `src/db/schema.ts` changes.
 
 ## Quality Skills — When to Use Them
 

@@ -9,7 +9,7 @@ npm run setup:dev
 npm run dev
 ```
 
-Sign in at [http://localhost:3000](http://localhost:3000) with `demo@arrivo.com` / `demo1234` (two more seed accounts, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
+Sign in at [http://localhost:3000](http://localhost:3000) with username `demo` / password `demo1234` (three more seed accounts, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
 
 `npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the database migrations, seeds demo data, and installs the Playwright Chromium browser.
 

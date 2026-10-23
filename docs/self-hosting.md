@@ -84,10 +84,10 @@ isn't reachable around it.
 
 ## Account security
 
-- **Failed sign-ins**: five wrong passwords for one email within 15 minutes lock that email for 15 minutes
+- **Failed sign-ins**: five wrong passwords for one username within 15 minutes lock that username for 15 minutes
   on browsers it hasn't signed in from before; each repeat lockout doubles, up to an hour. One address is
   also limited to 30 failures per 15 minutes across all accounts. That per-address limit needs the reverse
-  proxy to send `X-Forwarded-For` (Caddy and most proxies do); without a proxy only the per-email limit
+  proxy to send `X-Forwarded-For` (Caddy and most proxies do); without a proxy only the per-username limit
   applies. Set `AUTH_MAX_FAILURES` or `AUTH_IP_MAX_FAILURES` to change the thresholds.
 - **Your browsers**: every browser that signs in successfully is recognized, and failed sign-ins from
   anywhere else never lock its owner out there (it gets its own five-guess limit instead). Users see these
@@ -115,6 +115,11 @@ In a container manager, use its action that pulls the latest image and redeploys
 
 The app applies any database changes as it starts. Take a backup first when upgrading across
 releases (see below).
+
+Accounts sign in with a username. If you're updating from a release where they signed in with an email,
+each account's username is the part of its email before the `@` (with `-2`, `-3`… added where two
+collide), and people find each other to share trips by username. Let your users know; anyone can change
+their username under **Profile → Identity**.
 
 ## Backup and restore
 
@@ -154,7 +159,8 @@ Start with `docker ps -a` and `docker logs arrivo`. A healthy install shows `arr
 | `port is already allocated`                   | Change the left number in the `ports` line                                                                  |
 | Sign-in redirects to `localhost` or loops     | Set `NEXTAUTH_URL` to the exact address you open, port included                                             |
 | Everyone was signed out after a restore/move  | `storage/.arrivo/auth-secret` wasn't carried over; sign in again                                            |
-| Someone is locked out of two-factor sign-in   | `docker exec arrivo node /app/mfa-reset.mjs their@email` turns it off for that account                      |
+| Someone is locked out of two-factor sign-in   | `docker exec arrivo node /app/mfa-reset.mjs their-username` turns it off for that account                   |
+| Someone doesn't know their username           | `docker exec arrivo-db psql -U arrivo -d arrivo -c "select name, username from users"` lists every account  |
 | Map tab is empty                              | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                                |
 | `EACCES` / `permission denied` when uploading | `PUID`/`PGID` don't match a user that can write the `storage` folder                                        |
 
