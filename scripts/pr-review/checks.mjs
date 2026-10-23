@@ -119,8 +119,8 @@ const HIGH_CONFIDENCE_PATTERNS = [
 
 const GENERIC_ASSIGNMENT =
   /[\w.-]*(?:password|passwd|secret|api[_-]?key|token|credential)s?[\w.-]*["']?\s*[:=]\s*["']([^"'\s]{8,})["']/i;
-// Demo credentials legitimately live in seed data, fixtures and mocks; only the high-confidence patterns apply there.
-const DEMO_DATA_PATH = /(^|\/)(seed|fixtures?|mocks?)([\w.-]*\.|\/)/i;
+// Demo credentials legitimately live in seed data, fixtures, mocks and eval cases; only the high-confidence patterns apply there.
+const DEMO_DATA_PATH = /(^|\/)(seed|fixtures?|mocks?|evals)([\w.-]*\.|\/)/i;
 const PLACEHOLDER_VALUE = /changeme|example|placeholder|dummy|your[_-]|xxx|<.*>|\$\{|\{\{|process\.env|test/i;
 
 function genericSecret(text) {

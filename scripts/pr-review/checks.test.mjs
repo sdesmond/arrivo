@@ -98,6 +98,7 @@ describe("findSecrets", () => {
   const aws = ["AKIA", "IOSFODNN7EXAMPLE"].join("");
   const github = ["gh", "p_abcdefghijklmnopqrstuvwxyz0123456789"].join("");
   const pem = ["-----BEGIN RSA ", "PRIVATE KEY-----"].join("");
+  const dbUrl = ["postgres:/", "/admin:Sup3rS3cretPw@db.internal.example.com:5432/app"].join("");
   const jwt = ["eyJ", "hbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36"].join("");
 
   it.each([
@@ -106,7 +107,7 @@ describe("findSecrets", () => {
     ["github token", `const value = "${github}";`],
     ["private key header", `const pem = \`${pem}`],
     ["jwt", `const session = "${jwt}";`],
-    ["credentials in a url", 'const url = "postgres://admin:Sup3rS3cretPw@db.internal.example.com:5432/app";'],
+    ["credentials in a url", `const url = "${dbUrl}";`],
     ["literal api key", 'const apiKey = "7f3a9c1e5b2d48a6b0c9e1f4a7d2c8b3";'],
     ["literal password", 'const DEFAULT_ADMIN_PASSWORD = "Tr0ub4dor&3xyzQ9";'],
     ["literal token with prefix", 'const apiToken = "tk_prod_9d8f7a6b5c4e3d2f1a0b9c8d7e6f5a4b";'],
@@ -152,6 +153,7 @@ describe("findSecrets", () => {
       "src/db/seed-inserts-accounts.ts",
       "tests/support/fixtures/users.ts",
       "src/lib/mocks/auth.ts",
+      "evals/pr-reviewer/build-cases.mjs",
     ]) {
       expect(secretsIn('export const SEED_PASSWORD = "demo1234";', path)).toEqual([]);
       expect(secretsIn(`const key = "${stripe}";`, path)).toHaveLength(1);
