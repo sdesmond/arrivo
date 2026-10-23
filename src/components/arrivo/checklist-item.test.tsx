@@ -91,6 +91,22 @@ describe("ChecklistItem — Bug 3b: initiallyExpanded prop", () => {
     render(<ChecklistItem checklist={BASE_CHECKLIST} />);
     expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument();
   });
+
+  it("expands when initiallyExpanded turns true after mount", () => {
+    // The revalidated tree can mount the new checklist before its id is marked newly created.
+    const { rerender } = render(<ChecklistItem checklist={BASE_CHECKLIST} initiallyExpanded={false} />);
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument();
+
+    rerender(<ChecklistItem checklist={BASE_CHECKLIST} initiallyExpanded />);
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
+  });
+
+  it("stays expanded when initiallyExpanded turns back to false", () => {
+    const { rerender } = render(<ChecklistItem checklist={BASE_CHECKLIST} initiallyExpanded />);
+
+    rerender(<ChecklistItem checklist={BASE_CHECKLIST} initiallyExpanded={false} />);
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
+  });
 });
 
 describe("ChecklistItem — collapsed state", () => {

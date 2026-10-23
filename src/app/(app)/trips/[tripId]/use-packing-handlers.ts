@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
@@ -52,6 +52,17 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const { trip, days } = detail;
   const router = useRouter();
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (newlyCreatedChecklistId === null) return;
+    // The create action can resolve well before the revalidated `days` land, so clear the flag once
+    // the checklist actually shows up (the render carrying it already expanded it) instead of on a timer.
+    const isRendered = days.some((day) =>
+      day.checklists?.some((checklist) => checklist.id === newlyCreatedChecklistId)
+    );
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear the flag once refreshed props catch up
+    if (isRendered) setNewlyCreatedChecklistId(null);
+  }, [days, newlyCreatedChecklistId]);
 
   function handleAddPackingItem(
     name: string,
@@ -206,7 +217,6 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     try {
       const checklistId = await addChecklistFromPackingSource(trip.id, day.id, position, sourceType, sourceId);
       setNewlyCreatedChecklistId(checklistId);
-      setTimeout(() => setNewlyCreatedChecklistId(null), 1000);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to insert packing list. Please try again.");
     }

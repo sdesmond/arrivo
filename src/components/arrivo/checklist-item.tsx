@@ -40,6 +40,13 @@ export function ChecklistItem({
 }: ChecklistItemProps) {
   const canEdit = useCanEditTrip();
   const [isExpanded, setIsExpanded] = useState(initiallyExpanded ?? !!isDraft);
+  // The revalidated tree can mount a new checklist before it's marked newly created, so honor the
+  // flag turning on after mount too; turning it off never collapses.
+  const [prevInitiallyExpanded, setPrevInitiallyExpanded] = useState(initiallyExpanded);
+  if (initiallyExpanded !== prevInitiallyExpanded) {
+    setPrevInitiallyExpanded(initiallyExpanded);
+    if (initiallyExpanded) setIsExpanded(true);
+  }
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(checklist.title ?? "");
   const [itemInput, setItemInput] = useState("");
