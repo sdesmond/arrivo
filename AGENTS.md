@@ -153,8 +153,9 @@ Crossing rules:
    - For unit or component work, run matching Vitest files first
    - For user-facing flow changes, run affected Playwright coverage first when practical
    - Do not treat `build-validator` as first signal that tests were missing
-5. Run `build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (bmad-build, bmad-build-auto, etc.) must **not** invoke it themselves
-6. If the validator flags issues, fix them and run `build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. Agents always run the affected subset (via the validator) and never the full suite as a gate; running the full E2E suite (`npm run test:e2e`) is the user's call — do not launch it automatically before commit/push/PR
+5. If the change is visible to someone running Arrivo (UI, Docker/ports/env, migrations, self-hosting docs), add an entry under `[Unreleased]` in `CHANGELOG.md` in the same PR (Added/Changed/Fixed…), written for operators rather than as a commit log. Steps they must take when updating go under **Upgrading**. Details: `docs/releasing.md`. The `pr-review` workflow warns when this is missed
+6. Run `build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (bmad-build, bmad-build-auto, etc.) must **not** invoke it themselves
+7. If the validator flags issues, fix them and run `build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. Agents always run the affected subset (via the validator) and never the full suite as a gate; running the full E2E suite (`npm run test:e2e`) is the user's call — do not launch it automatically before commit/push/PR
 
 ## Key Conventions
 
