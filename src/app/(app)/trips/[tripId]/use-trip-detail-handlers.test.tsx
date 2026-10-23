@@ -2,7 +2,14 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { createChecklist, createChecklistWithItem, createEvent, createNote, reorderDayItems } from "./actions";
+import {
+  addChecklistFromPackingSource,
+  createChecklist,
+  createChecklistWithItem,
+  createEvent,
+  createNote,
+  reorderDayItems,
+} from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -44,6 +51,7 @@ vi.mock("../packing-actions", () => ({
 }));
 
 vi.mock("./actions", () => ({
+  addChecklistFromPackingSource: vi.fn(),
   addDay: vi.fn(),
   createChecklist: vi.fn(),
   createChecklistItem: vi.fn(),
@@ -91,6 +99,16 @@ const detail: TripDetailPayload = {
   },
   unscheduledEvents: [],
 };
+
+function detailWithChecklist(checklistId: string): TripDetailPayload {
+  return {
+    ...detail,
+    days: detail.days.map((day) => ({
+      ...day,
+      checklists: [{ id: checklistId, tripDayId: day.id ?? "", position: 0, items: [] }],
+    })),
+  };
+}
 
 describe("useTripDetailHandlers", () => {
   beforeEach(() => {
@@ -244,6 +262,43 @@ describe("useTripDetailHandlers", () => {
 
     await expect(addPromise).resolves.toBeUndefined();
     expect(createChecklistWithItem).toHaveBeenCalledWith("day-1", 0, "Passport");
+  });
+
+  it("keeps a checklist created with an item marked newly created until it appears in days", async () => {
+    vi.mocked(createChecklistWithItem).mockResolvedValueOnce("checklist-1");
+
+    const { result, rerender } = renderHook(({ payload }) => useTripDetailHandlers(payload), {
+      initialProps: { payload: detail },
+    });
+
+    await act(async () => {
+      await result.current.handleAddChecklist(1, 0, "Passport");
+    });
+    expect(result.current.newlyCreatedChecklistId).toBe("checklist-1");
+
+    // No timer clears it: a slow revalidation must still mount the checklist expanded.
+    rerender({ payload: { ...detail } });
+    expect(result.current.newlyCreatedChecklistId).toBe("checklist-1");
+
+    rerender({ payload: detailWithChecklist("checklist-1") });
+    await waitFor(() => expect(result.current.newlyCreatedChecklistId).toBeNull());
+  });
+
+  it("keeps a checklist inserted from a packing source marked newly created until it appears in days", async () => {
+    vi.mocked(addChecklistFromPackingSource).mockResolvedValueOnce("checklist-2");
+
+    const { result, rerender } = renderHook(({ payload }) => useTripDetailHandlers(payload), {
+      initialProps: { payload: detail },
+    });
+
+    await act(async () => {
+      await result.current.handleInsertFromPackingSource(1, 0, "packing-list", "list-1");
+    });
+    expect(addChecklistFromPackingSource).toHaveBeenCalledWith("trip-1", "day-1", 0, "packing-list", "list-1");
+    expect(result.current.newlyCreatedChecklistId).toBe("checklist-2");
+
+    rerender({ payload: detailWithChecklist("checklist-2") });
+    await waitFor(() => expect(result.current.newlyCreatedChecklistId).toBeNull());
   });
 
   it("handleAddChecklist with firstItemContent rejects the returned promise and shows a toast on failure", async () => {
