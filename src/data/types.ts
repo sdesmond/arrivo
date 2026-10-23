@@ -573,6 +573,39 @@ export type SaveContributorChangesResult =
 export type LeaveTripResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ACCOUNT DELETION
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const TripDeletionAction = {
+  Transfer: "transfer",
+  Delete: "delete",
+} as const;
+export type TripDeletionAction = (typeof TripDeletionAction)[keyof typeof TripDeletionAction];
+
+export type TripDeletionChoice =
+  | { tripId: string; action: typeof TripDeletionAction.Transfer; newOwnerUserId: string }
+  | { tripId: string; action: typeof TripDeletionAction.Delete };
+
+export interface AccountDeletionCollaborator {
+  userId: string;
+  name: string;
+  role: CollaboratorRole;
+}
+
+// A trip the departing user owns that still has other members, so it needs an explicit
+// transfer-or-delete decision. `collaborators` excludes the departing user and is in heir order.
+export interface AccountDeletionTrip {
+  tripId: string;
+  name: string;
+  memberCount: number;
+  collaborators: AccountDeletionCollaborator[];
+  suggestedHeirUserId: string;
+}
+
+// `stale` means the shared trips changed after the dialog loaded; the client refreshes and asks again.
+export type DeleteAccountResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TRIP
 // ─────────────────────────────────────────────────────────────────────────────
 
