@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as navigation from "next/navigation";
-import { toast } from "sonner";
 import { CollaboratorRole, TripDeletionAction } from "@/data/types";
 import type { AccountDeletionTrip } from "@/data/types";
 
@@ -13,8 +12,6 @@ const { mockDeleteAccount, router } = vi.hoisted(() => ({
 }));
 
 vi.mock("./actions", () => ({ deleteAccount: mockDeleteAccount }));
-
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
@@ -156,17 +153,6 @@ describe("DeleteAccountDialog", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Nope.");
     expect(router.refresh).not.toHaveBeenCalled();
-  });
-
-  it("toasts when the request itself fails", async () => {
-    const user = userEvent.setup();
-    mockDeleteAccount.mockRejectedValue(new Error("network"));
-    renderDialog();
-
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
-
-    expect(toast.error).toHaveBeenCalledWith("Couldn't delete your account. Try again.");
-    expect(screen.getByRole("button", { name: "Delete account" })).toBeEnabled();
   });
 
   it("disables both buttons while the deletion is pending", async () => {

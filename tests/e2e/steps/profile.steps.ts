@@ -320,6 +320,14 @@ When("I confirm deleting my account", async ({ page, scenario }) => {
   // Success answers the action POST with signOut's 303, sent only after the transaction commits, so
   // landing on sign-in already proves persistence (waitForServerActionResponse would reject the 303).
   await page.waitForURL("**/sign-in**", { timeout: 15_000 });
+  // The root <Toaster> survives the SPA navigation, so a swallowed redirect would still show here. A
+  // retrying "count is 0" check would pass once the toast auto-dismisses, so fail if it ever appears.
+  const failureToastAppeared = await page
+    .getByText("Couldn't delete your account. Try again.")
+    .waitFor({ state: "visible", timeout: 2_000 })
+    .then(() => true)
+    .catch(() => false);
+  expect(failureToastAppeared).toBe(false);
   scenario.signOut();
 });
 

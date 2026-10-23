@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -56,18 +55,16 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
 
   function handleConfirm() {
     setErrorMessage(null);
+    // No try/catch: on success the action's redirect rejects this promise with a Next redirect error
+    // that the router must see, and anything else belongs to the error boundary.
     startTransition(async () => {
-      try {
-        const result = await deleteAccount(buildChoices());
-        if (result.status === "error") {
-          setErrorMessage(result.message);
-          if (result.stale) router.refresh();
-          return;
-        }
-        router.push("/sign-in");
-      } catch {
-        toast.error("Couldn't delete your account. Try again.");
+      const result = await deleteAccount(buildChoices());
+      if (result.status === "error") {
+        setErrorMessage(result.message);
+        if (result.stale) router.refresh();
+        return;
       }
+      router.push("/sign-in");
     });
   }
 
