@@ -2,8 +2,6 @@
 // sees. Nothing here calls a model, so these checks cost no tokens and give the same answer every run.
 
 const MAX_MISSING = 10;
-const MAX_PACKET_FILES = 60;
-const MAX_BODY_CHARS = 1500;
 
 const NOISE_FILE_NAMES = new Set(["package-lock.json", "pnpm-lock.yaml", "yarn.lock", ".env.example"]);
 const ASSET_EXTENSIONS = /\.(png|jpe?g|gif|webp|ico|svg|woff2?|ttf|otf|eot|pdf|zip)$/i;
@@ -225,41 +223,4 @@ export function scopeStats(files) {
     significantLines: significant.reduce((sum, file) => sum + file.additions + file.deletions, 0),
     areas: [...new Set(significant.map((file) => areaOf(file.path)))],
   };
-}
-
-// What the model sees: metadata and paths only. Diff content never enters the prompt, which keeps the cost flat
-// however large the PR is; secrets and test pairing are decided above, not by the model.
-export function buildPacket({ title, body, files, tests }) {
-  const stats = scopeStats(files);
-  const visible = files.filter((file) => classifyFile(file.path) !== "noise");
-  const noiseCount = files.length - visible.length;
-  const shown = visible.slice(0, MAX_PACKET_FILES);
-  const trimmedBody = body.length > MAX_BODY_CHARS ? `${body.slice(0, MAX_BODY_CHARS)}\n[body truncated]` : body;
-
-  const lines = [
-    `Title: ${title}`,
-    "Description:",
-    trimmedBody.trim() === "" ? "(empty)" : trimmedBody,
-    "",
-    `Size: ${stats.files} files, +${stats.additions} -${stats.deletions}; ${stats.significantLines} lines outside tests, docs and generated files`,
-    `Areas: ${stats.areas.join(", ") || "(none)"}`,
-    "Files:",
-    ...shown.map((file) => `${file.path} (+${file.additions} -${file.deletions})`),
-  ];
-  if (visible.length > shown.length) lines.push(`... ${visible.length - shown.length} more files omitted`);
-  if (noiseCount > 0)
-    lines.push(`${noiseCount} noise file${noiseCount === 1 ? "" : "s"} hidden (lockfiles, assets, migrations)`);
-
-  if (tests.review.length > 0) {
-    const changedTests = files.filter((file) => classifyFile(file.path) === "test").map((file) => file.path);
-    lines.push(
-      "",
-      "Source files without a same-area test:",
-      ...tests.review,
-      "",
-      "Changed tests:",
-      ...changedTests.slice(0, 20)
-    );
-  }
-  return lines.join("\n");
 }
