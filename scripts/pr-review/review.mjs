@@ -8,7 +8,7 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { buildPacket, checkTests, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
+import { buildPacket, checkChangelog, checkTests, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
 
 const MARKER = "<!-- pr-review:v1";
 const DEFAULT_MODEL = "claude-haiku-5-5";
@@ -126,7 +126,7 @@ export function packetHash({ title, body, files, tests }) {
   return createHash("sha256").update(payload).digest("hex").slice(0, 16);
 }
 
-export function combine({ secrets, tests, model }) {
+export function combine({ secrets, tests, model, changelog = { status: "PASS", files: [] } }) {
   const skipped = { verdict: "SKIP", reason: "Model review unavailable." };
   let testsResult;
   if (tests.status === "FAIL") {
@@ -146,6 +146,7 @@ export function combine({ secrets, tests, model }) {
     scope: model?.scope ?? skipped,
     secrets: secretsResult,
     tests: testsResult,
+    changelog: { verdict: changelog.status, files: changelog.files },
     overall: secretsResult.verdict === "FAIL" || testsResult.verdict === "FAIL" ? "FAIL" : "PASS",
   };
 }
@@ -181,6 +182,12 @@ export function renderComment(result, { hash, model = null, note = "" }) {
     ...result.secrets.findings.map((finding) => `  - \`${finding.path}:${finding.line}\` (${finding.pattern})`),
     line("Tests", result.tests, result.tests.reason),
     ...result.tests.files.map((file) => `  - \`${file}\``),
+    ...(result.changelog.verdict === "WARN"
+      ? [
+          "- Changelog: WARN — user-facing files changed with no CHANGELOG.md entry (ignore if the change isn't visible to people running Arrivo)",
+          ...result.changelog.files.map((file) => `  - \`${file}\``),
+        ]
+      : []),
     "",
     `Overall: ${result.overall}`,
   ];
@@ -193,6 +200,7 @@ export async function evaluate({ title, body, diff }, { runModel, previous = nul
   const files = parseDiff(diff);
   const secrets = findSecrets(files);
   const tests = checkTests(files);
+  const changelog = checkChangelog(files);
   const packet = buildPacket({ title, body, files, tests });
   const hash = packetHash({ title, body, files, tests });
 
@@ -214,7 +222,7 @@ export async function evaluate({ title, body, diff }, { runModel, previous = nul
       modelError = error.message;
     }
   }
-  return { result: combine({ secrets, tests, model }), packet, hash, model, usage, ranModel, modelError };
+  return { result: combine({ secrets, tests, model, changelog }), packet, hash, model, usage, ranModel, modelError };
 }
 
 function run(file, args) {

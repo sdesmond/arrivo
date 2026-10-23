@@ -225,6 +225,25 @@ describe("combine", () => {
     expect(combine({ secrets: [], tests: review, model: goodVerdicts }).tests.verdict).toBe("WARN");
   });
 
+  it("carries a changelog warning without failing the review", () => {
+    const result = combine({
+      secrets: [],
+      tests: passTests,
+      model: goodVerdicts,
+      changelog: { status: "WARN", files: ["Dockerfile"] },
+    });
+
+    expect(result.changelog).toEqual({ verdict: "WARN", files: ["Dockerfile"] });
+    expect(result.overall).toBe("PASS");
+  });
+
+  it("defaults the changelog check to PASS", () => {
+    expect(combine({ secrets: [], tests: passTests, model: goodVerdicts }).changelog).toEqual({
+      verdict: "PASS",
+      files: [],
+    });
+  });
+
   it("falls back to SKIP and WARN when there is no model result", () => {
     const review = { status: "REVIEW", missing: [], review: ["src/app/layout.tsx"] };
     const result = combine({ secrets: [], tests: review, model: null });
@@ -253,6 +272,23 @@ describe("renderComment", () => {
     expect(comment).toContain("Tests: FAIL");
     expect(comment).toContain("`src/lib/a.ts`");
     expect(comment).toContain("Overall: FAIL");
+  });
+
+  it("shows a changelog line only when it warns", () => {
+    const warned = combine({
+      secrets: [],
+      tests: { status: "PASS", missing: [], review: [] },
+      model: goodVerdicts,
+      changelog: { status: "WARN", files: ["src/app/page.tsx"] },
+    });
+    const clean = combine({ secrets: [], tests: { status: "PASS", missing: [], review: [] }, model: goodVerdicts });
+
+    const comment = renderComment(warned, { hash: "h", model: goodVerdicts });
+
+    expect(comment).toContain("Changelog: WARN");
+    expect(comment).toContain("CHANGELOG.md");
+    expect(comment).toContain("`src/app/page.tsx`");
+    expect(renderComment(clean, { hash: "h", model: goodVerdicts })).not.toContain("Changelog");
   });
 
   it("round-trips the hash and model verdicts through a hidden marker", () => {
@@ -337,6 +373,16 @@ describe("evaluate", () => {
     expect(outcome.result.secrets.verdict).toBe("FAIL");
     expect(outcome.result.tests.verdict).toBe("FAIL");
     expect(outcome.result.overall).toBe("FAIL");
+  });
+
+  it("warns about a missing changelog entry for user-facing changes without failing", async () => {
+    const userFacing =
+      fileDiff("src/app/(app)/profile/page.tsx", ["x"]) + fileDiff("src/app/(app)/profile/page.test.tsx", ["y"]);
+
+    const outcome = await evaluate({ title: "t", body: "b", diff: userFacing }, { runModel: async () => null });
+
+    expect(outcome.result.changelog).toEqual({ verdict: "WARN", files: ["src/app/(app)/profile/page.tsx"] });
+    expect(outcome.result.overall).toBe("PASS");
   });
 
   it("degrades to the deterministic result when the model call throws", async () => {
