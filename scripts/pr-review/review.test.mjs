@@ -225,26 +225,6 @@ describe("combine", () => {
     expect(combine({ secrets: [], tests: review, model: goodVerdicts }).tests.verdict).toBe("WARN");
   });
 
-  it("carries a changelog warning without failing the review", () => {
-    const result = combine({
-      secrets: [],
-      tests: passTests,
-      model: goodVerdicts,
-      changelog: { status: "WARN", files: ["Dockerfile"] },
-    });
-
-    expect(result.changelog).toEqual({ verdict: "WARN", files: ["Dockerfile"], updated: false });
-    expect(result.overall).toBe("PASS");
-  });
-
-  it("defaults the changelog check to PASS", () => {
-    expect(combine({ secrets: [], tests: passTests, model: goodVerdicts }).changelog).toEqual({
-      verdict: "PASS",
-      files: [],
-      updated: false,
-    });
-  });
-
   it("falls back to SKIP and WARN when there is no model result", () => {
     const review = { status: "REVIEW", missing: [], review: ["src/app/layout.tsx"] };
     const result = combine({ secrets: [], tests: review, model: null });
@@ -273,35 +253,6 @@ describe("renderComment", () => {
     expect(comment).toContain("Tests: FAIL");
     expect(comment).toContain("`src/lib/a.ts`");
     expect(comment).toContain("Overall: FAIL");
-  });
-
-  it("always shows a changelog line, with the reason when it passes", () => {
-    const passTests = { status: "PASS", missing: [], review: [] };
-    const warned = combine({
-      secrets: [],
-      tests: passTests,
-      model: goodVerdicts,
-      changelog: { status: "WARN", files: ["src/app/page.tsx"], updated: false },
-    });
-    const updated = combine({
-      secrets: [],
-      tests: passTests,
-      model: goodVerdicts,
-      changelog: { status: "PASS", files: [], updated: true },
-    });
-    const untouched = combine({ secrets: [], tests: passTests, model: goodVerdicts });
-
-    const warnedComment = renderComment(warned, { hash: "h", model: goodVerdicts });
-
-    expect(warnedComment).toContain("Changelog: WARN");
-    expect(warnedComment).toContain("CHANGELOG.md");
-    expect(warnedComment).toContain("`src/app/page.tsx`");
-    expect(renderComment(updated, { hash: "h", model: goodVerdicts })).toContain(
-      "Changelog: PASS — CHANGELOG.md updated"
-    );
-    expect(renderComment(untouched, { hash: "h", model: goodVerdicts })).toContain(
-      "Changelog: PASS — no user-facing files changed"
-    );
   });
 
   it("round-trips the hash and model verdicts through a hidden marker", () => {
@@ -386,20 +337,6 @@ describe("evaluate", () => {
     expect(outcome.result.secrets.verdict).toBe("FAIL");
     expect(outcome.result.tests.verdict).toBe("FAIL");
     expect(outcome.result.overall).toBe("FAIL");
-  });
-
-  it("warns about a missing changelog entry for user-facing changes without failing", async () => {
-    const userFacing =
-      fileDiff("src/app/(app)/profile/page.tsx", ["x"]) + fileDiff("src/app/(app)/profile/page.test.tsx", ["y"]);
-
-    const outcome = await evaluate({ title: "t", body: "b", diff: userFacing }, { runModel: async () => null });
-
-    expect(outcome.result.changelog).toEqual({
-      verdict: "WARN",
-      files: ["src/app/(app)/profile/page.tsx"],
-      updated: false,
-    });
-    expect(outcome.result.overall).toBe("PASS");
   });
 
   it("degrades to the deterministic result when the model call throws", async () => {

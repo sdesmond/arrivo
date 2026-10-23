@@ -8,7 +8,7 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { buildPacket, checkChangelog, checkTests, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
+import { buildPacket, checkTests, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
 
 const MARKER = "<!-- pr-review:v1";
 const DEFAULT_MODEL = "claude-haiku-5-5";
@@ -126,7 +126,7 @@ export function packetHash({ title, body, files, tests }) {
   return createHash("sha256").update(payload).digest("hex").slice(0, 16);
 }
 
-export function combine({ secrets, tests, model, changelog = { status: "PASS", files: [], updated: false } }) {
+export function combine({ secrets, tests, model }) {
   const skipped = { verdict: "SKIP", reason: "Model review unavailable." };
   let testsResult;
   if (tests.status === "FAIL") {
@@ -146,7 +146,6 @@ export function combine({ secrets, tests, model, changelog = { status: "PASS", f
     scope: model?.scope ?? skipped,
     secrets: secretsResult,
     tests: testsResult,
-    changelog: { verdict: changelog.status, files: changelog.files, updated: changelog.updated ?? false },
     overall: secretsResult.verdict === "FAIL" || testsResult.verdict === "FAIL" ? "FAIL" : "PASS",
   };
 }
@@ -171,16 +170,6 @@ function line(label, check, detail) {
   return `- ${label}: ${check.verdict}${suffix}`;
 }
 
-function changelogRows(changelog) {
-  if (changelog.verdict === "WARN") {
-    return [
-      "- Changelog: WARN — user-facing files changed with no CHANGELOG.md entry (ignore if the change isn't visible to people running Arrivo)",
-      ...changelog.files.map((file) => `  - \`${file}\``),
-    ];
-  }
-  return [`- Changelog: PASS — ${changelog.updated ? "CHANGELOG.md updated" : "no user-facing files changed"}`];
-}
-
 export function renderComment(result, { hash, model = null, note = "" }) {
   const rows = [
     `${MARKER} ${encodeState({ hash, model })} -->`,
@@ -192,7 +181,6 @@ export function renderComment(result, { hash, model = null, note = "" }) {
     ...result.secrets.findings.map((finding) => `  - \`${finding.path}:${finding.line}\` (${finding.pattern})`),
     line("Tests", result.tests, result.tests.reason),
     ...result.tests.files.map((file) => `  - \`${file}\``),
-    ...changelogRows(result.changelog),
     "",
     `Overall: ${result.overall}`,
   ];
@@ -205,7 +193,6 @@ export async function evaluate({ title, body, diff }, { runModel, previous = nul
   const files = parseDiff(diff);
   const secrets = findSecrets(files);
   const tests = checkTests(files);
-  const changelog = checkChangelog(files);
   const packet = buildPacket({ title, body, files, tests });
   const hash = packetHash({ title, body, files, tests });
 
@@ -227,7 +214,7 @@ export async function evaluate({ title, body, diff }, { runModel, previous = nul
       modelError = error.message;
     }
   }
-  return { result: combine({ secrets, tests, model, changelog }), packet, hash, model, usage, ranModel, modelError };
+  return { result: combine({ secrets, tests, model }), packet, hash, model, usage, ranModel, modelError };
 }
 
 function run(file, args) {
