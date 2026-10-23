@@ -19,35 +19,39 @@ import { sql } from "drizzle-orm";
 
 // ── Auth.js v5 required tables ──────────────────────────────────────────────
 
-export const users = pgTable("users", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  name: text("name"),
-  email: text("email").unique(),
-  emailVerified: timestamp("email_verified", { withTimezone: true }),
-  image: text("image"),
-  passwordHash: text("password_hash"),
-  dateFormat: text("date_format"),
-  currency: text("currency"),
-  distanceUnit: text("distance_unit"),
-  transitMode: text("transit_mode"),
-  walkThresholdMeters: integer("walk_threshold_meters"),
-  passportNumber: text("passport_number"),
-  passportExpiry: date("passport_expiry"),
-  passportNationality: text("passport_nationality"),
-  knownTravelerNumber: text("known_traveler_number"),
-  defaultCoverType: text("default_cover_type"),
-  warningThreshold: integer("warning_threshold").default(80).notNull(),
-  dangerThreshold: integer("danger_threshold").default(90).notNull(),
-  // Baked into every sign-in token; bumping it signs the user out on every device.
-  sessionVersion: integer("session_version").default(0).notNull(),
-  // TOTP secrets are stored encrypted (src/lib/field-encryption.ts). Two-factor is on iff mfaEnabledAt is set.
-  totpSecret: text("totp_secret"),
-  totpPendingSecret: text("totp_pending_secret"),
-  totpLastStep: integer("totp_last_step"),
-  mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name"),
+    image: text("image"),
+    passwordHash: text("password_hash"),
+    dateFormat: text("date_format"),
+    currency: text("currency"),
+    distanceUnit: text("distance_unit"),
+    transitMode: text("transit_mode"),
+    walkThresholdMeters: integer("walk_threshold_meters"),
+    passportNumber: text("passport_number"),
+    passportExpiry: date("passport_expiry"),
+    passportNationality: text("passport_nationality"),
+    knownTravelerNumber: text("known_traveler_number"),
+    defaultCoverType: text("default_cover_type"),
+    warningThreshold: integer("warning_threshold").default(80).notNull(),
+    dangerThreshold: integer("danger_threshold").default(90).notNull(),
+    // Baked into every sign-in token; bumping it signs the user out on every device.
+    sessionVersion: integer("session_version").default(0).notNull(),
+    // TOTP secrets are stored encrypted (src/lib/field-encryption.ts). Two-factor is on iff mfaEnabledAt is set.
+    totpSecret: text("totp_secret"),
+    totpPendingSecret: text("totp_pending_secret"),
+    totpLastStep: integer("totp_last_step"),
+    mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
+    // Sign-in identifier; stored lowercased (src/lib/username.ts).
+    username: text("username").notNull(),
+  },
+  (table) => [uniqueIndex("users_username_lower_unique").on(sql`lower(${table.username})`)]
+);
 
 export const accounts = pgTable(
   "accounts",
@@ -261,7 +265,6 @@ export const collaborators = pgTable(
       .notNull()
       .references(() => trips.id, { onDelete: "cascade" }),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-    email: text("email").notNull(),
     name: text("name").notNull(),
     initials: text("initials").notNull(),
     role: text("role").notNull(),
@@ -273,7 +276,7 @@ export const collaborators = pgTable(
       .notNull()
       .default(sql`now()`),
   },
-  (table) => [unique().on(table.tripId, table.email)]
+  (table) => [unique().on(table.tripId, table.userId)]
 );
 
 export const invitations = pgTable(
@@ -285,7 +288,6 @@ export const invitations = pgTable(
     tripId: uuid("trip_id")
       .notNull()
       .references(() => trips.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),
     role: text("role").notNull(),
     status: text("status").notNull().default("pending"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -293,12 +295,15 @@ export const invitations = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`),
+    inviteeId: uuid("invitee_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
   },
   (table) => [
-    uniqueIndex("invitations_pending_trip_email_unique")
-      .on(table.tripId, table.email)
+    uniqueIndex("invitations_pending_trip_invitee_unique")
+      .on(table.tripId, table.inviteeId)
       .where(sql`${table.status} = 'pending'`),
-    index("invitations_normalized_email").on(sql`lower(trim(${table.email}))`),
+    index("invitations_invitee_id_idx").on(table.inviteeId),
   ]
 );
 
@@ -502,7 +507,7 @@ export const idempotencyKeys = pgTable(
   (table) => [primaryKey({ columns: [table.key, table.userId] })]
 );
 
-// Failed-attempt counters for sign-in, password change and two-factor codes, keyed by e.g. "email:<address>".
+// Failed-attempt counters for sign-in, password change and two-factor codes, keyed by e.g. "username:<name>".
 export const authThrottle = pgTable("auth_throttle", {
   key: text("key").primaryKey(),
   failures: integer("failures").default(0).notNull(),
