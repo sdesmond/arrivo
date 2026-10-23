@@ -1,11 +1,15 @@
 name: pr-review
 
-# Structural PR review. Secrets and test pairing are checked by script; one small `claude -p` call (metadata only, no
-# diff) judges title/description and scope. Authenticates with the CLAUDE_CODE_OAUTH_TOKEN repository secret
-# (a Claude subscription token from `claude setup-token`). See scripts/pr-review/review.mjs.
+# Structural PR review, entirely scripted (scripts/pr-review): secrets, tests, changelog, title/description and
+# scope. No model, no tokens, no repository secrets.
+#
+# pull_request_target runs this workflow and script as they exist on the base branch and gives fork PRs a token that
+# can comment. That is safe only while this job never checks out, builds or runs the PR's code: it reads the title,
+# body and diff through the API and passes them around as data. Keep it that way. A change to the reviewer takes
+# effect once it is merged, so it cannot be tried out on its own PR.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 concurrency:
@@ -14,15 +18,15 @@ concurrency:
 
 jobs:
   review:
-    # Fork PRs get a read-only token and no secrets, so they can neither comment nor call the model.
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: write # commenting on a PR needs this; issues: write alone returns 403
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out the base branch (never the PR head)
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -30,13 +34,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code@2.1.303
-
       - name: Review
         run: node scripts/pr-review/review.mjs --pr "$PR_NUMBER" --repo "$REPO"
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
