@@ -1,0 +1,1 @@
+ALTER TABLE "collaborators" ADD COLUMN "added_at" timestamp with time zone DEFAULT now() NOT NULL;

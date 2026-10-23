@@ -2,13 +2,34 @@
 
 import { requireUser } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { users, collaborators, trips, userLoyaltyNumbers, userWishlistDestinations, userCompanions } from "@/db/schema";
-import { eq, and, not, exists, sql } from "drizzle-orm";
+import {
+  users,
+  collaborators,
+  documents,
+  invitations,
+  trips,
+  userLoyaltyNumbers,
+  userWishlistDestinations,
+  userCompanions,
+} from "@/db/schema";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import { CoverType, SignInNotice, TransitMode } from "@/data/types";
-import { lockUserForUpdate } from "@/lib/server-action-locks";
+import {
+  CollaboratorRole,
+  CoverType,
+  InvitationStatus,
+  LiveSyncEventType,
+  SignInNotice,
+  TransitMode,
+  TripDeletionAction,
+} from "@/data/types";
+import { lockTripForUpdate, lockUserForUpdate } from "@/lib/server-action-locks";
+import { publishInvitationChanged } from "@/lib/invitations";
+import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
+import { areDeletionChoicesValid, buildSharedOwnedTrips } from "@/lib/trip-ownership";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
 import { bumpSessionVersion } from "@/lib/session-version";
@@ -18,6 +39,8 @@ import type {
   AddWishlistDestinationInput,
   AddCompanionInput,
   UpdateCompanionPatch,
+  DeleteAccountResult,
+  TripDeletionChoice,
 } from "@/data/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -296,37 +319,146 @@ export async function deleteCompanion(id: string): Promise<void> {
   revalidatePath("/profile");
 }
 
-export async function deleteAccount(): Promise<void> {
+const ACCOUNT_DELETION_STALE_MESSAGE = "Your shared trips changed. Review them and try again.";
+
+class AccountDeletionStaleError extends Error {}
+
+/**
+ * Deletes the signed-in user's account. `trips.ownerId` cascades, so every trip the user owns must be
+ * dealt with first: shared trips go to the collaborator the user picked (promoted to manager and
+ * creator) or are deleted because the user chose to; trips nobody else is on are deleted.
+ */
+export async function deleteAccount(choices: TripDeletionChoice[]): Promise<DeleteAccountResult> {
   const session = await requireUser();
   const userId = session.id!;
+  const staleResult: DeleteAccountResult = { status: "error", message: ACCOUNT_DELETION_STALE_MESSAGE, stale: true };
+  if (!Array.isArray(choices)) return staleResult;
 
-  // Delete trips where user is the sole owner (no other collaborators with owner role)
-  const ownedTripIds = await db
-    .select({ id: trips.id })
-    .from(trips)
-    .where(
-      and(
-        eq(trips.ownerId, userId),
-        not(
-          exists(
-            db
-              .select()
+  let deletion;
+  try {
+    deletion = await db.transaction(async (transaction) => {
+      await lockUserForUpdate(transaction, userId);
+
+      const ownedTrips = await transaction
+        .select({ id: trips.id, name: trips.name, coverImageUrl: trips.coverImageUrl })
+        .from(trips)
+        .where(eq(trips.ownerId, userId));
+      for (const trip of ownedTrips) {
+        await lockTripForUpdate(transaction, trip.id);
+      }
+
+      const ownedTripIds = ownedTrips.map((trip) => trip.id);
+      const members =
+        ownedTripIds.length > 0
+          ? await transaction
+              .select({
+                id: collaborators.id,
+                tripId: collaborators.tripId,
+                userId: collaborators.userId,
+                name: collaborators.name,
+                role: collaborators.role,
+                addedAt: collaborators.addedAt,
+              })
               .from(collaborators)
-              .where(and(eq(collaborators.tripId, trips.id), not(eq(collaborators.userId, userId))))
-          )
-        )
-      )
-    );
+              .where(inArray(collaborators.tripId, ownedTripIds))
+          : [];
 
-  for (const { id } of ownedTripIds) {
-    await db.delete(trips).where(eq(trips.id, id));
+      // The dialog's choices were made against an earlier read; a trip gaining or losing members since
+      // then must be shown again rather than resolved by a guess.
+      if (!areDeletionChoicesValid(buildSharedOwnedTrips(ownedTrips, members, userId), choices)) {
+        throw new AccountDeletionStaleError();
+      }
+
+      // Cancel invitations before ownership moves so nobody joins a trip on the departing user's say-so.
+      const rescindedInvitations = await transaction
+        .update(invitations)
+        .set({ status: InvitationStatus.Rescinded })
+        .where(and(eq(invitations.invitedBy, userId), eq(invitations.status, InvitationStatus.Pending)))
+        .returning({ email: invitations.email, tripId: invitations.tripId });
+
+      const heirByTripId = new Map(
+        choices.flatMap((choice) =>
+          choice.action === TripDeletionAction.Transfer ? [[choice.tripId, choice.newOwnerUserId] as const] : []
+        )
+      );
+      const deletedTrips = ownedTrips.filter((trip) => !heirByTripId.has(trip.id));
+      const deletedTripIds = deletedTrips.map((trip) => trip.id);
+
+      const deletedTripDocuments =
+        deletedTripIds.length > 0
+          ? await transaction
+              .select({ url: documents.url })
+              .from(documents)
+              .where(inArray(documents.tripId, deletedTripIds))
+          : [];
+      if (deletedTripIds.length > 0) {
+        await transaction.delete(trips).where(inArray(trips.id, deletedTripIds));
+      }
+
+      for (const [tripId, heirUserId] of heirByTripId) {
+        await transaction.update(trips).set({ ownerId: heirUserId }).where(eq(trips.id, tripId));
+        await transaction
+          .update(collaborators)
+          .set({ role: CollaboratorRole.Manager, isCreator: true })
+          .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, heirUserId)));
+      }
+
+      const departedMemberships = await transaction
+        .delete(collaborators)
+        .where(eq(collaborators.userId, userId))
+        .returning({ tripId: collaborators.tripId });
+      await transaction.delete(users).where(eq(users.id, userId));
+
+      return {
+        rescindedInvitations,
+        transferredTrips: [...heirByTripId],
+        deletedTripIds,
+        deletedTripMembers: members.filter(
+          (member) => member.userId && member.userId !== userId && deletedTripIds.includes(member.tripId)
+        ),
+        remainingTripIds: departedMemberships.map((membership) => membership.tripId),
+        storageUrls: [
+          ...deletedTripDocuments.map((tripDocument) => tripDocument.url),
+          ...deletedTrips.map((trip) => trip.coverImageUrl),
+        ].filter((url): url is string => !!url),
+      };
+    });
+  } catch (error) {
+    if (error instanceof AccountDeletionStaleError) return staleResult;
+    throw error;
   }
 
-  // Remove from remaining trips as collaborator
-  await db.delete(collaborators).where(eq(collaborators.userId, userId));
+  await Promise.all(
+    deletion.rescindedInvitations.map((invitation) => publishInvitationChanged(invitation.email, invitation.tripId))
+  );
+  for (const tripId of deletion.deletedTripIds) {
+    publishTripEvent(tripId, { type: LiveSyncEventType.TripDeleted, tripId });
+  }
+  // Members watching their dashboard only hold their personal channel, mirroring deleteTrip.
+  for (const member of deletion.deletedTripMembers) {
+    publishUserEvent(member.userId!, { type: LiveSyncEventType.TripDeleted, tripId: member.tripId });
+  }
+  for (const tripId of deletion.deletedTripIds) {
+    purgeTripTopic(tripId);
+  }
+  for (const tripId of new Set(deletion.remainingTripIds)) {
+    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+  }
+  // The new owner's role changed; their other sessions only listen on their personal channel.
+  for (const [tripId, heirUserId] of deletion.transferredTrips) {
+    publishUserEvent(heirUserId, { type: LiveSyncEventType.MembershipChanged, tripId });
+  }
 
-  // Delete user (cascades to accounts, sessions, etc.)
-  await db.delete(users).where(eq(users.id, userId));
+  // Best-effort: a file that won't delete must not undo or block the account deletion.
+  await Promise.all(
+    deletion.storageUrls.map((url) =>
+      getStorageAdapter()
+        .del(url)
+        .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
+    )
+  );
 
+  revalidatePath("/trips");
   await signOut({ redirectTo: "/sign-in" });
+  return { status: "success" };
 }

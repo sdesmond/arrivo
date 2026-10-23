@@ -42,6 +42,7 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+import { CollaboratorRole } from "@/data/types";
 import { ProfileAccountSection } from "./account-section";
 
 describe("ProfileAccountSection — inline password validation (AC6)", () => {
@@ -117,5 +118,40 @@ describe("ProfileAccountSection — inline password validation (AC6)", () => {
     await typeIntoPasswordField(user, "New password", "abcdefgh");
     await typeIntoPasswordField(user, "Confirm new password", "abcdefgh");
     expect(screen.getByRole("button", { name: /update password/i })).not.toBeDisabled();
+  });
+});
+
+describe("ProfileAccountSection — delete account", () => {
+  const sharedOwnedTrips = [
+    {
+      tripId: "trip-kyoto",
+      name: "Kyoto Adventure",
+      memberCount: 2,
+      collaborators: [{ userId: "user-ada", name: "Ada Lovelace", role: CollaboratorRole.Viewer }],
+      suggestedHeirUserId: "user-ada",
+    },
+  ];
+
+  it("opens the dialog with the user's shared trips", async () => {
+    const user = userEvent.setup();
+    render(<ProfileAccountSection sharedOwnedTrips={sharedOwnedTrips} />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+
+    expect(screen.getByRole("heading", { name: "Delete account?" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Kyoto Adventure/ })).toHaveTextContent(
+      "Transfer to Ada Lovelace · viewer"
+    );
+  });
+
+  it("returns focus to the trigger when the dialog closes", async () => {
+    const user = userEvent.setup();
+    render(<ProfileAccountSection />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("heading", { name: "Delete account?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete account" })).toHaveFocus();
   });
 });

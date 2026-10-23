@@ -1,27 +1,20 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Section, Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { changePassword, deleteAccount } from "./actions";
+import type { AccountDeletionTrip } from "@/data/types";
+import { changePassword } from "./actions";
+import { DeleteAccountDialog } from "./delete-account-dialog";
 
 interface ProfileAccountSectionProps {
+  sharedOwnedTrips?: AccountDeletionTrip[];
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionProps) {
-  const router = useRouter();
+export function ProfileAccountSection({ sharedOwnedTrips = [], onDirtyChange }: ProfileAccountSectionProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -31,7 +24,6 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
   const [isPwPending, startPwTransition] = useTransition();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [isDeletePending, startDeleteTransition] = useTransition();
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
 
   const newPasswordError =
@@ -77,13 +69,6 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
         onDirtyChange?.(false);
         setTimeout(() => setJustSaved(false), 2000);
       }
-    });
-  }
-
-  function handleDeleteConfirm() {
-    startDeleteTransition(async () => {
-      await deleteAccount();
-      router.push("/sign-in");
     });
   }
 
@@ -176,30 +161,14 @@ export function ProfileAccountSection({ onDirtyChange }: ProfileAccountSectionPr
         </Section>
       </div>
 
-      <Dialog
+      <DeleteAccountDialog
         open={deleteOpen}
+        sharedTrips={sharedOwnedTrips}
         onOpenChange={(open) => {
           setDeleteOpen(open);
           if (!open) deleteTriggerRef.current?.focus();
         }}
-      >
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Delete account?</DialogTitle>
-            <DialogDescription>
-              This will permanently delete your account and all trips you own. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} autoFocus>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isDeletePending}>
-              {isDeletePending ? "Deleting…" : "Delete account"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </>
   );
 }
