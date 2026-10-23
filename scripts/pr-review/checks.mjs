@@ -40,6 +40,8 @@ export function classifyFile(path) {
   ) {
     return "doc";
   }
+  // Eval harnesses are test infrastructure themselves, so they do not need tests of their own.
+  if (path.startsWith("evals/")) return "tooling";
   if (path.startsWith("src/components/ui/")) return "ui";
   if (name === "types.ts") return "types";
   if (/^index\.(ts|tsx|js|jsx)$/.test(name)) return "barrel";

@@ -80,6 +80,8 @@ describe("classifyFile", () => {
     ["src/components/ui/button.tsx", "ui"],
     ["src/data/types.ts", "types"],
     ["src/components/arrivo/index.ts", "barrel"],
+    ["evals/pr-reviewer/run-eval.mjs", "tooling"],
+    ["evals/pr-reviewer/build-cases.mjs", "tooling"],
     ["src/lib/format.ts", "source"],
     ["src/app/(app)/trips/page.tsx", "source"],
     ["scripts/setup-dev.mjs", "source"],
