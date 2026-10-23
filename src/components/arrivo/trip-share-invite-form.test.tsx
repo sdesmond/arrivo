@@ -4,49 +4,49 @@ import { CollaboratorRole } from "@/data/types";
 import { TripShareInviteForm } from "./trip-share-invite-form";
 
 describe("TripShareInviteForm", () => {
-  it("forwards email changes and invite clicks", () => {
-    const onEmailChange = vi.fn();
+  it("forwards username changes and invite clicks", () => {
+    const onUsernameChange = vi.fn();
     const onInvite = vi.fn();
 
     render(
       <TripShareInviteForm
-        email=""
+        username=""
         error={null}
         isLoading={false}
-        onEmailChange={onEmailChange}
+        onUsernameChange={onUsernameChange}
         onInvite={onInvite}
         onRoleChange={vi.fn()}
         role={CollaboratorRole.Viewer}
       />
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Invite email" }), { target: { value: "guest@example.com" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Invite username" }), { target: { value: "guest" } });
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
-    expect(onEmailChange).toHaveBeenCalledWith("guest@example.com");
+    expect(onUsernameChange).toHaveBeenCalledWith("guest");
     expect(onInvite).toHaveBeenCalledOnce();
   });
 
   it("disables controls and announces its inline error while inviting", () => {
     render(
       <TripShareInviteForm
-        email="guest@example.com"
-        error="No account found for this email."
+        username="guest"
+        error="No account found for this username."
         isLoading
-        onEmailChange={vi.fn()}
+        onUsernameChange={vi.fn()}
         onInvite={vi.fn()}
         onRoleChange={vi.fn()}
         role={CollaboratorRole.Viewer}
       />
     );
 
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeDisabled();
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveAttribute(
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveAttribute(
       "aria-describedby",
-      "invite-email-error"
+      "invite-username-error"
     );
     expect(screen.getByTitle("Invite this person to the trip")).toBeDisabled();
-    expect(screen.getByRole("alert")).toHaveTextContent("No account found for this email.");
+    expect(screen.getByRole("alert")).toHaveTextContent("No account found for this username.");
     expect(screen.getByLabelText("Sending invitation")).toBeInTheDocument();
   });
 
@@ -54,17 +54,17 @@ describe("TripShareInviteForm", () => {
     render(
       <TripShareInviteForm
         disabled
-        email="guest@example.com"
+        username="guest"
         error={null}
         isLoading={false}
-        onEmailChange={vi.fn()}
+        onUsernameChange={vi.fn()}
         onInvite={vi.fn()}
         onRoleChange={vi.fn()}
         role={CollaboratorRole.Viewer}
       />
     );
 
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeDisabled();
     expect(screen.getByRole("combobox", { name: "Invite role" })).toBeDisabled();
     expect(screen.getByTitle("Invite this person to the trip")).toBeDisabled();
     expect(screen.queryByLabelText("Sending invitation")).not.toBeInTheDocument();

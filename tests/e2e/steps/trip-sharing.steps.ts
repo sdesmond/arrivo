@@ -6,22 +6,61 @@ import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live
 import { waitForServerActionResponse } from "../server-action";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 
-const ACTIVE_EMAIL = "active-share@example.com";
-const PENDING_EMAIL = "pending-share@example.com";
-const DECLINED_EMAIL = "declined-share@example.com";
-const EXPIRED_PENDING_EMAIL = "expired-pending-share@example.com";
-const REMOVABLE_EMAIL = "removable-share@example.com";
-const OTHER_MANAGER_EMAIL = "other-manager-share@example.com";
 const PENDING_INVITATION_EXPIRY_LABEL_KEY = "pendingInvitationExpiryLabel";
 const INVITABLE_USER_KEY = "invitableUser";
 
+// Each sharing row belongs to a real account (invitations are addressed to users); rows are found by the
+// "@username" the dialog shows for them.
+const ShareAccount = {
+  Active: "active",
+  Pending: "pending",
+  Declined: "declined",
+  ExpiredPending: "expiredPending",
+  Removable: "removable",
+  OtherManager: "otherManager",
+} as const;
+type ShareAccount = (typeof ShareAccount)[keyof typeof ShareAccount];
+
+const SHARE_ACCOUNT_NAMES: Record<ShareAccount, string> = {
+  active: "Active Contributor",
+  pending: "Pending Invitee",
+  declined: "Declined Invitee",
+  expiredPending: "Expired Invitee",
+  removable: "Removable Contributor",
+  otherManager: "Other Manager",
+};
+
+async function materializeShareAccount(scenario: ScenarioFixtureContext, account: ShareAccount) {
+  const name = SHARE_ACCOUNT_NAMES[account];
+  const initials = name
+    .split(" ")
+    .map((word) => word[0])
+    .join("");
+  const { user } = await scenario.materialize({
+    user: { overrides: { user: { name, initials } }, setCurrent: false },
+  });
+  if (!user) throw new Error(`Failed to materialize the "${name}" sharing account.`);
+  scenario.setValue(`shareAccount:${account}`, user);
+  return user;
+}
+
+function shareHandle(scenario: ScenarioFixtureContext, account: ShareAccount): string {
+  const user = scenario.getValue<ScenarioUserRecord>(`shareAccount:${account}`);
+  if (!user) throw new Error(`No "${account}" sharing account materialized for this scenario.`);
+  return `@${user.username}`;
+}
+
 Given("I have a trip with sharing rows", async ({ scenario }) => {
   const [user, trip] = await Promise.all([scenario.ensureCurrentUser(), scenario.ensureCurrentTrip("datelessTrip")]);
+  const active = await materializeShareAccount(scenario, ShareAccount.Active);
+  const pending = await materializeShareAccount(scenario, ShareAccount.Pending);
+  const declined = await materializeShareAccount(scenario, ShareAccount.Declined);
+  const expiredPending = await materializeShareAccount(scenario, ShareAccount.ExpiredPending);
 
   await withE2EDb(async (db) => {
     await db.insert(collaborators).values({
       tripId: trip.id,
-      email: ACTIVE_EMAIL,
+      userId: active.id,
       name: "Active Contributor",
       initials: "AC",
       role: "editor",
@@ -31,7 +70,7 @@ Given("I have a trip with sharing rows", async ({ scenario }) => {
     await db.insert(invitations).values([
       {
         tripId: trip.id,
-        email: PENDING_EMAIL,
+        inviteeId: pending.id,
         role: "viewer",
         status: "pending",
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
@@ -39,7 +78,7 @@ Given("I have a trip with sharing rows", async ({ scenario }) => {
       },
       {
         tripId: trip.id,
-        email: DECLINED_EMAIL,
+        inviteeId: declined.id,
         role: "editor",
         status: "declined",
         expiresAt: new Date(Date.now() - 60 * 60 * 1000),
@@ -47,7 +86,7 @@ Given("I have a trip with sharing rows", async ({ scenario }) => {
       },
       {
         tripId: trip.id,
-        email: EXPIRED_PENDING_EMAIL,
+        inviteeId: expiredPending.id,
         role: "viewer",
         status: "pending",
         expiresAt: new Date(Date.now() - 60 * 60 * 1000),
@@ -59,10 +98,11 @@ Given("I have a trip with sharing rows", async ({ scenario }) => {
 
 Given("I have an additional removable sharing contributor", async ({ scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
+  const removable = await materializeShareAccount(scenario, ShareAccount.Removable);
   await withE2EDb(async (db) => {
     await db.insert(collaborators).values({
       tripId: trip.id,
-      email: REMOVABLE_EMAIL,
+      userId: removable.id,
       name: "Removable Contributor",
       initials: "RC",
       role: "viewer",
@@ -73,10 +113,11 @@ Given("I have an additional removable sharing contributor", async ({ scenario })
 
 Given("the shared trip has another manager", async ({ scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
+  const otherManager = await materializeShareAccount(scenario, ShareAccount.OtherManager);
   await withE2EDb(async (db) => {
     await db.insert(collaborators).values({
       tripId: trip.id,
-      email: OTHER_MANAGER_EMAIL,
+      userId: otherManager.id,
       name: "Other Manager",
       initials: "OM",
       role: "manager",
@@ -100,48 +141,58 @@ Then("I see the sharing dialog creator row", async ({ page, scenario }) => {
   await expect(page.getByLabel("Trip creator — access can't be changed")).toBeVisible();
 });
 
-Then("I see the active sharing row", async ({ page }) => {
-  const row = page.getByText(ACTIVE_EMAIL, { exact: true }).locator("..").locator("..");
+Then("I see the active sharing row", async ({ page, scenario }) => {
+  const row = page.getByText(shareHandle(scenario, ShareAccount.Active), { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Active Contributor");
   await expect(row).toContainText("Editor");
 });
 
 Then("I see my sharing row marked You and locked", async ({ page, scenario }) => {
   const user = await scenario.ensureCurrentUser();
-  const row = page.getByRole("dialog").getByText(user.email, { exact: true }).locator("..").locator("..");
+  const row = page.getByRole("dialog").getByText(`@${user.username}`, { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("You");
   await expect(row.getByLabel("Your access can't be changed here")).toBeVisible();
   await expect(row.getByLabel(`Role for ${user.name}`)).toHaveCount(0);
 });
 
-Then("I see the other manager sharing row is editable", async ({ page }) => {
-  const row = page.getByText(OTHER_MANAGER_EMAIL, { exact: true }).locator("..").locator("..");
+Then("I see the other manager sharing row is editable", async ({ page, scenario }) => {
+  const row = page
+    .getByText(shareHandle(scenario, ShareAccount.OtherManager), { exact: true })
+    .locator("..")
+    .locator("..");
   await expect(row.getByLabel("Role for Other Manager")).toBeEnabled();
   await expect(row.getByTitle("Remove Other Manager")).toBeEnabled();
 });
 
-Then("I see the pending sharing row", async ({ page }) => {
-  const row = page.getByText(PENDING_EMAIL, { exact: true }).locator("..").locator("..");
+Then("I see the pending sharing row", async ({ page, scenario }) => {
+  const row = page.getByText(shareHandle(scenario, ShareAccount.Pending), { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Pending");
 });
 
-Then("I see the declined sharing row", async ({ page }) => {
-  const row = page.getByText(DECLINED_EMAIL, { exact: true }).locator("..").locator("..");
+Then("I see the declined sharing row", async ({ page, scenario }) => {
+  const row = page.getByText(shareHandle(scenario, ShareAccount.Declined), { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Declined");
 });
 
-Then("I see the expired pending sharing row", async ({ page }) => {
-  const row = page.getByText(EXPIRED_PENDING_EMAIL, { exact: true }).locator("..").locator("..");
+Then("I see the expired pending sharing row", async ({ page, scenario }) => {
+  const row = page
+    .getByText(shareHandle(scenario, ShareAccount.ExpiredPending), { exact: true })
+    .locator("..")
+    .locator("..");
   await expect(row).toContainText("Expired");
   await expect(row).not.toContainText("Pending");
 });
 
-Then("I can resend the expired pending sharing invitation", async ({ page }) => {
-  await expect(page.getByTitle(`Resend invitation to ${EXPIRED_PENDING_EMAIL}`)).toBeEnabled();
+Then("I can resend the expired pending sharing invitation", async ({ page, scenario }) => {
+  await expect(
+    page.getByTitle(`Resend invitation to ${shareHandle(scenario, ShareAccount.ExpiredPending)}`)
+  ).toBeEnabled();
 });
 
-Then("I can rescind the expired pending sharing invitation", async ({ page }) => {
-  await expect(page.getByTitle(`Rescind invitation to ${EXPIRED_PENDING_EMAIL}`)).toBeEnabled();
+Then("I can rescind the expired pending sharing invitation", async ({ page, scenario }) => {
+  await expect(
+    page.getByTitle(`Rescind invitation to ${shareHandle(scenario, ShareAccount.ExpiredPending)}`)
+  ).toBeEnabled();
 });
 
 Given("there is a registered user I can invite", async ({ scenario }) => {
@@ -155,7 +206,7 @@ Given("there is a registered user I can invite", async ({ scenario }) => {
 When("I invite that user to the trip as an editor", async ({ page, scenario }) => {
   const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY);
   if (!invitee) throw new Error("No invitable user materialized for this scenario.");
-  await page.getByLabel("Invite email").fill(invitee.email);
+  await page.getByLabel("Invite username").fill(invitee.username);
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
   await page.getByTitle("Invite this person to the trip").click();
@@ -168,7 +219,7 @@ Then("I receive an invitation sent toast", async ({ page }) => {
 Then("I see a pending sharing row for the invited user with the editor role", async ({ page, scenario }) => {
   const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY);
   if (!invitee) throw new Error("No invitable user materialized for this scenario.");
-  const row = page.getByText(invitee.email, { exact: true }).locator("..").locator("..");
+  const row = page.getByText(`@${invitee.username}`, { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Pending");
   await expect(row).toContainText("Editor");
 });
@@ -176,7 +227,7 @@ Then("I see a pending sharing row for the invited user with the editor role", as
 When("I resend the pending sharing invitation", async ({ page, scenario }) => {
   const expiryLabel = (await page.getByLabel(/^Invitation expires/).getAttribute("aria-label")) ?? "";
   scenario.setValue(PENDING_INVITATION_EXPIRY_LABEL_KEY, expiryLabel);
-  await page.getByTitle(`Resend invitation to ${PENDING_EMAIL}`).click();
+  await page.getByTitle(`Resend invitation to ${shareHandle(scenario, ShareAccount.Pending)}`).click();
 });
 
 Then("I see the pending sharing invitation expiry refresh", async ({ page, scenario }) => {
@@ -185,28 +236,28 @@ Then("I see the pending sharing invitation expiry refresh", async ({ page, scena
   await expect(page.getByText("Invitation resent.")).toBeVisible();
 });
 
-When("I rescind the pending sharing invitation", async ({ page }) => {
-  await page.getByTitle(`Rescind invitation to ${PENDING_EMAIL}`).click();
+When("I rescind the pending sharing invitation", async ({ page, scenario }) => {
+  await page.getByTitle(`Rescind invitation to ${shareHandle(scenario, ShareAccount.Pending)}`).click();
 });
 
-Then("I do not see the pending sharing row", async ({ page }) => {
-  await expect(page.getByText(PENDING_EMAIL, { exact: true })).not.toBeVisible();
+Then("I do not see the pending sharing row", async ({ page, scenario }) => {
+  await expect(page.getByText(shareHandle(scenario, ShareAccount.Pending), { exact: true })).not.toBeVisible();
   await expect(page.getByText("Invitation rescinded.")).toBeVisible();
 });
 
-When("I dismiss the declined sharing invitation", async ({ page }) => {
-  await page.getByTitle(`Dismiss invitation to ${DECLINED_EMAIL}`).click();
+When("I dismiss the declined sharing invitation", async ({ page, scenario }) => {
+  await page.getByTitle(`Dismiss invitation to ${shareHandle(scenario, ShareAccount.Declined)}`).click();
 });
 
-Then("I do not see the declined sharing row", async ({ page }) => {
-  await expect(page.getByText(DECLINED_EMAIL, { exact: true })).not.toBeVisible();
+Then("I do not see the declined sharing row", async ({ page, scenario }) => {
+  await expect(page.getByText(shareHandle(scenario, ShareAccount.Declined), { exact: true })).not.toBeVisible();
   await expect(page.getByText("Invitation dismissed.")).toBeVisible();
 });
 
-Then("dismissed sharing invitation remains removed after reopening dialog", async ({ page }) => {
+Then("dismissed sharing invitation remains removed after reopening dialog", async ({ page, scenario }) => {
   await page.getByTitle("Close sharing dialog").click();
   await page.getByRole("button", { name: "Share", exact: true }).click();
-  await expect(page.getByText(DECLINED_EMAIL, { exact: true })).not.toBeVisible();
+  await expect(page.getByText(shareHandle(scenario, ShareAccount.Declined), { exact: true })).not.toBeVisible();
 });
 
 When("I stage a role change on the active sharing row to viewer", async ({ page }) => {
@@ -235,8 +286,8 @@ When("I cancel the contributor changes", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
 });
 
-Then("the active sharing row still shows the editor role", async ({ page }) => {
-  const row = page.getByText(ACTIVE_EMAIL, { exact: true }).locator("..").locator("..");
+Then("the active sharing row still shows the editor role", async ({ page, scenario }) => {
+  const row = page.getByText(shareHandle(scenario, ShareAccount.Active), { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Editor");
   await expect(page.getByText("Contributor changes saved.")).not.toBeVisible();
 });
@@ -249,12 +300,12 @@ Then("I receive a contributor changes toast", async ({ page }) => {
   await expect(page.getByText("Contributor changes saved.")).toBeVisible();
 });
 
-Then("I do not see the removed additional sharing contributor", async ({ page }) => {
-  await expect(page.getByText(REMOVABLE_EMAIL, { exact: true })).not.toBeVisible();
+Then("I do not see the removed additional sharing contributor", async ({ page, scenario }) => {
+  await expect(page.getByText(shareHandle(scenario, ShareAccount.Removable), { exact: true })).not.toBeVisible();
 });
 
-Then("the active sharing row role is updated to viewer", async ({ page }) => {
-  const row = page.getByText(ACTIVE_EMAIL, { exact: true }).locator("..").locator("..");
+Then("the active sharing row role is updated to viewer", async ({ page, scenario }) => {
+  const row = page.getByText(shareHandle(scenario, ShareAccount.Active), { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Viewer");
 });
 
@@ -301,14 +352,14 @@ async function openSecondSession(
   scenario.setValue(SECOND_SESSION_PAGE_KEY, secondPage);
   scenario.setValue(SECOND_SESSION_USER_KEY, user);
 
-  await scenario.signInAsUser(secondPage, user.email);
+  await scenario.signInAsUser(secondPage, user.username);
   const channelReady = waitForLiveSyncResponse(secondPage, channelPath);
   await Promise.all([secondPage.goto(path), channelReady]);
   return secondPage;
 }
 
-function sharingRowFor(page: Page, email: string) {
-  return page.getByRole("dialog").getByText(email, { exact: true }).locator("..").locator("..");
+function sharingRowFor(page: Page, username: string) {
+  return page.getByRole("dialog").getByText(`@${username}`, { exact: true }).locator("..").locator("..");
 }
 
 Given("I have a trip with a pending invitation for a user watching their dashboard", async ({ page, scenario }) => {
@@ -321,7 +372,7 @@ Given("I have a trip with a pending invitation for a user watching their dashboa
   await withE2EDb(async (db) => {
     await db.insert(invitations).values({
       tripId: trip.id,
-      email: invitee.email,
+      inviteeId: invitee.id,
       role: "viewer",
       status: "pending",
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
@@ -360,7 +411,7 @@ When("I open the sharing dialog with live sync", async ({ page, scenario }) => {
 When("the invited user accepts the invitation from their dashboard", async ({ page, scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
   const { page: inviteePage, user: invitee } = getSecondSession(scenario);
-  await expect(sharingRowFor(page, invitee.email)).toContainText("Pending");
+  await expect(sharingRowFor(page, invitee.username)).toContainText("Pending");
 
   await inviteePage.getByTitle(`Accept invitation to ${trip.name}`).click();
   await inviteePage.waitForURL(`**/trips/${trip.id}`, { timeout: 15_000 });
@@ -369,7 +420,7 @@ When("the invited user accepts the invitation from their dashboard", async ({ pa
 When("the invited user declines the invitation from their dashboard", async ({ page, scenario }) => {
   const trip = await scenario.ensureCurrentTrip();
   const { page: inviteePage, user: invitee } = getSecondSession(scenario);
-  await expect(sharingRowFor(page, invitee.email)).toContainText("Pending");
+  await expect(sharingRowFor(page, invitee.username)).toContainText("Pending");
 
   await inviteePage.getByTitle(`Decline invitation to ${trip.name}`).click();
   await expect(inviteePage.getByText("Invitation declined.", { exact: true })).toBeVisible();
@@ -394,7 +445,7 @@ Then(
     await expect(page.getByRole("dialog").getByLabel(`Role for ${invitee.name}`)).toBeVisible({
       timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
     });
-    await expect(page.getByRole("dialog").getByTitle(`Rescind invitation to ${invitee.email}`)).toHaveCount(0);
+    await expect(page.getByRole("dialog").getByTitle(`Rescind invitation to @${invitee.username}`)).toHaveCount(0);
   }
 );
 
@@ -402,10 +453,10 @@ Then(
   "the sharing dialog shows the invited user's invitation as declined without reloading",
   async ({ page, scenario }) => {
     const { user: invitee } = getSecondSession(scenario);
-    await expect(page.getByRole("dialog").getByTitle(`Dismiss invitation to ${invitee.email}`)).toBeVisible({
+    await expect(page.getByRole("dialog").getByTitle(`Dismiss invitation to @${invitee.username}`)).toBeVisible({
       timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
     });
-    await expect(sharingRowFor(page, invitee.email)).toContainText("Declined");
+    await expect(sharingRowFor(page, invitee.username)).toContainText("Declined");
   }
 );
 

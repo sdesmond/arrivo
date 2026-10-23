@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeError, withErrorHandling } from "./error-utils";
+import { isUniqueViolation, sanitizeError, withErrorHandling } from "./error-utils";
 
 describe("sanitizeError", () => {
   it("passes through known validation errors unchanged", () => {
@@ -66,5 +66,22 @@ describe("withErrorHandling", () => {
     });
 
     await expect(wrapped()).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+});
+
+describe("isUniqueViolation", () => {
+  it("matches a driver error carrying the unique-violation code", () => {
+    expect(isUniqueViolation({ code: "23505" })).toBe(true);
+  });
+
+  it("matches a wrapped query error whose cause carries the code", () => {
+    expect(isUniqueViolation(new Error("Failed query", { cause: { code: "23505" } }))).toBe(true);
+  });
+
+  it("ignores other errors", () => {
+    expect(isUniqueViolation({ code: "23503" })).toBe(false);
+    expect(isUniqueViolation(new Error("Failed query", { cause: { code: "23503" } }))).toBe(false);
+    expect(isUniqueViolation(new Error("boom"))).toBe(false);
+    expect(isUniqueViolation(null)).toBe(false);
   });
 });

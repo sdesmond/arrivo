@@ -83,7 +83,7 @@ describe("TripDetailPage", () => {
     mockHeaders.mockResolvedValue(new Headers());
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockGetTripDetail.mockResolvedValue(baseDetail);
-    mockGetUserById.mockResolvedValue({ id: "user-1", email: "user@test.com", dateFormat: "DD/MM/YYYY" });
+    mockGetUserById.mockResolvedValue({ id: "user-1", username: "user", dateFormat: "DD/MM/YYYY" });
     mockGetServerNow.mockResolvedValue(new Date("2026-06-05T12:00:00.000Z"));
     mockListTemplatesForUser.mockResolvedValue([]);
   });
@@ -149,7 +149,7 @@ describe("TripDetailPage", () => {
   it("passes the profile's walkThresholdMeters through to the trip detail client", async () => {
     mockGetUserById.mockResolvedValue({
       id: "user-1",
-      email: "user@test.com",
+      username: "user",
       dateFormat: "DD/MM/YYYY",
       walkThresholdMeters: 400,
     });

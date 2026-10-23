@@ -4,6 +4,7 @@ import { days, documents, events, expenses, packingTemplates, trips, users } fro
 import { cleanupScenarioFixtureContext, createScenarioFixtureContext } from "./scenario-fixture";
 import { withE2EDb } from "./e2e-db";
 import { E2E_TRIP_START_DATE, THREE_DAY_TRIP_MOTHER, cloneTripMother, cloneUserMother } from "./e2e-seed-data";
+import { validateUsername } from "../../src/lib/username";
 
 // Self-tests for the scenario-fixture infrastructure (mothers, unique naming, materialize/cleanup).
 // These run as their own Playwright project (see playwright.config.ts) rather than a second Vitest
@@ -22,16 +23,16 @@ test.describe("E2E scenario fixtures", () => {
     expect(THREE_DAY_TRIP_MOTHER.days).toHaveLength(3);
   });
 
-  test("creates unique names and emails per scenario context", async () => {
+  test("creates unique names and valid usernames per scenario context", async () => {
     const context = createScenarioFixtureContext(test.info());
     const firstName = context.uniqueName("Trip");
     const secondName = context.uniqueName("Trip");
-    const firstEmail = context.uniqueEmail("user");
-    const secondEmail = context.uniqueEmail("user");
+    const firstUsername = context.uniqueUsername("E2E Scenario User With A Long Name");
+    const secondUsername = context.uniqueUsername("E2E Scenario User With A Long Name");
 
     expect(firstName).not.toBe(secondName);
-    expect(firstEmail).not.toBe(secondEmail);
-    expect(firstEmail).toMatch(/@arrivo\.com$/);
+    expect(firstUsername).not.toBe(secondUsername);
+    expect(validateUsername(firstUsername)).toBeNull();
 
     await cleanupScenarioFixtureContext(context);
   });
@@ -39,13 +40,13 @@ test.describe("E2E scenario fixtures", () => {
   test("materializes scenario-owned rows and cleans up only owned rows", async () => {
     const context = createScenarioFixtureContext(test.info());
     const foreignUser = cloneUserMother("default");
-    const foreignEmail = `foreign-${Date.now()}@arrivo.com`;
+    const foreignUsername = `foreign-${Date.now()}`;
 
     const [foreignRow] = await withE2EDb(async (db) =>
       db
         .insert(users)
         .values({
-          email: foreignEmail,
+          username: foreignUsername,
           name: foreignUser.user.name,
           passwordHash: "foreign-hash",
           dateFormat: foreignUser.user.dateFormat,

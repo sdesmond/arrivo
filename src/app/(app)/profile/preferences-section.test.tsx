@@ -14,7 +14,7 @@ vi.mock("sonner", () => ({
 const mockUser: UserProfile = {
   id: "u1",
   name: "Test",
-  email: "test@test.com",
+  username: "test",
   dateFormat: "MM/DD/YYYY",
   currency: "USD",
   distanceUnit: "imperial",

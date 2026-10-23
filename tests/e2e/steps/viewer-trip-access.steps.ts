@@ -21,13 +21,13 @@ async function seedSharedTrip(
   withPlannedDay = false
 ): Promise<ScenarioTripRecord> {
   const invitee = await scenario.ensureCurrentUser();
-  const ownerEmail = scenario.uniqueEmail(`owner-${ownerName}`);
+  const ownerUsername = scenario.uniqueUsername(`owner-${ownerName}`);
 
   const trip = await withE2EDb(async (db) => {
     const passwordHash = await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
     const [owner] = await db
       .insert(users)
-      .values({ email: ownerEmail, name: ownerName, passwordHash })
+      .values({ username: ownerUsername, name: ownerName, passwordHash })
       .returning({ id: users.id });
 
     const [tripRow] = await db
@@ -80,7 +80,6 @@ async function seedSharedTrip(
       {
         tripId: tripRow.id,
         userId: owner.id,
-        email: ownerEmail,
         name: ownerName,
         initials: ownerName.slice(0, 2).toUpperCase(),
         role: "manager",
@@ -89,7 +88,6 @@ async function seedSharedTrip(
       {
         tripId: tripRow.id,
         userId: invitee.id,
-        email: invitee.email,
         name: invitee.name,
         initials: invitee.initials,
         role: collaboratorRole,

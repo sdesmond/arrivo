@@ -39,15 +39,15 @@ describe("useTripShareInviteForm", () => {
     const { result } = setup({ onInvited });
 
     act(() => {
-      result.current.setEmail("invitee@example.com");
+      result.current.setUsername("invitee");
       result.current.setRole(CollaboratorRole.Editor);
     });
     await act(async () => result.current.handleInvite());
 
-    expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "invitee@example.com", CollaboratorRole.Editor);
+    expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "invitee", CollaboratorRole.Editor);
     expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
     expect(onInvited).toHaveBeenCalledOnce();
-    expect(result.current.email).toBe("");
+    expect(result.current.username).toBe("");
     expect(result.current.role).toBe(CollaboratorRole.Viewer);
   });
 
@@ -55,7 +55,7 @@ describe("useTripShareInviteForm", () => {
     mockInviteContributor.mockResolvedValue({ status: "resent" });
     const { result } = setup();
 
-    act(() => result.current.setEmail("pending@example.com"));
+    act(() => result.current.setUsername("pending"));
     await act(async () => result.current.handleInvite());
 
     expect(toast.success).toHaveBeenCalledWith("Invitation resent.");
@@ -64,16 +64,16 @@ describe("useTripShareInviteForm", () => {
   it("sets an inline error for a no-account result without toasting", async () => {
     mockInviteContributor.mockResolvedValue({
       status: "error",
-      message: "No account found for this email",
+      message: "No account found for this username",
       errorCode: "no-account",
     });
     const onInvited = vi.fn();
     const { result } = setup({ onInvited });
 
-    act(() => result.current.setEmail("missing@example.com"));
+    act(() => result.current.setUsername("missing"));
     await act(async () => result.current.handleInvite());
 
-    expect(result.current.inviteError).toBe("No account found for this email.");
+    expect(result.current.inviteError).toBe("No account found for this username.");
     expect(toast.error).not.toHaveBeenCalled();
     expect(onInvited).not.toHaveBeenCalled();
   });
@@ -86,33 +86,35 @@ describe("useTripShareInviteForm", () => {
     });
     const { result } = setup();
 
-    act(() => result.current.setEmail("self@example.com"));
+    act(() => result.current.setUsername("self"));
     await act(async () => result.current.handleInvite());
 
     expect(toast.error).toHaveBeenCalledWith("You cannot invite yourself to this trip");
     expect(result.current.inviteError).toBeNull();
   });
 
-  it("rejects an invalid email format before calling the server action", async () => {
+  it("rejects an invalid username before calling the server action", async () => {
     const { result } = setup();
 
-    act(() => result.current.setEmail("not-an-email"));
+    act(() => result.current.setUsername("ann@example.com"));
     await act(async () => result.current.handleInvite());
 
     expect(mockInviteContributor).not.toHaveBeenCalled();
-    expect(result.current.inviteError).toBe("Enter a valid email address.");
+    expect(result.current.inviteError).toBe(
+      "Use letters, numbers, dots, dashes or underscores, starting with a letter or number."
+    );
   });
 
   it("does nothing when blocked", async () => {
     const { result } = setup({ isBlocked: () => true });
 
-    act(() => result.current.setEmail("invitee@example.com"));
+    act(() => result.current.setUsername("invitee"));
     await act(async () => result.current.handleInvite());
 
     expect(mockInviteContributor).not.toHaveBeenCalled();
   });
 
-  it("does nothing for an empty email", async () => {
+  it("does nothing for an empty username", async () => {
     const { result } = setup();
 
     await act(async () => result.current.handleInvite());
@@ -125,7 +127,7 @@ describe("useTripShareInviteForm", () => {
     mockInviteContributor.mockRejectedValue(new Error("network down"));
     const { result } = setup();
 
-    act(() => result.current.setEmail("invitee@example.com"));
+    act(() => result.current.setUsername("invitee"));
     await act(async () => result.current.handleInvite());
 
     expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to send trip invitation", expect.any(Error));
@@ -138,7 +140,7 @@ describe("useTripShareInviteForm", () => {
     mockInviteContributor.mockReturnValue(deferred.promise);
     const { result } = setup();
 
-    act(() => result.current.setEmail("invitee@example.com"));
+    act(() => result.current.setUsername("invitee"));
     let invitePromise: Promise<void>;
     act(() => {
       invitePromise = result.current.handleInvite();

@@ -215,7 +215,7 @@ export const E2E_TRIP_ALT_START_DATE = e2eTripDate(10);
 export const E2E_TRIP_ALT_THIRD_DATE = e2eTripDate(12);
 
 export const BASELINE_E2E_USER = {
-  email: process.env.E2E_EMAIL ?? "e2e@arrivo.com",
+  username: process.env.E2E_USERNAME ?? "e2e",
   name: "E2E Baseline User",
 };
 

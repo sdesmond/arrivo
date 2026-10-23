@@ -6,7 +6,7 @@ import { TripShareCollaboratorRow } from "./trip-share-collaborator-row";
 
 const creator: Collaborator = {
   id: "creator-1",
-  email: "ada@example.com",
+  username: "ada",
   initials: "AL",
   isCreator: true,
   name: "Ada Lovelace",
@@ -15,7 +15,7 @@ const creator: Collaborator = {
 
 const editor: Collaborator = {
   id: "editor-1",
-  email: "grace@example.com",
+  username: "grace",
   initials: "GH",
   isCreator: false,
   name: "Grace Hopper",
@@ -30,6 +30,19 @@ describe("TripShareCollaboratorRow", () => {
 
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
     expect(screen.getByLabelText("Trip creator — access can't be changed")).toBeInTheDocument();
+  });
+
+  it("shows the collaborator's username", () => {
+    render(<TripShareCollaboratorRow collaborator={editor} roleLabel={roleLabel} />);
+
+    expect(screen.getByText("@grace")).toBeInTheDocument();
+  });
+
+  it("omits the username line when the account is gone", () => {
+    render(<TripShareCollaboratorRow collaborator={{ ...editor, username: undefined }} roleLabel={roleLabel} />);
+
+    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
+    expect(screen.queryByText(/^@/)).not.toBeInTheDocument();
   });
 
   it("does not offer a role selector or remove control on the creator row", () => {

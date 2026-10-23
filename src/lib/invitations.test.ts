@@ -34,41 +34,34 @@ vi.mock("@/db/schema", () => ({
   invitations: {
     id: "invitations.id",
     tripId: "invitations.tripId",
-    email: "invitations.email",
+    inviteeId: "invitations.inviteeId",
     role: "invitations.role",
     status: "invitations.status",
     expiresAt: "invitations.expiresAt",
     invitedBy: "invitations.invitedBy",
   },
   trips: { id: "trips.id", name: "trips.name" },
-  users: { id: "users.id", name: "users.name", email: "users.email" },
+  users: { id: "users.id", name: "users.name", username: "users.username" },
 }));
 
 import {
   getMyPendingInvitations,
-  hasNormalizedEmail,
-  normalizeEmail,
+  hasNormalizedUsername,
   publishInvitationChanged,
   resendInvitation,
 } from "@/lib/invitations";
 import { users } from "@/db/schema";
 import { LiveSyncEventType } from "@/data/types";
 
-describe("normalizeEmail", () => {
-  it("trims surrounding whitespace and lowercases email addresses", () => {
-    expect(normalizeEmail("  Foo.Bar@Example.COM  ")).toBe("foo.bar@example.com");
-  });
-});
-
-describe("hasNormalizedEmail", () => {
-  it("builds a case- and whitespace-insensitive equality condition against the given column", () => {
-    const condition = hasNormalizedEmail(users.email, "invitee@example.com");
+describe("hasNormalizedUsername", () => {
+  it("builds a case-insensitive equality condition against the given column", () => {
+    const condition = hasNormalizedUsername(users.username, "invitee");
     const chunks = condition.queryChunks;
 
-    expect(chunks[0]).toMatchObject({ value: ["lower(trim("] });
-    expect(chunks[1]).toBe(users.email);
-    expect(chunks[2]).toMatchObject({ value: [")) = "] });
-    expect(chunks[3]).toBe("invitee@example.com");
+    expect(chunks[0]).toMatchObject({ value: ["lower("] });
+    expect(chunks[1]).toBe(users.username);
+    expect(chunks[2]).toMatchObject({ value: [") = "] });
+    expect(chunks[3]).toBe("invitee");
   });
 });
 
@@ -82,7 +75,7 @@ describe("getMyPendingInvitations", () => {
     return { from, innerJoin1, innerJoin2, where };
   }
 
-  it("maps joined rows to PendingInvitation, normalizing the lookup email", async () => {
+  it("maps joined rows to PendingInvitation for the invitee's user id", async () => {
     const expiresAt = new Date("2026-09-10T00:00:00.000Z");
     const { where } = mockQueryResult([
       {
@@ -90,13 +83,13 @@ describe("getMyPendingInvitations", () => {
         tripId: "trip-1",
         tripName: "Kyoto Trip",
         inviterName: "Ada Lovelace",
-        inviterEmail: "ada@example.com",
+        inviterUsername: "ada",
         role: "editor",
         expiresAt,
       },
     ]);
 
-    const result = await getMyPendingInvitations("  Someone@Example.COM ");
+    const result = await getMyPendingInvitations("user-1");
 
     expect(result).toEqual([
       {
@@ -104,7 +97,7 @@ describe("getMyPendingInvitations", () => {
         tripId: "trip-1",
         tripName: "Kyoto Trip",
         inviterName: "Ada Lovelace",
-        inviterEmail: "ada@example.com",
+        inviterUsername: "ada",
         role: "editor",
         expiresAt: expiresAt.toISOString(),
       },
@@ -113,9 +106,10 @@ describe("getMyPendingInvitations", () => {
     const conditionText = JSON.stringify(condition.queryChunks);
     expect(conditionText).toContain("pending");
     expect(conditionText).toContain("> now()");
+    expect(inspect(condition, { depth: 8 })).toContain("user-1");
   });
 
-  it("falls back to the inviter email when the inviter has no display name", async () => {
+  it("falls back to the inviter username when the inviter has no display name", async () => {
     const expiresAt = new Date("2026-09-10T00:00:00.000Z");
     mockQueryResult([
       {
@@ -123,21 +117,21 @@ describe("getMyPendingInvitations", () => {
         tripId: "trip-2",
         tripName: "Oslo Trip",
         inviterName: null,
-        inviterEmail: "manager@example.com",
+        inviterUsername: "manager",
         role: "viewer",
         expiresAt,
       },
     ]);
 
-    const result = await getMyPendingInvitations("someone@example.com");
+    const result = await getMyPendingInvitations("user-1");
 
-    expect(result[0].inviterName).toBe("manager@example.com");
+    expect(result[0].inviterName).toBe("manager");
   });
 
   it("excludes expired pending invitations", async () => {
     const { where } = mockQueryResult([]);
 
-    const result = await getMyPendingInvitations("someone@example.com");
+    const result = await getMyPendingInvitations("user-1");
 
     expect(result).toEqual([]);
     const condition = where.mock.calls[0]?.[0] as { queryChunks: unknown[] };
@@ -159,16 +153,13 @@ describe("resendInvitation", () => {
     matchedRow = null,
     diagnosticRow = null,
   }: {
-    matchedRow?: { id: string; email: string } | null;
+    matchedRow?: { id: string; inviteeId: string } | null;
     diagnosticRow?: { id: string; tripId: string } | null;
   } = {}) {
     const updates: Array<{ values: unknown; condition: unknown }> = [];
     mockDbSelect.mockReturnValue({
-      from: (table: unknown) => ({
-        where: async () => {
-          if (table === users) return [{ id: "invitee-1" }];
-          return diagnosticRow ? [diagnosticRow] : [];
-        },
+      from: () => ({
+        where: async () => (diagnosticRow ? [diagnosticRow] : []),
       }),
     });
 
@@ -189,7 +180,7 @@ describe("resendInvitation", () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
     const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000);
-    const { updates } = setupResendInvitationDb({ matchedRow: { id: "invite-1", email: "invitee@example.com" } });
+    const { updates } = setupResendInvitationDb({ matchedRow: { id: "invite-1", inviteeId: "invitee-1" } });
 
     await expect(resendInvitation("invite-1", "trip-1", "manager-1")).resolves.toEqual({
       status: "success",
@@ -262,53 +253,13 @@ describe("publishInvitationChanged", () => {
     vi.clearAllMocks();
   });
 
-  function mockUserLookup(rows: Array<{ id: string }>) {
-    const conditions: unknown[] = [];
-    mockDbSelect.mockReturnValue({
-      from: () => ({
-        where: async (condition: unknown) => {
-          conditions.push(condition);
-          return rows;
-        },
-      }),
-    });
-    return conditions;
-  }
+  it("publishes invitation-changed to the invitee's personal channel without a lookup", () => {
+    publishInvitationChanged("invitee-1", "trip-1");
 
-  it("publishes invitation-changed to the invitee's personal channel", async () => {
-    const conditions = mockUserLookup([{ id: "invitee-1" }]);
-
-    await publishInvitationChanged("  Invitee@Example.com ", "trip-1");
-
-    expect(inspect(conditions[0], { depth: 8 })).toContain("invitee@example.com");
+    expect(mockDbSelect).not.toHaveBeenCalled();
     expect(mockPublishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
       type: LiveSyncEventType.InvitationChanged,
       tripId: "trip-1",
     });
-  });
-
-  it("swallows a failed lookup so a committed mutation never fails on its notification", async () => {
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    mockDbSelect.mockReturnValue({
-      from: () => ({
-        where: async () => {
-          throw new Error("pool exhausted");
-        },
-      }),
-    });
-
-    await expect(publishInvitationChanged("invitee@example.com", "trip-1")).resolves.toBeUndefined();
-
-    expect(mockPublishUserEvent).not.toHaveBeenCalled();
-    expect(consoleWarnSpy).toHaveBeenCalled();
-    consoleWarnSpy.mockRestore();
-  });
-
-  it("publishes nothing when no account matches the email", async () => {
-    mockUserLookup([]);
-
-    await publishInvitationChanged("ghost@example.com", "trip-1");
-
-    expect(mockPublishUserEvent).not.toHaveBeenCalled();
   });
 });

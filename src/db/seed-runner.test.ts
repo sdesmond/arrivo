@@ -9,7 +9,7 @@ function baseWorld(): SeedWorld {
     users: [
       {
         key: "owner",
-        email: "owner@arrivo.com",
+        username: "owner",
         name: "Owner",
         initials: "OW",
         currency: "USD",
@@ -17,7 +17,7 @@ function baseWorld(): SeedWorld {
       },
       {
         key: "other",
-        email: "other@arrivo.com",
+        username: "other",
         name: "Other",
         initials: "OT",
         currency: "USD",
@@ -38,13 +38,9 @@ describe("validateSeedWorld — the real dev seed", () => {
     expect(() => validateSeedWorld(DEV_SEED)).not.toThrow();
   });
 
-  it("seeds three accounts", () => {
-    expect(DEV_SEED.users).toHaveLength(3);
-    expect(DEV_SEED.users.map((seedUser) => seedUser.email).sort()).toEqual([
-      "alex@arrivo.com",
-      "demo@arrivo.com",
-      "sam@arrivo.com",
-    ]);
+  it("seeds four accounts", () => {
+    expect(DEV_SEED.users).toHaveLength(4);
+    expect(DEV_SEED.users.map((seedUser) => seedUser.username).sort()).toEqual(["alex", "demo", "jordan", "sam"]);
   });
 
   it("seeds six trips, exactly one owner-manager collaborator each (enforced structurally: one owner per trip)", () => {
@@ -81,14 +77,12 @@ describe("validateSeedWorld — the real dev seed", () => {
     );
   });
 
-  it("has a pending invitation to a seeded account and a declined invitation to an outside email", () => {
+  it("has a pending invitation to Sam and a declined invitation to Jordan", () => {
     const pending = DEV_SEED.invitations.find((invitation) => invitation.status === "pending")!;
     const declined = DEV_SEED.invitations.find((invitation) => invitation.status === "declined")!;
 
-    expect(pending.email).toBe("sam@arrivo.com");
-    expect(DEV_SEED.users.some((seedUser) => seedUser.email === pending.email)).toBe(true);
-    expect(declined.email).toBe("jordan@arrivo.com");
-    expect(DEV_SEED.users.some((seedUser) => seedUser.email === declined.email)).toBe(false);
+    expect(pending.inviteeUserKey).toBe("sam");
+    expect(declined.inviteeUserKey).toBe("jordan");
   });
 
   it("every packing item's `under` reference resolves to a label in the same trip", () => {
@@ -132,12 +126,33 @@ describe("validateSeedWorld — negative cases", () => {
     expect(() => validateSeedWorld(world)).toThrow(/unknown label/i);
   });
 
-  it("throws on two pending invitations for the same trip and email", () => {
+  it("throws on a duplicate username", () => {
+    const world = baseWorld();
+    world.users[1].username = "owner";
+    expect(() => validateSeedWorld(world)).toThrow(/duplicate seed username/i);
+  });
+
+  it("throws on an invitation to an unknown user key", () => {
     const world = baseWorld();
     world.invitations = [
       {
         tripKey: "dated",
-        email: "friend@example.com",
+        inviteeUserKey: "ghost",
+        role: "viewer",
+        status: "pending",
+        expiresInHours: 72,
+        invitedByUserKey: "owner",
+      },
+    ];
+    expect(() => validateSeedWorld(world)).toThrow(/unknown inviteeUserKey/i);
+  });
+
+  it("throws on two pending invitations for the same trip and invitee", () => {
+    const world = baseWorld();
+    world.invitations = [
+      {
+        tripKey: "dated",
+        inviteeUserKey: "other",
         role: "viewer",
         status: "pending",
         expiresInHours: 72,
@@ -145,7 +160,7 @@ describe("validateSeedWorld — negative cases", () => {
       },
       {
         tripKey: "dated",
-        email: "friend@example.com",
+        inviteeUserKey: "other",
         role: "editor",
         status: "pending",
         expiresInHours: 48,

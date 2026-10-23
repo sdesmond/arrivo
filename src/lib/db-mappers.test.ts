@@ -511,7 +511,6 @@ const BASE_COLLAB: CollabRow = {
   id: "collab-1",
   tripId: "trip-1",
   userId: null,
-  email: "alice@example.com",
   name: "Alice",
   initials: "AL",
   role: "editor",
@@ -523,13 +522,18 @@ const BASE_COLLAB: CollabRow = {
 
 describe("dbCollabToType", () => {
   it("maps core fields and creator status correctly", () => {
-    const result = dbCollabToType({ ...BASE_COLLAB, isCreator: true });
+    const result = dbCollabToType({ ...BASE_COLLAB, isCreator: true, username: "alice" });
     expect(result.id).toBe("collab-1");
-    expect(result.email).toBe("alice@example.com");
+    expect(result.username).toBe("alice");
     expect(result.name).toBe("Alice");
     expect(result.initials).toBe("AL");
     expect(result.role).toBe("editor");
     expect(result.isCreator).toBe(true);
+  });
+
+  it("leaves the username undefined for a collaborator whose account is gone", () => {
+    expect(dbCollabToType({ ...BASE_COLLAB, username: null }).username).toBeUndefined();
+    expect(dbCollabToType(BASE_COLLAB).username).toBeUndefined();
   });
 
   it("null tint fields become undefined", () => {
@@ -551,10 +555,11 @@ describe("dbCollabToType", () => {
 
 // ── dbInvitationToType ───────────────────────────────────────────────────────
 
-const BASE_INVITATION: InvitationRow = {
+const BASE_INVITATION: InvitationRow & { inviteeUsername: string } = {
   id: "invite-1",
   tripId: "trip-1",
-  email: "invitee@example.com",
+  inviteeId: "invitee-1",
+  inviteeUsername: "invitee",
   role: "viewer",
   status: "pending",
   expiresAt: new Date("2026-09-04T12:00:00.000Z"),
@@ -569,7 +574,7 @@ describe("dbInvitationToType", () => {
     expect(result).toEqual({
       id: "invite-1",
       tripId: "trip-1",
-      email: "invitee@example.com",
+      inviteeUsername: "invitee",
       role: "viewer",
       status: "pending",
       expiresAt: "2026-09-04T12:00:00.000Z",
@@ -748,8 +753,7 @@ describe("dbTemplateItemToType", () => {
 const BASE_USER: UserRow = {
   id: "user-1",
   name: "Spencer",
-  email: "spencer@example.com",
-  emailVerified: null,
+  username: "spencer",
   image: null,
   passwordHash: null,
   dateFormat: null,
@@ -776,7 +780,7 @@ describe("dbUserToType", () => {
     const result = dbUserToType(BASE_USER);
     expect(result.id).toBe("user-1");
     expect(result.name).toBe("Spencer");
-    expect(result.email).toBe("spencer@example.com");
+    expect(result.username).toBe("spencer");
     expect(result.dateFormat).toBeNull();
     expect(result.currency).toBeNull();
     expect(result.distanceUnit).toBeNull();

@@ -57,7 +57,7 @@ import type { UserProfile } from "@/data/types";
 const baseUser: UserProfile = {
   id: "u1",
   name: "Test",
-  email: "t@t.com",
+  username: "t",
   dateFormat: "MM/DD/YYYY",
   currency: "USD",
   distanceUnit: "imperial",

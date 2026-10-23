@@ -19,7 +19,7 @@ Feature: Authentication
 
   Scenario: Keyboard user can sign in
     Given I am on the sign-in page
-    When I tab to the email field and type valid credentials
+    When I tab to the username field and type valid credentials
     And I press Enter to submit
     Then I should be redirected to the trips page
 
@@ -39,3 +39,14 @@ Feature: Authentication
     Given I am on the sign-in page
     When I sign in to my account with Keep me signed in ticked
     Then I should be redirected to the trips page
+
+  Scenario: New user signs up with a username and signs back in with it
+    Given I am on the sign-up page
+    When I sign up with a new username
+    Then I should be redirected to the trips page
+    And I can sign out and sign back in with my new username
+
+  Scenario: Sign-up refuses a username that is already taken
+    Given I am on the sign-up page
+    When I sign up with the username of an existing account
+    Then I should see that the username is taken

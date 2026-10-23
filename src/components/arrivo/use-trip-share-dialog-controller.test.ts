@@ -30,7 +30,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const manager: Collaborator = {
   id: "manager-1",
-  email: "manager@example.com",
+  username: "manager",
   initials: "MA",
   isCreator: false,
   name: "Manager",
@@ -40,7 +40,7 @@ const manager: Collaborator = {
 const pendingInvitation: Invitation = {
   id: "invite-1",
   tripId: "trip-1",
-  email: "pending@example.com",
+  inviteeUsername: "pending",
   role: "viewer",
   status: "pending",
   expiresAt: "2099-01-01T00:00:00.000Z",
@@ -59,7 +59,7 @@ function createDeferred<T>() {
 
 const editor: Collaborator = {
   id: "editor-1",
-  email: "editor@example.com",
+  username: "editor",
   initials: "ED",
   isCreator: false,
   name: "Editor",
@@ -68,7 +68,7 @@ const editor: Collaborator = {
 
 const acceptedCollaborator: Collaborator = {
   id: "collaborator-2",
-  email: "pending@example.com",
+  username: "pending",
   initials: "PE",
   isCreator: false,
   name: "Pending Person",
@@ -296,7 +296,7 @@ describe("useTripShareDialogController", () => {
         invitations: [],
       });
 
-      act(() => result.current.setEmail("new@example.com"));
+      act(() => result.current.setUsername("new"));
       let invitePromise: Promise<void>;
       act(() => {
         invitePromise = result.current.handleInvite();
@@ -376,7 +376,7 @@ describe("useTripShareDialogController", () => {
     const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    act(() => result.current.setEmail("new@example.com"));
+    act(() => result.current.setUsername("new"));
     let invitePromise: Promise<void>;
     act(() => {
       invitePromise = result.current.handleInvite();
@@ -404,7 +404,7 @@ describe("useTripShareDialogController", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => result.current.rescindPendingInvitation(pendingInvitation));
-    act(() => result.current.setEmail("new@example.com"));
+    act(() => result.current.setUsername("new"));
     await act(async () => result.current.handleInvite());
 
     expect(result.current.data?.invitations).toEqual([pendingInvitation]);
@@ -426,7 +426,7 @@ describe("useTripShareDialogController", () => {
 
     act(() => {
       result.current.stageRoleChange(manager, "viewer");
-      result.current.setEmail("blocked@example.com");
+      result.current.setUsername("blocked");
     });
     await act(async () => result.current.handleInvite());
 

@@ -13,16 +13,16 @@ async function seedPendingInvitation(
   scenario: ScenarioFixtureContext,
   tripName: string,
   inviterName: string,
-  invitedEmail: string,
+  inviteeId: string,
   expiresAt = new Date(Date.now() + INVITE_TTL_MS)
 ): Promise<void> {
-  const inviterEmail = scenario.uniqueEmail(`inviter-${inviterName}`);
+  const inviterUsername = scenario.uniqueUsername(`inviter-${inviterName}`);
 
   const inviterUserId = await withE2EDb(async (db) => {
     const passwordHash = await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
     const [inviter] = await db
       .insert(users)
-      .values({ email: inviterEmail, name: inviterName, passwordHash })
+      .values({ username: inviterUsername, name: inviterName, passwordHash })
       .returning({ id: users.id });
 
     const [trip] = await db.insert(trips).values({ ownerId: inviter.id, name: tripName }).returning({ id: trips.id });
@@ -32,7 +32,6 @@ async function seedPendingInvitation(
     await db.insert(collaborators).values({
       tripId: trip.id,
       userId: inviter.id,
-      email: inviterEmail,
       name: inviterName,
       initials: inviterName.slice(0, 2).toUpperCase(),
       role: "manager",
@@ -41,7 +40,7 @@ async function seedPendingInvitation(
 
     await db.insert(invitations).values({
       tripId: trip.id,
-      email: invitedEmail,
+      inviteeId,
       role: "editor",
       status: "pending",
       expiresAt,
@@ -57,18 +56,22 @@ async function seedPendingInvitation(
 
 Given("I have a pending invitation to {string} from {string}", async ({ scenario }, tripName, inviterName) => {
   const invitee = await scenario.ensureCurrentUser();
-  await seedPendingInvitation(scenario, tripName, inviterName, invitee.email);
+  await seedPendingInvitation(scenario, tripName, inviterName, invitee.id);
 });
 
 Given("I have an expired invitation to {string} from {string}", async ({ scenario }, tripName, inviterName) => {
   const invitee = await scenario.ensureCurrentUser();
-  await seedPendingInvitation(scenario, tripName, inviterName, invitee.email, new Date(Date.now() - INVITE_TTL_MS));
+  await seedPendingInvitation(scenario, tripName, inviterName, invitee.id, new Date(Date.now() - INVITE_TTL_MS));
 });
 
 Given(
   "someone else has a pending invitation to {string} from {string}",
   async ({ scenario }, tripName, inviterName) => {
-    await seedPendingInvitation(scenario, tripName, inviterName, scenario.uniqueEmail("unrelated-invitee"));
+    const { user: unrelatedInvitee } = await scenario.materialize({
+      user: { overrides: { user: { name: "Unrelated Invitee", initials: "UI" } }, setCurrent: false },
+    });
+    if (!unrelatedInvitee) throw new Error("Failed to materialize the unrelated invitee.");
+    await seedPendingInvitation(scenario, tripName, inviterName, unrelatedInvitee.id);
   }
 );
 
@@ -149,7 +152,7 @@ Given("a registered user is watching their dashboard in their own session", asyn
   scenario.setValue(WATCHING_PAGE_KEY, watchingPage);
   scenario.setValue(WATCHING_USER_KEY, watchingUser);
 
-  await scenario.signInAsUser(watchingPage, watchingUser.email);
+  await scenario.signInAsUser(watchingPage, watchingUser.username);
   const personalChannelReady = waitForLiveSyncResponse(watchingPage, "/api/users/me/events");
   await Promise.all([watchingPage.goto("/trips"), personalChannelReady]);
   await expect(watchingPage.getByRole("link", { name: "Trips", exact: true })).toBeVisible();
@@ -158,7 +161,7 @@ Given("a registered user is watching their dashboard in their own session", asyn
 When("I invite the watching user to my trip as an editor", async ({ page, scenario }) => {
   const { user: watchingUser } = getWatchingSession(scenario);
   await openManagerShareDialog(page, scenario);
-  await page.getByLabel("Invite email").fill(watchingUser.email);
+  await page.getByLabel("Invite username").fill(watchingUser.username);
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
   await page.getByTitle("Invite this person to the trip").click();
@@ -183,7 +186,7 @@ Then("the watching user's Trips nav badge shows {string} pending invitation", as
 When("I rescind the watching user's invitation", async ({ page, scenario }) => {
   const { user: watchingUser } = getWatchingSession(scenario);
   const rescindPosted = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
-  await page.getByTitle(`Rescind invitation to ${watchingUser.email}`).click();
+  await page.getByTitle(`Rescind invitation to @${watchingUser.username}`).click();
   await rescindPosted;
   await expect(page.getByText("Invitation rescinded.")).toBeVisible();
 });

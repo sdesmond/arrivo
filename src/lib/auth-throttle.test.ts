@@ -43,7 +43,7 @@ const minutes = (count: number) => count * 60_000;
 
 function row(overrides: Partial<ThrottleRow> = {}): ThrottleRow {
   return {
-    key: "email:a@example.com",
+    key: "username:alice",
     failures: 0,
     windowStart: NOW,
     lockedUntil: null,
@@ -93,7 +93,7 @@ describe("policies", () => {
     expect(getAccountPolicy()).toEqual(ACCOUNT_POLICY);
     expect(getIpPolicy()).toEqual(IP_POLICY);
     expect(ACCOUNT_POLICY.maxFailures).toBe(5);
-    // Capped at an hour so someone who knows an email can't keep its owner locked out for long.
+    // Capped at an hour so someone who knows a username can't keep its owner locked out for long.
     expect(ACCOUNT_POLICY.maxLockMs).toBe(minutes(60));
     expect(IP_POLICY.maxFailures).toBe(30);
   });
@@ -114,15 +114,15 @@ describe("policies", () => {
 });
 
 describe("targets", () => {
-  it("keys sign-in by lowercased email and by IP when known", () => {
-    expect(signInTargets(" Alice@Example.com ", "203.0.113.9").map((target) => target.key)).toEqual([
-      "email:alice@example.com",
+  it("keys sign-in by normalized username and by IP when known", () => {
+    expect(signInTargets(" Alice ", "203.0.113.9").map((target) => target.key)).toEqual([
+      "username:alice",
       "ip:203.0.113.9",
     ]);
   });
 
   it("skips the IP target when the address is unknown", () => {
-    expect(signInTargets("a@example.com", undefined).map((target) => target.key)).toEqual(["email:a@example.com"]);
+    expect(signInTargets("alice", undefined).map((target) => target.key)).toEqual(["username:alice"]);
   });
 
   it("builds per-account targets for password change and two-factor codes", () => {

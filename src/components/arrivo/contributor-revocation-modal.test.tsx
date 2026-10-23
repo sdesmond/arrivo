@@ -36,7 +36,7 @@ const SELF_REMOVAL_EVENT = {
   tripId: "trip-1",
   tripName: "Tokyo Adventure",
   removedByName: "Alex Manager",
-  removedByEmail: "alex@example.com",
+  removedByUsername: "alex",
 };
 
 describe("ContributorRevocationModal", () => {
@@ -76,7 +76,7 @@ describe("ContributorRevocationModal", () => {
 
     expect(screen.getByText(/Tokyo Adventure/)).toBeInTheDocument();
     expect(screen.getByText(/Alex Manager/)).toBeInTheDocument();
-    expect(screen.getByText(/alex@example.com/)).toBeInTheDocument();
+    expect(screen.getByText(/@alex/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "OK" })).toBeInTheDocument();
   });
 

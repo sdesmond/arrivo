@@ -166,6 +166,29 @@ describe("updateProfile — server-side validation (AC10)", () => {
     expect(result).toEqual({});
   });
 
+  it("normalizes and writes a valid username", async () => {
+    const result = await updateProfile({ username: "  Alice.W " });
+    expect(result).toEqual({});
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ username: "alice.w" }));
+  });
+
+  it("returns the validation error for an invalid username without writing", async () => {
+    const result = await updateProfile({ username: "al" });
+    expect(result).toEqual({ error: "Username must be 3–30 characters." });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("reports a taken username", async () => {
+    mockWhere.mockRejectedValueOnce(new Error("Failed query", { cause: { code: "23505" } }));
+    const result = await updateProfile({ username: "bob" });
+    expect(result).toEqual({ error: "That username is taken." });
+  });
+
+  it("leaves the username alone when the patch omits it", async () => {
+    await updateProfile({ name: "Alice" });
+    expect(mockSet.mock.calls[0][0]).not.toHaveProperty("username");
+  });
+
   it("returns error when passportNumber exceeds 20 chars", async () => {
     const result = await updateProfile({ passportNumber: "A".repeat(21) });
     expect(result).toEqual({ error: "Passport number must be 20 characters or fewer." });
@@ -611,7 +634,7 @@ interface DeletionFixture {
     addedAt: Date | null;
   }[];
   tripDocuments?: { url: string | null }[];
-  rescindedInvitations?: { email: string; tripId: string }[];
+  rescindedInvitations?: { inviteeId: string; tripId: string }[];
   departedMemberships?: { tripId: string }[];
 }
 
@@ -692,7 +715,6 @@ describe("deleteAccount — shared trip handoff", () => {
     vi.clearAllMocks();
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockStorageDel.mockResolvedValue(undefined);
-    mockPublishInvitationChanged.mockResolvedValue(undefined);
   });
 
   it("deletes a trip only the user is on and cleans up its files after commit", async () => {
@@ -805,7 +827,7 @@ describe("deleteAccount — shared trip handoff", () => {
     const { statements } = createDeletionTransactionMock({
       ownedTrips: [SHARED_TRIP],
       members: SHARED_TRIP_MEMBERS,
-      rescindedInvitations: [{ email: "grace@example.com", tripId: SHARED_TRIP.id }],
+      rescindedInvitations: [{ inviteeId: "user-grace", tripId: SHARED_TRIP.id }],
     });
 
     await deleteAccount([{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-bo" }]);
@@ -820,7 +842,7 @@ describe("deleteAccount — shared trip handoff", () => {
     });
     expect(rescindIndex).toBeGreaterThanOrEqual(0);
     expect(rescindIndex).toBeLessThan(transferIndex);
-    expect(mockPublishInvitationChanged).toHaveBeenCalledWith("grace@example.com", SHARED_TRIP.id);
+    expect(mockPublishInvitationChanged).toHaveBeenCalledWith("user-grace", SHARED_TRIP.id);
   });
 
   it.each([

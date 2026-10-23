@@ -175,7 +175,7 @@ describe("trip-events", () => {
         tripId: "trip-1",
         tripName: "Big Trip",
         removedByName: "Manager Name",
-        removedByEmail: "manager@example.com",
+        removedByUsername: "manager",
       } as const;
       publishUserEvent("user-1", event);
 

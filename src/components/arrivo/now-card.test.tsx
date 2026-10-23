@@ -237,8 +237,8 @@ describe("NowCard", () => {
     const tripWithCollaborators: Trip = {
       ...activeTrip,
       collaborators: [
-        { name: "Alice Smith", initials: "AS", email: "alice@example.com", role: "editor" },
-        { name: "Bob Jones", initials: "BJ", email: "bob@example.com", role: "viewer" },
+        { name: "Alice Smith", initials: "AS", username: "alice", role: "editor" },
+        { name: "Bob Jones", initials: "BJ", username: "bob", role: "viewer" },
       ],
     };
     render(<NowCard trip={tripWithCollaborators} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
