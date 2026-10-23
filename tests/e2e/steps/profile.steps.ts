@@ -316,10 +316,10 @@ When("I choose {string} for {string}", async ({ page }, optionLabel: string, tri
 });
 
 When("I confirm deleting my account", async ({ page, scenario }) => {
-  const deletion = waitForServerActionResponse(page, { pathIncludes: "/profile", timeoutMs: 15_000 });
   await page.getByRole("dialog").getByRole("button", { name: "Delete account" }).click();
-  await deletion;
-  await page.waitForURL("**/sign-in**");
+  // Success answers the action POST with signOut's 303, sent only after the transaction commits, so
+  // landing on sign-in already proves persistence (waitForServerActionResponse would reject the 303).
+  await page.waitForURL("**/sign-in**", { timeout: 15_000 });
   scenario.signOut();
 });
 
