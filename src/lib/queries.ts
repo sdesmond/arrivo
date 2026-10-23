@@ -47,7 +47,9 @@ import {
 } from "@/lib/db-mappers";
 import { CollaboratorRole, CoverType } from "@/data/types";
 import { getTripStatus, getWallClockDateKey, toLocalDateKey } from "@/lib/utils";
+import { buildSharedOwnedTrips } from "@/lib/trip-ownership";
 import type {
+  AccountDeletionTrip,
   PackingTemplate,
   PackingTemplateItem,
   TripListEntry,
@@ -76,6 +78,35 @@ function isSummaryEventInWindow(event: { startAt?: string }, todayISO: string, t
   const eventDate = event.startAt.slice(0, 10);
   if (eventDate < todayISO) return false;
   return !tripEndDate || eventDate <= tripEndDate;
+}
+
+/** Trips the user owns that other people are still on: each needs a transfer-or-delete decision before account deletion. */
+export async function getSharedOwnedTrips(userId: string): Promise<AccountDeletionTrip[]> {
+  const ownedTrips = await db
+    .select({ id: trips.id, name: trips.name })
+    .from(trips)
+    .where(eq(trips.ownerId, userId))
+    .orderBy(asc(trips.createdAt), asc(trips.id));
+  if (ownedTrips.length === 0) return [];
+
+  const members = await db
+    .select({
+      id: collaborators.id,
+      tripId: collaborators.tripId,
+      userId: collaborators.userId,
+      name: collaborators.name,
+      role: collaborators.role,
+      addedAt: collaborators.addedAt,
+    })
+    .from(collaborators)
+    .where(
+      inArray(
+        collaborators.tripId,
+        ownedTrips.map((trip) => trip.id)
+      )
+    );
+
+  return buildSharedOwnedTrips(ownedTrips, members, userId);
 }
 
 export async function getUserById(id: string): Promise<UserProfile | null> {
