@@ -15,7 +15,7 @@ curl -fsSLO https://raw.githubusercontent.com/sdesmond/arrivo/main/docker-compos
 docker compose up -d
 ```
 
-Open `http://<your-server>:3550`, create your account, and you're done. When everyone has an account,
+Open `http://<your-server>:4850`, create your account, and you're done. When everyone has an account,
 set `ALLOW_SIGNUP: "false"` in the file and run `docker compose up -d` again.
 
 Before starting, check `PUID` and `PGID` in the file match your user (`id` prints them). They decide
@@ -37,7 +37,7 @@ container app built into a NAS.
      paths against your folder.
    - `PUID` and `PGID` to the values from step 2.
 5. Deploy it. The images download and both containers start.
-6. Open `http://<your-server>:3550` and create your account.
+6. Open `http://<your-server>:4850` and create your account.
 
 ## Configuration
 
@@ -59,7 +59,7 @@ All settings are environment variables on the `app` service. After you change on
 Without the Mapbox and Unsplash keys Arrivo still runs; those features are just unavailable.
 Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
 
-To use a different host port, change the left number in `"3550:3550"`, e.g. `"8080:3550"`. To run a
+To use a different host port, change the left number in `"4850:4850"`, e.g. `"8080:4850"`. To run a
 fixed release instead of the newest, change the image tag, e.g. `ghcr.io/sdesmond/arrivo:0.4.1`. Then
 upgrades happen only when you change it.
 
@@ -70,16 +70,16 @@ upgrades happen only when you change it.
 
 Arrivo serves plain HTTP. For HTTPS or access from outside your network, put a reverse proxy in front.
 That can be Caddy, nginx, Traefik, Nginx Proxy Manager, Cloudflare Tunnel or a reverse proxy built
-into your NAS. Forward to port 3550 and pass the `Host` header and `X-Forwarded-Proto`. With
+into your NAS. Forward to port 4850 and pass the `Host` header and `X-Forwarded-Proto`. With
 Caddy:
 
 ```
 arrivo.example.com {
-    reverse_proxy 127.0.0.1:3550
+    reverse_proxy 127.0.0.1:4850
 }
 ```
 
-If the proxy runs on the same host, change the port line to `"127.0.0.1:3550:3550"` so the app
+If the proxy runs on the same host, change the port line to `"127.0.0.1:4850:4850"` so the app
 isn't reachable around it.
 
 ## Account security
