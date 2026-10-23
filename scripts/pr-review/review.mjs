@@ -220,7 +220,9 @@ export async function evaluate({ title, body, diff }, { runModel, previous = nul
 function run(file, args) {
   return new Promise((resolve, reject) => {
     execFile(file, args, { maxBuffer: 256 * 1024 * 1024 }, (error, stdout, stderr) =>
-      error ? reject(new Error(stderr.trim() || error.message)) : resolve(stdout)
+      error
+        ? reject(new Error(`${file} ${args.slice(0, 3).join(" ")}: ${stderr.trim() || error.message}`))
+        : resolve(stdout)
     );
   });
 }
