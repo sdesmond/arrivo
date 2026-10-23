@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Upgrading
+
+- **Docker:** the container now listens on port 4850 instead of 3550. If your compose file maps `3550:3550`, change
+  it to `4850:4850`, or set `PORT=3550` to keep the old port. If you changed only the host side, for example
+  `8080:3550`, change the container side to `8080:4850`. Anything else that connects to port 3550, such as a
+  reverse proxy upstream, needs the same change.
+- **Running from source:** run `npm run db:migrate`. Docker applies migrations on start.
+
+### Fixed
+
+- Deleting an account deleted every trip the account owned, including shared trips, so collaborators lost them
+  without warning. The delete dialog under Profile → Account now lists each shared trip you own and lets you hand
+  it to a collaborator or delete it. It preselects the collaborator with the highest role, then whoever joined
+  first, who becomes a manager. Pending invitations you sent are cancelled, and the people you invited are
+  notified.
+- Files belonging to trips deleted with an account are now removed from storage.
+
 ## [0.5.1] - 2026-10-22
 
 ### Changed

@@ -84,3 +84,8 @@ _bmad/custom/*.user.toml
 /certs/
 /docker-compose.local.yml
 /data/
+
+# PR-reviewer eval: generated cases and run output
+/evals/pr-reviewer/cases/
+/evals/pr-reviewer/cases-index.tsv
+/evals/pr-reviewer/results/
