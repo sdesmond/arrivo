@@ -12,7 +12,7 @@ interface OriginEnv {
 const firstValue = (header: string | null) => header?.split(",")[0].trim() || undefined;
 
 // Absolute URL for `path` on the address the browser used. The standalone server puts its own listen
-// address in req.url (e.g. localhost:3550), so a redirect built from it sends LAN and proxied users to
+// address in req.url (e.g. localhost:4850), so a redirect built from it sends LAN and proxied users to
 // the wrong host. AUTH_TRUST_HOST already trusts these headers for Auth.js; an explicit NEXTAUTH_URL /
 // AUTH_URL wins because Auth.js has applied it to req.url.
 export function browserUrl(path: string, request: RequestLike, env: OriginEnv = process.env): URL {

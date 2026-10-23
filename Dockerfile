@@ -43,7 +43,7 @@ RUN apk add --no-cache tini su-exec
 ENV NODE_ENV=production \
   NEXT_TELEMETRY_DISABLED=1 \
   HOSTNAME=0.0.0.0 \
-  PORT=3550 \
+  PORT=4850 \
   AUTH_TRUST_HOST=true \
   STORAGE_PROVIDER=local \
   STORAGE_LOCAL_ROOT_DIR=/app/storage \
@@ -60,7 +60,7 @@ COPY --from=builder --chmod=0755 /app/docker/entrypoint.sh ./docker/entrypoint.s
 # Next writes its image-optimization cache here at runtime, as whichever PUID the host picks.
 RUN mkdir -p .next/cache && chmod 1777 .next/cache
 
-EXPOSE 3550
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD wget -qO- http://127.0.0.1:3550/api/health | grep -q '"status":"ok"'
+EXPOSE 4850
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD wget -qO- http://127.0.0.1:4850/api/health | grep -q '"status":"ok"'
 ENTRYPOINT ["/sbin/tini", "--", "/app/docker/entrypoint.sh"]
 CMD ["node", "server.js"]
