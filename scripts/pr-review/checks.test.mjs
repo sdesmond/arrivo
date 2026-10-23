@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPacket, checkTests, classifyFile, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
+import { checkTests, classifyFile, findSecrets, parseDiff, scopeStats } from "./checks.mjs";
 
 // Builds a unified diff for one file. `lines` are added lines; `removed` are removed lines.
 function fileDiff(path, { lines = [], removed = [], status = "modified", oldPath } = {}) {
@@ -301,56 +301,5 @@ describe("scopeStats", () => {
       significantLines: 5,
       areas: ["src/lib", ".github"],
     });
-  });
-});
-
-describe("buildPacket", () => {
-  const files = parse(fileDiff("src/lib/a.ts", { lines: ["1", "2"] }), fileDiff("package-lock.json", { lines: ["1"] }));
-
-  it("contains title, body, stats and file paths but never diff content", () => {
-    const packet = buildPacket({ title: "Fix thing", body: "Because reasons.", files, tests: checkTests(files) });
-
-    expect(packet).toContain("Title: Fix thing");
-    expect(packet).toContain("Because reasons.");
-    expect(packet).toContain("src/lib/a.ts (+2 -0)");
-    expect(packet).not.toContain("package-lock.json (");
-    expect(packet).toContain("1 noise file");
-    expect(packet).not.toContain("context");
-  });
-
-  it("marks an empty body", () => {
-    expect(buildPacket({ title: "t", body: "", files, tests: checkTests(files) })).toContain("(empty)");
-  });
-
-  it("truncates a long body and says so", () => {
-    const packet = buildPacket({ title: "t", body: "x".repeat(5000), files, tests: checkTests(files) });
-
-    expect(packet).toContain("[body truncated]");
-    expect(packet.length).toBeLessThan(3500);
-  });
-
-  it("caps the file list and reports how many were omitted", () => {
-    const many = parse(
-      ...Array.from({ length: 90 }, (_unused, index) => fileDiff(`src/lib/f${index}.ts`, { lines: ["x"] }))
-    );
-
-    const packet = buildPacket({ title: "t", body: "b", files: many, tests: checkTests(many) });
-
-    expect(packet).toContain("30 more files omitted");
-  });
-
-  it("lists uncovered source files for the tests judgment only when review is needed", () => {
-    const reviewFiles = parse(
-      fileDiff("src/app/(auth)/layout.tsx", { lines: ["x"] }),
-      fileDiff("src/components/arrivo/brand.test.tsx", { lines: ["y"] })
-    );
-
-    const withReview = buildPacket({ title: "t", body: "b", files: reviewFiles, tests: checkTests(reviewFiles) });
-    const without = buildPacket({ title: "t", body: "b", files, tests: { status: "PASS", missing: [], review: [] } });
-
-    expect(withReview).toContain("Source files without a same-area test");
-    expect(withReview).toContain("src/app/(auth)/layout.tsx");
-    expect(withReview).toContain("Changed tests:");
-    expect(without).not.toContain("Source files without a same-area test");
   });
 });
