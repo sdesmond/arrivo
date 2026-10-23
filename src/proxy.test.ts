@@ -17,8 +17,8 @@ type ProxyHandler = (req: ProxyRequest) => Response | undefined;
 
 // The standalone server puts its own listen address in req.url; the browser's address is in Host.
 function request(path: string, auth: unknown = null) {
-  const url = `http://localhost:3550${path}`;
-  const req = { url, headers: new Headers({ host: "192.168.1.50:3550" }), nextUrl: new URL(url), auth };
+  const url = `http://localhost:4850${path}`;
+  const req = { url, headers: new Headers({ host: "192.168.1.50:4850" }), nextUrl: new URL(url), auth };
   return (proxy as unknown as ProxyHandler)(req);
 }
 
@@ -29,7 +29,7 @@ describe("proxy", () => {
   });
 
   it("sends a signed-out visitor to sign-in on the address their browser used", () => {
-    expect(request("/trips")?.headers.get("location")).toBe("http://192.168.1.50:3550/sign-in");
+    expect(request("/trips")?.headers.get("location")).toBe("http://192.168.1.50:4850/sign-in");
   });
 
   it("lets a signed-in visitor through", () => {

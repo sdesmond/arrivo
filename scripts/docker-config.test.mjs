@@ -49,10 +49,10 @@ describe("docker-compose.yml (self-hosting stack)", () => {
     expect(compose).not.toMatch(/^\s+build:/m);
   });
 
-  it("starts the app once the database is healthy, on port 3550", () => {
+  it("starts the app once the database is healthy, on port 4850", () => {
     const app = serviceBlock(compose, "app");
     expect(app).toContain("condition: service_healthy");
-    expect(app).toContain('"3550:3550"');
+    expect(app).toContain('"4850:4850"');
     expect(app).toContain("restart: unless-stopped");
   });
 
@@ -108,10 +108,10 @@ describe("Dockerfile", () => {
     expect(runner).toMatch(/COPY --from=builder \/app\/dist\/mfa-reset\.mjs/);
   });
 
-  it("listens on 3550 on all interfaces", () => {
-    expect(runner).toMatch(/PORT=3550/);
+  it("listens on 4850 on all interfaces", () => {
+    expect(runner).toMatch(/PORT=4850/);
     expect(runner).toMatch(/HOSTNAME=0\.0\.0\.0/);
-    expect(runner).toContain("EXPOSE 3550");
+    expect(runner).toContain("EXPOSE 4850");
   });
 
   it("bakes in the defaults compose would otherwise repeat", () => {
@@ -128,7 +128,7 @@ describe("Dockerfile", () => {
   });
 
   it("health-checks the response body, since wget follows a sign-in redirect to a 200", () => {
-    expect(runner).toMatch(/HEALTHCHECK .*http:\/\/127\.0\.0\.1:3550\/api\/health .*grep -q '"status":"ok"'/);
+    expect(runner).toMatch(/HEALTHCHECK .*http:\/\/127\.0\.0\.1:4850\/api\/health .*grep -q '"status":"ok"'/);
   });
 
   it("declares no VOLUME, which would create anonymous volumes", () => {
@@ -254,12 +254,12 @@ describe("ci workflow (migration safety)", () => {
 
   it("checks health unauthenticated without following redirects, so a sign-in redirect fails", () => {
     expect(workflow).toContain("--max-redirs 0");
-    expect(workflow).toContain("http://localhost:3550/api/health");
+    expect(workflow).toContain("http://localhost:4850/api/health");
   });
 
   it("checks the sign-in redirect uses the browser's Host, not the server's listen address", () => {
-    expect(workflow).toContain("-H 'Host: 192.168.1.50:3550'");
-    expect(workflow).toContain("http://192.168.1.50:3550/sign-in");
+    expect(workflow).toContain("-H 'Host: 192.168.1.50:4850'");
+    expect(workflow).toContain("http://192.168.1.50:4850/sign-in");
   });
 
   it("restarts the app and checks the generated secret survives", () => {
@@ -322,6 +322,6 @@ describe("docker build context and docs", () => {
   it("documents the Postgres major and port the stack runs", () => {
     const doc = readRootFile("docs/self-hosting.md");
     expect(doc).toContain("PostgreSQL 17");
-    expect(doc).toContain("3550");
+    expect(doc).toContain("4850");
   });
 });
