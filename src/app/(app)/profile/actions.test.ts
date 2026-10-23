@@ -757,6 +757,11 @@ describe("deleteAccount — shared trip handoff", () => {
       type: LiveSyncEventType.MembershipChanged,
       tripId: SHARED_TRIP.id,
     });
+    // The new owner's other sessions (e.g. their dashboard) only listen on their personal channel.
+    expect(mockPublishUserEvent).toHaveBeenCalledWith("user-ada", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: SHARED_TRIP.id,
+    });
   });
 
   it("deletes a shared trip on purpose and tells its other members", async () => {

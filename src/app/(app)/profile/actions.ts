@@ -411,6 +411,7 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
 
       return {
         rescindedInvitations,
+        transferredTrips: [...heirByTripId],
         deletedTripIds,
         deletedTripMembers: members.filter(
           (member) => member.userId && member.userId !== userId && deletedTripIds.includes(member.tripId)
@@ -442,6 +443,10 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
   }
   for (const tripId of new Set(deletion.remainingTripIds)) {
     publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+  }
+  // The new owner's role changed; their other sessions only listen on their personal channel.
+  for (const [tripId, heirUserId] of deletion.transferredTrips) {
+    publishUserEvent(heirUserId, { type: LiveSyncEventType.MembershipChanged, tripId });
   }
 
   // Best-effort: a file that won't delete must not undo or block the account deletion.
