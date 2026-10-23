@@ -233,7 +233,7 @@ describe("combine", () => {
       changelog: { status: "WARN", files: ["Dockerfile"] },
     });
 
-    expect(result.changelog).toEqual({ verdict: "WARN", files: ["Dockerfile"] });
+    expect(result.changelog).toEqual({ verdict: "WARN", files: ["Dockerfile"], updated: false });
     expect(result.overall).toBe("PASS");
   });
 
@@ -241,6 +241,7 @@ describe("combine", () => {
     expect(combine({ secrets: [], tests: passTests, model: goodVerdicts }).changelog).toEqual({
       verdict: "PASS",
       files: [],
+      updated: false,
     });
   });
 
@@ -274,21 +275,33 @@ describe("renderComment", () => {
     expect(comment).toContain("Overall: FAIL");
   });
 
-  it("shows a changelog line only when it warns", () => {
+  it("always shows a changelog line, with the reason when it passes", () => {
+    const passTests = { status: "PASS", missing: [], review: [] };
     const warned = combine({
       secrets: [],
-      tests: { status: "PASS", missing: [], review: [] },
+      tests: passTests,
       model: goodVerdicts,
-      changelog: { status: "WARN", files: ["src/app/page.tsx"] },
+      changelog: { status: "WARN", files: ["src/app/page.tsx"], updated: false },
     });
-    const clean = combine({ secrets: [], tests: { status: "PASS", missing: [], review: [] }, model: goodVerdicts });
+    const updated = combine({
+      secrets: [],
+      tests: passTests,
+      model: goodVerdicts,
+      changelog: { status: "PASS", files: [], updated: true },
+    });
+    const untouched = combine({ secrets: [], tests: passTests, model: goodVerdicts });
 
-    const comment = renderComment(warned, { hash: "h", model: goodVerdicts });
+    const warnedComment = renderComment(warned, { hash: "h", model: goodVerdicts });
 
-    expect(comment).toContain("Changelog: WARN");
-    expect(comment).toContain("CHANGELOG.md");
-    expect(comment).toContain("`src/app/page.tsx`");
-    expect(renderComment(clean, { hash: "h", model: goodVerdicts })).not.toContain("Changelog");
+    expect(warnedComment).toContain("Changelog: WARN");
+    expect(warnedComment).toContain("CHANGELOG.md");
+    expect(warnedComment).toContain("`src/app/page.tsx`");
+    expect(renderComment(updated, { hash: "h", model: goodVerdicts })).toContain(
+      "Changelog: PASS — CHANGELOG.md updated"
+    );
+    expect(renderComment(untouched, { hash: "h", model: goodVerdicts })).toContain(
+      "Changelog: PASS — no user-facing files changed"
+    );
   });
 
   it("round-trips the hash and model verdicts through a hidden marker", () => {
@@ -381,7 +394,11 @@ describe("evaluate", () => {
 
     const outcome = await evaluate({ title: "t", body: "b", diff: userFacing }, { runModel: async () => null });
 
-    expect(outcome.result.changelog).toEqual({ verdict: "WARN", files: ["src/app/(app)/profile/page.tsx"] });
+    expect(outcome.result.changelog).toEqual({
+      verdict: "WARN",
+      files: ["src/app/(app)/profile/page.tsx"],
+      updated: false,
+    });
     expect(outcome.result.overall).toBe("PASS");
   });
 

@@ -302,7 +302,7 @@ describe("checkChangelog", () => {
       fileDiff("docs/releasing.md", { lines: ["x"] })
     );
 
-    expect(checkChangelog(files)).toEqual({ status: "PASS", files: [] });
+    expect(checkChangelog(files)).toEqual({ status: "PASS", files: [], updated: false });
   });
 
   it.each([
@@ -316,7 +316,7 @@ describe("checkChangelog", () => {
   ])("warns when %s changes without a changelog entry", (path) => {
     const files = parse(fileDiff(path, { lines: ["x"] }));
 
-    expect(checkChangelog(files)).toEqual({ status: "WARN", files: [path] });
+    expect(checkChangelog(files)).toEqual({ status: "WARN", files: [path], updated: false });
   });
 
   it("passes when CHANGELOG.md changes in the same PR", () => {
@@ -325,7 +325,7 @@ describe("checkChangelog", () => {
       fileDiff("CHANGELOG.md", { lines: ["- Added a thing."] })
     );
 
-    expect(checkChangelog(files).status).toBe("PASS");
+    expect(checkChangelog(files)).toEqual({ status: "PASS", files: [], updated: true });
   });
 
   it("ignores dev-only compose files, assets and tests inside user-facing directories", () => {
