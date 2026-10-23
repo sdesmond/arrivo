@@ -20,8 +20,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
-      issues: write # the sticky review comment is an issue comment
+      pull-requests: write # commenting on a PR needs this; issues: write alone returns 403
     steps:
       - uses: actions/checkout@v7
         with:
