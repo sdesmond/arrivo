@@ -47,6 +47,13 @@ export const FEATURE_MAP = [
     "src/app/(auth)/sign-up/**",
     "src/app/(auth)/actions.ts",
   ]),
+  entry("instance-bootstrap", [
+    "src/components/arrivo/auth-forms.tsx",
+    "src/app/(auth)/sign-up/**",
+    "src/app/(auth)/actions.ts",
+    "src/lib/instance-bootstrap.ts",
+    "tests/e2e/instance-state.ts",
+  ]),
   entry("mfa", [
     "src/components/arrivo/auth-forms.tsx",
     "src/components/arrivo/auth-submit-button.tsx",

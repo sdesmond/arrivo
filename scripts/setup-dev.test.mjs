@@ -52,7 +52,6 @@ describe("setup-dev helpers", async () => {
       "E2E_DATABASE_URL=postgres://arrivo:arrivo@localhost:5432/arrivo_e2e",
       "NEXTAUTH_URL=http://localhost:3000",
       "NEXTAUTH_SECRET=change-me-32-bytes-min",
-      "ALLOW_SIGNUP=true",
       "E2E_USERNAME=e2e",
       "E2E_PASSWORD=e2e1234",
       "HIDE_OVERLAY=true",
@@ -65,7 +64,7 @@ describe("setup-dev helpers", async () => {
       baseExample,
       [
         "NEXTAUTH_URL=http://localhost:4000",
-        "ALLOW_SIGNUP=false",
+        "HIDE_OVERLAY=false",
         "UPLOAD_STUB=true",
         "BLOB_READ_WRITE_TOKEN=legacy-token",
         "",
@@ -75,7 +74,7 @@ describe("setup-dev helpers", async () => {
     expect(merged).toContain("DATABASE_URL=postgres://arrivo:arrivo@localhost:5432/arrivo");
     expect(merged).toContain("E2E_DATABASE_URL=postgres://arrivo:arrivo@localhost:5432/arrivo_e2e");
     expect(merged).toContain("NEXTAUTH_URL=http://localhost:4000");
-    expect(merged).toContain("ALLOW_SIGNUP=false");
+    expect(merged).toContain("HIDE_OVERLAY=false");
     expect(merged).toContain("STORAGE_PROVIDER=local");
     expect(merged).toContain("STORAGE_LOCAL_ROOT_DIR=./.dev-storage");
     expect(merged).not.toContain("UPLOAD_STUB=");

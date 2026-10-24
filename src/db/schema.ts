@@ -13,6 +13,7 @@ import {
   unique,
   uniqueIndex,
   primaryKey,
+  check,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -49,8 +50,21 @@ export const users = pgTable(
     mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
     // Sign-in identifier; stored lowercased (src/lib/username.ts).
     username: text("username").notNull(),
+    // Instance authority: "admin" | "member" (UserRole in src/data/types.ts).
+    role: text("role").default("member").notNull(),
   },
   (table) => [uniqueIndex("users_username_lower_unique").on(sql`lower(${table.username})`)]
+);
+
+// Singleton row (id is always true). initializedAt is set once, when the first account is created or the sole
+// legacy account is promoted; after that public sign-up stays closed.
+export const instanceState = pgTable(
+  "instance_state",
+  {
+    id: boolean("id").primaryKey().default(true),
+    initializedAt: timestamp("initialized_at", { withTimezone: true }),
+  },
+  (table) => [check("instance_state_singleton", sql`${table.id}`)]
 );
 
 export const accounts = pgTable(

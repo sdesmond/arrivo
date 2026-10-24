@@ -2,7 +2,6 @@
 
 import { signIn, signOut } from "@/auth";
 import { db } from "@/db";
-import { users } from "@/db/schema";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { cookies, headers } from "next/headers";
@@ -13,6 +12,7 @@ import { lockoutMessage } from "@/lib/auth-throttle";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE, MFA_TICKET_TTL_MS } from "@/lib/mfa";
 import { isHttpsRequest } from "@/lib/request-origin";
+import { bootstrapFirstAccount } from "@/lib/instance-bootstrap";
 import { isUniqueViolation } from "@/lib/error-utils";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 
@@ -67,8 +67,6 @@ export async function verifyMfaAction(_prev: MfaActionState, formData: FormData)
 }
 
 export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  if (process.env.ALLOW_SIGNUP === "false") return { error: "Signup is disabled." };
-
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const password = formData.get("password") as string;
   const name = formData.get("name") as string;
@@ -83,7 +81,8 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
   const currency = detectPreferredCurrency(acceptLanguage);
   const passwordHash = await bcrypt.hash(password, 10);
   try {
-    await db.insert(users).values({ username, name, passwordHash, currency });
+    const result = await bootstrapFirstAccount(db, { username, name, passwordHash, currency });
+    if (!result.ok) return { error: "Ask an admin to create your account." };
   } catch (error) {
     if (isUniqueViolation(error)) return { error: "That username is taken." };
     throw error;

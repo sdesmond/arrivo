@@ -29,6 +29,13 @@
       "when": 1792796259953,
       "tag": "0003_username_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792873127208,
+      "tag": "0004_instance_state_roles",
+      "breakpoints": true
     }
   ]
 }

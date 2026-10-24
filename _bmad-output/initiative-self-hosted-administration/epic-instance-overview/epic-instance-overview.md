@@ -39,3 +39,4 @@ Overview and adapter extension. Not new infrastructure.
 ## Notes
 
 - Waits on epic-activity-and-retention because: the recent-actions panel reads Activity.
+- Decision: 2026-10-24 branching: integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Branch each ticket off it as `ticket/<slug>` and open a PR into it, never into `main`.

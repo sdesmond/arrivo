@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-const { signIn, signOut, db } = vi.hoisted(() => ({
+const { signIn, signOut, db, bootstrapFirstAccount } = vi.hoisted(() => ({
   signIn: vi.fn(),
   signOut: vi.fn(),
-  db: {
-    insert: vi.fn(),
-  },
+  db: {},
+  bootstrapFirstAccount: vi.fn(),
 }));
+
+vi.mock("@/lib/instance-bootstrap", () => ({ bootstrapFirstAccount }));
 
 vi.mock("@/auth", () => ({
   signIn,
@@ -25,7 +26,6 @@ vi.mock("next-auth", async () => ({
 }));
 
 import { CredentialsSignin } from "@auth/core/errors";
-import { users } from "@/db/schema";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE } from "@/lib/mfa";
 import { signInAction, signOutAction, signUpAction, verifyMfaAction } from "./actions";
@@ -53,13 +53,9 @@ describe("auth actions", () => {
     vi.mocked(headers).mockResolvedValue(new Headers());
   });
 
-  function mockUserInsert(result: () => Promise<unknown> = async () => undefined) {
-    const insertValues = vi.fn(result);
-    db.insert.mockImplementation((table: unknown) => {
-      if (table === users) return { values: insertValues };
-      throw new Error("Unexpected insert");
-    });
-    return insertValues;
+  function mockBootstrap(result: () => Promise<unknown> = async () => ({ ok: true, userId: "user-1" })) {
+    bootstrapFirstAccount.mockImplementation(result);
+    return bootstrapFirstAccount;
   }
 
   function signUpForm(fields: Record<string, string> = {}) {
@@ -68,12 +64,12 @@ describe("auth actions", () => {
 
   it("stores a normalized username and locale-derived currency when signing up", async () => {
     vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
-    const insertValues = mockUserInsert();
+    mockBootstrap();
 
     await expect(signUpAction(undefined, signUpForm())).resolves.toBeUndefined();
 
-    expect(db.insert).toHaveBeenCalledWith(users);
-    expect(insertValues).toHaveBeenCalledWith(
+    expect(bootstrapFirstAccount).toHaveBeenCalledWith(
+      db,
       expect.objectContaining({
         username: "test.user",
         name: "Test User",
@@ -88,25 +84,25 @@ describe("auth actions", () => {
   });
 
   it("rejects an invalid username without creating an account", async () => {
-    mockUserInsert();
+    mockBootstrap();
 
     await expect(signUpAction(undefined, signUpForm({ username: "a@b.com" }))).resolves.toEqual({
       error: "Use letters, numbers, dots, dashes or underscores, starting with a letter or number.",
     });
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
   });
 
   it("rejects a short password", async () => {
-    mockUserInsert();
+    mockBootstrap();
 
     await expect(signUpAction(undefined, signUpForm({ password: "short" }))).resolves.toEqual({
       error: "Password must be at least 8 characters.",
     });
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
   });
 
   it("reports a taken username", async () => {
-    mockUserInsert(async () => {
+    mockBootstrap(async () => {
       throw new Error("Failed query", { cause: { code: "23505" } });
     });
 
@@ -115,19 +111,20 @@ describe("auth actions", () => {
   });
 
   it("rethrows other insert failures", async () => {
-    mockUserInsert(async () => {
+    mockBootstrap(async () => {
       throw new Error("db down");
     });
 
     await expect(signUpAction(undefined, signUpForm())).rejects.toThrow("db down");
   });
 
-  it("refuses sign-up when it is disabled", async () => {
-    vi.stubEnv("ALLOW_SIGNUP", "false");
-    mockUserInsert();
+  it("refuses sign-up once the instance is initialized", async () => {
+    mockBootstrap(async () => ({ ok: false, reason: "closed" }));
 
-    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({ error: "Signup is disabled." });
-    expect(db.insert).not.toHaveBeenCalled();
+    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({
+      error: "Ask an admin to create your account.",
+    });
+    expect(signIn).not.toHaveBeenCalled();
   });
 
   it("signs out to the sign-in page", async () => {

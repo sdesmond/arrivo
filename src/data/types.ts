@@ -38,6 +38,12 @@ export const CollaboratorRole = {
 } as const;
 export type CollaboratorRole = (typeof CollaboratorRole)[keyof typeof CollaboratorRole];
 
+export const UserRole = {
+  Admin: "admin",
+  Member: "member",
+} as const;
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
 export const InvitationStatus = {
   Pending: "pending",
   Accepted: "accepted",
