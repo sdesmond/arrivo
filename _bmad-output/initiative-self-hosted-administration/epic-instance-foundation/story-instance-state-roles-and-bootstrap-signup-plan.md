@@ -61,15 +61,15 @@ context:
 
 **Execution:**
 
-- [ ] `src/lib/instance-bootstrap.test.ts` -- failing tests: first signup admin, concurrent first signups one admin, closed after init, rollback on unique violation -- test-first
-- [ ] `scripts/migrations.test.mjs` -- assert 0004 SQL contains singleton insert, promotion of sole account, and `RAISE EXCEPTION` for >1; sequence/snapshot checks pass -- migration contract
-- [ ] `src/data/types.ts`, `src/db/schema.ts` -- `UserRole`, `role` column, `instanceState` table
-- [ ] `drizzle/` -- `npm run db:generate`, append promotion/halt SQL, review (no drop+add)
-- [ ] `src/lib/instance-bootstrap.ts` -- implement transactional bootstrap
-- [ ] `src/app/(auth)/actions.ts` + `actions.test.ts` -- use bootstrap; refusal copy; drop `ALLOW_SIGNUP`
-- [ ] `tests/e2e/*` -- global-setup, instance-state helper, auth sign-up steps set fresh, new bootstrap feature + steps, `feature-map.mjs`
-- [ ] `SETUP.md`, `.env.example` -- note signup governed by instance state
-- [ ] Apply migration: `npm run db:migrate` and `npm run db:migrate:e2e`
+- [x] `src/lib/instance-bootstrap.test.ts` -- failing tests: first signup admin, concurrent first signups one admin, closed after init, rollback on unique violation -- test-first
+- [x] `scripts/migrations.test.mjs` -- assert 0004 SQL contains singleton insert, promotion of sole account, and `RAISE EXCEPTION` for >1; sequence/snapshot checks pass -- migration contract
+- [x] `src/data/types.ts`, `src/db/schema.ts` -- `UserRole`, `role` column, `instanceState` table
+- [x] `drizzle/` -- `npm run db:generate`, append promotion/halt SQL, review (no drop+add)
+- [x] `src/lib/instance-bootstrap.ts` -- implement transactional bootstrap
+- [x] `src/app/(auth)/actions.ts` + `actions.test.ts` -- use bootstrap; refusal copy; drop `ALLOW_SIGNUP`
+- [x] `tests/e2e/*` -- global-setup, instance-state helper, auth sign-up steps set fresh, new bootstrap feature + steps, `feature-map.mjs`
+- [x] `SETUP.md`, `.env.example` -- note signup governed by instance state
+- [x] Apply migration: `npm run db:migrate` and `npm run db:migrate:e2e`
 
 **Acceptance Criteria:**
 
@@ -80,6 +80,9 @@ context:
 - Given the E2E suite, when it starts, then baseline user is admin and instance initialized; sign-up scenarios run against a fresh state and restore it.
 
 ## Implementation Notes
+
+- `SETUP.md` / `.env.example` task: on user direction after approval, `ALLOW_SIGNUP` was removed outright from them and from `docker-compose.yml`, `docs/self-hosting.md`, `scripts/setup-dev.mjs` and its test, instead of annotated.
+- Migration halt/promotion is asserted by SQL text checks only; a real-Postgres test is deferred (`deferred-work.md`).
 
 ## Plan Change Log
 
