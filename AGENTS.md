@@ -124,9 +124,6 @@ Before editing any production file, you MUST name the exact test files and scena
 **Branch-confirmation gate:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 
-**Build stage checkpoints — NON-NEGOTIABLE:**
-bmad-build (or any equivalent plan → implement → review flow) MUST halt at each of the three boundaries below and wait for a NEW, explicit user message saying to proceed. Workflow step files attempt to advance automatically — do not let them. Answering a checkpoint prompt (e.g. "[A] Approve", "looks good") does NOT cross a boundary; the confirm must be a fresh "proceed/continue/go" typed after you post the boundary status.
-
 The three boundaries, in order:
 
 1. After planning — spec/plan written and approved, BEFORE any implementation starts.
