@@ -60,7 +60,7 @@ Given("I have a trip with an editor contributor viewing it in their own session"
   const contributor = await scenario.seedCollaborator(trip.id, "Live Refresh Contributor", "LR", "editor");
 
   const { page: contributorPage } = await scenario.openSecondSession(page);
-  await scenario.signInAsUser(contributorPage, contributor.email);
+  await scenario.signInAsUser(contributorPage, contributor.username);
 
   await openTripWithLiveSync(contributorPage, trip.id);
   await expect(contributorPage.getByRole("button", { name: "Budget", exact: true })).toBeVisible();
@@ -98,7 +98,7 @@ Given(
     const contributor = await scenario.seedCollaborator(trip.id, "Live Refresh Manager", "LM", "manager");
 
     const { page: contributorPage } = await scenario.openSecondSession(page);
-    await scenario.signInAsUser(contributorPage, contributor.email);
+    await scenario.signInAsUser(contributorPage, contributor.username);
 
     await openTripWithLiveSync(contributorPage, trip.id);
     await contributorPage.getByRole("button", { name: "Share", exact: true }).click();

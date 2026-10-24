@@ -39,9 +39,11 @@ afterEach(() => {
 });
 
 describe("SignInForm", () => {
-  it("renders email and password fields", () => {
+  it("renders username and password fields", () => {
     render(<SignInForm action={noopAction} mfaAction={noopAction} />);
-    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    const username = screen.getByLabelText("Username");
+    expect(username).toHaveAttribute("name", "username");
+    expect(username).toHaveAttribute("autocomplete", "username");
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 
@@ -60,7 +62,7 @@ describe("SignInForm", () => {
   it("sets aria-invalid on inputs when there is an error", () => {
     mockState.value = { error: "Wrong password" };
     render(<SignInForm action={noopAction} mfaAction={noopAction} />);
-    expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Username")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
   });
 });
@@ -102,10 +104,13 @@ describe("SignInForm — security flows", () => {
 });
 
 describe("SignUpForm", () => {
-  it("renders name, email and password fields", () => {
+  it("renders name, username and password fields", () => {
     render(<SignUpForm action={noopAction} />);
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    const username = screen.getByLabelText("Username");
+    expect(username).toHaveAttribute("name", "username");
+    expect(username).toHaveAttribute("minlength", "3");
+    expect(username).toHaveAttribute("maxlength", "30");
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 
@@ -115,16 +120,16 @@ describe("SignUpForm", () => {
   });
 
   it("shows error alert when state has error", () => {
-    mockState.value = { error: "Email already taken" };
+    mockState.value = { error: "That username is taken." };
     render(<SignUpForm action={noopAction} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.getByText("Email already taken")).toBeInTheDocument();
+    expect(screen.getByText("That username is taken.")).toBeInTheDocument();
   });
 
   it("sets aria-invalid on inputs when there is an error", () => {
     mockState.value = { error: "Signup failed" };
     render(<SignUpForm action={noopAction} />);
-    expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Username")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
   });
 });

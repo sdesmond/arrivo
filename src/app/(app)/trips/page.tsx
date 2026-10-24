@@ -16,7 +16,7 @@ export default async function TripsPage() {
     listTripsForUser(session.id!, now),
     getUserById(session.id!),
     listSupportedCurrencies(),
-    getMyPendingInvitations(session.email!),
+    getMyPendingInvitations(session.id!),
   ]);
   const dateFormat = profile?.dateFormat ?? detectDefaultDateFormat((await headers()).get("accept-language") ?? "");
   return (

@@ -2,7 +2,7 @@ import type { SeedUser } from "./seed-types";
 
 export const DEMO_USER: SeedUser = {
   key: "demo",
-  email: "demo@arrivo.com",
+  username: "demo",
   name: "Demo User",
   initials: "DU",
   currency: "USD",
@@ -26,7 +26,7 @@ export const DEMO_USER: SeedUser = {
 
 export const ALEX_USER: SeedUser = {
   key: "alex",
-  email: "alex@arrivo.com",
+  username: "alex",
   name: "Alex Rivera",
   initials: "AR",
   currency: "EUR",
@@ -39,11 +39,20 @@ export const ALEX_USER: SeedUser = {
 
 export const SAM_USER: SeedUser = {
   key: "sam",
-  email: "sam@arrivo.com",
+  username: "sam",
   name: "Sam Chen",
   initials: "SC",
   currency: "USD",
   dateFormat: "MM/DD/YYYY",
 };
 
-export const SEED_USERS: SeedUser[] = [DEMO_USER, ALEX_USER, SAM_USER];
+export const JORDAN_USER: SeedUser = {
+  key: "jordan",
+  username: "jordan",
+  name: "Jordan Lee",
+  initials: "JL",
+  currency: "USD",
+  dateFormat: "MM/DD/YYYY",
+};
+
+export const SEED_USERS: SeedUser[] = [DEMO_USER, ALEX_USER, SAM_USER, JORDAN_USER];

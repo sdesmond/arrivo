@@ -23,7 +23,7 @@ export default async function globalSetup() {
 
   const passwordHash = await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
   await db.insert(users).values({
-    email: BASELINE_E2E_USER.email,
+    username: BASELINE_E2E_USER.username,
     name: BASELINE_E2E_USER.name,
     passwordHash,
     dateFormat: "MM/DD/YYYY",

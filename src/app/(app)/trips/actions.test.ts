@@ -163,7 +163,7 @@ import { deriveGraphicCover } from "@/lib/utils";
 describe("manager-gated trip actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "editor-1", email: "editor@example.com" });
+    requireUser.mockResolvedValue({ id: "editor-1" });
     assertTripAccess.mockRejectedValue(new Error("not found"));
   });
 
@@ -179,7 +179,7 @@ describe("manager-gated trip actions", () => {
 describe("deleteTrip", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    requireUser.mockResolvedValue({ id: "manager-1" });
     assertTripAccess.mockResolvedValue("manager");
     db.select.mockReturnValue({
       from: () => ({
@@ -244,7 +244,6 @@ interface SaveContributorChangesFixture {
     userId: string | null;
     role: string;
     isCreator: boolean | null;
-    email: string;
   }>;
   tripName?: string;
 }
@@ -257,7 +256,6 @@ function setupSaveContributorChangesDb({
       userId: "user-peer",
       role: "editor",
       isCreator: false,
-      email: "peer@example.com",
     },
   ],
   tripName = "Test Trip",
@@ -273,6 +271,7 @@ function setupSaveContributorChangesDb({
         where: async () => {
           if (table === collaborators) return collaboratorRows;
           if (table === trips) return [{ name: tripName }];
+          if (table === users) return [{ username: "manager" }];
           throw new Error("Unexpected table read in saveContributorChanges fixture.");
         },
       }),
@@ -302,7 +301,7 @@ function setupSaveContributorChangesDb({
 describe("saveContributorChanges", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    requireUser.mockResolvedValue({ id: "manager-1" });
     assertTripAccess.mockResolvedValue("manager");
   });
 
@@ -315,7 +314,6 @@ describe("saveContributorChanges", () => {
           userId: "user-peer",
           role: "editor",
           isCreator: false,
-          email: "peer@example.com",
         },
         {
           id: "collab-viewer",
@@ -323,7 +321,6 @@ describe("saveContributorChanges", () => {
           userId: "user-viewer",
           role: "viewer",
           isCreator: false,
-          email: "viewer@example.com",
         },
       ],
     });
@@ -354,8 +351,8 @@ describe("saveContributorChanges", () => {
       removedUserId: "user-viewer",
       tripId: "trip-1",
       tripName: "Test Trip",
-      removedByName: "manager@example.com",
-      removedByEmail: "manager@example.com",
+      removedByName: "manager",
+      removedByUsername: "manager",
     });
     expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
       type: LiveSyncEventType.MembershipChanged,
@@ -373,7 +370,6 @@ describe("saveContributorChanges", () => {
           userId: "user-a",
           role: "editor",
           isCreator: false,
-          email: "a@example.com",
         },
         {
           id: "collab-b",
@@ -381,7 +377,6 @@ describe("saveContributorChanges", () => {
           userId: "user-b",
           role: "viewer",
           isCreator: false,
-          email: "b@example.com",
         },
       ],
     });
@@ -400,16 +395,16 @@ describe("saveContributorChanges", () => {
       removedUserId: "user-a",
       tripId: "trip-1",
       tripName: "Test Trip",
-      removedByName: "manager@example.com",
-      removedByEmail: "manager@example.com",
+      removedByName: "manager",
+      removedByUsername: "manager",
     });
     expect(publishUserEvent).toHaveBeenNthCalledWith(2, "user-b", {
       type: LiveSyncEventType.MembershipRemoved,
       removedUserId: "user-b",
       tripId: "trip-1",
       tripName: "Test Trip",
-      removedByName: "manager@example.com",
-      removedByEmail: "manager@example.com",
+      removedByName: "manager",
+      removedByUsername: "manager",
     });
     expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
       type: LiveSyncEventType.MembershipChanged,
@@ -446,7 +441,6 @@ describe("saveContributorChanges", () => {
           userId: null,
           role: "viewer",
           isCreator: false,
-          email: "orphan@example.com",
         },
       ],
     });
@@ -472,7 +466,6 @@ describe("saveContributorChanges", () => {
           userId: null,
           role: "editor",
           isCreator: false,
-          email: "invited@example.com",
         },
       ],
     });
@@ -499,7 +492,6 @@ describe("saveContributorChanges", () => {
           userId: "creator-user",
           role: "manager",
           isCreator: true,
-          email: "creator@example.com",
         },
       ],
     });
@@ -524,7 +516,6 @@ describe("saveContributorChanges", () => {
           userId: "creator-user",
           role: "manager",
           isCreator: true,
-          email: "creator@example.com",
         },
       ],
     });
@@ -552,7 +543,6 @@ describe("saveContributorChanges", () => {
           userId: "manager-1",
           role: "manager",
           isCreator: false,
-          email: "manager@example.com",
         },
       ],
     });
@@ -574,7 +564,6 @@ describe("saveContributorChanges", () => {
           userId: "user-other",
           role: "viewer",
           isCreator: false,
-          email: "other@example.com",
         },
       ],
     });
@@ -595,7 +584,6 @@ describe("saveContributorChanges", () => {
           userId: "user-peer",
           role: "manager",
           isCreator: false,
-          email: "peer@example.com",
         },
       ],
     });
@@ -878,7 +866,7 @@ function setupLeaveTripDb({
 describe("leaveTrip", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "user-self", email: "self@example.com" });
+    requireUser.mockResolvedValue({ id: "user-self" });
   });
 
   it.each(["editor", "viewer"])("deletes only the caller's own %s membership and reports success", async (role) => {
@@ -1031,7 +1019,7 @@ describe("leaveTrip", () => {
     await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toEqual({ status: "success" });
 
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "user-self", email: "self@example.com" });
+    requireUser.mockResolvedValue({ id: "user-self" });
     setupLeaveTripDb({ preCheckRows: [] });
 
     await expect(leaveTrip(LEAVE_TRIP_ID)).resolves.toMatchObject({ status: "error", stale: true });
@@ -1854,13 +1842,13 @@ describe("updateTripMetadata", () => {
 interface InvitationFixture {
   collaboratorRows?: Array<{ id: string }>;
   invitationRows?: Array<{ id: string; status: string }>;
-  userRows?: Array<{ id: string; email: string | null }>;
+  userRows?: Array<{ id: string }>;
 }
 
 function setupInviteContributorDb({
   collaboratorRows = [],
   invitationRows = [],
-  userRows = [{ id: "invitee-1", email: "invitee@example.com" }],
+  userRows = [{ id: "invitee-1" }],
 }: InvitationFixture = {}) {
   const operations = {
     deletes: [] as unknown[],
@@ -1916,25 +1904,36 @@ function setupInviteContributorDb({
 describe("inviteContributor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    requireUser.mockResolvedValue({ id: "manager-1" });
     assertTripAccess.mockResolvedValue(undefined);
   });
 
-  it("creates a normalized, pending viewer invitation for an existing account", async () => {
+  it("creates a pending viewer invitation for the account matching the normalized username", async () => {
     const operations = setupInviteContributorDb();
+    const lookupConditions: unknown[] = [];
+    db.select.mockReturnValue({
+      from: (table: unknown) => ({
+        where: async (condition: unknown) => {
+          if (table !== users) throw new Error("Unexpected non-transactional table read in invitation fixture.");
+          lookupConditions.push(condition);
+          return [{ id: "invitee-1" }];
+        },
+      }),
+    });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-01T12:00:00.000Z"));
 
     try {
-      await expect(inviteContributor("trip-1", "  INVITEE@EXAMPLE.COM  ")).resolves.toEqual({ status: "invited" });
+      await expect(inviteContributor("trip-1", "  Invitee  ")).resolves.toEqual({ status: "invited" });
 
       expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
+      expect(inspect(lookupConditions[0], { depth: 8 })).toContain("'invitee'");
       expect(operations.inserts).toEqual([
         {
           table: invitations,
           values: expect.objectContaining({
             tripId: "trip-1",
-            email: "invitee@example.com",
+            inviteeId: "invitee-1",
             role: "viewer",
             status: "pending",
             invitedBy: "manager-1",
@@ -1959,9 +1958,9 @@ describe("inviteContributor", () => {
   it("returns an error without writing when no account matches", async () => {
     const operations = setupInviteContributorDb({ userRows: [] });
 
-    await expect(inviteContributor("trip-1", "missing@example.com")).resolves.toEqual({
+    await expect(inviteContributor("trip-1", "missing")).resolves.toEqual({
       status: "error",
-      message: "No account found for this email",
+      message: "No account found for this username",
       errorCode: "no-account",
     });
 
@@ -1972,7 +1971,7 @@ describe("inviteContributor", () => {
   it("updates a pending invitation in place and returns resent", async () => {
     const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "pending" }] });
 
-    await expect(inviteContributor("trip-1", "invitee@example.com", "editor")).resolves.toEqual({ status: "resent" });
+    await expect(inviteContributor("trip-1", "invitee", "editor")).resolves.toEqual({ status: "resent" });
 
     expect(operations.inserts).toEqual([]);
     expect(operations.updates).toEqual([
@@ -1994,7 +1993,7 @@ describe("inviteContributor", () => {
   it("replaces a declined invitation with a new pending invitation", async () => {
     const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "declined" }] });
 
-    await expect(inviteContributor("trip-1", "invitee@example.com", "editor")).resolves.toEqual({ status: "invited" });
+    await expect(inviteContributor("trip-1", "invitee", "editor")).resolves.toEqual({ status: "invited" });
 
     expect(operations.deletes).toEqual([invitations]);
     expect(operations.inserts).toEqual([
@@ -2008,7 +2007,7 @@ describe("inviteContributor", () => {
   it("returns an error without writing when invitee is already on trip", async () => {
     const operations = setupInviteContributorDb({ collaboratorRows: [{ id: "collaborator-1" }] });
 
-    await expect(inviteContributor("trip-1", "invitee@example.com")).resolves.toEqual({
+    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({
       status: "error",
       message: "This person is already a collaborator on this trip",
       errorCode: "already-collaborator",
@@ -2021,9 +2020,9 @@ describe("inviteContributor", () => {
   });
 
   it("returns an error without writing when manager invites themself", async () => {
-    const operations = setupInviteContributorDb();
+    const operations = setupInviteContributorDb({ userRows: [{ id: "manager-1" }] });
 
-    await expect(inviteContributor("trip-1", " MANAGER@example.com ")).resolves.toEqual({
+    await expect(inviteContributor("trip-1", " Manager ")).resolves.toEqual({
       status: "error",
       message: "You cannot invite yourself to this trip",
       errorCode: "self-invite",
@@ -2037,7 +2036,7 @@ describe("inviteContributor", () => {
     setupInviteContributorDb();
     assertTripAccess.mockRejectedValue(new Error("not found"));
 
-    await expect(inviteContributor("trip-1", "invitee@example.com")).rejects.toThrow("not found");
+    await expect(inviteContributor("trip-1", "invitee")).rejects.toThrow("not found");
 
     expect(db.transaction).not.toHaveBeenCalled();
   });
@@ -2045,7 +2044,7 @@ describe("inviteContributor", () => {
   it("returns an error without writing for an invalid role", async () => {
     const operations = setupInviteContributorDb();
 
-    await expect(inviteContributor("trip-1", "invitee@example.com", "owner" as "viewer")).resolves.toEqual({
+    await expect(inviteContributor("trip-1", "invitee", "owner" as "viewer")).resolves.toEqual({
       status: "error",
       message: "Invalid collaborator role",
       errorCode: "invalid-role",
@@ -2058,7 +2057,7 @@ describe("inviteContributor", () => {
     db.select.mockReturnValue({
       from: (table: unknown) => ({
         where: async () => {
-          if (table === users) return [{ id: "invitee-1", email: "invitee@example.com" }];
+          if (table === users) return [{ id: "invitee-1" }];
           throw new Error("Unexpected non-transactional table read.");
         },
       }),
@@ -2067,7 +2066,9 @@ describe("inviteContributor", () => {
       callback({
         insert: () => ({
           values: async () => {
-            throw Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
+            throw new Error("Failed query", {
+              cause: Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" }),
+            });
           },
         }),
         select: () => ({
@@ -2081,7 +2082,7 @@ describe("inviteContributor", () => {
       })
     );
 
-    await expect(inviteContributor("trip-1", "invitee@example.com")).resolves.toEqual({
+    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({
       status: "error",
       message: "This person was just invited by someone else. Try again.",
       errorCode: "invite-conflict",
@@ -2090,11 +2091,16 @@ describe("inviteContributor", () => {
 });
 
 interface AcceptDeclineFixture {
-  matchedRows?: Array<{ id: string; tripId: string; role: string; email: string; status: string; expiresAt: Date }>;
-  diagnosticRow?: { id: string; email: string; status: string; expiresAt: Date } | null;
+  matchedRows?: Array<{ id: string; tripId: string; role: string; inviteeId: string; status: string; expiresAt: Date }>;
+  diagnosticRow?: { id: string; inviteeId: string; status: string; expiresAt: Date } | null;
+  account?: { name: string | null; username: string };
 }
 
-function setupAcceptDeclineDb({ matchedRows = [], diagnosticRow = null }: AcceptDeclineFixture = {}) {
+function setupAcceptDeclineDb({
+  matchedRows = [],
+  diagnosticRow = null,
+  account = { name: "Invitee Person", username: "invitee" },
+}: AcceptDeclineFixture = {}) {
   const operations = {
     inserts: [] as Array<{ table: unknown; values: unknown; conflictUpdate: unknown }>,
     updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
@@ -2103,6 +2109,14 @@ function setupAcceptDeclineDb({ matchedRows = [], diagnosticRow = null }: Accept
   const transaction = {
     update: vi.fn(),
     insert: vi.fn(),
+    select: vi.fn(() => ({
+      from: (table: unknown) => ({
+        where: async () => {
+          if (table === users) return [account];
+          throw new Error("Unexpected transactional table read in accept/decline fixture.");
+        },
+      }),
+    })),
   };
 
   transaction.update.mockReturnValue({
@@ -2144,7 +2158,7 @@ function setupAcceptDeclineDb({ matchedRows = [], diagnosticRow = null }: Accept
 describe("acceptInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "user-1", email: "invitee@example.com", name: "Invitee Person" });
+    requireUser.mockResolvedValue({ id: "user-1", name: "Invitee Person" });
   });
 
   it("accepts a pending, unexpired invitation and creates the collaborator row", async () => {
@@ -2154,7 +2168,7 @@ describe("acceptInvitation", () => {
           id: "invite-1",
           tripId: "trip-1",
           role: "editor",
-          email: "invitee@example.com",
+          inviteeId: "user-1",
           status: "accepted",
           expiresAt: new Date("2026-09-10T00:00:00.000Z"),
         },
@@ -2169,7 +2183,6 @@ describe("acceptInvitation", () => {
         values: expect.objectContaining({
           tripId: "trip-1",
           userId: "user-1",
-          email: "invitee@example.com",
           name: "Invitee Person",
           role: "editor",
           isCreator: false,
@@ -2197,11 +2210,31 @@ describe("acceptInvitation", () => {
     });
   });
 
+  it("names the collaborator after the account's username when it has no display name", async () => {
+    const operations = setupAcceptDeclineDb({
+      account: { name: null, username: "invitee" },
+      matchedRows: [
+        {
+          id: "invite-1",
+          tripId: "trip-1",
+          role: "viewer",
+          inviteeId: "user-1",
+          status: "accepted",
+          expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({ status: "accepted", tripId: "trip-1" });
+
+    expect(operations.inserts[0]?.values).toEqual(expect.objectContaining({ name: "invitee", initials: "IN" }));
+  });
+
   it("returns an expired error and creates no collaborator when the invitation is past expiresAt", async () => {
     const operations = setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "invitee@example.com",
+        inviteeId: "user-1",
         status: "pending",
         expiresAt: new Date("2020-01-01T00:00:00.000Z"),
       },
@@ -2221,7 +2254,7 @@ describe("acceptInvitation", () => {
     setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "invitee@example.com",
+        inviteeId: "user-1",
         status: "declined",
         expiresAt: new Date("2026-09-10T00:00:00.000Z"),
       },
@@ -2237,7 +2270,7 @@ describe("acceptInvitation", () => {
     const operations = setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "invitee@example.com",
+        inviteeId: "user-1",
         status: "rescinded",
         expiresAt: new Date("2026-09-10T00:00:00.000Z"),
       },
@@ -2258,7 +2291,7 @@ describe("acceptInvitation", () => {
           id: "invite-1",
           tripId: "trip-1",
           role: "editor",
-          email: "invitee@example.com",
+          inviteeId: "user-1",
           status: "accepted",
           expiresAt: new Date("2026-09-10T00:00:00.000Z"),
         },
@@ -2270,7 +2303,7 @@ describe("acceptInvitation", () => {
     setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "invitee@example.com",
+        inviteeId: "user-1",
         status: "accepted",
         expiresAt: new Date("2026-09-10T00:00:00.000Z"),
       },
@@ -2282,11 +2315,11 @@ describe("acceptInvitation", () => {
     expect(operations.inserts).toHaveLength(1);
   });
 
-  it("returns a wrong-account error when the invitation belongs to a different email", async () => {
+  it("returns a wrong-account error when the invitation belongs to a different account", async () => {
     setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "someone-else@example.com",
+        inviteeId: "user-2",
         status: "pending",
         expiresAt: new Date("2026-09-10T00:00:00.000Z"),
       },
@@ -2311,7 +2344,7 @@ describe("acceptInvitation", () => {
 describe("declineInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "user-1", email: "invitee@example.com", name: "Invitee Person" });
+    requireUser.mockResolvedValue({ id: "user-1", name: "Invitee Person" });
   });
 
   it("declines a pending, unexpired invitation without creating a collaborator", async () => {
@@ -2321,7 +2354,7 @@ describe("declineInvitation", () => {
           id: "invite-1",
           tripId: "trip-1",
           role: "viewer",
-          email: "invitee@example.com",
+          inviteeId: "user-1",
           status: "declined",
           expiresAt: new Date("2026-09-10T00:00:00.000Z"),
         },
@@ -2354,7 +2387,7 @@ describe("declineInvitation", () => {
     setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "invitee@example.com",
+        inviteeId: "user-1",
         status: "accepted",
         expiresAt: new Date("2026-09-10T00:00:00.000Z"),
       },
@@ -2372,7 +2405,7 @@ describe("declineInvitation", () => {
     setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "invitee@example.com",
+        inviteeId: "user-1",
         status: "pending",
         expiresAt: new Date("2020-01-01T00:00:00.000Z"),
       },
@@ -2388,7 +2421,7 @@ describe("declineInvitation", () => {
     setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "invitee@example.com",
+        inviteeId: "user-1",
         status: "rescinded",
         expiresAt: new Date("2026-09-10T00:00:00.000Z"),
       },
@@ -2409,11 +2442,11 @@ describe("declineInvitation", () => {
     });
   });
 
-  it("returns a wrong-account error when the invitation belongs to a different email", async () => {
+  it("returns a wrong-account error when the invitation belongs to a different account", async () => {
     setupAcceptDeclineDb({
       diagnosticRow: {
         id: "invite-1",
-        email: "someone-else@example.com",
+        inviteeId: "user-2",
         status: "pending",
         expiresAt: new Date("2026-09-10T00:00:00.000Z"),
       },
@@ -2430,14 +2463,14 @@ interface RescindInvitationFixture {
   // The row the atomic UPDATE would have matched — present only when the invitation truly is
   // `pending` and belongs to `tripId`, mirroring the real `WHERE id = ? AND tripId = ? AND status =
   // 'pending'` predicate rather than an independently-asserted outcome.
-  matchedRow?: { id: string; tripId: string; status: InvitationStatus; email?: string } | null;
+  matchedRow?: { id: string; tripId: string; status: InvitationStatus; inviteeId?: string } | null;
   // The row the post-failure diagnostic SELECT would find, used only to pick between "not found"
   // (missing or wrong trip) and "no longer pending" (right trip, wrong status).
   diagnosticRow?: { id: string; tripId: string } | null;
 }
 
 interface DismissInvitationFixture {
-  matchedRow?: { id: string; tripId: string; status: InvitationStatus; email?: string } | null;
+  matchedRow?: { id: string; tripId: string; status: InvitationStatus; inviteeId?: string } | null;
   diagnosticRow?: { id: string; tripId: string } | null;
 }
 
@@ -2487,7 +2520,6 @@ function setupRescindInvitationDb({ matchedRow = null, diagnosticRow = null }: R
     from: (table: unknown) => ({
       where: async () => {
         if (table === invitations) return diagnosticRow ? [diagnosticRow] : [];
-        if (table === users) return [{ id: "invitee-1" }];
         throw new Error("Unexpected table read in rescind fixture.");
       },
     }),
@@ -2499,13 +2531,13 @@ function setupRescindInvitationDb({ matchedRow = null, diagnosticRow = null }: R
 describe("rescindInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    requireUser.mockResolvedValue({ id: "manager-1" });
     assertTripAccess.mockResolvedValue(undefined);
   });
 
   it("rescinds a pending invitation belonging to the managed trip", async () => {
     const operations = setupRescindInvitationDb({
-      matchedRow: { id: "invite-1", tripId: "trip-1", status: "rescinded", email: "invitee@example.com" },
+      matchedRow: { id: "invite-1", tripId: "trip-1", status: "rescinded", inviteeId: "invitee-1" },
     });
 
     await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
@@ -2524,26 +2556,6 @@ describe("rescindInvitation", () => {
       type: LiveSyncEventType.InvitationChanged,
       tripId: "trip-1",
     });
-  });
-
-  it("still succeeds and revalidates when notifying the invitee fails after the rescind commits", async () => {
-    setupRescindInvitationDb({
-      matchedRow: { id: "invite-1", tripId: "trip-1", status: "pending", email: "invitee@example.com" },
-    });
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    db.select.mockReturnValue({
-      from: () => ({
-        where: async () => {
-          throw new Error("pool exhausted");
-        },
-      }),
-    });
-
-    await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
-
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-    expect(publishUserEvent).not.toHaveBeenCalled();
-    consoleWarnSpy.mockRestore();
   });
 
   it.each(["rescinded", "accepted", "declined"])("rejects an already-%s invitation", async () => {
@@ -2604,7 +2616,7 @@ describe("rescindInvitation", () => {
 describe("dismissInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1", email: "manager@example.com" });
+    requireUser.mockResolvedValue({ id: "manager-1" });
     assertTripAccess.mockResolvedValue(undefined);
   });
 
@@ -2682,7 +2694,6 @@ describe("createTrip", () => {
     vi.stubGlobal("fetch", mockFetch);
     requireUser.mockResolvedValue({
       id: "user-1",
-      email: "test@example.com",
       name: "Test User",
     });
     getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
@@ -2719,7 +2730,7 @@ describe("createTrip", () => {
       select: () => ({
         from: () => ({
           where: () => ({
-            for: async () => [{ id: "user-1", email: "test@example.com", name: "Test User", currency, transitMode }],
+            for: async () => [{ id: "user-1", username: "test", name: "Test User", currency, transitMode }],
           }),
         }),
       }),
@@ -2779,7 +2790,7 @@ describe("createTrip", () => {
 
   it("reads transit mode and currency from inside the transaction, not from a pre-transaction snapshot", async () => {
     const lockPreferenceRowSpy = vi.fn(async () => [
-      { id: "user-1", email: "test@example.com", name: "Test User", currency: "EUR", transitMode: "transit" },
+      { id: "user-1", username: "test", name: "Test User", currency: "EUR", transitMode: "transit" },
     ]);
     const transactionSelectSpy = vi.fn(() => ({
       from: () => ({

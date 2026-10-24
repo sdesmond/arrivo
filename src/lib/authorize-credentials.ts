@@ -1,7 +1,7 @@
 import "server-only";
 import { CredentialsSignin } from "@auth/core/errors";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -17,6 +17,7 @@ import {
 import { createMfaTicket, verifyMfaTicket } from "./mfa";
 import { verifySecondFactor } from "./mfa-store";
 import { isHttpsRequest } from "./request-origin";
+import { normalizeUsername } from "./username";
 import {
   DEVICE_COOKIE,
   DEVICE_COOKIE_MAX_AGE_SECONDS,
@@ -44,7 +45,6 @@ export class MfaRequiredError extends CredentialsSignin {
 
 export interface AuthorizedUser {
   id: string;
-  email: string | null;
   name: string | null;
   sessionVersion: number;
   // Recorded in the session token: removing this browser under Profile → Security signs it out.
@@ -53,12 +53,11 @@ export interface AuthorizedUser {
   keepSignedIn: boolean;
 }
 
-// Compared against when the email is unknown, so a miss costs the same bcrypt time as a wrong password.
+// Compared against when the username is unknown, so a miss costs the same bcrypt time as a wrong password.
 const DUMMY_PASSWORD_HASH = "$2a$10$CwTycUXWue0Thq9StjUM0uJ8ZxHgx4G7R2nqvdTq7SR1RbpqW3k7y";
 
 const userColumns = {
   id: users.id,
-  email: users.email,
   name: users.name,
   passwordHash: users.passwordHash,
   sessionVersion: users.sessionVersion,
@@ -69,7 +68,6 @@ const userColumns = {
 
 type UserRow = {
   id: string;
-  email: string | null;
   name: string | null;
   sessionVersion: number;
 };
@@ -98,7 +96,6 @@ async function completeSignIn(
   });
   return {
     id: user.id,
-    email: user.email,
     name: user.name,
     sessionVersion: user.sessionVersion,
     deviceId,
@@ -115,14 +112,17 @@ function booleanField(value: unknown): boolean {
   return value === true || value === "true" || value === "on";
 }
 
-async function authorizePassword(email: string, password: string, keepSignedIn: boolean, request: Request) {
-  const [user] = await db.select(userColumns).from(users).where(eq(users.email, email));
+async function authorizePassword(username: string, password: string, keepSignedIn: boolean, request: Request) {
+  const [user] = await db
+    .select(userColumns)
+    .from(users)
+    .where(sql`lower(${users.username}) = ${normalizeUsername(username)}`);
   // A browser the owner signed in from before gets its own failure budget, so guesses from anywhere else
-  // (which count against the email and IP) can't lock them out there.
+  // (which count against the username and IP) can't lock them out there.
   const device = user ? await findTrustedDevice(readDeviceToken(request.headers.get("cookie")), user) : null;
   const targets = device
     ? [accountTarget("device", device.id)]
-    : signInTargets(email, clientIpFromHeaders(request.headers));
+    : signInTargets(username, clientIpFromHeaders(request.headers));
 
   const throttle = await checkThrottle(targets);
   if (throttle.locked) throw new LockedOutError(throttle.retryAfterSeconds);
@@ -177,8 +177,8 @@ export async function authorizeCredentials(
     return code ? authorizeSecondFactor(ticket, code, booleanField(credentials.remember), request) : null;
   }
 
-  const email = stringField(credentials.email);
+  const username = stringField(credentials.username);
   const password = stringField(credentials.password);
-  if (!email || !password) return null;
-  return authorizePassword(email, password, booleanField(credentials.keepSignedIn), request);
+  if (!username || !password) return null;
+  return authorizePassword(username, password, booleanField(credentials.keepSignedIn), request);
 }

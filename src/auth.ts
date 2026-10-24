@@ -13,7 +13,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
   // JWT avoids a session table; revocation works through users.session_version (see the jwt callback).
   providers: [
     Credentials({
-      credentials: { email: {}, password: {}, mfaTicket: {}, code: {} },
+      credentials: { username: {}, password: {}, mfaTicket: {}, code: {} },
       authorize: (credentials, request): Promise<AuthorizedUser | null> => authorizeCredentials(credentials, request),
     }),
   ],

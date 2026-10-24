@@ -48,10 +48,11 @@ import { createUploadStorageName } from "@/lib/upload-policy";
 import {
   applyInvitationResend,
   getInvitationExpiry,
-  hasNormalizedEmail,
-  normalizeEmail,
+  hasNormalizedUsername,
   publishInvitationChanged,
 } from "@/lib/invitations";
+import { isUniqueViolation } from "@/lib/error-utils";
+import { normalizeUsername } from "@/lib/username";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
@@ -305,21 +306,20 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     const [user] = await tx
       .select({
         id: users.id,
-        email: users.email,
+        username: users.username,
         name: users.name,
         currency: users.currency,
         transitMode: users.transitMode,
       })
       .from(users)
-      .where(eq(users.email, sessionUser.email!))
+      .where(eq(users.id, sessionUser.id!))
       .for("update");
 
-    if (!user?.id || !user.email) {
+    if (!user?.id) {
       throw new Error("Signed-in user could not be resolved before trip creation.");
     }
     userId = user.id;
-    const userEmail = user.email;
-    const userName = user.name ?? userEmail;
+    const userName = user.name ?? user.username;
     const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
     const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
     const resolvedTransitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
@@ -347,7 +347,6 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     await tx.insert(collaborators).values({
       tripId: trip.id,
       userId,
-      email: userEmail,
       name: userName,
       initials: userName.slice(0, 2).toUpperCase(),
       role: "manager",
@@ -749,15 +748,9 @@ function isCollaboratorRole(value: string): value is CollaboratorRole {
   return VALID_COLLABORATOR_ROLES.some((collaboratorRole) => collaboratorRole === value);
 }
 
-const UNIQUE_VIOLATION_CODE = "23505";
-
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === UNIQUE_VIOLATION_CODE;
-}
-
 export async function inviteContributor(
   tripId: string,
-  email: string,
+  username: string,
   role: CollaboratorRole = CollaboratorRole.Viewer
 ): Promise<InviteContributorResult> {
   const user = await requireUser();
@@ -767,17 +760,15 @@ export async function inviteContributor(
     return { status: "error", message: "Invalid collaborator role", errorCode: "invalid-role" };
   }
 
-  const normalizedEmail = normalizeEmail(email);
-  if (user.email && normalizedEmail === normalizeEmail(user.email)) {
-    return { status: "error", message: "You cannot invite yourself to this trip", errorCode: "self-invite" };
-  }
-
   const [invitee] = await db
     .select({ id: users.id })
     .from(users)
-    .where(hasNormalizedEmail(users.email, normalizedEmail));
+    .where(hasNormalizedUsername(users.username, normalizeUsername(username)));
   if (!invitee) {
-    return { status: "error", message: "No account found for this email", errorCode: "no-account" };
+    return { status: "error", message: "No account found for this username", errorCode: "no-account" };
+  }
+  if (invitee.id === user.id) {
+    return { status: "error", message: "You cannot invite yourself to this trip", errorCode: "self-invite" };
   }
 
   const expiresAt = getInvitationExpiry();
@@ -785,7 +776,7 @@ export async function inviteContributor(
     const existingCollaborators = await transaction
       .select({ id: collaborators.id })
       .from(collaborators)
-      .where(and(eq(collaborators.tripId, tripId), hasNormalizedEmail(collaborators.email, normalizedEmail)));
+      .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, invitee.id)));
     if (existingCollaborators.length > 0) {
       return {
         status: "error",
@@ -797,7 +788,7 @@ export async function inviteContributor(
     const existingInvitations = await transaction
       .select({ id: invitations.id, status: invitations.status })
       .from(invitations)
-      .where(and(eq(invitations.tripId, tripId), hasNormalizedEmail(invitations.email, normalizedEmail)));
+      .where(and(eq(invitations.tripId, tripId), eq(invitations.inviteeId, invitee.id)));
     const pendingInvitation = existingInvitations.find((invitation) => invitation.status === "pending");
     if (pendingInvitation) {
       await applyInvitationResend(transaction, pendingInvitation.id, tripId, expiresAt, role);
@@ -812,7 +803,7 @@ export async function inviteContributor(
     try {
       await transaction.insert(invitations).values({
         tripId,
-        email: normalizedEmail,
+        inviteeId: invitee.id,
         role,
         status: "pending",
         expiresAt,
@@ -846,14 +837,14 @@ export async function inviteContributor(
  * descriptive error instead of a generic one. Read-only — never used to gate the mutation itself,
  * which stays a single atomic UPDATE ... WHERE ... RETURNING.
  */
-async function describeUnmatchedInvitation(invitationId: string, normalizedEmail: string): Promise<string> {
+async function describeUnmatchedInvitation(invitationId: string, userId: string): Promise<string> {
   const [invitationRow] = await db.select().from(invitations).where(eq(invitations.id, invitationId));
 
   if (!invitationRow) {
     return "Invitation not found.";
   }
 
-  if (normalizeEmail(invitationRow.email) !== normalizedEmail) {
+  if (invitationRow.inviteeId !== userId) {
     return "This invitation is not addressed to your account.";
   }
 
@@ -874,11 +865,10 @@ async function describeUnmatchedInvitation(invitationId: string, normalizedEmail
 
 export async function acceptInvitation(invitationId: string): Promise<AcceptInvitationResult> {
   const user = await requireUser();
-  if (!user.email || !user.id) {
+  if (!user.id) {
     return { status: "error", message: "Invitation not found." };
   }
-  const normalizedEmail = normalizeEmail(user.email);
-  const userName = user.name ?? user.email;
+  const userId = user.id;
   const matchedInvitation = await db.transaction(async (transaction) => {
     const [updatedInvitation] = await transaction
       .update(invitations)
@@ -886,7 +876,7 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
       .where(
         and(
           eq(invitations.id, invitationId),
-          hasNormalizedEmail(invitations.email, normalizedEmail),
+          eq(invitations.inviteeId, userId),
           eq(invitations.status, "pending"),
           sql`${invitations.expiresAt} > now()`
         )
@@ -897,10 +887,14 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
       return null;
     }
 
+    const [account] = await transaction
+      .select({ name: users.name, username: users.username })
+      .from(users)
+      .where(eq(users.id, userId));
+    const userName = account?.name ?? account?.username ?? user.name ?? "";
     const collaboratorValues = {
       tripId: updatedInvitation.tripId,
-      userId: user.id,
-      email: normalizedEmail,
+      userId,
       name: userName,
       initials: userName.slice(0, 2).toUpperCase(),
       role: updatedInvitation.role,
@@ -911,7 +905,7 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
       .insert(collaborators)
       .values(collaboratorValues)
       .onConflictDoUpdate({
-        target: [collaborators.tripId, collaborators.email],
+        target: [collaborators.tripId, collaborators.userId],
         set: collaboratorValues,
       });
 
@@ -919,7 +913,7 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
   });
 
   if (!matchedInvitation) {
-    const message = await describeUnmatchedInvitation(invitationId, normalizedEmail);
+    const message = await describeUnmatchedInvitation(invitationId, userId);
     return { status: "error", message };
   }
 
@@ -927,9 +921,9 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
     type: LiveSyncEventType.MembershipChanged,
     tripId: matchedInvitation.tripId,
   });
-  publishUserEvent(user.id, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
+  publishUserEvent(userId, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
   // The acting user's other tabs drop the invitation from their sidebar badge.
-  publishUserEvent(user.id, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
+  publishUserEvent(userId, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${matchedInvitation.tripId}`);
@@ -939,10 +933,10 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
 
 export async function declineInvitation(invitationId: string): Promise<DeclineInvitationResult> {
   const user = await requireUser();
-  if (!user.email) {
+  if (!user.id) {
     return { status: "error", message: "Invitation not found." };
   }
-  const normalizedEmail = normalizeEmail(user.email);
+  const userId = user.id;
 
   const [matchedInvitation] = await db
     .update(invitations)
@@ -950,7 +944,7 @@ export async function declineInvitation(invitationId: string): Promise<DeclineIn
     .where(
       and(
         eq(invitations.id, invitationId),
-        hasNormalizedEmail(invitations.email, normalizedEmail),
+        eq(invitations.inviteeId, userId),
         eq(invitations.status, "pending"),
         sql`${invitations.expiresAt} > now()`
       )
@@ -958,7 +952,7 @@ export async function declineInvitation(invitationId: string): Promise<DeclineIn
     .returning();
 
   if (!matchedInvitation) {
-    const message = await describeUnmatchedInvitation(invitationId, normalizedEmail);
+    const message = await describeUnmatchedInvitation(invitationId, userId);
     return { status: "error", message };
   }
 
@@ -966,8 +960,8 @@ export async function declineInvitation(invitationId: string): Promise<DeclineIn
     type: LiveSyncEventType.MembershipChanged,
     tripId: matchedInvitation.tripId,
   });
-  publishUserEvent(user.id!, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
-  publishUserEvent(user.id!, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
+  publishUserEvent(userId, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
+  publishUserEvent(userId, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
 
   revalidatePath("/trips");
   revalidatePath(`/trips/${matchedInvitation.tripId}`);
@@ -993,7 +987,7 @@ export async function rescindInvitation(tripId: string, invitationId: string): P
   }
 
   publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  await publishInvitationChanged(rescindedInvitation.email, tripId);
+  publishInvitationChanged(rescindedInvitation.inviteeId, tripId);
   revalidatePath("/trips");
 
   return { status: "success" };
@@ -1083,6 +1077,7 @@ export async function saveContributorChanges(
   const removedUserIds: string[] = [];
   const roleChangedUserIds: string[] = [];
   let tripName = "";
+  let removedByUsername = "";
 
   try {
     await db.transaction(async (transaction) => {
@@ -1133,12 +1128,16 @@ export async function saveContributorChanges(
       if (removedUserIds.length > 0) {
         const [tripRow] = await transaction.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId));
         tripName = tripRow?.name ?? "";
+        const [remover] = await transaction
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, user.id!));
+        removedByUsername = remover?.username ?? "";
       }
     });
 
     if (removedUserIds.length > 0) {
-      const removedByName = user.name ?? user.email ?? "";
-      const removedByEmail = user.email ?? "";
+      const removedByName = user.name ?? removedByUsername;
       for (const removedUserId of removedUserIds) {
         publishUserEvent(removedUserId, {
           type: LiveSyncEventType.MembershipRemoved,
@@ -1146,7 +1145,7 @@ export async function saveContributorChanges(
           tripId,
           tripName,
           removedByName,
-          removedByEmail,
+          removedByUsername,
         });
         removeTripSubscribersForUser(tripId, removedUserId);
       }

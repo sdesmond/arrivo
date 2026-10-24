@@ -65,23 +65,23 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000) and sign in with the demo credentials.
 
-Creates three accounts with six trips between them — an active trip, a past trip, a dateless "someday" trip,
+Creates four accounts with six trips between them — an active trip, a past trip, a dateless "someday" trip,
 an upcoming trip owned by a second account and shared back to the first, another second-account past trip,
 and a second dateless trip — plus a cross-account share and a pending + a declined invitation, so the app has
 realistic data to explore out of the box. Full breakdown, including exactly what each trip contains and why:
 **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**.
 
-**Demo credentials** (all three accounts use the same password):
+**Demo credentials** (all four accounts use the same password):
 
 ```
-Email:    demo@arrivo.com
+Username: demo
 Password: demo1234
 ```
 
-Two more accounts (`alex@arrivo.com`, `sam@arrivo.com`) exist for exercising sharing and a second profile —
+Three more accounts (`alex`, `sam`, `jordan`) exist for exercising sharing and a second profile —
 see the doc above.
 
-`db:seed` wipes and reseeds just these three seed accounts on every run — safe to run repeatedly, and it never
+`db:seed` wipes and reseeds just these four seed accounts on every run — safe to run repeatedly, and it never
 touches any other account in the database.
 
 ---
@@ -98,7 +98,7 @@ touches any other account in the database.
 | `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                       | generated automatically                              |
 | `DATA_ENCRYPTION_KEY`    | Encrypts passport numbers and 2FA secrets      | generated automatically; never change it once set    |
 | `ALLOW_SIGNUP`           | Expose the sign-up page                        | `true`                                               |
-| `E2E_EMAIL`              | E2E login email                                | `e2e@arrivo.com`                                     |
+| `E2E_USERNAME`           | E2E login username                             | `e2e`                                                |
 | `E2E_PASSWORD`           | E2E login password                             | `e2e1234`                                            |
 | `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator        | `true`                                               |
 | `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                              |
@@ -179,13 +179,13 @@ Schema changes are tracked as committed SQL migrations in `drizzle/`; see [docs/
 
 ## Database scripts
 
-| Script                | What it does                                                                                   |
-| --------------------- | ---------------------------------------------------------------------------------------------- |
-| `npm run db:migrate`  | Apply the committed `drizzle/` migrations to the DB                                            |
-| `npm run db:generate` | Generate a migration from `src/db/schema.ts` changes (commit the result)                       |
-| `npm run db:push`     | Sync schema straight from `src/db/schema.ts`, no migration. Throwaway local DBs only           |
-| `npm run db:seed`     | Wipe + reseed the three dev seed accounts and their trips ([details](./docs/dev-seed-data.md)) |
-| `npm run db:studio`   | Open Drizzle Studio GUI at port 4983                                                           |
+| Script                | What it does                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `npm run db:migrate`  | Apply the committed `drizzle/` migrations to the DB                                           |
+| `npm run db:generate` | Generate a migration from `src/db/schema.ts` changes (commit the result)                      |
+| `npm run db:push`     | Sync schema straight from `src/db/schema.ts`, no migration. Throwaway local DBs only          |
+| `npm run db:seed`     | Wipe + reseed the four dev seed accounts and their trips ([details](./docs/dev-seed-data.md)) |
+| `npm run db:studio`   | Open Drizzle Studio GUI at port 4983                                                          |
 
 ---
 

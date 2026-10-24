@@ -32,7 +32,7 @@ export interface SeedCompanion {
 export interface SeedUser {
   /** Stable in-memory handle used to wire shares/invitations — never written to the DB. */
   key: string;
-  email: string;
+  username: string;
   name: string;
   initials: string;
   currency: string;
@@ -189,7 +189,7 @@ export interface SeedShare {
 
 export interface SeedInvitation {
   tripKey: string;
-  email: string;
+  inviteeUserKey: string;
   role: CollaboratorRole;
   status: InvitationStatus;
   /** Relative to the seed run: positive = expires in the future, negative = already expired. */

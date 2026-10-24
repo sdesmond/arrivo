@@ -68,7 +68,7 @@ async function openSecondSessionOnTrip(
   scenario.setValue(REMOVED_PAGE_KEY, secondPage);
   scenario.setValue(REMOVED_NAME_KEY, contributor.name);
 
-  await scenario.signInAsUser(secondPage, contributor.email);
+  await scenario.signInAsUser(secondPage, contributor.username);
   await openTripWithPersonalChannel(secondPage, tripId);
   return secondPage;
 }

@@ -27,16 +27,16 @@ export const DEV_SEED: SeedWorld = {
     // pending-invitations flow on /trips.
     {
       tripKey: "tokyo",
-      email: "sam@arrivo.com",
+      inviteeUserKey: "sam",
       role: "editor",
       status: "pending",
       expiresInHours: 72,
       invitedByUserKey: "demo",
     },
-    // An invite to someone with no Arrivo account, already declined — the sharing dialog's third row state.
+    // An invite Jordan already declined — the sharing dialog's third row state.
     {
       tripKey: "tokyo",
-      email: "jordan@arrivo.com",
+      inviteeUserKey: "jordan",
       role: "viewer",
       status: "declined",
       expiresInHours: -24,

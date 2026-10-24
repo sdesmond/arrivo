@@ -1,7 +1,7 @@
 # Dev seed data
 
 `npm run db:seed` (`src/db/seed.ts`) populates `DATABASE_URL` with a small, realistic multi-account world:
-three accounts, six trips spanning every date state (active, upcoming, past, and two with no dates yet),
+four accounts, six trips spanning every date state (active, upcoming, past, and two with no dates yet),
 cross-account sharing in both directions, and all three states the share dialog can render. It's meant to be a
 starting point that already exercises most app surfaces without any manual setup.
 
@@ -10,10 +10,10 @@ starting point that already exercises most app surfaces without any manual setup
 
 ## Re-run behavior
 
-`db:seed` **wipes and reseeds the three seed accounts on every run** — safe to run any time, including
-repeatedly. It deletes `users` rows by the three seed emails (cascading to everything those accounts own:
+`db:seed` **wipes and reseeds the four seed accounts on every run** — safe to run any time, including
+repeatedly. It deletes `users` rows by the four seed usernames (cascading to everything those accounts own:
 trips, days, events, documents, reservations, expenses, packing, notes, collaborator rows, and invitations
-they sent), then reinserts the whole world fresh. It never touches any other account, so hand-created data in
+they sent or received), then reinserts the whole world fresh. It never touches any other account, so hand-created data in
 your dev database is left alone.
 
 Trip dates are computed as offsets from the moment the seed runs (`src/db/seed-data/seed-dates.ts`), so trip
@@ -22,13 +22,14 @@ no matter when you seed.
 
 ## Accounts
 
-All three share the password `demo1234`.
+All four share the password `demo1234`.
 
-| Account           | Name        | Profile                                                                                                                        | Why                                                                                                        |
-| ----------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `demo@arrivo.com` | Demo User   | USD, `MM/DD/YYYY`, passport + known traveler number, 2 loyalty numbers, 2 wishlist destinations, 1 companion, thresholds 80/90 | The primary account — README/SETUP have always pointed here                                                |
-| `alex@arrivo.com` | Alex Rivera | EUR, `DD/MM/YYYY`, `defaultCoverType: "map"`, 1 loyalty number, thresholds 70/85                                               | Exercises the non-default currency, date format, cover type, and threshold paths                           |
-| `sam@arrivo.com`  | Sam Chen    | USD, owns no trips                                                                                                             | Receives a pending invitation — exercises the invitee-side pending-invitations flow on `/trips` end to end |
+| Account  | Name        | Profile                                                                                                                        | Why                                                                                                        |
+| -------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `demo`   | Demo User   | USD, `MM/DD/YYYY`, passport + known traveler number, 2 loyalty numbers, 2 wishlist destinations, 1 companion, thresholds 80/90 | The primary account — README/SETUP have always pointed here                                                |
+| `alex`   | Alex Rivera | EUR, `DD/MM/YYYY`, `defaultCoverType: "map"`, 1 loyalty number, thresholds 70/85                                               | Exercises the non-default currency, date format, cover type, and threshold paths                           |
+| `sam`    | Sam Chen    | USD, owns no trips                                                                                                             | Receives a pending invitation — exercises the invitee-side pending-invitations flow on `/trips` end to end |
+| `jordan` | Jordan Lee  | USD, owns no trips                                                                                                             | Has already declined an invitation — the share dialog's Declined row                                       |
 
 ## Trips
 
@@ -58,10 +59,10 @@ new trip has no cover image yet.
 
 ## Invitations (both on Tokyo)
 
-| Email                                   | Role   | Status   | Expires                 |
-| --------------------------------------- | ------ | -------- | ----------------------- |
-| `sam@arrivo.com`                        | Editor | Pending  | 72h after the seed run  |
-| `jordan@arrivo.com` (no Arrivo account) | Viewer | Declined | 24h before the seed run |
+| Invitee  | Role   | Status   | Expires                 |
+| -------- | ------ | -------- | ----------------------- |
+| `sam`    | Editor | Pending  | 72h after the seed run  |
+| `jordan` | Viewer | Declined | 24h before the seed run |
 
 Opening Tokyo's share dialog as Demo renders all three non-creator row states at once: an active collaborator
 (Alex · Editor), a Pending row (Sam), and a Declined row (Jordan) — alongside Demo's own creator row.

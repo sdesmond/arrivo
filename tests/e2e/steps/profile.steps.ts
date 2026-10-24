@@ -50,6 +50,36 @@ Then("my name {string} should appear in the sidebar", async ({ page }, name: str
   await expect(page.locator('a[href="/profile"][aria-label="View profile"]')).toContainText(name);
 });
 
+const RENAMED_USERNAME_KEY = "renamedUsername";
+
+When("I change my username to a new one and save", async ({ page, scenario }) => {
+  const user = await scenario.ensureCurrentUser();
+  const username = scenario.uniqueUsername("renamed");
+  scenario.setValue(RENAMED_USERNAME_KEY, username);
+
+  const usernameInput = page.locator("#profile-username");
+  await expect(usernameInput).toHaveValue(user.username);
+  await usernameInput.fill(username);
+  const saved = waitForServerActionResponse(page, { pathIncludes: "/profile" });
+  await page.getByRole("button", { name: "Save" }).click();
+  await saved;
+  await expect(page.getByText("Saved")).toBeVisible({ timeout: 10000 });
+  scenario.setCurrentUser({ ...user, username });
+});
+
+Then("the sidebar should show my new username", async ({ page, scenario }) => {
+  const username = scenario.getValue<string>(RENAMED_USERNAME_KEY)!;
+  await expect(page.locator('a[href="/profile"][aria-label="View profile"]')).toContainText(`@${username}`);
+});
+
+Then("I can sign in with my new username", async ({ page, scenario }) => {
+  const username = scenario.getValue<string>(RENAMED_USERNAME_KEY)!;
+  await page.getByRole("textbox", { name: "Username" }).fill(username);
+  await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL("**/trips");
+});
+
 When("I set currency to {string}", async ({ page }, currency: string) => {
   await page.getByRole("button", { name: /Currency:/i }).click();
   await page.getByRole("textbox", { name: "Search currencies" }).fill(currency);
@@ -201,7 +231,7 @@ Given("I am also signed in on a second device", async ({ page, scenario }) => {
   const user = await scenario.ensureCurrentUser();
   const secondDevice = await scenario.openSecondSession(page);
   scenario.setValue(SECOND_DEVICE_KEY, secondDevice);
-  await scenario.signInAsUser(secondDevice.page, user.email);
+  await scenario.signInAsUser(secondDevice.page, user.username);
 });
 
 When("I change my password to {string}", async ({ page, scenario }, newPassword: string) => {
@@ -274,7 +304,6 @@ Given(
       await db.insert(collaborators).values({
         tripId: trip.id,
         userId: viewer.id,
-        email: viewer.email,
         name: viewer.name,
         initials: viewer.initials,
         role: "viewer",
@@ -291,10 +320,14 @@ Given(
 Given("I have a pending invite out on my shared trip", async ({ scenario }) => {
   const inviter = await scenario.ensureCurrentUser();
   const tripId = requireSharedTripId(scenario);
+  const { user: invitee } = await scenario.materialize({
+    user: { overrides: { user: { name: "Pending Invitee", initials: "PI" } }, setCurrent: false },
+  });
+  if (!invitee) throw new Error("Failed to materialize the pending invitee.");
   await withE2EDb(async (db) => {
     await db.insert(invitations).values({
       tripId,
-      email: scenario.uniqueEmail("pending-invitee"),
+      inviteeId: invitee.id,
       role: "editor",
       status: "pending",
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),

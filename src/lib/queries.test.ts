@@ -26,7 +26,12 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
       id: "documents.id",
     },
     collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId", role: "collaborators.role" },
-    invitations: { tripId: "invitations.tripId", status: "invitations.status", expiresAt: "invitations.expiresAt" },
+    invitations: {
+      tripId: "invitations.tripId",
+      inviteeId: "invitations.inviteeId",
+      status: "invitations.status",
+      expiresAt: "invitations.expiresAt",
+    },
     reservations: { tripId: "reservations.tripId" },
     expenses: { tripId: "expenses.tripId" },
     packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
@@ -35,7 +40,7 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
     notes: { position: "notes.position" },
     itineraryChecklists: {},
     checklistItems: {},
-    users: {},
+    users: { id: "users.id", username: "users.username" },
     userLoyaltyNumbers: {},
     userWishlistDestinations: {},
     userCompanions: {},
@@ -44,9 +49,24 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
   },
 }));
 
+// Collaborator and invitation reads join users for usernames. Tests that don't care about the join mock only
+// `from().where()`, so a join step the mock leaves out passes straight through to the same chain.
+type MockChain = Record<string, unknown> & { from?: (...args: unknown[]) => Record<string, unknown> };
+function withPassthroughJoins(chain: MockChain): MockChain {
+  if (typeof chain?.from !== "function") return chain;
+  const from = chain.from;
+  return {
+    ...chain,
+    from: (...args: unknown[]) => {
+      const next = from(...args);
+      return { leftJoin: () => next, innerJoin: () => next, ...next };
+    },
+  };
+}
+
 vi.mock("@/db", () => ({
   db: {
-    select: mockDbSelect,
+    select: (...args: unknown[]) => withPassthroughJoins(mockDbSelect(...args)),
   },
 }));
 
@@ -64,6 +84,7 @@ vi.mock("drizzle-orm", () => ({
   asc: vi.fn(() => "asc"),
   count: vi.fn(() => "count"),
   eq: vi.fn(() => "eq"),
+  getTableColumns: vi.fn(() => ({})),
   inArray: vi.fn(() => "inArray"),
   isNull: vi.fn(() => "isNull"),
   ne: vi.fn(() => "ne"),
@@ -1208,7 +1229,7 @@ describe("getUserById", () => {
   const userRow = {
     id: "user-1",
     name: "Ada",
-    email: "ada@example.com",
+    username: "ada",
     dateFormat: "MDY",
     currency: "USD",
     distanceUnit: "mi",

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { SignInNotice, type MfaActionState, type SignInActionState } from "@/data/types";
+import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/lib/username";
 import { AuthSubmitButton } from "./auth-submit-button";
 import { MfaCodeForm } from "./mfa-code-form";
 
@@ -70,13 +71,15 @@ function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps)
         </p>
       )}
       <div className="flex flex-col gap-1">
-        <label htmlFor="email">Email</label>
+        <label htmlFor="username">Username</label>
         <input
-          id="email"
-          name="email"
-          type="email"
+          id="username"
+          name="username"
+          type="text"
           required
-          autoComplete="email"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
           aria-invalid={hasError || undefined}
@@ -152,13 +155,17 @@ export function SignUpForm({ action }: SignUpFormProps) {
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor="email">Email</label>
+        <label htmlFor="username">Username</label>
         <input
-          id="email"
-          name="email"
-          type="email"
+          id="username"
+          name="username"
+          type="text"
           required
-          autoComplete="email"
+          minLength={USERNAME_MIN_LENGTH}
+          maxLength={USERNAME_MAX_LENGTH}
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
           aria-invalid={hasError || undefined}

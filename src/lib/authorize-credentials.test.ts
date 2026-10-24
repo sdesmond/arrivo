@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/db", () => ({
   db: { select: vi.fn(() => ({ from: () => ({ where: mocks.selectWhere }) })) },
 }));
-vi.mock("@/db/schema", () => ({ users: { id: "users.id", email: "users.email" } }));
+vi.mock("@/db/schema", () => ({ users: { id: "users.id", username: "users.username" } }));
 vi.mock("bcryptjs", () => ({ default: { compare: mocks.compare } }));
 vi.mock("./auth-throttle", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./auth-throttle")>()),
@@ -34,13 +34,13 @@ vi.mock("./trusted-devices", async (importOriginal) => ({
   rememberDevice: mocks.rememberDevice,
 }));
 
+import { inspect } from "node:util";
 import { cookies } from "next/headers";
 import { AuthErrorCode } from "@/data/types";
 import { LockedOutError, MfaRequiredError, authorizeCredentials } from "./authorize-credentials";
 
 const USER = {
   id: "user-1",
-  email: "alice@example.com",
   name: "Alice",
   passwordHash: "$2a$10$hash",
   sessionVersion: 2,
@@ -56,7 +56,6 @@ beforeEach(() => {
 
 const SIGNED_IN = {
   id: "user-1",
-  email: "alice@example.com",
   name: "Alice",
   sessionVersion: 2,
   deviceId: "device-9",
@@ -79,41 +78,50 @@ describe("authorizeCredentials — password step", () => {
 
   it("returns the user with their session version on a correct password", async () => {
     await expect(
-      authorizeCredentials({ email: "alice@example.com", password: "pw" }, request({ "x-forwarded-for": "1.2.3.4" }))
+      authorizeCredentials({ username: "alice", password: "pw" }, request({ "x-forwarded-for": "1.2.3.4" }))
     ).resolves.toEqual({ ...SIGNED_IN, keepSignedIn: false });
-    expect(targetKeys(mocks.checkThrottle.mock.calls[0])).toEqual(["email:alice@example.com", "ip:1.2.3.4"]);
+    expect(targetKeys(mocks.checkThrottle.mock.calls[0])).toEqual(["username:alice", "ip:1.2.3.4"]);
     // Only the account key is cleared; the IP budget is never refunded.
-    expect(targetKeys(mocks.clearFailures.mock.calls[0])).toEqual(["email:alice@example.com"]);
+    expect(targetKeys(mocks.clearFailures.mock.calls[0])).toEqual(["username:alice"]);
     expect(mocks.recordFailure).not.toHaveBeenCalled();
   });
 
+  it("looks the account up by lowercased username and throttles that normalized key", async () => {
+    await authorizeCredentials({ username: " Alice ", password: "pw" }, request());
+    const condition = inspect(mocks.selectWhere.mock.calls[0][0], { depth: 8 });
+    expect(condition).toContain("lower(");
+    expect(condition).toContain("'alice'");
+    expect(condition).not.toContain("Alice");
+    expect(targetKeys(mocks.checkThrottle.mock.calls[0])).toEqual(["username:alice"]);
+  });
+
   it("returns null without checking anything when fields are missing", async () => {
-    await expect(authorizeCredentials({ email: "alice@example.com" }, request())).resolves.toBeNull();
+    await expect(authorizeCredentials({ username: "alice" }, request())).resolves.toBeNull();
     expect(mocks.checkThrottle).not.toHaveBeenCalled();
   });
 
   it("records a failure on a wrong password", async () => {
     mocks.compare.mockResolvedValue(false);
-    await expect(authorizeCredentials({ email: "alice@example.com", password: "bad" }, request())).resolves.toBeNull();
-    expect(targetKeys(mocks.recordFailure.mock.calls[0])).toEqual(["email:alice@example.com"]);
+    await expect(authorizeCredentials({ username: "alice", password: "bad" }, request())).resolves.toBeNull();
+    expect(targetKeys(mocks.recordFailure.mock.calls[0])).toEqual(["username:alice"]);
   });
 
-  it("still runs bcrypt and records a failure for an unknown email", async () => {
+  it("still runs bcrypt and records a failure for an unknown username", async () => {
     mocks.selectWhere.mockResolvedValue([]);
-    await expect(authorizeCredentials({ email: "nobody@example.com", password: "pw" }, request())).resolves.toBeNull();
+    await expect(authorizeCredentials({ username: "nobody", password: "pw" }, request())).resolves.toBeNull();
     expect(mocks.compare).toHaveBeenCalledWith("pw", expect.stringMatching(/^\$2[aby]\$/));
     expect(mocks.recordFailure).toHaveBeenCalled();
   });
 
   it("treats an account without a password as a failure", async () => {
     mocks.selectWhere.mockResolvedValue([{ ...USER, passwordHash: null }]);
-    await expect(authorizeCredentials({ email: "alice@example.com", password: "pw" }, request())).resolves.toBeNull();
+    await expect(authorizeCredentials({ username: "alice", password: "pw" }, request())).resolves.toBeNull();
     expect(mocks.recordFailure).toHaveBeenCalled();
   });
 
   it("throws LockedOutError before checking the password while locked", async () => {
     mocks.checkThrottle.mockResolvedValue({ locked: true, retryAfterSeconds: 600 });
-    const attempt = authorizeCredentials({ email: "alice@example.com", password: "pw" }, request());
+    const attempt = authorizeCredentials({ username: "alice", password: "pw" }, request());
     await expect(attempt).rejects.toBeInstanceOf(LockedOutError);
     await expect(attempt).rejects.toMatchObject({ code: AuthErrorCode.Locked, retryAfterSeconds: 600 });
     expect(mocks.compare).not.toHaveBeenCalled();
@@ -121,7 +129,7 @@ describe("authorizeCredentials — password step", () => {
 
   it("asks for a second factor, carrying the ticket off the URL-visible code", async () => {
     mocks.selectWhere.mockResolvedValue([{ ...USER, mfaEnabledAt: new Date(), totpSecret: "enc" }]);
-    const attempt = authorizeCredentials({ email: "alice@example.com", password: "pw" }, request());
+    const attempt = authorizeCredentials({ username: "alice", password: "pw" }, request());
     await expect(attempt).rejects.toBeInstanceOf(MfaRequiredError);
     await expect(attempt).rejects.toMatchObject({ code: AuthErrorCode.MfaRequired, ticket: "signed-ticket" });
     expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: false });
@@ -142,7 +150,7 @@ describe("authorizeCredentials — remembering the browser and session length", 
 
   it("remembers every browser it signs in, keeping an existing token and labeling it from the user agent", async () => {
     await authorizeCredentials(
-      { email: "alice@example.com", password: "pw" },
+      { username: "alice", password: "pw" },
       request({ cookie: "arrivo_device=old-token", "user-agent": "Firefox/131" })
     );
     expect(mocks.rememberDevice).toHaveBeenCalledWith({
@@ -160,10 +168,7 @@ describe("authorizeCredentials — remembering the browser and session length", 
   });
 
   it("marks the browser cookie secure behind an HTTPS proxy", async () => {
-    await authorizeCredentials(
-      { email: "alice@example.com", password: "pw" },
-      request({ "x-forwarded-proto": "https" })
-    );
+    await authorizeCredentials({ username: "alice", password: "pw" }, request({ "x-forwarded-proto": "https" }));
     expect(mocks.cookieSet).toHaveBeenCalledWith(
       "arrivo_device",
       "device-token",
@@ -173,14 +178,14 @@ describe("authorizeCredentials — remembering the browser and session length", 
 
   it("passes Keep me signed in through to the session", async () => {
     await expect(
-      authorizeCredentials({ email: "alice@example.com", password: "pw", keepSignedIn: "true" }, request())
+      authorizeCredentials({ username: "alice", password: "pw", keepSignedIn: "true" }, request())
     ).resolves.toMatchObject({ keepSignedIn: true });
   });
 
   it("carries Keep me signed in through the two-factor ticket", async () => {
     mocks.selectWhere.mockResolvedValue([{ ...USER, mfaEnabledAt: new Date(), totpSecret: "enc" }]);
     await expect(
-      authorizeCredentials({ email: "alice@example.com", password: "pw", keepSignedIn: "true" }, request())
+      authorizeCredentials({ username: "alice", password: "pw", keepSignedIn: "true" }, request())
     ).rejects.toBeInstanceOf(MfaRequiredError);
     expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: true });
   });
@@ -208,7 +213,7 @@ describe("authorizeCredentials — trusted devices", () => {
   });
 
   it("limits a known browser by its own key, so lockouts from elsewhere don't apply", async () => {
-    await authorizeCredentials({ email: "alice@example.com", password: "pw" }, withDeviceCookie());
+    await authorizeCredentials({ username: "alice", password: "pw" }, withDeviceCookie());
     expect(mocks.findTrustedDevice).toHaveBeenCalledWith("device-token", USER);
     expect(targetKeys(mocks.checkThrottle.mock.calls[0])).toEqual(["device:device-1"]);
     expect(targetKeys(mocks.clearFailures.mock.calls[0])).toEqual(["device:device-1"]);
@@ -216,21 +221,21 @@ describe("authorizeCredentials — trusted devices", () => {
 
   it("counts wrong passwords from a known browser against that browser only", async () => {
     mocks.compare.mockResolvedValue(false);
-    await authorizeCredentials({ email: "alice@example.com", password: "bad" }, withDeviceCookie());
+    await authorizeCredentials({ username: "alice", password: "bad" }, withDeviceCookie());
     expect(targetKeys(mocks.recordFailure.mock.calls[0])).toEqual(["device:device-1"]);
   });
 
-  it("falls back to the email and IP keys when the cookie isn't a trusted device for this user", async () => {
+  it("falls back to the username and IP keys when the cookie isn't a trusted device for this user", async () => {
     mocks.findTrustedDevice.mockResolvedValue(null);
-    await authorizeCredentials({ email: "alice@example.com", password: "pw" }, withDeviceCookie());
-    expect(targetKeys(mocks.checkThrottle.mock.calls[0])).toEqual(["email:alice@example.com", "ip:1.2.3.4"]);
+    await authorizeCredentials({ username: "alice", password: "pw" }, withDeviceCookie());
+    expect(targetKeys(mocks.checkThrottle.mock.calls[0])).toEqual(["username:alice", "ip:1.2.3.4"]);
   });
 
   it("skips the code on a browser remembered for two-factor", async () => {
     mocks.selectWhere.mockResolvedValue([{ ...USER, mfaEnabledAt: new Date(), totpSecret: "enc" }]);
     mocks.findTrustedDevice.mockResolvedValue({ ...DEVICE, mfaRememberedUntil: new Date(Date.now() + 60_000) });
     await expect(
-      authorizeCredentials({ email: "alice@example.com", password: "pw" }, withDeviceCookie())
+      authorizeCredentials({ username: "alice", password: "pw" }, withDeviceCookie())
     ).resolves.toMatchObject({ id: "user-1" });
   });
 
@@ -238,7 +243,7 @@ describe("authorizeCredentials — trusted devices", () => {
     mocks.selectWhere.mockResolvedValue([{ ...USER, mfaEnabledAt: new Date(), totpSecret: "enc" }]);
     mocks.findTrustedDevice.mockResolvedValue({ ...DEVICE, mfaRememberedUntil: new Date(Date.now() - 60_000) });
     await expect(
-      authorizeCredentials({ email: "alice@example.com", password: "pw" }, withDeviceCookie())
+      authorizeCredentials({ username: "alice", password: "pw" }, withDeviceCookie())
     ).rejects.toBeInstanceOf(MfaRequiredError);
   });
 });

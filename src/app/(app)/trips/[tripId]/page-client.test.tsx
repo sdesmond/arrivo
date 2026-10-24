@@ -324,7 +324,7 @@ describe("TripDetailClient", () => {
           tripId,
           tripName: "Tokyo Adventure",
           removedByName: "Alex Manager",
-          removedByEmail: "alex@example.com",
+          removedByUsername: "alex",
         })
       );
     }
@@ -655,8 +655,8 @@ describe("TripDetailClient", () => {
         detail={{
           ...baseDetail,
           collaborators: [
-            { name: "Alice", email: "alice@test.com", initials: "A", role: "editor" as const },
-            { name: "Bob", email: "bob@test.com", initials: "B", role: "viewer" as const },
+            { name: "Alice", username: "alice", initials: "A", role: "editor" as const },
+            { name: "Bob", username: "bob", initials: "B", role: "viewer" as const },
           ],
         }}
         nowISO="2026-05-24T12:00:00.000Z"

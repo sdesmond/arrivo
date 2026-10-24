@@ -88,7 +88,7 @@ When("I confirm I saved my recovery codes", async ({ page, scenario }) => {
 When("I sign in with my password", async ({ page, scenario }) => {
   const user = await scenario.ensureCurrentUser();
   if (!page.url().includes("/sign-in")) await page.goto("/sign-in");
-  await page.getByRole("textbox", { name: "Email" }).fill(user.email);
+  await page.getByRole("textbox", { name: "Username" }).fill(user.username);
   await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
   await page.getByRole("button", { name: "Sign in" }).click();
 });

@@ -63,15 +63,15 @@ export function TripShareInvitationRow({
           color: "var(--accent-ink)",
         }}
       >
-        {invitation.email.slice(0, 2).toUpperCase()}
+        {invitation.inviteeUsername.slice(0, 2).toUpperCase()}
       </span>
       <div className="min-w-0 flex-1">
         <div
           className="truncate"
-          title={invitation.email}
+          title={`@${invitation.inviteeUsername}`}
           style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg)" }}
         >
-          {invitation.email}
+          @{invitation.inviteeUsername}
         </div>
         <div style={{ fontSize: "calc(11.5px * var(--font-scale))", color: "var(--fg-3)" }}>
           {roleLabel(invitation.role)} access
@@ -106,7 +106,7 @@ export function TripShareInvitationRow({
             disabled={isRowActionPending}
             onClick={() => onResend(invitation)}
             size="icon-lg"
-            title={`Resend invitation to ${invitation.email}`}
+            title={`Resend invitation to @${invitation.inviteeUsername}`}
             variant="ghost"
           >
             {isResendPending ? (
@@ -114,13 +114,13 @@ export function TripShareInvitationRow({
             ) : (
               <RotateCw size={16} strokeWidth={1.5} />
             )}
-            <span className="sr-only">Resend invitation to {invitation.email}</span>
+            <span className="sr-only">Resend invitation to @{invitation.inviteeUsername}</span>
           </Button>
           <Button
             disabled={isRowActionPending}
             onClick={() => onRescind(invitation)}
             size="icon-lg"
-            title={`Rescind invitation to ${invitation.email}`}
+            title={`Rescind invitation to @${invitation.inviteeUsername}`}
             variant="ghost"
           >
             {isRescindPending ? (
@@ -128,7 +128,7 @@ export function TripShareInvitationRow({
             ) : (
               <XCircle size={16} strokeWidth={1.5} />
             )}
-            <span className="sr-only">Rescind invitation to {invitation.email}</span>
+            <span className="sr-only">Rescind invitation to @{invitation.inviteeUsername}</span>
           </Button>
         </div>
       ) : (
@@ -136,7 +136,7 @@ export function TripShareInvitationRow({
           disabled={isRowActionPending}
           onClick={() => onDismiss(invitation)}
           size="icon-lg"
-          title={`Dismiss invitation to ${invitation.email}`}
+          title={`Dismiss invitation to @${invitation.inviteeUsername}`}
           variant="ghost"
         >
           {isDismissPending ? (
@@ -144,7 +144,7 @@ export function TripShareInvitationRow({
           ) : (
             <XCircle size={16} strokeWidth={1.5} />
           )}
-          <span className="sr-only">Dismiss invitation to {invitation.email}</span>
+          <span className="sr-only">Dismiss invitation to @{invitation.inviteeUsername}</span>
         </Button>
       )}
     </div>

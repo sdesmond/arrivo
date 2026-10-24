@@ -27,6 +27,8 @@ import {
 } from "@/data/types";
 import { lockTripForUpdate, lockUserForUpdate } from "@/lib/server-action-locks";
 import { publishInvitationChanged } from "@/lib/invitations";
+import { isUniqueViolation } from "@/lib/error-utils";
+import { normalizeUsername, validateUsername } from "@/lib/username";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
 import { areDeletionChoicesValid, buildSharedOwnedTrips } from "@/lib/trip-ownership";
@@ -60,6 +62,8 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
   if (trimmedName !== undefined && trimmedName.length > 100) {
     return { error: "Name must be 100 characters or fewer." };
   }
+  const usernameError = patch.username !== undefined ? validateUsername(patch.username) : null;
+  if (usernameError) return { error: usernameError };
   if (patch.passportNumber !== undefined && patch.passportNumber !== null) {
     if (patch.passportNumber.length > 20) return { error: "Passport number must be 20 characters or fewer." };
   }
@@ -120,6 +124,7 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
 
   const dbPatch: Omit<UpdateUserProfilePatch, "name"> & { name?: string | null } = { ...patch };
   if (trimmedName !== undefined) dbPatch.name = trimmedName || null;
+  if (patch.username !== undefined) dbPatch.username = normalizeUsername(patch.username);
   if (patch.passportNumber !== undefined) dbPatch.passportNumber = encryptOptionalField(patch.passportNumber);
   if (patch.knownTravelerNumber !== undefined) {
     dbPatch.knownTravelerNumber = encryptOptionalField(patch.knownTravelerNumber);
@@ -127,7 +132,8 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
 
   try {
     await db.update(users).set(dbPatch).where(eq(users.id, session.id!));
-  } catch {
+  } catch (error) {
+    if (isUniqueViolation(error)) return { error: "That username is taken." };
     return { error: "Something went wrong." };
   }
   revalidatePath("/profile");
@@ -374,7 +380,7 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
         .update(invitations)
         .set({ status: InvitationStatus.Rescinded })
         .where(and(eq(invitations.invitedBy, userId), eq(invitations.status, InvitationStatus.Pending)))
-        .returning({ email: invitations.email, tripId: invitations.tripId });
+        .returning({ inviteeId: invitations.inviteeId, tripId: invitations.tripId });
 
       const heirByTripId = new Map(
         choices.flatMap((choice) =>
@@ -428,9 +434,9 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
     throw error;
   }
 
-  await Promise.all(
-    deletion.rescindedInvitations.map((invitation) => publishInvitationChanged(invitation.email, invitation.tripId))
-  );
+  for (const invitation of deletion.rescindedInvitations) {
+    publishInvitationChanged(invitation.inviteeId, invitation.tripId);
+  }
   for (const tripId of deletion.deletedTripIds) {
     publishTripEvent(tripId, { type: LiveSyncEventType.TripDeleted, tripId });
   }

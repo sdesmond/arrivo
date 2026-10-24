@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await requireUser();
   const [user, pendingInvitations] = await Promise.all([
     getUserById(session.id!),
-    getMyPendingInvitations(session.email!),
+    getMyPendingInvitations(session.id!),
   ]);
   const invitationCount = pendingInvitations.length;
 

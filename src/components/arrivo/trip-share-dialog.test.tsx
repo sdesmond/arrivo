@@ -45,7 +45,7 @@ vi.mock("sonner", () => ({
 const creator: Collaborator = {
   id: "creator-1",
   name: "Ada Lovelace",
-  email: "ada@example.com",
+  username: "ada",
   initials: "AL",
   role: "manager",
   isCreator: true,
@@ -54,7 +54,7 @@ const creator: Collaborator = {
 const activeCollaborator: Collaborator = {
   id: "editor-1",
   name: "Grace Hopper",
-  email: "grace@example.com",
+  username: "grace",
   initials: "GH",
   role: "editor",
   isCreator: false,
@@ -63,7 +63,7 @@ const activeCollaborator: Collaborator = {
 const pendingInvitation: Invitation = {
   id: "pending-1",
   tripId: "trip-1",
-  email: "pending@example.com",
+  inviteeUsername: "pending",
   role: "viewer",
   status: "pending",
   expiresAt: "2099-01-01T00:00:00.000Z",
@@ -73,7 +73,7 @@ const pendingInvitation: Invitation = {
 const declinedInvitation: Invitation = {
   id: "declined-1",
   tripId: "trip-1",
-  email: "declined@example.com",
+  inviteeUsername: "declined",
   role: "editor",
   status: "declined",
   expiresAt: "2020-01-01T00:00:00.000Z",
@@ -83,7 +83,7 @@ const declinedInvitation: Invitation = {
 const secondDeclinedInvitation: Invitation = {
   ...declinedInvitation,
   id: "declined-2",
-  email: "second-declined@example.com",
+  inviteeUsername: "second-declined",
 };
 
 function createDeferred<T>() {
@@ -121,9 +121,9 @@ describe("TripShareDialog", () => {
     expect(screen.queryByLabelText("Role for Ada Lovelace")).not.toBeInTheDocument();
     expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
     expect(screen.getByLabelText("Role for Grace Hopper")).toBeInTheDocument();
-    expect(screen.getByText("pending@example.com")).toBeInTheDocument();
+    expect(screen.getByText("@pending")).toBeInTheDocument();
     expect(screen.getByText("Pending", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("declined@example.com")).toBeInTheDocument();
+    expect(screen.getByText("@declined")).toBeInTheDocument();
     expect(screen.getByText("Declined", { exact: true })).toBeInTheDocument();
   });
 
@@ -150,7 +150,7 @@ describe("TripShareDialog", () => {
 
     await screen.findByText("Ada Lovelace");
 
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Invite role" })).toHaveTextContent("viewer");
     expect(screen.getByRole("button", { name: "Invite" })).toBeEnabled();
     expect(screen.queryByText("No collaborators yet.")).not.toBeInTheDocument();
@@ -159,14 +159,14 @@ describe("TripShareDialog", () => {
   it("renders invitation rows returned by the server action", async () => {
     mockGetShareDialogData.mockResolvedValue({
       collaborators: [creator],
-      invitations: [{ ...pendingInvitation, email: "expired@example.com", expiresAt: "2020-01-01T00:00:00.000Z" }],
+      invitations: [{ ...pendingInvitation, inviteeUsername: "expired", expiresAt: "2020-01-01T00:00:00.000Z" }],
     });
 
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
     await screen.findByText("Ada Lovelace");
 
-    expect(screen.getByText("expired@example.com")).toBeInTheDocument();
+    expect(screen.getByText("@expired")).toBeInTheDocument();
   });
 
   it("clears stale rows and shows loading while a changed trip loads", async () => {
@@ -204,20 +204,20 @@ describe("TripShareDialog", () => {
   it("renders titled resend and rescind controls for a pending invitation", async () => {
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    expect(await screen.findByTitle("Resend invitation to pending@example.com")).toBeEnabled();
-    expect(screen.getByTitle("Rescind invitation to pending@example.com")).toBeEnabled();
-    expect(screen.queryByTitle("Dismiss invitation to pending@example.com")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Dismiss invitation to declined@example.com")).toBeEnabled();
+    expect(await screen.findByTitle("Resend invitation to @pending")).toBeEnabled();
+    expect(screen.getByTitle("Rescind invitation to @pending")).toBeEnabled();
+    expect(screen.queryByTitle("Dismiss invitation to @pending")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Dismiss invitation to @declined")).toBeEnabled();
   });
 
   it("dismisses a declined invitation, removes its row, and shows a confirmation", async () => {
     const { toast } = await import("sonner");
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.click(await screen.findByTitle("Dismiss invitation to declined@example.com"));
+    fireEvent.click(await screen.findByTitle("Dismiss invitation to @declined"));
 
     await waitFor(() => expect(mockDismissShareInvitation).toHaveBeenCalledWith("trip-1", "declined-1"));
-    expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("@declined")).not.toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Invitation dismissed.");
   });
 
@@ -226,10 +226,10 @@ describe("TripShareDialog", () => {
     mockDismissShareInvitation.mockResolvedValue({ status: "error", message: "Invitation not found." });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.click(await screen.findByTitle("Dismiss invitation to declined@example.com"));
+    fireEvent.click(await screen.findByTitle("Dismiss invitation to @declined"));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Invitation not found."));
-    expect(screen.getByText("declined@example.com")).toBeInTheDocument();
+    expect(screen.getByText("@declined")).toBeInTheDocument();
   });
 
   it("keeps a declined invitation and restores its control when dismissal rejects", async () => {
@@ -237,11 +237,11 @@ describe("TripShareDialog", () => {
     mockDismissShareInvitation.mockRejectedValue(new Error("Network failure"));
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    const dismissButton = await screen.findByTitle("Dismiss invitation to declined@example.com");
+    const dismissButton = await screen.findByTitle("Dismiss invitation to @declined");
     fireEvent.click(dismissButton);
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not dismiss invitation."));
-    expect(screen.getByText("declined@example.com")).toBeInTheDocument();
+    expect(screen.getByText("@declined")).toBeInTheDocument();
     expect(dismissButton).toBeEnabled();
   });
 
@@ -250,8 +250,8 @@ describe("TripShareDialog", () => {
     mockDismissShareInvitation.mockReturnValue(deferred.promise);
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    const dismissButton = await screen.findByTitle("Dismiss invitation to declined@example.com");
-    const resendButton = screen.getByTitle("Resend invitation to pending@example.com");
+    const dismissButton = await screen.findByTitle("Dismiss invitation to @declined");
+    const resendButton = screen.getByTitle("Resend invitation to @pending");
     fireEvent.click(dismissButton);
 
     await waitFor(() => expect(dismissButton).toBeDisabled());
@@ -259,7 +259,7 @@ describe("TripShareDialog", () => {
     expect(screen.getByLabelText("Dismissing invitation")).toBeInTheDocument();
 
     deferred.resolve({ status: "success" });
-    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("@declined")).not.toBeInTheDocument());
   });
 
   it("keeps progress local to each concurrently dismissed declined row", async () => {
@@ -272,8 +272,8 @@ describe("TripShareDialog", () => {
     mockDismissShareInvitation.mockReturnValueOnce(firstDismissal.promise).mockReturnValueOnce(secondDismissal.promise);
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    const firstDismissButton = await screen.findByTitle("Dismiss invitation to declined@example.com");
-    const secondDismissButton = screen.getByTitle("Dismiss invitation to second-declined@example.com");
+    const firstDismissButton = await screen.findByTitle("Dismiss invitation to @declined");
+    const secondDismissButton = screen.getByTitle("Dismiss invitation to @second-declined");
     fireEvent.click(firstDismissButton);
     fireEvent.click(secondDismissButton);
 
@@ -282,11 +282,11 @@ describe("TripShareDialog", () => {
     expect(screen.getAllByLabelText("Dismissing invitation")).toHaveLength(2);
 
     firstDismissal.resolve({ status: "success" });
-    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("@declined")).not.toBeInTheDocument());
     expect(secondDismissButton).toBeDisabled();
 
     secondDismissal.resolve({ status: "success" });
-    await waitFor(() => expect(screen.queryByText("second-declined@example.com")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("@second-declined")).not.toBeInTheDocument());
   });
 
   it("does not restore a dismissed invitation from an overlapping invite refresh", async () => {
@@ -298,19 +298,19 @@ describe("TripShareDialog", () => {
     mockGetShareDialogData.mockResolvedValueOnce(initialData).mockReturnValueOnce(staleRefresh.promise);
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
-      target: { value: "guest@example.com" },
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
+      target: { value: "guest" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
     await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getByTitle("Dismiss invitation to declined@example.com"));
-    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByTitle("Dismiss invitation to @declined"));
+    await waitFor(() => expect(screen.queryByText("@declined")).not.toBeInTheDocument());
 
     staleRefresh.resolve(initialData);
 
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue(""));
-    await waitFor(() => expect(screen.queryByText("declined@example.com")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue(""));
+    await waitFor(() => expect(screen.queryByText("@declined")).not.toBeInTheDocument());
   });
 
   it("preserves dialog close handling after the extracted content regions render", async () => {
@@ -326,7 +326,7 @@ describe("TripShareDialog", () => {
     const { toast } = await import("sonner");
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.click(await screen.findByTitle("Resend invitation to pending@example.com"));
+    fireEvent.click(await screen.findByTitle("Resend invitation to @pending"));
 
     await waitFor(() => expect(mockResendShareInvitation).toHaveBeenCalledWith("trip-1", "pending-1"));
     expect(toast.success).toHaveBeenCalledWith("Invitation resent.");
@@ -344,10 +344,10 @@ describe("TripShareDialog", () => {
     const { toast } = await import("sonner");
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.click(await screen.findByTitle("Rescind invitation to pending@example.com"));
+    fireEvent.click(await screen.findByTitle("Rescind invitation to @pending"));
 
     await waitFor(() => expect(mockRescindShareInvitation).toHaveBeenCalledWith("trip-1", "pending-1"));
-    expect(screen.queryByText("pending@example.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("@pending")).not.toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Invitation rescinded.");
   });
 
@@ -356,10 +356,10 @@ describe("TripShareDialog", () => {
     mockResendShareInvitation.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.click(await screen.findByTitle("Resend invitation to pending@example.com"));
+    fireEvent.click(await screen.findByTitle("Resend invitation to @pending"));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Invitation is no longer pending."));
-    expect(screen.getByText("pending@example.com")).toBeInTheDocument();
+    expect(screen.getByText("@pending")).toBeInTheDocument();
   });
 
   it("shows an error toast when a pending rescind action fails and keeps the row", async () => {
@@ -367,10 +367,10 @@ describe("TripShareDialog", () => {
     mockRescindShareInvitation.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.click(await screen.findByTitle("Rescind invitation to pending@example.com"));
+    fireEvent.click(await screen.findByTitle("Rescind invitation to @pending"));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Invitation is no longer pending."));
-    expect(screen.getByText("pending@example.com")).toBeInTheDocument();
+    expect(screen.getByText("@pending")).toBeInTheDocument();
   });
 
   it("only shows a spinner on the button that was clicked while its sibling stays disabled but not spinning", async () => {
@@ -378,8 +378,8 @@ describe("TripShareDialog", () => {
     mockResendShareInvitation.mockReturnValue(deferred.promise);
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    const resendButton = await screen.findByTitle("Resend invitation to pending@example.com");
-    const rescindButton = screen.getByTitle("Rescind invitation to pending@example.com");
+    const resendButton = await screen.findByTitle("Resend invitation to @pending");
+    const rescindButton = screen.getByTitle("Rescind invitation to @pending");
     fireEvent.click(resendButton);
 
     await waitFor(() => expect(resendButton).toBeDisabled());
@@ -392,18 +392,18 @@ describe("TripShareDialog", () => {
     expect(rescindButton).toBeEnabled();
   });
 
-  it("invites a user, refetches data, clears the email, resets role, and shows a success toast", async () => {
+  it("invites a user, refetches data, clears the username, resets role, and shows a success toast", async () => {
     const { toast } = await import("sonner");
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    const emailInput = await screen.findByRole("textbox", { name: "Invite email" });
-    fireEvent.change(emailInput, { target: { value: "invitee@example.com" } });
+    const usernameInput = await screen.findByRole("textbox", { name: "Invite username" });
+    fireEvent.change(usernameInput, { target: { value: "invitee" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
-    await waitFor(() => expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "invitee@example.com", "viewer"));
+    await waitFor(() => expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "invitee", "viewer"));
     expect(mockGetShareDialogData).toHaveBeenCalledTimes(2);
-    expect(emailInput).toHaveValue("");
+    expect(usernameInput).toHaveValue("");
     expect(screen.getByRole("combobox", { name: "Invite role" })).toHaveTextContent("viewer");
     expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
   });
@@ -413,32 +413,32 @@ describe("TripShareDialog", () => {
     mockInviteContributor.mockResolvedValue({ status: "resent" });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
-      target: { value: "invitee@example.com" },
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
+      target: { value: "invitee" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation resent."));
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("");
   });
 
-  it("shows an inline error below the email input when no account matches the email", async () => {
+  it("shows an inline error below the username input when no account matches the username", async () => {
     const { toast } = await import("sonner");
     mockInviteContributor.mockResolvedValue({
       status: "error",
-      message: "No account found for this email",
+      message: "No account found for this username",
       errorCode: "no-account",
     });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
-      target: { value: "nobody@example.com" },
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
+      target: { value: "nobody" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
-    await waitFor(() => expect(screen.getByText("No account found for this email.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No account found for this username.")).toBeInTheDocument());
     expect(toast.error).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("nobody@example.com");
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("nobody");
   });
 
   it("shows an error toast and keeps the input for other invite errors", async () => {
@@ -450,55 +450,55 @@ describe("TripShareDialog", () => {
     });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
-      target: { value: "dupe@example.com" },
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
+      target: { value: "dupe" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This person is already a collaborator on this trip"));
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("dupe@example.com");
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("dupe");
   });
 
-  it("disables the Invite button, email input, and role select while the request is in flight", async () => {
+  it("disables the Invite button, username input, and role select while the request is in flight", async () => {
     const deferred = createDeferred<{ status: "invited" }>();
     mockInviteContributor.mockReturnValue(deferred.promise);
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
-      target: { value: "invitee@example.com" },
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
+      target: { value: "invitee" },
     });
     const inviteButton = screen.getByRole("button", { name: "Invite" });
     fireEvent.click(inviteButton);
 
     await waitFor(() => expect(inviteButton).toBeDisabled());
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeDisabled();
     expect(screen.getByLabelText("Sending invitation")).toBeInTheDocument();
 
     deferred.resolve({ status: "invited" });
     await waitFor(() => expect(inviteButton).toBeEnabled());
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeEnabled();
   });
 
-  it("clears the stale inline error when the user starts typing a new email", async () => {
+  it("clears the stale inline error when the user starts typing a new username", async () => {
     mockInviteContributor.mockResolvedValue({
       status: "error",
-      message: "No account found for this email",
+      message: "No account found for this username",
       errorCode: "no-account",
     });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
-      target: { value: "nobody@example.com" },
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
+      target: { value: "nobody" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
-    await waitFor(() => expect(screen.getByText("No account found for this email.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No account found for this username.")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Invite email" }), {
-      target: { value: "someone@example.com" },
+    fireEvent.change(screen.getByRole("textbox", { name: "Invite username" }), {
+      target: { value: "someone" },
     });
 
-    expect(screen.queryByText("No account found for this email.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No account found for this username.")).not.toBeInTheDocument();
   });
 
   it("shows a toast if the invite succeeds but the refetch fails", async () => {
@@ -506,14 +506,14 @@ describe("TripShareDialog", () => {
     mockGetShareDialogData.mockRejectedValueOnce(new Error("network"));
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite email" }), {
-      target: { value: "invitee@example.com" },
+    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
+      target: { value: "invitee" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(mockInviteContributor).toHaveBeenCalled());
     expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("");
   });
 });
 
@@ -663,7 +663,7 @@ describe("TripShareDialog batch staging", () => {
     expect(screen.getByTitle("Close sharing dialog")).toBeDisabled();
     expect(screen.getByLabelText("Role for Grace Hopper")).toBeDisabled();
     expect(screen.getByTitle("Remove Grace Hopper")).toBeDisabled();
-    expect(screen.getByRole("textbox", { name: "Invite email" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeDisabled();
     expect(screen.getByRole("combobox", { name: "Invite role" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Invite" })).toBeDisabled();
     expect(screen.queryByLabelText("Sending invitation")).not.toBeInTheDocument();

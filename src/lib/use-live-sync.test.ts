@@ -127,7 +127,7 @@ describe("useLiveSync", () => {
         tripId: "trip-1",
         tripName: "Test Trip",
         removedByName: "Manager",
-        removedByEmail: "manager@example.com",
+        removedByUsername: "manager",
       };
       act(() => MockEventSource.instances[0]?.emitMessage(JSON.stringify(payload)));
 

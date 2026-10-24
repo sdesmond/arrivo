@@ -47,7 +47,7 @@ export interface CleanupHandle {
 
 export interface ScenarioUserRecord {
   id: string;
-  email: string;
+  username: string;
   name: string;
   initials: string;
 }
@@ -104,12 +104,12 @@ export interface ScenarioFixtureContext {
   ): Promise<ScenarioTemplateRecord>;
   signIn(page: Page): Promise<void>;
   signInAsBaseline(page: Page): Promise<void>;
-  /** Plain email/password sign-in, for a session other than the scenario's own current user. */
-  signInAsUser(page: Page, email: string): Promise<void>;
+  /** Plain username/password sign-in, for a session other than the scenario's own current user. */
+  signInAsUser(page: Page, username: string): Promise<void>;
   signOut(): void;
   gotoCurrentTrip(page: Page): Promise<void>;
   uniqueName(label: string): string;
-  uniqueEmail(label?: string): string;
+  uniqueUsername(label?: string): string;
   rememberTripByName(name: string): Promise<ScenarioTripRecord>;
   /** Materializes a user and seeds them as a collaborator on `tripId` — a second session's account. */
   seedCollaborator(
@@ -137,7 +137,7 @@ interface MutableScenarioState {
   cleanup: CleanupHandle[];
   counters: Record<string, number>;
   values: Map<string, unknown>;
-  signedInEmail?: string;
+  signedInUsername?: string;
   currentUser?: ScenarioUserRecord;
   currentTrip?: ScenarioTripRecord;
   currentTemplate?: ScenarioTemplateRecord;
@@ -216,9 +216,10 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     return `${label} ${slugify(testInfo.title)} ${scenarioSeed}-${nextCounter(label)}`;
   }
 
-  function uniqueEmail(label = "user"): string {
-    const suffix = `${scenarioSeed}-${nextCounter(label)}`;
-    return `e2e+${slugify(label)}-${suffix}@arrivo.com`;
+  // Kept within the 30-character username limit: a short label stem plus the scenario seed and a counter.
+  function uniqueUsername(label = "user"): string {
+    const stem = slugify(label).slice(0, 14).replace(/-+$/, "") || "user";
+    return `${stem}-${scenarioSeed}-${nextCounter(label)}`;
   }
 
   function registerCleanup(handle: CleanupHandle): void {
@@ -227,25 +228,25 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     }
   }
 
-  async function loadUserByEmail(email: string): Promise<ScenarioUserRecord> {
+  async function loadUserByUsername(username: string): Promise<ScenarioUserRecord> {
     return withE2EDb(async (db) => {
       const [user] = await db
         .select({
           id: users.id,
-          email: users.email,
+          username: users.username,
           name: users.name,
         })
         .from(users)
-        .where(eq(users.email, email));
+        .where(eq(users.username, username));
 
-      if (!user?.email) {
-        throw new Error(`Could not find user for email "${email}".`);
+      if (!user) {
+        throw new Error(`Could not find user "${username}".`);
       }
 
-      const displayName = user.name ?? email;
+      const displayName = user.name ?? username;
       return {
         id: user.id,
-        email: user.email,
+        username: user.username,
         name: displayName,
         initials: displayName.slice(0, 2).toUpperCase(),
       };
@@ -257,21 +258,21 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     overrides: UserMotherOverrides = {}
   ): Promise<ScenarioUserRecord> {
     const seed = cloneUserMother(mother, overrides);
-    const email = uniqueEmail(seed.user.name);
+    const username = uniqueUsername(seed.user.name);
     const passwordHash = await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
 
     return withE2EDb(async (db) => {
       const [user] = await db
         .insert(users)
         .values({
-          email,
+          username,
           name: seed.user.name,
           passwordHash,
           dateFormat: seed.user.dateFormat,
           currency: seed.user.currency ?? "USD",
           defaultCoverType: seed.user.defaultCoverType,
         })
-        .returning({ id: users.id, email: users.email, name: users.name });
+        .returning({ id: users.id, username: users.username, name: users.name });
 
       if (seed.loyaltyNumbers.length > 0) {
         await db.insert(userLoyaltyNumbers).values(seed.loyaltyNumbers.map((item) => ({ userId: user.id, ...item })));
@@ -283,7 +284,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
 
       const createdUser: ScenarioUserRecord = {
         id: user.id,
-        email: user.email!,
+        username: user.username,
         name: user.name ?? seed.user.name,
         initials: seed.user.initials,
       };
@@ -335,7 +336,6 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
       await db.insert(collaborators).values({
         tripId: trip.id,
         userId: ownerUserId,
-        email: ownerUser.email,
         name: ownerUser.name,
         initials: ownerUser.initials,
         role: "manager",
@@ -660,42 +660,42 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     },
     async signIn(page: Page): Promise<void> {
       const user = await context.ensureCurrentUser();
-      if (state.signedInEmail === user.email && !page.url().includes("/sign-in")) {
+      if (state.signedInUsername === user.username && !page.url().includes("/sign-in")) {
         return;
       }
 
       await page.context().clearCookies();
       await page.goto("/sign-in");
-      await page.getByRole("textbox", { name: "Email" }).fill(user.email);
+      await page.getByRole("textbox", { name: "Username" }).fill(user.username);
       await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
       await page.getByRole("button", { name: "Sign in" }).click();
       await page.waitForURL("**/trips");
-      state.signedInEmail = user.email;
+      state.signedInUsername = user.username;
       state.currentUser = user;
     },
     async signInAsBaseline(page: Page): Promise<void> {
-      if (state.signedInEmail === BASELINE_E2E_USER.email && !page.url().includes("/sign-in")) {
+      if (state.signedInUsername === BASELINE_E2E_USER.username && !page.url().includes("/sign-in")) {
         return;
       }
 
       await page.context().clearCookies();
       await page.goto("/sign-in");
-      await page.getByRole("textbox", { name: "Email" }).fill(BASELINE_E2E_USER.email);
+      await page.getByRole("textbox", { name: "Username" }).fill(BASELINE_E2E_USER.username);
       await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
       await page.getByRole("button", { name: "Sign in" }).click();
       await page.waitForURL("**/trips");
-      state.signedInEmail = BASELINE_E2E_USER.email;
-      state.currentUser = await loadUserByEmail(BASELINE_E2E_USER.email);
+      state.signedInUsername = BASELINE_E2E_USER.username;
+      state.currentUser = await loadUserByUsername(BASELINE_E2E_USER.username);
     },
-    async signInAsUser(page: Page, email: string): Promise<void> {
+    async signInAsUser(page: Page, username: string): Promise<void> {
       await page.goto("/sign-in");
-      await page.getByRole("textbox", { name: "Email" }).fill(email);
+      await page.getByRole("textbox", { name: "Username" }).fill(username);
       await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
       await page.getByRole("button", { name: "Sign in" }).click();
       await page.waitForURL("**/trips");
     },
     signOut(): void {
-      state.signedInEmail = undefined;
+      state.signedInUsername = undefined;
     },
     async gotoCurrentTrip(page: Page): Promise<void> {
       const trip = await context.ensureCurrentTrip();
@@ -703,7 +703,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
       await page.waitForURL(/\/trips\/.+/);
     },
     uniqueName,
-    uniqueEmail,
+    uniqueUsername,
     async seedCollaborator(
       tripId: string,
       name: string,
@@ -719,7 +719,6 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         await db.insert(collaborators).values({
           tripId,
           userId: contributor.id,
-          email: contributor.email,
           name: contributor.name,
           initials: contributor.initials,
           role,
@@ -740,7 +739,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
     async rememberTripByName(name: string): Promise<ScenarioTripRecord> {
       const owner =
         state.currentUser ??
-        (state.signedInEmail ? await loadUserByEmail(state.signedInEmail) : await context.ensureCurrentUser());
+        (state.signedInUsername ? await loadUserByUsername(state.signedInUsername) : await context.ensureCurrentUser());
       const rememberedTrip = await withE2EDb(async (db) => {
         const [trip] = await db
           .select({ id: trips.id, name: trips.name, startDate: trips.startDate, endDate: trips.endDate })

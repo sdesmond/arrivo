@@ -28,7 +28,7 @@ const INVITATION: PendingInvitation = {
   tripId: "trip-1",
   tripName: "Kyoto Trip",
   inviterName: "Ada Lovelace",
-  inviterEmail: "ada@example.com",
+  inviterUsername: "ada",
   role: "editor",
   expiresAt: "2026-09-10T00:00:00.000Z",
 };
@@ -38,7 +38,7 @@ const SECOND_INVITATION: PendingInvitation = {
   tripId: "trip-2",
   tripName: "Oslo Trip",
   inviterName: "Bo Nilsen",
-  inviterEmail: "bo@example.com",
+  inviterUsername: "bo",
   role: "viewer",
   expiresAt: "2026-09-10T00:00:00.000Z",
 };

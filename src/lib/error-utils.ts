@@ -53,3 +53,15 @@ export function withErrorHandling<Args extends unknown[], Result>(
     }
   };
 }
+
+const UNIQUE_VIOLATION_CODE = "23505";
+
+function hasUniqueViolationCode(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === UNIQUE_VIOLATION_CODE;
+}
+
+// Postgres unique-constraint violation. Drizzle wraps driver errors in DrizzleQueryError, so the code sits on `cause`.
+export function isUniqueViolation(error: unknown): boolean {
+  if (hasUniqueViolationCode(error)) return true;
+  return error instanceof Error && hasUniqueViolationCode(error.cause);
+}

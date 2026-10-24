@@ -8,7 +8,6 @@ const { signIn, signOut, db } = vi.hoisted(() => ({
   signOut: vi.fn(),
   db: {
     insert: vi.fn(),
-    update: vi.fn(),
   },
 }));
 
@@ -26,7 +25,7 @@ vi.mock("next-auth", async () => ({
 }));
 
 import { CredentialsSignin } from "@auth/core/errors";
-import { collaborators, users } from "@/db/schema";
+import { users } from "@/db/schema";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE } from "@/lib/mfa";
 import { signInAction, signOutAction, signUpAction, verifyMfaAction } from "./actions";
@@ -54,50 +53,81 @@ describe("auth actions", () => {
     vi.mocked(headers).mockResolvedValue(new Headers());
   });
 
-  it("stores a locale-derived currency when signing up", async () => {
-    vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
-    const insertValues = vi.fn();
-
+  function mockUserInsert(result: () => Promise<unknown> = async () => undefined) {
+    const insertValues = vi.fn(result);
     db.insert.mockImplementation((table: unknown) => {
-      if (table === users) {
-        return {
-          values: insertValues.mockImplementation((values: unknown) => ({
-            onConflictDoNothing: () => ({
-              returning: async () => [{ id: "user-1", ...(values as Record<string, unknown>) }],
-            }),
-          })),
-        };
-      }
-
+      if (table === users) return { values: insertValues };
       throw new Error("Unexpected insert");
     });
-    db.update.mockImplementation((table: unknown) => {
-      if (table !== collaborators) throw new Error("Unexpected update");
-      return {
-        set: () => ({
-          where: async () => undefined,
-        }),
-      };
-    });
+    return insertValues;
+  }
 
-    const formData = new FormData();
-    formData.set("email", "test@example.com");
-    formData.set("password", "password123");
-    formData.set("name", "Test User");
+  function signUpForm(fields: Record<string, string> = {}) {
+    return signInForm({ username: " Test.User ", password: "password123", name: "Test User", ...fields });
+  }
 
-    await expect(signUpAction(undefined, formData)).resolves.toBeUndefined();
+  it("stores a normalized username and locale-derived currency when signing up", async () => {
+    vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
+    const insertValues = mockUserInsert();
+
+    await expect(signUpAction(undefined, signUpForm())).resolves.toBeUndefined();
 
     expect(db.insert).toHaveBeenCalledWith(users);
     expect(insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        email: "test@example.com",
+        username: "test.user",
         name: "Test User",
         currency: "GBP",
       })
     );
     expect(signIn).toHaveBeenCalled();
+    const signInFormData = signIn.mock.calls[0][1] as FormData;
+    expect(signInFormData.get("username")).toBe("test.user");
     // A brand-new account stays signed in on the browser that created it.
-    expect((signIn.mock.calls[0][1] as FormData).get("keepSignedIn")).toBe("true");
+    expect(signInFormData.get("keepSignedIn")).toBe("true");
+  });
+
+  it("rejects an invalid username without creating an account", async () => {
+    mockUserInsert();
+
+    await expect(signUpAction(undefined, signUpForm({ username: "a@b.com" }))).resolves.toEqual({
+      error: "Use letters, numbers, dots, dashes or underscores, starting with a letter or number.",
+    });
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a short password", async () => {
+    mockUserInsert();
+
+    await expect(signUpAction(undefined, signUpForm({ password: "short" }))).resolves.toEqual({
+      error: "Password must be at least 8 characters.",
+    });
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("reports a taken username", async () => {
+    mockUserInsert(async () => {
+      throw new Error("Failed query", { cause: { code: "23505" } });
+    });
+
+    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({ error: "That username is taken." });
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it("rethrows other insert failures", async () => {
+    mockUserInsert(async () => {
+      throw new Error("db down");
+    });
+
+    await expect(signUpAction(undefined, signUpForm())).rejects.toThrow("db down");
+  });
+
+  it("refuses sign-up when it is disabled", async () => {
+    vi.stubEnv("ALLOW_SIGNUP", "false");
+    mockUserInsert();
+
+    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({ error: "Signup is disabled." });
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it("signs out to the sign-in page", async () => {
@@ -115,9 +145,9 @@ describe("signInAction", () => {
 
   it("signs in with the submitted credentials and Keep me signed in, then lands on trips", async () => {
     cookieJar();
-    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw", keepSignedIn: "on" }));
+    await signInAction(undefined, signInForm({ username: "alice", password: "pw", keepSignedIn: "on" }));
     expect(signIn).toHaveBeenCalledWith("credentials", {
-      email: "a@example.com",
+      username: "alice",
       password: "pw",
       keepSignedIn: "true",
       redirect: false,
@@ -127,20 +157,20 @@ describe("signInAction", () => {
 
   it("sends an unticked Keep me signed in as false", async () => {
     cookieJar();
-    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }));
+    await signInAction(undefined, signInForm({ username: "alice", password: "pw" }));
     expect(signIn).toHaveBeenCalledWith("credentials", expect.objectContaining({ keepSignedIn: "false" }));
   });
 
   it("returns a generic error for bad credentials", async () => {
     signIn.mockRejectedValueOnce(new CredentialsSignin());
-    await expect(signInAction(undefined, signInForm({ email: "a@example.com", password: "x" }))).resolves.toEqual({
-      error: "Invalid email or password.",
+    await expect(signInAction(undefined, signInForm({ username: "alice", password: "x" }))).resolves.toEqual({
+      error: "Invalid username or password.",
     });
   });
 
   it("tells a locked-out user how long to wait", async () => {
     signIn.mockRejectedValueOnce(new LockedOutError(600));
-    await expect(signInAction(undefined, signInForm({ email: "a@example.com", password: "x" }))).resolves.toEqual({
+    await expect(signInAction(undefined, signInForm({ username: "alice", password: "x" }))).resolves.toEqual({
       error: "Too many attempts. Try again in 10 minutes.",
     });
   });
@@ -148,7 +178,7 @@ describe("signInAction", () => {
   it("stores the two-factor ticket in an httpOnly cookie and asks for a code", async () => {
     const jar = cookieJar();
     signIn.mockRejectedValueOnce(new MfaRequiredError("signed-ticket"));
-    await expect(signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }))).resolves.toEqual({
+    await expect(signInAction(undefined, signInForm({ username: "alice", password: "pw" }))).resolves.toEqual({
       mfaRequired: true,
     });
     expect(jar.set).toHaveBeenCalledWith(
@@ -162,14 +192,14 @@ describe("signInAction", () => {
     vi.mocked(headers).mockResolvedValue(new Headers({ "x-forwarded-proto": "https" }));
     const jar = cookieJar();
     signIn.mockRejectedValueOnce(new MfaRequiredError("signed-ticket"));
-    await signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }));
+    await signInAction(undefined, signInForm({ username: "alice", password: "pw" }));
     expect(jar.set).toHaveBeenCalledWith(MFA_COOKIE, "signed-ticket", expect.objectContaining({ secure: true }));
   });
 
   it("rethrows non-auth errors", async () => {
     const failure = new Error("db down");
     signIn.mockRejectedValueOnce(failure);
-    await expect(signInAction(undefined, signInForm({ email: "a@example.com", password: "pw" }))).rejects.toBe(failure);
+    await expect(signInAction(undefined, signInForm({ username: "alice", password: "pw" }))).rejects.toBe(failure);
   });
 });
 
@@ -201,7 +231,7 @@ describe("verifyMfaAction", () => {
   it("asks the user to start over when the ticket cookie is gone", async () => {
     cookieJar();
     await expect(verifyMfaAction(undefined, signInForm({ code: "123456" }))).resolves.toEqual({
-      error: "Your sign-in timed out. Enter your email and password again.",
+      error: "Your sign-in timed out. Enter your username and password again.",
       expired: true,
     });
     expect(signIn).not.toHaveBeenCalled();

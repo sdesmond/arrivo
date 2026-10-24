@@ -79,7 +79,7 @@ const pendingInvitations = [
     tripId: "trip-2",
     tripName: "Osaka",
     inviterName: "Ada Lovelace",
-    inviterEmail: "ada@example.com",
+    inviterUsername: "ada",
     role: "editor" as const,
     expiresAt: "2026-09-10T00:00:00.000Z",
   },
@@ -92,7 +92,7 @@ describe("TripsPage", () => {
       get: vi.fn((key: string) => (key === "trips-view-mode" ? { value: "list" } : undefined)),
     });
     mockHeaders.mockResolvedValue(new Headers([["accept-language", "en-US"]]));
-    mockRequireUser.mockResolvedValue({ id: "user-1", email: "user@example.com" });
+    mockRequireUser.mockResolvedValue({ id: "user-1", name: "User" });
     mockGetServerNow.mockResolvedValue(new Date("2026-07-07T12:00:00.000Z"));
     mockGetUserById.mockResolvedValue({ id: "user-1", dateFormat: "DD/MM/YYYY" });
     mockListTripsForUser.mockResolvedValue(entries);
@@ -117,12 +117,12 @@ describe("TripsPage", () => {
     );
   });
 
-  it("passes fetched pending invitations into the client page, scoped to the signed-in user's email", async () => {
+  it("passes fetched pending invitations into the client page, scoped to the signed-in user's id", async () => {
     const page = await TripsPage();
 
     render(page);
 
-    expect(mockGetMyPendingInvitations).toHaveBeenCalledWith("user@example.com");
+    expect(mockGetMyPendingInvitations).toHaveBeenCalledWith("user-1");
     expect(tripsPageClientSpy).toHaveBeenCalledWith(expect.objectContaining({ pendingInvitations }));
   });
 });

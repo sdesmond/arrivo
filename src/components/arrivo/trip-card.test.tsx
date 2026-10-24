@@ -61,8 +61,8 @@ const baseTrip: Trip = {
   endDate: "2026-06-10",
   accessRole: CollaboratorRole.Manager,
   collaborators: [
-    { name: "Alice Smith", email: "alice@example.com", initials: "AS", role: "editor" },
-    { name: "Bob Jones", email: "bob@example.com", initials: "BJ", role: "viewer" },
+    { name: "Alice Smith", username: "alice", initials: "AS", role: "editor" },
+    { name: "Bob Jones", username: "bob", initials: "BJ", role: "viewer" },
   ],
   docs: [
     { id: "doc-1", name: "Itinerary.pdf", kind: "pdf", scope: "trip" },

@@ -15,7 +15,7 @@ const SAMPLE_EVENT: LiveSyncEvent = {
   tripId: "trip-1",
   tripName: "Test Trip",
   removedByName: "Manager",
-  removedByEmail: "manager@example.com",
+  removedByUsername: "manager",
 };
 
 describe("revocation-ticket", () => {

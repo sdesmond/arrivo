@@ -36,7 +36,7 @@ import { ProfilePageClient } from "./page-client";
 const baseUser: UserProfile = {
   id: "user-1",
   name: "Test User",
-  email: "test@example.com",
+  username: "test",
   dateFormat: "MM/DD/YYYY",
   currency: "USD",
   distanceUnit: "imperial",

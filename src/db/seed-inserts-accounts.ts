@@ -23,7 +23,7 @@ export type SeedDb = Pick<typeof liveDb, "insert" | "delete">;
 
 export interface SeedUserRecord {
   id: string;
-  email: string;
+  username: string;
   name: string;
   initials: string;
   currency: string;
@@ -31,12 +31,12 @@ export interface SeedUserRecord {
 
 export const SEED_PASSWORD = "demo1234";
 
-export async function deleteSeedAccounts(database: SeedDb, emails: string[]): Promise<void> {
+export async function deleteSeedAccounts(database: SeedDb, usernames: string[]): Promise<void> {
   // Cascades: owned trips → days/events/documents/reservations/expenses/packing/notes/collaborators, and
-  // any invitation this account sent (invitedBy → users, onDelete cascade). A collaborator/invitation row
-  // keyed by a seed email on a *surviving* trip (owned by an account outside this list) is left alone —
-  // our world never shares between a seed account and a non-seed one, so this can't orphan a share.
-  await database.delete(users).where(inArray(users.email, emails));
+  // any invitation this account sent or received (invitedBy/inviteeId → users, onDelete cascade). A collaborator
+  // row for a seed account on a *surviving* trip (owned by an account outside this list) is detached
+  // (userId → null) — our world never shares between a seed account and a non-seed one, so this can't happen.
+  await database.delete(users).where(inArray(users.username, usernames));
 }
 
 export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Promise<Map<string, SeedUserRecord>> {
@@ -47,7 +47,7 @@ export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Prom
     const [row] = await database
       .insert(users)
       .values({
-        email: seedUser.email,
+        username: seedUser.username,
         name: seedUser.name,
         passwordHash,
         currency: seedUser.currency,
@@ -59,7 +59,7 @@ export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Prom
         passportNationality: seedUser.passportNationality ?? null,
         knownTravelerNumber: encryptOptionalField(seedUser.knownTravelerNumber) ?? null,
       })
-      .returning({ id: users.id, email: users.email, name: users.name });
+      .returning({ id: users.id, username: users.username, name: users.name });
 
     if (seedUser.loyaltyNumbers?.length) {
       await database
@@ -79,7 +79,7 @@ export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Prom
 
     recordsByKey.set(seedUser.key, {
       id: row.id,
-      email: row.email!,
+      username: row.username,
       name: row.name!,
       initials: seedUser.initials,
       currency: seedUser.currency,
@@ -101,7 +101,6 @@ export async function insertShares(
     await database.insert(collaborators).values({
       tripId,
       userId: user.id,
-      email: user.email,
       name: user.name,
       initials: user.initials,
       role: share.role,
@@ -120,10 +119,11 @@ export async function insertInvitations(
   for (const invitation of invitationSeeds) {
     const tripId = tripIdsByKey.get(invitation.tripKey)!;
     const invitedBy = usersByKey.get(invitation.invitedByUserKey)!;
+    const invitee = usersByKey.get(invitation.inviteeUserKey)!;
     const expiresAt = new Date(now.getTime() + invitation.expiresInHours * 60 * 60 * 1000);
     await database.insert(invitations).values({
       tripId,
-      email: invitation.email,
+      inviteeId: invitee.id,
       role: invitation.role,
       status: invitation.status,
       expiresAt,

@@ -19,9 +19,9 @@ async function openShareDialog(page: Page, scenario: ScenarioFixtureContext): Pr
   await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
 }
 
-async function signInOnDashboard(page: Page, email: string): Promise<void> {
+async function signInOnDashboard(page: Page, username: string): Promise<void> {
   await page.goto("/sign-in");
-  await page.getByRole("textbox", { name: "Email" }).fill(email);
+  await page.getByRole("textbox", { name: "Username" }).fill(username);
   await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
   const personalChannelReady = waitForLiveSyncResponse(page, "/api/users/me/events");
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -37,7 +37,7 @@ Given("I have an editor contributor viewing the dashboard in their own session",
   scenario.setValue(CONTRIBUTOR_PAGE_KEY, contributorPage);
   scenario.setValue(CONTRIBUTOR_NAME_KEY, contributor.name);
 
-  await signInOnDashboard(contributorPage, contributor.email);
+  await signInOnDashboard(contributorPage, contributor.username);
   const tripCard = contributorPage.locator(`a[href="/trips/${trip.id}"]`).filter({ hasText: trip.name }).first();
   await expect(tripCard).toBeVisible();
   await tripCard.getByTitle("Trip options").click();

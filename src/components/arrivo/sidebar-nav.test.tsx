@@ -37,7 +37,7 @@ import { SidebarNav } from "./sidebar-nav";
 const baseUser: UserProfile = {
   id: "user-1",
   name: "Jane Doe",
-  email: "jane@example.com",
+  username: "jane",
   dateFormat: null,
   currency: null,
   distanceUnit: null,
@@ -92,9 +92,9 @@ describe("SidebarNav", () => {
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
   });
 
-  it("renders user email from UserProfile", () => {
+  it("renders the username from UserProfile", () => {
     render(<SidebarNav user={baseUser} />);
-    expect(screen.getAllByText("jane@example.com").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("@jane")).toBeInTheDocument();
   });
 
   it("derives initials from name", () => {
@@ -102,9 +102,10 @@ describe("SidebarNav", () => {
     expect(screen.getByText("JD")).toBeInTheDocument();
   });
 
-  it("falls back to email initial when name is null", () => {
+  it("falls back to the username for initial and display name when name is null", () => {
     render(<SidebarNav user={{ ...baseUser, name: null }} />);
     expect(screen.getByText("J")).toBeInTheDocument();
+    expect(screen.getByText("jane")).toBeInTheDocument();
   });
 
   it("derives initials from a single-word name", () => {

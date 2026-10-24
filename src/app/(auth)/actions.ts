@@ -2,8 +2,7 @@
 
 import { signIn, signOut } from "@/auth";
 import { db } from "@/db";
-import { users, collaborators } from "@/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { users } from "@/db/schema";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { cookies, headers } from "next/headers";
@@ -14,16 +13,18 @@ import { lockoutMessage } from "@/lib/auth-throttle";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE, MFA_TICKET_TTL_MS } from "@/lib/mfa";
 import { isHttpsRequest } from "@/lib/request-origin";
+import { isUniqueViolation } from "@/lib/error-utils";
+import { normalizeUsername, validateUsername } from "@/lib/username";
 
 type ActionState = { error?: string } | undefined;
 
 export async function signInAction(_prev: SignInActionState, formData: FormData): Promise<SignInActionState> {
-  const email = String(formData.get("email") ?? "");
+  const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
   const keepSignedIn = String(formData.get("keepSignedIn") === "on");
 
   try {
-    await signIn("credentials", { email, password, keepSignedIn, redirect: false });
+    await signIn("credentials", { username, password, keepSignedIn, redirect: false });
   } catch (err) {
     if (err instanceof MfaRequiredError) {
       (await cookies()).set(MFA_COOKIE, err.ticket, {
@@ -36,7 +37,7 @@ export async function signInAction(_prev: SignInActionState, formData: FormData)
       return { mfaRequired: true };
     }
     if (err instanceof LockedOutError) return { error: lockoutMessage(err.retryAfterSeconds) };
-    if (err instanceof AuthError) return { error: "Invalid email or password." };
+    if (err instanceof AuthError) return { error: "Invalid username or password." };
     throw err;
   }
 
@@ -46,7 +47,7 @@ export async function signInAction(_prev: SignInActionState, formData: FormData)
 export async function verifyMfaAction(_prev: MfaActionState, formData: FormData): Promise<MfaActionState> {
   const cookieJar = await cookies();
   const ticket = cookieJar.get(MFA_COOKIE)?.value;
-  if (!ticket) return { error: "Your sign-in timed out. Enter your email and password again.", expired: true };
+  if (!ticket) return { error: "Your sign-in timed out. Enter your username and password again.", expired: true };
 
   try {
     await signIn("credentials", {
@@ -68,33 +69,28 @@ export async function verifyMfaAction(_prev: MfaActionState, formData: FormData)
 export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   if (process.env.ALLOW_SIGNUP === "false") return { error: "Signup is disabled." };
 
-  const email = formData.get("email") as string;
+  const username = normalizeUsername(String(formData.get("username") ?? ""));
   const password = formData.get("password") as string;
   const name = formData.get("name") as string;
 
-  if (!email || !password || password.length < 8) {
-    return { error: "Email and password (min 8 chars) required." };
+  const usernameError = validateUsername(username);
+  if (usernameError) return { error: usernameError };
+  if (!password || password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
   }
 
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
   const currency = detectPreferredCurrency(acceptLanguage);
   const passwordHash = await bcrypt.hash(password, 10);
-  const [newUser] = await db
-    .insert(users)
-    .values({ email, name, passwordHash, currency })
-    .onConflictDoNothing({ target: users.email })
-    .returning();
-
-  if (!newUser) return { error: "An account with that email already exists." };
-
-  // Back-fill collaborators shadow records that were invited before signup.
-  await db
-    .update(collaborators)
-    .set({ userId: newUser.id })
-    .where(and(eq(collaborators.email, email), isNull(collaborators.userId)));
+  try {
+    await db.insert(users).values({ username, name, passwordHash, currency });
+  } catch (error) {
+    if (isUniqueViolation(error)) return { error: "That username is taken." };
+    throw error;
+  }
 
   const signInFormData = new FormData();
-  signInFormData.set("email", email);
+  signInFormData.set("username", username);
   signInFormData.set("password", password);
   signInFormData.set("redirectTo", "/trips");
   // A brand-new account on the browser that created it stays signed in like a ticked "Keep me signed in".

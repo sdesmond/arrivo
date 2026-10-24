@@ -91,7 +91,7 @@ function codeFor(secret: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
-  mocks.requireUser.mockResolvedValue({ id: "user-1", email: "alice@example.com" });
+  mocks.requireUser.mockResolvedValue({ id: "user-1", name: "Alice" });
   mocks.checkThrottle.mockResolvedValue({ locked: false });
   mocks.replaceRecoveryCodes.mockResolvedValue(CODES);
   mocks.toDataURL.mockResolvedValue("data:image/png;base64,QR");
@@ -101,7 +101,7 @@ beforeEach(() => {
 
 describe("startMfaEnrollment", () => {
   it("stores an encrypted pending secret and returns it with a QR code", async () => {
-    mocks.selectWhere.mockResolvedValue([{ mfaEnabledAt: null }]);
+    mocks.selectWhere.mockResolvedValue([{ mfaEnabledAt: null, username: "alice" }]);
     const result = await startMfaEnrollment();
 
     if ("error" in result) throw new Error(result.error);
@@ -110,7 +110,7 @@ describe("startMfaEnrollment", () => {
     const stored = mocks.updateSet.mock.calls[0][0].totpPendingSecret;
     expect(isEncryptedField(stored)).toBe(true);
     expect(decryptField(stored)).toBe(result.secret);
-    expect(mocks.toDataURL.mock.calls[0][0]).toContain("otpauth://totp/Arrivo:alice%40example.com");
+    expect(mocks.toDataURL.mock.calls[0][0]).toContain("otpauth://totp/Arrivo:alice");
   });
 
   it("refuses when two-factor is already on", async () => {

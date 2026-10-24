@@ -19,22 +19,22 @@ describe("resetMfa", () => {
   it("clears two-factor, deletes recovery codes and code lockouts, and revokes sessions", async () => {
     const { sql, queries } = fakeSql([{ id: "user-1" }]);
 
-    await expect(resetMfa(sql, "Alice@Example.com")).resolves.toBe(true);
+    await expect(resetMfa(sql, "Alice")).resolves.toBe(true);
 
     const [update, deleteCodes, deleteThrottle] = queries;
     expect(update.text).toContain("totp_secret = null");
     expect(update.text).toContain("mfa_enabled_at = null");
     expect(update.text).toContain("session_version = session_version + 1");
-    expect(update.text).toContain("lower(email) = lower(?)");
-    expect(update.values).toEqual(["Alice@Example.com"]);
+    expect(update.text).toContain("lower(username) = lower(?)");
+    expect(update.values).toEqual(["Alice"]);
     expect(deleteCodes.text).toBe("delete from mfa_recovery_codes where user_id = ?");
     expect(deleteCodes.values).toEqual(["user-1"]);
     expect(deleteThrottle.values).toEqual(["mfa:user-1"]);
   });
 
-  it("reports an unknown email without touching anything else", async () => {
+  it("reports an unknown username without touching anything else", async () => {
     const { sql, queries } = fakeSql([]);
-    await expect(resetMfa(sql, "nobody@example.com")).resolves.toBe(false);
+    await expect(resetMfa(sql, "nobody")).resolves.toBe(false);
     expect(queries).toHaveLength(1);
   });
 });

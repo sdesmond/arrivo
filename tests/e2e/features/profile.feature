@@ -13,6 +13,14 @@ Feature: User profile page
     And I save the Identity section
     Then my name "E2E Profile User" should appear in the sidebar
 
+  Scenario: Change username and sign in with the new one
+    Given I am on the profile page
+    When I navigate to the Identity section
+    And I change my username to a new one and save
+    Then the sidebar should show my new username
+    When I sign out
+    Then I can sign in with my new username
+
   Scenario: Update preferences
     Given I am on the profile page
     When I navigate to the Preferences section

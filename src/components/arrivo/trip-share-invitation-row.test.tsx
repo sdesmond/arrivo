@@ -8,7 +8,7 @@ const NOW_ISO = "2026-06-15T12:00:00.000Z";
 
 const pendingInvitation: Invitation = {
   id: "pending-1",
-  email: "pending@example.com",
+  inviteeUsername: "pending",
   expiresAt: "2099-01-01T00:00:00.000Z",
   invitedBy: "manager-1",
   role: "viewer",
@@ -19,14 +19,14 @@ const pendingInvitation: Invitation = {
 const expiredPendingInvitation: Invitation = {
   ...pendingInvitation,
   id: "expired-pending-1",
-  email: "expired-pending@example.com",
+  inviteeUsername: "expired-pending",
   expiresAt: "2026-01-01T00:00:00.000Z",
 };
 
 const declinedInvitation: Invitation = {
   ...pendingInvitation,
   id: "declined-1",
-  email: "declined@example.com",
+  inviteeUsername: "declined",
   status: "declined",
 };
 
@@ -43,9 +43,11 @@ describe("TripShareInvitationRow", () => {
       />
     );
 
-    expect(screen.getByTitle("Resend invitation to pending@example.com")).toBeEnabled();
-    expect(screen.getByTitle("Rescind invitation to pending@example.com")).toBeEnabled();
-    expect(screen.queryByTitle("Dismiss invitation to pending@example.com")).not.toBeInTheDocument();
+    expect(screen.getByText("@pending")).toBeInTheDocument();
+    expect(screen.getByText("PE")).toBeInTheDocument();
+    expect(screen.getByTitle("Resend invitation to @pending")).toBeEnabled();
+    expect(screen.getByTitle("Rescind invitation to @pending")).toBeEnabled();
+    expect(screen.queryByTitle("Dismiss invitation to @pending")).not.toBeInTheDocument();
   });
 
   it("renders and invokes an accessible dismiss action for a declined invitation", () => {
@@ -61,7 +63,7 @@ describe("TripShareInvitationRow", () => {
       />
     );
 
-    fireEvent.click(screen.getByTitle("Dismiss invitation to declined@example.com"));
+    fireEvent.click(screen.getByTitle("Dismiss invitation to @declined"));
 
     expect(onDismiss).toHaveBeenCalledWith(declinedInvitation);
     expect(screen.getByText("Declined")).toBeInTheDocument();
@@ -79,7 +81,7 @@ describe("TripShareInvitationRow", () => {
       />
     );
 
-    expect(screen.getByTitle("Dismiss invitation to declined@example.com")).toBeDisabled();
+    expect(screen.getByTitle("Dismiss invitation to @declined")).toBeDisabled();
     expect(screen.getByLabelText("Dismissing invitation")).toBeInTheDocument();
   });
 
@@ -99,9 +101,9 @@ describe("TripShareInvitationRow", () => {
 
     expect(screen.getByText("Expired")).toBeInTheDocument();
     expect(screen.queryByText("Pending")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Resend invitation to expired-pending@example.com")).toBeEnabled();
-    expect(screen.getByTitle("Rescind invitation to expired-pending@example.com")).toBeEnabled();
-    expect(screen.queryByTitle("Dismiss invitation to expired-pending@example.com")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Resend invitation to @expired-pending")).toBeEnabled();
+    expect(screen.getByTitle("Rescind invitation to @expired-pending")).toBeEnabled();
+    expect(screen.queryByTitle("Dismiss invitation to @expired-pending")).not.toBeInTheDocument();
   });
 
   it("shows a Pending badge for a pending invitation that has not expired yet", () => {

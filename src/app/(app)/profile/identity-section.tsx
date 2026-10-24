@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { updateProfile } from "./actions";
 import type { UserProfile } from "@/data/types";
+import { normalizeUsername, validateUsername } from "@/lib/username";
 
 interface ProfileIdentitySectionProps {
   user: UserProfile;
@@ -19,27 +20,37 @@ function getInitials(user: UserProfile): string {
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     return parts[0][0].toUpperCase();
   }
-  return user.email[0].toUpperCase();
+  return user.username[0].toUpperCase();
 }
 
 export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentitySectionProps) {
   const [name, setName] = useState(user.name ?? "");
+  const [username, setUsername] = useState(user.username);
   const [isPending, startTransition] = useTransition();
   const [justSaved, setJustSaved] = useState(false);
   const initials = getInitials({ ...user, name: name || null });
 
+  const isNameDirty = name !== (user.name ?? "");
+  const isUsernameDirty = normalizeUsername(username) !== user.username;
+
   function handleNameChange(next: string) {
     if (next === name) return;
     setName(next);
-    const dirty = next !== (user.name ?? "");
-    onDirtyChange?.(dirty);
+    onDirtyChange?.(next !== (user.name ?? "") || isUsernameDirty);
+  }
+
+  function handleUsernameChange(next: string) {
+    if (next === username) return;
+    setUsername(next);
+    onDirtyChange?.(isNameDirty || normalizeUsername(next) !== user.username);
   }
 
   const nameError = name.length > 100 ? "Name must be 100 characters or fewer." : null;
+  const usernameError = validateUsername(username);
 
   function handleSave() {
     startTransition(async () => {
-      const result = await updateProfile({ name });
+      const result = await updateProfile({ name, ...(isUsernameDirty ? { username } : {}) });
       if (result.error) {
         toast.error(result.error);
         return;
@@ -50,7 +61,7 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
     });
   }
 
-  const isDirty = name !== (user.name ?? "");
+  const isDirty = isNameDirty || isUsernameDirty;
 
   return (
     <Section>
@@ -85,20 +96,17 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
         />
       </Field>
 
-      <Field label="Email" htmlFor="profile-email">
-        <input
-          id="profile-email"
-          type="email"
-          value={user.email}
-          readOnly
-          className="w-full rounded-[6px] px-2.5 py-1.5"
-          style={{
-            background: "var(--surface)",
-            color: "var(--fg-3)",
-            border: "1px solid var(--line)",
-            cursor: "default",
-            fontSize: "calc(13px * var(--font-scale))",
-          }}
+      <Field label="Username" htmlFor="profile-username" error={usernameError ?? undefined}>
+        <Input
+          id="profile-username"
+          type="text"
+          value={username}
+          onChange={(event) => handleUsernameChange(event.target.value)}
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          aria-invalid={!!usernameError || undefined}
+          aria-describedby={usernameError ? "profile-username-error" : undefined}
         />
       </Field>
 
@@ -108,7 +116,7 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
             Saved
           </span>
         )}
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!nameError}>
+        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!nameError || !!usernameError}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </div>

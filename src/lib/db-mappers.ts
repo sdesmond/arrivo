@@ -92,7 +92,7 @@ export function dbUserToType(row: typeof users.$inferSelect): UserProfile {
   return {
     id: row.id,
     name: row.name ?? null,
-    email: row.email ?? "",
+    username: row.username,
     dateFormat: row.dateFormat ?? null,
     currency: row.currency ?? null,
     distanceUnit: row.distanceUnit ?? null,
@@ -194,10 +194,11 @@ export function dbExpenseToType(row: typeof expenses.$inferSelect): Expense {
   };
 }
 
-export function dbCollabToType(row: typeof collaborators.$inferSelect): Collaborator {
+// `username` comes from a left join on users; it's null once the collaborator's account is gone.
+export function dbCollabToType(row: typeof collaborators.$inferSelect & { username?: string | null }): Collaborator {
   return {
     id: row.id,
-    email: row.email,
+    username: row.username ?? undefined,
     name: row.name,
     initials: row.initials,
     role: row.role as Collaborator["role"],
@@ -207,11 +208,11 @@ export function dbCollabToType(row: typeof collaborators.$inferSelect): Collabor
   };
 }
 
-export function dbInvitationToType(row: typeof invitations.$inferSelect): Invitation {
+export function dbInvitationToType(row: typeof invitations.$inferSelect & { inviteeUsername: string }): Invitation {
   return {
     id: row.id,
     tripId: row.tripId,
-    email: row.email,
+    inviteeUsername: row.inviteeUsername,
     role: row.role as Invitation["role"],
     status: row.status as Invitation["status"],
     expiresAt: row.expiresAt.toISOString(),

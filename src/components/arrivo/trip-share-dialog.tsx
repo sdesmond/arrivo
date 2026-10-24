@@ -55,11 +55,11 @@ function TripShareDialogContent({ tripId, onRequestClose }: TripShareDialogConte
 
       <TripShareInviteForm
         disabled={controller.isSavingChanges}
-        email={controller.email}
+        username={controller.username}
         error={controller.inviteError}
         isLoading={controller.inviteLoading}
-        onEmailChange={(email) => {
-          controller.setEmail(email);
+        onUsernameChange={(username) => {
+          controller.setUsername(username);
           controller.setInviteError(null);
         }}
         onInvite={() => void controller.handleInvite()}
@@ -82,7 +82,7 @@ function TripShareDialogContent({ tripId, onRequestClose }: TripShareDialogConte
             const staged = collaborator.id ? controller.stagedChanges[collaborator.id] : undefined;
             const pendingRemoval = staged?.type === "remove";
             return (
-              <div key={collaborator.id ?? collaborator.email} style={{ opacity: pendingRemoval ? 0.5 : 1 }}>
+              <div key={collaborator.id ?? collaborator.name} style={{ opacity: pendingRemoval ? 0.5 : 1 }}>
                 <TripShareCollaboratorRow
                   collaborator={controller.collaboratorWithStagedChanges(collaborator)}
                   disabled={pendingRemoval || controller.isSavingChanges}
