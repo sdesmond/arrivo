@@ -45,5 +45,6 @@ Account lifecycle, admin authority, recovery, Activity and Overview inside the e
 
 - Decision: 2026-10-24 five epics in order foundation, Activity, onboarding, recovery and deletion, overview; Activity second so later epics emit events as built (user confirmed).
 - Decision: 2026-10-24 recovery and deletion stay one epic (shared lock rules).
+- Decision: 2026-10-24 integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Every ticket branches off it as `ticket/<slug>` and opens a PR into it; planning and docs changes follow the same path from a `docs/...` branch.
 - Open question: architecture review findings (`architecture-self-hosted-administration/reviews/`) not confirmed applied.
 - Unknown: exact table, route and event-type names; chosen in epic 1 and 2 inception, then adopted by later epics.
