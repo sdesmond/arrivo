@@ -97,7 +97,6 @@ touches any other account in the database.
 | `NEXTAUTH_URL`           | Full URL of the app                            | `http://localhost:3000`                              |
 | `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                       | generated automatically                              |
 | `DATA_ENCRYPTION_KEY`    | Encrypts passport numbers and 2FA secrets      | generated automatically; never change it once set    |
-| `ALLOW_SIGNUP`           | Expose the sign-up page                        | `true`                                               |
 | `E2E_USERNAME`           | E2E login username                             | `e2e`                                                |
 | `E2E_PASSWORD`           | E2E login password                             | `e2e1234`                                            |
 | `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator        | `true`                                               |

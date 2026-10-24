@@ -15,8 +15,7 @@ curl -fsSLO https://raw.githubusercontent.com/sdesmond/arrivo/main/docker-compos
 docker compose up -d
 ```
 
-Open `http://<your-server>:4850`, create your account, and you're done. When everyone has an account,
-set `ALLOW_SIGNUP: "false"` in the file and run `docker compose up -d` again.
+Open `http://<your-server>:4850` and create your account. It becomes the admin, and sign-up closes after it.
 
 Before starting, check `PUID` and `PGID` in the file match your user (`id` prints them). They decide
 who owns uploaded files in `./data/storage`.
@@ -48,7 +47,6 @@ All settings are environment variables on the `app` service. After you change on
 | --------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                                       |
 | `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                                 |
-| `ALLOW_SIGNUP`        | `true`           | Set `"false"` to close registration                                                                                                      |
 | `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab          |
 | `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)                      |
 | `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                            |

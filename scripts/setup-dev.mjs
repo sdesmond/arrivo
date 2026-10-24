@@ -20,7 +20,6 @@ const ENV_ORDER = [
   "NEXTAUTH_URL",
   "NEXTAUTH_SECRET",
   "DATA_ENCRYPTION_KEY",
-  "ALLOW_SIGNUP",
   "E2E_USERNAME",
   "E2E_PASSWORD",
   "HIDE_OVERLAY",
@@ -30,7 +29,6 @@ const ENV_ORDER = [
 
 const DEFAULT_ENV_VALUES = {
   NEXTAUTH_URL: "http://localhost:3000",
-  ALLOW_SIGNUP: "true",
   E2E_USERNAME: "e2e",
   E2E_PASSWORD: "e2e1234",
   HIDE_OVERLAY: "true",
@@ -423,7 +421,6 @@ function applyDatabaseSetup(rootDir, envValues) {
     NEXTAUTH_URL: envValues.NEXTAUTH_URL,
     NEXTAUTH_SECRET: envValues.NEXTAUTH_SECRET,
     DATA_ENCRYPTION_KEY: envValues.DATA_ENCRYPTION_KEY,
-    ALLOW_SIGNUP: envValues.ALLOW_SIGNUP,
     E2E_USERNAME: envValues.E2E_USERNAME,
     E2E_PASSWORD: envValues.E2E_PASSWORD,
     HIDE_OVERLAY: envValues.HIDE_OVERLAY,
