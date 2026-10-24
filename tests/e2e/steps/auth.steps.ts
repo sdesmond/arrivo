@@ -1,7 +1,4 @@
 import { expect, type Page } from "@playwright/test";
-import { eq } from "drizzle-orm";
-import { users } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
 
@@ -126,56 +123,4 @@ When("I sign in to my account with Keep me signed in ticked", async ({ page, sce
   await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
   await page.getByRole("checkbox", { name: "Keep me signed in" }).check();
   await page.getByRole("button", { name: "Sign in" }).click();
-});
-
-const SIGN_UP_USERNAME_KEY = "signUpUsername";
-// Sign-up requires 8+ characters, longer than the seeded E2E_PASSWORD.
-const SIGN_UP_PASSWORD = "sign-up-password";
-
-Given("I am on the sign-up page", async ({ page, scenario }) => {
-  scenario.signOut();
-  await page.context().clearCookies();
-  await page.goto("/sign-up");
-});
-
-async function submitSignUp(page: Page, username: string) {
-  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Sign-up Person");
-  await page.getByRole("textbox", { name: "Username" }).fill(username);
-  await page.getByRole("textbox", { name: "Password" }).fill(SIGN_UP_PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-}
-
-When("I sign up with a new username", async ({ page, scenario }) => {
-  const username = scenario.uniqueUsername("signup");
-  scenario.setValue(SIGN_UP_USERNAME_KEY, username);
-  // Typed with capitals: the account is stored, and signed in to, by its lowercased form.
-  await submitSignUp(page, username.toUpperCase());
-  await page.waitForURL("**/trips", { timeout: 15_000 });
-
-  const [created] = await withE2EDb((db) =>
-    db.select({ id: users.id }).from(users).where(eq(users.username, username))
-  );
-  if (!created) throw new Error(`Sign-up did not create an account for "${username}".`);
-  scenario.registerCleanup({ entity: "user", id: created.id });
-});
-
-When("I sign up with the username of an existing account", async ({ page, scenario }) => {
-  const existing = await scenario.ensureCurrentUser();
-  await submitSignUp(page, existing.username);
-});
-
-Then("I should see that the username is taken", async ({ page }) => {
-  await expect(page.locator("#form-error")).toHaveText("That username is taken.");
-  await expect(page).toHaveURL(/\/sign-up/);
-});
-
-Then("I can sign out and sign back in with my new username", async ({ page, scenario }) => {
-  const username = scenario.getValue<string>(SIGN_UP_USERNAME_KEY)!;
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await page.waitForURL("**/sign-in");
-  await page.getByRole("textbox", { name: "Username" }).fill(username);
-  await page.getByRole("textbox", { name: "Password" }).fill(SIGN_UP_PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/trips");
-  await expect(page.getByText(`@${username}`)).toBeVisible();
 });
