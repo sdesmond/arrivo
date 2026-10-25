@@ -639,6 +639,26 @@ export interface AccountDeletionTrip {
   suggestedHeirUserId: string;
 }
 
+export const AccountDeletionFailure = {
+  Stale: "stale",
+  LastAdmin: "last-admin",
+} as const;
+export type AccountDeletionFailure = (typeof AccountDeletionFailure)[keyof typeof AccountDeletionFailure];
+
+// What a committed self-service deletion changed, for the caller's post-commit events and file cleanup.
+export interface DeletedAccountSummary {
+  rescindedInvitations: { inviteeId: string; tripId: string }[];
+  transferredTrips: [tripId: string, heirUserId: string][];
+  deletedTripIds: string[];
+  deletedTripMembers: { tripId: string; userId: string }[];
+  remainingTripIds: string[];
+  storageUrls: string[];
+}
+
+export type DeleteOwnAccountResult =
+  | { ok: true; summary: DeletedAccountSummary }
+  | { ok: false; reason: AccountDeletionFailure };
+
 // `stale` means the shared trips changed after the dialog loaded; the client refreshes and asks again.
 export type DeleteAccountResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
 
