@@ -39,4 +39,4 @@ Activity storage, API, viewer, retention, existing producers. Not events for onb
 ## Notes
 
 - Waits on epic-instance-foundation because: the admin shell and authority checks host the Activity section.
-- Decision: 2026-10-24 branching: integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Branch each ticket off it as `ticket/<slug>` and open a PR into it, never into `main`.
+- Decision: 2026-10-24 branching: integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Branch each ticket off it as `ticket/<slug>` and open a PR into it, never into `main`. When slicing this epic, write this rule into every ticket entry's `notes` so it reaches the build.

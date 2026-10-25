@@ -49,4 +49,4 @@ Instance state, roles, menu, admin shell. Not Activity, Add User, recovery, Over
 - Decision: 2026-10-24 an unfinished account is one with `users.password_hash IS NULL`. Handoff: epic-account-onboarding adopts this rather than adding a second setup-state field.
 - Decision: 2026-10-24 story 2 owns the shell and section navigation with only Users enabled; epics 2 and 5 add their sections.
 - Decision: 2026-10-24 story 1 stays one story.
-- Decision: 2026-10-24 branching: integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Branch each ticket off it as `ticket/<slug>` and open a PR into it, never into `main`.
+- Decision: 2026-10-24 branching: integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Branch each ticket off it as `ticket/<slug>` and open a PR into it, never into `main`. When slicing this epic, write this rule into every ticket entry's `notes` so it reaches the build.

@@ -82,12 +82,12 @@ context: []
 
 ## Review Triage Log
 
-- medium / patch — `waitForBlockedTransaction` counted any blocked backend in the E2E DB; scoped by per-fixture `application_name`.
-- medium / patch — gate not released if wait throws; release moved to `finally` in both gated steps.
-- low / patch — uppercase UUIDs failed row matching and dedupe; ids lowercased in service and lock helper, tests added.
-- low / patch — invalid-role test did not assert no transaction opened; now asserts count 0.
-- low / patch — missing caller-owned-transaction composition test; added to locks tests.
-- low / rejected — `assertAnotherCompletedAdmin` does not enforce held singleton lock; enforcing needs new public parameter, precondition documented, plan fixes the signature.
+- medium / patch â€” `waitForBlockedTransaction` counted any blocked backend in the E2E DB; scoped by per-fixture `application_name`.
+- medium / patch â€” gate not released if wait throws; release moved to `finally` in both gated steps.
+- low / patch â€” uppercase UUIDs failed row matching and dedupe; ids lowercased in service and lock helper, tests added.
+- low / patch â€” invalid-role test did not assert no transaction opened; now asserts count 0.
+- low / patch â€” missing caller-owned-transaction composition test; added to locks tests.
+- low / rejected â€” `assertAnotherCompletedAdmin` does not enforce held singleton lock; enforcing needs new public parameter, precondition documented, plan fixes the signature.
 
 ## Design Notes
 
