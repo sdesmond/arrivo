@@ -40,11 +40,10 @@ if ((Test-Path $claudeMemory) -and -not $claudeMemoryItem.LinkType) {
 # Safely delete old shortcut paths if they exist
 if (Test-Path $claudeSkills) { Remove-Item -Recurse -Force $claudeSkills }
 if (Test-Path $claudeAgents) { Remove-Item -Recurse -Force $claudeAgents }
-if (Test-Path $claudeMemory) { Remove-Item -Recurse -Force $claudeMemory }
+if (Test-Path $claudeMemory) { Remove-Item -Recurse -Force $claudeMemory }  # .agents\memories is the only memory location
 
 # Create native Directory Junctions pointing from .claude up to .agents
 New-Item -ItemType Junction -Path $claudeSkills -Value $agentsSkills | Out-Null
 New-Item -ItemType Junction -Path $claudeAgents -Value $agentsAgents | Out-Null
-New-Item -ItemType Junction -Path $claudeMemory -Value $agentsMemories | Out-Null
 
 Write-Host "Native Junctions successfully mapped at project root!" -ForegroundColor Green

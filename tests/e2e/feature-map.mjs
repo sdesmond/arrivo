@@ -62,6 +62,11 @@ export const FEATURE_MAP = [
     "src/lib/instance-bootstrap.ts",
     "tests/e2e/instance-state.ts",
   ]),
+  entry("instance-role-service", [
+    "src/lib/account-role-changes.ts",
+    "src/lib/account-lifecycle-locks.ts",
+    "tests/e2e/role-service-fixture.ts",
+  ]),
   entry("mfa", [
     "src/components/arrivo/auth-forms.tsx",
     "src/components/arrivo/auth-submit-button.tsx",

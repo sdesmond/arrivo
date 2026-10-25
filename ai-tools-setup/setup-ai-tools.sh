@@ -26,13 +26,16 @@ if [ -d "$ROOT_DIR/.claude/memory" ] && [ ! -L "$ROOT_DIR/.claude/memory" ]; the
   rmdir "$ROOT_DIR/.claude/memory"
 fi
 
+# .agents/memories is the only memory location; drop any leftover link or checkout stub
+if [ -L "$ROOT_DIR/.claude/memory" ] || [ -f "$ROOT_DIR/.claude/memory" ]; then
+  rm -f "$ROOT_DIR/.claude/memory"
+fi
+
 # Remove broken or stale links/folders safely
 rm -rf "$ROOT_DIR/.claude/skills" "$ROOT_DIR/.claude/agents"
-rm -rf "$ROOT_DIR/.claude/memory"
 
 # Create symlinks using relative syntax from inside the .claude directory
 ln -s ../.agents/skills "$ROOT_DIR/.claude/skills"
 ln -s ../.agents/agents "$ROOT_DIR/.claude/agents"
-ln -s ../.agents/memories "$ROOT_DIR/.claude/memory"
 
 echo "Symlinks successfully mapped at project root!"

@@ -39,7 +39,7 @@ Use this style unless told otherwise:
 
 ## Memory
 
-Read and write all project memories in `.agents/memories/`. Treat `.claude/memory/` as a compatibility link only so older tooling resolves to the same files without becoming the source of truth.
+Read and write all project memories in `.agents/memories/`. That folder is the only source of truth; there is no `.claude/memory/` link, and setup scripts remove a leftover one.
 
 ## Project Overview
 

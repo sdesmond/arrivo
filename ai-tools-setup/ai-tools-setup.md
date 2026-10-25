@@ -12,11 +12,10 @@ your-project-repo/
 │   └── memories/            # Shared Project Memories
 └── .claude/                 # 🔗 SYSTEM LINKS (Ignored by Git)
     ├── skills -> ../.agents/skills
-    ├── agents -> ../.agents/agents
-    └── memory -> ../.agents/memories
+    └── agents -> ../.agents/agents
 ```
 
-If an older local checkout still has memories under `.claude/memory`, the setup scripts migrate those files into `.agents/memories` before recreating the compatibility link.
+If an older local checkout still has memories under `.claude/memory`, the setup scripts migrate those files into `.agents/memories` and remove `.claude/memory`. Memories are read and written only in `.agents/memories`.
 
 ### 🚀 Quick Setup
 

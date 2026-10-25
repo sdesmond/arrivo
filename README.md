@@ -27,7 +27,7 @@ For how schema changes and migrations work (generate, review, commit `drizzle/`)
 
 ## AI Skills & Agents Setup
 
-`.agents/` is the tracked source of truth for shared AI assets: skills in `.agents/skills`, agents in `.agents/agents`, and project memories in `.agents/memories`. `npm run setup:dev` also configures the compatibility links under `.claude/` (`skills`, `agents`, and `memory`) described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
+`.agents/` is the tracked source of truth for shared AI assets: skills in `.agents/skills`, agents in `.agents/agents`, and project memories in `.agents/memories`. `npm run setup:dev` also configures the compatibility links under `.claude/` (`skills` and `agents`) described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
 
 ## Self-hosting
 
