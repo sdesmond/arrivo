@@ -3,6 +3,7 @@
 // src/db/seed-runner.ts. Trip/day/event insert logic lives in src/db/seed-inserts-trip.ts.
 import { inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { UserRole } from "../data/types";
 import { encryptOptionalField } from "../lib/field-encryption";
 import type { db as liveDb } from "./index";
 import {
@@ -50,6 +51,7 @@ export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Prom
         username: seedUser.username,
         name: seedUser.name,
         passwordHash,
+        role: seedUser.role ?? UserRole.Member,
         currency: seedUser.currency,
         dateFormat: seedUser.dateFormat,
         defaultCoverType: seedUser.defaultCoverType ?? null,
