@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AccountMenu } from "./account-menu";
 import { Briefcase, Search, Map, Clock, User } from "lucide-react";
 
 const TABS = [
@@ -12,7 +13,11 @@ const TABS = [
   { id: "profile", label: "Profile", icon: User, href: "/profile" },
 ];
 
-export function BottomTabBar() {
+export interface BottomTabBarProps {
+  isAdmin?: boolean;
+}
+
+export function BottomTabBar({ isAdmin = false }: BottomTabBarProps) {
   const pathname = usePathname();
 
   return (
@@ -29,6 +34,30 @@ export function BottomTabBar() {
       {TABS.map((tab) => {
         const active = tab.href === "/trips" ? pathname.startsWith("/trips") : pathname === tab.href;
         const Icon = tab.icon;
+        if (tab.id === "profile") {
+          return (
+            <AccountMenu
+              key={tab.id}
+              isAdmin={isAdmin}
+              side="top"
+              trigger={
+                <button
+                  type="button"
+                  aria-label="Profile"
+                  aria-current={active ? "page" : undefined}
+                  className="flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 font-medium text-fg-3"
+                  style={{
+                    color: active ? "var(--accent-brand)" : "var(--fg-3)",
+                    fontSize: "calc(10.5px * var(--font-scale))",
+                  }}
+                >
+                  <Icon size={20} strokeWidth={1.5} aria-hidden />
+                  {tab.label}
+                </button>
+              }
+            />
+          );
+        }
         return (
           <Link
             key={tab.id}

@@ -21,7 +21,8 @@ Then("I should see a sign-in error message", async ({ page }) => {
 });
 
 When("I sign out", async ({ page, scenario }) => {
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Log out", exact: true }).click();
   await page.waitForURL("**/sign-in");
   scenario.signOut();
 });
@@ -82,7 +83,8 @@ Given("I have signed in and out on this browser", async ({ page, scenario }) => 
   await page.getByRole("textbox", { name: "Password" }).fill(process.env.E2E_PASSWORD!);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/trips");
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Log out", exact: true }).click();
   await page.waitForURL("**/sign-in");
   scenario.signOut();
 });

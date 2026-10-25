@@ -1,7 +1,8 @@
 import { ExpenseCategory, TransitMode } from "../../src/data/types";
-import type { ReservationType } from "../../src/data/types";
+import type { UserRole, ReservationType } from "../../src/data/types";
 
 export interface UserSeed {
+  role?: UserRole;
   name: string;
   initials: string;
   dateFormat: "MM/DD/YYYY" | "DD/MM/YYYY";

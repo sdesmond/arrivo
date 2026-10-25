@@ -1,32 +1,19 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import type { UserProfile } from "@/data/types";
-
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/trips",
-}));
-
-vi.mock("next/link", () => ({
-  default: ({
-    children,
-    href,
-    className,
-    "aria-label": ariaLabel,
-  }: {
-    children: React.ReactNode;
-    href: string;
-    className?: string;
-    "aria-label"?: string;
-  }) => (
-    <a href={href} className={className} aria-label={ariaLabel}>
-      {children}
-    </a>
-  ),
-}));
 
 vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn() }),
 }));
+
+beforeEach(() =>
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ isAdmin: false }))
+  )
+);
+afterEach(() => vi.unstubAllGlobals());
 
 vi.mock("@/app/(auth)/actions", () => ({
   signOutAction: vi.fn(),
@@ -82,9 +69,12 @@ describe("SidebarNav", () => {
     expect(brandLink?.querySelector("img")).toBeInTheDocument();
   });
 
-  it("renders sign out button", () => {
+  it("opens account menu instead of showing standalone sign out", async () => {
     render(<SidebarNav user={baseUser} />);
-    expect(screen.getByTitle("Sign out")).toBeInTheDocument();
+    expect(screen.queryByTitle("Sign out")).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "Account menu" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("menuitem", { name: "Settings" })).toHaveAttribute("href", "/profile");
   });
 
   it("renders user name from UserProfile", () => {
@@ -119,17 +109,12 @@ describe("SidebarNav", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("footer user block links to /profile", () => {
+  it("keeps name and username in the account trigger", () => {
     render(<SidebarNav user={baseUser} />);
-    const profileLink = screen.getByRole("link", { name: /view profile/i });
-    expect(profileLink).toHaveAttribute("href", "/profile");
-  });
-
-  it("sign out button is outside the profile link", () => {
-    render(<SidebarNav user={baseUser} />);
-    const profileLink = screen.getByRole("link", { name: /view profile/i });
-    const signOutButton = screen.getByTitle("Sign out");
-    expect(profileLink).not.toContainElement(signOutButton);
+    const trigger = screen.getByRole("button", { name: "Account menu" });
+    expect(trigger).toHaveTextContent("Jane Doe");
+    expect(trigger).toHaveTextContent("@jane");
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
   });
 
   it("shows a pending-invitations badge on the Trips nav item when invitationCount is positive", () => {

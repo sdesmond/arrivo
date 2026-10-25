@@ -13,7 +13,8 @@ Given("I am on the profile page", async ({ page, scenario }) => {
 });
 
 When("I click the user area in the sidebar", async ({ page }) => {
-  await page.click('a[href="/profile"][aria-label="View profile"]');
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
 });
 
 Then("I should be on the profile page", async ({ page }) => {
@@ -47,7 +48,7 @@ When("I save the Identity section", async ({ page }) => {
 });
 
 Then("my name {string} should appear in the sidebar", async ({ page }, name: string) => {
-  await expect(page.locator('a[href="/profile"][aria-label="View profile"]')).toContainText(name);
+  await expect(page.getByRole("button", { name: "Account menu", exact: true })).toContainText(name);
 });
 
 const RENAMED_USERNAME_KEY = "renamedUsername";
@@ -69,7 +70,7 @@ When("I change my username to a new one and save", async ({ page, scenario }) =>
 
 Then("the sidebar should show my new username", async ({ page, scenario }) => {
   const username = scenario.getValue<string>(RENAMED_USERNAME_KEY)!;
-  await expect(page.locator('a[href="/profile"][aria-label="View profile"]')).toContainText(`@${username}`);
+  await expect(page.getByRole("button", { name: "Account menu", exact: true })).toContainText(`@${username}`);
 });
 
 Then("I can sign in with my new username", async ({ page, scenario }) => {
