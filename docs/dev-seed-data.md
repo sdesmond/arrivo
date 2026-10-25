@@ -1,7 +1,7 @@
 # Dev seed data
 
 `npm run db:seed` (`src/db/seed.ts`) populates `DATABASE_URL` with a small, realistic multi-account world:
-four accounts, six trips spanning every date state (active, upcoming, past, and two with no dates yet),
+five accounts, six trips spanning every date state (active, upcoming, past, and two with no dates yet),
 cross-account sharing in both directions, and all three states the share dialog can render. It's meant to be a
 starting point that already exercises most app surfaces without any manual setup.
 
@@ -10,8 +10,8 @@ starting point that already exercises most app surfaces without any manual setup
 
 ## Re-run behavior
 
-`db:seed` **wipes and reseeds the four seed accounts on every run** — safe to run any time, including
-repeatedly. It deletes `users` rows by the four seed usernames (cascading to everything those accounts own:
+`db:seed` **wipes and reseeds the five seed accounts on every run** — safe to run any time, including
+repeatedly. It deletes `users` rows by the five seed usernames (cascading to everything those accounts own:
 trips, days, events, documents, reservations, expenses, packing, notes, collaborator rows, and invitations
 they sent or received), then reinserts the whole world fresh. It never touches any other account, so hand-created data in
 your dev database is left alone.
@@ -22,7 +22,7 @@ no matter when you seed.
 
 ## Accounts
 
-All four share the password `demo1234`.
+All five share the password `demo1234`.
 
 | Account  | Name        | Profile                                                                                                                        | Why                                                                                                        |
 | -------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -30,6 +30,7 @@ All four share the password `demo1234`.
 | `alex`   | Alex Rivera | EUR, `DD/MM/YYYY`, `defaultCoverType: "map"`, 1 loyalty number, thresholds 70/85                                               | Exercises the non-default currency, date format, cover type, and threshold paths                           |
 | `sam`    | Sam Chen    | USD, owns no trips                                                                                                             | Receives a pending invitation — exercises the invitee-side pending-invitations flow on `/trips` end to end |
 | `jordan` | Jordan Lee  | USD, owns no trips                                                                                                             | Has already declined an invitation — the share dialog's Declined row                                       |
+| `admin`  | Admin User  | USD, `MM/DD/YYYY`, instance role `admin`, owns no trips                                                                        | The instance administrator — exercises admin-only surfaces; every other seed account is a `member`         |
 
 ## Trips
 
