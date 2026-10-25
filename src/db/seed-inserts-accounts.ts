@@ -1,13 +1,14 @@
 // Account-level insert helpers for the dev seed: users + their profile sub-rows, plus the sharing graph
 // (collaborator shares and invitations) laid on top of already-inserted trips. Orchestrated by
 // src/db/seed-runner.ts. Trip/day/event insert logic lives in src/db/seed-inserts-trip.ts.
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { UserRole } from "../data/types";
 import { encryptOptionalField } from "../lib/field-encryption";
 import type { db as liveDb } from "./index";
 import {
   collaborators,
+  instanceState,
   invitations,
   userCompanions,
   userLoyaltyNumbers,
@@ -89,6 +90,18 @@ export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Prom
   }
 
   return recordsByKey;
+}
+
+// Seeding an admin means the instance is set up: without this, a fresh database stays uninitialized and the next
+// public sign-up would bootstrap a second admin. Keeps an existing timestamp so re-seeding doesn't move it.
+export async function markInstanceInitialized(database: SeedDb, now: Date): Promise<void> {
+  await database
+    .insert(instanceState)
+    .values({ id: true, initializedAt: now })
+    .onConflictDoUpdate({
+      target: instanceState.id,
+      set: { initializedAt: sql`coalesce(${instanceState.initializedAt}, ${now.toISOString()}::timestamptz)` },
+    });
 }
 
 export async function insertShares(

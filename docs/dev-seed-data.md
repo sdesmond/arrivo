@@ -32,6 +32,9 @@ All five share the password `demo1234`.
 | `jordan` | Jordan Lee  | USD, owns no trips                                                                                                             | Has already declined an invitation — the share dialog's Declined row                                       |
 | `admin`  | Admin User  | USD, `MM/DD/YYYY`, instance role `admin`, owns no trips                                                                        | The instance administrator — exercises admin-only surfaces; every other seed account is a `member`         |
 
+Seeding also marks the instance initialized (`instance_state.initialized_at`, kept if already set), so public sign-up is
+closed afterward and the first-account-becomes-admin bootstrap can't create a second admin.
+
 ## Trips
 
 | Trip                            | Owner | Dates                      | `/trips` grouping | Contents                                                                                                                                                                                                                                                                                                                                                      |
