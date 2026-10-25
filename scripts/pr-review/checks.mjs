@@ -160,6 +160,15 @@ function isStrict(path) {
   return STRICT_TEST_DIRS.some((prefix) => path.startsWith(prefix));
 }
 
+// A test beside the file always covers it. Outside the strict directories a test in an ancestor directory covers the
+// subdirectories too (src/db/seed-runner.test.ts for src/db/seed-data/users.ts); the repository root never counts.
+function hasNearbyTest(path, testDirs) {
+  const dir = dirName(path);
+  if (testDirs.has(dir)) return true;
+  if (isStrict(path)) return false;
+  return [...testDirs].some((testDir) => testDir !== "" && dir.startsWith(`${testDir}/`));
+}
+
 export function checkTests(files) {
   const tests = files.filter((file) => classifyFile(file.path) === "test");
   const testDirs = new Set(tests.map((file) => dirName(file.path)));
@@ -167,7 +176,7 @@ export function checkTests(files) {
   const hasMigration = files.some((file) => file.path.startsWith("drizzle/"));
 
   const uncovered = files.filter(needsTest).filter((file) => {
-    if (testDirs.has(dirName(file.path))) return false;
+    if (hasNearbyTest(file.path, testDirs)) return false;
     const e2eCovers = hasE2e && (file.path.startsWith("src/app/") || file.path.startsWith("src/components/"));
     return isStrict(file.path) || !e2eCovers;
   });

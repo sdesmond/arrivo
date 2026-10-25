@@ -264,6 +264,42 @@ describe("checkTests", () => {
     expect(checkTests(files).status).toBe("PASS");
   });
 
+  it("lets a test in an ancestor directory cover files in a subdirectory outside the strict directories", () => {
+    const files = parse(
+      fileDiff("src/db/seed-data/users.ts", { lines: ["x"] }),
+      fileDiff("src/db/seed-runner.test.ts", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toEqual({ status: "PASS", missing: [], review: [] });
+  });
+
+  it("does not let a test in a subdirectory cover files in its parent directory", () => {
+    const files = parse(
+      fileDiff("src/db/seed-runner.ts", { lines: ["x"] }),
+      fileDiff("src/db/seed-data/users.test.ts", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toEqual({ status: "REVIEW", missing: [], review: ["src/db/seed-runner.ts"] });
+  });
+
+  it("does not let a repository-root test cover every directory", () => {
+    const files = parse(
+      fileDiff("src/db/seed-data/users.ts", { lines: ["x"] }),
+      fileDiff("root.test.mjs", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toEqual({ status: "REVIEW", missing: [], review: ["src/db/seed-data/users.ts"] });
+  });
+
+  it("does not let an ancestor test cover a strict directory", () => {
+    const files = parse(
+      fileDiff("src/lib/storage/adapter.ts", { lines: ["x"] }),
+      fileDiff("src/lib/format.test.ts", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toMatchObject({ status: "FAIL", missing: ["src/lib/storage/adapter.ts"] });
+  });
+
   it("lets an e2e feature or step cover src/app and component changes", () => {
     const files = parse(
       fileDiff("src/app/(app)/trips/page-client.tsx", { lines: ["x"] }),
