@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UserRole } from "@/data/types";
 
 const { select, where } = vi.hoisted(() => ({ select: vi.fn(), where: vi.fn() }));
 vi.mock("@/db", () => ({ db: { select } }));
@@ -11,7 +12,7 @@ describe("isInstanceAdmin", () => {
     select.mockReturnValue({ from: vi.fn(() => ({ where })) });
   });
 
-  it.each(["member", "unknown"])("denies the %s role", async (role) => {
+  it.each([UserRole.Member, "unknown"])("denies the %s role", async (role) => {
     where.mockResolvedValue([{ role }]);
     expect(await isInstanceAdmin("user-1")).toBe(false);
   });
@@ -20,7 +21,7 @@ describe("isInstanceAdmin", () => {
     expect(await isInstanceAdmin("missing")).toBe(false);
   });
   it("reads current authority again after demotion", async () => {
-    where.mockResolvedValueOnce([{ role: "admin" }]).mockResolvedValueOnce([{ role: "member" }]);
+    where.mockResolvedValueOnce([{ role: UserRole.Admin }]).mockResolvedValueOnce([{ role: UserRole.Member }]);
     expect(await isInstanceAdmin("user-1")).toBe(true);
     expect(await isInstanceAdmin("user-1")).toBe(false);
     expect(select).toHaveBeenCalledTimes(2);

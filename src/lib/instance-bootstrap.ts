@@ -1,18 +1,9 @@
 import { sql } from "drizzle-orm";
 import type { db } from "@/db";
 import { instanceState, users } from "@/db/schema";
-import { UserRole } from "@/data/types";
+import { UserRole, type BootstrapAccountValues, type BootstrapResult } from "@/data/types";
 
 export type BootstrapDatabase = Pick<typeof db, "transaction">;
-
-export interface BootstrapAccountValues {
-  username: string;
-  name: string;
-  passwordHash: string;
-  currency?: string | null;
-}
-
-export type BootstrapResult = { ok: true; userId: string } | { ok: false; reason: "closed" };
 
 // Creates the first account as admin and marks the instance initialized in one transaction. The singleton row is
 // locked first (AD-2), so concurrent first signups serialize and only one sees the instance as fresh. A unique
