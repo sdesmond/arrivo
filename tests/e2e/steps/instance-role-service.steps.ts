@@ -1,5 +1,12 @@
 import { expect } from "@playwright/test";
-import { RoleChangeFailure, UserRole, type ChangeUserRoleResult } from "../../../src/data/types";
+import {
+  AccountDeletionFailure,
+  RoleChangeFailure,
+  UserRole,
+  type ChangeUserRoleResult,
+  type DeleteOwnAccountResult,
+} from "../../../src/data/types";
+import { deleteOwnAccount } from "../../../src/lib/account-deletion";
 import { changeUserRole } from "../../../src/lib/account-role-changes";
 import { After, Given, When, Then } from "../fixtures";
 import {
@@ -186,4 +193,55 @@ Then("exactly one self-demotion succeeds and the other is refused as last-admin"
 
 Then("exactly one admin remains stored", async ({ scenario }) => {
   expect(await fixtureOf(scenario).adminCount()).toBe(1);
+});
+
+const DELETION_KEY = "accountDeletionResult";
+const DELETIONS_KEY = "accountDeletionResults";
+
+When("the completed admin deletes their own account", async ({ scenario }) => {
+  const fixture = fixtureOf(scenario);
+  scenario.setValue(DELETION_KEY, await deleteOwnAccount(fixture.database(), fixture.userId("admin"), []));
+});
+
+When("both admins delete their own accounts at the same time", async ({ scenario }) => {
+  const fixture = fixtureOf(scenario);
+  const gate = createLockGate();
+  const remove = (key: string, withGate?: typeof gate) =>
+    deleteOwnAccount(fixture.database(withGate), fixture.userId(key), []);
+
+  // The first transaction holds the singleton lock until the second is verifiably queued behind it.
+  const firstPromise = remove("first", gate);
+  await gate.reached;
+  const secondPromise = remove("second");
+  try {
+    await fixture.waitForBlockedTransaction();
+  } finally {
+    gate.release();
+  }
+
+  scenario.setValue(DELETIONS_KEY, await Promise.all([firstPromise, secondPromise]));
+});
+
+Then("the account deletion is refused as last-admin", async ({ scenario }) => {
+  expect(scenario.getValue<DeleteOwnAccountResult>(DELETION_KEY)).toEqual({
+    ok: false,
+    reason: AccountDeletionFailure.LastAdmin,
+  });
+});
+
+Then("the completed admin's account still exists", async ({ scenario }) => {
+  expect(await fixtureOf(scenario).accountExists("admin")).toBe(true);
+});
+
+Then("exactly one deletion succeeds and the other is refused as last-admin", async ({ scenario }) => {
+  const results = scenario.getValue<DeleteOwnAccountResult[]>(DELETIONS_KEY)!;
+  expect(results.filter((result) => result.ok)).toHaveLength(1);
+  expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: AccountDeletionFailure.LastAdmin }]);
+});
+
+Then("exactly one account remains stored", async ({ scenario }) => {
+  const fixture = fixtureOf(scenario);
+  const remaining = [await fixture.accountExists("first"), await fixture.accountExists("second")];
+  expect(remaining.filter(Boolean)).toHaveLength(1);
+  expect(await fixture.adminCount()).toBe(1);
 });

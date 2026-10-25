@@ -71,6 +71,7 @@ export const FEATURE_MAP = [
   entry("instance-role-service", [
     "src/lib/account-role-changes.ts",
     "src/lib/account-lifecycle-locks.ts",
+    "src/lib/account-deletion.ts",
     "tests/e2e/role-service-fixture.ts",
   ]),
   entry("mfa", [
