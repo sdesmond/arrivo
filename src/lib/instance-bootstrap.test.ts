@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { instanceState, users } from "@/db/schema";
+import type { BootstrapAccountValues, BootstrapResult } from "@/data/types";
 import { bootstrapFirstAccount, type BootstrapDatabase } from "./instance-bootstrap";
 
 interface FakeState {
@@ -62,7 +63,12 @@ function createFakeDatabase(initial: Partial<FakeState> = {}, uniqueViolationFor
   return { state, database: database as unknown as BootstrapDatabase };
 }
 
-const values = (username: string) => ({ username, name: "Name", passwordHash: "hash", currency: "USD" });
+const values = (username: string): BootstrapAccountValues => ({
+  username,
+  name: "Name",
+  passwordHash: "hash",
+  currency: "USD",
+});
 
 describe("bootstrapFirstAccount", () => {
   it("makes the first signup an admin and marks the instance initialized", async () => {
@@ -77,7 +83,7 @@ describe("bootstrapFirstAccount", () => {
   it("creates exactly one admin when two first signups race", async () => {
     const { state, database } = createFakeDatabase();
 
-    const results = await Promise.all([
+    const results: BootstrapResult[] = await Promise.all([
       bootstrapFirstAccount(database, values("alpha")),
       bootstrapFirstAccount(database, values("bravo")),
     ]);

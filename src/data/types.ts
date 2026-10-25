@@ -44,6 +44,15 @@ export const UserRole = {
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
+export interface BootstrapAccountValues {
+  username: string;
+  name: string;
+  passwordHash: string;
+  currency?: string | null;
+}
+
+export type BootstrapResult = { ok: true; userId: string } | { ok: false; reason: "closed" };
+
 export interface InstanceUserSummary {
   id: string;
   username: string;
