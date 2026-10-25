@@ -187,8 +187,11 @@ When("I rescind the watching user's invitation", async ({ page, scenario }) => {
   const { user: watchingUser } = getWatchingSession(scenario);
   const rescindPosted = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
   await page.getByTitle(`Rescind invitation to @${watchingUser.username}`).click();
-  await rescindPosted;
-  await expect(page.getByText("Invitation rescinded.")).toBeVisible();
+  // The toast is short-lived: watch for it while the POST is in flight instead of after it settles.
+  await Promise.all([
+    rescindPosted,
+    expect(page.getByText("Invitation rescinded.")).toBeVisible({ timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS }),
+  ]);
 });
 
 Then("the watching user's invitation disappears without reloading", async ({ scenario }) => {
