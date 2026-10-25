@@ -44,6 +44,27 @@ export const UserRole = {
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
+export const RoleChangeFailure = {
+  Forbidden: "forbidden",
+  NotFound: "not-found",
+  InstanceUnavailable: "instance-unavailable",
+  LastAdmin: "last-admin",
+  UnfinishedAccount: "unfinished-account",
+  InvalidRole: "invalid-role",
+  Retry: "retry",
+} as const;
+export type RoleChangeFailure = (typeof RoleChangeFailure)[keyof typeof RoleChangeFailure];
+
+export interface ChangeUserRoleInput {
+  targetUserId: string;
+  role: UserRole;
+}
+
+// `changed` is false when the target already held the requested role.
+export type ChangeUserRoleResult =
+  | { ok: true; userId: string; role: UserRole; changed: boolean }
+  | { ok: false; reason: RoleChangeFailure };
+
 export const InvitationStatus = {
   Pending: "pending",
   Accepted: "accepted",
