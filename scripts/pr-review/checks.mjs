@@ -38,8 +38,8 @@ export function classifyFile(path) {
   ) {
     return "doc";
   }
-  // Eval harnesses are test infrastructure themselves, so they do not need tests of their own.
-  if (path.startsWith("evals/")) return "tooling";
+  // Test setup and eval harnesses do not need colocated tests of their own.
+  if (path === "vitest.setup.mts" || path.startsWith("evals/")) return "tooling";
   if (path.startsWith("src/components/ui/")) return "ui";
   if (name === "types.ts") return "types";
   if (/^index\.(ts|tsx|js|jsx)$/.test(name)) return "barrel";
@@ -118,16 +118,19 @@ const HIGH_CONFIDENCE_PATTERNS = [
 ];
 
 const GENERIC_ASSIGNMENT =
-  /[\w.-]*(?:password|passwd|secret|api[_-]?key|token|credential)s?[\w.-]*["']?\s*[:=]\s*["']([^"'\s]{8,})["']/i;
+  /([\w.-]*(?:password|passwd|secret|api[_-]?key|token|credential)s?[\w.-]*)["']?\s*[:=]\s*["']([^"'\s]{8,})["']/gi;
+const FETCH_CREDENTIAL_MODES = new Set(["same-origin", "include", "omit"]);
 // Demo credentials legitimately live in seed data, fixtures, mocks and eval cases; only the high-confidence patterns apply there.
 const DEMO_DATA_PATH = /(^|\/)(seed|fixtures?|mocks?|evals)([\w.-]*\.|\/)/i;
 const PLACEHOLDER_VALUE = /changeme|example|placeholder|dummy|your[_-]|xxx|<.*>|\$\{|\{\{|process\.env|test/i;
 
 function genericSecret(text) {
-  const match = GENERIC_ASSIGNMENT.exec(text);
-  if (!match) return false;
-  const value = match[1];
-  return !PLACEHOLDER_VALUE.test(value) && !/^(.)\1+$/.test(value);
+  for (const match of text.matchAll(GENERIC_ASSIGNMENT)) {
+    const [, name, value] = match;
+    if (name === "credentials" && FETCH_CREDENTIAL_MODES.has(value)) continue;
+    if (!PLACEHOLDER_VALUE.test(value) && !/^(.)\1+$/.test(value)) return true;
+  }
+  return false;
 }
 
 export function findSecrets(files) {
