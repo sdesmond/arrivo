@@ -37,3 +37,15 @@ Feature: Instance role-change service
     When the second admin's promotion of the member waits behind the first admin demoting the second admin
     Then the promotion is refused as forbidden
     And the member's stored role is member
+
+  Scenario: The last completed admin cannot delete their own account while unfinished admins exist
+    Given an isolated instance with one completed admin and one unfinished admin
+    When the completed admin deletes their own account
+    Then the account deletion is refused as last-admin
+    And the completed admin's account still exists
+
+  Scenario: Overlapping self-deletions leave one completed admin
+    Given an isolated instance with two completed admins
+    When both admins delete their own accounts at the same time
+    Then exactly one deletion succeeds and the other is refused as last-admin
+    And exactly one account remains stored

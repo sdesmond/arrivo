@@ -3,10 +3,13 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import type { AccountDeletionDatabase } from "../../src/lib/account-deletion";
 import type { RoleChangeDatabase } from "../../src/lib/account-role-changes";
 import type { UserRole } from "../../src/data/types";
 import { cloneUserMother } from "./e2e-seed-data";
 
+// Tables account deletion reads or writes besides users and instance_state.
+const TRIP_TABLES = ["trips", "collaborators", "invitations", "documents"];
 const SCHEMA_IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
 const BLOCKED_POLL_MS = 25;
 const BLOCKED_TIMEOUT_MS = 15_000;
@@ -45,8 +48,9 @@ export interface RoleServiceFixture {
   userId(key: string): string;
   roleOf(key: string): Promise<string>;
   adminCount(): Promise<number>;
+  accountExists(key: string): Promise<boolean>;
   /** Service database bound to the scenario schema; `gate` pauses the transaction right after the singleton lock. */
-  database(gate?: LockGate & { arrive(): Promise<void> }): RoleChangeDatabase;
+  database(gate?: LockGate & { arrive(): Promise<void> }): RoleChangeDatabase & AccountDeletionDatabase;
   /** Waits until some transaction in this schema is blocked on a lock held by another. */
   waitForBlockedTransaction(): Promise<void>;
   close(): Promise<void>;
@@ -79,6 +83,9 @@ export async function createRoleServiceFixture(): Promise<RoleServiceFixture> {
     await client.unsafe(`create schema "${schema}"`);
     await client.unsafe(`create table "${schema}".users (like public.users including all)`);
     await client.unsafe(`create table "${schema}".instance_state (like public.instance_state including all)`);
+    for (const table of TRIP_TABLES) {
+      await client.unsafe(`create table "${schema}"."${table}" (like public."${table}" including all)`);
+    }
     await client.unsafe(`insert into "${schema}".instance_state (id, initialized_at) values (true, now())`);
   } catch (error) {
     await close();
@@ -114,6 +121,10 @@ export async function createRoleServiceFixture(): Promise<RoleServiceFixture> {
       if (!row) throw new Error(`User "${key}" is gone.`);
       return row.role;
     },
+    async accountExists(key) {
+      const id = userId(key);
+      return (await roleRows()).some((row) => row.id === id);
+    },
     async adminCount() {
       return (await roleRows()).filter((row) => row.role === "admin").length;
     },
@@ -140,7 +151,7 @@ export async function createRoleServiceFixture(): Promise<RoleServiceFixture> {
             });
             return run(gated as never);
           }),
-      } as unknown as RoleChangeDatabase;
+      } as unknown as RoleChangeDatabase & AccountDeletionDatabase;
     },
     async waitForBlockedTransaction() {
       const deadline = Date.now() + BLOCKED_TIMEOUT_MS;
