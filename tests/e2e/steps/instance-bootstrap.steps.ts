@@ -76,12 +76,16 @@ Then("my new account is the instance admin", async ({ scenario }) => {
 
 Then("I can sign out and sign back in with my new username", async ({ page, scenario }) => {
   const username = scenario.getValue<string>(SIGN_UP_USERNAME_KEY)!;
-  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  const desktop = page.getByRole("button", { name: "Account menu", exact: true });
+  const trigger = (await desktop.isVisible()) ? desktop : page.getByRole("button", { name: "Profile", exact: true });
+  // The development date picker floats over the lower-right corner on narrow screens.
+  await trigger.click({ position: { x: 8, y: 8 } });
   await page.getByRole("menuitem", { name: "Log out", exact: true }).click();
   await page.waitForURL("**/sign-in");
   await page.getByRole("textbox", { name: "Username" }).fill(username);
   await page.getByRole("textbox", { name: "Password" }).fill(SIGN_UP_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/trips");
-  await expect(page.getByText(`@${username}`)).toBeVisible();
+  // The @username label lives in the desktop sidebar only; the account-menu trigger shows on both layouts.
+  await expect(page.getByRole("button", { name: /^(Account menu|Profile)$/ }).filter({ visible: true })).toHaveCount(1);
 });

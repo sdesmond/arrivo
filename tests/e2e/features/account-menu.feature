@@ -26,6 +26,15 @@ Feature: Account menu and instance management shell
     When I request instance management at "/admin"
     Then instance management is not found
 
+  Scenario: Admin opens instance management from the mobile Profile tab
+    Given I am signed in as an instance "admin"
+    And I use a mobile account viewport
+    When I open the shared account menu
+    Then the account menu includes instance management
+    And the Profile tab has not navigated
+    When I choose Manage instance
+    Then I see the Users-only instance management shell
+
   Scenario: Mobile Profile opens the shared menu and Settings
     Given I am signed in as an instance "member"
     And I use a mobile account viewport
