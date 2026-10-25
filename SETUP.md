@@ -65,23 +65,23 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000) and sign in with the demo credentials.
 
-Creates four accounts with six trips between them — an active trip, a past trip, a dateless "someday" trip,
+Creates five accounts with six trips between them — an active trip, a past trip, a dateless "someday" trip,
 an upcoming trip owned by a second account and shared back to the first, another second-account past trip,
 and a second dateless trip — plus a cross-account share and a pending + a declined invitation, so the app has
 realistic data to explore out of the box. Full breakdown, including exactly what each trip contains and why:
 **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**.
 
-**Demo credentials** (all four accounts use the same password):
+**Demo credentials** (all five accounts use the same password):
 
 ```
 Username: demo
 Password: demo1234
 ```
 
-Three more accounts (`alex`, `sam`, `jordan`) exist for exercising sharing and a second profile —
+Four more accounts exist: `alex`, `sam`, `jordan` for exercising sharing and a second profile, and `admin` (instance administrator) —
 see the doc above.
 
-`db:seed` wipes and reseeds just these four seed accounts on every run — safe to run repeatedly, and it never
+`db:seed` wipes and reseeds just these five seed accounts on every run — safe to run repeatedly, and it never
 touches any other account in the database.
 
 ---
@@ -183,7 +183,7 @@ Schema changes are tracked as committed SQL migrations in `drizzle/`; see [docs/
 | `npm run db:migrate`  | Apply the committed `drizzle/` migrations to the DB                                           |
 | `npm run db:generate` | Generate a migration from `src/db/schema.ts` changes (commit the result)                      |
 | `npm run db:push`     | Sync schema straight from `src/db/schema.ts`, no migration. Throwaway local DBs only          |
-| `npm run db:seed`     | Wipe + reseed the four dev seed accounts and their trips ([details](./docs/dev-seed-data.md)) |
+| `npm run db:seed`     | Wipe + reseed the five dev seed accounts and their trips ([details](./docs/dev-seed-data.md)) |
 | `npm run db:studio`   | Open Drizzle Studio GUI at port 4983                                                          |
 
 ---
