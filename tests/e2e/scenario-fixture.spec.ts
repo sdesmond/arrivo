@@ -12,6 +12,18 @@ import { validateUsername } from "../../src/lib/username";
 // after global-setup has migrated and seeded the DB — keeps them out of the hermetic unit/coverage
 // Vitest run and avoids two concurrent Vitest processes racing Vite's shared temp dir.
 test.describe("E2E scenario fixtures", () => {
+  test("materializes the requested instance role", async () => {
+    const context = createScenarioFixtureContext(test.info());
+    try {
+      const result = await context.materialize({ user: { overrides: { user: { role: "admin" } } } });
+      const [created] = await withE2EDb((db) =>
+        db.select({ role: users.role }).from(users).where(eq(users.id, result.user!.id))
+      );
+      expect(created.role).toBe("admin");
+    } finally {
+      await cleanupScenarioFixtureContext(context);
+    }
+  });
   test("clones trip mothers without mutating the base object", () => {
     const clone = cloneTripMother("threeDayTrip", {
       trip: { name: "Mutated Trip" },

@@ -30,6 +30,14 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("account-menu", [
+    "src/components/arrivo/account-menu.tsx",
+    "src/components/arrivo/admin-section-nav.tsx",
+    "src/components/arrivo/bottom-tab-bar.tsx",
+    "src/app/api/users/me/instance-role/route.ts",
+    "src/app/(app)/admin/**",
+    "src/lib/instance-roles.ts",
+  ]),
   entry("day-route-strip", [
     "src/components/arrivo/day-route-strip.tsx",
     "src/components/arrivo/day-card.tsx",

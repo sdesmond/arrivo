@@ -76,7 +76,8 @@ Then("my new account is the instance admin", async ({ scenario }) => {
 
 Then("I can sign out and sign back in with my new username", async ({ page, scenario }) => {
   const username = scenario.getValue<string>(SIGN_UP_USERNAME_KEY)!;
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Log out", exact: true }).click();
   await page.waitForURL("**/sign-in");
   await page.getByRole("textbox", { name: "Username" }).fill(username);
   await page.getByRole("textbox", { name: "Password" }).fill(SIGN_UP_PASSWORD);

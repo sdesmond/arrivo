@@ -272,6 +272,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           username,
           name: seed.user.name,
           passwordHash,
+          role: seed.user.role ?? "member",
           dateFormat: seed.user.dateFormat,
           currency: seed.user.currency ?? "USD",
           defaultCoverType: seed.user.defaultCoverType,

@@ -82,6 +82,8 @@ describe("classifyFile", () => {
     ["src/components/arrivo/index.ts", "barrel"],
     ["evals/pr-reviewer/run-eval.mjs", "tooling"],
     ["evals/pr-reviewer/build-cases.mjs", "tooling"],
+    ["vitest.setup.mts", "tooling"],
+    ["src/lib/vitest.setup.mts", "source"],
     ["src/lib/format.ts", "source"],
     ["src/app/(app)/trips/page.tsx", "source"],
     ["scripts/setup-dev.mjs", "source"],
@@ -141,6 +143,25 @@ describe("findSecrets", () => {
     expect(findSecrets(files)).toEqual([]);
   });
 
+  it.each(["same-origin", "include", "omit"])("allows the Fetch credentials mode %s", (mode) => {
+    expect(secretsIn(`fetch("/api/me", { credentials: "${mode}" });`)).toEqual([]);
+    expect(secretsIn(`fetch('/api/me', { 'credentials': '${mode}' });`)).toEqual([]);
+  });
+
+  it.each([
+    'const apiToken = "same-origin";',
+    'const clientCredentials = "same-origin";',
+    'const credentials = "real-credential-value";',
+    'fetch("/api/me", { credentials: "same-origin", apiKey: "7f3a9c1e5b2d48a6" });',
+    'const credentials = "same-origin"; const password = "Tr0ub4dor&3xyzQ9";',
+  ])("still detects actual credential assignments: %s", (line) => {
+    expect(secretsIn(line)).toHaveLength(1);
+  });
+
+  it("still scans test setup for literal credentials", () => {
+    expect(secretsIn('const password = "Tr0ub4dor&3xyzQ9";', "vitest.setup.mts")).toHaveLength(1);
+  });
+
   it("skips noise files such as lockfiles", () => {
     expect(secretsIn(`"integrity": "${stripe}"`, "package-lock.json")).toEqual([]);
   });
@@ -175,6 +196,19 @@ describe("findSecrets", () => {
 });
 
 describe("checkTests", () => {
+  it("does not require a colocated test for root test setup", () => {
+    const files = parse(fileDiff("vitest.setup.mts", { lines: ["setup();"] }));
+    expect(checkTests(files)).toEqual({ status: "PASS", missing: [], review: [] });
+  });
+
+  it("does not count root test setup as coverage for application source", () => {
+    const files = parse(
+      fileDiff("src/lib/format.ts", { lines: ["changed();"] }),
+      fileDiff("vitest.setup.mts", { lines: ["setup();"] })
+    );
+    expect(checkTests(files)).toEqual({ status: "FAIL", missing: ["src/lib/format.ts"], review: [] });
+  });
+
   it("passes when a colocated test changes with the source", () => {
     const files = parse(
       fileDiff("src/lib/format.ts", { lines: ["x"] }),

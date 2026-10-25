@@ -124,17 +124,6 @@ Before editing any production file, you MUST name the exact test files and scena
 **Branch-confirmation gate:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 
-The three boundaries, in order:
-
-1. After planning — spec/plan written and approved, BEFORE any implementation starts.
-2. After implementation — code changes done, BEFORE code review begins.
-3. After code review — findings triaged/applied, BEFORE presenting or committing.
-
-Crossing rules:
-
-- No implementation work (source/test/E2E edits, or dispatching the implementation subagent) may occur in the same turn as, or before, the user's confirm message. Only pure status bookkeeping that records the approved spec (frontmatter status flip, baseline_commit capture, sprint-status.yaml sync) may run.
-- At each boundary, post a short status ("what finished, what's next"), then HALT with a single "Proceed?" question — no further tool calls until the user answers.
-
 **Default workflow for any coding task:**
 
 1. Ask whether the user wants a branch created before development begins

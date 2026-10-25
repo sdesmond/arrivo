@@ -8,6 +8,9 @@ Feature: Instance bootstrap sign-up
     When I sign up with a new username
     Then I should be redirected to the trips page
     And my new account is the instance admin
+    When I open the shared account menu
+    And I choose Manage instance
+    Then I see the Users-only instance management shell
     And I can sign out and sign back in with my new username
 
   Scenario: Sign-up refuses a username that is already taken

@@ -1,22 +1,23 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { auth, db, mockNotFound } = vi.hoisted(() => ({
+const { auth, db } = vi.hoisted(() => ({
   auth: vi.fn(),
   db: { select: vi.fn() },
-  mockNotFound: vi.fn(() => {
-    throw new Error("NEXT_NOT_FOUND");
-  }),
 }));
 
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/db", () => ({ db }));
-vi.mock("next/navigation", () => ({
-  notFound: mockNotFound,
-  redirect: vi.fn(),
-}));
+import { notFound, redirect } from "next/navigation";
+const mockNotFound = vi.mocked(notFound);
+mockNotFound.mockImplementation(() => {
+  throw new Error("NEXT_NOT_FOUND");
+});
+vi.mocked(redirect).mockImplementation(() => {
+  throw new Error("NEXT_REDIRECT");
+});
 
-import { assertTripAccess } from "./auth-helpers";
+import { requireAdmin, assertTripAccess } from "./auth-helpers";
 
 function mockCollaboratorRole(role: string | undefined) {
   db.select.mockReturnValue({
@@ -77,5 +78,30 @@ describe("assertTripAccess", () => {
 
     await expect(assertTripAccess("trip-1", "user-1", "viewer")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mockNotFound).toHaveBeenCalled();
+  });
+
+  it("does not grant private trip access through instance admin authority", async () => {
+    auth.mockResolvedValue({ user: { id: "admin-1", role: "admin" } });
+    mockCollaboratorRole(undefined);
+    await expect(assertTripAccess("private-trip", "admin-1")).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+});
+
+describe("requireAdmin", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it("returns authenticated admin using DB role", async () => {
+    auth.mockResolvedValue({ user: { id: "user-1", role: "member" } });
+    mockCollaboratorRole("admin");
+    expect(await requireAdmin()).toEqual({ id: "user-1", role: "member" });
+  });
+  it.each(["member", undefined])("denies stale admin sessions with DB role %s", async (role) => {
+    auth.mockResolvedValue({ user: { id: "user-1", role: "admin" } });
+    mockCollaboratorRole(role);
+    await expect(requireAdmin()).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+  it("redirects unauthenticated requests before reading DB", async () => {
+    auth.mockResolvedValue(null);
+    await expect(requireAdmin()).rejects.toThrow("NEXT_REDIRECT");
+    expect(db.select).not.toHaveBeenCalled();
   });
 });

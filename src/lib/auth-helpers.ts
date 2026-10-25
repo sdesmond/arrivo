@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { collaborators } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { CollaboratorRole } from "@/data/types";
+import { isInstanceAdmin } from "@/lib/instance-roles";
 
 export async function getCurrentUser() {
   const session = await auth();
@@ -14,6 +15,12 @@ export async function getCurrentUser() {
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in");
+  return user;
+}
+
+export async function requireAdmin() {
+  const user = await requireUser();
+  if (!(await isInstanceAdmin(user.id!))) notFound();
   return user;
 }
 
