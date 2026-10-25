@@ -130,6 +130,9 @@ describe("AccountMenu", () => {
     trigger.focus();
     await userEvent.keyboard("{Enter}");
     expect(await screen.findByRole("menuitem", { name: "Manage instance" })).toHaveAttribute("href", "/admin");
+    for (const item of screen.getAllByRole("menuitem")) {
+      expect(item).toHaveClass("cursor-pointer");
+    }
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveFocus());
   });

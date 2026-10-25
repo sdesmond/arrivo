@@ -52,16 +52,16 @@ export function AccountMenu({ isAdmin, trigger, side }: AccountMenuProps) {
       <DropdownMenuTrigger render={trigger} />
       <DropdownMenuContent side={side} className="min-w-48">
         <DropdownMenuGroup>
-          <DropdownMenuItem className="min-h-11" render={<Link href="/profile" />}>
+          <DropdownMenuItem className="min-h-11 cursor-pointer" render={<Link href="/profile" />}>
             Settings
           </DropdownMenuItem>
           {authority.navigationIdentity === navigationIdentity && authority.isAdmin && (
-            <DropdownMenuItem className="min-h-11" render={<Link href="/admin" prefetch={false} />}>
+            <DropdownMenuItem className="min-h-11 cursor-pointer" render={<Link href="/admin" prefetch={false} />}>
               Manage instance
             </DropdownMenuItem>
           )}
           <form action={signOutAction}>
-            <DropdownMenuItem nativeButton className="min-h-11 w-full" render={<button type="submit" />}>
+            <DropdownMenuItem nativeButton className="min-h-11 w-full cursor-pointer" render={<button type="submit" />}>
               Log out
             </DropdownMenuItem>
           </form>
