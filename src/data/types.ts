@@ -44,6 +44,14 @@ export const UserRole = {
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
+export interface InstanceUserSummary {
+  id: string;
+  username: string;
+  role: UserRole;
+  setupComplete: boolean;
+  isLastCompletedAdmin: boolean;
+}
+
 export const RoleChangeFailure = {
   Forbidden: "forbidden",
   NotFound: "not-found",

@@ -30,6 +30,12 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("instance-users", [
+    "src/components/arrivo/instance-users-list.tsx",
+    "src/components/arrivo/change-role-dialog.tsx",
+    "src/lib/instance-users.ts",
+    "src/app/(app)/admin/users/**",
+  ]),
   entry("account-menu", [
     "src/components/arrivo/account-menu.tsx",
     "src/components/arrivo/admin-section-nav.tsx",
