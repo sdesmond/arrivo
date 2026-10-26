@@ -181,3 +181,78 @@ Feature: Instance activity
     And I open the instance Activity page
     Then Activity lists one "Created invitation" transition without invitation metadata
     And Activity has no other invitation transitions for that trip
+
+  Scenario: Equal-timestamp history pages without repeats and keeps its filter after reload
+    Given I am signed in as an instance "admin"
+    And 45 Activity trips were created by one seeded account in the same instant
+    When I open the instance Activity page
+    And I filter Activity to the seeded account
+    And I page Older through the seeded Activity history
+    Then every seeded Activity trip was listed exactly once in latest-first order
+    When I refresh the page
+    Then the seeded account filter and older page are kept
+    When I go to the newest Activity page
+    Then the seeded account filter is kept on the newest page
+
+  Scenario: Date filters select every batch whose range overlaps, inclusive at the edges
+    Given I am signed in as an instance "admin"
+    And seeded batched Activity edits around 10:00 to 12:00
+    When I open Activity for the seeded account from "10:00" to "11:00"
+    Then Activity lists only the seeded edits "straddling, boundary"
+    When I open Activity for the seeded account from "11:00" to "12:00"
+    Then Activity lists only the seeded edits "straddling"
+    When I open Activity for the seeded account from "12:00" to "13:00"
+    Then Activity shows no activity matching the filters
+    When I open Activity for the seeded account from "12:00" to "11:00"
+    Then Activity explains the date range is invalid and lists nothing
+
+  Scenario: An ongoing batch shows its range and stays ordered after a refresh
+    Given I am signed in as an instance "admin"
+    And an ongoing and a finished batched Activity edit for one seeded account
+    When I open Activity for the seeded account
+    Then the "ongoing" seeded row shows a start-to-end range and Ongoing text
+    And the "finished" seeded row shows no Ongoing text
+    When I refresh the Activity list
+    Then the "ongoing" seeded row shows a start-to-end range and Ongoing text
+    And the ongoing seeded row is listed above the finished one
+
+  Scenario: Renamed and deleted accounts stay filterable and unknown identities are not invented
+    Given I am signed in as an instance "admin"
+    And Activity history for a renamed account, a deleted account and unidentified failures
+    When I open the instance Activity page
+    Then the Username filter lists the renamed account once under its latest name
+    When I filter Activity to the renamed account
+    Then Activity lists rows under both the old and the latest username
+    When I filter Activity to the deleted account
+    Then Activity lists one row for the deleted account
+    When I open Activity for failed sign-ins in the seeded minute
+    Then the failures show unavailable and unknown identities without fabricated names
+
+  Scenario: A failed refresh keeps the earlier rows and a retry recovers
+    Given I am signed in as an instance "admin"
+    And 3 Activity rows exist for one seeded account
+    When I open Activity for the seeded account
+    And Activity read requests start failing
+    And I click Refresh without waiting for the response
+    Then Activity keeps the earlier rows with a stale notice and Retry
+    When Activity read requests recover
+    And I click Retry
+    Then the stale notice is gone
+
+  Scenario: Losing administrator access removes the rows and filters on refresh
+    Given I am signed in as an instance "admin"
+    And 3 Activity rows exist for one seeded account
+    When I open Activity for the seeded account
+    And my instance administrator role is removed
+    And I click Refresh and await the response
+    Then Activity shows only that I no longer have administrator access
+
+  Scenario: Activity stays usable and private on a narrow viewport
+    Given the viewport is 375 by 812
+    And I am signed in as an instance "admin"
+    And a private trip and an Activity row for it by one seeded account
+    When I open Activity for the seeded account
+    Then the page does not scroll horizontally
+    And the Activity table scrolls by keyboard inside its labeled region
+    And every Activity filter and page control is at least 44 pixels tall
+    And Activity shows the trip ID but not the trip name

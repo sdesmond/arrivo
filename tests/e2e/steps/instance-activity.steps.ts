@@ -1,8 +1,15 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { and, eq, gte, isNull, type SQL } from "drizzle-orm";
 import { activityEvents, invitations, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
-import { Given, When, Then } from "../fixtures";
+import {
+  removeSeededActivity,
+  seedActivityEvents,
+  seedActor,
+  uniqueSeedMinute,
+  type SeedActor,
+} from "../activity-seed";
+import { After, Given, When, Then } from "../fixtures";
 import type { ScenarioUserRecord } from "../scenario-fixture";
 import { waitForServerActionResponse } from "../server-action";
 
@@ -553,4 +560,481 @@ Then("Activity has no other invitation transitions for that trip", async ({ page
   expect(rows[0].type).toBe("invitation_created");
   const table = page.getByRole("table", { name: "Recent instance activity" });
   await expect(table.getByRole("row").filter({ hasText: trip.id })).toHaveCount(1);
+});
+
+// ── Filters, paging and reader states ─────────────────────────────────────────────────────────────────────────
+// Rows are seeded straight into the table (scenario-owned, removed afterwards) because the filters read history that
+// real producers cannot backdate. Each scenario scopes its assertions with the actor filter or a one-minute range.
+
+After(async () => {
+  await removeSeededActivity();
+});
+
+interface ActivitySeedState {
+  actor: SeedActor;
+  /** Trip ID per seeded row in the order Activity must list them (newest first, ties by descending row ID). */
+  listedTripIds: string[];
+  named: Record<string, string>;
+  minute: Date;
+  extraActors: Record<string, SeedActor>;
+}
+
+const SEED_KEY = "activity:seed";
+const COLLECTED_KEY = "activity:collectedTripIds";
+const seedOf = (scenario: { getValue<T>(key: string): T | undefined }) =>
+  scenario.getValue<ActivitySeedState>(SEED_KEY)!;
+
+const activityTable = (page: Page) => page.getByRole("table", { name: "Recent instance activity" });
+const activityResults = (page: Page) => page.getByRole("region", { name: "Activity results" });
+
+async function waitForActivityIdle(page: Page) {
+  await expect(activityResults(page)).toHaveAttribute("aria-busy", "false");
+}
+
+async function tripIdsOnPage(page: Page): Promise<string[]> {
+  await waitForActivityIdle(page);
+  return activityTable(page)
+    .locator("tbody tr")
+    .evaluateAll((rows) => rows.map((row) => row.querySelectorAll("td")[5]?.textContent ?? ""));
+}
+
+async function openActivity(page: Page, params: Record<string, string>) {
+  const search = new URLSearchParams(params).toString();
+  await page.goto(`/admin/activity${search ? `?${search}` : ""}`);
+  await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
+}
+
+async function chooseOption(page: Page, combobox: string, option: string) {
+  await page.getByRole("combobox", { name: combobox }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
+
+const utcAt = (day: Date, time: string) => {
+  const [hours, minutes] = time.split(":").map(Number);
+  return new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hours, minutes));
+};
+
+Given(
+  "{int} Activity trips were created by one seeded account in the same instant",
+  async ({ scenario }, count: number) => {
+    const actor = seedActor(scenario.uniqueUsername("histactor"));
+    const minute = uniqueSeedMinute();
+    const tripIds = Array.from({ length: count }, () => crypto.randomUUID());
+    const ids = await seedActivityEvents(
+      tripIds.map((tripId) => ({ type: "trip_created", actor, startedAt: minute, tripId }))
+    );
+    const listedTripIds = tripIds
+      .map((tripId, index) => ({ tripId, id: ids[index] }))
+      .sort((left, right) => (left.id < right.id ? 1 : -1))
+      .map((entry) => entry.tripId);
+    scenario.setValue<ActivitySeedState>(SEED_KEY, { actor, listedTripIds, named: {}, minute, extraActors: {} });
+  }
+);
+
+When("I filter Activity to the seeded account", async ({ page, scenario }) => {
+  await chooseOption(page, "Username", seedOf(scenario).actor.username);
+  await expect(page).toHaveURL(/[?&]actor=/);
+  await waitForActivityIdle(page);
+});
+
+When("I page Older through the seeded Activity history", async ({ page, scenario }) => {
+  const collected: string[] = [];
+  const older = page.getByRole("navigation", { name: "Activity pages" }).getByRole("button", { name: "Older" });
+  for (;;) {
+    collected.push(...(await tripIdsOnPage(page)));
+    if (!(await older.isVisible())) break;
+    const before = page.url();
+    await older.click();
+    await expect.poll(() => page.url()).not.toBe(before);
+    await waitForActivityIdle(page);
+  }
+  scenario.setValue<string[]>(COLLECTED_KEY, collected);
+});
+
+Then("every seeded Activity trip was listed exactly once in latest-first order", async ({ scenario }) => {
+  expect(scenario.getValue<string[]>(COLLECTED_KEY)).toEqual(seedOf(scenario).listedTripIds);
+});
+
+Then("the seeded account filter and older page are kept", async ({ page, scenario }) => {
+  await waitForActivityIdle(page);
+  await expect(page.getByRole("combobox", { name: "Username" })).toContainText(seedOf(scenario).actor.username);
+  expect(new URL(page.url()).searchParams.get("cursor")).toBeTruthy();
+  const nav = page.getByRole("navigation", { name: "Activity pages" });
+  await expect(nav.getByRole("button", { name: "Newest" })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "Newer" })).toHaveCount(0);
+  expect((await tripIdsOnPage(page)).length).toBeGreaterThan(0);
+});
+
+Then("the seeded account filter is kept on the newest page", async ({ page, scenario }) => {
+  await expect(page.getByRole("combobox", { name: "Username" })).toContainText(seedOf(scenario).actor.username);
+  expect(new URL(page.url()).searchParams.get("actor")).toBe(seedOf(scenario).actor.id);
+  await expect(
+    page.getByRole("navigation", { name: "Activity pages" }).getByRole("button", { name: "Newest" })
+  ).toHaveCount(0);
+});
+
+When("I go to the newest Activity page", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Activity pages" }).getByRole("button", { name: "Newest" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("cursor")).toBeNull();
+  await waitForActivityIdle(page);
+});
+
+// Overlap: one finished batch straddles the 11:00 boundary, one ends exactly at 10:00, one is fully before both.
+Given("seeded batched Activity edits around 10:00 to 12:00", async ({ scenario }) => {
+  const actor = seedActor(scenario.uniqueUsername("rangeactor"));
+  const minute = uniqueSeedMinute();
+  const named = { straddling: crypto.randomUUID(), boundary: crypto.randomUUID(), outside: crypto.randomUUID() };
+  await seedActivityEvents([
+    {
+      type: "trip_updated",
+      actor,
+      tripId: named.straddling,
+      startedAt: utcAt(minute, "10:50"),
+      endedAt: utcAt(minute, "11:05"),
+    },
+    {
+      type: "trip_updated",
+      actor,
+      tripId: named.boundary,
+      startedAt: utcAt(minute, "09:30"),
+      endedAt: utcAt(minute, "10:00"),
+    },
+    {
+      type: "trip_updated",
+      actor,
+      tripId: named.outside,
+      startedAt: utcAt(minute, "08:00"),
+      endedAt: utcAt(minute, "09:00"),
+    },
+  ]);
+  scenario.setValue<ActivitySeedState>(SEED_KEY, { actor, listedTripIds: [], named, minute, extraActors: {} });
+});
+
+When(
+  "I open Activity for the seeded account from {string} to {string}",
+  async ({ page, scenario }, from: string, to: string) => {
+    const seed = seedOf(scenario);
+    await openActivity(page, {
+      actor: seed.actor.id,
+      from: utcAt(seed.minute, from).toISOString(),
+      to: utcAt(seed.minute, to).toISOString(),
+    });
+  }
+);
+
+Then("Activity lists only the seeded edits {string}", async ({ page, scenario }, names: string) => {
+  const seed = seedOf(scenario);
+  const expected = names.split(",").map((name) => seed.named[name.trim()]);
+  expect((await tripIdsOnPage(page)).sort()).toEqual(expected.sort());
+});
+
+Then("Activity shows no activity matching the filters", async ({ page }) => {
+  await expect(page.getByText("No activity matches these filters.", { exact: true })).toBeVisible();
+  await expect(activityTable(page)).toHaveCount(0);
+});
+
+Then("Activity explains the date range is invalid and lists nothing", async ({ page }) => {
+  await expect(page.getByText("Enter a start date that is on or before the end date.")).toBeVisible();
+  await expect(activityTable(page)).toHaveCount(0);
+});
+
+// Ongoing uses the real clock: a burst that ended minutes ago may still grow; an old one is finished.
+Given("an ongoing and a finished batched Activity edit for one seeded account", async ({ scenario }) => {
+  const actor = seedActor(scenario.uniqueUsername("ongoingactor"));
+  const named = { ongoing: crypto.randomUUID(), finished: crypto.randomUUID() };
+  const now = Date.now();
+  await seedActivityEvents([
+    {
+      type: "trip_updated",
+      actor,
+      tripId: named.ongoing,
+      startedAt: new Date(now - 25 * 60_000),
+      endedAt: new Date(now - 3 * 60_000),
+    },
+    {
+      type: "trip_updated",
+      actor,
+      tripId: named.finished,
+      startedAt: new Date(now - 5 * 3_600_000),
+      endedAt: new Date(now - 4 * 3_600_000),
+    },
+  ]);
+  scenario.setValue<ActivitySeedState>(SEED_KEY, {
+    actor,
+    listedTripIds: [],
+    named,
+    minute: new Date(),
+    extraActors: {},
+  });
+});
+
+When("I open Activity for the seeded account", async ({ page, scenario }) => {
+  await openActivity(page, { actor: seedOf(scenario).actor.id });
+});
+
+async function rowFor(
+  page: Page,
+  scenario: { getValue<T>(key: string): T | undefined },
+  name: string
+): Promise<Locator> {
+  return activityTable(page)
+    .locator("tbody tr")
+    .filter({ hasText: seedOf(scenario).named[name] });
+}
+
+Then(
+  "the {string} seeded row shows a start-to-end range and Ongoing text",
+  async ({ page, scenario }, name: string) => {
+    const cell = (await rowFor(page, scenario, name)).locator("td").nth(4);
+    await expect(cell.locator("time")).toHaveCount(2);
+    await expect(cell).toContainText(" to ");
+    await expect(cell).toContainText("Ongoing");
+  }
+);
+
+Then("the {string} seeded row shows no Ongoing text", async ({ page, scenario }, name: string) => {
+  const cell = (await rowFor(page, scenario, name)).locator("td").nth(4);
+  await expect(cell).not.toContainText("Ongoing");
+});
+
+Then("the ongoing seeded row is listed above the finished one", async ({ page, scenario }) => {
+  const ids = await tripIdsOnPage(page);
+  const { named } = seedOf(scenario);
+  expect(ids).toEqual([named.ongoing, named.finished]);
+});
+
+When("I refresh the Activity list", async ({ page }) => {
+  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await response;
+  await waitForActivityIdle(page);
+});
+
+When("I click Refresh and await the response", async ({ page }) => {
+  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await response;
+});
+
+// Identity: a rename keeps one stable actor option; deletion and unknown identities are never fabricated.
+Given("Activity history for a renamed account, a deleted account and unidentified failures", async ({ scenario }) => {
+  const renamed = seedActor(scenario.uniqueUsername("oldname"));
+  const renamedLater = { id: renamed.id, username: scenario.uniqueUsername("newname") };
+  const deleted = seedActor(scenario.uniqueUsername("gone"));
+  const minute = uniqueSeedMinute();
+  const unknownTarget = scenario.uniqueUsername("ghost");
+  const named = { withTarget: crypto.randomUUID(), noTarget: crypto.randomUUID() };
+  await seedActivityEvents([
+    {
+      type: "trip_created",
+      actor: renamed,
+      startedAt: new Date(minute.getTime() - 3_600_000),
+      tripId: crypto.randomUUID(),
+    },
+    {
+      type: "trip_created",
+      actor: renamedLater,
+      startedAt: new Date(minute.getTime() - 60_000),
+      tripId: crypto.randomUUID(),
+    },
+    {
+      type: "trip_created",
+      actor: deleted,
+      startedAt: new Date(minute.getTime() - 120_000),
+      tripId: crypto.randomUUID(),
+    },
+    {
+      type: "sign_in_failed",
+      actor: null,
+      startedAt: minute,
+      tripId: named.withTarget,
+      target: { id: null, username: unknownTarget },
+    },
+    { type: "sign_in_failed", actor: null, startedAt: new Date(minute.getTime() + 1_000), tripId: named.noTarget },
+  ]);
+  scenario.setValue<ActivitySeedState>(SEED_KEY, {
+    actor: renamedLater,
+    listedTripIds: [],
+    named,
+    minute,
+    extraActors: { oldName: renamed, deleted, ghost: { id: "", username: unknownTarget } },
+  });
+});
+
+Then("the Username filter lists the renamed account once under its latest name", async ({ page, scenario }) => {
+  const seed = seedOf(scenario);
+  await page.getByRole("combobox", { name: "Username" }).click();
+  await expect(page.getByRole("option", { name: seed.actor.username, exact: true })).toHaveCount(1);
+  await expect(page.getByRole("option", { name: seed.extraActors.oldName.username, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: seed.extraActors.deleted.username, exact: true })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+});
+
+When("I filter Activity to the renamed account", async ({ page, scenario }) => {
+  await chooseOption(page, "Username", seedOf(scenario).actor.username);
+  await expect(page).toHaveURL(/[?&]actor=/);
+  await waitForActivityIdle(page);
+});
+
+When("I filter Activity to the deleted account", async ({ page, scenario }) => {
+  await chooseOption(page, "Username", seedOf(scenario).extraActors.deleted.username);
+  await expect(page).toHaveURL(new RegExp(`actor=${seedOf(scenario).extraActors.deleted.id}`));
+  await waitForActivityIdle(page);
+});
+
+Then("Activity lists rows under both the old and the latest username", async ({ page, scenario }) => {
+  const seed = seedOf(scenario);
+  const usernames = await activityTable(page)
+    .locator("tbody tr")
+    .evaluateAll((rows) => rows.map((row) => row.querySelectorAll("td")[0]?.textContent ?? ""));
+  expect(usernames.sort()).toEqual([seed.actor.username, seed.extraActors.oldName.username].sort());
+});
+
+Then("Activity lists one row for the deleted account", async ({ page, scenario }) => {
+  await expect(activityTable(page).locator("tbody tr")).toHaveCount(1);
+  await expect(activityTable(page).locator("tbody tr").first()).toContainText(
+    seedOf(scenario).extraActors.deleted.username
+  );
+});
+
+When("I open Activity for failed sign-ins in the seeded minute", async ({ page, scenario }) => {
+  const { minute } = seedOf(scenario);
+  await openActivity(page, {
+    type: "sign_in_failed",
+    from: new Date(minute.getTime() - 30_000).toISOString(),
+    to: new Date(minute.getTime() + 30_000).toISOString(),
+  });
+});
+
+Then("the failures show unavailable and unknown identities without fabricated names", async ({ page, scenario }) => {
+  const seed = seedOf(scenario);
+  const withTarget = (await rowFor(page, scenario, "withTarget")).locator("td");
+  await expect(withTarget.nth(0)).toHaveText("Unavailable");
+  await expect(withTarget.nth(3)).toHaveText(`${seed.extraActors.ghost.username} (Unknown account)`);
+  const noTarget = (await rowFor(page, scenario, "noTarget")).locator("td");
+  await expect(noTarget.nth(0)).toHaveText("Unavailable");
+  await expect(noTarget.nth(3)).toHaveText("Unavailable");
+});
+
+// Reader states.
+Given("{int} Activity rows exist for one seeded account", async ({ scenario }, count: number) => {
+  const actor = seedActor(scenario.uniqueUsername("stateactor"));
+  const minute = uniqueSeedMinute();
+  const tripIds = Array.from({ length: count }, () => crypto.randomUUID());
+  await seedActivityEvents(
+    tripIds.map((tripId, index) => ({
+      type: "trip_created",
+      actor,
+      startedAt: new Date(minute.getTime() + index * 1_000),
+      tripId,
+    }))
+  );
+  scenario.setValue<ActivitySeedState>(SEED_KEY, {
+    actor,
+    listedTripIds: [...tripIds].reverse(),
+    named: {},
+    minute,
+    extraActors: {},
+  });
+});
+
+When("Activity read requests start failing", async ({ page }) => {
+  await page.route("**/admin/activity**", (route) =>
+    route.request().method() === "POST" ? route.abort() : route.continue()
+  );
+});
+
+When("Activity read requests recover", async ({ page }) => {
+  await page.unroute("**/admin/activity**");
+});
+
+When("I click Refresh without waiting for the response", async ({ page }) => {
+  await page.getByRole("button", { name: "Refresh" }).click();
+});
+
+Then("Activity keeps the earlier rows with a stale notice and Retry", async ({ page, scenario }) => {
+  const alert = page.getByRole("alert").filter({ hasText: "Could not load activity" });
+  await expect(alert).toBeVisible();
+  await expect(alert.locator("time")).toHaveCount(1);
+  await expect(alert.getByRole("button", { name: "Retry" })).toBeVisible();
+  expect(await tripIdsOnPage(page)).toEqual(seedOf(scenario).listedTripIds);
+});
+
+When("I click Retry", async ({ page }) => {
+  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
+  await page.getByRole("button", { name: "Retry" }).click();
+  await response;
+  await waitForActivityIdle(page);
+});
+
+Then("the stale notice is gone", async ({ page }) => {
+  await expect(page.getByRole("alert").filter({ hasText: "Could not load activity" })).toHaveCount(0);
+});
+
+When("my instance administrator role is removed", async ({ scenario }) => {
+  const user = await scenario.ensureCurrentUser();
+  await withE2EDb((database) => database.update(users).set({ role: "member" }).where(eq(users.id, user.id)));
+});
+
+Then("Activity shows only that I no longer have administrator access", async ({ page, scenario }) => {
+  await expect(page.getByRole("alert").filter({ hasText: "You no longer have administrator access." })).toBeVisible();
+  await expect(activityTable(page)).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Activity filters" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Refresh" })).toHaveCount(0);
+  const text = (await page.locator("body").innerText()).toString();
+  for (const tripId of seedOf(scenario).listedTripIds) expect(text).not.toContain(tripId);
+  expect(text).not.toContain(seedOf(scenario).actor.username);
+});
+
+// Narrow viewport and privacy.
+Given("a private trip and an Activity row for it by one seeded account", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip("threeDayTrip", { trip: { name: "Private Filter Destination" } });
+  const actor = seedActor(scenario.uniqueUsername("mobileactor"));
+  await seedActivityEvents([
+    { type: "trip_updated", actor, startedAt: new Date(Date.now() - 3_600_000), tripId: trip.id },
+  ]);
+  scenario.setValue<ActivitySeedState>(SEED_KEY, {
+    actor,
+    listedTripIds: [trip.id],
+    named: {},
+    minute: new Date(),
+    extraActors: {},
+  });
+});
+
+Then("the page does not scroll horizontally", async ({ page }) => {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+Then("the Activity table scrolls by keyboard inside its labeled region", async ({ page }) => {
+  const region = page.getByRole("region", { name: "Activity table" });
+  const metrics = await region.evaluate((element) => ({ scroll: element.scrollWidth, client: element.clientWidth }));
+  expect(metrics.scroll).toBeGreaterThan(metrics.client);
+  await region.focus();
+  await expect(region).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => region.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+});
+
+Then("every Activity filter and page control is at least 44 pixels tall", async ({ page }) => {
+  const controls = [
+    page.getByRole("combobox", { name: "Username" }),
+    page.getByRole("combobox", { name: "Action" }),
+    page.locator("#activity-filter-from"),
+    page.locator("#activity-filter-to"),
+    page.getByRole("button", { name: "Refresh" }),
+  ];
+  for (const control of controls) {
+    const box = await control.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+});
+
+Then("Activity shows the trip ID but not the trip name", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  await expect(activityTable(page).locator("tbody tr").first()).toContainText(trip.id);
+  await expect(page.locator("body")).not.toContainText(trip.name);
 });

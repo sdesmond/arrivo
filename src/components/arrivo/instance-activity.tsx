@@ -1,25 +1,13 @@
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ActivityEventType, type ActivityEventSummary } from "@/data/types";
+import { formatInstant } from "@/lib/activity-dates";
+import { EVENT_LABELS } from "@/lib/activity-labels";
 
 export interface InstanceActivityProps {
   events: ActivityEventSummary[];
+  /** IANA zone the times are shown in; UTC until the browser's zone is known. */
+  timeZone?: string;
 }
-
-const EVENT_LABELS: Record<ActivityEventType, { type: string; action: string }> = {
-  [ActivityEventType.SignIn]: { type: "Authentication", action: "Sign-in" },
-  [ActivityEventType.SignInFailed]: { type: "Authentication", action: "Failed sign-in" },
-  [ActivityEventType.SignOut]: { type: "Authentication", action: "Sign-out" },
-  [ActivityEventType.AccountCreated]: { type: "Accounts", action: "Created first admin account" },
-  [ActivityEventType.RoleChanged]: { type: "Accounts", action: "Changed role" },
-  [ActivityEventType.UsernameChanged]: { type: "Accounts", action: "Changed username" },
-  [ActivityEventType.PasswordChanged]: { type: "Accounts", action: "Changed password" },
-  [ActivityEventType.AccountDeleted]: { type: "Accounts", action: "Deleted own account" },
-  [ActivityEventType.TripCreated]: { type: "Trips", action: "Created trip" },
-  [ActivityEventType.TripUpdated]: { type: "Trips", action: "Updated trip" },
-  [ActivityEventType.InvitationCreated]: { type: "Trips", action: "Created invitation" },
-  [ActivityEventType.InvitationAccepted]: { type: "Trips", action: "Accepted invitation" },
-  [ActivityEventType.InvitationRescinded]: { type: "Trips", action: "Rescinded invitation" },
-};
 
 const COLUMNS = ["Username", "Type", "Action", "Affected account", "Time", "Trip ID"];
 
@@ -37,12 +25,27 @@ function targetLabel(event: ActivityEventSummary): string {
   return event.type === ActivityEventType.SignInFailed ? "Unavailable" : "—";
 }
 
-// "2026-10-25T14:03:07.000Z" -> "2026-10-25 14:03:07 UTC"; local-timezone display is a later story.
-function formatUtc(occurredAt: string): string {
-  return `${occurredAt.slice(0, 10)} ${occurredAt.slice(11, 19)} UTC`;
+function TimeCell({ event, timeZone }: { event: ActivityEventSummary; timeZone: string }) {
+  const range = event.startedAt !== undefined && event.startedAt !== event.occurredAt;
+  return (
+    <>
+      {range && event.startedAt ? (
+        <>
+          <time dateTime={event.startedAt}>{formatInstant(event.startedAt, timeZone)}</time>
+          <span> to </span>
+        </>
+      ) : null}
+      <time dateTime={event.occurredAt}>{formatInstant(event.occurredAt, timeZone)}</time>
+      {event.ongoing ? (
+        <span className="ml-2 font-medium" style={{ color: "var(--accent-brand)" }}>
+          Ongoing
+        </span>
+      ) : null}
+    </>
+  );
 }
 
-export function InstanceActivity({ events }: InstanceActivityProps) {
+export function InstanceActivity({ events, timeZone = "UTC" }: InstanceActivityProps) {
   if (events.length === 0) {
     return (
       <p className="mt-4 text-sm" style={{ color: "var(--fg-3)" }}>
@@ -79,7 +82,7 @@ export function InstanceActivity({ events }: InstanceActivityProps) {
             <TableCell>{EVENT_LABELS[event.type].action}</TableCell>
             <TableCell>{targetLabel(event)}</TableCell>
             <TableCell>
-              <time dateTime={event.occurredAt}>{formatUtc(event.occurredAt)}</time>
+              <TimeCell event={event} timeZone={timeZone} />
             </TableCell>
             <TableCell>{event.tripId ?? "—"}</TableCell>
           </TableRow>
