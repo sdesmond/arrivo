@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { AuthErrorCode } from "@/data/types";
+import { ActivityEventType, AuthErrorCode } from "@/data/types";
 import {
   accountTarget,
   checkThrottle,
@@ -14,6 +14,7 @@ import {
   recordFailure,
   signInTargets,
 } from "./auth-throttle";
+import { recordActivity } from "./activity";
 import { createMfaTicket, verifyMfaTicket } from "./mfa";
 import { verifySecondFactor } from "./mfa-store";
 import { isHttpsRequest } from "./request-origin";
@@ -59,6 +60,7 @@ const DUMMY_PASSWORD_HASH = "$2a$10$CwTycUXWue0Thq9StjUM0uJ8ZxHgx4G7R2nqvdTq7SR1
 const userColumns = {
   id: users.id,
   name: users.name,
+  username: users.username,
   passwordHash: users.passwordHash,
   sessionVersion: users.sessionVersion,
   mfaEnabledAt: users.mfaEnabledAt,
@@ -69,6 +71,7 @@ const userColumns = {
 type UserRow = {
   id: string;
   name: string | null;
+  username: string;
   sessionVersion: number;
 };
 
@@ -94,6 +97,8 @@ async function completeSignIn(
     path: "/",
     maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
   });
+  // Last, once the sign-in has succeeded; never throws and runs after the response.
+  recordActivity({ type: ActivityEventType.SignIn, actor: { id: user.id, username: user.username } });
   return {
     id: user.id,
     name: user.name,
