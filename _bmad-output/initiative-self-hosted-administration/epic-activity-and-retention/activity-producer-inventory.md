@@ -1,6 +1,6 @@
 # Activity producer inventory
 
-Written by story 2.1 (Sign-in to Activity tracer). Lists the real mutation owners that stories 2.3, 2.5 and 2.6 instrument, and the shared names they use.
+Written by story 2.1 (Sign-in to Activity tracer). Lists the real mutation owners that stories 2.3–2.6 instrument, and the shared names they use.
 
 ## Shared names
 
@@ -29,14 +29,19 @@ Rules for every producer: call `recordActivity` only after the primary mutation 
 
 - MFA on/off, recovery codes, sign out everywhere, trusted-device removal: `confirmMfaEnrollment`, `disableMfa`, `regenerateRecoveryCodes`, `signOutEverywhere`, `removeTrustedDevice` in `src/app/(app)/profile/security-actions.ts`. Not in the approved event list; no producer yet.
 
-## Story 2.5 (trips)
+## Done (2.4, trip and itinerary events)
 
-- `src/app/(app)/trips/actions.ts`: `createTrip`, `updateTripMetadata`, `deleteTrip`, `leaveTrip`.
-- `src/app/(app)/trips/[tripId]/actions.ts`: itinerary edits (`createEvent`, `updateEvent`, `deleteEvent`, `deleteEventWithDocDecision`, `reorderDayItems`, `updateDay`, `addDay`, `removeLastDay`, notes and checklist actions), documents (`addDocument`, `removeDocument`, `renameDocument`, ...), covers (`setTripCoverWithAttribution`, `removeTripCover`).
-- Uploads: `uploadCoverImage` in `cover-upload-actions.ts`, `uploadDocument` / `uploadDocumentToEvent` in `document-upload-actions.ts`.
-- Other: `updateTripTransitMode` in `transit-actions.ts`; `src/app/(app)/trips/[tripId]/budget/actions.ts`; `src/app/(app)/trips/[tripId]/reservations/actions.ts` and `reservation-document-actions.ts`; packing in `src/app/(app)/trips/packing-actions.ts`.
-- Trip event metadata stays minimal (trip ID, no names or details). Routine edits are batched by 2.2.
-- Note: `saveContributorChanges` and the packing actions are exported from more than one module (`trips/actions.ts`, `[tripId]/actions.ts`, `packing-actions.ts`); confirm which one the UI imports and instrument only that to avoid duplicate emission.
+- `trip_created`: `createTrip` in `src/app/(app)/trips/actions.ts`, once the transaction commits and before cover work, using the actor identity captured under the user lock.
+- `trip_updated`: `updateTripMetadata` in that module, only on `saved`; and `updateTripTransitMode` in `[tripId]/transit-actions.ts` after its update.
+- Itinerary owners in `src/app/(app)/trips/[tripId]/actions.ts`: `createEvent`, `updateEvent`, `deleteEvent`, `deleteEventWithDocDecision`, `reorderDayItems`, `updateDay`, `addDay`, `removeLastDay` (only `removed`), `createNote`, `updateNote`, `deleteNote`, `createTripNote`, `updateTripNote`, `deleteTripNote`, `reorderTripNotes`, `createChecklist`, `createChecklistWithItem`, `updateChecklistTitle`, `deleteChecklist`, `createChecklistItem`, `updateChecklistItem`, `toggleChecklistItem`, `deleteChecklistItem`, `addChecklistFromPackingSource`.
+- `src/lib/trip-activity.ts` isolates username lookup and recorder failures. Updates synchronously schedule a post-response actor username lookup bounded to five seconds, suppress late results, and merge through 2.2; events contain actor and trip ID only.
+- Refusals, confirmation-required results, access denials and thrown mutations emit nothing. `deleteTrip`, `leaveTrip` and read-only `route-actions.ts` are outside the approved event list.
+
+## Story 2.5 (other trip producers)
+
+- Documents and covers in `src/app/(app)/trips/[tripId]/actions.ts`; `uploadCoverImage` in `cover-upload-actions.ts`; `uploadDocument` / `uploadDocumentToEvent` in `document-upload-actions.ts`.
+- Budget: `src/app/(app)/trips/[tripId]/budget/actions.ts`; reservations: `reservations/actions.ts` and `reservation-document-actions.ts`; packing: `src/app/(app)/trips/packing-actions.ts`.
+- Instrument actual mutation owners only, never packing re-exports. Trip metadata remains actor and trip ID without names or details.
 
 ## Story 2.6 (invitations)
 

@@ -16,6 +16,12 @@ import {
 } from "@/db/schema";
 import { headers } from "next/headers";
 
+const { recordTripCreated, recordTripUpdated } = vi.hoisted(() => ({
+  recordTripCreated: vi.fn(),
+  recordTripUpdated: vi.fn(),
+}));
+vi.mock("@/lib/trip-activity", () => ({ recordTripCreated, recordTripUpdated }));
+
 const {
   assertTripAccess,
   db,
@@ -1133,9 +1139,22 @@ describe("updateTripMetadata", () => {
     adapterDel.mockResolvedValue(undefined);
   });
 
+  it("does not record denied metadata edits", async () => {
+    assertTripAccess.mockRejectedValueOnce(new Error("not found"));
+    await expect(updateTripMetadata("trip-1", { name: "Private trip" })).rejects.toThrow("not found");
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("does not record metadata edits when the transaction fails", async () => {
+    db.transaction.mockRejectedValueOnce(new Error("transaction failed"));
+    await expect(updateTripMetadata("trip-1", { name: "Private trip" })).rejects.toThrow("transaction failed");
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported budget currencies before mutating", async () => {
     await expect(updateTripMetadata("trip-1", { budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
     expect(db.transaction).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("persists a valid transit mode", async () => {
@@ -1150,6 +1169,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { transitMode: TransitMode.Transit });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     const tripUpdate = operations.updates.find((entry) => entry.table === trips);
     expect(tripUpdate?.values).toEqual(expect.objectContaining({ transitMode: TransitMode.Transit }));
   });
@@ -1159,6 +1179,7 @@ describe("updateTripMetadata", () => {
       "Invalid transit mode"
     );
     expect(db.transaction).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("clears the transit mode when the patch sets it to null", async () => {
@@ -1173,6 +1194,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { transitMode: null });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     const tripUpdate = operations.updates.find((entry) => entry.table === trips);
     expect(tripUpdate?.values).toEqual(expect.objectContaining({ transitMode: null }));
   });
@@ -1194,6 +1216,7 @@ describe("updateTripMetadata", () => {
       endDate: "2026-08-01",
     });
 
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(result).toEqual({
       status: "confirmation-required",
       confirmation: {
@@ -1239,6 +1262,7 @@ describe("updateTripMetadata", () => {
     );
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(operations.deletes).toContain(events);
     expect(operations.deletes).toContain(days);
     expect(operations.updates.some((entry) => entry.table === trips)).toBe(true);
@@ -1275,6 +1299,7 @@ describe("updateTripMetadata", () => {
 
     const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
 
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(result).toEqual({
       status: "confirmation-required",
       confirmation: expect.objectContaining({
@@ -1331,6 +1356,7 @@ describe("updateTripMetadata", () => {
     );
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(operations.deletes).toContain(reservations);
     expect(operations.deletes).toContain(days);
     const reservationDelete = operations.deleteConditions.find((entry) => entry.table === reservations);
@@ -1372,6 +1398,7 @@ describe("updateTripMetadata", () => {
     );
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(operations.deletes).not.toContain(reservations);
     expect(operations.deletes).toContain(days);
   });
@@ -1398,6 +1425,7 @@ describe("updateTripMetadata", () => {
 
     const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
 
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(result).toEqual({
       status: "confirmation-required",
       confirmation: expect.objectContaining({
@@ -1433,6 +1461,7 @@ describe("updateTripMetadata", () => {
     // The stay (Aug 1-5) was kept earlier while the trip shrank to Aug 2-4; dropping Aug 4 now cuts through it.
     const result = await updateTripMetadata("trip-1", { startDate: "2026-08-02", endDate: "2026-08-03" });
 
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(result).toEqual({
       status: "confirmation-required",
       confirmation: expect.objectContaining({
@@ -1465,6 +1494,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("rejects a stale confirmation when a reservation appeared after the preview", async () => {
@@ -1530,6 +1560,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-01" });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("rejects a stale confirmation payload instead of deleting newly changed content", async () => {
@@ -1582,6 +1613,7 @@ describe("updateTripMetadata", () => {
 
     const tripUpdate = operations.updates.find((entry) => entry.table === trips);
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(tripUpdate?.values).toEqual(
       expect.objectContaining({
         destinationName: "Paris, France",
@@ -1610,6 +1642,7 @@ describe("updateTripMetadata", () => {
     });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     const dayUpdates = operations.updates.filter((entry) => entry.table === days);
     expect(dayUpdates).toHaveLength(2);
     expect(dayUpdates[0].values).toEqual(expect.objectContaining({ dayNumber: 1, date: "2026-08-01", label: "Day 1" }));
@@ -1634,6 +1667,7 @@ describe("updateTripMetadata", () => {
     });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     const dayUpdates = operations.updates.filter((entry) => entry.table === days);
     expect(dayUpdates).toHaveLength(1);
     expect(dayUpdates[0].values).toEqual(expect.objectContaining({ dayNumber: 1, date: "2026-08-01", label: "Day 1" }));
@@ -1664,6 +1698,7 @@ describe("updateTripMetadata", () => {
       endDate: "2026-08-02",
     });
 
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(result).toEqual({
       status: "confirmation-required",
       confirmation: {
@@ -1693,6 +1728,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { startDate: null, endDate: null });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(operations.deletes).toHaveLength(0);
     const dayUpdates = operations.updates.filter((entry) => entry.table === days);
     expect(dayUpdates).toHaveLength(1);
@@ -1713,6 +1749,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { name: "Renamed Dateless Trip" });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(operations.deletes).toHaveLength(0);
     const dayUpdates = operations.updates.filter((entry) => entry.table === days);
     expect(dayUpdates).toHaveLength(0);
@@ -1758,6 +1795,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { budgetCurrency: "USD" });
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(recalculateAll).not.toHaveBeenCalled();
     expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
     const tripUpdate = operations.updates.find((entry) => entry.table === trips);
@@ -1779,6 +1817,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { name: "Renamed" }, undefined, undefined, true);
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(recalculateAll).not.toHaveBeenCalled();
     expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
   });
@@ -1799,6 +1838,7 @@ describe("updateTripMetadata", () => {
     const result = await updateTripMetadata("trip-1", { budgetCurrency: "USD" }, undefined, undefined, true);
 
     expect(result).toEqual({ status: "saved" });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(recalculateAll).toHaveBeenCalledWith(
       [expect.objectContaining({ id: "expense-1", currency: "EUR", amount: 50 })],
       "USD"
@@ -2709,6 +2749,12 @@ describe("createTrip", () => {
     vi.unstubAllEnvs();
   });
 
+  it("does not record a rolled-back creation", async () => {
+    db.transaction.mockRejectedValueOnce(new Error("transaction failed"));
+    await expect(createTrip({ name: "Private trip" })).rejects.toThrow("transaction failed");
+    expect(recordTripCreated).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported budget currencies before inserting a trip", async () => {
     const operations = setupCreateTripDb(null);
 
@@ -2770,6 +2816,7 @@ describe("createTrip", () => {
     const operations = setupCreateTripDb(null, "walk");
 
     await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+    expect(recordTripCreated).toHaveBeenCalledExactlyOnceWith({ id: "user-1", username: "test" }, "trip-1");
 
     expect(operations.inserts).toContainEqual({
       table: trips,
@@ -2781,6 +2828,7 @@ describe("createTrip", () => {
     const operations = setupCreateTripDb(null);
 
     await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+    expect(recordTripCreated).toHaveBeenCalledExactlyOnceWith({ id: "user-1", username: "test" }, "trip-1");
 
     expect(operations.inserts).toContainEqual({
       table: trips,
@@ -2826,6 +2874,7 @@ describe("createTrip", () => {
     }));
 
     await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+    expect(recordTripCreated).toHaveBeenCalledExactlyOnceWith({ id: "user-1", username: "test" }, "trip-1");
 
     expect(transactionSelectSpy).toHaveBeenCalledTimes(1);
     expect(lockPreferenceRowSpy).toHaveBeenCalledWith("update");
@@ -2850,6 +2899,7 @@ describe("createTrip", () => {
     const operations = setupCreateTripDb(null, "bicycle");
 
     await expect(createTrip({ name: "Test" })).resolves.toEqual({ tripId: "trip-1" });
+    expect(recordTripCreated).toHaveBeenCalledExactlyOnceWith({ id: "user-1", username: "test" }, "trip-1");
 
     expect(operations.inserts).toContainEqual({
       table: trips,

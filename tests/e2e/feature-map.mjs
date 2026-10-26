@@ -37,6 +37,10 @@ export const FEATURE_MAP = [
     "src/app/(app)/admin/users/**",
   ]),
   entry("instance-activity", [
+    "src/lib/trip-activity.ts",
+    "src/app/(app)/trips/actions.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
+    "src/app/(app)/trips/[tripId]/transit-actions.ts",
     "src/components/arrivo/instance-activity.tsx",
     "src/components/ui/table.tsx",
     "src/lib/activity.ts",

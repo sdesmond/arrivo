@@ -122,3 +122,16 @@ Feature: Instance activity
     And the deletion event keeps my original username and account ID
     When the other instance admin opens the instance Activity page
     Then the Activity table lists a Deleted own account row for my original username
+
+  Scenario: Created trip activity shows identity and ID without its name
+    Given I am signed in as an instance "admin"
+    When I create a private trip for Activity
+    And I open the instance Activity page
+    Then Activity lists one "Created trip" row for that trip without its name
+
+  Scenario: Itinerary edits share one private Activity summary
+    Given I am signed in as an instance "admin"
+    And a private itinerary exists for Activity
+    When I add two private itinerary notes for Activity
+    And I open the instance Activity page
+    Then Activity lists one "Updated trip" row for that trip without its name
