@@ -76,20 +76,20 @@ describe("recordActivity", () => {
   it("swallows a scheduling failure and logs without secrets", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.after.mockImplementation(() => {
-      throw new Error("outside request scope postgres://user:secret@host/db");
+      throw new Error("outside request scope SECRET-MARKER");
     });
     expect(() => recordActivity(INPUT)).not.toThrow();
     expect(log).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(log.mock.calls)).not.toContain("secret");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET-MARKER");
   });
 
   it("swallows an insert rejection and logs without secrets", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mocks.values.mockRejectedValue(new Error("duplicate key value (alice) password=hunter2"));
+    mocks.values.mockRejectedValue(new Error("duplicate key value (alice) SECRET-MARKER"));
     recordActivity(INPUT);
     await expect(runScheduled()).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(log.mock.calls)).not.toContain("hunter2");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET-MARKER");
   });
 
   it("gives up on a hung insert after the timeout, without retrying", async () => {
