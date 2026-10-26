@@ -3,7 +3,7 @@ title: "Account menu and Manage instance shell"
 type: "feature"
 ticket: "2"
 created: "2026-10-24"
-status: "built"
+status: done
 baseline_revision: "b72df87818efc3c1e8b71cf62c9abb635b3bd4a8"
 route: "full"
 route_source: "auto"

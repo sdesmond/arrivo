@@ -3,7 +3,7 @@ title: "Role-change service with last-admin guard"
 type: "feature"
 ticket: "3"
 created: "2026-10-25"
-status: "built"
+status: done
 baseline_revision: "3081fa381134107cb9bbb298a2070e20ba8aa0ac"
 route: "full"
 route_source: "auto"
