@@ -37,13 +37,18 @@ Rules for every producer: call `recordActivity` only after the primary mutation 
 - `src/lib/trip-activity.ts` isolates username lookup and recorder failures. Updates synchronously schedule a post-response actor username lookup bounded to five seconds, suppress late results, and merge through 2.2; events contain actor and trip ID only.
 - Refusals, confirmation-required results, access denials and thrown mutations emit nothing. `deleteTrip`, `leaveTrip` and read-only `route-actions.ts` are outside the approved event list.
 
-## Story 2.5 (other trip producers)
+## Done (2.5, other trip edit events)
 
-- Documents and covers in `src/app/(app)/trips/[tripId]/actions.ts`; `uploadCoverImage` in `cover-upload-actions.ts`; `uploadDocument` / `uploadDocumentToEvent` in `document-upload-actions.ts`.
-- Budget: `src/app/(app)/trips/[tripId]/budget/actions.ts`; reservations: `reservations/actions.ts` and `reservation-document-actions.ts`; packing: `src/app/(app)/trips/packing-actions.ts`.
-- Instrument actual mutation owners only, never packing re-exports. Trip metadata remains actor and trip ID without names or details.
+All emit `trip_updated` through `recordTripUpdated(user.id!, tripId)` after commit at the mutation owner, merging into the 2.4 batched row (actor and trip ID only).
 
-## Story 2.6 (invitations)
+- Covers and documents in `src/app/(app)/trips/[tripId]/actions.ts`: `setTripCoverWithAttribution`, `removeTripCover`, `addDocument`, `removeDocument`, `renameDocument`, `attachTripDocToEvent`, `promoteEventDocToTrip`. `uploadCoverImage` in `cover-upload-actions.ts`; `uploadDocument` / `uploadDocumentToEvent` in `document-upload-actions.ts`. The same-named exports at the end of `actions.ts` only delegate and are not instrumented.
+- Budget (`[tripId]/budget/actions.ts`): `createExpense`, `updateExpense`, `recalculateConversions`, `deleteExpense` (not on a missing row).
+- Reservations: `createReservation`, `updateReservation`, `deleteReservation` (not on a missing row) in `reservations/actions.ts`; `uploadReservationDocument`, `removeReservationDocument`, `renameReservationDocument`, `promoteReservationDocToTrip`, `attachTripDocToReservation` in `reservation-document-actions.ts` (not on a missing doc).
+- Packing (`src/app/(app)/trips/packing-actions.ts`): `addPackingItemImpl`, `updatePackingItemImpl`, `togglePackingItemImpl` (not when the locked row is gone), `removePackingItemImpl`, `removePackingSectionImpl` (not when the locked section is gone), `reorderPackingItemsImpl` (non-empty only), `pullTemplatesOntoTripImpl` (only when `added > 0`), `createPackingList`, `renamePackingList`, `deletePackingList`. Never the exported `*WithErrorHandling` wrappers.
+- Not instrumented: `saveTripListAsTemplate` (standalone template, not a trip edit), `deleteTrip`, `leaveTrip`.
+- Refusals, access denials, validation errors, thrown mutations and no-op paths emit nothing.
+
+## Remaining: story 2.6 (invitations)
 
 - `inviteContributor`, `acceptInvitation`, `declineInvitation`, `rescindInvitation`, `dismissInvitation`, `saveContributorChanges` in `src/app/(app)/trips/actions.ts`.
 - `resendShareInvitation`, `rescindShareInvitation`, `dismissShareInvitation`, `saveContributorChanges` in `src/app/(app)/trips/[tripId]/actions.ts`.
