@@ -7,6 +7,7 @@ export interface InstanceActivityProps {
 
 const EVENT_LABELS: Record<ActivityEventType, { type: string; action: string }> = {
   [ActivityEventType.SignIn]: { type: "Authentication", action: "Sign-in" },
+  [ActivityEventType.TripUpdated]: { type: "Trips", action: "Updated trip" },
 };
 
 const COLUMNS = ["Username", "Type", "Action", "Time", "Trip ID"];

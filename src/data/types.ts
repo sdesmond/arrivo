@@ -55,6 +55,8 @@ export type BootstrapResult = { ok: true; userId: string } | { ok: false; reason
 
 export const ActivityEventType = {
   SignIn: "sign_in",
+  /** Summary only: one row per burst of trip edits, merged by `src/lib/activity-batches.ts`. */
+  TripUpdated: "trip_updated",
 } as const;
 export type ActivityEventType = (typeof ActivityEventType)[keyof typeof ActivityEventType];
 

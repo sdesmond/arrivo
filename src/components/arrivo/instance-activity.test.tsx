@@ -25,6 +25,13 @@ describe("InstanceActivity", () => {
     expect(within(row).getByText("—")).toBeInTheDocument();
   });
 
+  it("labels a batched trip update as a summary with no edit details", () => {
+    render(<InstanceActivity events={[{ ...EVENT, type: "trip_updated", tripId: "trip-9" }]} />);
+    const row = screen.getAllByRole("row")[1];
+    expect(within(row).getByText("Trips")).toBeInTheDocument();
+    expect(within(row).getByText("Updated trip")).toBeInTheDocument();
+  });
+
   it("shows the trip id when present and a placeholder for an unknown username", () => {
     render(<InstanceActivity events={[{ ...EVENT, actorUsername: null, tripId: "trip-9" }]} />);
     expect(screen.getByText("trip-9")).toBeInTheDocument();

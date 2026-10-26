@@ -4,10 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   after: vi.fn(),
   values: vi.fn(),
+  merge: vi.fn(),
 }));
 
 vi.mock("next/server", () => ({ after: mocks.after }));
 vi.mock("@/db", () => ({ db: { insert: vi.fn(() => ({ values: mocks.values })) } }));
+vi.mock("./activity-batches", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./activity-batches")>()),
+  mergeActivityInterval: mocks.merge,
+}));
 
 import { ActivityEventType } from "@/data/types";
 import { ACTIVITY_WRITE_TIMEOUT_MS, recordActivity, setActivityClock } from "./activity";
@@ -25,6 +30,7 @@ describe("recordActivity", () => {
     vi.clearAllMocks();
     mocks.after.mockImplementation(() => undefined);
     mocks.values.mockResolvedValue(undefined);
+    mocks.merge.mockResolvedValue(undefined);
     setActivityClock(() => FIXED);
   });
   afterEach(() => {
@@ -110,5 +116,22 @@ describe("recordActivity", () => {
     recordActivity(INPUT);
     await runScheduled();
     expect(log).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes batched types through the interval merge instead of a plain insert", async () => {
+    const input = { type: ActivityEventType.TripUpdated, actor: INPUT.actor, tripId: "trip-1" };
+    recordActivity(input);
+    await runScheduled();
+    expect(mocks.merge).toHaveBeenCalledWith(expect.anything(), input, FIXED);
+    expect(mocks.values).not.toHaveBeenCalled();
+  });
+
+  it("swallows a merge failure and logs without secrets", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.merge.mockRejectedValue(new Error("deadlock detected SECRET-MARKER"));
+    recordActivity({ type: ActivityEventType.TripUpdated, actor: INPUT.actor, tripId: "trip-1" });
+    await expect(runScheduled()).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET-MARKER");
   });
 });
