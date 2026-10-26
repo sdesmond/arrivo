@@ -32,11 +32,12 @@ export async function deleteOwnAccount(
     if (!scope.lockedUserIds.has(accountId)) throw new Error("User not found.");
 
     const [account] = await transaction
-      .select({ role: users.role, passwordHash: users.passwordHash })
+      .select({ username: users.username, role: users.role, passwordHash: users.passwordHash })
       .from(users)
       .where(eq(users.id, accountId));
+    if (!account) throw new Error("User not found.");
     // Only a completed admin counts toward the guard, so an unfinished admin leaving never strands the instance.
-    if (account?.role === UserRole.Admin && account.passwordHash !== null) {
+    if (account.role === UserRole.Admin && account.passwordHash !== null) {
       try {
         await assertAnotherCompletedAdmin(transaction, accountId);
       } catch (error) {
@@ -131,6 +132,7 @@ export async function deleteOwnAccount(
           ...deletedTripDocuments.map((tripDocument) => tripDocument.url),
           ...deletedTrips.map((trip) => trip.coverImageUrl),
         ].filter((url): url is string => !!url),
+        account: { id: accountId, username: account.username },
       },
     };
   });

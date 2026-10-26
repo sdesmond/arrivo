@@ -18,6 +18,8 @@ export async function listRecentActivity(viewerId: string): Promise<ActivityEven
       id: activityEvents.id,
       type: activityEvents.type,
       actorUsername: activityEvents.actorUsername,
+      targetId: activityEvents.targetId,
+      targetUsername: activityEvents.targetUsername,
       endedAt: activityEvents.endedAt,
       tripId: activityEvents.tripId,
     })
@@ -30,6 +32,8 @@ export async function listRecentActivity(viewerId: string): Promise<ActivityEven
       id: row.id,
       type: row.type as ActivityEventType,
       actorUsername: row.actorUsername,
+      // Only the username leaves the server; the ID just says whether it named a real account.
+      ...(row.targetUsername ? { targetUsername: row.targetUsername, targetKnown: row.targetId !== null } : {}),
       occurredAt: row.endedAt.toISOString(),
       ...(row.tripId ? { tripId: row.tripId } : {}),
     }));

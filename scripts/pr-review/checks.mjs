@@ -120,6 +120,9 @@ const HIGH_CONFIDENCE_PATTERNS = [
 const GENERIC_ASSIGNMENT =
   /([\w.-]*(?:password|passwd|secret|api[_-]?key|token|credential)s?[\w.-]*)["']?\s*[:=]\s*["']([^"'\s]{8,})["']/gi;
 const FETCH_CREDENTIAL_MODES = new Set(["same-origin", "include", "omit"]);
+// A PascalCase constant member set to lowercase snake/kebab words is an identifier (ActivityEventType.PasswordChanged =
+// "password_changed"), not a secret. Lowercase and camelCase names (apiToken, password) are still checked.
+const CONSTANT_IDENTIFIER_VALUE = /^[a-z]+(?:[_-][a-z]+)+$/;
 // Demo credentials legitimately live in seed data, fixtures, mocks and eval cases; only the high-confidence patterns apply there.
 const DEMO_DATA_PATH = /(^|\/)(seed|fixtures?|mocks?|evals)([\w.-]*\.|\/)/i;
 const PLACEHOLDER_VALUE = /changeme|example|placeholder|dummy|your[_-]|xxx|<.*>|\$\{|\{\{|process\.env|test/i;
@@ -128,6 +131,7 @@ function genericSecret(text) {
   for (const match of text.matchAll(GENERIC_ASSIGNMENT)) {
     const [, name, value] = match;
     if (name === "credentials" && FETCH_CREDENTIAL_MODES.has(value)) continue;
+    if (/^[A-Z]/.test(name) && CONSTANT_IDENTIFIER_VALUE.test(value)) continue;
     if (!PLACEHOLDER_VALUE.test(value) && !/^(.)\1+$/.test(value)) return true;
   }
   return false;

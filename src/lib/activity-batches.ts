@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { db } from "@/db";
 import { activityEvents } from "@/db/schema";
-import { ActivityEventType, type ActivityEventInput } from "@/data/types";
+import { ActivityEventType, type ActivityBatchInput } from "@/data/types";
 
 /** Takes a database handle (not the singleton) so real-Postgres tests can bind it to an isolated schema. */
 export type ActivityBatchDatabase = Pick<typeof db, "transaction">;
@@ -55,7 +55,7 @@ export function planMerge(rows: readonly IntervalRow[], occurredAt: Date): Merge
  */
 export async function mergeActivityInterval(
   database: ActivityBatchDatabase,
-  input: ActivityEventInput,
+  input: ActivityBatchInput,
   occurredAt: Date
 ): Promise<void> {
   const tripId = input.tripId ?? null;

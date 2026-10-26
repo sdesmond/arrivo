@@ -21,6 +21,8 @@ const ROW = {
   actorUsername: "alice",
   endedAt: new Date("2026-10-25T12:00:00.000Z"),
   tripId: null as string | null,
+  targetId: null as string | null,
+  targetUsername: null as string | null,
 };
 
 describe("listRecentActivity", () => {
@@ -57,6 +59,20 @@ describe("listRecentActivity", () => {
     expect(events[0]).toMatchObject({ actorUsername: "alice", tripId: "trip-1" });
     expect(events[1]).toMatchObject({ actorUsername: null });
     expect(events[1]).not.toHaveProperty("tripId");
+  });
+
+  it("exposes a known target's username but never its ID", async () => {
+    mocks.limit.mockResolvedValue([
+      { ...ROW, type: "role_changed", targetId: "user-2", targetUsername: "bob" },
+      { ...ROW, id: "event-2", type: "sign_in_failed", actorUsername: null, targetUsername: "ghost" },
+      { ...ROW, id: "event-3", type: "sign_in_failed", actorUsername: null },
+    ]);
+    const events = await listRecentActivity("admin-1");
+    expect(events[0]).toMatchObject({ targetUsername: "bob", targetKnown: true });
+    expect(events[1]).toMatchObject({ actorUsername: null, targetUsername: "ghost", targetKnown: false });
+    expect(events[2]).not.toHaveProperty("targetUsername");
+    expect(events[2]).not.toHaveProperty("targetKnown");
+    expect(JSON.stringify(events)).not.toContain("user-2");
   });
 
   it("drops unknown event types rather than showing them", async () => {

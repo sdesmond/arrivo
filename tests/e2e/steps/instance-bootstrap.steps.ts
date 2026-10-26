@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { UserRole } from "../../../src/data/types";
-import { users } from "../../../src/db/schema";
+import { activityEvents, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 
@@ -88,4 +88,29 @@ Then("I can sign out and sign back in with my new username", async ({ page, scen
   await page.waitForURL("**/trips");
   // The @username label lives in the desktop sidebar only; the account-menu trigger shows on both layouts.
   await expect(page.getByRole("button", { name: /^(Account menu|Profile)$/ }).filter({ visible: true })).toHaveCount(1);
+});
+
+async function creationEvents(username: string) {
+  return withE2EDb((db) =>
+    db
+      .select()
+      .from(activityEvents)
+      .where(and(eq(activityEvents.type, "account_created"), eq(activityEvents.actorUsername, username)))
+  );
+}
+
+Then("the account creation is recorded once in Activity for my new account", async ({ scenario }) => {
+  const username = scenario.getValue<string>(SIGN_UP_USERNAME_KEY)!;
+  const created = await findUser(username);
+  // The event is written after the sign-up response, so poll for it.
+  await expect.poll(async () => (await creationEvents(username)).length).toBe(1);
+  const [event] = await creationEvents(username);
+  expect(event).toMatchObject({ actorId: created.id, actorUsername: username, targetId: null, targetUsername: null });
+});
+
+Then("no account creation was recorded in Activity for that username", async ({ scenario }) => {
+  const username = scenario.getValue<string>(SIGN_UP_USERNAME_KEY)!;
+  // Nothing to wait for; give a wrongly-scheduled write time to show up before asserting absence.
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  expect(await creationEvents(username)).toHaveLength(0);
 });

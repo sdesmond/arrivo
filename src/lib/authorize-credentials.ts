@@ -1,11 +1,11 @@
 import "server-only";
 import { CredentialsSignin } from "@auth/core/errors";
 import bcrypt from "bcryptjs";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { ActivityEventType, AuthErrorCode } from "@/data/types";
+import { ActivityEventType, AuthErrorCode, type ActivityTarget } from "@/data/types";
 import {
   accountTarget,
   checkThrottle,
@@ -18,7 +18,7 @@ import { recordActivity } from "./activity";
 import { createMfaTicket, verifyMfaTicket } from "./mfa";
 import { verifySecondFactor } from "./mfa-store";
 import { isHttpsRequest } from "./request-origin";
-import { normalizeUsername } from "./username";
+import { normalizeUsername, validateUsername } from "./username";
 import {
   DEVICE_COOKIE,
   DEVICE_COOKIE_MAX_AGE_SECONDS,
@@ -108,6 +108,42 @@ async function completeSignIn(
   };
 }
 
+// Failed sign-ins name the account that was attempted, never an authenticated actor. Nothing but the canonical
+// username of a matched row, or a bounded username-shaped string that matched nothing, is ever kept.
+function knownTarget(user: { id: string; username: string }): ActivityTarget {
+  return { id: user.id, username: user.username };
+}
+
+function suppliedTarget(username: string | undefined): ActivityTarget | undefined {
+  if (!username) return undefined;
+  const normalized = normalizeUsername(username);
+  return validateUsername(normalized) === null ? { id: null, username: normalized } : undefined;
+}
+
+// An extra read only for the event: any failure leaves the identity unavailable and never changes the outcome.
+async function lookupTarget(condition: SQL, fallback: ActivityTarget | undefined): Promise<ActivityTarget | undefined> {
+  try {
+    const [row] = await db.select({ id: users.id, username: users.username }).from(users).where(condition);
+    return row ? knownTarget(row) : fallback;
+  } catch {
+    return undefined;
+  }
+}
+
+function lookupByUsername(username: string | undefined): Promise<ActivityTarget | undefined> {
+  const supplied = suppliedTarget(username);
+  if (!supplied) return Promise.resolve(undefined);
+  return lookupTarget(sql`lower(${users.username}) = ${supplied.username}`, supplied);
+}
+
+function recordRejection(target: ActivityTarget | undefined): void {
+  recordActivity({
+    type: ActivityEventType.SignInFailed,
+    actor: null,
+    ...(target ? { target } : {}),
+  });
+}
+
 function stringField(value: unknown): string | undefined {
   return typeof value === "string" && value ? value : undefined;
 }
@@ -130,11 +166,16 @@ async function authorizePassword(username: string, password: string, keepSignedI
     : signInTargets(username, clientIpFromHeaders(request.headers));
 
   const throttle = await checkThrottle(targets);
-  if (throttle.locked) throw new LockedOutError(throttle.retryAfterSeconds);
+  const attempted = user ? knownTarget(user) : suppliedTarget(username);
+  if (throttle.locked) {
+    recordRejection(attempted);
+    throw new LockedOutError(throttle.retryAfterSeconds);
+  }
 
   const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
   if (!user?.passwordHash || !valid) {
     await recordFailure(targets);
+    recordRejection(attempted);
     return null;
   }
 
@@ -145,17 +186,32 @@ async function authorizePassword(username: string, password: string, keepSignedI
   return completeSignIn(user, request, { keepSignedIn, rememberMfa: false });
 }
 
-async function authorizeSecondFactor(ticket: string, code: string, rememberMfa: boolean, request: Request) {
+async function authorizeSecondFactor(ticket: string, code: string | undefined, rememberMfa: boolean, request: Request) {
   const verified = verifyMfaTicket(ticket);
-  if (!verified) return null;
+  if (!verified) {
+    // An unverified ticket's identity is never trusted, so nothing is attributed.
+    recordRejection(undefined);
+    return null;
+  }
   const { userId, keepSignedIn } = verified;
+
+  if (!code) {
+    recordRejection(await lookupTarget(eq(users.id, userId), undefined));
+    return null;
+  }
 
   const target = accountTarget("mfa", userId);
   const throttle = await checkThrottle([target]);
-  if (throttle.locked) throw new LockedOutError(throttle.retryAfterSeconds);
+  if (throttle.locked) {
+    recordRejection(await lookupTarget(eq(users.id, userId), undefined));
+    throw new LockedOutError(throttle.retryAfterSeconds);
+  }
 
   const [user] = await db.select(userColumns).from(users).where(eq(users.id, userId));
-  if (!user?.mfaEnabledAt) return null;
+  if (!user?.mfaEnabledAt) {
+    recordRejection(user ? knownTarget(user) : undefined);
+    return null;
+  }
 
   const accepted = await verifySecondFactor(
     { id: user.id, totpSecret: user.totpSecret, totpLastStep: user.totpLastStep },
@@ -163,6 +219,7 @@ async function authorizeSecondFactor(ticket: string, code: string, rememberMfa: 
   );
   if (!accepted) {
     await recordFailure([target]);
+    recordRejection(knownTarget(user));
     return null;
   }
 
@@ -178,12 +235,14 @@ export async function authorizeCredentials(
 ): Promise<AuthorizedUser | null> {
   const ticket = stringField(credentials.mfaTicket);
   if (ticket) {
-    const code = stringField(credentials.code);
-    return code ? authorizeSecondFactor(ticket, code, booleanField(credentials.remember), request) : null;
+    return authorizeSecondFactor(ticket, stringField(credentials.code), booleanField(credentials.remember), request);
   }
 
   const username = stringField(credentials.username);
   const password = stringField(credentials.password);
-  if (!username || !password) return null;
+  if (!username || !password) {
+    recordRejection(await lookupByUsername(username));
+    return null;
+  }
   return authorizePassword(username, password, booleanField(credentials.keepSignedIn), request);
 }

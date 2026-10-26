@@ -8,6 +8,7 @@ Feature: Instance bootstrap sign-up
     When I sign up with a new username
     Then I should be redirected to the trips page
     And my new account is the instance admin
+    And the account creation is recorded once in Activity for my new account
     When I open the shared account menu
     And I choose Manage instance
     Then I see the Users-only instance management shell
@@ -36,6 +37,7 @@ Feature: Instance bootstrap sign-up
     When I sign up with a new username
     Then I should be told to ask an admin for an account
     And no account was created for that username
+    And no account creation was recorded in Activity for that username
 
   Scenario: Sign-up refuses a username that is already taken
     Given the instance has not been set up yet

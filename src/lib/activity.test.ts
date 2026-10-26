@@ -68,6 +68,46 @@ describe("recordActivity", () => {
     );
   });
 
+  it("persists a failed sign-in with null actor columns and a known target", async () => {
+    recordActivity({ type: ActivityEventType.SignInFailed, actor: null, target: { id: "user-2", username: "bob" } });
+    await runScheduled();
+    expect(mocks.values).toHaveBeenCalledWith({
+      type: "sign_in_failed",
+      startedAt: FIXED,
+      endedAt: FIXED,
+      actorId: null,
+      actorUsername: null,
+      targetId: "user-2",
+      targetUsername: "bob",
+      tripId: null,
+    });
+  });
+
+  it("persists an unknown-account target with a null ID and an unavailable one with neither", async () => {
+    recordActivity({ type: ActivityEventType.SignInFailed, actor: null, target: { id: null, username: "ghost" } });
+    recordActivity({ type: ActivityEventType.SignInFailed, actor: null });
+    for (const [callback] of mocks.after.mock.calls) await (callback as () => Promise<void>)();
+    expect(mocks.values).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ targetId: null, targetUsername: "ghost" })
+    );
+    expect(mocks.values).toHaveBeenNthCalledWith(2, expect.objectContaining({ targetId: null, targetUsername: null }));
+  });
+
+  it("does not batch an actorless event even of a batched type", async () => {
+    recordActivity({ type: ActivityEventType.TripUpdated, actor: null, tripId: "trip-1" });
+    await runScheduled();
+    expect(mocks.merge).not.toHaveBeenCalled();
+    expect(mocks.values).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps account events as individual rows rather than batching them", async () => {
+    recordActivity({ type: ActivityEventType.PasswordChanged, actor: INPUT.actor });
+    await runScheduled();
+    expect(mocks.merge).not.toHaveBeenCalled();
+    expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ type: "password_changed", actorId: "user-1" }));
+  });
+
   it("uses the real clock by default", async () => {
     setActivityClock();
     vi.useFakeTimers();

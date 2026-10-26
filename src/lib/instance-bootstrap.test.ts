@@ -35,7 +35,7 @@ function createFakeDatabase(initial: Partial<FakeState> = {}, uniqueViolationFor
                   }
                   const row = { id: `user-${state.rows.length + 1}`, username: values.username, role: values.role };
                   state.rows.push(row);
-                  return [{ id: row.id }];
+                  return [{ id: row.id, username: row.username }];
                 },
               }),
             };
@@ -74,7 +74,11 @@ describe("bootstrapFirstAccount", () => {
   it("makes the first signup an admin and marks the instance initialized", async () => {
     const { state, database } = createFakeDatabase();
 
-    await expect(bootstrapFirstAccount(database, values("first"))).resolves.toEqual({ ok: true, userId: "user-1" });
+    await expect(bootstrapFirstAccount(database, values("first"))).resolves.toEqual({
+      ok: true,
+      userId: "user-1",
+      username: "first",
+    });
 
     expect(state.rows).toEqual([{ id: "user-1", username: "first", role: "admin" }]);
     expect(state.initializedAt).toBeInstanceOf(Date);

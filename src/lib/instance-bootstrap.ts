@@ -22,12 +22,12 @@ export async function bootstrapFirstAccount(
     const [created] = await transaction
       .insert(users)
       .values({ ...values, role: UserRole.Admin })
-      .returning({ id: users.id });
+      .returning({ id: users.id, username: users.username });
     await transaction
       .update(instanceState)
       .set({ initializedAt: new Date() })
       .where(sql`${instanceState.id} = true`);
 
-    return { ok: true, userId: created.id } as const;
+    return { ok: true, userId: created.id, username: created.username } as const;
   });
 }
