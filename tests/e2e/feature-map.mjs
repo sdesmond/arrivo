@@ -36,6 +36,16 @@ export const FEATURE_MAP = [
     "src/lib/instance-users.ts",
     "src/app/(app)/admin/users/**",
   ]),
+  entry("instance-activity", [
+    "src/components/arrivo/instance-activity.tsx",
+    "src/components/ui/table.tsx",
+    "src/lib/activity.ts",
+    "src/lib/activity-queries.ts",
+    "src/lib/authorize-credentials.ts",
+    "src/app/(app)/admin/activity/**",
+    "tests/e2e/steps/mfa.steps.ts",
+    "tests/e2e/steps/account-menu.steps.ts",
+  ]),
   entry("account-menu", [
     "src/components/arrivo/account-menu.tsx",
     "src/components/arrivo/admin-section-nav.tsx",
@@ -60,6 +70,7 @@ export const FEATURE_MAP = [
     "src/app/(auth)/sign-in/**",
     "src/app/(auth)/sign-up/**",
     "src/app/(auth)/actions.ts",
+    "src/lib/authorize-credentials.ts",
   ]),
   entry("instance-bootstrap", [
     "src/components/arrivo/auth-forms.tsx",
@@ -80,6 +91,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/mfa-code-form.tsx",
     "src/app/(auth)/actions.ts",
     "src/app/(auth)/sign-in/**",
+    "src/lib/authorize-credentials.ts",
     "src/app/(app)/profile/security-*",
     "src/app/(app)/profile/mfa-enrollment.tsx",
     "src/app/(app)/profile/recovery-codes-dialog.tsx",

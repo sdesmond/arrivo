@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   findTrustedDevice: vi.fn(),
   rememberDevice: vi.fn(),
   cookieSet: vi.fn(),
+  recordActivity: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -26,6 +27,7 @@ vi.mock("./auth-throttle", async (importOriginal) => ({
   recordFailure: mocks.recordFailure,
   clearFailures: mocks.clearFailures,
 }));
+vi.mock("./activity", () => ({ recordActivity: mocks.recordActivity }));
 vi.mock("./mfa-store", () => ({ verifySecondFactor: mocks.verifySecondFactor }));
 vi.mock("./mfa", () => ({ createMfaTicket: mocks.createMfaTicket, verifyMfaTicket: mocks.verifyMfaTicket }));
 vi.mock("./trusted-devices", async (importOriginal) => ({
@@ -42,6 +44,7 @@ import { LockedOutError, MfaRequiredError, authorizeCredentials } from "./author
 const USER = {
   id: "user-1",
   name: "Alice",
+  username: "alice",
   passwordHash: "$2a$10$hash",
   sessionVersion: 2,
   mfaEnabledAt: null as Date | null,
@@ -127,6 +130,26 @@ describe("authorizeCredentials — password step", () => {
     expect(mocks.compare).not.toHaveBeenCalled();
   });
 
+  it("records one sign_in event for the actor after the browser cookie is set", async () => {
+    await authorizeCredentials({ username: "alice", password: "pw" }, request());
+    expect(mocks.recordActivity).toHaveBeenCalledTimes(1);
+    expect(mocks.recordActivity).toHaveBeenCalledWith({
+      type: "sign_in",
+      actor: { id: "user-1", username: "alice" },
+    });
+    expect(mocks.cookieSet.mock.invocationCallOrder[0]).toBeLessThan(mocks.recordActivity.mock.invocationCallOrder[0]);
+  });
+
+  it("records nothing for a wrong password, an unknown user or a lockout", async () => {
+    mocks.compare.mockResolvedValue(false);
+    await authorizeCredentials({ username: "alice", password: "bad" }, request());
+    mocks.selectWhere.mockResolvedValue([]);
+    await authorizeCredentials({ username: "nobody", password: "pw" }, request());
+    mocks.checkThrottle.mockResolvedValue({ locked: true, retryAfterSeconds: 60 });
+    await authorizeCredentials({ username: "alice", password: "pw" }, request()).catch(() => undefined);
+    expect(mocks.recordActivity).not.toHaveBeenCalled();
+  });
+
   it("asks for a second factor, carrying the ticket off the URL-visible code", async () => {
     mocks.selectWhere.mockResolvedValue([{ ...USER, mfaEnabledAt: new Date(), totpSecret: "enc" }]);
     const attempt = authorizeCredentials({ username: "alice", password: "pw" }, request());
@@ -134,6 +157,7 @@ describe("authorizeCredentials — password step", () => {
     await expect(attempt).rejects.toMatchObject({ code: AuthErrorCode.MfaRequired, ticket: "signed-ticket" });
     expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: false });
     expect(mocks.rememberDevice).not.toHaveBeenCalled();
+    expect(mocks.recordActivity).not.toHaveBeenCalled();
   });
 });
 
@@ -270,6 +294,21 @@ describe("authorizeCredentials — two-factor step", () => {
       "123456"
     );
     expect(targetKeys(mocks.clearFailures.mock.calls[0])).toEqual(["mfa:user-1"]);
+  });
+
+  it("records one sign_in event once the code is accepted", async () => {
+    await authorizeCredentials({ mfaTicket: "t", code: "123456" }, request());
+    expect(mocks.recordActivity).toHaveBeenCalledTimes(1);
+    expect(mocks.recordActivity).toHaveBeenCalledWith({
+      type: "sign_in",
+      actor: { id: "user-1", username: "alice" },
+    });
+  });
+
+  it("records nothing for a wrong code", async () => {
+    mocks.verifySecondFactor.mockResolvedValue(false);
+    await authorizeCredentials({ mfaTicket: "t", code: "000000" }, request());
+    expect(mocks.recordActivity).not.toHaveBeenCalled();
   });
 
   it("skips the code on this browser for 30 days when asked", async () => {

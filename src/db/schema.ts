@@ -571,3 +571,27 @@ export const trustedDevices = pgTable(
   },
   (table) => [index("trusted_devices_user_id_idx").on(table.userId)]
 );
+
+// Best-effort audit trail (src/lib/activity.ts). Deliberately no foreign keys or cascades: history must survive
+// account and trip deletion, so actors are a stable ID plus the username as it was at event time.
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
+    type: text("type").notNull(),
+    actorId: uuid("actor_id"),
+    actorUsername: text("actor_username"),
+    targetId: uuid("target_id"),
+    targetUsername: text("target_username"),
+    tripId: uuid("trip_id"),
+  },
+  (table) => [
+    index("activity_events_ended_at_id_idx").on(table.endedAt.desc(), table.id.desc()),
+    index("activity_events_actor_id_idx").on(table.actorId),
+    index("activity_events_type_idx").on(table.type),
+  ]
+);

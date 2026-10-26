@@ -53,6 +53,35 @@ export interface BootstrapAccountValues {
 
 export type BootstrapResult = { ok: true; userId: string } | { ok: false; reason: "closed" };
 
+export const ActivityEventType = {
+  SignIn: "sign_in",
+} as const;
+export type ActivityEventType = (typeof ActivityEventType)[keyof typeof ActivityEventType];
+
+/** Stable account ID plus the username at the time of the event; Activity has no foreign keys. */
+export interface ActivityIdentity {
+  id: string;
+  username: string;
+}
+
+export interface ActivityEventInput {
+  type: ActivityEventType;
+  actor: ActivityIdentity;
+  /** The account acted upon, when different from the actor. */
+  target?: ActivityIdentity;
+  tripId?: string;
+}
+
+/** Safe read shape: no IPs, tokens, URLs or credentials. */
+export interface ActivityEventSummary {
+  id: string;
+  type: ActivityEventType;
+  actorUsername: string | null;
+  /** ISO 8601 UTC. */
+  occurredAt: string;
+  tripId?: string;
+}
+
 export interface InstanceUserSummary {
   id: string;
   username: string;

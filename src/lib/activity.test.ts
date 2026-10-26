@@ -1,0 +1,114 @@
+// @vitest-environment node
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  after: vi.fn(),
+  values: vi.fn(),
+}));
+
+vi.mock("next/server", () => ({ after: mocks.after }));
+vi.mock("@/db", () => ({ db: { insert: vi.fn(() => ({ values: mocks.values })) } }));
+
+import { ActivityEventType } from "@/data/types";
+import { ACTIVITY_WRITE_TIMEOUT_MS, recordActivity, setActivityClock } from "./activity";
+
+const INPUT = { type: ActivityEventType.SignIn, actor: { id: "user-1", username: "alice" } };
+const FIXED = new Date("2026-10-25T12:00:00.000Z");
+
+async function runScheduled() {
+  const callback = mocks.after.mock.calls[0][0] as () => Promise<void>;
+  await callback();
+}
+
+describe("recordActivity", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.after.mockImplementation(() => undefined);
+    mocks.values.mockResolvedValue(undefined);
+    setActivityClock(() => FIXED);
+  });
+  afterEach(() => {
+    setActivityClock();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("schedules the write after the response without writing synchronously", () => {
+    expect(recordActivity(INPUT)).toBeUndefined();
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+    expect(mocks.values).not.toHaveBeenCalled();
+  });
+
+  it("inserts the actor id, username snapshot and the clock's time", async () => {
+    recordActivity(INPUT);
+    await runScheduled();
+    expect(mocks.values).toHaveBeenCalledWith({
+      type: "sign_in",
+      startedAt: FIXED,
+      endedAt: FIXED,
+      actorId: "user-1",
+      actorUsername: "alice",
+      targetId: null,
+      targetUsername: null,
+      tripId: null,
+    });
+  });
+
+  it("records optional target and trip", async () => {
+    recordActivity({ ...INPUT, target: { id: "user-2", username: "bob" }, tripId: "trip-1" });
+    await runScheduled();
+    expect(mocks.values).toHaveBeenCalledWith(
+      expect.objectContaining({ targetId: "user-2", targetUsername: "bob", tripId: "trip-1" })
+    );
+  });
+
+  it("uses the real clock by default", async () => {
+    setActivityClock();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2030-01-01T00:00:00.000Z"));
+    recordActivity(INPUT);
+    await runScheduled();
+    expect(mocks.values).toHaveBeenCalledWith(
+      expect.objectContaining({ endedAt: new Date("2030-01-01T00:00:00.000Z") })
+    );
+  });
+
+  it("swallows a scheduling failure and logs without secrets", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.after.mockImplementation(() => {
+      throw new Error("outside request scope SECRET-MARKER");
+    });
+    expect(() => recordActivity(INPUT)).not.toThrow();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET-MARKER");
+  });
+
+  it("swallows an insert rejection and logs without secrets", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.values.mockRejectedValue(new Error("duplicate key value (alice) SECRET-MARKER"));
+    recordActivity(INPUT);
+    await expect(runScheduled()).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET-MARKER");
+  });
+
+  it("gives up on a hung insert after the timeout, without retrying", async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.values.mockReturnValue(new Promise(() => undefined));
+    recordActivity(INPUT);
+    const pending = runScheduled();
+    await vi.advanceTimersByTimeAsync(ACTIVITY_WRITE_TIMEOUT_MS + 1);
+    await expect(pending).resolves.toBeUndefined();
+    expect(mocks.values).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs a non-Error rejection generically", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.values.mockRejectedValue("boom");
+    recordActivity(INPUT);
+    await runScheduled();
+    expect(log).toHaveBeenCalledTimes(1);
+  });
+});

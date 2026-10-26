@@ -106,7 +106,8 @@ Then("I see the Users-only instance management shell", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Users", exact: true })).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "Instance sections" });
   await expect(navigation.getByRole("link", { name: "Users" })).toHaveAttribute("aria-current", "page");
-  await expect(navigation.getByRole("link")).toHaveCount(1);
+  await expect(navigation.getByRole("link")).toHaveCount(2);
+  await expect(navigation.getByRole("link", { name: "Activity" })).not.toHaveAttribute("aria-current", "page");
 });
 
 When("I follow Users in the existing instance navigation", async ({ page }) => {
