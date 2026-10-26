@@ -10,6 +10,7 @@ const {
   eventsTable,
   getStorageAdapter,
   publishTripEvent,
+  recordTripUpdated,
   requireUser,
   revalidatePath,
 } = vi.hoisted(() => ({
@@ -24,6 +25,7 @@ const {
   eventsTable: { id: "events.id", tripId: "events.tripId" },
   getStorageAdapter: vi.fn(),
   publishTripEvent: vi.fn(),
+  recordTripUpdated: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -49,6 +51,8 @@ vi.mock("@/lib/storage/storage-adapter", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath,
 }));
+
+vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
 vi.mock("@/lib/trip-events", () => ({
   publishTripEvent,
@@ -86,6 +90,7 @@ describe("uploadDocument", () => {
 
     expect(adapterPut).not.toHaveBeenCalled();
     expect(db.insert).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("uploads with a generated storage name and preserves the original filename in the DB row", async () => {
@@ -115,6 +120,7 @@ describe("uploadDocument", () => {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
     });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 });
 
@@ -146,6 +152,7 @@ describe("uploadDocumentToEvent", () => {
 
     expect(adapterPut).not.toHaveBeenCalled();
     expect(db.insert).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("uploads event documents with an event-scoped generated storage name", async () => {
@@ -177,6 +184,7 @@ describe("uploadDocumentToEvent", () => {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
     });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("throws when the owning event cannot be resolved", async () => {
@@ -192,5 +200,6 @@ describe("uploadDocumentToEvent", () => {
 
     expect(adapterPut).not.toHaveBeenCalled();
     expect(assertTripAccess).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });

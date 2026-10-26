@@ -8,6 +8,7 @@ const {
   db,
   getStorageAdapter,
   publishTripEvent,
+  recordTripUpdated,
   requireUser,
   revalidatePath,
   tripsTable,
@@ -21,6 +22,7 @@ const {
   },
   getStorageAdapter: vi.fn(),
   publishTripEvent: vi.fn(),
+  recordTripUpdated: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
   tripsTable: { coverImageUrl: "trips.coverImageUrl", id: "trips.id" },
@@ -46,6 +48,8 @@ vi.mock("@/lib/storage/storage-adapter", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath,
 }));
+
+vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
 vi.mock("@/lib/trip-events", () => ({
   publishTripEvent,
@@ -93,6 +97,7 @@ describe("uploadCoverImage", () => {
 
     expect(adapterPut).not.toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("uses a generated storage name", async () => {
@@ -109,6 +114,7 @@ describe("uploadCoverImage", () => {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
     });
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("rolls back the uploaded file when the trip update fails", async () => {
@@ -127,6 +133,7 @@ describe("uploadCoverImage", () => {
     await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow("db failed");
 
     expect(adapterDel).toHaveBeenCalledWith("https://blob.vercel.dev/new-cover.png");
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("deletes the previous cover unconditionally, including legacy blob URLs", async () => {

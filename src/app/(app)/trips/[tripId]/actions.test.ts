@@ -1196,6 +1196,15 @@ describe("setTripCoverWithAttribution", () => {
       tripId: "trip-1",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when access is denied", async () => {
+    mockAssertTripAccess.mockRejectedValueOnce(new Error("denied"));
+
+    await expect(setTripCoverWithAttribution("trip-1", "graphic:x")).rejects.toThrow("denied");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("clears attribution when photographer fields are null", async () => {
@@ -1252,6 +1261,7 @@ describe("removeTripCover", () => {
       tripId: "trip-1",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("throws when the trip no longer exists", async () => {
@@ -1267,6 +1277,7 @@ describe("removeTripCover", () => {
 
     expect(mockDbUpdate).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
 
@@ -1532,6 +1543,15 @@ describe("removeDocument", () => {
       tripId: "trip-1",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when the document is already gone", async () => {
+    mockDbSelect.mockReturnValue({ from: vi.fn(() => ({ where: vi.fn(async () => []) })) });
+
+    await expect(removeDocument("doc-1")).resolves.toBeUndefined();
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
 
@@ -1745,14 +1765,10 @@ describe("publishItineraryChanged regression coverage", () => {
     },
   ];
 
-  it.each(cases)("publishes ItineraryChanged for $name", async ({ name, tripId, run }) => {
+  it.each(cases)("publishes ItineraryChanged for $name", async ({ tripId, run }) => {
     await run();
 
-    if (["addDocument", "renameDocument", "attachTripDocToEvent", "promoteEventDocToTrip"].includes(name)) {
-      expect(recordTripUpdated).not.toHaveBeenCalled();
-    } else {
-      expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", tripId);
-    }
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", tripId);
     expect(mockPublishTripEvent).toHaveBeenCalledWith(tripId, {
       type: LiveSyncEventType.ItineraryChanged,
       tripId,

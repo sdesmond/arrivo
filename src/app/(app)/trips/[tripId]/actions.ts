@@ -517,6 +517,7 @@ export async function setTripCoverWithAttribution(
       coverPhotographerUrl: coverPhotographerUrl ?? null,
     })
     .where(eq(trips.id, tripId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -541,6 +542,7 @@ export async function removeTripCover(tripId: string): Promise<void> {
       .where(eq(trips.id, tripId));
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -562,6 +564,7 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
     size: input.size,
     url: input.url,
   });
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -835,6 +838,7 @@ export async function removeDocument(docId: string): Promise<void> {
       .catch((error) => console.warn(`Cleanup failed for ${doc.url}`, error));
   }
   await db.delete(documents).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -847,6 +851,7 @@ export async function renameDocument(docId: string, newName: string): Promise<vo
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -856,6 +861,7 @@ export async function attachTripDocToEvent(docId: string, eventId: string): Prom
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ eventId }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -868,6 +874,7 @@ export async function promoteEventDocToTrip(docId: string): Promise<void> {
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ eventId: null }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
