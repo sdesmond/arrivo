@@ -3,7 +3,7 @@ title: "Last-admin guard on self-service deletion"
 type: "feature"
 ticket: "5"
 created: "2026-10-25"
-status: "built"
+status: done
 baseline_revision: "f02fc155e0c0e3cc5d7280c050e2477f80d9ff82"
 route: "full"
 route_source: "auto"

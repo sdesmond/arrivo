@@ -3,7 +3,7 @@ title: "Users list and role-change UI"
 type: "feature"
 ticket: "4"
 created: "2026-10-25"
-status: "built"
+status: done
 baseline_revision: "0cf382ad662fc047573f856a933963c026c9a8ed"
 route: "full"
 route_source: "auto"
