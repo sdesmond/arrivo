@@ -16,6 +16,9 @@ const EVENT_LABELS: Record<ActivityEventType, { type: string; action: string }> 
   [ActivityEventType.AccountDeleted]: { type: "Accounts", action: "Deleted own account" },
   [ActivityEventType.TripCreated]: { type: "Trips", action: "Created trip" },
   [ActivityEventType.TripUpdated]: { type: "Trips", action: "Updated trip" },
+  [ActivityEventType.InvitationCreated]: { type: "Trips", action: "Created invitation" },
+  [ActivityEventType.InvitationAccepted]: { type: "Trips", action: "Accepted invitation" },
+  [ActivityEventType.InvitationRescinded]: { type: "Trips", action: "Rescinded invitation" },
 };
 
 const COLUMNS = ["Username", "Type", "Action", "Affected account", "Time", "Trip ID"];

@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { and, eq, gte, isNull, type SQL } from "drizzle-orm";
-import { activityEvents, users } from "../../../src/db/schema";
+import { activityEvents, invitations, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 import type { ScenarioUserRecord } from "../scenario-fixture";
@@ -446,4 +446,111 @@ Then("Activity shows no expense amount or reservation provider", async ({ page }
   const table = page.getByRole("table", { name: "Recent instance activity" });
   await expect(table).not.toContainText(PRIVATE_EXPENSE_AMOUNT);
   await expect(table).not.toContainText(PRIVATE_RESERVATION_PROVIDER);
+});
+
+// Invitations reuse trip-sharing's scenario-owned invitable account and real UI form.
+When("the Activity invitee accepts their real invitation", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>("invitableUser")!;
+  const trip = scenario.currentTrip!;
+  const session = await scenario.openSecondSession(page);
+  try {
+    await scenario.signInAsUser(session.page, invitee.username);
+    const response = waitForServerActionResponse(session.page, { pathIncludes: "/trips", timeoutMs: 15_000 });
+    await session.page.getByTitle(`Accept invitation to ${trip.name}`).click();
+    await response;
+    await expect(session.page).toHaveURL(`/trips/${trip.id}`);
+  } finally {
+    await session.context.close();
+  }
+});
+
+When("I rescind the Activity invitation", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>("invitableUser")!;
+  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  await page.getByTitle(`Rescind invitation to @${invitee.username}`).click();
+  await response;
+  await expect(page.getByText("Invitation rescinded.", { exact: true })).toBeVisible();
+});
+
+When("I resend the Activity invitation using both controls", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>("invitableUser")!;
+  for (const control of ["resend", "invite"] as const) {
+    if (control === "invite") await page.getByLabel("Invite username").fill(invitee.username);
+    const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+    await page
+      .getByTitle(control === "resend" ? `Resend invitation to @${invitee.username}` : "Invite this person to the trip")
+      .click();
+    await response;
+  }
+});
+
+When("I try an Activity invitation for a missing account", async ({ page, scenario }) => {
+  await page.getByLabel("Invite username").fill(scenario.uniqueUsername("missing"));
+  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  await page.getByTitle("Invite this person to the trip").click();
+  await response;
+  await expect(page.getByText("No account found for this username.", { exact: true })).toBeVisible();
+});
+
+Then(
+  "Activity lists one {string} transition without invitation metadata",
+  async ({ page, scenario }, action: string) => {
+    const trip = scenario.currentTrip!;
+    const manager = await scenario.ensureCurrentUser();
+    const invitee = scenario.getValue<ScenarioUserRecord>("invitableUser")!;
+    const types: Record<string, string> = {
+      "Created invitation": "invitation_created",
+      "Accepted invitation": "invitation_accepted",
+      "Rescinded invitation": "invitation_rescinded",
+    };
+    const actor = action === "Accepted invitation" ? invitee : manager;
+    const condition = and(eq(activityEvents.tripId, trip.id), eq(activityEvents.type, types[action]));
+    await expect.poll(async () => (await activityRows(condition)).length).toBe(1);
+    const [event] = await activityRows(condition);
+    // Full equality guards the persisted shape; only the accepting actor may identify the invitee.
+    expect(event).toEqual({
+      id: expect.any(String),
+      type: types[action],
+      startedAt: expect.any(Date),
+      endedAt: expect.any(Date),
+      actorId: actor.id,
+      actorUsername: actor.username,
+      targetId: null,
+      targetUsername: null,
+      tripId: trip.id,
+    });
+    const [invitation] = await withE2EDb((database) =>
+      database
+        .select()
+        .from(invitations)
+        .where(and(eq(invitations.tripId, trip.id), eq(invitations.inviteeId, invitee.id)))
+    );
+    expect(JSON.stringify(event)).not.toContain(invitation.id);
+    expect(JSON.stringify(event)).not.toContain(trip.name);
+    expect(JSON.stringify(event)).not.toContain('"editor"');
+    if (actor.id !== invitee.id) {
+      expect(JSON.stringify(event)).not.toContain(invitee.id);
+      expect(JSON.stringify(event)).not.toContain(invitee.username);
+    }
+    await expectActivityRow(page, [action, actor.username, trip.id]);
+    const table = page.getByRole("table", { name: "Recent instance activity" });
+    const row = table.getByRole("row").filter({ hasText: action }).filter({ hasText: trip.id });
+    await expect(row.getByRole("cell").nth(3)).toHaveText("—");
+    for (const privateValue of [trip.name, invitation.id, invitee.name, "Editor"]) {
+      await expect(row).not.toContainText(privateValue);
+    }
+    if (actor.id !== invitee.id) await expect(row).not.toContainText(invitee.username);
+  }
+);
+
+Then("Activity has no other invitation transitions for that trip", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const rows = (await activityRows(eq(activityEvents.tripId, trip.id))).filter((event) =>
+    event.type.startsWith("invitation_")
+  );
+  expect(rows).toHaveLength(1);
+  expect(rows[0].type).toBe("invitation_created");
+  const table = page.getByRole("table", { name: "Recent instance activity" });
+  await expect(table.getByRole("row").filter({ hasText: trip.id })).toHaveCount(1);
 });

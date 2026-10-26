@@ -108,6 +108,29 @@ describe("recordActivity", () => {
     expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ type: "password_changed", actorId: "user-1" }));
   });
 
+  it.each(["invitation_created", "invitation_accepted", "invitation_rescinded"] as const)(
+    "persists two %s transitions as distinct private rows even at the same time",
+    async (type) => {
+      const input = { type, actor: INPUT.actor, tripId: "trip-1" };
+      recordActivity(input);
+      recordActivity(input);
+      for (const [callback] of mocks.after.mock.calls) await (callback as () => Promise<void>)();
+      expect(mocks.merge).not.toHaveBeenCalled();
+      expect(mocks.values).toHaveBeenCalledTimes(2);
+      for (const [row] of mocks.values.mock.calls)
+        expect(row).toEqual({
+          type,
+          startedAt: FIXED,
+          endedAt: FIXED,
+          actorId: "user-1",
+          actorUsername: "alice",
+          targetId: null,
+          targetUsername: null,
+          tripId: "trip-1",
+        });
+    }
+  );
+
   it("uses the real clock by default", async () => {
     setActivityClock();
     vi.useFakeTimers();

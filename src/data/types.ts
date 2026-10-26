@@ -66,8 +66,15 @@ export const ActivityEventType = {
   TripCreated: "trip_created",
   /** Summary only: one row per burst of trip edits, merged by `src/lib/activity-batches.ts`. */
   TripUpdated: "trip_updated",
+  InvitationCreated: "invitation_created",
+  InvitationAccepted: "invitation_accepted",
+  InvitationRescinded: "invitation_rescinded",
 } as const;
 export type ActivityEventType = (typeof ActivityEventType)[keyof typeof ActivityEventType];
+export type InvitationActivityEventType =
+  | typeof ActivityEventType.InvitationCreated
+  | typeof ActivityEventType.InvitationAccepted
+  | typeof ActivityEventType.InvitationRescinded;
 
 /** Stable account ID plus the username at the time of the event; Activity has no foreign keys. */
 export interface ActivityIdentity {
