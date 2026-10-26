@@ -20,14 +20,14 @@ Folder: `_bmad-output/initiative-self-hosted-administration/epic-instance-founda
 | 1.4 | Users list and role-change UI | built / review | `0cf382a..f02fc15` (2, 15) |
 | 1.5 | Last-admin guard on self-service deletion | built / review | `f02fc15..1ab1dee` (13, 21) |
 | 1.6 | Refactor sweep | built / review | `1ab1dee..c2383aa` (2, 6) |
-| 1.7 | Bootstrap and role E2E suite | built / review | `c2383aa..HEAD` (2, 5), inferred end |
+| 1.7 | Bootstrap and role E2E suite | done / done (after retro) | `c2383aa..HEAD` (2, 5), inferred end |
 
-Tickets still at `built` (finished by the build, not called done): 1.2, 1.3, 1.4, 1.5, 1.6, 1.7. Closing them is `bmad-ticket`'s.
+Tickets at `built` when the retro ran (finished by the build, not called done): 1.2, 1.3, 1.4, 1.5, 1.6, 1.7. All six were marked done afterwards through `bmad-ticket`.
 
 Range notes:
 - Ranges come from each plan's `baseline_revision`, ordered oldest first; 1.7's end is `HEAD`, inferred. Every range was measured by `git_evidence.py` (`merges_measured` equals `merge_count` except 1.5: 3 of 6).
 - The 1.5 range includes work that is not 1.5: PRs #331 (`fix/seed-admin`) and #332 (`fix/pr-review-ancestor-test-pairing`), plus a merge of the integration branch. Their files (`scripts/pr-review/checks.test.mjs`, seed files) must not be read as 1.5 churn.
-- 1.7 (`c93372f`, `1832a3a`) exists only on `ticket/bootstrap-and-role-e2e-suite` and `origin/ticket/bootstrap-and-role-e2e-suite`; it is not in `feat/self-hosted-administration` (`git branch -a --contains c93372f`).
+- 1.7 (`c93372f`, `1832a3a`) is merged: PR #335 is in `origin/feat/self-hosted-administration` (`git branch -r --contains c93372f`). The retro first read it as unmerged from a stale local ref before fetching; corrected.
 
 Evidence inventory:
 - Available: epic file, seven plans with triage logs and verification, `deferred-work.md`, `git_evidence.py` JSON per range, architecture (AD-2), source and tests at HEAD.
@@ -68,8 +68,8 @@ Read `account-lifecycle-locks.ts`, `account-role-changes.ts`, `account-deletion.
 ### Process observations (from plans and git; no session logs)
 
 - **F7. Every plan's review is lens `quick` only, pinned (`review_source: pinned`), including the three `risk: high` tickets (1.1, 1.3, 1.5).** Ticket 1.5's triage log is one line: quick lens "run inline by the session (no subagent spawned)", 0 findings, and it shipped the epic's highest-risk guard. 1.1 and 1.3 produced real findings under `quick`, so the lens does catch things, but nothing records a second reader on the locking code. Disposition: process lesson (A2).
-- **F8. Ticket 1.7's Verification lists only a command with no recorded results**, unlike 1.2, 1.4 and 1.6. Source: `story-bootstrap-and-role-e2e-suite-plan.md` Verification. No evidence found that the final validator gate ran for 1.7; the branch is unmerged. Disposition: confirm before merge (A6).
-- **F9. Tickets 1.2-1.7 are merged (1.2-1.6) but still `built`/`review`.** Source: `tickets.py status`; PRs #328-#334 in `git log`. Only 1.1 was marked done. Disposition: close via `bmad-ticket` after confirmation (A6).
+- **F8. Ticket 1.7's Verification lists only a command with no recorded results**, unlike 1.2, 1.4 and 1.6. Source: `story-bootstrap-and-role-e2e-suite-plan.md` Verification. No evidence found that the final validator gate ran for 1.7, and it merged in PR #335. Disposition: accept; the user marked 1.7 done anyway.
+- **F9. Tickets 1.2-1.7 are merged but were still `built`/`review`.** Source: `tickets.py status`; PRs #328-#335 in `git log`. Only 1.1 was marked done. Disposition: fixed; all marked done after the retro.
 - Wins: a real-Postgres isolated-schema test pattern for the concurrency invariants (`account-role-changes.test.ts`, `account-deletion.test.ts`, `account-lifecycle-locks.test.ts`, per-fixture `application_name` to scope blocked-backend detection); the account-menu rollback was found by reproduction and fixed at the cause (GET instead of server action); the epic notes' decisions (lock helper reuse, `password_hash IS NULL` as unfinished) were followed.
 
 ## Behavior verification
@@ -90,7 +90,7 @@ Proposed, not applied.
 - A3. Reconcile AD-2: say `ALLOW_SIGNUP` no longer exists. Owner: architecture owner; spec reconciliation awaiting human application. Closes F2.
 - A4. Decide whether `deleteOwnAccount` should return typed refusals and map `40P01`/`40001` like `changeUserRole`; epic-recovery-and-deletion reuses the lock helper and will need one contract. Owner: epic-recovery-and-deletion planner. Closes F4.
 - A5. When epic-recovery-and-deletion adds the third `assertAnotherCompletedAdmin` caller, either enforce the lock precondition or test it. Owner: that epic. Closes F6.
-- A6. Create the `arrivo_e2e` database (`createdb arrivo_e2e`, `npm run db:migrate:e2e`), run `build-validator` on the 1.7 branch, merge PR into `feat/self-hosted-administration`, then close tickets 1.2-1.7 through `bmad-ticket`. Owner: user. Closes F8, F9.
+- A6. Create the `arrivo_e2e` database (`createdb arrivo_e2e`, `npm run db:migrate:e2e`) and run `npm run test:e2e:affected` once to observe the epic's E2E features. Tickets 1.2-1.7 are already marked done. Owner: user. Closes F8.
 
 ## Decision records
 
@@ -113,11 +113,11 @@ Uncommitted: committing them is the user's concern.
 
 1. CAP-1 success, including concurrent first signups: **met.** `instance-bootstrap.test.ts:83` ("creates exactly one admin when two first signups race") ran and passed here. The legacy multi-account halt and sole-account promotion are upgrade paths, dropped from scope (user, 2026-10-25); they are not judged.
 2. CAP-4 under concurrent demotion and deletion, including self-service deletion: **met.** `account-role-changes.test.ts`, `account-lifecycle-locks.test.ts`, `account-deletion.test.ts` passed here; 1.3 and 1.5 plans record isolated-schema concurrency runs. The admin-deletion half is explicitly handed to epic-recovery-and-deletion.
-3. Account menu shows Manage instance only to current admins on desktop and mobile; routes recheck authority: **met on recorded evidence**, not re-observed here. `requireAdmin` in `admin/layout.tsx`, `admin/page.tsx`, `admin/users/page.tsx`, `admin/users/actions.ts`; demotion scenarios in plan 1.2; mobile scenarios in 1.7 (unmerged).
-4. Migration applies on dev and E2E databases; E2E covers bootstrap and role flows: **mostly met.** `drizzle/0004_instance_state_roles.sql` is applied by every E2E run per plan 1.1 and later plans; E2E coverage exists for all four features. Not re-observed here (no E2E database), and the mobile coverage for 1.7 is not yet merged.
+3. Account menu shows Manage instance only to current admins on desktop and mobile; routes recheck authority: **met on recorded evidence**, not re-observed here. `requireAdmin` in `admin/layout.tsx`, `admin/page.tsx`, `admin/users/page.tsx`, `admin/users/actions.ts`; demotion scenarios in plan 1.2; mobile scenarios in 1.7 (merged, PR #335).
+4. Migration applies on dev and E2E databases; E2E covers bootstrap and role flows: **mostly met.** `drizzle/0004_instance_state_roles.sql` is applied by every E2E run per plan 1.1 and later plans; E2E coverage exists for all four features. Not re-observed here (no E2E database).
 
-No blocking finding. Open items: A2-A6, chiefly the 1.7 merge and validator confirmation (A6). Tickets 1.2-1.6 have since been marked done; 1.7 remains `built`. No unfinished tickets, so the machine verdict is not forced to rejected.
+No blocking finding. Open items: A2-A6, chiefly observing the E2E features once (A6). Tickets 1.2-1.7 have since been marked done. No unfinished tickets, so the machine verdict is not forced to rejected.
 
 ## Open questions
 
-- Should 1.7 merge before the retro verdict is treated as final? Criterion 3's mobile coverage depends on it.
+- None open.

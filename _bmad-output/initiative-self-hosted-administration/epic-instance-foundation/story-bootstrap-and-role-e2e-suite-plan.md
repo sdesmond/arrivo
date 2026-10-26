@@ -3,7 +3,7 @@ title: "Bootstrap and role E2E suite"
 type: "feature"
 ticket: "7"
 created: "2026-10-25"
-status: "built"
+status: done
 baseline_revision: "c2383aab070b4cc8a974f7572317a79da85271b6"
 route: "oneshot"
 route_source: "auto"
