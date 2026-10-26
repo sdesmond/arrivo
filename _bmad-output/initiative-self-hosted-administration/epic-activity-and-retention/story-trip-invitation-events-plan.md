@@ -3,20 +3,20 @@ title: "Trip invitation events"
 type: "feature"
 ticket: "6"
 created: "2026-10-26"
-status: "in-progress"
+status: "built"
 baseline_revision: "31bff0fee8108a4c124df1da72a8eb3cb6bbd4dd"
 route: "full"
 route_source: "auto"
 risk: "medium"
 review: "quick"
 review_source: "pinned"
-lenses_ran: []
+lenses_ran: [quick]
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - "{project-root}/AGENTS.md"
   - "{project-root}/_bmad-output/initiative-self-hosted-administration/epic-activity-and-retention/activity-producer-inventory.md"
-warnings: []
+warnings: [oversized]
 deferred: []
 ---
 
@@ -60,11 +60,11 @@ deferred: []
 
 **Execution:**
 
-- [ ] `src/app/(app)/trips/actions.test.ts`, `src/lib/trip-activity.test.ts`, `src/lib/activity.test.ts`, `src/components/arrivo/instance-activity.test.tsx`: expand tests first. Cover matrix, exact safe payloads, post-commit emission, helper failure isolation, distinct unbatched persistence and UI labels. Reuse current tests for excluded actions and refusal branches with explicit no-emission assertions.
-- [ ] `src/data/types.ts`, `src/lib/trip-activity.ts`, `src/app/(app)/trips/actions.ts`: add types, safe reusable recorder and three mutation-owner calls. Keep existing trip recorder behavior and tests intact.
-- [ ] `src/components/arrivo/instance-activity.tsx`: add human-readable labels without changing layout/accessibility.
-- [ ] `tests/e2e/features/instance-activity.feature`, `tests/e2e/steps/instance-activity.steps.ts`, `tests/e2e/feature-map.mjs`: add real creation/acceptance/rescind UI scenarios observed in Activity. Prove individual rows and private metadata omission in DB and rendered content. Extend fixture helpers only if necessary; no shared global seed rows.
-- [ ] `activity-producer-inventory.md` beside this plan: record 2.6 owners and explicitly excluded actions.
+- [x] `src/app/(app)/trips/actions.test.ts`, `src/lib/trip-activity.test.ts`, `src/lib/activity.test.ts`, `src/components/arrivo/instance-activity.test.tsx`: expand tests first. Cover matrix, exact safe payloads, post-commit emission, helper failure isolation, distinct unbatched persistence and UI labels. Reuse current tests for excluded actions and refusal branches with explicit no-emission assertions.
+- [x] `src/data/types.ts`, `src/lib/trip-activity.ts`, `src/app/(app)/trips/actions.ts`: add types, safe reusable recorder and three mutation-owner calls. Keep existing trip recorder behavior and tests intact.
+- [x] `src/components/arrivo/instance-activity.tsx`: add human-readable labels without changing layout/accessibility.
+- [x] `tests/e2e/features/instance-activity.feature`, `tests/e2e/steps/instance-activity.steps.ts`, `tests/e2e/feature-map.mjs`: add real creation/acceptance/rescind UI scenarios observed in Activity. Prove individual rows and private metadata omission in DB and rendered content. Extend fixture helpers only if necessary; no shared global seed rows.
+- [x] `activity-producer-inventory.md` beside this plan: record 2.6 owners and explicitly excluded actions.
 
 **Acceptance Criteria:**
 
@@ -75,6 +75,8 @@ deferred: []
 
 ## Implementation Notes
 
+- Tests-first implementation completed; 250 targeted action/helper/persistence/component cases, 20 focused Activity E2E tests (including setup), and 8 feature-map contract tests passed. Existing helper failure/timeout cases now run for each invitation type. Commit-boundary and rollback tests prove no early or failed mutation emission. Three UI scenarios prove safe individual lifecycle rows, resend/refusal exclusion and second-session acceptance.
+- Matrix audit: all six rows covered by the successful runs above; action success/refusal/rollback cases, exclusions, parameterized bounded helper failures and individual persistence cases cover each outcome.
 - Plan-reviewer: scope, architecture, component, accessibility and test coverage PASS; zero blocking findings or warnings. Existing Activity component is below size limit; matching tests and UI-observed scenarios cover all touched behavior.
 - Full route: expected test and fixture work exceeds 100 changed lines across several files.
 - User authorized new branch; current `ticket/trip-invitation-events` branches from integration branch with prerequisite encoding repair committed. Do not ask again. No push authorized.
@@ -85,7 +87,23 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-26 — Review pass
+
+- verdicts: 0 findings — high 0, medium 0, low 0, false 0, maybe-false 0
+- findings: none; quick reviewer checked surrounding mutation owners, recorder, persistence, tests and invitation semantics. Existing expiry refusal applies to acceptance; rescinding an expired-but-pending invitation remains a successful transition under existing semantics.
+
 ## Verification
 
 - `npx vitest run "src/app/(app)/trips/actions.test.ts" src/lib/trip-activity.test.ts src/lib/activity.test.ts src/components/arrivo/instance-activity.test.tsx` — all targeted cases pass.
-- `npm run test:e2e:affected` — registered invitation lifecycle and existing affected features pass; never launch full test:e2e command.
+- `npm run test:e2e:affected -- --grep=@feat:instance-activity` — focused invitation lifecycle and existing Activity scenarios pass before the broad gate.
+- Parent final `build-validator` runs `npm run test:e2e:affected` after coding/review, covering all classified affected features; never launch full test:e2e command directly.
+
+## Auto Run Result
+
+- Summary: creation, acceptance and rescinding emit individual Activity events only after successful mutation. Payloads contain actor, action, time and trip ID; other invitation/contributor actions remain excluded.
+- Files changed: `src/data/types.ts` adds three event values and the invitation event union; `src/lib/trip-activity.ts` shares bounded actor lookup; `src/app/(app)/trips/actions.ts` instruments three owners; `src/components/arrivo/instance-activity.tsx` adds labels. Their four test files cover transitions, exclusions, commit boundaries, rollback, failure isolation, individual persistence and presentation.
+- E2E files: instance-activity feature/steps add creation/acceptance, rescind, resend/refusal and privacy checks; trip-sharing steps await mutation responses; feature-map registers invitation owners without narrowing the shared domain model. Producer inventory records completed scope.
+- Review: quick lens returned no findings. Patches applied: high 0, medium 0, low 0. Deferred: 0. Rejected: 0. Follow-up review recommended: false.
+- Verification: 250 targeted unit/component tests passed, 8 feature-map contract tests passed, 20 focused Activity E2E tests passed (including setup). Touched-file ESLint and diff checks passed.
+- Final build-validator: ESLint PASS; TypeScript PASS; coverage PASS (302 files, 4,880 tests; lines 96.98%, functions 96.85%, branches 91.85%); affected E2E PASS (335 tests, 7.1 minutes); production build PASS (17 static pages; bundle sizes not emitted). Shared domain types and feature map correctly select broad affected scope.
+- Residual risks: Activity remains best effort; shutdown loss and missing actor lookups can omit events under the existing contract. No migrations or operator update steps required.
