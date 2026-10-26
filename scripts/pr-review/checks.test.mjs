@@ -143,6 +143,20 @@ describe("findSecrets", () => {
     expect(findSecrets(files)).toEqual([]);
   });
 
+  it.each(['PasswordChanged: "password_changed",', 'TokenExpired: "token-expired",'])(
+    "allows a PascalCase constant member set to an identifier value: %s",
+    (line) => {
+      expect(secretsIn(line)).toEqual([]);
+    }
+  );
+
+  it.each(['password: "hunter_two_words",', 'Password: "Tr0ub4dor&3xyzQ9",', 'SecretKey: "abcd1234efgh",'])(
+    "still detects a constant-looking name with a credential-shaped value: %s",
+    (line) => {
+      expect(secretsIn(line)).toHaveLength(1);
+    }
+  );
+
   it.each(["same-origin", "include", "omit"])("allows the Fetch credentials mode %s", (mode) => {
     expect(secretsIn(`fetch("/api/me", { credentials: "${mode}" });`)).toEqual([]);
     expect(secretsIn(`fetch('/api/me', { 'credentials': '${mode}' });`)).toEqual([]);
