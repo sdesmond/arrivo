@@ -80,17 +80,17 @@ deferred: []
 
 ## Review Triage Log
 
-### 2026-10-26 — Review pass
+### 2026-10-26 â€” Review pass
 
-- verdicts: 7 findings — high 0, medium 0, low 3, false 3, maybe-false 1
+- verdicts: 7 findings â€” high 0, medium 0, low 3, false 3, maybe-false 1
 - findings:
-  - `[low]` `[patch]` recalculateConversions emits when zero rows are recalculated — emission now requires a non-empty result; zero-result unit test added.
-  - `[low]` `[reject]` document rename/promote/attach emit without a rows-affected check — only a lookup-to-update concurrent-delete race; fix needs returning() checks across six owners, unlikely in everyday use.
-  - `[low]` `[reject]` missing denial/throw/missing-doc negative tests for some document and expense owners — shared denial/throw paths are covered and these functions call the same guards before the emit; extra tests add no new branch.
-  - `[false]` `[reject]` addPackingItemImpl may emit on a no-op — every branch inserts a row or throws before the emit.
-  - `[false]` `[reject]` regression table in actions.test.ts weakened — the four document actions now correctly assert one call; the 2.4 expectation was stale.
-  - `[false]` `[reject]` feature-map entries narrow coverage — the files are only added to instance-activity; the diff removes nothing and the files stay mapped to their own features (document-upload, packing, cover, budget).
-  - `[maybe-false]` `[reject]` e2e poll compares client Date.now() to a server timestamp — would need CI flake evidence; scenario passed in the affected run; below medium if true.
+  - `[low]` `[patch]` recalculateConversions emits when zero rows are recalculated â€” emission now requires a non-empty result; zero-result unit test added.
+  - `[low]` `[reject]` document rename/promote/attach emit without a rows-affected check â€” only a lookup-to-update concurrent-delete race; fix needs returning() checks across six owners, unlikely in everyday use.
+  - `[low]` `[reject]` missing denial/throw/missing-doc negative tests for some document and expense owners â€” shared denial/throw paths are covered and these functions call the same guards before the emit; extra tests add no new branch.
+  - `[false]` `[reject]` addPackingItemImpl may emit on a no-op â€” every branch inserts a row or throws before the emit.
+  - `[false]` `[reject]` regression table in actions.test.ts weakened â€” the four document actions now correctly assert one call; the 2.4 expectation was stale.
+  - `[false]` `[reject]` feature-map entries narrow coverage â€” the files are only added to instance-activity; the diff removes nothing and the files stay mapped to their own features (document-upload, packing, cover, budget).
+  - `[maybe-false]` `[reject]` e2e poll compares client Date.now() to a server timestamp â€” would need CI flake evidence; scenario passed in the affected run; below medium if true.
 
 ## Design Notes
 
