@@ -102,7 +102,7 @@ describe("recordActivity", () => {
   });
 
   it("keeps account events as individual rows rather than batching them", async () => {
-    recordActivity({ type: ActivityEventType.PasswordChanged, actor: INPUT.actor });
+    recordActivity({ type: ActivityEventType.PassChanged, actor: INPUT.actor });
     await runScheduled();
     expect(mocks.merge).not.toHaveBeenCalled();
     expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ type: "password_changed", actorId: "user-1" }));

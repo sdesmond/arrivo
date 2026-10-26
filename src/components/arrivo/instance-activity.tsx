@@ -12,7 +12,7 @@ const EVENT_LABELS: Record<ActivityEventType, { type: string; action: string }> 
   [ActivityEventType.AccountCreated]: { type: "Accounts", action: "Created first admin account" },
   [ActivityEventType.RoleChanged]: { type: "Accounts", action: "Changed role" },
   [ActivityEventType.UsernameChanged]: { type: "Accounts", action: "Changed username" },
-  [ActivityEventType.PasswordChanged]: { type: "Accounts", action: "Changed password" },
+  [ActivityEventType.PassChanged]: { type: "Accounts", action: "Changed password" },
   [ActivityEventType.AccountDeleted]: { type: "Accounts", action: "Deleted own account" },
   [ActivityEventType.TripUpdated]: { type: "Trips", action: "Updated trip" },
 };
