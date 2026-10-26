@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { db } from "@/db";
 import { activityEvents } from "@/db/schema";
 import type { ActivityEventInput } from "@/data/types";
+import { BATCHED_TYPES, mergeActivityInterval } from "./activity-batches";
 
 export const ACTIVITY_WRITE_TIMEOUT_MS = 5_000;
 
@@ -28,16 +29,18 @@ async function persist(input: ActivityEventInput, occurredAt: Date): Promise<voi
       timer = setTimeout(() => reject(new Error("Activity write timed out")), ACTIVITY_WRITE_TIMEOUT_MS);
     });
     const insert = Promise.resolve(
-      db.insert(activityEvents).values({
-        type: input.type,
-        startedAt: occurredAt,
-        endedAt: occurredAt,
-        actorId: input.actor.id,
-        actorUsername: input.actor.username,
-        targetId: input.target?.id ?? null,
-        targetUsername: input.target?.username ?? null,
-        tripId: input.tripId ?? null,
-      })
+      BATCHED_TYPES.has(input.type)
+        ? mergeActivityInterval(db, input, occurredAt)
+        : db.insert(activityEvents).values({
+            type: input.type,
+            startedAt: occurredAt,
+            endedAt: occurredAt,
+            actorId: input.actor.id,
+            actorUsername: input.actor.username,
+            targetId: input.target?.id ?? null,
+            targetUsername: input.target?.username ?? null,
+            tripId: input.tripId ?? null,
+          })
     );
     // A rejection after the timeout won, if any, must not become an unhandled rejection.
     insert.catch(() => undefined);
