@@ -52,7 +52,7 @@ import {
   publishInvitationChanged,
 } from "@/lib/invitations";
 import { isUniqueViolation } from "@/lib/error-utils";
-import { recordTripCreated, recordTripUpdated } from "@/lib/trip-activity";
+import { recordTripCreated, recordTripUpdated, recordTripInvitation } from "@/lib/trip-activity";
 import { normalizeUsername } from "@/lib/username";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
@@ -828,6 +828,7 @@ export async function inviteContributor(
     return { status: "invited" } as const;
   });
 
+  if (result.status === "invited") recordTripInvitation("invitation_created", user.id!, tripId);
   if (result.status !== "error") {
     // Invitee's personal channel refreshes their dashboard/badge; the trip channel lets another
     // manager's open share dialog pick up the new pending row.
@@ -923,6 +924,7 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
     return { status: "error", message };
   }
 
+  recordTripInvitation("invitation_accepted", userId, matchedInvitation.tripId);
   publishTripEvent(matchedInvitation.tripId, {
     type: LiveSyncEventType.MembershipChanged,
     tripId: matchedInvitation.tripId,
@@ -992,6 +994,7 @@ export async function rescindInvitation(tripId: string, invitationId: string): P
     return { status: "error", message };
   }
 
+  recordTripInvitation("invitation_rescinded", user.id!, tripId);
   publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
   publishInvitationChanged(rescindedInvitation.inviteeId, tripId);
   revalidatePath("/trips");

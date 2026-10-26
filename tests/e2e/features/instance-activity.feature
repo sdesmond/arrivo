@@ -144,3 +144,40 @@ Feature: Instance activity
     And I open the instance Activity page
     Then Activity lists one "Updated trip" row for that trip without its name
     And Activity shows no expense amount or reservation provider
+
+  Scenario: Invitation creation and acceptance remain separate private Activity rows
+    Given I am signed in as an instance "admin"
+    And a private itinerary exists for Activity
+    And there is a registered user I can invite
+    When I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then I receive an invitation sent toast
+    When the Activity invitee accepts their real invitation
+    And I open the instance Activity page
+    Then Activity lists one "Created invitation" transition without invitation metadata
+    And Activity lists one "Accepted invitation" transition without invitation metadata
+
+  Scenario: Rescinding a pending invitation records one private Activity row
+    Given I am signed in as an instance "admin"
+    And a private itinerary exists for Activity
+    And there is a registered user I can invite
+    When I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then I receive an invitation sent toast
+    When I rescind the Activity invitation
+    And I open the instance Activity page
+    Then Activity lists one "Created invitation" transition without invitation metadata
+    And Activity lists one "Rescinded invitation" transition without invitation metadata
+
+  Scenario: Resends and rejected invitation attempts add no lifecycle rows
+    Given I am signed in as an instance "admin"
+    And a private itinerary exists for Activity
+    And there is a registered user I can invite
+    When I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then I receive an invitation sent toast
+    When I resend the Activity invitation using both controls
+    And I try an Activity invitation for a missing account
+    And I open the instance Activity page
+    Then Activity lists one "Created invitation" transition without invitation metadata
+    And Activity has no other invitation transitions for that trip

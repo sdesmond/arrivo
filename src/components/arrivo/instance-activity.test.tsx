@@ -94,6 +94,9 @@ describe("InstanceActivity", () => {
 
   it.each([
     ["trip_created", "Trips", "Created trip"],
+    ["invitation_created", "Trips", "Created invitation"],
+    ["invitation_accepted", "Trips", "Accepted invitation"],
+    ["invitation_rescinded", "Trips", "Rescinded invitation"],
     ["sign_out", "Authentication", "Sign-out"],
     ["account_created", "Accounts", "Created first admin account"],
     ["username_changed", "Accounts", "Changed username"],

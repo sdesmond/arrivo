@@ -16,11 +16,12 @@ import {
 } from "@/db/schema";
 import { headers } from "next/headers";
 
-const { recordTripCreated, recordTripUpdated } = vi.hoisted(() => ({
+const { recordTripCreated, recordTripUpdated, recordTripInvitation } = vi.hoisted(() => ({
+  recordTripInvitation: vi.fn(),
   recordTripCreated: vi.fn(),
   recordTripUpdated: vi.fn(),
 }));
-vi.mock("@/lib/trip-activity", () => ({ recordTripCreated, recordTripUpdated }));
+vi.mock("@/lib/trip-activity", () => ({ recordTripCreated, recordTripUpdated, recordTripInvitation }));
 
 const {
   assertTripAccess,
@@ -305,6 +306,10 @@ function setupSaveContributorChangesDb({
 }
 
 describe("saveContributorChanges", () => {
+  afterEach(() => {
+    expect(recordTripInvitation).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "manager-1" });
@@ -1965,6 +1970,7 @@ describe("inviteContributor", () => {
 
     try {
       await expect(inviteContributor("trip-1", "  Invitee  ")).resolves.toEqual({ status: "invited" });
+      expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_created", "manager-1", "trip-1");
 
       expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
       expect(inspect(lookupConditions[0], { depth: 8 })).toContain("'invitee'");
@@ -2003,6 +2009,7 @@ describe("inviteContributor", () => {
       message: "No account found for this username",
       errorCode: "no-account",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(db.transaction).not.toHaveBeenCalled();
     expect(operations.inserts).toEqual([]);
@@ -2012,6 +2019,7 @@ describe("inviteContributor", () => {
     const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "pending" }] });
 
     await expect(inviteContributor("trip-1", "invitee", "editor")).resolves.toEqual({ status: "resent" });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(operations.inserts).toEqual([]);
     expect(operations.updates).toEqual([
@@ -2034,6 +2042,7 @@ describe("inviteContributor", () => {
     const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "declined" }] });
 
     await expect(inviteContributor("trip-1", "invitee", "editor")).resolves.toEqual({ status: "invited" });
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_created", "manager-1", "trip-1");
 
     expect(operations.deletes).toEqual([invitations]);
     expect(operations.inserts).toEqual([
@@ -2052,6 +2061,7 @@ describe("inviteContributor", () => {
       message: "This person is already a collaborator on this trip",
       errorCode: "already-collaborator",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(operations.inserts).toEqual([]);
     expect(operations.updates).toEqual([]);
@@ -2067,6 +2077,7 @@ describe("inviteContributor", () => {
       message: "You cannot invite yourself to this trip",
       errorCode: "self-invite",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(db.transaction).not.toHaveBeenCalled();
     expect(operations.inserts).toEqual([]);
@@ -2077,6 +2088,7 @@ describe("inviteContributor", () => {
     assertTripAccess.mockRejectedValue(new Error("not found"));
 
     await expect(inviteContributor("trip-1", "invitee")).rejects.toThrow("not found");
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(db.transaction).not.toHaveBeenCalled();
   });
@@ -2089,6 +2101,7 @@ describe("inviteContributor", () => {
       message: "Invalid collaborator role",
       errorCode: "invalid-role",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(operations.inserts).toEqual([]);
   });
@@ -2127,6 +2140,7 @@ describe("inviteContributor", () => {
       message: "This person was just invited by someone else. Try again.",
       errorCode: "invite-conflict",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
   });
 });
 
@@ -2216,6 +2230,7 @@ describe("acceptInvitation", () => {
     });
 
     await expect(acceptInvitation("invite-1")).resolves.toEqual({ status: "accepted", tripId: "trip-1" });
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_accepted", "user-1", "trip-1");
 
     expect(operations.inserts).toEqual([
       {
@@ -2266,6 +2281,7 @@ describe("acceptInvitation", () => {
     });
 
     await expect(acceptInvitation("invite-1")).resolves.toEqual({ status: "accepted", tripId: "trip-1" });
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_accepted", "user-1", "trip-1");
 
     expect(operations.inserts[0]?.values).toEqual(expect.objectContaining({ name: "invitee", initials: "IN" }));
   });
@@ -2284,6 +2300,7 @@ describe("acceptInvitation", () => {
       status: "error",
       message: "This invitation has expired.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
     expect(operations.inserts).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();
     expect(publishTripEvent).not.toHaveBeenCalled();
@@ -2304,6 +2321,7 @@ describe("acceptInvitation", () => {
       status: "error",
       message: "This invitation is no longer pending.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
   });
 
   it("returns a rescind-specific error when the manager rescinded it moments before the click landed", async () => {
@@ -2320,6 +2338,7 @@ describe("acceptInvitation", () => {
       status: "error",
       message: "This invitation was rescinded by the trip owner.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
     expect(operations.inserts).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -2338,6 +2357,7 @@ describe("acceptInvitation", () => {
       ],
     });
     await expect(acceptInvitation("invite-1")).resolves.toEqual({ status: "accepted", tripId: "trip-1" });
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_accepted", "user-1", "trip-1");
     expect(operations.inserts).toHaveLength(1);
 
     setupAcceptDeclineDb({
@@ -2352,6 +2372,7 @@ describe("acceptInvitation", () => {
       status: "error",
       message: "This invitation is no longer pending.",
     });
+    expect(recordTripInvitation).toHaveBeenCalledTimes(1);
     expect(operations.inserts).toHaveLength(1);
   });
 
@@ -2369,6 +2390,7 @@ describe("acceptInvitation", () => {
       status: "error",
       message: "This invitation is not addressed to your account.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
   });
 
   it("returns a not-found error when no invitation matches the given ID", async () => {
@@ -2378,10 +2400,15 @@ describe("acceptInvitation", () => {
       status: "error",
       message: "Invitation not found.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
   });
 });
 
 describe("declineInvitation", () => {
+  afterEach(() => {
+    expect(recordTripInvitation).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "user-1", name: "Invitee Person" });
@@ -2581,6 +2608,7 @@ describe("rescindInvitation", () => {
     });
 
     await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_rescinded", "manager-1", "trip-1");
 
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
     expect(operations.updates).toEqual([
@@ -2607,6 +2635,7 @@ describe("rescindInvitation", () => {
       status: "error",
       message: "Invitation is no longer pending.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     // The invitation's real status never reaches the atomic UPDATE's WHERE clause in this fixture —
     // it only drives which branch of `rescindInvitation` we're documenting via the test title (the
@@ -2628,6 +2657,7 @@ describe("rescindInvitation", () => {
       status: "error",
       message: "Invitation not found.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -2636,6 +2666,7 @@ describe("rescindInvitation", () => {
     assertTripAccess.mockRejectedValue(new Error("not found"));
 
     await expect(rescindInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(db.update).not.toHaveBeenCalled();
     expect(db.select).not.toHaveBeenCalled();
@@ -2648,12 +2679,17 @@ describe("rescindInvitation", () => {
       status: "error",
       message: "Invitation not found.",
     });
+    expect(recordTripInvitation).not.toHaveBeenCalled();
 
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 
 describe("dismissInvitation", () => {
+  afterEach(() => {
+    expect(recordTripInvitation).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "manager-1" });
@@ -2724,6 +2760,74 @@ describe("dismissInvitation", () => {
     expect(db.delete).not.toHaveBeenCalled();
     expect(db.select).not.toHaveBeenCalled();
   });
+});
+describe("invitation Activity commit boundaries", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "manager-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it.each(["create", "accept"] as const)("emits only after the %s transaction resolves", async (transition) => {
+    setupInviteContributorDb();
+    let commit!: (result: unknown) => void;
+    db.transaction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          commit = resolve;
+        })
+    );
+    const pending = transition === "create" ? inviteContributor("trip-1", "invitee") : acceptInvitation("invite-1");
+    await vi.waitFor(() => expect(db.transaction).toHaveBeenCalledOnce());
+    expect(recordTripInvitation).not.toHaveBeenCalled();
+    commit(transition === "create" ? { status: "invited" } : { tripId: "trip-1" });
+    await pending;
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith(
+      transition === "create" ? "invitation_created" : "invitation_accepted",
+      "manager-1",
+      "trip-1"
+    );
+  });
+
+  it("emits only after the rescind returning row resolves", async () => {
+    let commit!: (rows: unknown[]) => void;
+    db.update.mockReturnValue({
+      set: () => ({
+        where: () => ({
+          returning: () =>
+            new Promise((resolve) => {
+              commit = resolve;
+            }),
+        }),
+      }),
+    });
+    const pending = rescindInvitation("trip-1", "invite-1");
+    await vi.waitFor(() => expect(db.update).toHaveBeenCalledOnce());
+    expect(recordTripInvitation).not.toHaveBeenCalled();
+    commit([{ tripId: "trip-1", inviteeId: "invitee-1" }]);
+    await expect(pending).resolves.toEqual({ status: "success" });
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_rescinded", "manager-1", "trip-1");
+  });
+
+  it.each(["create", "accept", "rescind"] as const)(
+    "does not emit after a throwing %s mutation",
+    async (transition) => {
+      setupInviteContributorDb();
+      if (transition === "rescind")
+        db.update.mockImplementationOnce(() => {
+          throw new Error("rollback");
+        });
+      else db.transaction.mockRejectedValueOnce(new Error("rollback"));
+      const pending =
+        transition === "create"
+          ? inviteContributor("trip-1", "invitee")
+          : transition === "accept"
+            ? acceptInvitation("invite-1")
+            : rescindInvitation("trip-1", "invite-1");
+      await expect(pending).rejects.toThrow("rollback");
+      expect(recordTripInvitation).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe("createTrip", () => {

@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { ActivityEventType, type ActivityIdentity } from "@/data/types";
+import { ActivityEventType, type ActivityIdentity, type InvitationActivityEventType } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 
 export const TRIP_ACTIVITY_LOOKUP_TIMEOUT_MS = 5_000;
@@ -19,6 +19,19 @@ export function recordTripCreated(identity: ActivityIdentity, tripId: string): v
 
 /** Defer the bounded identity lookup until after the response, outside the mutation's transaction. */
 export function recordTripUpdated(userId: string, tripId: string): void {
+  recordWithActorLookup(ActivityEventType.TripUpdated, userId, tripId);
+}
+
+/** Individual invitation transitions use the same bounded, best-effort actor lookup. */
+export function recordTripInvitation(type: InvitationActivityEventType, userId: string, tripId: string): void {
+  recordWithActorLookup(type, userId, tripId);
+}
+
+function recordWithActorLookup(
+  type: typeof ActivityEventType.TripUpdated | InvitationActivityEventType,
+  userId: string,
+  tripId: string
+): void {
   try {
     after(async () => {
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -35,7 +48,7 @@ export function recordTripUpdated(userId: string, tripId: string): void {
         const [actor] = await Promise.race([lookup, timeout]);
         if (!actor) return;
         recordActivity({
-          type: ActivityEventType.TripUpdated,
+          type,
           actor: { id: userId, username: actor.username },
           tripId,
         });

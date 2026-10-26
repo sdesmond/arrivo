@@ -301,6 +301,8 @@ export const FEATURE_MAP = [
     "src/components/arrivo/mobile-upcoming-tab.tsx",
   ]),
   entry("trip-sharing", [
+    "src/app/(app)/trips/actions.ts",
+    "src/lib/trip-activity.ts",
     "src/components/arrivo/trip-share-dialog.tsx",
     "src/components/arrivo/trip-share-*.tsx",
     "src/components/arrivo/use-trip-share-dialog-controller.ts",

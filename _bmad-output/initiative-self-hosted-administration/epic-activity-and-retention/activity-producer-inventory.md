@@ -48,8 +48,11 @@ All emit `trip_updated` through `recordTripUpdated(user.id!, tripId)` after comm
 - Not instrumented: `saveTripListAsTemplate` (standalone template, not a trip edit), `deleteTrip`, `leaveTrip`.
 - Refusals, access denials, validation errors, thrown mutations and no-op paths emit nothing.
 
-## Remaining: story 2.6 (invitations)
+## Done (2.6, invitation events)
 
-- `inviteContributor`, `acceptInvitation`, `declineInvitation`, `rescindInvitation`, `dismissInvitation`, `saveContributorChanges` in `src/app/(app)/trips/actions.ts`.
-- `resendShareInvitation`, `rescindShareInvitation`, `dismissShareInvitation`, `saveContributorChanges` in `src/app/(app)/trips/[tripId]/actions.ts`.
-- `resendInvitation` / `applyInvitationResend` in `src/lib/invitations.ts`.
+- `invitation_created`: `inviteContributor` in `src/app/(app)/trips/actions.ts`, only after its transaction commits with `status: "invited"`, including replacement after decline.
+- `invitation_accepted`: `acceptInvitation` in that module, only after the matched pending invitation and membership transaction commits.
+- `invitation_rescinded`: `rescindInvitation` in that module, only after the conditional pending update returns a row.
+- All three use `recordTripInvitation` in `src/lib/trip-activity.ts`: synchronous scheduling, bounded post-response actor lookup, caught failures, actor and trip ID only. These are individual events, outside `BATCHED_TYPES`.
+- Excluded: pending-invitation resend branch in `inviteContributor`; `declineInvitation`, `dismissInvitation`, `saveContributorChanges`; `resendInvitation` / `applyInvitationResend` in `src/lib/invitations.ts`. Delegating invitation exports in `[tripId]/actions.ts` are not instrumented.
+- Missing, expired, wrong-account, nonpending, denied, refused, no-op and thrown/rolled-back mutations emit nothing. Events never include target identity, invitation ID, role, trip name, token or URL.
