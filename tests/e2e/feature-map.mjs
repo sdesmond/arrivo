@@ -79,6 +79,11 @@ export const FEATURE_MAP = [
     "src/lib/instance-bootstrap.ts",
     "tests/e2e/instance-state.ts",
   ]),
+  entry("activity-batching", [
+    "src/lib/activity-batches.ts",
+    "src/lib/activity.ts",
+    "tests/e2e/activity-batch-fixture.ts",
+  ]),
   entry("instance-role-service", [
     "src/lib/account-role-changes.ts",
     "src/lib/account-lifecycle-locks.ts",
