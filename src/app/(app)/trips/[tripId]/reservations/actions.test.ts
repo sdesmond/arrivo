@@ -1,30 +1,40 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { assertTripAccess, db, daysTable, documentsTable, requireUser, reservationsTable, revalidatePath, tripsTable } =
-  vi.hoisted(() => ({
-    assertTripAccess: vi.fn(),
-    db: {
-      execute: vi.fn(),
-      insert: vi.fn(),
-      select: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-      transaction: vi.fn(),
-    },
-    daysTable: {
-      id: "days.id",
-      tripId: "days.tripId",
-      dayNumber: "days.dayNumber",
-      date: "days.date",
-      label: "days.label",
-    },
-    documentsTable: { id: "documents.id", reservationId: "documents.reservationId", url: "documents.url" },
-    requireUser: vi.fn(),
-    reservationsTable: { id: "reservations.id", tripId: "reservations.tripId" },
-    revalidatePath: vi.fn(),
-    tripsTable: { id: "trips.id", startDate: "trips.startDate", endDate: "trips.endDate" },
-  }));
+const {
+  assertTripAccess,
+  db,
+  daysTable,
+  documentsTable,
+  recordTripUpdated,
+  requireUser,
+  reservationsTable,
+  revalidatePath,
+  tripsTable,
+} = vi.hoisted(() => ({
+  assertTripAccess: vi.fn(),
+  recordTripUpdated: vi.fn(),
+  db: {
+    execute: vi.fn(),
+    insert: vi.fn(),
+    select: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    transaction: vi.fn(),
+  },
+  daysTable: {
+    id: "days.id",
+    tripId: "days.tripId",
+    dayNumber: "days.dayNumber",
+    date: "days.date",
+    label: "days.label",
+  },
+  documentsTable: { id: "documents.id", reservationId: "documents.reservationId", url: "documents.url" },
+  requireUser: vi.fn(),
+  reservationsTable: { id: "reservations.id", tripId: "reservations.tripId" },
+  revalidatePath: vi.fn(),
+  tripsTable: { id: "trips.id", startDate: "trips.startDate", endDate: "trips.endDate" },
+}));
 
 vi.mock("@/lib/auth-helpers", () => ({
   assertTripAccess,
@@ -45,6 +55,8 @@ vi.mock("@/db/schema", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath,
 }));
+
+vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
 const { adapterDel, getStorageAdapter } = vi.hoisted(() => ({
   adapterDel: vi.fn(),
@@ -310,6 +322,7 @@ describe("createReservation", () => {
     });
 
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("omits startAt and endAt when not provided", async () => {
@@ -582,6 +595,7 @@ describe("createReservation", () => {
     expect(insertedDayValues).toEqual([]);
     expect(updatedTripValues).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
 
@@ -662,6 +676,7 @@ describe("updateReservation", () => {
 
     expect(assertTripAccess).not.toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("checks editor access on the reservation's trip before updating", async () => {
@@ -949,6 +964,13 @@ describe("updateReservation", () => {
     await updateReservation("res-1", { provider: "New Name" });
 
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when the update is rejected", async () => {
+    await expect(updateReservation("res-1", { provider: "  " })).rejects.toThrow("Provider is required.");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("extends trip date range when an updated startAt falls before the current range", async () => {
@@ -1089,6 +1111,7 @@ describe("deleteReservation", () => {
 
     expect(assertTripAccess).not.toHaveBeenCalled();
     expect(db.delete).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("checks editor access on the reservation's trip before deleting", async () => {
@@ -1111,6 +1134,7 @@ describe("deleteReservation", () => {
     await deleteReservation("res-1");
 
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 });
 

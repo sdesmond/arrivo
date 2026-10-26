@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => ({
+const { assertTripAccess, db, recordTripUpdated, requireUser, revalidatePath } = vi.hoisted(() => ({
   assertTripAccess: vi.fn(),
   db: {
     delete: vi.fn(),
@@ -11,6 +11,7 @@ const { assertTripAccess, db, requireUser, revalidatePath } = vi.hoisted(() => (
     transaction: vi.fn(),
     update: vi.fn(),
   },
+  recordTripUpdated: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -28,12 +29,20 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
+vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
+
 import {
   addPackingItem,
+  createPackingList,
+  deletePackingList,
   pullTemplatesOntoTrip,
-  reorderPackingItems,
+  removePackingItem,
   removePackingSection,
+  renamePackingList,
+  reorderPackingItems,
   saveTripListAsTemplate,
+  togglePackingItem,
+  updatePackingItem,
 } from "./packing-actions";
 
 function mockSimpleSelect(rows: unknown[]) {
@@ -171,6 +180,7 @@ describe("packing actions hardening", () => {
     );
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("rejects reorderPackingItems when an entry references an invalid labelId", async () => {
@@ -198,6 +208,7 @@ describe("packing actions hardening", () => {
     );
 
     expect(tx.update).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("sanitizes unexpected packing action failures", async () => {
@@ -218,6 +229,7 @@ describe("packing actions hardening", () => {
     await expect(addPackingItem("trip-1", { name: "Passport", labelId: "label-1" })).rejects.toThrow(
       "An unexpected error occurred. Please try again."
     );
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("moves section items to Ungrouped before deleting the section when requested", async () => {
@@ -250,6 +262,7 @@ describe("packing actions hardening", () => {
     expect(deleteWhere).toHaveBeenCalledTimes(1);
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("deletes section items along with the section when requested", async () => {
@@ -274,6 +287,7 @@ describe("packing actions hardening", () => {
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.delete).toHaveBeenCalledTimes(2);
     expect(deleteWhere).toHaveBeenCalledTimes(2);
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("rejects removePackingSection when locked row is not a section label", async () => {
@@ -329,6 +343,7 @@ describe("packing actions hardening", () => {
         name: "Passport",
       })
     );
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("returns the cached template result when the same idempotency key is reused within 24 hours", async () => {
@@ -587,6 +602,7 @@ describe("saveTripListAsTemplate behavior", () => {
 
     expect(readonlyTx.insert).toHaveBeenCalledTimes(2);
     expect(db.insert).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("trims whitespace from the template name before saving", async () => {
@@ -608,5 +624,209 @@ describe("saveTripListAsTemplate behavior", () => {
     await saveTripListAsTemplate("trip-1", "  Beach  ");
 
     expect(insertValues).toHaveBeenNthCalledWith(1, expect.objectContaining({ name: "Beach" }));
+  });
+});
+
+describe("packing activity events", () => {
+  function mockTransactionOnce<Tx>(tx: Tx): void {
+    db.transaction.mockImplementation(async (callback: (transaction: Tx) => Promise<unknown>) => callback(tx));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db.select.mockReset();
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("records once when a packing item is renamed", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
+    db.update.mockReturnValue({ set: () => ({ where: async () => undefined }) });
+
+    await updatePackingItem("item-1", { name: "Socks" });
+
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when renaming a missing packing item", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+
+    await expect(updatePackingItem("item-1", { name: "Socks" })).rejects.toThrow();
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records once when a packing item is toggled", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    mockTransactionOnce({
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ id: "item-1", done: false }])),
+      update: vi.fn(() => ({ set: () => ({ where: updateWhere }) })),
+    });
+
+    await togglePackingItem("item-1");
+
+    expect(updateWhere).toHaveBeenCalledOnce();
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when the toggled item is gone before the lock", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
+    mockTransactionOnce({
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([])),
+      update: vi.fn(),
+    });
+
+    await togglePackingItem("item-1");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when toggling a missing item", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+
+    await togglePackingItem("item-1");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records once when a packing item is removed", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "item-1", tripId: "trip-1" }]));
+    db.delete.mockReturnValue({ where: async () => undefined });
+
+    await removePackingItem("item-1");
+
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when removing a missing item", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+
+    await removePackingItem("item-1");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when the section is gone before the lock", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
+    mockTransactionOnce({
+      delete: vi.fn(),
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([])),
+      update: vi.fn(),
+    });
+
+    await removePackingSection("label-1", { mode: "delete-items" });
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when the section does not exist", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+
+    await removePackingSection("label-1", { mode: "delete-items" });
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records once after a non-empty reorder", async () => {
+    mockTransactionOnce({
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ listId: null }])),
+      update: vi.fn(() => ({ set: () => ({ where: async () => undefined }) })),
+    });
+
+    await reorderPackingItems("trip-1", [{ id: "item-1", labelId: null, position: 0 }]);
+
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing for an empty reorder", async () => {
+    await reorderPackingItems("trip-1", []);
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when a template pull adds zero items", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "tmpl-1" }]));
+    mockTransactionOnce({
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([{ name: "Passport", id: "item-1", isLabel: false }]))
+        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: 0 }]))
+        .mockReturnValueOnce(
+          mockOrderedSelect([{ id: "tmpl-item-1", text: "Passport", isLabel: false, position: 0, labelId: null }])
+        ),
+      insert: vi.fn(),
+    });
+
+    await expect(pullTemplatesOntoTrip("trip-1", ["tmpl-1"])).resolves.toEqual({ added: 0, skipped: 1 });
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when no templates are requested", async () => {
+    await expect(pullTemplatesOntoTrip("trip-1", [])).resolves.toEqual({ added: 0, skipped: 0 });
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records once when a packing list is created", async () => {
+    mockTransactionOnce({
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ maxPos: 0 }])),
+      insert: vi.fn(() => ({ values: () => ({ returning: async () => [{ id: "list-1" }] }) })),
+    });
+
+    await expect(createPackingList("trip-1", "Carry-on")).resolves.toBe("list-1");
+
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when list creation fails validation", async () => {
+    await expect(createPackingList("trip-1", "  ")).rejects.toThrow("List name is required");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records once when a packing list is renamed", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
+    db.update.mockReturnValue({ set: () => ({ where: async () => undefined }) });
+
+    await renamePackingList("list-1", "Checked bag");
+
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when renaming a missing list", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+
+    await expect(renamePackingList("list-1", "Checked bag")).rejects.toThrow("Packing list not found");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("records once when a packing list is deleted", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
+    mockTransactionOnce({
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      delete: vi.fn(() => ({ where: async () => undefined })),
+    });
+
+    await deletePackingList("list-1");
+
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when deleting a missing list", async () => {
+    db.select.mockReturnValueOnce(mockSimpleSelect([]));
+
+    await deletePackingList("list-1");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });

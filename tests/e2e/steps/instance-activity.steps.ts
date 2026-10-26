@@ -396,3 +396,54 @@ Then("Activity lists one {string} row for that trip without its name", async ({ 
   await expect(table).not.toContainText("Private first itinerary detail");
   await expect(table).not.toContainText("Private second itinerary detail");
 });
+
+const PRIVATE_EXPENSE_AMOUNT = "123.45";
+const PRIVATE_RESERVATION_PROVIDER = "Private Activity Air";
+
+async function waitForTripUpdatedEndAfter(tripId: string, since: number): Promise<void> {
+  await expect
+    .poll(async () => {
+      const rows = await activityRows(and(eq(activityEvents.tripId, tripId), eq(activityEvents.type, "trip_updated")));
+      return rows[0]?.endedAt.getTime() ?? 0;
+    })
+    .toBeGreaterThanOrEqual(since);
+}
+
+When("I add a private expense for Activity", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  await page.getByRole("button", { name: "Budget" }).click();
+  await page.getByRole("button", { name: "Add Misc Expense" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: "Amount" }).fill(PRIVATE_EXPENSE_AMOUNT);
+  await page.getByRole("button", { name: "Select category" }).click();
+  await page.getByRole("option", { name: "Food", exact: true }).click();
+  const since = Date.now();
+  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}`, timeoutMs: 15_000 });
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await response;
+  await expect(dialog).not.toBeVisible();
+  await waitForTripUpdatedEndAfter(trip.id, since);
+});
+
+When("I add a private reservation for Activity", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
+  await page.getByRole("button", { name: "Add Reservation" }).click();
+  await page.getByRole("menuitem", { name: "Flight" }).click();
+  await page.getByLabel("Provider *").fill(PRIVATE_RESERVATION_PROVIDER);
+  const since = Date.now();
+  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}`, timeoutMs: 15_000 });
+  // The dev-only mock-date toggle overlaps the drawer footer, so focus + Enter avoids pointer interception.
+  const save = page.getByRole("button", { name: "Save" });
+  await save.focus();
+  await save.press("Enter");
+  await response;
+  await waitForTripUpdatedEndAfter(trip.id, since);
+});
+
+Then("Activity shows no expense amount or reservation provider", async ({ page }) => {
+  const table = page.getByRole("table", { name: "Recent instance activity" });
+  await expect(table).not.toContainText(PRIVATE_EXPENSE_AMOUNT);
+  await expect(table).not.toContainText(PRIVATE_RESERVATION_PROVIDER);
+});

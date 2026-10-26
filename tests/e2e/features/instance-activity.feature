@@ -135,3 +135,12 @@ Feature: Instance activity
     When I add two private itinerary notes for Activity
     And I open the instance Activity page
     Then Activity lists one "Updated trip" row for that trip without its name
+
+  Scenario: Budget and reservation edits share one private Activity summary
+    Given I am signed in as an instance "admin"
+    And a private itinerary exists for Activity
+    When I add a private expense for Activity
+    And I add a private reservation for Activity
+    And I open the instance Activity page
+    Then Activity lists one "Updated trip" row for that trip without its name
+    And Activity shows no expense amount or reservation provider

@@ -7,6 +7,7 @@ import { idempotencyKeys, packingItems, packingTemplateItems, packingTemplates, 
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { withErrorHandling } from "@/lib/error-utils";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
+import { recordTripUpdated } from "@/lib/trip-activity";
 import type {
   AddPackingItemInput,
   PullTemplatesResult,
@@ -187,6 +188,7 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
     });
   }
 
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
 }
@@ -200,6 +202,7 @@ async function updatePackingItemImpl(itemId: string, input: UpdatePackingItemInp
   }
   await assertTripAccess(item.tripId, user.id!, "editor");
   await db.update(packingItems).set({ name }).where(eq(packingItems.id, itemId));
+  recordTripUpdated(user.id!, item.tripId);
   revalidatePath(`/trips/${item.tripId}`);
   revalidatePath("/trips");
 }
@@ -212,6 +215,7 @@ async function togglePackingItemImpl(itemId: string): Promise<void> {
   }
   await assertTripAccess(item.tripId, user.id!, "editor");
 
+  let toggled = false;
   await db.transaction(async (tx) => {
     await lockTripForUpdate(tx, item.tripId);
 
@@ -221,8 +225,10 @@ async function togglePackingItemImpl(itemId: string): Promise<void> {
     }
 
     await tx.update(packingItems).set({ done: !lockedItem.done }).where(eq(packingItems.id, itemId));
+    toggled = true;
   });
 
+  if (toggled) recordTripUpdated(user.id!, item.tripId);
   revalidatePath(`/trips/${item.tripId}`);
   revalidatePath("/trips");
 }
@@ -235,6 +241,7 @@ async function removePackingItemImpl(itemId: string): Promise<void> {
   }
   await assertTripAccess(item.tripId, user.id!, "editor");
   await db.delete(packingItems).where(eq(packingItems.id, itemId));
+  recordTripUpdated(user.id!, item.tripId);
   revalidatePath(`/trips/${item.tripId}`);
   revalidatePath("/trips");
 }
@@ -251,6 +258,7 @@ async function removePackingSectionImpl(sectionId: string, input: RemovePackingS
 
   await assertTripAccess(section.tripId, user.id!, "editor");
   let revalidateTripId = section.tripId;
+  let removed = false;
 
   await db.transaction(async (tx) => {
     await lockTripForUpdate(tx, section.tripId);
@@ -282,8 +290,10 @@ async function removePackingSectionImpl(sectionId: string, input: RemovePackingS
     }
 
     await tx.delete(packingItems).where(eq(packingItems.id, lockedSection.id));
+    removed = true;
   });
 
+  if (removed) recordTripUpdated(user.id!, revalidateTripId);
   revalidatePath(`/trips/${revalidateTripId}`);
   revalidatePath("/trips");
 }
@@ -317,6 +327,7 @@ async function reorderPackingItemsImpl(
         .where(and(eq(packingItems.id, entry.id), eq(packingItems.tripId, tripId)));
     }
   });
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
 }
@@ -420,6 +431,7 @@ async function pullTemplatesOntoTripImpl(
     }
   });
 
+  if (added > 0) recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
 
@@ -625,6 +637,7 @@ export async function createPackingList(tripId: string, name: string): Promise<s
 
   if (!row) throw new Error("Failed to create packing list");
 
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   return row.id;
 }
@@ -643,6 +656,7 @@ export async function renamePackingList(listId: string, name: string): Promise<v
 
   await assertTripAccess(list.tripId, user.id!, "editor");
   await db.update(tripPackingLists).set({ name: trimmedName }).where(eq(tripPackingLists.id, listId));
+  recordTripUpdated(user.id!, list.tripId);
   revalidatePath(`/trips/${list.tripId}`);
 }
 
@@ -663,6 +677,7 @@ export async function deletePackingList(listId: string): Promise<void> {
     await tx.delete(tripPackingLists).where(eq(tripPackingLists.id, listId));
   });
 
+  recordTripUpdated(user.id!, list.tripId);
   revalidatePath(`/trips/${list.tripId}`);
   revalidatePath("/trips");
 }
