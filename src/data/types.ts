@@ -63,6 +63,7 @@ export const ActivityEventType = {
   UsernameChanged: "username_changed",
   PasswordChanged: "password_changed",
   AccountDeleted: "account_deleted",
+  TripCreated: "trip_created",
   /** Summary only: one row per burst of trip edits, merged by `src/lib/activity-batches.ts`. */
   TripUpdated: "trip_updated",
 } as const;

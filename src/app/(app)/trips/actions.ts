@@ -52,6 +52,7 @@ import {
   publishInvitationChanged,
 } from "@/lib/invitations";
 import { isUniqueViolation } from "@/lib/error-utils";
+import { recordTripCreated, recordTripUpdated } from "@/lib/trip-activity";
 import { normalizeUsername } from "@/lib/username";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
@@ -302,6 +303,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
 
   let tripId = "";
   let userId = "";
+  let actorUsername = "";
   await db.transaction(async (tx) => {
     const [user] = await tx
       .select({
@@ -319,6 +321,7 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
       throw new Error("Signed-in user could not be resolved before trip creation.");
     }
     userId = user.id;
+    actorUsername = user.username;
     const userName = user.name ?? user.username;
     const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
     const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
@@ -359,6 +362,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
       await tx.insert(days).values(buildDatelessDayRow(trip.id));
     }
   });
+
+  recordTripCreated({ id: userId, username: actorUsername }, tripId);
 
   const hasDestination = !!input.destinationName || !!input.destinationCenter;
   let coverUrl: string | null = null;
@@ -699,6 +704,7 @@ export async function updateTripMetadata(
     );
   }
 
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
   return { status: "saved" };

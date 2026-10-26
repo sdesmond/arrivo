@@ -14,6 +14,7 @@ const EVENT_LABELS: Record<ActivityEventType, { type: string; action: string }> 
   [ActivityEventType.UsernameChanged]: { type: "Accounts", action: "Changed username" },
   [ActivityEventType.PasswordChanged]: { type: "Accounts", action: "Changed password" },
   [ActivityEventType.AccountDeleted]: { type: "Accounts", action: "Deleted own account" },
+  [ActivityEventType.TripCreated]: { type: "Trips", action: "Created trip" },
   [ActivityEventType.TripUpdated]: { type: "Trips", action: "Updated trip" },
 };
 

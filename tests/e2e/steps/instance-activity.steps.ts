@@ -332,3 +332,67 @@ Then("the Activity table lists a Deleted own account row for my original usernam
   const original = scenario.getValue<RememberedIdentity>(ORIGINAL_IDENTITY_KEY)!;
   await expectActivityRow(page, [original.username, "Deleted own account"]);
 });
+
+// Trip producers use scenario-owned trips; only real UI mutations create Activity rows.
+const ACTIVITY_TRIP_NAME = "Private Activity destination";
+
+When("I create a private trip for Activity", async ({ page, scenario }) => {
+  await page.getByRole("button", { name: "New trip", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Title").fill(ACTIVITY_TRIP_NAME);
+  const response = waitForServerActionResponse(page, { pathIncludes: "/trips", timeoutMs: 15_000 });
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await response;
+  await expect(page).toHaveURL(/\/trips\/[^/?]+(\?new=1)?$/);
+  await scenario.rememberTripByName(ACTIVITY_TRIP_NAME);
+});
+
+Given("a private itinerary exists for Activity", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip("threeDayTrip", { trip: { name: ACTIVITY_TRIP_NAME } });
+  await page.goto(`/trips/${trip.id}`);
+});
+
+When("I add two private itinerary notes for Activity", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  const dayToggle = page
+    .locator("button[aria-expanded]")
+    .filter({ hasText: /\d+ stops/ })
+    .first();
+  if ((await dayToggle.getAttribute("aria-expanded")) === "false") await dayToggle.click();
+  for (const content of ["Private first itinerary detail", "Private second itinerary detail"]) {
+    await page
+      .getByRole("button", { name: /add a place/i })
+      .first()
+      .click();
+    await page.getByTitle("Add note").click();
+    await page.getByPlaceholder("Add a note…").fill(content);
+    const since = Date.now();
+    const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}` });
+    await page.keyboard.press("Enter");
+    await response;
+    // Wait for each write so the final assertion proves both edits joined the batch.
+    await expect
+      .poll(async () => {
+        const rows = await activityRows(
+          and(eq(activityEvents.tripId, trip.id), eq(activityEvents.type, "trip_updated"))
+        );
+        return rows[0]?.endedAt.getTime() ?? 0;
+      })
+      .toBeGreaterThanOrEqual(since);
+  }
+});
+
+Then("Activity lists one {string} row for that trip without its name", async ({ page, scenario }, action: string) => {
+  const trip = scenario.currentTrip!;
+  const user = await scenario.ensureCurrentUser();
+  const type = action === "Created trip" ? "trip_created" : "trip_updated";
+  const condition = and(eq(activityEvents.tripId, trip.id), eq(activityEvents.type, type));
+  await expect.poll(async () => (await activityRows(condition)).length).toBe(1);
+  const [event] = await activityRows(condition);
+  expect(event).toMatchObject({ actorId: user.id, actorUsername: user.username, targetId: null, targetUsername: null });
+  await expectActivityRow(page, [action, user.username, trip.id]);
+  const table = page.getByRole("table", { name: "Recent instance activity" });
+  await expect(table).not.toContainText(trip.name);
+  await expect(table).not.toContainText("Private first itinerary detail");
+  await expect(table).not.toContainText("Private second itinerary detail");
+});
