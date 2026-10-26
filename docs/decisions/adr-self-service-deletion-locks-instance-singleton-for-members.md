@@ -1,0 +1,3 @@
+# Every self-service account deletion locks the instance singleton, members included
+
+Role changes lock the `instance_state` singleton first and then the affected user rows (AD-2). If a member's deletion locked only their own user row, it could take that row before a concurrent role change that targets the same user and wait on the singleton, deadlocking against it. So `deleteOwnAccount` takes the same order for everyone, singleton, then user, then owned trips, via `lockInstanceAndUsersForUpdate`, whether or not the caller is an admin. The cost is that all account deletions are serialized, accepted because deletions are rare. Source: `story-last-admin-guard-on-self-service-deletion-plan.md` (Design Notes), commit `a248299`.
