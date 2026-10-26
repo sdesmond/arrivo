@@ -1,13 +1,16 @@
 "use server";
 
-import { signIn, signOut } from "@/auth";
+import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { detectPreferredCurrency } from "@/lib/utils";
-import type { MfaActionState, SignInActionState } from "@/data/types";
+import { ActivityEventType, type ActivityIdentity, type MfaActionState, type SignInActionState } from "@/data/types";
+import { recordActivity } from "@/lib/activity";
 import { lockoutMessage } from "@/lib/auth-throttle";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE, MFA_TICKET_TTL_MS } from "@/lib/mfa";
@@ -83,6 +86,11 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
   try {
     const result = await bootstrapFirstAccount(db, { username, name, passwordHash, currency });
     if (!result.ok) return { error: "Ask an admin to create your account." };
+    // Committed; recorded before the auto sign-in so creation precedes that account's first sign-in.
+    recordActivity({
+      type: ActivityEventType.AccountCreated,
+      actor: { id: result.userId, username: result.username },
+    });
   } catch (error) {
     if (isUniqueViolation(error)) return { error: "That username is taken." };
     throw error;
@@ -98,6 +106,23 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
   await signIn("credentials", signInFormData);
 }
 
+// Best-effort and read-only: the event needs the stable ID and canonical username, but a lookup failure must never
+// block signing out. `undefined` means nobody is signed in; `null` means someone is but the identity is unavailable.
+async function currentIdentity(): Promise<ActivityIdentity | null | undefined> {
+  try {
+    const userId = (await auth())?.user?.id;
+    if (!userId) return undefined;
+    const [row] = await db.select({ id: users.id, username: users.username }).from(users).where(eq(users.id, userId));
+    return row ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function signOutAction() {
-  await signOut({ redirectTo: "/sign-in" });
+  const identity = await currentIdentity();
+  // Let a failed sign-out propagate: nothing happened, so nothing is recorded.
+  await signOut({ redirect: false });
+  if (identity !== undefined) recordActivity({ type: ActivityEventType.SignOut, actor: identity });
+  redirect("/sign-in");
 }

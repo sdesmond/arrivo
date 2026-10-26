@@ -51,10 +51,18 @@ export interface BootstrapAccountValues {
   currency?: string | null;
 }
 
-export type BootstrapResult = { ok: true; userId: string } | { ok: false; reason: "closed" };
+export type BootstrapResult = { ok: true; userId: string; username: string } | { ok: false; reason: "closed" };
 
 export const ActivityEventType = {
   SignIn: "sign_in",
+  /** The target is the attempted account, never an authenticated actor. */
+  SignInFailed: "sign_in_failed",
+  SignOut: "sign_out",
+  AccountCreated: "account_created",
+  RoleChanged: "role_changed",
+  UsernameChanged: "username_changed",
+  PasswordChanged: "password_changed",
+  AccountDeleted: "account_deleted",
   /** Summary only: one row per burst of trip edits, merged by `src/lib/activity-batches.ts`. */
   TripUpdated: "trip_updated",
 } as const;
@@ -66,19 +74,35 @@ export interface ActivityIdentity {
   username: string;
 }
 
+/**
+ * The account an event is about. `id` set = a known account; `id` null with a username = a supplied name that matched
+ * no account; omit the target entirely when no safe identity is available.
+ */
+export interface ActivityTarget {
+  id: string | null;
+  username: string;
+}
+
 export interface ActivityEventInput {
   type: ActivityEventType;
-  actor: ActivityIdentity;
+  /** Null only where nobody is authenticated: failed sign-ins, and a sign-out whose identity could not be read. */
+  actor: ActivityIdentity | null;
   /** The account acted upon, when different from the actor. */
-  target?: ActivityIdentity;
+  target?: ActivityTarget;
   tripId?: string;
 }
+
+/** Trip summaries are partitioned by actor, so they always have one. */
+export type ActivityBatchInput = ActivityEventInput & { actor: ActivityIdentity };
 
 /** Safe read shape: no IPs, tokens, URLs or credentials. */
 export interface ActivityEventSummary {
   id: string;
   type: ActivityEventType;
   actorUsername: string | null;
+  /** The affected account's username when one was recorded; `targetKnown` is false for a name that matched no account. */
+  targetUsername?: string;
+  targetKnown?: boolean;
   /** ISO 8601 UTC. */
   occurredAt: string;
   tripId?: string;
@@ -112,6 +136,11 @@ export interface ChangeUserRoleInput {
 export type ChangeUserRoleResult =
   | { ok: true; userId: string; role: UserRole; changed: boolean }
   | { ok: false; reason: RoleChangeFailure };
+
+/** What the service returns: the client-facing result plus usernames read under the lock, for the post-commit event. */
+export type ChangeUserRoleOutcome =
+  | (Extract<ChangeUserRoleResult, { ok: true }> & { actor: ActivityIdentity; target: ActivityIdentity })
+  | Extract<ChangeUserRoleResult, { ok: false }>;
 
 export const InvitationStatus = {
   Pending: "pending",
@@ -693,6 +722,8 @@ export interface DeletedAccountSummary {
   deletedTripMembers: { tripId: string; userId: string }[];
   remainingTripIds: string[];
   storageUrls: string[];
+  /** The deleted account as it was under the lock, for the caller's post-commit event. */
+  account: ActivityIdentity;
 }
 
 export type DeleteOwnAccountResult =

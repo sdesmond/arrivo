@@ -7,7 +7,15 @@ import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import { AccountDeletionFailure, CoverType, LiveSyncEventType, SignInNotice, TransitMode } from "@/data/types";
+import {
+  AccountDeletionFailure,
+  ActivityEventType,
+  CoverType,
+  LiveSyncEventType,
+  SignInNotice,
+  TransitMode,
+} from "@/data/types";
+import { recordActivity } from "@/lib/activity";
 import { lockUserForUpdate } from "@/lib/server-action-locks";
 import { deleteOwnAccount } from "@/lib/account-deletion";
 import { publishInvitationChanged } from "@/lib/invitations";
@@ -113,11 +121,34 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
     dbPatch.knownTravelerNumber = encryptOptionalField(patch.knownTravelerNumber);
   }
 
+  // A username change needs the row's old username and proof the value really changed, so it is locked, read and
+  // updated in one transaction. Other edits keep the plain update.
+  let renamedFrom: string | undefined;
   try {
-    await db.update(users).set(dbPatch).where(eq(users.id, session.id!));
+    if (dbPatch.username !== undefined) {
+      const newUsername = dbPatch.username;
+      renamedFrom = await db.transaction(async (transaction) => {
+        await lockUserForUpdate(transaction, session.id!);
+        const [current] = await transaction
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, session.id!));
+        await transaction.update(users).set(dbPatch).where(eq(users.id, session.id!));
+        return current && current.username !== newUsername ? current.username : undefined;
+      });
+    } else {
+      await db.update(users).set(dbPatch).where(eq(users.id, session.id!));
+    }
   } catch (error) {
     if (isUniqueViolation(error)) return { error: "That username is taken." };
     return { error: "Something went wrong." };
+  }
+  // After commit, with the pre-change username and the stable ID; the new value is deliberately not stored.
+  if (renamedFrom !== undefined) {
+    recordActivity({
+      type: ActivityEventType.UsernameChanged,
+      actor: { id: session.id!, username: renamedFrom },
+    });
   }
   revalidatePath("/profile");
   revalidatePath("/trips");
@@ -206,14 +237,26 @@ export async function changePassword({
   if (newPassword.length < 8) return { error: "New password must be at least 8 characters." };
 
   const hash = await bcrypt.hash(newPassword, 10);
+  let updated: { username: string }[];
   try {
-    await db.update(users).set({ passwordHash: hash }).where(eq(users.id, userId));
+    updated = await db
+      .update(users)
+      .set({ passwordHash: hash })
+      .where(eq(users.id, userId))
+      .returning({ username: users.username });
   } catch {
     return { error: "Something went wrong." };
   }
 
   // Anyone holding a session from before the change (including whoever learned the old password) is out.
   await bumpSessionVersion(userId);
+  // Recorded before sign-out, whose redirect ends this action. No logout event: the revocation is part of this one.
+  if (updated[0]) {
+    recordActivity({
+      type: ActivityEventType.PasswordChanged,
+      actor: { id: userId, username: updated[0].username },
+    });
+  }
   await signOut({ redirectTo: `/sign-in?notice=${SignInNotice.PasswordChanged}` });
   return {};
 }
@@ -329,6 +372,8 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
       : { status: "error", message: LAST_ADMIN_MESSAGE };
   }
   const deletion = result.summary;
+  // Committed. Recorded before cleanup, which can fail or be interrupted; no logout event for the implied sign-out.
+  recordActivity({ type: ActivityEventType.AccountDeleted, actor: deletion.account });
 
   for (const invitation of deletion.rescindedInvitations) {
     publishInvitationChanged(invitation.inviteeId, invitation.tripId);

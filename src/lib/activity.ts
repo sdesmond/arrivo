@@ -29,14 +29,14 @@ async function persist(input: ActivityEventInput, occurredAt: Date): Promise<voi
       timer = setTimeout(() => reject(new Error("Activity write timed out")), ACTIVITY_WRITE_TIMEOUT_MS);
     });
     const insert = Promise.resolve(
-      BATCHED_TYPES.has(input.type)
-        ? mergeActivityInterval(db, input, occurredAt)
+      BATCHED_TYPES.has(input.type) && input.actor
+        ? mergeActivityInterval(db, { ...input, actor: input.actor }, occurredAt)
         : db.insert(activityEvents).values({
             type: input.type,
             startedAt: occurredAt,
             endedAt: occurredAt,
-            actorId: input.actor.id,
-            actorUsername: input.actor.username,
+            actorId: input.actor?.id ?? null,
+            actorUsername: input.actor?.username ?? null,
             targetId: input.target?.id ?? null,
             targetUsername: input.target?.username ?? null,
             tripId: input.tripId ?? null,
