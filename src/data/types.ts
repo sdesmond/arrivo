@@ -111,10 +111,46 @@ export interface ActivityEventSummary {
   /** The affected account's username when one was recorded; `targetKnown` is false for a name that matched no account. */
   targetUsername?: string;
   targetKnown?: boolean;
-  /** ISO 8601 UTC. */
+  /** ISO 8601 UTC. For a batched summary this is the latest edit (the end of the range). */
   occurredAt: string;
+  /** Batched summaries only: ISO 8601 UTC start of the range that `occurredAt` ends. */
+  startedAt?: string;
+  /** Batched summaries only: the burst is recent enough that more edits may still join it. */
+  ongoing?: boolean;
   tripId?: string;
 }
+
+/** Filters and cursor for the Activity read. Every field is untrusted input and validated server-side. */
+export interface ActivityQuery {
+  /** Stable account ID of the actor. */
+  actorId?: string;
+  type?: ActivityEventType;
+  /** ISO 8601 UTC instant; rows whose interval overlaps [from, to] match. */
+  from?: string;
+  to?: string;
+  /** Opaque cursor from a previous page's `nextCursor`. */
+  cursor?: string;
+}
+
+/** An actor filter choice: the stable ID labelled by the account's latest recorded username. */
+export interface ActivityActorOption {
+  id: string;
+  username: string;
+}
+
+export interface ActivityPage {
+  events: ActivityEventSummary[];
+  /** Present only when older rows exist. */
+  nextCursor?: string;
+  actors: ActivityActorOption[];
+  /** ISO 8601 UTC time of the read. */
+  loadedAt: string;
+  /** The requested date range was unreadable or inverted; no rows are returned. */
+  invalidRange?: boolean;
+}
+
+export type ActivityPageResult = ({ status: "ok" } & ActivityPage) | { status: "forbidden" };
+export type ActivityLoadResult = ActivityPageResult | { status: "unavailable" };
 
 export interface InstanceUserSummary {
   id: string;

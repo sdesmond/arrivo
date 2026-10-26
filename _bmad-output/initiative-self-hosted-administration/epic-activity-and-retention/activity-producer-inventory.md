@@ -7,10 +7,10 @@ Written by story 2.1 (Sign-in to Activity tracer). Lists the real mutation owner
 - Table: `activityEvents` (`activity_events`) in `src/db/schema.ts`; no foreign keys or cascades. Actor is a stable `actorId` plus event-time `actorUsername`; optional `targetId`/`targetUsername` and `tripId`.
 - Types in `src/data/types.ts`: `ActivityEventType` (const object), `ActivityIdentity`, `ActivityTarget`, `ActivityEventInput`, `ActivityBatchInput`, `ActivityEventSummary`.
 - Recorder: `recordActivity(input)` in `src/lib/activity.ts`. Synchronous `void`; schedules the insert with `after()`, bounded by `ACTIVITY_WRITE_TIMEOUT_MS`, no retries, all failures caught and logged by error class only. Occurrence time comes from the injectable real clock (`setActivityClock`), never `getNow()`.
-- Reader: `listRecentActivity(viewerId)` in `src/lib/activity-queries.ts`; rechecks DB admin authority (`notFound()` otherwise), newest first (`endedAt desc, id desc`), fixed `ACTIVITY_LIST_LIMIT`.
+- Reader: `readActivityPage(database, viewerId, query)` in `src/lib/activity-queries.ts`; rechecks DB admin authority (returns `forbidden`), keyset-paged newest first (`endedAt desc, id desc`) with actor/type/date filters; the client loads through `loadActivityPage` in `src/app/(app)/admin/activity/actions.ts`.
 - Route: `/admin/activity` (`src/app/(app)/admin/activity/page.tsx`), component `InstanceActivity`.
 
-Rules for every producer: call `recordActivity` only after the primary mutation has committed and never inside its transaction; capture the actor's username before a rename or deletion; never put IPs, tokens, URLs, credentials or private trip details in an event; add the new type to `ActivityEventType` and to `EVENT_LABELS` in `instance-activity.tsx`.
+Rules for every producer: call `recordActivity` only after the primary mutation has committed and never inside its transaction; capture the actor's username before a rename or deletion; never put IPs, tokens, URLs, credentials or private trip details in an event; add the new type to `ActivityEventType` and to `EVENT_LABELS` in `src/lib/activity-labels.ts`.
 
 ## Done (2.1)
 

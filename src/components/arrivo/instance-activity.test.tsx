@@ -25,6 +25,39 @@ describe("InstanceActivity", () => {
     expect(within(row).getAllByText("—")).toHaveLength(2);
   });
 
+  it("shows times in the given timezone", () => {
+    render(<InstanceActivity events={[EVENT]} timeZone="America/Denver" />);
+    expect(screen.getByText("2026-10-25 08:03:07 MDT")).toHaveAttribute("datetime", EVENT.occurredAt);
+  });
+
+  it("shows a batched row as a start-to-end range with Ongoing text", () => {
+    render(
+      <InstanceActivity
+        events={[
+          {
+            ...EVENT,
+            type: "trip_updated",
+            startedAt: "2026-10-25T13:50:00.000Z",
+            occurredAt: "2026-10-25T14:05:00.000Z",
+            ongoing: true,
+          },
+        ]}
+      />
+    );
+    const cell = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[4];
+    expect(cell).toHaveTextContent("2026-10-25 13:50:00 UTC to 2026-10-25 14:05:00 UTC");
+    expect(cell).toHaveTextContent("Ongoing");
+  });
+
+  it("shows a single time for a batched row that has not been extended and no Ongoing text when finished", () => {
+    render(
+      <InstanceActivity events={[{ ...EVENT, type: "trip_updated", startedAt: EVENT.occurredAt, ongoing: false }]} />
+    );
+    const cell = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[4];
+    expect(cell).not.toHaveTextContent(" to ");
+    expect(cell).not.toHaveTextContent("Ongoing");
+  });
+
   it("labels a batched trip update as a summary with no edit details", () => {
     render(<InstanceActivity events={[{ ...EVENT, type: "trip_updated", tripId: "trip-9" }]} />);
     const row = screen.getAllByRole("row")[1];
