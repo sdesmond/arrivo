@@ -1,11 +1,11 @@
 # Activity producer inventory
 
-Written by story 2.1 (Sign-in to Activity tracer). Lists the real mutation owners that stories 2.3 to 2.6 instrument, and the shared names they use.
+Written by story 2.1 (Sign-in to Activity tracer). Lists the real mutation owners that stories 2.3, 2.5 and 2.6 instrument, and the shared names they use.
 
 ## Shared names
 
 - Table: `activityEvents` (`activity_events`) in `src/db/schema.ts`; no foreign keys or cascades. Actor is a stable `actorId` plus event-time `actorUsername`; optional `targetId`/`targetUsername` and `tripId`.
-- Types in `src/data/types.ts`: `ActivityEventType` (const object, currently `SignIn: "sign_in"`), `ActivityIdentity`, `ActivityEventInput`, `ActivityEventSummary`.
+- Types in `src/data/types.ts`: `ActivityEventType` (const object), `ActivityIdentity`, `ActivityTarget`, `ActivityEventInput`, `ActivityBatchInput`, `ActivityEventSummary`.
 - Recorder: `recordActivity(input)` in `src/lib/activity.ts`. Synchronous `void`; schedules the insert with `after()`, bounded by `ACTIVITY_WRITE_TIMEOUT_MS`, no retries, all failures caught and logged by error class only. Occurrence time comes from the injectable real clock (`setActivityClock`), never `getNow()`.
 - Reader: `listRecentActivity(viewerId)` in `src/lib/activity-queries.ts`; rechecks DB admin authority (`notFound()` otherwise), newest first (`endedAt desc, id desc`), fixed `ACTIVITY_LIST_LIMIT`.
 - Route: `/admin/activity` (`src/app/(app)/admin/activity/page.tsx`), component `InstanceActivity`.
@@ -16,18 +16,18 @@ Rules for every producer: call `recordActivity` only after the primary mutation 
 
 - Sign-in: `completeSignIn` in `src/lib/authorize-credentials.ts` (single success point for password and MFA paths).
 
-## Story 2.3 (authentication)
+## Done (2.3, authentication and account events)
 
-- Failed sign-in: `authorizePassword` / `authorizeSecondFactor` failure branches in `src/lib/authorize-credentials.ts`. Target is the attempted username, distinct from an authenticated actor.
-- Logout: `signOutAction` in `src/app/(auth)/actions.ts`.
-- MFA on/off, recovery codes, sign out everywhere, trusted-device removal: `confirmMfaEnrollment`, `disableMfa`, `regenerateRecoveryCodes`, `signOutEverywhere`, `removeTrustedDevice` in `src/app/(app)/profile/security-actions.ts` (only if the approved event list includes them).
+- Failed sign-in (`sign_in_failed`): rejection branches of `authorizePassword` / `authorizeSecondFactor` and the missing-field path in `authorizeCredentials`, `src/lib/authorize-credentials.ts`. No actor; target is a known account (ID plus canonical username), an unknown account (supplied username only), or absent (unavailable).
+- Logout (`sign_out`): `signOutAction` in `src/app/(auth)/actions.ts`, recorded only after `signOut` succeeds.
+- Bootstrap creation (`account_created`): `signUpAction` in `src/app/(auth)/actions.ts`, from the committed result of `bootstrapFirstAccount` (`src/lib/instance-bootstrap.ts`).
+- Role change (`role_changed`): `changeUserRoleAction` in `src/app/(app)/admin/users/actions.ts`, only when `changed`; usernames come from `changeUserRole` (`src/lib/account-role-changes.ts`) under its locks.
+- Self-service deletion (`account_deleted`): `deleteAccount` in `src/app/(app)/profile/actions.ts`, from the `account` snapshot `deleteOwnAccount` (`src/lib/account-deletion.ts`) returns.
+- Username change (`username_changed`) and password change (`password_changed`): `updateProfile` and `changePassword` in `src/app/(app)/profile/actions.ts`. The old username is read under a row lock; neither event stores the new value.
 
-## Story 2.4 (accounts)
+## Not covered by 2.3
 
-- Bootstrap creation: `bootstrapFirstAccount` in `src/lib/instance-bootstrap.ts` (called from `signUpAction`, `src/app/(auth)/actions.ts`).
-- Role change: `changeUserRole` in `src/lib/account-role-changes.ts` (called from `changeUserRoleAction`, `src/app/(app)/admin/users/actions.ts`).
-- Self-service deletion: `deleteOwnAccount` in `src/lib/account-deletion.ts` (called from `deleteAccount`, `src/app/(app)/profile/actions.ts`).
-- Username and password changes: `updateProfile` and `changePassword` in `src/app/(app)/profile/actions.ts`.
+- MFA on/off, recovery codes, sign out everywhere, trusted-device removal: `confirmMfaEnrollment`, `disableMfa`, `regenerateRecoveryCodes`, `signOutEverywhere`, `removeTrustedDevice` in `src/app/(app)/profile/security-actions.ts`. Not in the approved event list; no producer yet.
 
 ## Story 2.5 (trips)
 
