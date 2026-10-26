@@ -253,7 +253,7 @@ export async function changePassword({
   // Recorded before sign-out, whose redirect ends this action. No logout event: the revocation is part of this one.
   if (updated[0]) {
     recordActivity({
-      type: ActivityEventType.PassChanged,
+      type: ActivityEventType.PasswordChanged,
       actor: { id: userId, username: updated[0].username },
     });
   }
