@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ActivityEventType, type ActivityEventInput } from "@/data/types";
+import { ActivityEventType, type ActivityBatchInput } from "@/data/types";
 import { ACTIVITY_WRITE_TIMEOUT_MS } from "./activity";
 import {
   BATCH_GAP_MS,
@@ -15,7 +15,7 @@ const MINUTE = 60_000;
 const BASE = new Date("2026-10-26T12:00:00.000Z");
 const at = (minutes: number) => new Date(BASE.getTime() + minutes * MINUTE);
 
-const INPUT: ActivityEventInput = {
+const INPUT: ActivityBatchInput = {
   type: ActivityEventType.TripUpdated,
   actor: { id: "user-1", username: "alice" },
   tripId: "trip-1",

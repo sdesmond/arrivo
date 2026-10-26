@@ -16,16 +16,17 @@ const MISSING = "00000000-0000-4000-8000-0000000000ff";
 
 interface FakeUser {
   id: string;
+  username: string;
   role: string;
   passwordHash: string | null;
 }
 
 const baseUsers = (): FakeUser[] => [
-  { id: ADMIN_A, role: "admin", passwordHash: "hash" },
-  { id: ADMIN_B, role: "admin", passwordHash: "hash" },
-  { id: MEMBER, role: "member", passwordHash: "hash" },
-  { id: UNFINISHED_MEMBER, role: "member", passwordHash: null },
-  { id: UNFINISHED_ADMIN, role: "admin", passwordHash: null },
+  { id: ADMIN_A, username: "admin-a", role: "admin", passwordHash: "hash" },
+  { id: ADMIN_B, username: "admin-b", role: "admin", passwordHash: "hash" },
+  { id: MEMBER, username: "member", role: "member", passwordHash: "hash" },
+  { id: UNFINISHED_MEMBER, username: "unfinished-member", role: "member", passwordHash: null },
+  { id: UNFINISHED_ADMIN, username: "unfinished-admin", role: "admin", passwordHash: null },
 ];
 
 interface FakeOptions {
@@ -92,7 +93,14 @@ describe("changeUserRole", () => {
 
     const result = await changeUserRole(database, ADMIN_A, { targetUserId: MEMBER, role: UserRole.Admin });
 
-    expect(result).toEqual({ ok: true, userId: MEMBER, role: "admin", changed: true });
+    expect(result).toEqual({
+      ok: true,
+      userId: MEMBER,
+      role: "admin",
+      changed: true,
+      actor: { id: ADMIN_A, username: "admin-a" },
+      target: { id: MEMBER, username: "member" },
+    });
     expect(roleOf(users, MEMBER)).toBe("admin");
     expect(JSON.stringify(result)).not.toContain("hash");
   });
@@ -184,6 +192,18 @@ describe("changeUserRole", () => {
     expect(writes).toEqual([]);
   });
 
+  it("captures usernames as they are once the locks are held", async () => {
+    const { database } = createFake({
+      onLockUser: (rows, userId) => {
+        if (userId === MEMBER) rows.find((user) => user.id === MEMBER)!.username = "renamed-member";
+      },
+    });
+
+    await expect(
+      changeUserRole(database, ADMIN_A, { targetUserId: MEMBER, role: UserRole.Admin })
+    ).resolves.toMatchObject({ target: { id: MEMBER, username: "renamed-member" } });
+  });
+
   it("reports missing targets, including malformed ids", async () => {
     const { database } = createFake();
 
@@ -221,6 +241,8 @@ describe("changeUserRole", () => {
       userId: ADMIN_B,
       role: "admin",
       changed: false,
+      actor: { id: ADMIN_A, username: "admin-a" },
+      target: { id: ADMIN_B, username: "admin-b" },
     });
     expect(writes).toEqual([]);
   });

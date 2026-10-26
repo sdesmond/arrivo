@@ -104,6 +104,20 @@ vi.mock("@/lib/auth-throttle", async (importOriginal) => ({
 
 vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mockBump }));
 
+const { mockRecordActivity, mockAfter } = vi.hoisted(() => ({ mockRecordActivity: vi.fn(), mockAfter: vi.fn() }));
+vi.mock("@/lib/activity", () => ({ recordActivity: mockRecordActivity }));
+vi.mock("next/server", () => ({ after: mockAfter }));
+
+// Runs a test against the real recorder with scheduling broken, proving a failed event cannot change the outcome.
+async function breakRealRecorderScheduling() {
+  const actual = await vi.importActual<typeof import("@/lib/activity")>("@/lib/activity");
+  mockRecordActivity.mockImplementation(actual.recordActivity);
+  mockAfter.mockImplementation(() => {
+    throw new Error("outside request scope");
+  });
+  return vi.spyOn(console, "error").mockImplementation(() => undefined);
+}
+
 const { mockDeleteOwnAccount } = vi.hoisted(() => ({ mockDeleteOwnAccount: vi.fn() }));
 vi.mock("@/lib/account-deletion", () => ({ deleteOwnAccount: mockDeleteOwnAccount }));
 
@@ -139,9 +153,29 @@ function createTransactionMock(selectResults: unknown[][]) {
   return { recordedInserts, transaction };
 }
 
+// A transaction whose locked read sees `currentUsername` (undefined = row unreadable).
+function usernameTransaction(currentUsername: string | undefined) {
+  const transactionWhere = vi.fn().mockResolvedValue(undefined);
+  const transactionSet = vi.fn(() => ({ where: transactionWhere }));
+  const transaction = {
+    execute: vi.fn().mockResolvedValue([{ id: "user-1" }]),
+    select: vi.fn(() => ({
+      from: () => ({ where: async () => (currentUsername === undefined ? [] : [{ username: currentUsername }]) }),
+    })),
+    update: vi.fn(() => ({ set: transactionSet })),
+  };
+  mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+    callback(transaction)
+  );
+  return { transaction, transactionSet, transactionWhere };
+}
+
 describe("updateProfile — server-side validation (AC10)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRecordActivity.mockReset();
+    mockAfter.mockReset();
+    mockTransaction.mockReset();
     mockUpdate.mockReturnValue({ set: mockSet });
     mockSet.mockReturnValue({ where: mockWhere });
     mockWhere.mockResolvedValue(undefined);
@@ -170,9 +204,10 @@ describe("updateProfile — server-side validation (AC10)", () => {
   });
 
   it("normalizes and writes a valid username", async () => {
+    const { transactionSet } = usernameTransaction("old.name");
     const result = await updateProfile({ username: "  Alice.W " });
     expect(result).toEqual({});
-    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ username: "alice.w" }));
+    expect(transactionSet).toHaveBeenCalledWith(expect.objectContaining({ username: "alice.w" }));
   });
 
   it("returns the validation error for an invalid username without writing", async () => {
@@ -181,10 +216,62 @@ describe("updateProfile — server-side validation (AC10)", () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it("reports a taken username", async () => {
-    mockWhere.mockRejectedValueOnce(new Error("Failed query", { cause: { code: "23505" } }));
+  it("reports a taken username and records nothing", async () => {
+    const { transactionWhere } = usernameTransaction("old.name");
+    transactionWhere.mockRejectedValueOnce(new Error("Failed query", { cause: { code: "23505" } }));
     const result = await updateProfile({ username: "bob" });
     expect(result).toEqual({ error: "That username is taken." });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records one username_changed event with the old username and stable ID, after the row changed", async () => {
+    const { transactionSet, transactionWhere, transaction } = usernameTransaction("old.name");
+    await expect(updateProfile({ username: "New.Name" })).resolves.toEqual({});
+
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(mockRecordActivity).toHaveBeenCalledTimes(1);
+    expect(mockRecordActivity).toHaveBeenCalledWith({
+      type: "username_changed",
+      actor: { id: "user-1", username: "old.name" },
+    });
+    expect(transactionSet).toHaveBeenCalledWith(expect.objectContaining({ username: "new.name" }));
+    // The new value is never stored in the event.
+    expect(JSON.stringify(mockRecordActivity.mock.calls)).not.toContain("new.name");
+    expect(transactionWhere.mock.invocationCallOrder[0]).toBeLessThan(mockRecordActivity.mock.invocationCallOrder[0]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/profile");
+  });
+
+  it("records nothing when the normalized username did not change", async () => {
+    usernameTransaction("alice.w");
+    await expect(updateProfile({ username: "  Alice.W " })).resolves.toEqual({});
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when the row cannot be read under the lock", async () => {
+    usernameTransaction(undefined);
+    await expect(updateProfile({ username: "new.name" })).resolves.toEqual({});
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing and reports an error when the transaction rolls back", async () => {
+    mockTransaction.mockRejectedValue(new Error("deadlock"));
+    await expect(updateProfile({ username: "new.name" })).resolves.toEqual({ error: "Something went wrong." });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("records nothing for an unrelated profile edit, without opening a transaction", async () => {
+    await updateProfile({ name: "Alice", currency: "EUR" });
+    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("keeps the outcome when the real recorder cannot schedule its write", async () => {
+    const log = await breakRealRecorderScheduling();
+    usernameTransaction("old.name");
+    await expect(updateProfile({ username: "new.name" })).resolves.toEqual({});
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/profile");
+    log.mockRestore();
   });
 
   it("leaves the username alone when the patch omits it", async () => {
@@ -574,9 +661,13 @@ describe("profile action transactions", () => {
 describe("changePassword — throttling and session revocation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRecordActivity.mockReset();
+    mockAfter.mockReset();
+    mockBump.mockReset();
     mockUpdate.mockReturnValue({ set: mockSet });
     mockSet.mockReturnValue({ where: mockWhere });
-    mockWhere.mockResolvedValue(undefined);
+    mockWhere.mockReturnValue({ returning: mockReturning });
+    mockReturning.mockResolvedValue([{ username: "alice" }]);
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockSelectWhere.mockResolvedValue([{ passwordHash: "hash" }]);
     mockCheckThrottle.mockResolvedValue({ locked: false });
@@ -590,6 +681,56 @@ describe("changePassword — throttling and session revocation", () => {
     expect(mockBump).toHaveBeenCalledWith("user-1");
     expect(mockClearFailures).toHaveBeenCalledWith([expect.objectContaining({ key: "pwchange:user-1" })]);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?notice=password-changed" });
+  });
+
+  it("records one password_changed event with the current username after revocation, before sign-out", async () => {
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity).toHaveBeenCalledTimes(1);
+    expect(mockRecordActivity).toHaveBeenCalledWith({
+      type: "password_changed",
+      actor: { id: "user-1", username: "alice" },
+    });
+    expect(JSON.stringify(mockRecordActivity.mock.calls)).not.toMatch(/hash|new-password/i);
+    const [recorded] = mockRecordActivity.mock.invocationCallOrder;
+    expect(mockBump.mock.invocationCallOrder[0]).toBeLessThan(recorded);
+    expect(recorded).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
+  });
+
+  it("emits no separate logout event for the implied sign-out", async () => {
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity.mock.calls.map(([event]) => event.type)).toEqual(["password_changed"]);
+  });
+
+  it("records nothing when the new password is refused, the current one is wrong, or the account is locked", async () => {
+    await changePassword({ currentPassword: "old", newPassword: "short" });
+    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+    await changePassword({ currentPassword: "bad", newPassword: "new-password" });
+    mockCheckThrottle.mockResolvedValue({ locked: true, retryAfterSeconds: 60 });
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    mockCheckThrottle.mockResolvedValue({ locked: false });
+    mockSelectWhere.mockResolvedValue([{ passwordHash: null }]);
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when revoking sessions fails", async () => {
+    mockBump.mockRejectedValue(new Error("db down"));
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).rejects.toThrow("db down");
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when the update returned no row to name", async () => {
+    mockReturning.mockResolvedValue([]);
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalled();
+  });
+
+  it("keeps the outcome when the real recorder cannot schedule its write", async () => {
+    const log = await breakRealRecorderScheduling();
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({});
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?notice=password-changed" });
+    log.mockRestore();
   });
 
   it("records a failure when the current password is wrong", async () => {
@@ -610,12 +751,13 @@ describe("changePassword — throttling and session revocation", () => {
   });
 
   it("does not revoke sessions when the update fails", async () => {
-    mockWhere.mockRejectedValueOnce(new Error("db down"));
+    mockReturning.mockRejectedValueOnce(new Error("db down"));
     await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
       error: "Something went wrong.",
     });
     expect(mockBump).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRecordActivity).not.toHaveBeenCalled();
   });
 });
 
@@ -626,11 +768,14 @@ const SUMMARY: DeletedAccountSummary = {
   deletedTripMembers: [{ tripId: "trip-solo", userId: "user-bo" }],
   remainingTripIds: ["trip-transferred", "trip-transferred"],
   storageUrls: ["/api/storage/docs/ticket.pdf", "/api/storage/covers/porto.jpg"],
+  account: { id: "user-1", username: "alice" },
 };
 
 describe("deleteAccount — adapter around deleteOwnAccount", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRecordActivity.mockReset();
+    mockAfter.mockReset();
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockStorageDel.mockResolvedValue(undefined);
     mockDeleteOwnAccount.mockResolvedValue({ ok: true, summary: SUMMARY });
@@ -674,6 +819,29 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips");
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
     expect(mockSignOut.mock.invocationCallOrder[0]).toBeGreaterThan(mockDeleteOwnAccount.mock.invocationCallOrder[0]);
+  });
+
+  it("records one account_deleted event with the captured identity, before cleanup and sign-out", async () => {
+    await deleteAccount([]);
+    expect(mockRecordActivity).toHaveBeenCalledTimes(1);
+    expect(mockRecordActivity).toHaveBeenCalledWith({
+      type: "account_deleted",
+      actor: { id: "user-1", username: "alice" },
+    });
+    const [recorded] = mockRecordActivity.mock.invocationCallOrder;
+    expect(mockDeleteOwnAccount.mock.invocationCallOrder[0]).toBeLessThan(recorded);
+    expect(recorded).toBeLessThan(mockStorageDel.mock.invocationCallOrder[0]);
+    expect(recorded).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
+    // No implicit logout event for the deletion's sign-out.
+    expect(mockRecordActivity.mock.calls.map(([event]) => event.type)).toEqual(["account_deleted"]);
+  });
+
+  it("keeps the outcome when the real recorder cannot schedule its write", async () => {
+    const log = await breakRealRecorderScheduling();
+    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+    expect(mockStorageDel).toHaveBeenCalledTimes(2);
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    log.mockRestore();
   });
 
   it("does not fail the deletion when a file cleanup rejects", async () => {
@@ -731,4 +899,5 @@ function expectNoSideEffects() {
   expect(mockPublishUserEvent).not.toHaveBeenCalled();
   expect(mockPublishInvitationChanged).not.toHaveBeenCalled();
   expect(mockSignOut).not.toHaveBeenCalled();
+  expect(mockRecordActivity).not.toHaveBeenCalled();
 }

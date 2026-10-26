@@ -11,10 +11,11 @@ const dialect = new PgDialect();
 const ME = "user-1";
 
 interface Fixture {
-  deleter?: { role: string; passwordHash: string | null };
+  deleter?: { username?: string; role: string; passwordHash: string | null };
   peerAdmin?: boolean;
   instanceMissing?: boolean;
   userMissing?: boolean;
+  accountRowMissing?: boolean;
   ownedTrips?: { id: string; name: string; coverImageUrl: string | null }[];
   members?: {
     id: string;
@@ -48,7 +49,12 @@ function createDatabase(fixture: Fixture = {}) {
   const events: string[] = [];
   const writes: Write[] = [];
   const selectResults = new Map<unknown, unknown[]>([
-    [users, [fixture.deleter ?? { role: UserRole.Member, passwordHash: "hash" }]],
+    [
+      users,
+      fixture.accountRowMissing
+        ? []
+        : [{ username: "me", ...(fixture.deleter ?? { role: UserRole.Member, passwordHash: "hash" }) }],
+    ],
     [trips, fixture.ownedTrips ?? []],
     [collaborators, fixture.members ?? []],
     [documents, fixture.tripDocuments ?? []],
@@ -205,6 +211,13 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
     expect(writes).toEqual([]);
   });
 
+  it("throws when the locked account cannot be read back", async () => {
+    const { database, writes } = createDatabase({ accountRowMissing: true });
+
+    await expect(deleteOwnAccount(database, ME, [])).rejects.toThrow("User not found.");
+    expect(writes).toEqual([]);
+  });
+
   it("propagates a transaction failure", async () => {
     const failing = {
       transaction: async () => {
@@ -235,6 +248,7 @@ describe("deleteOwnAccount — shared trip handoff", () => {
         deletedTripMembers: [],
         remainingTripIds: [],
         storageUrls: ["/api/storage/docs/ticket.pdf", SOLO_TRIP.coverImageUrl],
+        account: { id: ME, username: "me" },
       },
     });
     expect(writes).toContainEqual({ op: "delete", table: trips });

@@ -3,16 +3,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-const { signIn, signOut, db, bootstrapFirstAccount } = vi.hoisted(() => ({
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  db: {},
-  bootstrapFirstAccount: vi.fn(),
-}));
+const { signIn, signOut, auth, identityRows, db, bootstrapFirstAccount, recordActivity } = vi.hoisted(() => {
+  const identityRows = vi.fn();
+  return {
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    auth: vi.fn(),
+    identityRows,
+    db: { select: vi.fn(() => ({ from: () => ({ where: identityRows }) })) },
+    bootstrapFirstAccount: vi.fn(),
+    recordActivity: vi.fn(),
+  };
+});
+
+vi.mock("@/lib/activity", () => ({ recordActivity }));
 
 vi.mock("@/lib/instance-bootstrap", () => ({ bootstrapFirstAccount }));
 
 vi.mock("@/auth", () => ({
+  auth,
   signIn,
   signOut,
 }));
@@ -53,7 +62,9 @@ describe("auth actions", () => {
     vi.mocked(headers).mockResolvedValue(new Headers());
   });
 
-  function mockBootstrap(result: () => Promise<unknown> = async () => ({ ok: true, userId: "user-1" })) {
+  function mockBootstrap(
+    result: () => Promise<unknown> = async () => ({ ok: true, userId: "user-1", username: "test.user" })
+  ) {
     bootstrapFirstAccount.mockImplementation(result);
     return bootstrapFirstAccount;
   }
@@ -81,6 +92,34 @@ describe("auth actions", () => {
     expect(signInFormData.get("username")).toBe("test.user");
     // A brand-new account stays signed in on the browser that created it.
     expect(signInFormData.get("keepSignedIn")).toBe("true");
+  });
+
+  it("records the committed creation with the new ID before the automatic sign-in", async () => {
+    mockBootstrap();
+
+    await signUpAction(undefined, signUpForm());
+
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    expect(recordActivity).toHaveBeenCalledWith({
+      type: "account_created",
+      actor: { id: "user-1", username: "test.user" },
+    });
+    expect(recordActivity.mock.invocationCallOrder[0]).toBeLessThan(signIn.mock.invocationCallOrder[0]);
+  });
+
+  it("records no creation when sign-up is closed, invalid, taken or fails", async () => {
+    mockBootstrap(async () => ({ ok: false, reason: "closed" }));
+    await signUpAction(undefined, signUpForm());
+    mockBootstrap(async () => {
+      throw new Error("Failed query", { cause: { code: "23505" } });
+    });
+    await signUpAction(undefined, signUpForm());
+    mockBootstrap(async () => {
+      throw new Error("db down");
+    });
+    await signUpAction(undefined, signUpForm()).catch(() => undefined);
+    await signUpAction(undefined, signUpForm({ password: "short" }));
+    expect(recordActivity).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid username without creating an account", async () => {
@@ -127,9 +166,55 @@ describe("auth actions", () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 
-  it("signs out to the sign-in page", async () => {
-    await signOutAction();
-    expect(signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+  describe("signOutAction", () => {
+    beforeEach(() => {
+      auth.mockResolvedValue({ user: { id: "user-1" } });
+      identityRows.mockResolvedValue([{ id: "user-1", username: "alice" }]);
+      signOut.mockResolvedValue(undefined);
+    });
+
+    it("signs out without redirecting, records the canonical identity, then redirects", async () => {
+      await signOutAction();
+      expect(signOut).toHaveBeenCalledWith({ redirect: false });
+      expect(recordActivity).toHaveBeenCalledTimes(1);
+      expect(recordActivity).toHaveBeenCalledWith({
+        type: "sign_out",
+        actor: { id: "user-1", username: "alice" },
+      });
+      expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(recordActivity.mock.invocationCallOrder[0]);
+      expect(recordActivity.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(redirect).mock.invocationCallOrder[0]);
+      expect(redirect).toHaveBeenCalledWith("/sign-in");
+    });
+
+    it("records nothing and does not redirect when sign-out fails", async () => {
+      signOut.mockRejectedValue(new Error("session store down"));
+      await expect(signOutAction()).rejects.toThrow("session store down");
+      expect(recordActivity).not.toHaveBeenCalled();
+      expect(redirect).not.toHaveBeenCalled();
+    });
+
+    it("still signs out, with an unavailable actor, when the identity lookup fails", async () => {
+      identityRows.mockRejectedValue(new Error("db down"));
+      await signOutAction();
+      expect(signOut).toHaveBeenCalledWith({ redirect: false });
+      expect(recordActivity).toHaveBeenCalledWith({ type: "sign_out", actor: null });
+      expect(redirect).toHaveBeenCalledWith("/sign-in");
+    });
+
+    it("records an unavailable actor when the account row is gone", async () => {
+      identityRows.mockResolvedValue([]);
+      await signOutAction();
+      expect(recordActivity).toHaveBeenCalledWith({ type: "sign_out", actor: null });
+    });
+
+    it("signs out but records nothing when nobody was signed in", async () => {
+      auth.mockResolvedValue(null);
+      await signOutAction();
+      expect(identityRows).not.toHaveBeenCalled();
+      expect(signOut).toHaveBeenCalledWith({ redirect: false });
+      expect(recordActivity).not.toHaveBeenCalled();
+      expect(redirect).toHaveBeenCalledWith("/sign-in");
+    });
   });
 });
 
