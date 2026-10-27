@@ -3,7 +3,7 @@ title: "Activity filters and reader states"
 type: "feature"
 ticket: "7"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "0bd8d659871801fa013903ea47aad67f33573859"
 route: "full"
 route_source: "auto"

@@ -3,7 +3,7 @@ title: "Concurrent edit batching"
 type: "feature"
 ticket: "2"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "c146a6a278057b700cc6f500b1d5b9f2b5694cf6"
 route: "full"
 route_source: "auto"
