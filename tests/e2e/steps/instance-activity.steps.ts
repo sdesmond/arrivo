@@ -1,7 +1,17 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { and, eq, gte, isNull, type SQL } from "drizzle-orm";
-import { activityEvents, invitations, users } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
+import {
+  activityEvents,
+  days,
+  expenses,
+  invitations,
+  itineraryNotes,
+  reservations,
+  trips,
+  users,
+} from "../../../src/db/schema";
+import { installActivityRecorderFault, type ActivityRecorderFault } from "../activity-integration-fixture";
+import { withE2EDb, type E2EDb } from "../e2e-db";
 import {
   removeSeededActivity,
   seedActivityEvents,
@@ -10,7 +20,7 @@ import {
   type SeedActor,
 } from "../activity-seed";
 import { After, Given, When, Then } from "../fixtures";
-import type { ScenarioUserRecord } from "../scenario-fixture";
+import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 import { waitForServerActionResponse } from "../server-action";
 
 // Also uses "I am signed in as an instance {string}" and "instance management is not found" from
@@ -1037,4 +1047,231 @@ Then("Activity shows the trip ID but not the trip name", async ({ page, scenario
   const trip = scenario.currentTrip!;
   await expect(activityTable(page).locator("tbody tr").first()).toContainText(trip.id);
   await expect(page.locator("body")).not.toContainText(trip.name);
+});
+
+// ── Integrated scenarios: real edits, recorder failure and identity transitions ──────────────────────────────────
+// Privacy checks inspect the whole rendered document, so attributes and ARIA text are covered as well as visible text.
+
+const PRIVATE_ACTIVITY_VALUES = [
+  "Private first itinerary detail",
+  "Private second itinerary detail",
+  PRIVATE_EXPENSE_AMOUNT,
+  PRIVATE_RESERVATION_PROVIDER,
+];
+const FAULT_KEY = "activity:recorderFault";
+const FAULT_SINCE_KEY = "activity:faultInstalledAt";
+const FAULT_ITINERARY_KEY = "activity:faultItineraryId";
+const FAULT_NOTE = "Private fault itinerary detail";
+const FAULT_ITINERARY_NAME = "Existing Activity itinerary";
+const OTHER_ADMIN_SESSION_KEY = "activity:otherAdminSession";
+
+interface OtherAdminSession {
+  context: BrowserContext;
+  page: Page;
+}
+
+After(async ({ scenario }) => {
+  await scenario.getValue<ActivityRecorderFault>(FAULT_KEY)?.close();
+  await scenario.getValue<OtherAdminSession>(OTHER_ADMIN_SESSION_KEY)?.context.close();
+});
+
+Given("the Activity viewport is {int} by {int}", async ({ page }, width: number, height: number) => {
+  await page.setViewportSize({ width, height });
+});
+
+When("I filter Activity by my account, the {string} action and today", async ({ page, scenario }, action: string) => {
+  const user = await scenario.ensureCurrentUser();
+  await chooseOption(page, "Username", user.username);
+  await expect(page).toHaveURL(/[?&]actor=/);
+  await chooseOption(page, "Action", action);
+  await expect(page).toHaveURL(/[?&]type=/);
+  const today = await page.evaluate(() => new Intl.DateTimeFormat("en-CA").format(new Date()));
+  await page.locator("#activity-filter-from").fill(today);
+  await expect(page).toHaveURL(/[?&]from=/);
+  await page.locator("#activity-filter-to").fill(today);
+  await expect(page).toHaveURL(/[?&]to=/);
+  await waitForActivityIdle(page);
+});
+
+Then("Activity lists one ongoing summary for that trip with only approved metadata", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  const user = await scenario.ensureCurrentUser();
+  const rows = await activityRows(and(eq(activityEvents.tripId, trip.id), eq(activityEvents.type, "trip_updated")));
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toEqual({
+    id: expect.any(String),
+    type: "trip_updated",
+    startedAt: expect.any(Date),
+    endedAt: expect.any(Date),
+    actorId: user.id,
+    actorUsername: user.username,
+    targetId: null,
+    targetUsername: null,
+    tripId: trip.id,
+  });
+  expect(rows[0].endedAt.getTime()).toBeGreaterThan(rows[0].startedAt.getTime());
+  await page.reload();
+  await waitForActivityIdle(page);
+  const row = activityTable(page).locator("tbody tr");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText(trip.id);
+  const range = row.locator("td").nth(4);
+  await expect(range.locator("time")).toHaveCount(2);
+  await expect(range).toContainText(" to ");
+  await expect(range).toContainText("Ongoing");
+  const document = await page.content();
+  for (const privateValue of [trip.name, ...PRIVATE_ACTIVITY_VALUES]) expect(document).not.toContain(privateValue);
+});
+
+Then("the underlying private edits persist", async ({ scenario }) => {
+  const trip = scenario.currentTrip!;
+  const [notes, spending, bookings] = await withE2EDb((database) =>
+    Promise.all([
+      itineraryNoteContents(database, trip.id),
+      database.select().from(expenses).where(eq(expenses.tripId, trip.id)),
+      database.select().from(reservations).where(eq(reservations.tripId, trip.id)),
+    ])
+  );
+  expect(notes).toEqual(expect.arrayContaining(["Private first itinerary detail", "Private second itinerary detail"]));
+  expect(spending.map((expense) => expense.amount)).toContain(PRIVATE_EXPENSE_AMOUNT);
+  expect(bookings.map((booking) => booking.provider)).toContain(PRIVATE_RESERVATION_PROVIDER);
+});
+
+// A recorder failure is injected for this scenario's account only; see activity-integration-fixture.ts.
+Given("an existing itinerary exists for the Activity edit", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip("threeDayTrip", { trip: { name: FAULT_ITINERARY_NAME } });
+  scenario.setValue(FAULT_ITINERARY_KEY, trip.id);
+});
+
+Given("Activity recording fails for my account", async ({ scenario }) => {
+  const user = await scenario.ensureCurrentUser();
+  scenario.setValue(FAULT_SINCE_KEY, new Date());
+  scenario.setValue(FAULT_KEY, await installActivityRecorderFault(user.id));
+});
+
+async function itineraryNoteContents(database: E2EDb, tripId: string): Promise<string[]> {
+  const rows = await database
+    .select({ content: itineraryNotes.content })
+    .from(itineraryNotes)
+    .innerJoin(days, eq(days.id, itineraryNotes.dayId))
+    .where(eq(days.tripId, tripId));
+  return rows.map((row) => row.content);
+}
+
+// The account menu sits in the sidebar on desktop and behind the Profile tab on narrow viewports.
+When("I sign out from whichever account menu is showing", async ({ page, scenario }) => {
+  const sidebarTrigger = page.getByRole("button", { name: "Account menu", exact: true });
+  const trigger = (await sidebarTrigger.isVisible()) ? sidebarTrigger : page.getByRole("button", { name: "Profile" });
+  // The dev-only mock-date toggle overlaps the mobile tab bar, so focus + Enter avoids pointer interception.
+  await trigger.focus();
+  await trigger.press("Enter");
+  await page.getByRole("menuitem", { name: "Log out", exact: true }).click();
+  await page.waitForURL("**/sign-in");
+  scenario.signOut();
+});
+
+async function expandFirstDay(page: Page) {
+  const dayToggle = page
+    .locator("button[aria-expanded]")
+    .filter({ hasText: /\d+ stops/ })
+    .first();
+  if ((await dayToggle.getAttribute("aria-expanded")) === "false") await dayToggle.click();
+}
+
+When("I add a private note to the existing itinerary without waiting for Activity", async ({ page, scenario }) => {
+  const tripId = scenario.getValue<string>(FAULT_ITINERARY_KEY)!;
+  await page.goto(`/trips/${tripId}`);
+  await expandFirstDay(page);
+  await page
+    .getByRole("button", { name: /add a place/i })
+    .first()
+    .click();
+  await page.getByTitle("Add note").click();
+  await page.getByPlaceholder("Add a note…").fill(FAULT_NOTE);
+  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${tripId}`, timeoutMs: 15_000 });
+  await page.keyboard.press("Enter");
+  await response;
+});
+
+Then("the trip and the note persist after reload", async ({ page, scenario }) => {
+  const created = scenario.currentTrip!;
+  const itineraryId = scenario.getValue<string>(FAULT_ITINERARY_KEY)!;
+  const [stored] = await withE2EDb((database) => database.select().from(trips).where(eq(trips.id, created.id)));
+  expect(stored.name).toBe(ACTIVITY_TRIP_NAME);
+  expect(await withE2EDb((database) => itineraryNoteContents(database, itineraryId))).toContain(FAULT_NOTE);
+  await page.goto("/trips");
+  // The list renders a desktop and a mobile variant of each card; only one is visible at a time.
+  await expect(page.getByText(ACTIVITY_TRIP_NAME).locator("visible=true").first()).toBeVisible();
+  await page.goto(`/trips/${itineraryId}`);
+  await expandFirstDay(page);
+  await expect(page.getByText(FAULT_NOTE).first()).toBeVisible();
+});
+
+Then("every attempted Activity write was rejected and none was recorded", async ({ scenario }) => {
+  const fault = scenario.getValue<ActivityRecorderFault>(FAULT_KEY)!;
+  const user = await scenario.ensureCurrentUser();
+  const since = scenario.getValue<Date>(FAULT_SINCE_KEY)!;
+  // Sign-out, sign-in, trip creation and the itinerary edit each tried to record. The sequence advances before the
+  // trigger raises, so it counts attempts that the rollback hid.
+  await expect.poll(() => fault.attempts()).toBeGreaterThanOrEqual(4);
+  const recorded = await activityRows(and(eq(activityEvents.actorId, user.id), gte(activityEvents.startedAt, since)));
+  expect(recorded).toHaveLength(0);
+});
+
+// Identity transitions are observed by a second administrator who stays signed in across them.
+async function filterOtherAdminToStableAccount(page: Page, scenario: ScenarioFixtureContext) {
+  const original = scenario.getValue<RememberedIdentity>(ORIGINAL_IDENTITY_KEY)!;
+  const latest = scenario.getValue<string>("renamedUsername")!;
+  let session = scenario.getValue<OtherAdminSession>(OTHER_ADMIN_SESSION_KEY);
+  if (!session) {
+    const other = scenario.getValue<ScenarioUserRecord>(OTHER_ADMIN_KEY)!;
+    session = await scenario.openSecondSession(page);
+    scenario.setValue(OTHER_ADMIN_SESSION_KEY, session);
+    await scenario.signInAsUser(session.page, other.username);
+  }
+  await openActivity(session.page, {});
+  await chooseOption(session.page, "Username", latest);
+  await expect(session.page).toHaveURL(new RegExp(`[?&]actor=${original.id}`));
+  await waitForActivityIdle(session.page);
+}
+
+When("the other instance admin filters Activity to my stable account", async ({ page, scenario }) => {
+  await filterOtherAdminToStableAccount(page, scenario);
+});
+
+When("the other instance admin filters Activity to my stable account again", async ({ page, scenario }) => {
+  await filterOtherAdminToStableAccount(page, scenario);
+});
+
+Then("the Username filter lists my account once under its latest name", async ({ scenario }) => {
+  const original = scenario.getValue<RememberedIdentity>(ORIGINAL_IDENTITY_KEY)!;
+  const latest = scenario.getValue<string>("renamedUsername")!;
+  const { page } = scenario.getValue<OtherAdminSession>(OTHER_ADMIN_SESSION_KEY)!;
+  await page.getByRole("combobox", { name: "Username" }).click();
+  await expect(page.getByRole("option", { name: latest, exact: true })).toHaveCount(1);
+  await expect(page.getByRole("option", { name: original.username, exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+});
+
+async function expectFilteredActions(scenario: ScenarioFixtureContext, username: string, actions: string) {
+  const { page } = scenario.getValue<OtherAdminSession>(OTHER_ADMIN_SESSION_KEY)!;
+  // Events are written after their responses, so reload until each expected row has landed.
+  await expect(async () => {
+    await page.reload();
+    await waitForActivityIdle(page);
+    for (const action of actions.split(",").map((entry) => entry.trim())) {
+      await expect(
+        activityTable(page).locator("tbody tr").filter({ hasText: username }).filter({ hasText: action })
+      ).toHaveCount(1);
+    }
+  }).toPass();
+}
+
+Then("the filtered Activity shows {string} under my original username", async ({ scenario }, actions: string) => {
+  const original = scenario.getValue<RememberedIdentity>(ORIGINAL_IDENTITY_KEY)!;
+  await expectFilteredActions(scenario, original.username, actions);
+});
+
+Then("the filtered Activity shows {string} under my latest username", async ({ scenario }, actions: string) => {
+  await expectFilteredActions(scenario, scenario.getValue<string>("renamedUsername")!, actions);
 });
