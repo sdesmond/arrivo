@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { ActivityEventType, type ActivityQuery } from "@/data/types";
+import { ActivityEventType, type ActivityQuery, type ActivityRetentionReadResult } from "@/data/types";
 import { readActivityPage } from "@/lib/activity-queries";
 import { InstanceActivityViewer } from "@/components/arrivo/instance-activity-viewer";
 import { ActivityRetentionSettings } from "@/components/arrivo/activity-retention-settings";
 import { readActivityRetention } from "@/lib/activity-retention";
-import type { ActivityRetentionReadResult } from "@/data/types";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
