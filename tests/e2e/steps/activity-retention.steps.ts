@@ -7,10 +7,14 @@ import {
   holdSharedRetentionPolicy,
   type ActivityRetentionFixture,
 } from "../activity-retention-fixture";
+import { holdActivityMaintenance, type ActivityMaintenanceHold } from "../activity-integration-fixture";
 import { withE2EDb } from "../e2e-db";
 import { waitForServerActionResponse } from "../server-action";
 
+const MAINTENANCE_HOLD_KEY = "retentionMaintenanceHold";
+
 After(async ({ scenario }) => {
+  await scenario.getValue<ActivityMaintenanceHold>(MAINTENANCE_HOLD_KEY)?.release();
   await scenario.getValue<ActivityRetentionFixture>("retentionFixture")?.close();
   const expiredId = scenario.getValue<string>("retentionExpiredId");
   if (expiredId) await withE2EDb((database) => database.delete(activityEvents).where(eq(activityEvents.id, expiredId)));
@@ -146,4 +150,114 @@ Then("scenario-owned expired Activity is physically removed", async ({ scenario 
   await expect
     .poll(() => withE2EDb((database) => database.select().from(activityEvents).where(eq(activityEvents.id, id))))
     .toHaveLength(0);
+});
+
+// ── Integrated policy-save versus physical-cleanup outcomes ──────────────────────────────────────────────────
+
+Given("scenario-owned Activity aged {int} days exists", async ({ scenario }, days: number) => {
+  const user = await scenario.ensureCurrentUser();
+  const aged = new Date(Date.now() - days * 86_400_000);
+  const [event] = await withE2EDb((database) =>
+    database
+      .insert(activityEvents)
+      .values({ type: "sign_out", actorId: user.id, actorUsername: user.username, startedAt: aged, endedAt: aged })
+      .returning({ id: activityEvents.id })
+  );
+  scenario.setValue("retentionExpiredId", event.id);
+});
+
+When("Activity cleanup is blocked", async ({ scenario }) => {
+  scenario.setValue(MAINTENANCE_HOLD_KEY, await holdActivityMaintenance());
+});
+
+When("Activity cleanup is released", async ({ scenario }) => {
+  await scenario.getValue<ActivityMaintenanceHold>(MAINTENANCE_HOLD_KEY)!.release();
+});
+
+When("I confirm shorter Activity retention", async ({ page }) => {
+  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
+  await page.getByRole("button", { name: "Confirm retention change" }).click();
+  await response;
+});
+
+When("I confirm shorter Activity retention without waiting", async ({ page }) => {
+  await page.getByRole("button", { name: "Confirm retention change" }).click();
+});
+
+When("I refresh cleanup status", async ({ page }) => {
+  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
+  await page.getByRole("button", { name: "Refresh cleanup status" }).click();
+  await response;
+});
+
+Then("retention saved {int} days is acknowledged", async ({ page }, days: number) => {
+  await expect(page.getByRole("status").filter({ hasText: `Retention saved: ${days} days` })).toBeVisible();
+});
+
+Then("cleanup status is unavailable", async ({ page }) => {
+  await expect(page.getByText("Cleanup status unavailable.", { exact: true })).toBeVisible();
+});
+
+Then("cleanup status reports expired Activity pending cleanup", async ({ page }) => {
+  await expect(page.getByText(/^Expired activity pending cleanup\. Checked at /)).toBeVisible();
+});
+
+Then("cleanup status eventually reports no expired Activity", async ({ page }) => {
+  await page.goto("/admin/activity");
+  // Other scenarios may hold short-lived expired rows of their own, so ask again until none are left.
+  await expect(async () => {
+    const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
+    await page.getByRole("button", { name: "Refresh cleanup status" }).click();
+    await response;
+    await expect(page.getByText(/^No expired activity found at /)).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+});
+
+async function retentionEventCount(userId: string): Promise<number> {
+  const rows = await withE2EDb((database) =>
+    database
+      .select({ id: activityEvents.id })
+      .from(activityEvents)
+      .where(and(eq(activityEvents.actorId, userId), eq(activityEvents.type, "retention_changed")))
+  );
+  return rows.length;
+}
+
+Then(
+  "Activity retention is still {int} days with {int} retention change events",
+  async ({ scenario }, days: number, events: number) => {
+    const user = await scenario.ensureCurrentUser();
+    expect((await withE2EDb((database) => database.select().from(instanceState)))[0].activityRetentionDays).toBe(days);
+    // A wrongly scheduled event lands after the response, so give it time before asserting absence.
+    if (events === 0) await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(await retentionEventCount(user.id)).toBe(events);
+  }
+);
+
+Then("the aged Activity row still exists", async ({ scenario }) => {
+  const id = scenario.getValue<string>("retentionExpiredId")!;
+  expect(
+    await withE2EDb((database) => database.select().from(activityEvents).where(eq(activityEvents.id, id)))
+  ).toHaveLength(1);
+});
+
+Then("Activity retention is saved as {int} days with the aged row still stored", async ({ scenario }, days: number) => {
+  const id = scenario.getValue<string>("retentionExpiredId")!;
+  expect((await withE2EDb((database) => database.select().from(instanceState)))[0].activityRetentionDays).toBe(days);
+  expect(
+    await withE2EDb((database) => database.select().from(activityEvents).where(eq(activityEvents.id, id)))
+  ).toHaveLength(1);
+});
+
+Then("the aged Activity row is still readable in history", async ({ page, scenario }) => {
+  const user = await scenario.ensureCurrentUser();
+  // Filtered to this account so the 60-day-old row is on the first page of a shared database's history.
+  await page.goto(`/admin/activity?actor=${user.id}`);
+  await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
+  const rows = page
+    .getByRole("table", { name: "Recent instance activity" })
+    .getByRole("row")
+    .filter({ hasText: user.username })
+    .filter({ hasText: "Sign-out" });
+  await expect(rows).toHaveCount(1);
 });

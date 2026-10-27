@@ -48,6 +48,49 @@ Feature: Activity retention and physical cleanup
     And my instance administrator role is removed
     And I save Activity retention
     Then retention reports denied authority
+    And Activity retention is still 90 days with 0 retention change events
+    When I refresh cleanup status
+    Then cleanup status is unavailable
+    When I request instance management at "/admin/activity"
+    Then instance management is not found
+
+  Scenario: Failed shortening keeps policy, history and event count
+    Given I am signed in as an instance "admin"
+    And Activity retention starts at 90 days
+    And scenario-owned Activity aged 60 days exists
+    When I open the instance Activity page
+    And I choose Activity retention of 30 days
+    And I request shorter Activity retention
+    And retention action requests fail
+    And I confirm shorter Activity retention without waiting
+    Then retention reports failure and keeps 30 days selected
+    And Activity retention is still 90 days with 0 retention change events
+    And the aged Activity row still exists
+
+  Scenario Outline: Saved shortening is visible before blocked cleanup deletes on <device>
+    Given the Activity viewport is <width> by <height>
+    And I am signed in as an instance "admin"
+    And Activity retention starts at 90 days
+    And scenario-owned Activity aged 60 days exists
+    When I open the instance Activity page
+    And Activity cleanup is blocked
+    And I choose Activity retention of 30 days
+    And I request shorter Activity retention
+    And I confirm shorter Activity retention
+    Then retention saved 30 days is acknowledged
+    And cleanup status is unavailable
+    When I refresh cleanup status
+    Then cleanup status reports expired Activity pending cleanup
+    And Activity retention is saved as 30 days with the aged row still stored
+    And the aged Activity row is still readable in history
+    When Activity cleanup is released
+    And I request the dynamic trips page
+    Then scenario-owned expired Activity is physically removed
+    And cleanup status eventually reports no expired Activity
+    Examples:
+      | device  | width | height |
+      | desktop | 1280  | 800    |
+      | mobile  | 375   | 812    |
 
   Scenario: Dynamic requests clean up without new Activity writes
     Given I am signed in as an instance "admin"

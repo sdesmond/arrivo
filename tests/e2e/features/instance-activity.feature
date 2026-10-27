@@ -256,3 +256,60 @@ Feature: Instance activity
     And the Activity table scrolls by keyboard inside its labeled region
     And every Activity filter and page control is at least 44 pixels tall
     And Activity shows the trip ID but not the trip name
+
+  Scenario Outline: Real edits merge into one filtered ongoing summary on <device>
+    Given the Activity viewport is <width> by <height>
+    And I am signed in as an instance "admin"
+    And a private itinerary exists for Activity
+    When I add two private itinerary notes for Activity
+    And I add a private expense for Activity
+    And I add a private reservation for Activity
+    And I open the instance Activity page
+    And I filter Activity by my account, the "Updated trip" action and today
+    Then Activity lists one ongoing summary for that trip with only approved metadata
+    And the underlying private edits persist
+    And the page does not scroll horizontally
+    Examples:
+      | device  | width | height |
+      | desktop | 1280  | 800    |
+      | mobile  | 375   | 812    |
+
+  Scenario Outline: Recorder persistence failure leaves sign-in and trip edits intact on <device>
+    Given the Activity viewport is <width> by <height>
+    And I am signed in as an instance "admin"
+    And an existing itinerary exists for the Activity edit
+    And Activity recording fails for my account
+    When I sign out from whichever account menu is showing
+    And I sign in with my password
+    Then I should be redirected to the trips page
+    When I create a private trip for Activity
+    And I add a private note to the existing itinerary without waiting for Activity
+    Then the trip and the note persist after reload
+    And every attempted Activity write was rejected and none was recorded
+    Examples:
+      | device  | width | height |
+      | desktop | 1280  | 800    |
+      | mobile  | 375   | 812    |
+
+  Scenario: Real rename and self-deletion keep one stable filterable identity
+    Given I am signed in as an instance "admin"
+    And another completed instance admin exists
+    And I remember my current username
+    When I open my profile page
+    And I navigate to the Identity section
+    And I change my username to a new one and save
+    And I sign out
+    And I sign in with my password
+    Then I should be redirected to the trips page
+    When the other instance admin filters Activity to my stable account
+    Then the Username filter lists my account once under its latest name
+    And the filtered Activity shows "Sign-in, Changed username" under my original username
+    And the filtered Activity shows "Sign-out, Sign-in" under my latest username
+    When I open my profile page
+    And I delete my account
+    Then I should be redirected to the sign-in page
+    And my account has 1 recorded "account_deleted" events
+    When the other instance admin filters Activity to my stable account again
+    Then the Username filter lists my account once under its latest name
+    And the filtered Activity shows "Sign-in, Changed username" under my original username
+    And the filtered Activity shows "Sign-out, Sign-in, Deleted own account" under my latest username
