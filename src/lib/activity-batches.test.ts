@@ -41,10 +41,13 @@ const transaction = {
   select: vi.fn(() => ({
     from: () => ({
       where: () => ({
-        orderBy: async () => {
-          calls.push("select");
-          return rows;
-        },
+        orderBy: () => ({
+          for: async (mode: string) => {
+            expect(mode).toBe("update");
+            calls.push("select");
+            return rows;
+          },
+        }),
       }),
     }),
   })),

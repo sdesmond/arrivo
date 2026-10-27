@@ -27,9 +27,10 @@ export function seedActor(username: string): SeedActor {
   return { id: randomUUID(), username };
 }
 
-/** A whole-minute instant in 2025 that no other scenario shares, so a +/-1 minute range isolates the scenario. */
+/** A random past minute 1–20 days ago, safely inside every retention policy, including day-hour range fixtures. */
 export function uniqueSeedMinute(): Date {
-  const day = Date.UTC(2025, 0, 1) + randomInt(0, 300) * DAY_MS;
+  const now = new Date();
+  const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - randomInt(2, 20) * DAY_MS;
   return new Date(day + randomInt(0, 1440) * 60_000);
 }
 

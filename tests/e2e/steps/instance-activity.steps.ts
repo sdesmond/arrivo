@@ -805,14 +805,14 @@ Then("the ongoing seeded row is listed above the finished one", async ({ page, s
 
 When("I refresh the Activity list", async ({ page }) => {
   const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
-  await page.getByRole("button", { name: "Refresh" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await response;
   await waitForActivityIdle(page);
 });
 
 When("I click Refresh and await the response", async ({ page }) => {
   const response = waitForServerActionResponse(page, { pathIncludes: "/admin/activity" });
-  await page.getByRole("button", { name: "Refresh" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await response;
 });
 
@@ -949,7 +949,7 @@ When("Activity read requests recover", async ({ page }) => {
 });
 
 When("I click Refresh without waiting for the response", async ({ page }) => {
-  await page.getByRole("button", { name: "Refresh" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
 });
 
 Then("Activity keeps the earlier rows with a stale notice and Retry", async ({ page, scenario }) => {
@@ -980,7 +980,7 @@ Then("Activity shows only that I no longer have administrator access", async ({ 
   await expect(page.getByRole("alert").filter({ hasText: "You no longer have administrator access." })).toBeVisible();
   await expect(activityTable(page)).toHaveCount(0);
   await expect(page.getByRole("group", { name: "Activity filters" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Refresh" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(0);
   const text = (await page.locator("body").innerText()).toString();
   for (const tripId of seedOf(scenario).listedTripIds) expect(text).not.toContain(tripId);
   expect(text).not.toContain(seedOf(scenario).actor.username);
@@ -1025,7 +1025,7 @@ Then("every Activity filter and page control is at least 44 pixels tall", async 
     page.getByRole("combobox", { name: "Action" }),
     page.locator("#activity-filter-from"),
     page.locator("#activity-filter-to"),
-    page.getByRole("button", { name: "Refresh" }),
+    page.getByRole("button", { name: "Refresh", exact: true }),
   ];
   for (const control of controls) {
     const box = await control.boundingBox();
