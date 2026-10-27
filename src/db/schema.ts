@@ -63,8 +63,12 @@ export const instanceState = pgTable(
   {
     id: boolean("id").primaryKey().default(true),
     initializedAt: timestamp("initialized_at", { withTimezone: true }),
+    activityRetentionDays: integer("activity_retention_days").notNull().default(90),
   },
-  (table) => [check("instance_state_singleton", sql`${table.id}`)]
+  (table) => [
+    check("instance_state_singleton", sql`${table.id}`),
+    check("instance_state_activity_retention_days", sql`${table.activityRetentionDays} in (30, 90, 180, 365)`),
+  ]
 );
 
 export const accounts = pgTable(

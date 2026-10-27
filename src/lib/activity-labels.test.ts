@@ -3,6 +3,12 @@ import { ActivityEventType } from "@/data/types";
 import { ACTIVITY_TYPE_OPTIONS, EVENT_LABELS } from "./activity-labels";
 
 describe("activity labels", () => {
+  it("labels saved retention changes without private metadata", () => {
+    expect(EVENT_LABELS[ActivityEventType.RetentionChanged]).toEqual({
+      type: "Administration",
+      action: "Changed activity retention",
+    });
+  });
   it("labels every event type", () => {
     for (const type of Object.values(ActivityEventType)) {
       expect(EVENT_LABELS[type].action).not.toBe("");

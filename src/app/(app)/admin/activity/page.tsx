@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { ActivityEventType, type ActivityQuery } from "@/data/types";
 import { readActivityPage } from "@/lib/activity-queries";
 import { InstanceActivityViewer } from "@/components/arrivo/instance-activity-viewer";
+import { ActivityRetentionSettings } from "@/components/arrivo/activity-retention-settings";
+import { readActivityRetention } from "@/lib/activity-retention";
+import type { ActivityRetentionReadResult } from "@/data/types";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -31,6 +34,13 @@ export default async function AdminActivityPage({ searchParams }: { searchParams
   const query = parseQuery(await searchParams);
   const result = await readActivityPage(db, user.id!, query);
   if (result.status === "forbidden") notFound();
+  let retention: ActivityRetentionReadResult;
+  try {
+    retention = await readActivityRetention(db, user.id!);
+  } catch {
+    retention = { status: "unavailable" };
+  }
+  if (retention.status === "forbidden") notFound();
   return (
     <section
       aria-labelledby="admin-activity-heading"
@@ -40,6 +50,7 @@ export default async function AdminActivityPage({ searchParams }: { searchParams
       <h2 id="admin-activity-heading" className="font-semibold text-fg">
         Activity
       </h2>
+      <ActivityRetentionSettings initial={retention} />
       <InstanceActivityViewer initialQuery={query} initialPage={result} />
     </section>
   );

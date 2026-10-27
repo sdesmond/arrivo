@@ -78,7 +78,8 @@ export async function mergeActivityInterval(
           gte(activityEvents.endedAt, from)
         )
       )
-      .orderBy(asc(activityEvents.startedAt), asc(activityEvents.id));
+      .orderBy(asc(activityEvents.startedAt), asc(activityEvents.id))
+      .for("update");
 
     if (connected.length === 0) {
       await transaction.insert(activityEvents).values({

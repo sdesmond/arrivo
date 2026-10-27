@@ -43,6 +43,13 @@
       "when": 1792983687364,
       "tag": "0005_familiar_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793057586619,
+      "tag": "0006_handy_living_lightning",
+      "breakpoints": true
     }
   ]
 }

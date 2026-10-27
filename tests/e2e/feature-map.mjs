@@ -30,6 +30,13 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("activity-retention", [
+    "src/lib/activity-retention.ts",
+    "src/lib/activity-maintenance.ts",
+    "src/components/arrivo/activity-retention-settings.tsx",
+    "src/app/(app)/admin/activity/**",
+    "tests/e2e/activity-retention-fixture.ts",
+  ]),
   entry("instance-users", [
     "src/components/arrivo/instance-users-list.tsx",
     "src/components/arrivo/change-role-dialog.tsx",

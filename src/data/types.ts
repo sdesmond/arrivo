@@ -54,6 +54,7 @@ export interface BootstrapAccountValues {
 export type BootstrapResult = { ok: true; userId: string; username: string } | { ok: false; reason: "closed" };
 
 export const ActivityEventType = {
+  RetentionChanged: "retention_changed",
   SignIn: "sign_in",
   /** The target is the attempted account, never an authenticated actor. */
   SignInFailed: "sign_in_failed",
@@ -151,6 +152,23 @@ export interface ActivityPage {
 
 export type ActivityPageResult = ({ status: "ok" } & ActivityPage) | { status: "forbidden" };
 export type ActivityLoadResult = ActivityPageResult | { status: "unavailable" };
+
+export const ACTIVITY_RETENTION_DAYS = [30, 90, 180, 365] as const;
+export type ActivityRetentionDays = (typeof ACTIVITY_RETENTION_DAYS)[number];
+export interface ActivityRetentionInspection {
+  days: ActivityRetentionDays;
+  expired: boolean;
+  checkedAt: string;
+}
+export type ActivityRetentionReadResult =
+  | ({ status: "ok" } & ActivityRetentionInspection)
+  | { status: "forbidden" | "unavailable" };
+export type ActivityRetentionSaveResult =
+  | { status: "ok"; days: ActivityRetentionDays }
+  | { status: "invalid" | "stale" | "forbidden" | "unavailable" };
+export type ActivityRetentionCommitResult =
+  | { status: "ok"; days: ActivityRetentionDays; changed: boolean; actor: ActivityIdentity }
+  | { status: "invalid" | "stale" | "forbidden" };
 
 export interface InstanceUserSummary {
   id: string;

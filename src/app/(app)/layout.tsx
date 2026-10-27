@@ -9,9 +9,11 @@ import { requireUser } from "@/lib/auth-helpers";
 import { getBrowserMapboxToken } from "@/lib/map-helpers";
 import { getUserById } from "@/lib/queries";
 import { getMyPendingInvitations } from "@/lib/invitations";
+import { scheduleActivityMaintenance } from "@/lib/activity-maintenance";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireUser();
+  scheduleActivityMaintenance();
   const [user, pendingInvitations, isAdmin] = await Promise.all([
     getUserById(session.id!),
     getMyPendingInvitations(session.id!),

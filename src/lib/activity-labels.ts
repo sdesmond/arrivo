@@ -2,6 +2,7 @@ import { ActivityEventType } from "@/data/types";
 
 /** Client-safe display labels; the Activity table and the action filter share them. */
 export const EVENT_LABELS: Record<ActivityEventType, { type: string; action: string }> = {
+  [ActivityEventType.RetentionChanged]: { type: "Administration", action: "Changed activity retention" },
   [ActivityEventType.SignIn]: { type: "Authentication", action: "Sign-in" },
   [ActivityEventType.SignInFailed]: { type: "Authentication", action: "Failed sign-in" },
   [ActivityEventType.SignOut]: { type: "Authentication", action: "Sign-out" },
