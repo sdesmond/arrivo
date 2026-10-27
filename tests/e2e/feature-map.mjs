@@ -36,6 +36,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/activity-retention-settings.tsx",
     "src/app/(app)/admin/activity/**",
     "tests/e2e/activity-retention-fixture.ts",
+    "tests/e2e/activity-integration-fixture.ts",
   ]),
   entry("instance-users", [
     "src/components/arrivo/instance-users-list.tsx",
@@ -61,6 +62,7 @@ export const FEATURE_MAP = [
     "src/lib/activity-dates.ts",
     "src/lib/activity-labels.ts",
     "tests/e2e/activity-seed.ts",
+    "tests/e2e/activity-integration-fixture.ts",
     "src/lib/activity.ts",
     "src/lib/activity-queries.ts",
     "src/lib/authorize-credentials.ts",
